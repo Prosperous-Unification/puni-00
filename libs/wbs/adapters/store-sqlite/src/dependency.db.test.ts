@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { messagesOf } from './constraint';
@@ -13,9 +13,10 @@ import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -24,11 +25,11 @@ let dbPath: string;
 let db: Drizzle;
 let repo: DependencyRepository;
 let ownerId: string;
-let projectId: string;
+let workPackageId: string;
 let workItems: WorkItemRepository;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
@@ -38,6 +39,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-dependency-'));
   dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
+  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
   db = openDrizzle(dbPath);
   repo = new DependencyRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -47,16 +49,16 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
-  projectId = crypto.randomUUID();
-  await new ProjectRepository(db, OPEN).create(
-    projectRow({
-      id: projectId,
-      ownerId,
+  workPackageId = crypto.randomUUID();
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({
+      id: workPackageId,
+      projectId: 'fixture-project',
     }),
     [
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -77,7 +79,7 @@ async function addWorkItem(name: string): Promise<string> {
   await workItems.insert(
     workItemRow({
       id,
-      projectId,
+      workPackageId,
       position: 10,
       name,
     }),
@@ -89,19 +91,19 @@ async function addWorkItem(name: string): Promise<string> {
 
 const edge = (predecessorId: string, successorId: string) => ({
   id: crypto.randomUUID(),
-  projectId,
+  workPackageId,
   predecessorId,
   successorId,
 });
 
 describe('DependencyRepository', () => {
-  it('stores an edge and reads it back for the project', async () => {
+  it('stores an edge and reads it back for the work package', async () => {
     const a = await addWorkItem('Strip');
     const b = await addWorkItem('Sand');
 
     await repo.add(edge(a, b), wrote());
 
-    expect(await repo.listByProject(projectId)).toMatchObject([
+    expect(await repo.listByWorkPackage(workPackageId)).toMatchObject([
       { predecessorId: a, successorId: b },
     ]);
   });
@@ -115,7 +117,7 @@ describe('DependencyRepository', () => {
     await repo.add(edge(a, b), wrote());
     await repo.add(edge(a, b), wrote());
 
-    expect(await repo.listByProject(projectId)).toHaveLength(1);
+    expect(await repo.listByWorkPackage(workPackageId)).toHaveLength(1);
   });
 
   it('keeps the opposite direction as a different edge', async () => {
@@ -127,7 +129,7 @@ describe('DependencyRepository', () => {
     await repo.add(edge(a, b), wrote());
     await repo.add(edge(b, a), wrote());
 
-    expect(await repo.listByProject(projectId)).toHaveLength(2);
+    expect(await repo.listByWorkPackage(workPackageId)).toHaveLength(2);
   });
 
   it('removes one edge and leaves the rest', async () => {
@@ -139,7 +141,7 @@ describe('DependencyRepository', () => {
 
     await repo.remove(a, b, wrote());
 
-    expect(await repo.listByProject(projectId)).toMatchObject([
+    expect(await repo.listByWorkPackage(workPackageId)).toMatchObject([
       { predecessorId: b, successorId: c },
     ]);
   });
@@ -153,7 +155,7 @@ describe('DependencyRepository', () => {
 
     await repo.removeAllFor([b], wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   /**
@@ -192,7 +194,9 @@ describe('DependencyRepository', () => {
     // `b` and `c` do not start at zero and what this test is about is what the
     // *removal* moves.
     const revisionsNow = async (): Promise<Map<string, number>> =>
-      new Map((await workItems.listByProject(projectId)).map((row) => [row.id, row.revision]));
+      new Map(
+        (await workItems.listByWorkPackage(workPackageId)).map((row) => [row.id, row.revision]),
+      );
     const before = await revisionsNow();
 
     const statements: string[] = [];
@@ -211,7 +215,7 @@ describe('DependencyRepository', () => {
     // subtree's size. A loop pays all three per row. (`begin`/`commit` are not
     // logged by drizzle's hook, so every entry here is a statement of ours.)
     expect(statements).toHaveLength(3);
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
 
     const after = await revisionsNow();
     const moved = (id: string): number => {
@@ -262,6 +266,6 @@ describe('a work item deleted by a release that knows nothing about edges', () =
     // Exactly what the old release runs: no edge cleanup first.
     await new WorkItemRepository(db, OPEN).remove([a], [], wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 });

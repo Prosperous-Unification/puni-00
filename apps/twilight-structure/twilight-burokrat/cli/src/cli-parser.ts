@@ -24,8 +24,8 @@ import {
   relocationParser,
   scenarioParser,
   templateParser,
-  workflowBindingParser,
 } from './policy-parser';
+import { workflowBindingParser, workflowBindingUsage } from './workflow-binding-parser';
 
 const programName = 'twilight-burokrat';
 
@@ -693,7 +693,11 @@ export function readInvocation<T extends Parser>(
       onExit: (code) => {
         throw code === 0
           ? new Printed()
-          : new UsageRefusal(refusalOf(grammar.commands, args, errorText));
+          : new UsageRefusal(
+              args[0] === 'validate' && args[1] === 'workflow-binding'
+                ? 'invalid_arguments: arguments: ' + workflowBindingUsage
+                : refusalOf(grammar.commands, args, errorText),
+            );
       },
       // Without these two `run` reads the terminal's colour support and width, so help and
       // refusals would vary per terminal.

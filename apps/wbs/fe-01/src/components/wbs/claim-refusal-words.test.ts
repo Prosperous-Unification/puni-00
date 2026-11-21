@@ -10,7 +10,7 @@ const refusedClaim = (refusal: Record<string, unknown>): WbsRequestError =>
   // test the operation-indexed union's spelling.
   new WbsRequestError({
     kind: 'refusal',
-    operation: 'postApiProjectsByIdCommands',
+    operation: 'postApiWorkPackagesByIdCommands',
     refusal: { at: 0, kind: 'claimWorkItem', ...refusal },
   } as unknown as WbsProblem);
 

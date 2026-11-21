@@ -1,6 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { openWorkPackageActions } from './ordinary-context';
+import { expect, type Page, test } from './ordinary-test';
 
 /**
  * The Tailwind integration and the scoped reset, measured by the browser that
@@ -59,7 +59,7 @@ async function seedChip(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
@@ -74,7 +74,7 @@ async function seedChip(page: Page, _account: string): Promise<void> {
 }
 
 /**
- * Waits until React has mounted authenticated chrome and opened its project-name control.
+ * Waits until React has mounted authenticated chrome and opened its work-package-name control.
  *
  * `goto` resolves on the document's load event, and this app renders from
  * `main.tsx` after it — so a `document.querySelector` straight afterwards races
@@ -90,13 +90,14 @@ async function seedChip(page: Page, _account: string): Promise<void> {
 async function openChromeControl(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   // Through the ✎, which is what this measures: a chrome control opened by
-  // somebody rather than the one a create arms for itself. `createProject`
+  // somebody rather than the one a create arms for itself. `createWorkPackage`
   // leaves that armed rename before the button it clicks below exists again —
   // without it this waited sixty seconds for a `Rename` a create had just
   // taken off the bar.
-  await createProject(page);
-  await page.getByRole('button', { name: 'Rename project' }).click();
-  await expect(page.getByLabel('Project name')).toBeVisible();
+  await createWorkPackage(page);
+  await openWorkPackageActions(page);
+  await page.getByRole('button', { name: 'Rename work package' }).click();
+  await expect(page.getByLabel('Work package name')).toBeVisible();
 }
 
 test.describe('Tailwind, in the browser', () => {
@@ -153,7 +154,7 @@ test.describe('Tailwind, in the browser', () => {
     await page.goto('/');
     await openChromeControl(page);
 
-    const families = await page.getByLabel('Project name').evaluate((field) => {
+    const families = await page.getByLabel('Work package name').evaluate((field) => {
       const around = field.parentElement;
       if (around === null) throw new Error('the input has no chrome surroundings to measure');
       return {

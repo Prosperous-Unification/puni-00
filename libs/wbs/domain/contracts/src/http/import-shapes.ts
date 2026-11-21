@@ -4,8 +4,7 @@ import { type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { capacityLimitCrossed, limitCrossed } from './organization-limits-shapes';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
-import { planDocumentRequest } from './plan-document-shapes';
-import { responseSchema } from './schema-shape';
+import { requestSchema, responseSchema } from './schema-shape';
 import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 
 const createdNames = type({
@@ -19,7 +18,7 @@ const createdNames = type({
 
 export const importSummary = responseSchema(
   type({
-    projectId: 'string',
+    workPackageId: 'string',
     rows: 'number.integer >= 0',
     created: createdNames,
     solutionRef: "'kept' | 'left-off' | 'none'",
@@ -29,17 +28,17 @@ export const importSummary = responseSchema(
 const malformedImport = responseSchema(
   type({
     error:
-      "'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_project_start' | 'work_item_takes_one_type'",
+      "'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_work_package_start' | 'work_item_takes_one_type'",
     path: 'string',
     detail: 'string | null',
   }),
 );
 
-/** Restores one archival plan as a new caller-owned project. */
-export const importProject = defineEndpointShape({
+/** Restores one archival plan as a new caller-owned work package. */
+export const importWorkPackage = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/import',
-  operationId: 'postApiProjectsImport',
+  path: '/api/work-packages/import',
+  operationId: 'postApiWorkPackagesImport',
   // Proof: removing write scope made the mounted valid reader import return 201;
   // moving policy admission after parsing made its malformed request return 400 invalid_body.
   policies: [
@@ -47,11 +46,50 @@ export const importProject = defineEndpointShape({
     { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
     { kind: 'identity', require: 'write-scope' },
   ],
-  body: planDocumentRequest,
+  // Proof: widening defineMissing to unknown made the mounted malformed flag return500 instead of422 (catalogue-import-fault-wire-flag-v1).
+  body: requestSchema(
+    type({
+      projectId: type('string > 0').matching(/\S/),
+      document: 'unknown',
+      'defineMissing?': 'boolean',
+    }),
+  ),
   bodyMedia: ['application/json'],
   responses: [{ kind: 'json', status: 201, schema: importSummary }],
   refusals: [
+    {
+      status: 422,
+      schema: responseSchema(type({ error: "'retired_step_codes'", codes: 'string[]' })),
+    },
+    {
+      status: 422,
+      schema: responseSchema(type({ error: "'unknown_step_codes'", codes: 'string[]' })),
+    },
+    {
+      kind: 'import-refusal',
+      status: 404,
+      schema: responseSchema(
+        type({ error: "'unknown_step'", path: 'string', detail: 'string | null' }),
+      ),
+    },
+    {
+      kind: 'import-refusal',
+      status: 422,
+      schema: responseSchema(
+        type({ error: "'step_not_resolved'", path: 'string', detail: 'string | null' }),
+      ),
+    },
+    {
+      kind: 'import-refusal',
+      status: 409,
+      schema: responseSchema(
+        type({ error: "'type_conflict'", path: 'string', detail: 'string | null' }),
+      ),
+    },
     stepBlockageInactiveRefusal,
+    { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
+    { status: 422, schema: responseSchema(type({ error: "'project_required' | 'invalid_body'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     { kind: 'import-refusal', status: 400, schema: malformedImport },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     {
@@ -107,11 +145,15 @@ export const importProject = defineEndpointShape({
       status: 409,
       schema: responseSchema(type({ error: "'capacity_limit'", ...capacityLimitCrossed })),
     },
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'import_settings_conflict'", key: "'budgetFactor'" })),
+    },
   ],
   document: {
-    summary: 'Import an archival plan as a new project.',
+    summary: 'Import an archival plan as a new work package.',
     description:
-      'Reads plan document versions 1 to 11. Version 10 requires resources, capacities and demands. Version 11 distinguishes file-local internal endpoints from stable external identities and accepts explicit externalMappings; external authoring remains inactive until deployment activation. Version 9 requires direct stepBlockages facts; earlier versions refuse nonempty blockage facts and normalize empty collections. Versions 1 to 5 import every work item with ' +
+      'Imports archival documents into the addressed project. Step codes reuse active catalogue definitions; missing project defaults require project.manage_settings. Unknown codes answer 422 unknown_step_codes unless defineMissing is explicitly true; it defaults to false and never reactivates retired definitions. File units and allowances apply only to the new package. Version 10 requires resources, capacities and demands. Version 11 distinguishes file-local internal endpoints from stable external identities and accepts explicit externalMappings; external authoring remains inactive until deployment activation. Version 9 requires direct stepBlockages facts; earlier versions refuse nonempty blockage facts and normalize empty collections. Versions 1 to 5 import every work item with ' +
       'readiness and hold null. From version 6 every work item must carry both `readiness` ' +
       '(`draft`, `ready` or null) and `hold` (`on_hold`, `blocked` or null); a missing field, ' +
       'a value outside either vocabulary, or either one on a parent is refused `invalid_body` ' +

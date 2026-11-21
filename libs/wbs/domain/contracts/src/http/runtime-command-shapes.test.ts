@@ -99,9 +99,9 @@ function _compileBoundary() {
 
 test('write receipt ordering reports the exact invalid index after complete field validation', async () => {
   const receipt = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ledgerId: 'ledger',
-    scope: { organizationId: 'org', projectId: 'project', personId: 'person' },
+    scope: { organizationId: 'org', workPackageId: 'work_package', personId: 'person' },
     commandId: 'command',
     requestDigest: 'a'.repeat(64),
     actorId: 'actor',
@@ -191,9 +191,9 @@ for (const length of [0, 200, 201]) {
         String(length),
       async () => {
         const receipt = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           ledgerId: 'ledger',
-          scope: { organizationId: 'org', projectId: 'project', personId: 'person' },
+          scope: { organizationId: 'org', workPackageId: 'work_package', personId: 'person' },
           commandId: 'command',
           requestDigest: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           actorId: 'actor',

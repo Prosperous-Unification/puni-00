@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type PlanCommandRoutes,
-  PROJECT_COMMAND_ROUTES,
   WORK_ITEM_COMMAND_ROUTES,
+  WORK_PACKAGE_COMMAND_ROUTES,
 } from './contract';
 import { createPlanCommands } from './plan-commands.feature';
 
@@ -42,15 +42,12 @@ function recordingRoutes(): {
       setTimezone: (...args) => answer('setTimezone', args),
       setTeamCapacity: (...args) => answer('setTeamCapacity', args),
       setPriorityBands: (...args) => answer('setPriorityBands', args),
-      addStep: (...args) => answer('addStep', args),
-      renameStep: (...args) => answer('renameStep', args),
       setStepAllowance: (...args) => answer('setStepAllowance', args),
       setStepUnit: (...args) => answer('setStepUnit', args),
-      removeStep: (...args) => answer('removeStep', args),
       createWorkItem: (...args) => answer('createWorkItem', args),
       arrangeBySchedule: (...args) => answer('arrangeBySchedule', args),
-      freezeProject: (...args) => answer('freezeProject', args),
-      unfreezeProject: (...args) => answer('unfreezeProject', args),
+      freezeWorkPackage: (...args) => answer('freezeWorkPackage', args),
+      unfreezeWorkPackage: (...args) => answer('unfreezeWorkPackage', args),
       addTypedDependency: (...args) => answer('addTypedDependency', args),
       updateTypedDependency: (...args) => answer('updateTypedDependency', args),
       removeTypedDependency: (...args) => answer('removeTypedDependency', args),
@@ -90,10 +87,10 @@ function recordingRoutes(): {
   };
 }
 
-describe('the plan commands of one project', () => {
-  it('sends every project command to the project it was bound to, with the rest as given', () => {
+describe('the plan commands of one work package', () => {
+  it('sends every work package command to the work package it was bound to, with the rest as given', () => {
     const { routes, calls, answers } = recordingRoutes();
-    const commands = createPlanCommands({ projectId: 'p1', routes });
+    const commands = createPlanCommands({ workPackageId: 'p1', routes });
     const sent = [
       commands.undo(),
       commands.redo(),
@@ -108,15 +105,12 @@ describe('the plan commands of one project', () => {
       commands.setTimezone('Europe/Kyiv'),
       commands.setTeamCapacity('team-1', 3),
       commands.setPriorityBands([{ startsAt: 1, label: 'Critical', defaultValue: 10 }]),
-      commands.addStep('Review'),
-      commands.renameStep('step-1', 'Build'),
       commands.setStepAllowance('step-1', 30),
       commands.setStepUnit('step-1', 'minutes'),
-      commands.removeStep('step-1', true),
       commands.createWorkItem({ parentId: null, afterId: 'w0', name: 'Paint' }),
       commands.arrangeBySchedule(),
-      commands.freezeProject(),
-      commands.unfreezeProject(),
+      commands.freezeWorkPackage(),
+      commands.unfreezeWorkPackage(),
       commands.addTypedDependency(
         { scope: 'whole', workItemId: 'w1' },
         { scope: 'whole', workItemId: 'w2' },
@@ -147,15 +141,12 @@ describe('the plan commands of one project', () => {
       ['setTimezone', 'p1', 'Europe/Kyiv'],
       ['setTeamCapacity', 'p1', 'team-1', 3],
       ['setPriorityBands', 'p1', [{ startsAt: 1, label: 'Critical', defaultValue: 10 }]],
-      ['addStep', 'p1', 'Review'],
-      ['renameStep', 'p1', 'step-1', 'Build'],
       ['setStepAllowance', 'p1', 'step-1', 30],
       ['setStepUnit', 'p1', 'step-1', 'minutes'],
-      ['removeStep', 'p1', 'step-1', true],
       ['createWorkItem', 'p1', { parentId: null, afterId: 'w0', name: 'Paint' }],
       ['arrangeBySchedule', 'p1'],
-      ['freezeProject', 'p1'],
-      ['unfreezeProject', 'p1'],
+      ['freezeWorkPackage', 'p1'],
+      ['unfreezeWorkPackage', 'p1'],
       [
         'addTypedDependency',
         'p1',
@@ -177,14 +168,14 @@ describe('the plan commands of one project', () => {
     ]);
     // The route's own promise, not a wrapper: a refusal reaches the gesture as
     // the object be-01's client threw.
-    PROJECT_COMMAND_ROUTES.forEach((route, index) => {
+    WORK_PACKAGE_COMMAND_ROUTES.forEach((route, index) => {
       expect(sent[index], route).toBe(answers.get(route));
     });
   });
 
   it('passes every work-item command through unchanged, leaving out what the caller left out', () => {
     const { routes, calls, answers } = recordingRoutes();
-    const commands = createPlanCommands({ projectId: 'p1', routes });
+    const commands = createPlanCommands({ workPackageId: 'p1', routes });
     const sent = [
       commands.patchWorkItem('w1', { name: 'Paint the fence' }),
       commands.setStatus('w1', 'done', '2026-09-24'),
@@ -270,10 +261,10 @@ describe('the plan commands of one project', () => {
 
   it('reaches each route when it is called, not when the commands were built', () => {
     const { routes, calls } = recordingRoutes();
-    const commands = createPlanCommands({ projectId: 'p1', routes });
+    const commands = createPlanCommands({ workPackageId: 'p1', routes });
     const later: string[] = [];
-    routes.freezeProject = (projectId) => {
-      later.push(`freeze:${projectId}`);
+    routes.freezeWorkPackage = (workPackageId) => {
+      later.push(`freeze:${workPackageId}`);
       return Promise.resolve();
     };
     routes.patchWorkItem = (id) => {
@@ -281,7 +272,7 @@ describe('the plan commands of one project', () => {
       return Promise.resolve();
     };
 
-    void commands.freezeProject();
+    void commands.freezeWorkPackage();
     void commands.patchWorkItem('w1', { name: 'Paint' });
 
     expect(later).toEqual(['freeze:p1', 'patch:w1']);

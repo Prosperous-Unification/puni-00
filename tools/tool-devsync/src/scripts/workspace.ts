@@ -278,6 +278,7 @@ export function readWorkspace(requestedRoot: string): Workspace {
     );
     // Proof: c31c-workspace-git-status; injected child.exitCode !== 0 || child.stderr.length !== 0 → child.stderr.length !== 0 failed `refuses controlled Git boundary status instead of accepting a partial observation`; restoration passed. Draft only: require a reached named assertion failure and restored pass; qualify the actual first assertion before credit.
     // Proof: c31c-workspace-git-warning; injected child.exitCode !== 0 || child.stderr.length !== 0 → child.exitCode !== 0 failed `refuses controlled Git boundary warning instead of accepting a partial observation`; restoration passed. Draft only: require a reached named assertion failure and restored pass; qualify the actual first assertion before credit.
+    // Proof: V112's exact copied status/warning omissions each fail their owning required-rejection case outside the restricted sandbox. The same mutants falsely pass inside on earlier rev-parse EPERM; observed diagnostics and both environments are retained in verification-native-output-environment-20261121.json.
     if (child.exitCode !== 0 || child.stderr.length !== 0)
       throw new Error(
         'script workspace Git observation failed: ' +

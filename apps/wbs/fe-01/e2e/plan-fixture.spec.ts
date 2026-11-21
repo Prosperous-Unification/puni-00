@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-
+import { openOrdinaryContext } from './ordinary-context';
+import { expect, test } from './ordinary-test';
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 const identity = (testName: string, worker: number) => ({
@@ -12,7 +12,7 @@ test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'wait' }));
 
 test('resolves a predecessor in an earlier chunk', async ({ page }, testInfo) => {
   const chunkSizes: number[] = [];
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: { kind: string }[] };
     if (request.commands.every((command) => command.kind === 'createWorkItem'))
       chunkSizes.push(request.commands.length);
@@ -46,9 +46,9 @@ test('implicit recipe order appends rows', async ({ page }, testInfo) => {
     identity('implicit-order', testInfo.workerIndex),
   );
   const tree = fixtureSuccess(
-    'getApiProjectsByIdWork-items',
-    await fixtureClient(page)['getApiProjectsByIdWork-items']({
-      params: { id: seeded.projectId },
+    'getApiWorkPackagesByIdWork-items',
+    await fixtureClient(page)['getApiWorkPackagesByIdWork-items']({
+      params: { id: seeded.workPackageId },
     }),
   ).body;
   expect(tree.workItems.map(({ id }) => id)).toEqual([
@@ -75,7 +75,7 @@ test('verifies explicit sibling insertions in their stored order', async ({ page
 
 test('implicit recipe order crosses a chunk boundary', async ({ page }, testInfo) => {
   const creationBatchSizes: number[] = [];
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: { kind: string }[] };
     if (request.commands.every((command) => command.kind === 'createWorkItem'))
       creationBatchSizes.push(request.commands.length);
@@ -91,9 +91,9 @@ test('implicit recipe order crosses a chunk boundary', async ({ page }, testInfo
     identity('implicit-cross', testInfo.workerIndex),
   );
   const tree = fixtureSuccess(
-    'getApiProjectsByIdWork-items',
-    await fixtureClient(page)['getApiProjectsByIdWork-items']({
-      params: { id: seeded.projectId },
+    'getApiWorkPackagesByIdWork-items',
+    await fixtureClient(page)['getApiWorkPackagesByIdWork-items']({
+      params: { id: seeded.workPackageId },
     }),
   ).body;
   expect(tree.workItems.map(({ id }) => id)).toEqual(rows.map(({ ref }) => seeded.rowIds[ref]));
@@ -128,12 +128,12 @@ test('chunks 201 directory identities and verifies all links', async ({ page }, 
   expect(Object.keys(seeded.tagIds)).toEqual(tags.map(({ ref }) => ref));
 });
 
-test('refuses swapped successful tag identities before project commands', async ({
+test('refuses swapped successful tag identities before work package commands', async ({
   page,
 }, testInfo) => {
-  let projectCommands = 0;
-  await page.route('**/api/projects/*/commands', async (route) => {
-    projectCommands += 1;
+  let workPackageCommands = 0;
+  await page.route('**/api/work-packages/*/commands', async (route) => {
+    workPackageCommands += 1;
     await route.continue();
   });
   await page.route('**/api/directory/commands', async (route) => {
@@ -161,7 +161,7 @@ test('refuses swapped successful tag identities before project commands', async 
       identity('swapped-tag-ids', testInfo.workerIndex),
     ),
   ).rejects.toThrow(/stored tag identity for first-tag/);
-  expect(projectCommands).toBe(0);
+  expect(workPackageCommands).toBe(0);
 });
 
 for (const fault of ['empty', 'missing', 'wrong', 'duplicate'] as const) {
@@ -170,11 +170,11 @@ for (const fault of ['empty', 'missing', 'wrong', 'duplicate'] as const) {
   }, testInfo) => {
     let treeReads = 0;
     let authoredBatches = 0;
-    await page.route('**/api/projects/*/work-items', async (route) => {
+    await page.route('**/api/work-packages/*/work-items', async (route) => {
       treeReads += 1;
       await route.continue();
     });
-    await page.route('**/api/projects/*/commands', async (route) => {
+    await page.route('**/api/work-packages/*/commands', async (route) => {
       const request = route.request().postDataJSON() as { commands: { kind: string }[] };
       if (request.commands.every((command) => command.kind === 'createWorkItem')) {
         await route.continue();
@@ -204,7 +204,7 @@ for (const fault of ['empty', 'missing', 'wrong', 'duplicate'] as const) {
         { name: `Authored ${fault}`, tags: [{ ref: 'tag', name: 'Tag' }], rows },
         identity(`authored-${fault}`, testInfo.workerIndex),
       ),
-    ).rejects.toThrow(/postApiProjectsByIdCommands returned|result at/);
+    ).rejects.toThrow(/postApiWorkPackagesByIdCommands returned|result at/);
     expect(authoredBatches).toBe(1);
     expect(treeReads).toBe(0);
   });
@@ -217,11 +217,11 @@ test('an unresolved earlier-chunk ref is refused before a tree sample', async ({
   // be-01 refused command 0 as createWorkItem/unknown_ref before the tree GET.
   let creationBatch = 0;
   let postRefusalTreeReads = 0;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     if (creationBatch >= 2) postRefusalTreeReads += 1;
     await route.continue();
   });
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
     if (request.commands.every((command) => command['kind'] === 'createWorkItem')) {
       creationBatch += 1;
@@ -255,9 +255,9 @@ test('an unresolved earlier-chunk ref is refused before a tree sample', async ({
 });
 
 test('duplicate recipe refs fail before a write request', async ({ page }, testInfo) => {
-  let projectWrites = 0;
-  await page.route('**/api/projects', async (route) => {
-    if (route.request().method() === 'POST') projectWrites += 1;
+  let workPackageWrites = 0;
+  await page.route('**/api/work-packages', async (route) => {
+    if (route.request().method() === 'POST') workPackageWrites += 1;
     await route.continue();
   });
   await expect(
@@ -273,13 +273,13 @@ test('duplicate recipe refs fail before a write request', async ({ page }, testI
       identity('duplicate', testInfo.workerIndex),
     ),
   ).rejects.toThrow('duplicate recipe row ref: same');
-  expect(projectWrites).toBe(0);
+  expect(workPackageWrites).toBe(0);
 });
 
 test('an unavailable predecessor fails before a write request', async ({ page }, testInfo) => {
-  let projectWrites = 0;
-  await page.route('**/api/projects', async (route) => {
-    if (route.request().method() === 'POST') projectWrites += 1;
+  let workPackageWrites = 0;
+  await page.route('**/api/work-packages', async (route) => {
+    if (route.request().method() === 'POST') workPackageWrites += 1;
     await route.continue();
   });
   let refusalMessage = '';
@@ -296,14 +296,14 @@ test('an unavailable predecessor fails before a write request', async ({ page },
     if (!(error instanceof Error)) throw error;
     refusalMessage = error.message;
   }
-  expect(projectWrites).toBe(0);
+  expect(workPackageWrites).toBe(0);
   expect(refusalMessage).toContain('recipe row row follows unavailable ref: missing');
 });
 
 test('a duplicate tag ref fails before a write request', async ({ page }, testInfo) => {
-  let projectWrites = 0;
-  await page.route('**/api/projects', async (route) => {
-    if (route.request().method() === 'POST') projectWrites += 1;
+  let workPackageWrites = 0;
+  await page.route('**/api/work-packages', async (route) => {
+    if (route.request().method() === 'POST') workPackageWrites += 1;
     await route.continue();
   });
   let refusalMessage = '';
@@ -324,14 +324,14 @@ test('a duplicate tag ref fails before a write request', async ({ page }, testIn
     if (!(error instanceof Error)) throw error;
     refusalMessage = error.message;
   }
-  expect(projectWrites).toBe(0);
+  expect(workPackageWrites).toBe(0);
   expect(refusalMessage).toContain('duplicate recipe tag ref: same');
 });
 
 test('an unknown row tag ref fails before a write request', async ({ page }, testInfo) => {
-  let projectWrites = 0;
-  await page.route('**/api/projects', async (route) => {
-    if (route.request().method() === 'POST') projectWrites += 1;
+  let workPackageWrites = 0;
+  await page.route('**/api/work-packages', async (route) => {
+    if (route.request().method() === 'POST') workPackageWrites += 1;
     await route.continue();
   });
   let refusalMessage = '';
@@ -348,19 +348,19 @@ test('an unknown row tag ref fails before a write request', async ({ page }, tes
     if (!(error instanceof Error)) throw error;
     refusalMessage = error.message;
   }
-  expect(projectWrites).toBe(0);
+  expect(workPackageWrites).toBe(0);
   expect(refusalMessage).toContain('unknown recipe tag ref: missing');
 });
 
 test('setup refuses a real backend refusal', async ({ page }, testInfo) => {
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     await route.continue({
       url: route
         .request()
         .url()
         .replace(
-          /\/api\/projects\/[^/]+\/commands$/,
-          '/api/projects/missing-fixture-project/commands',
+          /\/api\/work-packages\/[^/]+\/commands$/,
+          '/api/work-packages/missing-fixture-work-package/commands',
         ),
     });
   });
@@ -370,11 +370,11 @@ test('setup refuses a real backend refusal', async ({ page }, testInfo) => {
       { name: 'Refused', rows: [{ ref: 'row', name: 'Refused' }] },
       identity('refusal', testInfo.workerIndex),
     ),
-  ).rejects.toThrow(/postApiProjectsByIdCommands refused.*not_found/);
+  ).rejects.toThrow(/postApiWorkPackagesByIdCommands refused.*not_found/);
 });
 
 test('setup refuses a missing row id at the malformed response', async ({ page }, testInfo) => {
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const response = await route.fetch();
     const answer = (await response.json()) as { results: Record<string, unknown>[] };
     delete answer.results[0]?.['id'];
@@ -393,7 +393,7 @@ test('verification catches one successfully omitted estimate', async ({ page }, 
   // Proof: one real setEstimate was replaced by clearEstimate while the tag
   // write and fully correlated batch returned 200; the tree read named row/Dev.
   let omittedEstimates = 0;
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
     const commands = request.commands.map((command) =>
       command['kind'] === 'setEstimate'
@@ -437,7 +437,7 @@ test('verification catches one successfully dropped directory link', async ({ pa
   // Proof: one real patchWorkItem was replaced by the same patch with no tag
   // ids; the correlated HTTP200 preceded the tree's missing tag ids on `row`.
   let omittedLinks = 0;
-  await page.route('**/api/projects/*/commands', async (route) => {
+  await page.route('**/api/work-packages/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
     const commands = request.commands.map((command) =>
       command['kind'] === 'patchWorkItem' ? { ...command, patch: { tagIds: [] } } : command,
@@ -469,9 +469,13 @@ test('simultaneous recipes keep identical logical labels disjoint', async ({
 }, testInfo) => {
   // Proof: removing worker/test identity from fixtureName made the concurrent
   // real directory writes collide on Shared logical tag instead of both seeding.
-  const leftContext = await browser.newContext();
-  const rightContext = await browser.newContext();
+  const closes: (() => Promise<void>)[] = [];
+  let primary: { cause: unknown } | null = null;
   try {
+    const leftContext = await openOrdinaryContext(browser);
+    closes.push(() => leftContext.close());
+    const rightContext = await openOrdinaryContext(browser);
+    closes.push(() => rightContext.close());
     const leftPage = await leftContext.newPage();
     const rightPage = await rightContext.newPage();
     const recipe = {
@@ -483,12 +487,294 @@ test('simultaneous recipes keep identical logical labels disjoint', async ({
       seedPlan(leftPage, recipe, identity('concurrent-left', testInfo.workerIndex)),
       seedPlan(rightPage, recipe, identity('concurrent-right', testInfo.workerIndex)),
     ]);
-    expect(left.projectName).not.toBe(right.projectName);
-    expect(left.projectId).not.toBe(right.projectId);
+    expect(left.workPackageName).not.toBe(right.workPackageName);
+    expect(left.workPackageId).not.toBe(right.workPackageId);
     expect(left.rowIds['row']).not.toBe(right.rowIds['row']);
     expect(left.tagIds['tag']).not.toBe(right.tagIds['tag']);
     await Promise.all([openSeededPlan(leftPage, left), openSeededPlan(rightPage, right)]);
-  } finally {
-    await Promise.all([leftContext.close(), rightContext.close()]);
+  } catch (cause) {
+    primary = { cause };
   }
+  const cleanup: unknown[] = [];
+  for (const close of closes.reverse()) {
+    try {
+      await close();
+    } catch (cause) {
+      cleanup.push(cause);
+    }
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError(
+        [primary.cause, ...cleanup],
+        'Concurrent recipes and context close failed',
+        { cause: primary.cause },
+      );
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0)
+    throw new AggregateError(cleanup, 'Concurrent recipe context close failed');
 });
+
+import {
+  clientFromShapes,
+  createWorkPackage as createWorkPackageShape,
+  listWorkPackages,
+  readPasswordSession,
+} from '@wbs/contracts';
+
+import { readOrdinaryFixture } from './ordinary-context';
+import { pageTransport } from './plan-fixture';
+
+test('observes protected page transport headers and validated creation body', async ({ page }) => {
+  const fixture = readOrdinaryFixture();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const observations: {
+    organization: string | null;
+    semantics: string | null;
+    trace: string | null;
+    body: unknown;
+  }[] = [];
+  await page.route('**/api/work-packages', async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      observations.push({
+        organization: await request.headerValue('X-WBS-Expected-Organization'),
+        semantics: await request.headerValue('X-WBS-Dependency-Semantics'),
+        trace: await request.headerValue('X-Ordinary-Fixture-Trace'),
+        body: request.postDataJSON(),
+      });
+    }
+    await route.continue();
+  });
+  const client = clientFromShapes(
+    [createWorkPackageShape] as const,
+    pageTransport(page, fixture.organizationId),
+  );
+  const reply = await client.postApiWorkPackages({
+    headers: { 'X-Ordinary-Fixture-Trace': 'protected-request' },
+    body: { projectId: fixture.projectId, name: 'Observed protected transport' },
+  });
+  expect(reply.kind).toBe('success');
+  expect(observations).toEqual([
+    {
+      organization: fixture.organizationId,
+      semantics: 'cross-project-dependencies-v1',
+      trace: 'protected-request',
+      body: { projectId: fixture.projectId, name: 'Observed protected transport' },
+    },
+  ]);
+});
+
+test('observes exempt page transport without a dependency claim', async ({ page }) => {
+  const fixture = readOrdinaryFixture();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const claims: (string | null)[] = [];
+  await page.route('**/api/auth/me', async (route) => {
+    claims.push(await route.request().headerValue('X-WBS-Dependency-Semantics'));
+    await route.continue();
+  });
+  const client = clientFromShapes(
+    [readPasswordSession] as const,
+    pageTransport(page, fixture.organizationId),
+  );
+  expect((await client.getApiAuthMe({})).kind).toBe('success');
+  expect(claims).toEqual([null]);
+});
+
+test('observes page transport forwarding the validated listing query', async ({ page }) => {
+  const fixture = readOrdinaryFixture();
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const queries: [string, string][][] = [];
+  await page.route('**/api/work-packages*', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/work-packages' && route.request().method() === 'GET')
+      queries.push([...url.searchParams.entries()]);
+    await route.continue();
+  });
+  const client = clientFromShapes(
+    [listWorkPackages] as const,
+    pageTransport(page, fixture.organizationId),
+  );
+  expect(
+    (await client.getApiWorkPackages({ query: { q: 'transport ?+ /&= marker', limit: '7' } })).kind,
+  ).toBe('success');
+  expect(queries).toEqual([
+    [
+      ['q', 'transport ?+ /&= marker'],
+      ['limit', '7'],
+    ],
+  ]);
+});
+
+import { recordWorkPackageOpen } from '@wbs/contracts';
+
+import type { JSHandle } from './ordinary-test';
+import { type PageResponseState, retainPageResponse } from './plan-fixture';
+
+for (const kind of [
+  'unexpected-unfinished',
+  'cancel-failure',
+  'malformed-json',
+  'body-failure',
+  'bodyless-204',
+  'null-200',
+  'opaque-zero',
+  'pending-cancel',
+] as const) {
+  test(`page response handoff preserves ${kind}`, async ({ page }) => {
+    let counter: JSHandle<{ pulls: number; cancels: number }> | undefined;
+    let owned: JSHandle<PageResponseState> | undefined;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let disposed = false;
+    let primary: { cause: unknown } | null = null;
+    try {
+      const counts = await page.evaluateHandle(() => ({ pulls: 0, cancels: 0 }));
+      counter = counts;
+      const responseHandle = await page.evaluateHandle(
+        ({ counts, kind }): PageResponseState => {
+          let response: Response;
+          if (kind === 'opaque-zero') response = Response.error();
+          else if (kind === 'null-200') response = new Response(null, { status: 200 });
+          else if (kind === 'bodyless-204') response = new Response(null, { status: 204 });
+          else {
+            const stream = new ReadableStream<Uint8Array>(
+              {
+                pull(controller) {
+                  counts.pulls += 1;
+                  if (kind === 'body-failure') throw new Error('browser body failed');
+                  if (kind === 'malformed-json') {
+                    controller.enqueue(new TextEncoder().encode('{broken'));
+                    controller.close();
+                    return;
+                  }
+                  return new Promise<void>(() => {
+                    // This pull intentionally never settles; cancellation must complete its waiting reader.
+                  });
+                },
+                cancel() {
+                  counts.cancels += 1;
+                  if (kind === 'cancel-failure') throw new Error('browser cancel failed');
+                },
+              },
+              { highWaterMark: 0 },
+            );
+            response = new Response(stream, {
+              status: kind === 'unexpected-unfinished' || kind === 'cancel-failure' ? 502 : 200,
+            });
+          }
+          return { response, reader: null, reading: null };
+        },
+        { counts, kind },
+      );
+      owned = responseHandle;
+      const client = clientFromShapes([listWorkPackages, recordWorkPackageOpen] as const, () =>
+        retainPageResponse(responseHandle),
+      );
+      if (kind === 'pending-cancel') {
+        const response = await retainPageResponse(responseHandle);
+        if (response.body === null) throw new Error('Pending read fixture requires a body');
+        const currentReader = response.body.getReader();
+        reader = currentReader;
+        const reading = currentReader.read();
+        await expect.poll(async () => (await counts.jsonValue()).pulls).toBe(1);
+        await currentReader.cancel();
+        expect(await reading).toEqual({ done: true, value: undefined });
+        expect(await counts.jsonValue()).toEqual({ pulls: 1, cancels: 1 });
+      } else if (kind === 'cancel-failure') {
+        await expect(client.getApiWorkPackages({})).rejects.toThrow('browser cancel failed');
+        expect(await counts.jsonValue()).toEqual({ pulls: 0, cancels: 1 });
+      } else if (kind === 'unexpected-unfinished') {
+        expect(await client.getApiWorkPackages({})).toMatchObject({
+          kind: 'failure',
+          failure: { code: 'unexpected_status', status: 502 },
+        });
+        expect(await counts.jsonValue()).toEqual({ pulls: 0, cancels: 1 });
+      } else if (kind === 'malformed-json') {
+        expect(await client.getApiWorkPackages({})).toMatchObject({
+          kind: 'failure',
+          failure: { code: 'invalid_response', reason: 'json', status: 200 },
+        });
+        expect(await counts.jsonValue()).toEqual({ pulls: 1, cancels: 0 });
+      } else if (kind === 'body-failure') {
+        expect(await client.getApiWorkPackages({})).toMatchObject({
+          kind: 'failure',
+          failure: { code: 'transport', cause: { message: 'browser body failed' } },
+        });
+        expect(await counts.jsonValue()).toEqual({ pulls: 1, cancels: 0 });
+      } else if (kind === 'bodyless-204') {
+        expect(
+          await client.postApiWorkPackagesByIdOpened({ params: { id: 'bodyless-control' } }),
+        ).toMatchObject({ kind: 'success', representation: 'empty', status: 204 });
+        expect(await counts.jsonValue()).toEqual({ pulls: 0, cancels: 0 });
+      } else if (kind === 'null-200') {
+        expect(await client.getApiWorkPackages({})).toMatchObject({
+          kind: 'failure',
+          failure: { code: 'invalid_response', reason: 'json', status: 200 },
+        });
+        expect(await counts.jsonValue()).toEqual({ pulls: 0, cancels: 0 });
+      } else {
+        expect(await client.getApiWorkPackages({})).toMatchObject({
+          kind: 'failure',
+          failure: { code: 'unexpected_status', status: 0 },
+        });
+        expect(await counts.jsonValue()).toEqual({ pulls: 0, cancels: 0 });
+      }
+      // Installed Playwright reports a removed handle dispatcher as target-closed.
+      // Independent page and handle calls distinguish disposal from closing their context.
+      expect(await page.evaluate(() => 'page still live')).toBe('page still live');
+      expect(await counts.evaluate(() => 'counter still live')).toBe('counter still live');
+      await expect(responseHandle.evaluate(() => true)).rejects.toThrow(
+        'Target page, context or browser has been closed',
+      );
+      expect(await page.evaluate(() => 'page still live')).toBe('page still live');
+      expect(await counts.evaluate(() => 'counter still live')).toBe('counter still live');
+      disposed = true;
+    } catch (cause) {
+      primary = { cause };
+    }
+    const cleanup: unknown[] = [];
+    if (reader !== undefined) {
+      try {
+        await reader.cancel();
+      } catch (cause) {
+        cleanup.push(cause);
+      }
+      try {
+        reader.releaseLock();
+      } catch (cause) {
+        cleanup.push(cause);
+      }
+    }
+    if (owned !== undefined && !disposed) {
+      try {
+        await owned.dispose();
+      } catch (cause) {
+        cleanup.push(cause);
+      }
+    }
+    if (counter !== undefined) {
+      try {
+        await counter.dispose();
+      } catch (cause) {
+        cleanup.push(cause);
+      }
+    }
+    if (primary !== null) {
+      if (cleanup.length !== 0)
+        throw new AggregateError(
+          [primary.cause, ...cleanup],
+          'Response control and cleanup failed',
+          { cause: primary.cause },
+        );
+      throw primary.cause;
+    }
+    if (cleanup.length !== 0) throw new AggregateError(cleanup, 'Response control cleanup failed');
+  });
+}

@@ -20,26 +20,26 @@ export interface StubReply {
 export type StubReplies = Readonly<Record<string, StubReply>>;
 
 /**
- * A long space and project name with no break opportunity (underscores, no
+ * A long space and work package name with no break opportunity (underscores, no
  * hyphen or space): what a phone has to wrap rather than widen for.
  */
 export const LONG_NAME = 'quarterly_infrastructure_migration_and_decommissioning_programme';
 
-const space = (id: string, name: string, projectCount: number) => ({
+const space = (id: string, name: string, workPackageCount: number) => ({
   id,
   name,
   virtual: false,
-  projectCount,
+  workPackageCount,
   revision: 1,
   createdById: 'u1',
   createdAt: 1,
 });
 
-const project = (id: string, name: string, restricted = false) => ({
+const workPackage = (id: string, name: string, restricted = false) => ({
   id,
   abbreviation: id.toUpperCase(),
   name,
-  ownerId: 'u1',
+  projectId: 'fixture-project',
   restricted,
   estimateMethod: 'pert',
   depReach: 'whole-item',
@@ -52,7 +52,7 @@ const project = (id: string, name: string, restricted = false) => ({
   optimizationEnabled: false,
   scheduleEngine: 'fast',
   scheduleObjective: 'pri',
-  ownerName: 'ada',
+  createdByName: 'ada',
   lastOpenedAt: null,
 });
 
@@ -63,7 +63,7 @@ const rolledUp = (
   done: number,
   leaves: number,
 ) => ({
-  kind: 'rolled_up',
+  kind: 'rolled_up' as const,
   dates: { startsOn, endsOn },
   finalTotal,
   status: done === leaves ? 'done' : 'in_progress',
@@ -85,20 +85,20 @@ const rolledUp = (
   waitingForPerson: 0,
   waitingForCapacity: 0,
   displayed: 'fast',
-  projectRevision: 0,
+  workPackageRevision: 0,
   seq: 1,
 });
 
 const leaf = (
-  projectId: string,
-  projectName: string,
+  workPackageId: string,
+  workPackageName: string,
   workItemId: string,
   number: string,
   name: string,
   lateBy: number | null,
 ) => ({
-  projectId,
-  projectName,
+  workPackageId,
+  workPackageName,
   position: 10,
   workItemId,
   number,
@@ -112,13 +112,42 @@ const leaf = (
   step: { id: 'dev', name: 'Dev' },
 });
 
-/** The space `s`'s projects, in order. */
-export const SPACE_PROJECTS = [
-  project('p1', 'Website relaunch'),
-  project('p2', LONG_NAME),
-  project('p3', 'Billing', true),
-  project('p4', 'Mobile app'),
+/** The space `s`'s work packages, in order. */
+export const SPACE_WORK_PACKAGES = [
+  workPackage('p1', 'Website relaunch'),
+  workPackage('p2', LONG_NAME),
+  workPackage('p3', 'Billing', true),
+  workPackage('p4', 'Mobile app'),
 ];
+
+const projectFigures = [
+  rolledUp('2026-10-01', '2026-11-20', 34, 5, 12),
+  rolledUp('2026-10-15', '2027-01-30', 120, 2, 40),
+  { kind: 'unavailable' as const },
+  rolledUp('2026-09-01', '2026-10-10', 18, 9, 9),
+];
+
+const projectRollUps = SPACE_WORK_PACKAGES.map((entry, index) => {
+  const rollUp = projectFigures.at(index);
+  if (rollUp === undefined) throw new Error('drawing fixture lacks package figures');
+  return {
+    project: { id: `project-${entry.id}`, name: `Project ${entry.name}` },
+    position: (index + 1) * 10,
+    rollUp:
+      rollUp.kind === 'unavailable'
+        ? rollUp
+        : {
+            kind: rollUp.kind,
+            dates: rollUp.dates,
+            finalTotal: rollUp.finalTotal,
+            status: rollUp.status,
+            counts: rollUp.counts,
+            waitingForPerson: rollUp.waitingForPerson,
+            waitingForCapacity: rollUp.waitingForCapacity,
+          },
+    workPackages: [{ workPackage: { ...entry, projectId: `project-${entry.id}` }, rollUp }],
+  };
+});
 
 /** The writable default: every control each page offers is drawn. */
 export const WRITABLE_REPLIES: StubReplies = {
@@ -140,20 +169,24 @@ export const WRITABLE_REPLIES: StubReplies = {
   'GET /api/spaces/s': {
     status: 200,
     body: {
-      space: space('s', 'Launch', SPACE_PROJECTS.length),
+      space: {
+        ...space('s', 'Launch', SPACE_WORK_PACKAGES.length),
+        projectCount: SPACE_WORK_PACKAGES.length,
+      },
       writable: true,
-      rows: SPACE_PROJECTS.map((entry, index) => ({ project: entry, position: (index + 1) * 10 })),
+      personIds: [],
+      serviceTeamIds: [],
+      projects: SPACE_WORK_PACKAGES.map((entry, index) => ({
+        project: { id: `project-${entry.id}`, name: `Project ${entry.name}` },
+        workPackages: [{ ...entry, projectId: `project-${entry.id}` }],
+        position: (index + 1) * 10,
+      })),
     },
   },
   'GET /api/spaces/s/roll-ups': {
     status: 200,
     body: {
-      rollUps: {
-        p1: rolledUp('2026-10-01', '2026-11-20', 34, 5, 12),
-        p2: rolledUp('2026-10-15', '2027-01-30', 120, 2, 40),
-        p3: { kind: 'unavailable' },
-        p4: rolledUp('2026-09-01', '2026-10-10', 18, 9, 9),
-      },
+      projects: projectRollUps,
     },
   },
   'GET /api/spaces/s/in-progress': {
@@ -168,15 +201,50 @@ export const WRITABLE_REPLIES: StubReplies = {
       unavailable: ['p3'],
     },
   },
+  'GET /api/work-packages': {
+    status: 200,
+    body: {
+      workPackages: [
+        ...SPACE_WORK_PACKAGES,
+        workPackage('p5', 'Hiring plan'),
+        workPackage('p6', 'Office move'),
+      ],
+    },
+  },
   'GET /api/projects': {
     status: 200,
     body: {
-      projects: [...SPACE_PROJECTS, project('p5', 'Hiring plan'), project('p6', 'Office move')],
+      projects: [
+        ...SPACE_WORK_PACKAGES.map((entry, index) => ({
+          id: `project-${entry.id}`,
+          name: `Project ${entry.name}`,
+          organizationId: 'org',
+          spaceId: 's',
+          spacePosition: (index + 1) * 10,
+          revision: 0,
+          createdAt: 1,
+          updatedAt: null,
+          createdBy: 'u1',
+          workPackageCount: 1,
+        })),
+        ...['Hiring plan', 'Office move'].map((name, index) => ({
+          id: `candidate-${String(index)}`,
+          name,
+          organizationId: 'org',
+          spaceId: null,
+          spacePosition: null,
+          revision: 0,
+          createdAt: 1,
+          updatedAt: null,
+          createdBy: 'u1',
+          workPackageCount: 0,
+        })),
+      ],
     },
   },
   'POST /api/spaces/s/projects': { status: 201, body: { position: 50 } },
-  'POST /api/spaces/s/projects/p2/move': { status: 200, body: { position: 15 } },
-  'DELETE /api/spaces/s/projects/p4': { status: 204 },
+  'POST /api/spaces/s/projects/project-p2/move': { status: 200, body: { position: 15 } },
+  'DELETE /api/spaces/s/projects/project-p4': { status: 204 },
 };
 
 /**
@@ -190,6 +258,20 @@ export async function stubSpacesApi(page: Page, overrides: StubReplies = {}): Pr
     const reply = replies.get(`${route.request().method()} ${url.pathname}`);
     if (reply === undefined) {
       await route.fulfill({ status: 404, json: { error: 'not_found' } });
+      return;
+    }
+    if (
+      route.request().method() === 'GET' &&
+      url.pathname === '/api/spaces/s/roll-ups' &&
+      !Object.hasOwn(overrides, 'GET /api/spaces/s/roll-ups')
+    ) {
+      const addressed = url.searchParams.get('projectIds');
+      if (addressed === null) throw new Error('drawing request omitted project IDs');
+      const requested = new Set(addressed.split(','));
+      await route.fulfill({
+        status: 200,
+        json: { projects: projectRollUps.filter((group) => requested.has(group.project.id)) },
+      });
       return;
     }
     await (reply.body === undefined

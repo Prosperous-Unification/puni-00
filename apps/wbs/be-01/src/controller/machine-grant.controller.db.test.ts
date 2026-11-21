@@ -12,6 +12,7 @@ import {
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   revokeMachineCredential,
 } from '../testing/machine-credential-fixture';
@@ -45,7 +46,7 @@ let rotatedKeys: MachineGrantKeys;
 /** The harness's delegation pair: the verifier on every route trusts its public key. */
 let delegationKeys: CryptoKeyPair;
 let h: OrganizationHarness;
-let projectA: string;
+let workPackageA: string;
 
 beforeAll(async () => {
   issuers = new LocalOidcIssuers();
@@ -105,10 +106,10 @@ async function populate(activate = true): Promise<void> {
   h.bind('bob', 'org-b');
   if (!activate) return;
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
+  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectA = (created.body as { project: { id: string } }).project.id;
-  const other = await h.call('bob', 'POST', '/api/projects', { name: 'Plan of B' });
+  workPackageA = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const other = await h.call('bob', 'POST', '/api/work-packages', { name: 'Plan of B' });
   if (other.status !== 200) throw new Error(`create refused: ${JSON.stringify(other)}`);
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'vics-agent', 'org-a', h.userId('vic'));
@@ -195,8 +196,10 @@ function delegationUses(): number {
   );
 }
 
-function projectIds(answer: Answer): string[] {
-  return (answer.body as { projects: { id: string }[] }).projects.map((project) => project.id);
+function workPackageIds(answer: Answer): string[] {
+  return (answer.body as { workPackages: { id: string }[] }).workPackages.map(
+    (workPackage) => workPackage.id,
+  );
 }
 
 /**
@@ -306,16 +309,16 @@ describe('issuing a machine grant', () => {
     );
   });
 
-  it('grants only read to a credential whose person is bound to a viewer', async () => {
+  it('issues the fixed machine envelope independently of a viewer compatibility label', async () => {
     const { key } = await issueApiKey(h.sqlite, {
       organizationId: 'org-a',
       personId: 'vics-agent',
       issuedBy: h.userId('vic'),
     });
-    expect(await requestGrant({ credential: { kind: 'api_key', key } })).toMatchObject({
-      status: 200,
-      body: { scopes: ['read'] },
-    });
+    const issued = await requestGrant({ credential: { kind: 'api_key', key } });
+    expect(issued.status).toBe(200);
+    // Inspect only scopes: a failing assertion must not print the ephemeral fixture JWT.
+    expect((issued.body as { scopes: readonly string[] }).scopes).toEqual(['read', 'write']);
   });
 
   it('refuses an unknown, revoked, wrong or non-member key alike, recording no use', async () => {
@@ -574,9 +577,9 @@ describe('the issuance audit', () => {
 describe('a machine grant at each call', () => {
   it('acts as its credential’s person’s account in its organization, with the secret', async () => {
     const { key } = await claireKey();
-    const answer = await withGrant(await grantFor(key), 'GET', '/api/projects');
+    const answer = await withGrant(await grantFor(key), 'GET', '/api/work-packages');
     expect(answer.status).toBe(200);
-    expect(projectIds(answer)).toEqual([projectA]);
+    expect(workPackageIds(answer)).toEqual([workPackageA]);
   });
 
   // Proof: with the secret check of the grant branch in `delegatedOrSession`
@@ -585,7 +588,7 @@ describe('a machine grant at each call', () => {
     const { key } = await claireKey();
     const grant = await grantFor(key);
     for (const headers of WRONG_SECRETS)
-      expect(await withGrant(grant, 'GET', '/api/projects', headers)).toEqual({
+      expect(await withGrant(grant, 'GET', '/api/work-packages', headers)).toEqual({
         status: 401,
         body: { error: 'internal_unauthorized' },
       });
@@ -597,9 +600,9 @@ describe('a machine grant at each call', () => {
   it('is refused unknown_identity at the next call after its credential is revoked', async () => {
     const { id, key } = await claireKey();
     const grant = await grantFor(key);
-    expect((await withGrant(grant, 'GET', '/api/projects')).status).toBe(200);
+    expect((await withGrant(grant, 'GET', '/api/work-packages')).status).toBe(200);
     revokeMachineCredential(h.sqlite, id, Date.now());
-    expect(await withGrant(grant, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await withGrant(grant, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
   });
 
   it('is refused unknown_identity once its account leaves the organization', async () => {
@@ -609,7 +612,7 @@ describe('a machine grant at each call', () => {
       "DELETE FROM organization_membership WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('dany')],
     );
-    expect(await withGrant(grant, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await withGrant(grant, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
   });
 
   // Proof: with a single-use consume of the grant's `jti` (through
@@ -620,27 +623,27 @@ describe('a machine grant at each call', () => {
     const grant = await grantFor(key);
     const before = lastUsedAt(id);
     for (let call = 0; call < 100; call += 1)
-      expect((await withGrant(grant, 'GET', '/api/projects')).status).toBe(200);
+      expect((await withGrant(grant, 'GET', '/api/work-packages')).status).toBe(200);
     expect(delegationUses()).toBe(0);
     expect(lastUsedAt(id)).toBe(before);
   });
 
-  it('reads only for a viewer-bound credential', async () => {
+  it('refuses a viewer-bound machine write without its own package grant', async () => {
     const { key } = await issueApiKey(h.sqlite, {
       organizationId: 'org-a',
       personId: 'vics-agent',
       issuedBy: h.userId('vic'),
     });
     const grant = await grantFor(key);
-    expect((await withGrant(grant, 'GET', '/api/projects')).status).toBe(200);
+    expect((await withGrant(grant, 'GET', '/api/work-packages')).status).toBe(200);
     const write = await h.callWith(
       grant,
       'POST',
-      `/api/projects/${projectA}/commands`,
+      `/api/work-packages/${workPackageA}/commands`,
       { commands: [{ kind: 'createWorkItem', parentId: null, name: 'x' }] },
       { [MCP_INTERNAL_SECRET_HEADER]: SECRET },
     );
-    expect(write).toMatchObject({ status: 403, body: { error: 'insufficient_scope' } });
+    expect(write).toMatchObject({ status: 404, body: { error: 'not_found' } });
   });
 
   it('verifies a grant of the previous key after a rotation, and refuses an unknown kid', async () => {
@@ -651,7 +654,7 @@ describe('a machine grant at each call', () => {
     await populate();
     // The fresh store holds no credential named by `before`'s `sub`: a
     // rotation keeps the signature valid, and the reread then decides.
-    expect(await withGrant(before, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await withGrant(before, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     h.close();
     h = openHarness({
       keys: await importMachineGrantKeys({
@@ -660,7 +663,7 @@ describe('a machine grant at each call', () => {
       }),
     });
     await populate();
-    expect(await withGrant(before, 'GET', '/api/projects')).toEqual({
+    expect(await withGrant(before, 'GET', '/api/work-packages')).toEqual({
       status: 401,
       body: { error: 'unknown_grant_key' },
     });
@@ -687,7 +690,7 @@ describe('a machine grant at each call', () => {
       .setIssuedAt(now)
       .setExpirationTime(now + 120)
       .sign(delegationKeys.privateKey);
-    expect((await h.callWith(direct, 'GET', '/api/projects')).status).toBe(200);
+    expect((await h.callWith(direct, 'GET', '/api/work-packages')).status).toBe(200);
     const forged = await new SignJWT({ person_id: 'claire', org: 'org-a', scope: 'read write' })
       .setProtectedHeader({ alg: 'RS256', typ: MACHINE_GRANT_TOKEN_TYPE, kid: keys.current.kid })
       .setIssuer('wbs')
@@ -697,7 +700,7 @@ describe('a machine grant at each call', () => {
       .setIssuedAt(now)
       .setExpirationTime(now + 600)
       .sign(delegationKeys.privateKey);
-    expect(await withGrant(forged, 'GET', '/api/projects')).toEqual({
+    expect(await withGrant(forged, 'GET', '/api/work-packages')).toEqual({
       status: 401,
       body: { error: 'invalid_token' },
     });
@@ -720,14 +723,15 @@ describe('a machine grant at each call', () => {
       await withGrant(
         await sign(MACHINE_GRANT_AUDIENCE, MOST_MACHINE_GRANT_SECONDS + 1),
         'GET',
-        '/api/projects',
+        '/api/work-packages',
       ),
     ).toEqual({ status: 401, body: { error: 'invalid_token' } });
     expect(
-      await withGrant(await sign('wbs-be-01/via-mcp-01', 600), 'GET', '/api/projects'),
+      await withGrant(await sign('wbs-be-01/via-mcp-01', 600), 'GET', '/api/work-packages'),
     ).toEqual({ status: 401, body: { error: 'invalid_token' } });
     expect(
-      (await withGrant(await sign(MACHINE_GRANT_AUDIENCE, 600), 'GET', '/api/projects')).status,
+      (await withGrant(await sign(MACHINE_GRANT_AUDIENCE, 600), 'GET', '/api/work-packages'))
+        .status,
     ).toBe(200);
   });
 
@@ -736,7 +740,7 @@ describe('a machine grant at each call', () => {
     const grant = await grantFor(key);
     expect(
       (
-        await withGrant(grant, 'GET', '/api/projects', {
+        await withGrant(grant, 'GET', '/api/work-packages', {
           [MCP_INTERNAL_SECRET_HEADER]: SECRET,
           cookie: `__Host-wbs_access=${h.token('dany')}`,
         })
@@ -795,4 +799,196 @@ describe('the existing mcp-01 routes during the secret cutover', () => {
       body: { error: 'internal_unauthorized' },
     });
   });
+});
+
+describe('permission-owned machine envelopes', () => {
+  it('writes with a viewer-bound credential own package grant over actual HTTP', async () => {
+    const credential = await issueApiKey(h.sqlite, {
+      organizationId: 'org-a',
+      personId: 'vics-agent',
+      issuedBy: h.userId('vic'),
+    });
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      credential.id,
+      'package-contributor',
+      'work_package',
+      workPackageA,
+    );
+    const grant = await grantFor(credential.key);
+    const wrote = await h.callWith(
+      grant,
+      'POST',
+      '/api/work-packages/' + workPackageA + '/commands',
+      { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Own credential permission' }] },
+      { [MCP_INTERNAL_SECRET_HEADER]: SECRET },
+    );
+    expect(wrote.status).toBe(200);
+    expect(wrote.body).toMatchObject({ results: [{ index: 0 }] });
+    expect(
+      h.sqlite
+        .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE work_package_id=?')
+        .all(workPackageA)
+        .map((row) => row.name),
+    ).toContain('Own credential permission');
+  });
+  it('retains a live credential own write when the compatibility label changes after token issue', async () => {
+    const credential = await claireKey();
+    grantCredential(
+      h.sqlite,
+      'org-a',
+      credential.id,
+      'package-contributor',
+      'work_package',
+      workPackageA,
+    );
+    const grant = await grantFor(credential.key);
+    h.sqlite.run(
+      "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+      [h.userId('dany')],
+    );
+    const wrote = await h.callWith(
+      grant,
+      'POST',
+      '/api/work-packages/' + workPackageA + '/commands',
+      { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Current credential grant' }] },
+      { [MCP_INTERNAL_SECRET_HEADER]: SECRET },
+    );
+    expect(wrote.status).toBe(200);
+    expect(
+      h.sqlite
+        .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE work_package_id=?')
+        .all(workPackageA)
+        .map((row) => row.name),
+    ).toContain('Current credential grant');
+  });
+  it('keeps a viewer-labeled credential own administrator grant contributor capped over HTTP', async () => {
+    const credential = await claireKey();
+    grantCredential(h.sqlite, 'org-a', credential.id, 'org-admin', 'organization', 'org-a');
+    h.sqlite.run(
+      "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id=?",
+      [h.userId('dany')],
+    );
+    const grant = await grantFor(credential.key),
+      before = h.sqlite.query('SELECT * FROM work_package WHERE id=?').get(workPackageA);
+    const denied = await h.callWith(
+      grant,
+      'PATCH',
+      '/api/work-packages/' + workPackageA,
+      { name: 'Cap must refuse settings' },
+      { [MCP_INTERNAL_SECRET_HEADER]: SECRET },
+    );
+    expect(denied).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'package.manage_settings' },
+    });
+    expect(h.sqlite.query('SELECT * FROM work_package WHERE id=?').get(workPackageA)).toEqual(
+      before,
+    );
+  });
+});
+
+describe('role-free machine membership evidence', () => {
+  for (const source of ['api_key', 'oidc'] as const) {
+    it(`issues a ${source} grant without reading the membership compatibility label`, async () => {
+      const credential: GrantBody['credential'] =
+        source === 'api_key'
+          ? { kind: 'api_key', key: (await claireKey()).key }
+          : await (async () => {
+              await claireWorkload();
+              return {
+                kind: 'oidc' as const,
+                assertion: await ci.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }),
+              };
+            })();
+      h.sqlite.run('PRAGMA ignore_check_constraints = ON');
+      try {
+        h.sqlite
+          .query(
+            'UPDATE organization_membership SET role = ? WHERE organization_id = ? AND user_id = ?',
+          )
+          .run('unused-label', 'org-a', h.userId('dany'));
+      } finally {
+        h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+      }
+      const answer = await requestGrant({ credential });
+      expect(answer.status).toBe(200);
+      expect((answer.body as { scopes: string[] }).scopes).toEqual(['read', 'write']);
+      expect(auditRows()).toHaveLength(1);
+    });
+  }
+});
+
+for (const source of ['api_key', 'oidc'] as const) {
+  it(`refuses a nonmember ${source} from current membership identity over HTTP without recording use`, async () => {
+    const credential = source === 'api_key' ? await claireKey() : { id: await claireWorkload() };
+    const proof: GrantBody['credential'] =
+      'key' in credential
+        ? { kind: 'api_key', key: credential.key }
+        : { kind: 'oidc', assertion: await ci.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }) };
+    h.sqlite
+      .query('DELETE FROM organization_membership WHERE organization_id=? AND user_id=?')
+      .run('org-a', h.userId('dany'));
+    const answer = await requestGrant({ credential: proof });
+    // Status first keeps a deliberately broken admission from echoing its generated fixture JWT in assertion output.
+    expect(answer.status).toBe(401);
+    expect(answer.body).toEqual({ error: 'unknown_identity' });
+    expect(lastUsedAt(credential.id)).toBeNull();
+  });
+
+  it(`issues a ${source} grant without an unused compatibility role column`, async () => {
+    const credential: GrantBody['credential'] =
+      source === 'api_key'
+        ? { kind: 'api_key', key: (await claireKey()).key }
+        : await (async () => {
+            await claireWorkload();
+            return {
+              kind: 'oidc' as const,
+              assertion: await ci.sign({ sub: SUBJECT, aud: WORKLOAD_AUDIENCE }),
+            };
+          })();
+    h.sqlite.run(
+      'ALTER TABLE organization_membership RENAME COLUMN role TO unavailable_compatibility_label',
+    );
+    const answer = await requestGrant({ credential });
+    expect(answer.status).toBe(200);
+    expect((answer.body as { scopes: string[] }).scopes).toEqual(['read', 'write']);
+  });
+}
+
+it('uses no compatibility role column for a credential grant and current package write', async () => {
+  const credential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'vics-agent',
+    issuedBy: h.userId('vic'),
+  });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    credential.id,
+    'package-contributor',
+    'work_package',
+    workPackageA,
+  );
+  h.sqlite.run(
+    'ALTER TABLE organization_membership RENAME COLUMN role TO unavailable_compatibility_label',
+  );
+  const grant = await grantFor(credential.key);
+  const wrote = await h.callWith(
+    grant,
+    'POST',
+    '/api/work-packages/' + workPackageA + '/commands',
+    {
+      commands: [{ kind: 'createWorkItem', parentId: null, name: 'Role column is not authority' }],
+    },
+    { [MCP_INTERNAL_SECRET_HEADER]: SECRET },
+  );
+  expect(wrote.status).toBe(200);
+  expect(
+    h.sqlite
+      .query<{ name: string }, [string]>('SELECT name FROM work_item WHERE work_package_id=?')
+      .all(workPackageA)
+      .map((row) => row.name),
+  ).toContain('Role column is not authority');
 });

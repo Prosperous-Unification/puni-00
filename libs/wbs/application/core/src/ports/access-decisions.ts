@@ -2,9 +2,9 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   CONTRIBUTOR_CAP,
   type EffectiveRole,
-  type InterimPackageChain,
   type Permission,
   type ProjectChain,
+  type WorkPackageChain,
 } from '@wbs/domain';
 
 /**
@@ -47,20 +47,16 @@ export function capOf(subject: AccessSubject): ReadonlySet<Permission> | null {
 }
 
 /**
- * What a decision is about (`wbs-permissions` "The `may` port", P13). A work
- * package carries its `restricted` flag (P5) and, until `wbs-work-packages`
- * slice 2 gives it a project, only an {@link InterimPackageChain}: the
- * listing has no project branch, so no project grant reaches a package in
- * detail either (a `projectId` on a structurally wider chain is ignored),
- * and list and detail agree. Task 3.4 widens the member to `WorkPackageChain`
- * together with the listing's project branch (3.2).
+ * Current target hierarchy for P13. A work package carries its actual required
+ * project, actual nullable project space and restriction flag. Detail, current
+ * settings and writes consume captured targets; no helper invents an absent space.
  */
 export type AccessTarget =
   | { readonly kind: 'organization'; readonly organizationId: string }
   | { readonly kind: 'project'; readonly chain: ProjectChain }
   | {
       readonly kind: 'work_package';
-      readonly chain: InterimPackageChain;
+      readonly chain: WorkPackageChain;
       readonly restricted: boolean;
     };
 
@@ -78,6 +74,11 @@ export type AccessTarget =
  * either method; never skipped. Also when trusted state is unreadable.
  */
 export interface AccessDecisions {
+  /** Actual package mapping/parent/space/restriction on this same owner; no private settings decode. */
+  packageTargetOf(
+    packageId: string,
+    organizationId: string | null,
+  ): Promise<Extract<AccessTarget, { kind: 'work_package' }> | null>;
   /**
    * `principal`'s permissions on `target` with the grants that contributed
    * (`via`), after P5's transformation and the cap. Null means invisible: the

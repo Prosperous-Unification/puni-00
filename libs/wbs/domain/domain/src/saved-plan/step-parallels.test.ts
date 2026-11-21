@@ -1,10 +1,27 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from './canonical-plan-input';
+import { projectSavedPlanInput } from './comparison-input';
 import { diffPlans } from './diff-plans';
-import { normalisePlanInputForward } from './normalise-plan-input';
+import { readLegacySavedPlanInput11 } from './legacy-input11';
+import { normalisePlanInputForward as normaliseLegacyBody } from './normalise-plan-input';
+import { canonicalisePlanInputV12 } from './versioned-plan-input';
+const normalisePlanInputForward = (body: Record<string, unknown>, version: number) => {
+  const { workPackage: ignoredCurrentParent, ...fields } = body;
+  const project = readLegacySavedPlanInput11(
+    JSON.parse(
+      readFileSync(new URL('./fixtures/constructed-input11-local.txt', import.meta.url), 'utf8'),
+    ),
+  ).workPackage;
+  const normalized = normaliseLegacyBody({ ...fields, project }, version);
+  if (typeof normalized !== 'object' || normalized === null || Array.isArray(normalized))
+    throw new Error('legacy normalizer returned no object');
+  // Boundary: the actual normalizer returned an object; indexed values remain unknown.
+  return normalized as Record<string, unknown>;
+};
 import { planFixtureRows } from './plan-fixture';
 
 const fact = { workItemId: 'w2', stepId: 's1', maxParallel: 1 };
@@ -15,7 +32,7 @@ describe('saved sparse step parallelism', () => {
   it('captures ordered detached explicit facts including equality and sibling absence', () => {
     const supplied = [{ ...fact, stepId: 's2', maxParallel: 3 }, { ...fact }];
     const captured = canonicalisePlanInput(rows(supplied));
-    expect(captured.schemaVersion).toBe(9);
+    expect('schemaVersion' in captured).toBe(false);
     expect(captured.stepParallels).toEqual([fact, { ...fact, stepId: 's2', maxParallel: 3 }]);
     expect(captured).toEqual(canonicalisePlanInput(rows([...supplied].reverse())));
     supplied[1].maxParallel = 9;
@@ -53,14 +70,15 @@ describe('saved sparse step parallelism', () => {
     const legacy = { ...earlier, schemaVersion: 7 };
     const bytes = JSON.stringify(legacy);
     const upgraded = normalisePlanInputForward(legacy, 7);
-    expect(upgraded.schemaVersion).toBe(9);
-    expect(upgraded.stepParallels).toEqual([]);
+    expect(upgraded['schemaVersion']).toBe(9);
+    expect(upgraded['stepParallels']).toEqual([]);
     expect(JSON.stringify(legacy)).toBe(bytes);
   });
 
   it('compares additions removals and maximum changes by structured pair', () => {
     const side = (facts: readonly (typeof fact)[]) => ({
-      input: canonicalisePlanInput(rows(facts)),
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(canonicalisePlanInputV12(rows(facts), { kind: 'local' }), 12),
       schedule: { present: false as const, absentReason: 'pending' },
     });
     expect(diffPlans(side([]), side([fact])).input).toEqual([
@@ -90,7 +108,11 @@ describe('saved sparse step parallelism', () => {
       stepParallels: facts,
     };
     const side = (stepParallels: typeof facts) => ({
-      input: canonicalisePlanInput({ ...source, stepParallels }),
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(
+        canonicalisePlanInputV12({ ...source, stepParallels }, { kind: 'local' }),
+        12,
+      ),
       schedule: { present: false as const, absentReason: 'pending' },
     });
     for (const [at, key, maximum] of [

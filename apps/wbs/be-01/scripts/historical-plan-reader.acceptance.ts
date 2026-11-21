@@ -40,7 +40,7 @@ test.each([false, true])(
     const downloaded = await harness.call(
       'ada',
       'GET',
-      `/api/projects/${source.projectId}/export?format=json`,
+      `/api/work-packages/${source.workPackageId}/export?format=json`,
     );
     expect(downloaded.status).toBe(200);
     expect(downloaded.body).toMatchObject({

@@ -150,7 +150,7 @@ export function createEstimatesColumns({
           // figure is a sum of what is below it and nothing to type into.
           const shorthand = !unfolded && !row.original.rolledUp;
           // What this row holds, off the row: the trio as it would be
-          // typed, and the figure the project's estimate method makes of
+          // typed, and the figure the work package's estimate method makes of
           // it. Both read through `row.original` and **not** through
           // `combinedValue` beside them, which answers with the draft
           // where there is one. That is right for the box somebody is

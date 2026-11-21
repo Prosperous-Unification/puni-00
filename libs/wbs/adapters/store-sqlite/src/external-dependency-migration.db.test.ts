@@ -34,20 +34,27 @@ beforeEach(() => {
       "INSERT INTO organization (id,name,created_at) VALUES ('org','Org',1),('foreign','Foreign',1)",
     );
     for (const id of ['a', 'b', 'c']) {
-      sqlite.run("INSERT INTO project(id,name,owner_id,created_at) VALUES (?,?, 'u',1)", [id, id]);
-      sqlite.run('INSERT INTO project_organization(resource_id,organization_id) VALUES (?,?)', [
-        id,
-        id === 'c' ? 'foreign' : 'org',
-      ]);
-      sqlite.run('INSERT INTO work_item(id,project_id,position,name,revision) VALUES (?,?,1,?,0)', [
-        id,
+      sqlite.run("INSERT INTO work_package(id,name,owner_id,created_at) VALUES (?,?, 'u',1)", [
         id,
         id,
       ]);
-      sqlite.run('INSERT INTO step(id,project_id,name,code) VALUES (?,?,?,?)', [id, id, id, id]);
+      sqlite.run(
+        'INSERT INTO work_package_organization(resource_id,organization_id) VALUES (?,?)',
+        [id, id === 'c' ? 'foreign' : 'org'],
+      );
+      sqlite.run(
+        'INSERT INTO work_item(id,work_package_id,position,name,revision) VALUES (?,?,1,?,0)',
+        [id, id, id],
+      );
+      sqlite.run('INSERT INTO step(id,work_package_id,name,code) VALUES (?,?,?,?)', [
+        id,
+        id,
+        id,
+        id,
+      ]);
     }
     sqlite.run(
-      "INSERT INTO work_item(id,project_id,position,name,revision) VALUES ('b2','b',2,'B2',0)",
+      "INSERT INTO work_item(id,work_package_id,position,name,revision) VALUES ('b2','b',2,'B2',0)",
     );
   } finally {
     sqlite.close();
@@ -60,9 +67,9 @@ afterEach(() => {
 function link(id = 'external'): StoredTypedDependency {
   return {
     id,
-    projectId: 'b',
-    predecessor: { projectId: 'a', scope: 'whole', workItemId: 'a' },
-    successor: { projectId: 'b', scope: 'whole', workItemId: 'b' },
+    workPackageId: 'b',
+    predecessor: { workPackageId: 'a', scope: 'whole', workItemId: 'a' },
+    successor: { workPackageId: 'b', scope: 'whole', workItemId: 'b' },
     type: 'FS',
   };
 }
@@ -90,12 +97,12 @@ it('combines local and external rows and lists both incident directions once', a
   const repo = repository();
   const local = {
     ...link('local'),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repo.add(local, stamp);
   await repo.add(link(), stamp);
-  expect(await repo.listByProject('b')).toEqual([link(), local]);
-  expect(await repo.listByProject('a')).toEqual([]);
+  expect(await repo.listByWorkPackage('b')).toEqual([link(), local]);
+  expect(await repo.listByWorkPackage('a')).toEqual([]);
   expect(await repo.listIncident(['b', 'a', 'b'])).toEqual([link(), local]);
   expect(await repo.listIncident(['a'])).toEqual([link()]);
   expect(await repo.listIncident([])).toEqual([]);
@@ -105,7 +112,7 @@ it('representation move preserves identity, creation audit and endpoint revision
   const repo = repository();
   const local = {
     ...link(),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repo.add(local, stamp);
   const sqlite = openDatabase(path);
@@ -140,56 +147,61 @@ it('representation move preserves identity, creation audit and endpoint revision
   ]);
 });
 
-it('rejects cross-project mismatched endpoints and foreign organizations', async () => {
+it('rejects cross-work-package mismatched endpoints and foreign organizations', async () => {
   const repo = repository();
-  expect(await rejection(repo.add({ ...link(), projectId: 'a' }, stamp))).toContain('successor');
+  expect(await rejection(repo.add({ ...link(), workPackageId: 'a' }, stamp))).toContain(
+    'successor',
+  );
   expect(
     await rejection(
-      repo.add({ ...link(), predecessor: { ...link().predecessor, projectId: 'b' } }, stamp),
+      repo.add({ ...link(), predecessor: { ...link().predecessor, workPackageId: 'b' } }, stamp),
     ),
-  ).toContain('outside project');
+  ).toContain('outside work package');
   expect(
     await rejection(
       repo.add(
-        { ...link(), predecessor: { projectId: 'a', scope: 'node', workItemId: 'a', stepId: 'b' } },
+        {
+          ...link(),
+          predecessor: { workPackageId: 'a', scope: 'node', workItemId: 'a', stepId: 'b' },
+        },
         stamp,
       ),
     ),
-  ).toContain('outside project');
+  ).toContain('outside work package');
   expect(
     await rejection(
       repo.add(
-        { ...link(), predecessor: { projectId: 'c', scope: 'whole', workItemId: 'c' } },
+        { ...link(), predecessor: { workPackageId: 'c', scope: 'whole', workItemId: 'c' } },
         stamp,
       ),
     ),
   ).toContain('organization');
-  expect(await repo.listByProject('b')).toEqual([]);
+  expect(await repo.listByWorkPackage('b')).toEqual([]);
 });
 
 it('protects surviving external successors and permits deleting both ends', async () => {
   const repo = repository();
   await repo.add(link(), stamp);
   expect(await rejection(repo.removeAllFor(['a'], stamp))).toContain('surviving successor');
-  expect(await repo.listByProject('b')).toEqual([link()]);
+  expect(await repo.listByWorkPackage('b')).toEqual([link()]);
   expect(await repo.removeAllFor(['a', 'b'], stamp)).toEqual([link()]);
 });
 
-it('project persistence refuses a referenced predecessor and permits its deletion after link removal', async () => {
+it('work package persistence refuses a referenced predecessor and permits its deletion after link removal', async () => {
   const repo = repository();
   await repo.add(link(), stamp);
   const before = {
-    project: stored('SELECT id FROM project ORDER BY id'),
+    workPackage: stored('SELECT id FROM work_package ORDER BY id'),
     links: stored('SELECT id FROM external_dependency ORDER BY id'),
     rows: stored('SELECT id,revision FROM work_item ORDER BY id'),
   };
   const sqlite = openDatabase(path);
   try {
-    expect(() => sqlite.run("DELETE FROM project WHERE id='a'")).toThrow();
+    expect(() => sqlite.run("DELETE FROM work_package WHERE id='a'")).toThrow();
   } finally {
     sqlite.close();
   }
-  expect(stored('SELECT id FROM project ORDER BY id')).toEqual(before.project);
+  expect(stored('SELECT id FROM work_package ORDER BY id')).toEqual(before.workPackage);
   expect(stored('SELECT id FROM external_dependency ORDER BY id')).toEqual(before.links);
   expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before.rows);
   const predecessor = openDatabase(path);
@@ -202,13 +214,13 @@ it('project persistence refuses a referenced predecessor and permits its deletio
   await repo.remove('external', { ...stamp, at: 3 });
   const unlinked = openDatabase(path);
   try {
-    unlinked.run("DELETE FROM step WHERE project_id='a'");
+    unlinked.run("DELETE FROM step WHERE work_package_id='a'");
     unlinked.run("DELETE FROM work_item WHERE id='a'");
-    unlinked.run("DELETE FROM project WHERE id='a'");
+    unlinked.run("DELETE FROM work_package WHERE id='a'");
   } finally {
     unlinked.close();
   }
-  expect(stored("SELECT id FROM project WHERE id='a'")).toEqual([]);
+  expect(stored("SELECT id FROM work_package WHERE id='a'")).toEqual([]);
 });
 
 it('refuses missing work-item and organization evidence on reads', async () => {
@@ -217,12 +229,14 @@ it('refuses missing work-item and organization evidence on reads', async () => {
   const sqlite = openDatabase(path);
   try {
     sqlite.run('PRAGMA foreign_keys=OFF');
-    sqlite.run('DROP TRIGGER project_organization_frozen_delete');
-    sqlite.run("DELETE FROM project_organization WHERE resource_id='a'");
-    expect(await rejection(repo.listByProject('b'))).toContain('organization');
-    sqlite.run("INSERT INTO project_organization(resource_id,organization_id) VALUES ('a','org')");
+    sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
+    sqlite.run("DELETE FROM work_package_organization WHERE resource_id='a'");
+    expect(await rejection(repo.listByWorkPackage('b'))).toContain('organization');
+    sqlite.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('a','org')",
+    );
     sqlite.run("DELETE FROM work_item WHERE id='a'");
-    expect(await rejection(repo.listIncident(['a']))).toContain('outside project');
+    expect(await rejection(repo.listIncident(['a']))).toContain('outside work package');
   } finally {
     sqlite.close();
   }
@@ -232,7 +246,7 @@ it('down refuses external rows and preserves local rows and their audit when emp
   const repo = repository();
   const local = {
     ...link('local'),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repo.add(local, stamp);
   await repo.add(link(), stamp);
@@ -251,10 +265,10 @@ it('down refuses external rows and preserves local rows and their audit when emp
   // Historical storage contract predates semantic admission; never used by application boot.
   rollbackTo(path, FOLDER, MIGRATION);
   expect(stored('SELECT * FROM typed_dependency')).toEqual(before);
-  expect(await repo.listByProject('b')).toEqual([local]);
+  expect(await repo.listByWorkPackage('b')).toEqual([local]);
 });
 
-it('refuses external rows in the historical single-project capture', async () => {
+it('refuses external rows in the historical single-work-package capture', async () => {
   runMigrations(path, FOLDER);
   seedDependencyAuthority(path);
   await repository().add(link(), stamp);
@@ -267,12 +281,12 @@ it('duplicates refuse across representations on insert and relevant update in bo
   const sqlite = openDatabase(path);
   const local = (id: string, predecessor = 'a', successor = 'b') =>
     sqlite.run(
-      "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'b',?,'whole',?,'whole','FS')",
+      "INSERT INTO typed_dependency(id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'b',?,'whole',?,'whole','FS')",
       [id, predecessor, successor],
     );
   const external = (id: string, successor = 'b') =>
     sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'org','a','b','a','whole',?,'whole','FS')",
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,'org','a','b','a','whole',?,'whole','FS')",
       [id, successor],
     );
   try {
@@ -328,9 +342,9 @@ it('enforces endpoint and organization foreign keys and referenced ownership upd
     for (const sql of [
       "DELETE FROM work_item WHERE id='a'",
       "DELETE FROM work_item WHERE id='b'",
-      "UPDATE work_item SET project_id='b' WHERE id='a'",
-      "UPDATE external_dependency SET predecessor_project_id='c',predecessor_work_item_id='c'",
-      "UPDATE external_dependency SET successor_project_id='c',successor_work_item_id='c'",
+      "UPDATE work_item SET work_package_id='b' WHERE id='a'",
+      "UPDATE external_dependency SET predecessor_work_package_id='c',predecessor_work_item_id='c'",
+      "UPDATE external_dependency SET successor_work_package_id='c',successor_work_item_id='c'",
       "UPDATE external_dependency SET predecessor_work_item_id='b2'",
       "UPDATE external_dependency SET successor_work_item_id='a'",
       "UPDATE external_dependency SET predecessor_scope='node',predecessor_step_id='b'",
@@ -343,7 +357,7 @@ it('enforces endpoint and organization foreign keys and referenced ownership upd
     for (const sql of [
       "DELETE FROM step WHERE id='a'",
       "DELETE FROM step WHERE id='b'",
-      "UPDATE step SET project_id='b' WHERE id='a'",
+      "UPDATE step SET work_package_id='b' WHERE id='a'",
     ])
       expect(() => sqlite.run(sql), sql).toThrow('FOREIGN KEY constraint failed');
   } finally {
@@ -351,7 +365,7 @@ it('enforces endpoint and organization foreign keys and referenced ownership upd
   }
 });
 
-it('enforces external discriminants, step nullability, distinct projects, identity and duplicate keys', async () => {
+it('enforces external discriminants, step nullability, distinct work packages, identity and duplicate keys', async () => {
   await repository().add(link(), stamp);
   const sqlite = openDatabase(path);
   try {
@@ -363,7 +377,7 @@ it('enforces external discriminants, step nullability, distinct projects, identi
       "successor_step_id='b'",
       "predecessor_scope='node'",
       "successor_scope='node'",
-      "predecessor_project_id='b',predecessor_work_item_id='b2'",
+      "predecessor_work_package_id='b',predecessor_work_item_id='b2'",
     ])
       expect(() => sqlite.run(`UPDATE external_dependency SET ${assignment}`), assignment).toThrow(
         'CHECK constraint failed',
@@ -373,7 +387,7 @@ it('enforces external discriminants, step nullability, distinct projects, identi
     );
     expect(() =>
       sqlite.run(
-        "INSERT INTO external_dependency SELECT 'duplicate',organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM external_dependency",
+        "INSERT INTO external_dependency SELECT 'duplicate',organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM external_dependency",
       ),
     ).toThrow('UNIQUE constraint failed');
   } finally {
@@ -385,7 +399,7 @@ it('rolls back a representation move when its destination insert or revision upd
   const repo = repository();
   const local = {
     ...link(),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repo.add(local, stamp);
   const before = stored('SELECT * FROM typed_dependency');
@@ -415,7 +429,7 @@ it('rolls back a representation move when its destination insert or revision upd
 it('keeps a coherent union while a rival commits a representation move between component reads', async () => {
   const local = {
     ...link(),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repository().add(local, stamp);
   let moved = false;
@@ -429,7 +443,7 @@ it('keeps a coherent union while a rival commits a representation move between c
         sqlite.transaction(() => {
           sqlite.run("DELETE FROM typed_dependency WHERE id='external'");
           sqlite.run(
-            "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('external','org','a','b','a','whole','b','whole','FS')",
+            "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('external','org','a','b','a','whole','b','whole','FS')",
           );
         })();
       } finally {
@@ -438,27 +452,27 @@ it('keeps a coherent union while a rival commits a representation move between c
     },
   });
   const repo = new TypedDependencyRepository(db, OPEN);
-  expect(await repo.listByProject('b')).toEqual([local]);
+  expect(await repo.listByWorkPackage('b')).toEqual([local]);
   expect(moved).toBe(true);
-  expect(await repository().listByProject('b')).toEqual([link()]);
+  expect(await repository().listByWorkPackage('b')).toEqual([link()]);
 });
 
 it('refuses a duplicated physical identity instead of deduplicating corrupt rows', async () => {
   const local = {
     ...link(),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repository().add(local, stamp);
   const sqlite = openDatabase(path);
   try {
     sqlite.run('DROP TRIGGER external_dependency_cross_identity_insert');
     sqlite.run(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('external','org','a','b','a','whole','b','whole','FS')",
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('external','org','a','b','a','whole','b','whole','FS')",
     );
   } finally {
     sqlite.close();
   }
-  expect(await rejection(repository().listByProject('b'))).toContain(
+  expect(await rejection(repository().listByWorkPackage('b'))).toContain(
     'duplicate unified dependency',
   );
   expect(await rejection(repository().update(link(), stamp))).toContain(
@@ -469,17 +483,17 @@ it('refuses a duplicated physical identity instead of deduplicating corrupt rows
 it('refuses missing steps and mismatched recorded organization evidence on reads', async () => {
   const repo = repository();
   await repo.add(
-    { ...link(), predecessor: { projectId: 'a', scope: 'node', workItemId: 'a', stepId: 'a' } },
+    { ...link(), predecessor: { workPackageId: 'a', scope: 'node', workItemId: 'a', stepId: 'a' } },
     stamp,
   );
   const sqlite = openDatabase(path);
   try {
     sqlite.run('PRAGMA foreign_keys=OFF');
     sqlite.run("UPDATE external_dependency SET organization_id='foreign'");
-    expect(await rejection(repo.listByProject('b'))).toContain('inconsistent organization');
+    expect(await rejection(repo.listByWorkPackage('b'))).toContain('inconsistent organization');
     sqlite.run("UPDATE external_dependency SET organization_id='org'");
     sqlite.run("DELETE FROM step WHERE id='a'");
-    expect(await rejection(repo.listIncident(['b']))).toContain('step a outside project a');
+    expect(await rejection(repo.listIncident(['b']))).toContain('step a outside work package a');
   } finally {
     sqlite.close();
   }
@@ -488,14 +502,14 @@ it('refuses missing steps and mismatched recorded organization evidence on reads
 it('refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted', async () => {
   const local = {
     ...link('first'),
-    predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
   };
   await repository().add(local, stamp);
   const sqlite = openDatabase(path);
   try {
     sqlite.run('DROP INDEX typed_dependency_endpoints');
     sqlite.run(
-      "INSERT INTO typed_dependency SELECT 'second',project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM typed_dependency",
+      "INSERT INTO typed_dependency SELECT 'second',work_package_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM typed_dependency",
     );
   } finally {
     sqlite.close();
@@ -505,34 +519,36 @@ it('refuses duplicate trusted endpoint keys even when physical uniqueness is cor
   );
 });
 
-it('refuses external writes without real organization ownership on either project', async () => {
+it('refuses external writes without real organization ownership on either work package', async () => {
   const sqlite = openDatabase(path);
   try {
-    sqlite.run('DROP TRIGGER project_organization_frozen_delete');
-    sqlite.run("DELETE FROM project_organization WHERE resource_id='a'");
+    sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
+    sqlite.run("DELETE FROM work_package_organization WHERE resource_id='a'");
     expect(await rejection(repository().add(link(), stamp))).toContain('organization');
-    sqlite.run("INSERT INTO project_organization(resource_id,organization_id) VALUES ('a','org')");
-    sqlite.run("DELETE FROM project_organization WHERE resource_id='b'");
+    sqlite.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('a','org')",
+    );
+    sqlite.run("DELETE FROM work_package_organization WHERE resource_id='b'");
     expect(await rejection(repository().add(link(), stamp))).toContain('organization');
   } finally {
     sqlite.close();
   }
 });
 
-it('restricts deletion and reassignment of external project ownership rows', async () => {
+it('restricts deletion and reassignment of external work package ownership rows', async () => {
   await repository().add(link(), stamp);
   const sqlite = openDatabase(path);
   try {
-    sqlite.run('DROP TRIGGER project_organization_frozen_delete');
-    sqlite.run('DROP TRIGGER project_organization_frozen_update');
-    for (const projectId of ['a', 'b']) {
+    sqlite.run('DROP TRIGGER work_package_organization_frozen_delete');
+    sqlite.run('DROP TRIGGER work_package_organization_frozen_update');
+    for (const workPackageId of ['a', 'b']) {
       expect(() =>
-        sqlite.run('DELETE FROM project_organization WHERE resource_id=?', [projectId]),
+        sqlite.run('DELETE FROM work_package_organization WHERE resource_id=?', [workPackageId]),
       ).toThrow('FOREIGN KEY constraint failed');
       expect(() =>
         sqlite.run(
-          "UPDATE project_organization SET organization_id='foreign' WHERE resource_id=?",
-          [projectId],
+          "UPDATE work_package_organization SET organization_id='foreign' WHERE resource_id=?",
+          [workPackageId],
         ),
       ).toThrow('FOREIGN KEY constraint failed');
     }
@@ -548,11 +564,11 @@ it('adds the complete incident index set without changing local rows', () => {
     return row.name;
   });
   for (const direction of ['predecessor', 'successor']) {
-    for (const field of ['project', 'work_item', 'step'])
+    for (const field of ['work_package', 'work_item', 'step'])
       expect(names).toContain(`external_dependency_by_${direction}_${field}`);
   }
-  expect(names).toContain('work_item_id_project');
-  expect(names).toContain('step_id_project');
+  expect(names).toContain('work_item_id_work_package');
+  expect(names).toContain('step_id_work_package');
 });
 
 it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
@@ -560,14 +576,14 @@ it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
   async (query) => {
     const local = {
       ...link('same-id'),
-      predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+      predecessor: { workPackageId: 'b', scope: 'whole' as const, workItemId: 'b2' },
     };
     await repository().add(local, stamp);
     const sqlite = openDatabase(path);
     try {
       sqlite.run('DROP TRIGGER external_dependency_cross_identity_insert');
       sqlite.run(
-        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('same-id','org','b','a','b','whole','a','whole','FS')",
+        "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('same-id','org','b','a','b','whole','a','whole','FS')",
       );
     } finally {
       sqlite.close();
@@ -578,9 +594,9 @@ it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
     const repo = repository();
     const read =
       query === 'owned-a'
-        ? repo.listByProject('a')
+        ? repo.listByWorkPackage('a')
         : query === 'owned-b'
-          ? repo.listByProject('b')
+          ? repo.listByWorkPackage('b')
           : query === 'incident-a'
             ? repo.listIncident(['a'])
             : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
@@ -597,7 +613,7 @@ it('incident detach and restore preserve null creation audit and bump the comple
   const repo = repository();
   const original: StoredTypedDependency = {
     ...link(),
-    predecessor: { projectId: 'a', workItemId: 'a', scope: 'node', stepId: 'a' },
+    predecessor: { workPackageId: 'a', workItemId: 'a', scope: 'node', stepId: 'a' },
   };
   await repo.add(original, stamp);
   const sqlite = openDatabase(path);
@@ -609,7 +625,7 @@ it('incident detach and restore preserve null creation audit and bump the comple
     await repo.incidents.detach(receipt);
     expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before);
     sqlite.run(
-      "INSERT INTO work_item(id,project_id,parent_id,position,name,revision) VALUES ('child','a','a',1,'child',0)",
+      "INSERT INTO work_item(id,work_package_id,parent_id,position,name,revision) VALUES ('child','a','a',1,'child',0)",
     );
     const mapped = { ...original, predecessor: { ...original.predecessor, workItemId: 'child' } };
     await repo.incidents.restore({ ...receipt, dependency: mapped }, original, { at: 4, by: 'u' });
@@ -646,7 +662,7 @@ for (const storage of ['local', 'external'] as const) {
         storage === 'local'
           ? {
               ...link(),
-              predecessor: { projectId: 'b', workItemId: 'b2', scope: 'whole' },
+              predecessor: { workPackageId: 'b', workItemId: 'b2', scope: 'whole' },
             }
           : link();
       const table = storage === 'local' ? 'typed_dependency' : 'external_dependency';
@@ -669,7 +685,7 @@ for (const storage of ['local', 'external'] as const) {
       await repo.incidents.detach(receipt);
       expect(stored(`SELECT id FROM ${table}`)).toEqual([]);
       await repo.incidents.restore(receipt, dependency, { at: 4, by: 'editor' });
-      expect(await repo.listByProject('b')).toEqual([dependency]);
+      expect(await repo.listByWorkPackage('b')).toEqual([dependency]);
       expect(stored(`SELECT created_at,created_by,updated_at FROM ${table}`)).toEqual([
         {
           created_at: legacy ? null : stamp.at,
@@ -708,7 +724,7 @@ for (const fault of ['identity', 'owner'] as const)
         ? { ...original, id: 'replacement' }
         : {
             ...original,
-            projectId: 'a',
+            workPackageId: 'a',
             predecessor: original.successor,
             successor: original.predecessor,
           };

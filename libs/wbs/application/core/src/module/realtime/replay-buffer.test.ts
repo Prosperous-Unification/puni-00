@@ -35,10 +35,10 @@ describe('ReplayBuffer', () => {
   });
 
   /**
-   * What a closed project leaves behind.
+   * What a closed work package leaves behind.
    *
    * Eviction was lazy and only lazy: `record`, `since` and `covers` each evict
-   * the subscription they are **about**, so a project edited a thousand times
+   * the subscription they are **about**, so a work package edited a thousand times
    * and then closed kept a thousand `tree_replaced` entries — whole plans,
    * hundreds of rows each — every one long past `maxAgeMs`, with nothing left
    * that would ever ask about them again.
@@ -46,34 +46,34 @@ describe('ReplayBuffer', () => {
   describe('a subscription nobody touches again', () => {
     it('is swept by the traffic on the others, not held forever', () => {
       // Proof: `this.sweepOneOther(subscription)` removed from `record`, this
-      // failed on `expected 0 to be null` — the abandoned project's first
+      // failed on `expected 0 to be null` — the abandoned work package's first
       // entry still held, two thousand seconds after it expired. Watched
       // 2026-09-02.
       let t = 0;
       const buf = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 1000, now: () => t });
-      for (let seq = 0; seq < 5; seq += 1) buf.record('project:closed', seq, {});
-      // Long past the age cap, and nothing will ask about that project again.
+      for (let seq = 0; seq < 5; seq += 1) buf.record('work-package:closed', seq, {});
+      // Long past the age cap, and nothing will ask about that work package again.
       t = 2000;
 
-      // One write to a live project is one lap of the sweep: there is only one
+      // One write to a live work package is one lap of the sweep: there is only one
       // other key.
-      buf.record('project:live', 0, {});
+      buf.record('work-package:live', 0, {});
 
-      expect(buf.oldestSeq('project:closed')).toBeNull();
+      expect(buf.oldestSeq('work-package:closed')).toBeNull();
     });
 
-    it('leaves the project being written to alone', () => {
+    it('leaves the work package being written to alone', () => {
       // The sweep must not be the thing that evicts what the caller is about
       // to read: a write and the `since` after it are one exchange.
       let t = 0;
       const buf = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 1000, now: () => t });
-      buf.record('project:a', 0, {});
-      buf.record('project:b', 0, {});
+      buf.record('work-package:a', 0, {});
+      buf.record('work-package:b', 0, {});
       t = 500;
 
-      buf.record('project:a', 1, {});
+      buf.record('work-package:a', 1, {});
 
-      expect(buf.since('project:a', -1).map((entry) => entry.seq)).toEqual([0, 1]);
+      expect(buf.since('work-package:a', -1).map((entry) => entry.seq)).toEqual([0, 1]);
     });
 
     it('keeps sweeping when the key it swept last has gone', () => {
@@ -81,16 +81,16 @@ describe('ReplayBuffer', () => {
       // the following subscriptions, rather than stopping at the deleted key.
       let t = 0;
       const buf = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 1000, now: () => t });
-      buf.record('project:one', 0, {});
-      buf.record('project:two', 0, {});
+      buf.record('work-package:one', 0, {});
+      buf.record('work-package:two', 0, {});
       t = 2000;
 
       // Three writes: enough laps to reach both of the other two whatever
       // order the map holds them in.
-      for (let seq = 1; seq <= 3; seq += 1) buf.record('project:live', seq, {});
+      for (let seq = 1; seq <= 3; seq += 1) buf.record('work-package:live', seq, {});
 
-      expect(buf.oldestSeq('project:one')).toBeNull();
-      expect(buf.oldestSeq('project:two')).toBeNull();
+      expect(buf.oldestSeq('work-package:one')).toBeNull();
+      expect(buf.oldestSeq('work-package:two')).toBeNull();
     });
   });
 });
@@ -100,7 +100,7 @@ describe('bounded subscription selection', () => {
     it(`bounds record iterator work with ${String(subscriptions)} subscriptions`, () => {
       const buffer = new ReplayBuffer({ maxPerSubscription: 10, maxAgeMs: 1_000, now: () => 0 });
       for (let index = 0; index < subscriptions; index += 1) {
-        buffer.record(`project:${String(index)}`, 0, {});
+        buffer.record(`work-package:${String(index)}`, 0, {});
       }
       // Native Map keys and entries share this iterator prototype. Counting its
       // next method observes retained cursors as well as newly created ones.
@@ -119,7 +119,7 @@ describe('bounded subscription selection', () => {
       try {
         for (let seq = 1; seq <= 4; seq += 1) {
           visits = 0;
-          buffer.record('project:0', seq, {});
+          buffer.record('work-package:0', seq, {});
           measured.push(visits);
         }
       } finally {
@@ -161,8 +161,8 @@ it('advances past an earlier subscription that remains unexpired', () => {
 it('reports expired coverage as absent before reading replay events', () => {
   let now = 0;
   const buffer = new ReplayBuffer({ maxPerSubscription: 10, maxAgeMs: 1_000, now: () => now });
-  buffer.record('project', 3, {});
-  expect(buffer.covers('project', 3)).toBe(true);
+  buffer.record('work_package', 3, {});
+  expect(buffer.covers('work_package', 3)).toBe(true);
   now = 1_001;
-  expect(buffer.covers('project', 3)).toBe(false);
+  expect(buffer.covers('work_package', 3)).toBe(false);
 });

@@ -1,0 +1,920 @@
+{
+  "schema": "puni-backend-probe-v123",
+  "recordedAt": "2026-11-21T20:04:17.733Z",
+  "classification": "progress",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v122.json",
+    "sha256": "c353440370ef6d03c8e17500fb1ef8770afc18894b5eb430f38e78ebdbf602ae",
+    "bytes": 8658,
+    "mode": 384
+  },
+  "parentStagedTree": "82abb0ff7a5907b358122825a43e445f7363068f",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/development/probe.ts",
+      "sha256": "484db3f63e5148d4659425ac54ea399051aa05783b851f6b3ffd7bc3cd00f88e",
+      "bytes": 2831,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/development/probe.test.ts",
+      "sha256": "91d76e0e83d6136bdc0033183808a63f0b4cc64ab611e7c57829af7128b4eb44",
+      "bytes": 8443,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/execute-command.ts",
+      "sha256": "1a8ab9e2eadacce651bfd509038ab28d2605c26575a2b6bf4da38ed45269e56b",
+      "bytes": 11675,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/build.test.ts",
+      "sha256": "2d403e6e0a616e954e1e2f8d18d89e18459d30ec20f9c6919469922f3293777f",
+      "bytes": 60171,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+      "sha256": "3e0dead77e1c0cb2bcd1fe75450ec9f8b92c3f67c55660e3a7c15d4805fd9948",
+      "bytes": 5561,
+      "mode": 436
+    }
+  ],
+  "behavior": "PUNI-only dash|d dev-probe be ORIGIN uses native Bun fetch with anonymous credentials policy, manual redirects and a15s request abort. Only HTTP200 plus explicit null user, boolean feature fields and organizations=>onboarding succeeds. The installed handler has no checkout/curl/shell/Node executable dependency. Standalone Dash keeps its existing grammar.",
+  "checks": [
+    {
+      "name": "backend-probe-baseline-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-baseline-v123.receipt.json",
+        "sha256": "aac07dea4e0ac9976313fec455b11df5630367b1fd49b2d1ee51d4649645a2d3",
+        "bytes": 1315,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-baseline-v123.log",
+        "sha256": "a8b57e258ce5e6cda934d9b5c46ff7d4fc3de2a02175eafd625385f940a168c6",
+        "bytes": 3126,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-baseline-v123.validation.json",
+        "sha256": "bea1c01bd88ce8e52ab9cf07bd5bc57ea5ca51143d5fa078048f70287ac9d625",
+        "bytes": 487,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-regression-final-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-regression-final-v123.receipt.json",
+        "sha256": "6d07ee7586bef2dcf5ad79bc53d64e68f112414ee34c56603dc56483dd796975",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-regression-final-v123.log",
+        "sha256": "e2f5cc6da1ab931999dbe9a52dcd8a3e73d6e276c7abf84ce70691589a248c17",
+        "bytes": 12061,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-regression-final-v123.validation.json",
+        "sha256": "f412877d205a0b0aa4cb4c39025db6f406d832556a8c874d8f93fb191d02e4e2",
+        "bytes": 504,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-dash-grammar-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-dash-grammar-v123.receipt.json",
+        "sha256": "a78102319f3abdd1c895c40f0240c39aba63b3fdc6f737e81fd1204daa31c944",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-dash-grammar-v123.log",
+        "sha256": "d9d94d7124908bb62f395448712a1c1c634cd6d83ba2cfefd20289d06b93f16f",
+        "bytes": 15241,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-dash-grammar-v123.validation.json",
+        "sha256": "dee7c6f9dee506eaab914a50cfedf6c8c1d22c82ca8816051b104867e0211748",
+        "bytes": 496,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-types-final-v123b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-types-final-v123b.receipt.json",
+        "sha256": "fe4c3728355678d80ef9edae7948f2fa6ec2fab4913bdcd6d8a974a29050bad0",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-types-final-v123b.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-types-final-v123b.validation.json",
+        "sha256": "9dd2254a0def716b2116a7f735c33f171869b8164294070019cc14d99eb4295c",
+        "bytes": 492,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-lint-final-v123b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-lint-final-v123b.receipt.json",
+        "sha256": "fe46effeca1b91798473b9eaf7819e211c076ee421547ff8f3557a5247e35967",
+        "bytes": 1540,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-lint-final-v123b.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-lint-final-v123b.validation.json",
+        "sha256": "d47c406ab3c418b04582453bbdf08a54b92697177f0a4e881d2cf9b28a963ac2",
+        "bytes": 490,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-format-check-v123b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-format-check-v123b.receipt.json",
+        "sha256": "9d7b5f4cb66894de6213490da3218862faf999ccf956d3ed8a59423ba3a9ed8d",
+        "bytes": 1567,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-format-check-v123b.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-format-check-v123b.validation.json",
+        "sha256": "7e0e894a19bbbee9c55ec1096215518d9a1359067681e24c1c4dd0372ec8e94e",
+        "bytes": 495,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-openspec-all-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-openspec-all-v123.receipt.json",
+        "sha256": "296ee9e2999cc0e83221bfdd9df4b1ef424c6ee68042e1fdd30719183b0787c5",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-openspec-all-v123.log",
+        "sha256": "760c2e5d91ed69ba0c6477ef427e29073237a7c9b8dfd99f6b0d5e55f09cb114",
+        "bytes": 349150,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-openspec-all-v123.validation.json",
+        "sha256": "04d1f420e28883017227cfb071beb8c2eb7acfb01f9a2d4b3a1bc0373cc667a3",
+        "bytes": 497,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-package-memory-v123b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123b.receipt.json",
+        "sha256": "037d18787f090ebc540382bc1fa7584442fdc267bba85b6ef702d806fa8696ce",
+        "bytes": 1444,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123b.log",
+        "sha256": "52c25c2bca155483e5485280cc1de447d6895bc69cbef5e757d446310d717318",
+        "bytes": 677,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123b.validation.json",
+        "sha256": "e110368d96a4dce1b5148d9b589c278bf8de7f0dcd1436babe90934658898de9",
+        "bytes": 500,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-async-child-contract-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-async-child-contract-v123.receipt.json",
+        "sha256": "3c8eaf863d75cc012874668270fb3bdc417211775c242be84e86aa0d39fccbab",
+        "bytes": 1724,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-async-child-contract-v123.log",
+        "sha256": "d3699a817d9aa514c7167fa153e0de2f17001c23fe7eba649447fc68a06cdb98",
+        "bytes": 55,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-async-child-contract-v123.validation.json",
+        "sha256": "a9dd2c1be6822fb69a07695c70c53fd467793aeb62ef37c2172a83326412ecd0",
+        "bytes": 509,
+        "mode": 384
+      }
+    },
+    {
+      "name": "backend-probe-pr-state-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-pr-state-v123.receipt.json",
+        "sha256": "ab346c9ce107f239c97930c3ea75be7b7bcddc5235b0c63d6e42f57f5e0a6b81",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-pr-state-v123.log",
+        "sha256": "40211d73b204b935a96ee0af11a1f20d1bd8f6960438ce75799e78acb7525719",
+        "bytes": 295,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-pr-state-v123.validation.json",
+        "sha256": "5b220422b1ed271a1180b41822eb9769262a885a5e66bb55ec8dfd3c3a5d9a33",
+        "bytes": 486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "script-census-v123",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/script-census-v123.receipt.json",
+        "sha256": "fa5fe60c77641e66b97240f947252ec584d5f7530022c8f4010ecf825f300ecb",
+        "bytes": 1245,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/script-census-v123.log",
+        "sha256": "01d710c817aafe44f9761f1156b313d86bfeed7f1141257827e77c51690b0251",
+        "bytes": 136,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/script-census-v123.validation.json",
+        "sha256": "2f7c300252cb3b718537827c661e6443e326b0c88b56c35737a6f9a5a3a15546",
+        "bytes": 468,
+        "mode": 384
+      }
+    }
+  ],
+  "featureRed": {
+    "name": "backend-probe-feature-red-v123b",
+    "exitCode": 1,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-feature-red-v123b.receipt.json",
+      "sha256": "b6398585dca74617bba16fb7a780192bbc5c57811752f70f320c662cd5a88d02",
+      "bytes": 1324,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-feature-red-v123b.log",
+      "sha256": "218ef89095ed2ca90cf433be3e4598e094fc5d92fcf29586948af74c898b0bb7",
+      "bytes": 17704,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-feature-red-v123b.validation.json",
+      "sha256": "bb923ad7a65f04467238fdd5c7d070ae8103116315bf97464c00f7c2bf06c69d",
+      "bytes": 496,
+      "mode": 384
+    }
+  },
+  "finitePlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-plan-v123.json",
+    "sha256": "26aebf18b3f243066e843899a1d3e95d8c9fc15fd8a49d96f96275966f09a770",
+    "bytes": 29603,
+    "mode": 384
+  },
+  "finiteState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-state-v123.json",
+    "sha256": "c654581c1c286ccaeae526ae87a355221a3b4028d6157f8017ddece2f0068295",
+    "bytes": 2634,
+    "mode": 384
+  },
+  "finiteFlights": [
+    {
+      "name": "identity-boundary",
+      "negative": {
+        "name": "backend-probe-fault-identity-boundary-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-identity-boundary-v123.receipt.json",
+          "sha256": "4e9f70e8e7b34231a37f687744fec26af34ad252db7910cdd9a32751adb15b46",
+          "bytes": 1427,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-identity-boundary-v123.log",
+          "sha256": "893aa6ac7277985e95574c664125e4ca49b21e44dc270fe54751b33d344a90ac",
+          "bytes": 868,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-identity-boundary-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-identity-boundary-v123-restored.receipt.json",
+          "sha256": "b2d09432f837b143a3ef749727a9a6e01716704ccd703a2cce4f1878997acb3b",
+          "bytes": 1445,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-identity-boundary-v123-restored.log",
+          "sha256": "bb58757da78397af42558e45476aeb028c98c7cd03799b0d44abbdee7c26fc76",
+          "bytes": 223,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "anonymous-user",
+      "negative": {
+        "name": "backend-probe-fault-anonymous-user-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-anonymous-user-v123.receipt.json",
+          "sha256": "210bbb7fd16a29ef9ec134d836a3ec23b2aaba03f49f53fe24c5aa8e57379b53",
+          "bytes": 1522,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-anonymous-user-v123.log",
+          "sha256": "48b9c540d929a648d39fd6dbd50e56a87d8af116e70787cb7587b9810cc2da10",
+          "bytes": 944,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-anonymous-user-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-anonymous-user-v123-restored.receipt.json",
+          "sha256": "76434c2a44c34e2d1509a81f8161367af07984659b266d366b1c6d479df7a286",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-anonymous-user-v123-restored.log",
+          "sha256": "17057025188a47de5c5ff8eb35caf7a060a87d2f1ab7b8abd32444112f396a07",
+          "bytes": 300,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "onboarding-boolean",
+      "negative": {
+        "name": "backend-probe-fault-onboarding-boolean-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-onboarding-boolean-v123.receipt.json",
+          "sha256": "6db3b3d0da1105db48172281ea571943b0985d97e1b7fcdd64cae83fcd335e84",
+          "bytes": 1512,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-onboarding-boolean-v123.log",
+          "sha256": "9542014297f2f69e514d79ea8400c6591ce027b6903248bf4a4d22e5219f9089",
+          "bytes": 933,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-onboarding-boolean-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-onboarding-boolean-v123-restored.receipt.json",
+          "sha256": "fae0f10ec03d6a78d930cd00a09e8353797f0fc12b24c0915fb6710b56444091",
+          "bytes": 1530,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-onboarding-boolean-v123-restored.log",
+          "sha256": "553f29fe6b91c2f66d9077806957c686a846d00c712d532c270bdd15953f94cd",
+          "bytes": 288,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "organizations-boolean",
+      "negative": {
+        "name": "backend-probe-fault-organizations-boolean-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-organizations-boolean-v123.receipt.json",
+          "sha256": "15fd8f14477efa6cd7fe39cfb86046f0792b43687dac8d03b6f0dc945c81b872",
+          "bytes": 1517,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-organizations-boolean-v123.log",
+          "sha256": "9841eb91e6ed8291b5464639d56b9bd711686bd8f3afa68ee7f897133166dbba",
+          "bytes": 932,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-organizations-boolean-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-organizations-boolean-v123-restored.receipt.json",
+          "sha256": "dc2db6cd809613e8d36373e89fafa96ca6f99ec23a1bb63bd4bfa284d7b2e77c",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-organizations-boolean-v123-restored.log",
+          "sha256": "42949f0d833bb8e4cda89ebf19d93dfbeb2569c59265d0f422f04695fb349d7c",
+          "bytes": 287,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "feature-dependency",
+      "negative": {
+        "name": "backend-probe-fault-feature-dependency-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-feature-dependency-v123.receipt.json",
+          "sha256": "8a5a657f992a5a263310d2e8790de446c0b0c72985d7c4ba049b4df3ad9431cd",
+          "bytes": 1507,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-feature-dependency-v123.log",
+          "sha256": "a0eab6e8a03970496332bdea81af373de373ef8eacff68cb26d11865601c5f89",
+          "bytes": 929,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-feature-dependency-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-feature-dependency-v123-restored.receipt.json",
+          "sha256": "747e6c758685e3107b2e01a9edbb34e0465ee85fce0699b74a2f44bf89582e4a",
+          "bytes": 1525,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-feature-dependency-v123-restored.log",
+          "sha256": "2de4080c80c51a3a84b7db7fbe0be9c586861a33d04197dbf272957c1fb980d3",
+          "bytes": 286,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "http-status",
+      "negative": {
+        "name": "backend-probe-fault-http-status-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-http-status-v123.receipt.json",
+          "sha256": "5b09fb9e5c50054966f5b0aee8447bb460f2812241bbbd39ece33eb4b7ffcf26",
+          "bytes": 1432,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-http-status-v123.log",
+          "sha256": "4191945644677320aa842c622c4a6163877a26da76797a2977017789258f16ca",
+          "bytes": 863,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-http-status-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-http-status-v123-restored.receipt.json",
+          "sha256": "cc1015acef9e30ced66a90531a19b0d17e319a9103e14f025bd546b57e54528e",
+          "bytes": 1450,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-http-status-v123-restored.log",
+          "sha256": "605e5d1f652f119ae7b730f5d09dac9c5da821272ac72cb10876d3b538fc6cb8",
+          "bytes": 241,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "redirect-policy",
+      "negative": {
+        "name": "backend-probe-fault-redirect-policy-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-redirect-policy-v123.receipt.json",
+          "sha256": "7c8a4d1e6d1ee95a6ec25a50645cee2962001579caed3b57f8196f4cccbc505a",
+          "bytes": 1442,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-redirect-policy-v123.log",
+          "sha256": "92a7bc7a683e93befb89aca2be60b3467ebc1d6be748061e690eee0fbd2b8aca",
+          "bytes": 723,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-redirect-policy-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-redirect-policy-v123-restored.receipt.json",
+          "sha256": "bdab4c88a553445c37646dc82fcf93e2eefaa3c7dea423a80b919b0796f8b816",
+          "bytes": 1460,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-redirect-policy-v123-restored.log",
+          "sha256": "7ca335b5a3e8db4661f6f3e18be56af7bbc4e0b99b1cd0fb4d6ec882282281fc",
+          "bytes": 242,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "request-timeout",
+      "negative": {
+        "name": "backend-probe-fault-request-timeout-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-request-timeout-v123.receipt.json",
+          "sha256": "b099f2714ee586c6042f9bd28e271c86acf00e6133d8a21d31a92f4fc09bd2ac",
+          "bytes": 1464,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-request-timeout-v123.log",
+          "sha256": "dda2ef5d3b574a5a09391bafd38f681ed7e6dc9abbd98fef93c4f231f507cc3d",
+          "bytes": 759,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-request-timeout-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-request-timeout-v123-restored.receipt.json",
+          "sha256": "a19eab6d93a4757e6c1249e28d8bc2afcaa9086796a7ed13cb9d04c9b4f12c96",
+          "bytes": 1482,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-request-timeout-v123-restored.log",
+          "sha256": "d58c4b6bf8344ab53204dfa6d9faa647bec80528af085f7e2ab79505aeebdeb2",
+          "bytes": 266,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "auth-route",
+      "negative": {
+        "name": "backend-probe-fault-auth-route-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-auth-route-v123.receipt.json",
+          "sha256": "9fc67792cb573d31ae5920f75b816cb4fc83dbcd437ec9c7349eefcba39cdfed",
+          "bytes": 1468,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-auth-route-v123.log",
+          "sha256": "ce768b3b8c9956c0e5d306e958b4167adf5631777d824cfd7d2c85ad02702c11",
+          "bytes": 862,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-auth-route-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-auth-route-v123-restored.receipt.json",
+          "sha256": "a9fc31ee97b2e45358f8f7903e93781abf9c2f8087e315de66962c56f1a2ab5f",
+          "bytes": 1486,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-auth-route-v123-restored.log",
+          "sha256": "f4632168a0ca33d5c3be8faa0a152792fd2958d37f727dbc8085e718de954f5f",
+          "bytes": 270,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "typed-dispatch",
+      "negative": {
+        "name": "backend-probe-fault-typed-dispatch-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-typed-dispatch-v123.receipt.json",
+          "sha256": "c36075b4808fe0791112138521a999bd0a369f6477c7e498bd9f34719d48cd2b",
+          "bytes": 1476,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-typed-dispatch-v123.log",
+          "sha256": "2b31ffe97cd7cc10653cf5399b704b2e2be1de2f56b87fdbea94c36d54af5a5e",
+          "bytes": 936,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-typed-dispatch-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-typed-dispatch-v123-restored.receipt.json",
+          "sha256": "4786b4d20d06264057dcf121488f430db5a449c798272a05e6bbbbb3c2b9fbd7",
+          "bytes": 1494,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-typed-dispatch-v123-restored.log",
+          "sha256": "307cc13be60dfa634dd6a1ef3c9129ce8fcb41c8f8a7746b2c8884c670284def",
+          "bytes": 271,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    },
+    {
+      "name": "origin-grammar",
+      "negative": {
+        "name": "backend-probe-fault-origin-grammar-v123",
+        "exitCode": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-origin-grammar-v123.receipt.json",
+          "sha256": "2d4d9ed51307f8ad61f7d8d0f7c98c263a27698148a440c6354752959708007e",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-origin-grammar-v123.log",
+          "sha256": "b0cea1e09f1cc0dbbac53bb6692878fd2757b74298b96c38ae62d5df5a88f616",
+          "bytes": 838,
+          "mode": 384
+        }
+      },
+      "restored": {
+        "name": "backend-probe-fault-origin-grammar-v123-restored",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-origin-grammar-v123-restored.receipt.json",
+          "sha256": "764c1affd5d2e822c1d782d5f0155985931cb235da78074cf1e6960c19ca200f",
+          "bytes": 1473,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-fault-origin-grammar-v123-restored.log",
+          "sha256": "1ff4a428f4e6ff8fe873a81618e942b4a7f8cf3a01092055ffd2a0cfb3c45cab",
+          "bytes": 249,
+          "mode": 384
+        }
+      },
+      "exactBytesAndModeRestored": true
+    }
+  ],
+  "sourceBridge": [
+    {
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/development/probe.ts",
+        "sha256": "484db3f63e5148d4659425ac54ea399051aa05783b851f6b3ffd7bc3cd00f88e",
+        "bytes": 2831,
+        "mode": 436
+      },
+      "observedBeforeimageSha256": "7d955921808ccc91a385d1af40b663d7a3fcbe9d74aff017726a84d34ae48b4a",
+      "structuralSha256": "15f1bbaea78b16f8f7af8ea3407038e4640af2985ffc56eeeffee0d9ed613b35",
+      "recognizedObservedVariants": 9
+    },
+    {
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/execute-command.ts",
+        "sha256": "1a8ab9e2eadacce651bfd509038ab28d2605c26575a2b6bf4da38ed45269e56b",
+        "bytes": 11675,
+        "mode": 436
+      },
+      "observedBeforeimageSha256": "e13a36a7b326d91c2aac6521c3b15024bfd417e9026f605b07901dd3779de233",
+      "structuralSha256": "3c97c7c76c6434d562424a92d34d2fbcf4b4c88b94af2197e4585d306b3fa68a",
+      "recognizedObservedVariants": 1
+    },
+    {
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-dash/cli/src/grammar-facade.ts",
+        "sha256": "3e0dead77e1c0cb2bcd1fe75450ec9f8b92c3f67c55660e3a7c15d4805fd9948",
+        "bytes": 5561,
+        "mode": 436
+      },
+      "observedBeforeimageSha256": "f23896b21761e4746b5ad0c74625d92e4e50c0f0ccf320845bb14a5d31ce6809",
+      "structuralSha256": "d57bb1e9e97b980e8d11ebc63053c9f4697bfb31c409fab4ba42e00947afb8d1",
+      "recognizedObservedVariants": 1
+    }
+  ],
+  "verification": {
+    "sourceAndRootParser": {
+      "files": 2,
+      "pass": 114,
+      "fail": 0,
+      "expects": 364,
+      "seconds": 17.18
+    },
+    "standaloneDash": {
+      "files": 1,
+      "pass": 134,
+      "fail": 0,
+      "expects": 404,
+      "seconds": 7.77
+    },
+    "package": {
+      "files": 1,
+      "pass": 4,
+      "fail": 0,
+      "expects": 549,
+      "seconds": 338.17
+    },
+    "finiteFlights": 11,
+    "installedProbeInvocations": 6,
+    "installedProbeNamespaces": ["dash", "d"],
+    "installedProbeCases": [
+      "valid anonymous response",
+      "HTTP201 with otherwise valid body",
+      "authenticated response"
+    ],
+    "sourceCheckoutAndPackageOutputRemovedBeforeProbe": true,
+    "changedCodeRoots": 5,
+    "wholeGoal": false
+  },
+  "executionSites": {
+    "snapshot": {
+      "path": "/tmp/puni-combined-proposal-v1/control/script-census-v123.json",
+      "sha256": "8d49c801a2e834c26d8e1b401239db07715102c92b7bd6c0ccb20dabff009d9d",
+      "bytes": 1544199,
+      "mode": 384
+    },
+    "consumers": 803,
+    "unresolved": 583,
+    "byRuntime": {
+      "unknown": 386,
+      "external": 69,
+      "bun": 264,
+      "python": 11,
+      "shell": 73
+    },
+    "acceptedInventory": false,
+    "limitations": "Kubernetes, Ansible, generated/remote bodies and runbooks are not complete collectors. No unclassified declaration is accepted and this capture does not certify Bun/client compliance."
+  },
+  "deliveryReference": {
+    "baseRefName": "main",
+    "headRefName": "feat/puni-entities-cli",
+    "headRefOid": "b0d2df4eb608827a4933f0840b05300e06158d8a",
+    "isDraft": true,
+    "number": 917,
+    "state": "OPEN",
+    "title": "WBS permissions: retire membership-role server authority",
+    "url": "https://github.com/Prosperous-Unification/puni-00/pull/917"
+  },
+  "temporaryStorage": {
+    "first": {
+      "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-memory-storage-v123.json",
+      "sha256": "c7598060b53ef0080be3b3e1862b78656fa571be2437767b94b4c5e1e9a42b7c",
+      "bytes": 550,
+      "mode": 384
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123b.storage.json",
+      "sha256": "aa0e097d7ee5505eff70c0eba79c3ad3a2c0357e1cc1950c16595ce6b5825852",
+      "bytes": 387,
+      "mode": 384
+    }
+  },
+  "excludedOrFailedChecks": [
+    {
+      "name": "backend-probe-feature-red-v123",
+      "qualification": "The initial seven usage-prefix assertions omitted the existing error: prefix. They were corrected before implementation and the corrected V123b feature RED is authoritative."
+    },
+    {
+      "name": "backend-probe-source-green-v123",
+      "qualification": "Six tests retained pooled Bun Request objects after their handler returned; another pending-response fixture hit the server default idle timeout before the client deadline. Only fixtures changed: capture immutable request observations inside the handler and make server idle timeout30s. No product timeout or safety assertion was weakened."
+    },
+    {
+      "name": "backend-probe-package-v123",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-v123.receipt.json",
+        "sha256": "09a9e14e346231f1fa7dd323d14c3c88f402de8d3c601751213272ee52788938",
+        "bytes": 1383,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-v123.log",
+        "sha256": "0def0565c271d13a9a0c872a628eb63c716753c4ac732d372d7a8d570845d57c",
+        "bytes": 4227,
+        "mode": 384
+      },
+      "qualification": "Physical dependency copy reached ENOSPC before installed probe assertions. Native actor settled3pass/1fail. The successor changes only temporary storage after an actual native executable memory-storage probe; no Source2/dependency guard changes or old-artifact cleanup."
+    },
+    {
+      "name": "backend-probe-package-memory-v123",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123.receipt.json",
+        "sha256": "cabb3cf877eadef54aa559c20794e988463720bdbb7bb0182722205da54c96f7",
+        "bytes": 1440,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-probe-package-memory-v123.log",
+        "sha256": "0e486587661aad514bbd31aa4e509b11babeddf964e9013fcfa2a23bf2b6f2ea",
+        "bytes": 1172,
+        "mode": 384
+      },
+      "qualification": "The installed first probe reaches an overly strict fixture signalCode assertion: actual async Bun child uses null, while the test expected undefined. The independent actual async-child contract confirms exit0/signalnull/empty streams. Only that test literal changes for the fresh V123b package session; no product behavior or refusal assertion changes. This run stops3pass/1fail before the later installed probe assertions."
+    },
+    {
+      "qualification": "The source regression request included a nonexistent standalone cli-parser.test.ts; Bun silently ignored it. Its actual result is114tests in2files. The separate real standalone cli.test.ts run explicitly passes134tests; no third file is inferred from the former argv."
+    },
+    {
+      "qualification": "Sandbox /dev/shm is a different read-only view. Its ENOENT/empty observations do not describe the admitted native storage. The same actual native context confirmed the owned directory and progress; the original handle was retained throughout."
+    }
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "review": {
+    "status": "pending-astra",
+    "retryAfterRecorded": "2026-11-22 10:09AM",
+    "timezone": "unspecified",
+    "noRetryOrSubstitute": true,
+    "questions": [
+      {
+        "topic": "Import destination and consent lifetimes",
+        "evidence": "V122 separate lifetimes implemented; 220 affected tests pass; 15 qualified finite production-hook omissions fail their own assertion then pass after exact restoration. Formal Astra review remains pending.",
+        "candidateDirection": "Separate the catalog/isCurrent publication owner from the project-specific consent owner. Capture projectId and defineMissing before FileReader; serialize busy/file admission under the publication owner across destination changes. Keep stale setters bound to the consent owner and replacement/unmount/currentness fences under the publication owner. Prove captured A/true, new B/false, one admitted read, withdrawal/cancel and cleanup before acceptance.",
+        "applied": true
+      },
+      {
+        "topic": "Hostile error message getter under Bun/Vitest",
+        "evidence": "The actual zero-getter assertion fails inside caught-object-report-json15.hasPropertyWithoutReading. Scoped Vitest/jsdom probes show own-property,Reflect.has,in and own-name enumeration each invoke the message getter; message-descriptor lookup does not. The same native primitives and actual reporter in plain Bun, a plain node:vm context and fixed/message Error.prepareStackTrace-hook probes invoke no getter. A minimal framework-independent reproducer is not established.",
+        "candidateDirection": "Preserve the assertion and production selector/reporting implementation until the exact environment interaction is understood. Review an upstream no-invoke fix versus a fixture that materializes its ordinary stack before installing the hostile message accessor; any fixture change must still fail when the actual Gantt selector reads thrown.message. Changing runners to bypass Bun is not accepted.",
+        "applied": false
+      },
+      {
+        "topic": "Embedded backend probe and client cutover",
+        "applied": true,
+        "evidence": "New PUNI-only typed leaf uses Bun HTTP;11 finite production-path variants fail their own assertions and pass restored. The actual package session supplies six installed alias/scenario invocations. Review pending; old deployment caller and MCP probes remain open."
+      }
+    ]
+  },
+  "qualification": "This installed leaf is proved inside the real current controlled local build/pack/add session, whose mutex pathname and Browser/Performance/Nx fixtures retain V119 limits. The old bin/dev-be-probe.sh and bin/dev-deploy.sh caller remain until explicit selected-installation delivery is migrated. MCP probes, full Bun/client inventory, four real Nx/WBS clients, formal Astra review, all entity/catalogue/API/UI acceptance, full checks, exact-SHA clean host gate and delivery remain open. No public commit, push, PR update, merge, deployment, activation or goal completion."
+}

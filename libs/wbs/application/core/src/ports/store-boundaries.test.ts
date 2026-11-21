@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { EventLogStore, RecordedEvent } from './event-log-store';
-import type { PlanInputReads, SavedPlanCaptureStore } from './saved-plan-capture-store';
+import type { ResolvedPlanInputReads, SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanRow, SavedPlanStore } from './saved-plan-store';
 
 function replayFrom(store: EventLogStore): Promise<readonly RecordedEvent[]> {
-  return store.rangeSince('project:p1', -1);
+  return store.rangeSince('work-package:p1', -1);
 }
 
 describe('store ports', () => {
   it('admits an event-log consumer without a SQLite transaction method', async () => {
     const event: RecordedEvent = {
-      subscription: 'project:p1',
+      subscription: 'work-package:p1',
       seq: 0,
-      message: { type: 'project_changed' },
+      message: { type: 'work_package_changed' },
       createdAt: 1,
     };
     const store: EventLogStore = {
@@ -30,7 +30,7 @@ describe('store ports', () => {
   it('admits a saved-plan consumer without transaction-only helpers', async () => {
     const row: SavedPlanRow = {
       id: 'saved-1',
-      projectId: 'project-1',
+      workPackageId: 'work-package-1',
       name: 'Plan',
       createdBy: 'Ada',
       createdById: 'user-1',
@@ -54,15 +54,15 @@ describe('store ports', () => {
       deleteOf: () => Promise.resolve('touched'),
     };
 
-    expect(await store.listOf('project-1')).toEqual([row]);
+    expect(await store.listOf('work-package-1')).toEqual([row]);
   });
 
   it('admits a capture consumer without a repository class', async () => {
-    const reads: PlanInputReads = {
-      project: {
-        id: 'project-1',
+    const reads: ResolvedPlanInputReads = {
+      workPackage: {
+        id: 'work-package-1',
         name: 'Plan',
-        ownerId: 'user-1',
+        projectId: 'captured-parent',
         restricted: false,
         estimateMethod: 'pert',
         depReach: 'whole-item',
@@ -78,6 +78,7 @@ describe('store ports', () => {
       },
       steps: [],
       workItems: [],
+      leafSteps: [],
       estimates: [],
       actuals: [],
       progress: [],
@@ -106,6 +107,6 @@ describe('store ports', () => {
       readPlanInput: () => Promise.resolve(reads),
     };
 
-    expect(await capture.readPlanInput('project-1')).toBe(reads);
+    expect(await capture.readPlanInput('work-package-1')).toBe(reads);
   });
 });

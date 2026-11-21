@@ -1,11 +1,16 @@
-import type { IncidentDependencyStore } from '@wbs/core';
+import type { IncidentDependencyStore, Step } from '@wbs/core';
 
 import type { MemoryState } from './memory-stores';
 
-/** Source-bound staging preserves the fixture receipt and writes the completed endpoint union once. */
+/**
+ * Source-bound restoration checks the current package union and its explicit
+ * values through the required same-stage projection, preserving the original
+ * receipt and advancing the completed endpoint union once.
+ */
 export function bindIncidentDependencies(
   store: IncidentDependencyStore,
   state: MemoryState,
+  readPackageSteps: (workPackageId: string) => readonly Step[],
 ): IncidentDependencyStore {
   return {
     capture: (id) => store.capture(id),
@@ -15,13 +20,14 @@ export function bindIncidentDependencies(
       const relationship = receipt.dependency;
       for (const endpoint of [relationship.predecessor, relationship.successor]) {
         const row = state.tables.workItems.byId.get(endpoint.workItemId);
-        if (row?.projectId !== endpoint.projectId)
+        if (row?.workPackageId !== endpoint.workPackageId)
           throw new Error('incident work-item ownership is missing or inconsistent');
+        // Proof: omitting this condition let absent and sibling-project steps
+        // restore without an Error in the actual Source's two atomic refusal
+        // cases (incident-effect-current-step-ownership-v1).
         if (
           endpoint.scope !== 'whole' &&
-          !state.tables.projects.steps
-            .get(endpoint.projectId)
-            ?.some((step) => step.id === endpoint.stepId)
+          !readPackageSteps(endpoint.workPackageId).some((step) => step.id === endpoint.stepId)
         )
           throw new Error('incident step ownership is missing or inconsistent');
         const isParent = [...state.tables.workItems.byId.values()].some(
@@ -32,12 +38,12 @@ export function bindIncidentDependencies(
         if (endpoint.scope === 'descendant-step' && !isParent)
           throw new Error('incident descendant endpoint is a leaf');
       }
-      if (relationship.predecessor.projectId !== relationship.successor.projectId) {
-        const predecessorOrganization = state.tables.projects.owning.get(
-          relationship.predecessor.projectId,
+      if (relationship.predecessor.workPackageId !== relationship.successor.workPackageId) {
+        const predecessorOrganization = state.tables.workPackages.owning.get(
+          relationship.predecessor.workPackageId,
         );
-        const successorOrganization = state.tables.projects.owning.get(
-          relationship.successor.projectId,
+        const successorOrganization = state.tables.workPackages.owning.get(
+          relationship.successor.workPackageId,
         );
         if (
           predecessorOrganization === undefined ||

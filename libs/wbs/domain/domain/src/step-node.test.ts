@@ -44,14 +44,14 @@ describe('listStepNodes', () => {
     { id: 'dev', code: 'dev', position: 10 },
   ];
 
-  it('answers one node per project step for a leaf, in step order, facts or no facts', () => {
+  it('answers one node per work package step for a leaf, in step order, facts or no facts', () => {
     expect(listStepNodes('w', steps)).toEqual([
       { workItemId: 'w', stepId: 'dev' },
       { workItemId: 'w', stepId: 'qa' },
     ]);
   });
 
-  it('answers none in a project with no steps: the leaf keeps its work-item boundary', () => {
+  it('answers none in a work package with no steps: the leaf keeps its work-item boundary', () => {
     expect(listStepNodes('w', [])).toEqual([]);
   });
 });

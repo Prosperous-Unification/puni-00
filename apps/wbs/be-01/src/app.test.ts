@@ -2,6 +2,7 @@ import type { FailureReporting } from '@shared/failures';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
@@ -28,15 +29,18 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
+import { refusingPlanExports } from './testing/plan-export-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
-import { testProjectService } from './testing/project-fixture';
-import { refusingProjectRanks } from './testing/project-rank-fixture';
+import { refusingProjects } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
-import { refusingSpaces } from './testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from './testing/space-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
+import { createLegacyWorkPackageObservation } from './testing/work-package-fixture';
+import { testWorkPackageService } from './testing/work-package-fixture';
+import { refusingWorkPackageRanks } from './testing/work-package-rank-fixture';
 import { testWrites } from './testing/writes-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
@@ -81,8 +85,13 @@ async function signedInProbe(): Promise<{
 }
 
 function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOptions {
+  const workPackages = testWorkPackageService();
+  const history = testHistoryService();
   return {
-    projectAddressSearch: refusingProjectAddressSearch,
+    projects: refusingProjects,
+    planExports: refusingPlanExports,
+    workPackageObservation: createLegacyWorkPackageObservation(workPackages, history),
+    workPackageAddressSearch: refusingWorkPackageAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -92,7 +101,8 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
-    projectRanks: refusingProjectRanks,
+    spaceRead: refusingSpaceRead,
+    workPackageRanks: refusingWorkPackageRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     clock: testClock,
@@ -101,19 +111,19 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
+    history,
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     auth,
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
+    workPackages,
+    workItems: testWorkItemService(openTestSource()),
     savedPlans: testSavedPlanService(),
     steps: testStepService(),
     replay: testReplay().replay,
     admitDependencyClient: () => null,
     probeDatabase: () => 'ok',
     internalAuthSecret,
-    writes: testWrites(),
+    writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
     migrationsApplied: true,
   };
 }
@@ -170,7 +180,7 @@ it('reports one redacted unexpected production failure with its shared occurrenc
     Promise.reject(new Error(`account lookup exposed ${internalAuthSecret}`));
   const app = buildApp(optionsFor(auth, internalAuthSecret), makeLogger);
   const response = await app.handle(
-    new Request('http://localhost/api/projects', {
+    new Request('http://localhost/api/work-packages', {
       headers: { authorization: 'Bearer outage' },
     }),
   );
@@ -255,7 +265,7 @@ describe('what a request costs before it reaches a handler', () => {
   it('resolves the caller once for a route that needs one', async () => {
     const { auth, token, counts } = await signedInProbe();
     const res = await appWith(auth).handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: { authorization: `Bearer ${token}` },
       }),
     );

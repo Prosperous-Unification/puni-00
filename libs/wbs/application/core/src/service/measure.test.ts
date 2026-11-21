@@ -1,28 +1,31 @@
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CommandJournalStore,
   MeasureStore,
-  Project,
-  ProjectStore,
   StoredMeasure,
+  WorkPackage,
+  WorkPackageStore,
 } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { inMemoryServices } from '../testing/harness';
+import { createBoundFixturePackage } from '../testing/bound-package-fixture';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';
 const DEV = 'step-dev';
 const QA = 'step-qa';
 const GONE = 'step-that-was-removed';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let measures: MeasureStore;
 let journal: CommandJournalStore & { events: { kind: string; stepId: string | null }[] };
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
   const store = inMemoryCommandJournal();
@@ -40,43 +43,64 @@ beforeEach(async () => {
     },
   };
   // Only the journal is this suite's own, as in `actual.test.ts`.
-  const harness = inMemoryServices({ journal });
-  ({ projects, measures } = harness.stores);
-  service = harness.service;
-  const project: Project = projectRow({
-    id: crypto.randomUUID(),
-    ownerId: OWNER,
-    restricted: true,
+  const fixture = await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID);
+  const harness = createTestServices(fixture.source, {
+    journal,
   });
-  await projects.create(
-    project,
+  ({ workPackages, measures } = harness.stores);
+  service = harness.service;
+  const workPackage: WorkPackage = workPackageRow({
+    id: crypto.randomUUID(),
+    projectId: PROJECT_ID,
+    restricted: false,
+  });
+  await createBoundFixturePackage(
+    fixture.source,
+    'caller-legacy',
+    workPackage,
     [
       {
-        id: DEV,
-        projectId: project.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+        definition: {
+          id: DEV,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: DEV + ':binding',
+          scopeKind: 'project',
+          scopeId: PROJECT_ID,
+          workItemTypeId: null,
+          position: 10,
+        },
       },
       {
-        id: QA,
-        projectId: project.id,
-        name: 'QA',
-        position: 20,
-        code: 'qa',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+        definition: {
+          id: QA,
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: QA + ':binding',
+          scopeKind: 'project',
+          scopeId: PROJECT_ID,
+          workItemTypeId: null,
+          position: 20,
+        },
       },
     ],
     { at: 1, by: OWNER },
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 async function add(name: string, parentId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId: null, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId: null, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -106,7 +130,7 @@ describe('recording the figures that are not days', () => {
     const written = await service.setMeasure(strip, OWNER, DEV, 'token_estimate', 12_000);
 
     expect(written.ok).toBe(true);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
     ]);
   });
@@ -121,9 +145,9 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'token_estimate', 12_000);
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
     ]);
   });
 
@@ -134,7 +158,7 @@ describe('recording the figures that are not days', () => {
 
     await service.clearMeasure(strip, OWNER, DEV, 'token_estimate');
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'hours_actual', value: 3 },
     ]);
   });
@@ -144,7 +168,7 @@ describe('recording the figures that are not days', () => {
 
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 0);
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 0 },
     ]);
   });
@@ -160,7 +184,7 @@ describe('recording the figures that are not days', () => {
     const refused = await service.setMeasure(strip, OWNER, DEV, 'tokens_estimate', 12_000);
 
     expect(refused).toEqual({ ok: false, reason: 'unknown_measure' });
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
     expect(journal.events.map((each) => each.kind)).toEqual(['create']);
   });
 
@@ -182,16 +206,16 @@ describe('recording the figures that are not days', () => {
     const refused = await service.setMeasure(strip, OWNER, DEV, 'token_actual', 900);
 
     expect(refused).toEqual({ ok: false, reason: 'rolled_up' });
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
-  it('refuses a step this project does not hold, and writes nothing', async () => {
+  it('refuses a step this work package does not hold, and writes nothing', async () => {
     const strip = await add('Strip');
 
     const refused = await service.setMeasure(strip, OWNER, GONE, 'token_estimate', 12_000);
 
     expect(refused).toEqual({ ok: false, reason: 'unknown_step' });
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('refuses a work item that is not there, and a plan the actor cannot edit', async () => {
@@ -201,6 +225,7 @@ describe('recording the figures that are not days', () => {
       ok: false,
       reason: 'not_found',
     });
+    await workPackages.update(workPackageId, { restricted: true }, { at: 2, by: OWNER });
     expect(await service.setMeasure(strip, OTHER, DEV, 'token_actual', 1)).toEqual({
       ok: false,
       reason: 'forbidden',
@@ -213,7 +238,7 @@ describe('recording the figures that are not days', () => {
 
     expect((await service.clearMeasure(strip, OWNER, QA, 'hours_actual')).ok).toBe(true);
     expect((await service.clearMeasure(strip, OWNER, QA, 'hours_actual')).ok).toBe(true);
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('journals both writes as commands, which is what puts them in the plan’s history', async () => {
@@ -245,10 +270,10 @@ describe('recording the figures that are not days', () => {
     const strip = await add('Strip');
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
 
-    const undone = await service.undo(projectId, OWNER);
+    const undone = await service.undo(workPackageId, OWNER);
 
     expect(undone.ok).toBe(true);
-    expect(await measures.listByProject(projectId)).toEqual([]);
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('undoes a first recording of one metric without touching the pair’s others', async () => {
@@ -259,9 +284,9 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'token_estimate', 12_000);
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
     ]);
   });
@@ -271,13 +296,13 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_400);
     await service.setMeasure(strip, OWNER, DEV, 'token_actual', 15_950);
 
-    await service.undo(projectId, OWNER);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    await service.undo(workPackageId, OWNER);
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
     ]);
 
-    await service.redo(projectId, OWNER);
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    await service.redo(workPackageId, OWNER);
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_950 },
     ]);
   });
@@ -287,9 +312,9 @@ describe('recording the figures that are not days', () => {
     await service.setMeasure(strip, OWNER, DEV, 'hours_actual', 6);
     await service.clearMeasure(strip, OWNER, DEV, 'hours_actual');
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'hours_actual', value: 6 },
     ]);
   });
@@ -298,7 +323,7 @@ describe('recording the figures that are not days', () => {
 describe('the figures that are not days, read back through the tree', () => {
   /** One work item's `measures`, by the name a case names it with. */
   async function measuresOn(name: string): Promise<Record<string, Record<string, number>>> {
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     if (tree === null) throw new Error('no tree');
     const row = tree.workItems.find((each) => each.name === name);
     if (row === undefined) throw new Error(`no work item called ${name}`);
@@ -393,7 +418,7 @@ describe('the figures that are not days, read back through the tree', () => {
 describe('the figures that are not days, through the structural commands', () => {
   /** One work item's `measures`, found by name. Section 6's cases read the tree. */
   async function measuresOn(name: string): Promise<Record<string, Record<string, number>>> {
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     if (tree === null) throw new Error('no tree');
     const row = tree.workItems.find((each) => each.name === name);
     if (row === undefined) throw new Error(`no work item called ${name}`);
@@ -415,11 +440,9 @@ describe('the figures that are not days, through the structural commands', () =>
     // All three metrics moved, not the one a single-metric loop would have
     // caught: `moveAll` takes no metric because a leaf stops holding figures in
     // every unit at once.
-    expect(stored(await measures.listByProject(projectId)).map((each) => each.workItemId)).toEqual([
-      sockets,
-      sockets,
-      sockets,
-    ]);
+    expect(
+      stored(await measures.listByWorkPackage(workPackageId)).map((each) => each.workItemId),
+    ).toEqual([sockets, sockets, sockets]);
     // The parent still reports all three — as sums now rather than as its own
     // rows, which is what makes the move invisible to whoever recorded them.
     expect(await measuresOn('Strip')).toEqual({
@@ -428,11 +451,11 @@ describe('the figures that are not days, through the structural commands', () =>
       hours_actual: { [QA]: 3 },
     });
 
-    await service.undo(projectId, OWNER);
+    await service.undo(workPackageId, OWNER);
 
-    expect(stored(await measures.listByProject(projectId))).toEqual([
-      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
+    expect(stored(await measures.listByWorkPackage(workPackageId))).toEqual([
       { workItemId: strip, stepId: DEV, metric: 'token_actual', value: 15_400 },
+      { workItemId: strip, stepId: DEV, metric: 'token_estimate', value: 12_000 },
       { workItemId: strip, stepId: QA, metric: 'hours_actual', value: 3 },
     ]);
   });
@@ -483,7 +506,7 @@ describe('the figures that are not days, through the structural commands', () =>
     const copied = await service.duplicate(strip, OWNER);
     expect(copied.ok).toBe(true);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const copy = tree?.workItems.find(
       (each) => each.name !== 'Strip' && each.name.includes('Strip'),
     );

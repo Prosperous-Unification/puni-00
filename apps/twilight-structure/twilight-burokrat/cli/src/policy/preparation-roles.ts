@@ -19,10 +19,20 @@ import { type PreparationCompiler, prepareCompiler } from '../packaging/preparat
 import { boundSource } from '../relationships/typescript-compiler';
 import type { BuildDependencies } from './build-dependencies';
 import { type BunToolkitRole, bunToolkitRoles } from './bun-release';
-import type { SourceFiles } from './source-files';
-import { type AuditedForgeLoader, type ForgeRuntimeLoad, forgeRuntimeLoaderPath, readForgeLoaderBoundary, readForgeLoaderImport } from './forge-loader-boundary';
+import {
+  type AuditedForgeLoader,
+  type ForgeRuntimeLoad,
+  forgeRuntimeLoaderPath,
+  readForgeLoaderBoundary,
+  readForgeLoaderImport,
+} from './forge-loader-boundary';
 import type { PreparationNotice } from './prepared-activation';
-import { type CommittedBunExecutionToolkit, readCommittedBunToolkit } from './toolkit';
+import type { SourceFiles } from './source-files';
+import {
+  type CommittedBunExecutionToolkit,
+  readCommittedBunToolkit,
+  resolveToolkitModules,
+} from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 interface Context {
@@ -110,7 +120,12 @@ function createImportKey(importer: string, specifier: string, kind: string): str
   return JSON.stringify([importer, specifier, kind]);
 }
 
-function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean, audited?: AuditedForgeLoader): ForgeRuntimeLoad | undefined {
+function assertNoOpaqueLoads(
+  path: string,
+  module: Module,
+  vendor: boolean,
+  audited?: AuditedForgeLoader,
+): ForgeRuntimeLoad | undefined {
   if (module.loader === 'json') return;
   const parsed = ts.createSourceFile(
     path,
@@ -141,7 +156,11 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean, audi
           call.name.text === 'resolve');
       const specifier = node.arguments.at(0);
       // Proof: c26-build-opaque; injected fault failed `refuses an opaque runtime import rather than claiming a closed build`; the same named test(s) passed after restoration.
-      if (isLoader && (specifier === undefined || !ts.isStringLiteralLike(specifier)) && node !== allowedImport)
+      if (
+        isLoader &&
+        (specifier === undefined || !ts.isStringLiteralLike(specifier)) &&
+        node !== allowedImport
+      )
         throw new Error(
           'preparation refuses an opaque ' +
             (vendor ? 'vendor' : 'first-party') +
@@ -153,9 +172,17 @@ function assertNoOpaqueLoads(path: string, module: Module, vendor: boolean, audi
   }
   visit(parsed);
   if (audited === undefined) return undefined;
-  return { kind: 'retained-forge-core', sourcePath: forgeRuntimeLoaderPath,
-    sourceSha256: audited.sourceSha256, emittedSha256: hashBytes(module.bytes), role: 'puni.mjs',
-    importCalls: 1, payloadFormat: 'puni-forge-runtime', payloadVersion: 1, cacheIdentity: 'sha256-data-url' };
+  return {
+    kind: 'retained-forge-core',
+    sourcePath: forgeRuntimeLoaderPath,
+    sourceSha256: audited.sourceSha256,
+    emittedSha256: hashBytes(module.bytes),
+    role: 'puni.mjs',
+    importCalls: 1,
+    payloadFormat: 'puni-forge-runtime',
+    payloadVersion: 1,
+    cacheIdentity: 'sha256-data-url',
+  };
 }
 
 interface RoleBuildContext<Role extends string> {
@@ -198,7 +225,7 @@ export async function buildPreparationRoles(
       if (verified.digest !== toolkitIdentity)
         throw new Error('preparation toolkit identity changed before build');
       return {
-        directory: join(verified.directory, 'trusted-node-modules'),
+        directory: resolveToolkitModules(verified),
         identity: verified.trustedNodeModulesIdentity,
         names: verified.trustedNodeModules,
         bunVersion: verified.bunVersion,
@@ -255,7 +282,12 @@ export function buildToolkitRoles(
   });
 }
 
-export type PuniProgram = BunToolkitRole | 'puni.mjs' | 'observation-service.mjs' | 'forge-supervisor.mjs' | 'performance-judge.mjs';
+export type PuniProgram =
+  | BunToolkitRole
+  | 'puni.mjs'
+  | 'observation-service.mjs'
+  | 'forge-supervisor.mjs'
+  | 'performance-judge.mjs';
 
 /**
  * Build the PUNI root, five toolkit roles, observation service and Forge core in one sealed session.
@@ -597,7 +629,11 @@ async function buildSelectedRoles<Role extends string>(
         original = { bytes: Buffer.from(prepared.source), loader: original.loader };
       }
       assertNoMacros(path, original);
-      const audited = readForgeLoaderBoundary(relative(directory, path).split(sep).join('/'), original.bytes, packagePrograms);
+      const audited = readForgeLoaderBoundary(
+        relative(directory, path).split(sep).join('/'),
+        original.bytes,
+        packagePrograms,
+      );
       const options = readConfiguration(path);
       let module: Module = original;
       if (original.loader !== 'json') {
@@ -664,7 +700,8 @@ async function buildSelectedRoles<Role extends string>(
         imports.set(createImportKey(path, imported.path, imported.kind), selected);
         if (!selected.isExternal) {
           const outgoing = moduleEdges.get(path);
-          if (outgoing === undefined) throw new Error('captured module has no import-edge owner: ' + path);
+          if (outgoing === undefined)
+            throw new Error('captured module has no import-edge owner: ' + path);
           outgoing.add(selected.path);
           if (!captured.has(selected.path)) pending.push(selected.path);
         }
@@ -673,10 +710,12 @@ async function buildSelectedRoles<Role extends string>(
     for (const [loaderPath, manifest] of auditedModules) {
       const owners: string[] = [];
       for (const [role, entry] of roleEntries) {
-        const pendingPaths = [entry], visited = new Set<string>();
+        const pendingPaths = [entry],
+          visited = new Set<string>();
         while (pendingPaths.length !== 0) {
           const selected = pendingPaths.pop();
-          if (selected === undefined) throw new Error('Forge loader role graph queue is unexpectedly empty');
+          if (selected === undefined)
+            throw new Error('Forge loader role graph queue is unexpectedly empty');
           if (visited.has(selected)) continue;
           visited.add(selected);
           const outgoing = moduleEdges.get(selected);
@@ -687,7 +726,10 @@ async function buildSelectedRoles<Role extends string>(
         if (visited.has(loaderPath)) owners.push(role);
       }
       if (owners.length !== 1 || owners.at(0) !== 'puni.mjs')
-        throw new Error('audited Forge runtime loader is not exclusive to the PUNI root role: ' + owners.join(', '));
+        throw new Error(
+          'audited Forge runtime loader is not exclusive to the PUNI root role: ' +
+            owners.join(', '),
+        );
       runtimeAssetLoads.push(manifest);
     }
     const buildConfig = join(directory, '.puni-build-options.json');

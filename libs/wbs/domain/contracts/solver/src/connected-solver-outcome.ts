@@ -137,7 +137,7 @@ export function evaluateConnectedSolverOutcome(
   const rows = stage.input.rows.filter(
     (row) =>
       stage.input.order.kind === 'connected' &&
-      stage.input.order.projectIdByWorkItem.get(row.id) === stage.projectId,
+      stage.input.order.workPackageIdByWorkItem.get(row.id) === stage.workPackageId,
   );
   const certificate = planInfeasibleResultOf({
     rows,

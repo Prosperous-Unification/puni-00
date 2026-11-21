@@ -14,8 +14,8 @@ import {
  */
 const small: SavedPlanQuota = {
   mostBytesPerBody: 100,
-  mostPlansPerProject: 3,
-  mostBytesPerProject: 1000,
+  mostPlansPerWorkPackage: 3,
+  mostBytesPerWorkPackage: 1000,
 };
 
 describe('bodyBytesRefusal', () => {
@@ -60,8 +60,8 @@ describe('bodyBytesRefusal', () => {
 
 describe('holdingRefusal', () => {
   /**
-   * "A project **already holding** 100 saved plans is refused another", so the
-   * comparison is against the count after this save. At `mostPlansPerProject`
+   * "A work package **already holding** 100 saved plans is refused another", so the
+   * comparison is against the count after this save. At `mostPlansPerWorkPackage`
    * of 3: two held admits the third, three held refuses the fourth.
    */
   it('admits the last plan the limit allows and refuses the one after it', () => {
@@ -74,25 +74,25 @@ describe('holdingRefusal', () => {
   });
 
   /**
-   * The byte bound is on the total the project would hold, which is the whole
+   * The byte bound is on the total the work package would hold, which is the whole
    * point of passing the incoming bytes: a check written against `holding.bytes`
-   * alone admits a body of any size onto a project one byte under the limit.
+   * alone admits a body of any size onto a work package one byte under the limit.
    */
   it('counts the incoming bytes into the total before comparing', () => {
     expect(holdingRefusal({ plans: 0, bytes: 999 }, 1, small)).toBeNull();
     expect(holdingRefusal({ plans: 0, bytes: 999 }, 2, small)).toEqual({
-      limit: 'project_bytes',
+      limit: 'work_package_bytes',
       asked: 1001,
       allowed: 1000,
     });
   });
 
   /** Deleting one plan clears the count; it may not clear the bytes. */
-  it('names the count when a project is at both bounds', () => {
+  it('names the count when a work package is at both bounds', () => {
     expect(holdingRefusal({ plans: 3, bytes: 1000 }, 1, small)?.limit).toBe('plan_count');
   });
 
-  it('admits an ordinary save on an empty project', () => {
+  it('admits an ordinary save on an empty work package', () => {
     expect(holdingRefusal({ plans: 0, bytes: 0 }, 42, small)).toBeNull();
   });
 });
@@ -102,11 +102,11 @@ describe('holdingRefusal', () => {
  * decimal literals so this test says the same thing the spec does.
  */
 describe('the shipped quota', () => {
-  it('is 8 MiB per body, 100 plans and 64 MiB per project', () => {
+  it('is 8 MiB per body, 100 plans and 64 MiB per work package', () => {
     expect(DEFAULT_SAVED_PLAN_QUOTA).toEqual({
       mostBytesPerBody: 8 * 1024 * 1024,
-      mostPlansPerProject: 100,
-      mostBytesPerProject: 64 * 1024 * 1024,
+      mostPlansPerWorkPackage: 100,
+      mostBytesPerWorkPackage: 64 * 1024 * 1024,
     });
   });
 

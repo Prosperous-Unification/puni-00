@@ -20,7 +20,10 @@ import { $ } from 'bun';
 import { afterAll, expect, it } from 'bun:test';
 
 import { buildPackage } from './build';
-import { assertInstalledTestLevels, assertSourceTestLevels } from './test-level-installation.test.fixture';
+import {
+  assertInstalledTestLevels,
+  assertSourceTestLevels,
+} from './test-level-installation.test.fixture';
 
 const workspace = resolve(import.meta.dir, '../../../../..');
 const roots: string[] = [];
@@ -209,8 +212,14 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   writeFileSync(join(candidate, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
   writeFileSync(join(candidate, '.env'), 'PUNI_POISONED=1\n');
   const executable = join(install, 'node_modules/.bin/puni');
+  const trustedHome = join(root, 'trusted caller home'),
+    runtimeCache = join(root, 'runtime bun cache');
+  mkdirSync(trustedHome);
+  mkdirSync(runtimeCache);
   const environment = {
     PATH: bin,
+    HOME: trustedHome,
+    BUN_INSTALL_CACHE_DIR: runtimeCache,
     BUN_OPTIONS: '--preload=' + preload,
     BUN_INSPECT_PRELOAD: preload,
     NODE_OPTIONS: '--require=' + preload,
@@ -229,15 +238,145 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     expect(existsSync(sentinel)).toBe(false);
     return child.stdout.toString();
   }
-  const sourceRegistration=roots.indexOf(root);
-  if(sourceRegistration<0)throw new Error('source test-level owner lost its fixture namespace');
-  roots.splice(sourceRegistration,1);
-  try{
-    await assertSourceTestLevels({root,installation:install,archive,entrypoint:join(install,'node_modules/puni/dist/puni.mjs'),revision,environment},repository);
-  }catch(cause:unknown){throw new Error('Actual source test-level owner failed; retained '+root,{cause});}
+  const sourceRegistration = roots.indexOf(root);
+  if (sourceRegistration < 0) throw new Error('source test-level owner lost its fixture namespace');
+  roots.splice(sourceRegistration, 1);
+  try {
+    await assertSourceTestLevels(
+      {
+        root,
+        installation: install,
+        archive,
+        entrypoint: join(install, 'node_modules/puni/dist/puni.mjs'),
+        revision,
+        environment,
+      },
+      repository,
+    );
+  } catch (cause: unknown) {
+    throw new Error('Actual source test-level owner failed; retained ' + root, { cause });
+  }
   roots.push(root);
   rmSync(repository, { recursive: true, force: true });
   rmSync(destination, { recursive: true, force: true });
+  const backendRequests: {
+    readonly path: string;
+    readonly authorization: string | null;
+    readonly cookie: string | null;
+  }[] = [];
+  let backendStatus = 200;
+  let backendIdentity: unknown = {
+    user: null,
+    features: { onboarding: false, organizations: false },
+  };
+  const backend = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(request) {
+      backendRequests.push({
+        path: new URL(request.url).pathname,
+        authorization: request.headers.get('authorization'),
+        cookie: request.headers.get('cookie'),
+      });
+      return Response.json(backendIdentity, { status: backendStatus });
+    },
+  });
+  try {
+    for (const namespace of ['dash', 'd']) {
+      for (const scenario of ['healthy', 'wrong-status', 'authenticated']) {
+        backendStatus = scenario === 'wrong-status' ? 201 : 200;
+        backendIdentity = {
+          user: scenario === 'authenticated' ? { id: 'signed-in' } : null,
+          features: { onboarding: false, organizations: false },
+        };
+        const previousRequests = backendRequests.length;
+        const child = Bun.spawn(
+          [executable, namespace, 'dev-probe', 'be', 'http://127.0.0.1:' + String(backend.port)],
+          {
+            cwd: candidate,
+            env: { ...environment, AUTHORIZATION: 'must-not-be-sent', COOKIE: 'must-not-be-sent' },
+            stdin: 'ignore',
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: 20000,
+          },
+        );
+        const [status, stdout, stderr] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        expect(child.signalCode, stderr).toBeNull();
+        expect(status, stderr).toBe(scenario === 'healthy' ? 0 : 1);
+        expect(stdout).toBe(
+          scenario === 'healthy'
+            ? '[dev-deploy] ' + 'be (auth routes mounted)'.padEnd(28) + ' ok\n'
+            : '',
+        );
+        if (scenario === 'healthy') expect(stderr).toBe('');
+        else expect(stderr).toContain('backend probe:');
+        expect(backendRequests).toHaveLength(previousRequests + 1);
+        expect(backendRequests.at(-1)).toEqual({
+          path: '/api/auth/me',
+          authorization: null,
+          cookie: null,
+        });
+        expect(existsSync(sentinel)).toBe(false);
+      }
+    }
+  } finally {
+    await backend.stop(true);
+  }
+  const backendCaller = join(workspace, 'bin/dev-be-probe.ts');
+  const backendCallerEnvironment = {
+    ...environment,
+    PUNI_EXECUTABLE: join(install, 'node_modules/puni/dist/puni.mjs'),
+  };
+  const preflight = Bun.spawn([backendCaller, '--preflight'], {
+    cwd: candidate,
+    env: backendCallerEnvironment,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 20000,
+  });
+  const [preflightStatus, preflightStdout, preflightStderr] = await Promise.all([
+    preflight.exited,
+    new Response(preflight.stdout).text(),
+    new Response(preflight.stderr).text(),
+  ]);
+  expect(preflight.signalCode).toBeNull();
+  expect(preflightStatus, preflightStderr).toBe(0);
+  expect(preflightStdout).toBe('');
+  expect(preflightStderr).toBe('');
+  const callerBackend = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () =>
+      Response.json({ user: null, features: { onboarding: false, organizations: false } }),
+  });
+  try {
+    const child = Bun.spawn([backendCaller, 'http://127.0.0.1:' + String(callerBackend.port)], {
+      cwd: candidate,
+      env: backendCallerEnvironment,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 20000,
+    });
+    const [status, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(child.signalCode).toBeNull();
+    expect(status, stderr).toBe(0);
+    expect(stdout).toBe('[dev-deploy] ' + 'be (auth routes mounted)'.padEnd(28) + ' ok\n');
+    expect(stderr).toBe('');
+    expect(existsSync(sentinel)).toBe(false);
+  } finally {
+    await callerBackend.stop(true);
+  }
   expect(invoke(['--version'])).toBe('0.4.0');
   expect(invoke(['--help'])).toContain('navigator');
   expect(invoke(['bur', 'template', 'list'])).toContain('"id":"module"');
@@ -249,21 +388,47 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   // This one actual build/pack/add session has removed its producer checkout and output.
   // Keep the known-owned archive/install on the first new-profile failure for later readback.
   const profileRegistration = roots.indexOf(root);
-  if (profileRegistration < 0) throw new Error('test-level profile owner lost its fixture namespace');
+  if (profileRegistration < 0)
+    throw new Error('test-level profile owner lost its fixture namespace');
   roots.splice(profileRegistration, 1);
   try {
     expect(existsSync(repository)).toBe(false);
     expect(existsSync(destination)).toBe(false);
-    const installedPackage: unknown = JSON.parse(readFileSync(join(install,'node_modules/puni/package.json'),'utf8'));
+    const installedPackage: unknown = JSON.parse(
+      readFileSync(join(install, 'node_modules/puni/package.json'), 'utf8'),
+    );
     // Required-profile presence only until the actual new runtime/payload owners are installed.
-    expect(installedPackage).toMatchObject({name:'puni',version:'0.4.0'});
-    const testLevels: unknown = JSON.parse(readFileSync(join(install,'node_modules/puni/dist/test-level-assets.json'),'utf8'));
-    expect(testLevels).toMatchObject({format:'puni-test-level-assets',version:1,sourceRevision:revision});
-    const manifest: unknown = JSON.parse(readFileSync(join(install,'node_modules/puni/dist/package-manifest.json'),'utf8'));
-    expect(manifest).toMatchObject({packageVersion:'0.4.0',testLevelIdentity:createHash('sha256').update(readFileSync(join(install,'node_modules/puni/dist/test-level-assets.json'))).digest('hex')});
-    await assertInstalledTestLevels({root,installation:install,archive,entrypoint:join(install,'node_modules/puni/dist/puni.mjs'),revision,environment});
+    expect(installedPackage).toMatchObject({ name: 'puni', version: '0.4.0' });
+    const testLevels: unknown = JSON.parse(
+      readFileSync(join(install, 'node_modules/puni/dist/test-level-assets.json'), 'utf8'),
+    );
+    expect(testLevels).toMatchObject({
+      format: 'puni-test-level-assets',
+      version: 1,
+      sourceRevision: revision,
+    });
+    const manifest: unknown = JSON.parse(
+      readFileSync(join(install, 'node_modules/puni/dist/package-manifest.json'), 'utf8'),
+    );
+    expect(manifest).toMatchObject({
+      packageVersion: '0.4.0',
+      testLevelIdentity: createHash('sha256')
+        .update(readFileSync(join(install, 'node_modules/puni/dist/test-level-assets.json')))
+        .digest('hex'),
+    });
+    await assertInstalledTestLevels({
+      root,
+      installation: install,
+      archive,
+      entrypoint: join(install, 'node_modules/puni/dist/puni.mjs'),
+      revision,
+      environment,
+    });
   } catch (cause: unknown) {
-    throw new Error('Required test-level profile first owner failed; retained known-owned '+root,{cause});
+    throw new Error(
+      'Required test-level profile first owner failed; retained known-owned ' + root,
+      { cause },
+    );
   }
   roots.push(root);
 
@@ -418,33 +583,77 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   expect(forgeText).not.toContain(repository);
   expect(forgeText).not.toContain(workspace);
   const forgeRecord: unknown = JSON.parse(readFileSync(forgeManifest, 'utf8'));
-  if (typeof forgeRecord !== 'object' || forgeRecord === null || !('format' in forgeRecord) || !('version' in forgeRecord) ||
-      !('entrypoint' in forgeRecord) || !('sha256' in forgeRecord) || !('sourceRevision' in forgeRecord))
+  if (
+    typeof forgeRecord !== 'object' ||
+    forgeRecord === null ||
+    !('format' in forgeRecord) ||
+    !('version' in forgeRecord) ||
+    !('entrypoint' in forgeRecord) ||
+    !('sha256' in forgeRecord) ||
+    !('sourceRevision' in forgeRecord)
+  )
     throw new Error('installed Forge core manifest is not the declared closed producer record');
-  expect(Object.keys(forgeRecord).sort()).toEqual(['entrypoint', 'format', 'sha256', 'sourceRevision', 'version']);
-  expect<unknown>(forgeRecord).toEqual({
-    format: 'puni-forge-runtime', version: 1, entrypoint: 'forge-supervisor.mjs',
-    sha256: createHash('sha256').update(readFileSync(forgeCore)).digest('hex'), sourceRevision: revision,
+  expect(Object.keys(forgeRecord).sort()).toEqual([
+    'entrypoint',
+    'format',
+    'sha256',
+    'sourceRevision',
+    'version',
+  ]);
+  expect(forgeRecord).toEqual({
+    format: 'puni-forge-runtime',
+    version: 1,
+    entrypoint: 'forge-supervisor.mjs',
+    sha256: createHash('sha256').update(readFileSync(forgeCore)).digest('hex'),
+    sourceRevision: revision,
   });
 
-  const runtimeAssetRecord: unknown = JSON.parse(readFileSync(join(install, 'node_modules/puni/dist/runtime-asset-loads.json'), 'utf8'));
-  if (typeof runtimeAssetRecord !== 'object' || runtimeAssetRecord === null ||
-      !('loaders' in runtimeAssetRecord) || !Array.isArray(runtimeAssetRecord.loaders))
+  const runtimeAssetRecord: unknown = JSON.parse(
+    readFileSync(join(install, 'node_modules/puni/dist/runtime-asset-loads.json'), 'utf8'),
+  );
+  if (
+    typeof runtimeAssetRecord !== 'object' ||
+    runtimeAssetRecord === null ||
+    !('loaders' in runtimeAssetRecord) ||
+    !Array.isArray(runtimeAssetRecord.loaders)
+  )
     throw new Error('installed package lost its producer runtime-asset record');
-  expect(Object.keys(runtimeAssetRecord).sort()).toEqual(['format', 'loaders', 'sourceRevision', 'version']);
-  expect<unknown>({ ...runtimeAssetRecord, loaders: [] }).toEqual({
-    format: 'puni-runtime-asset-loads', version: 1, sourceRevision: revision, loaders: [],
+  expect(Object.keys(runtimeAssetRecord).sort()).toEqual([
+    'format',
+    'loaders',
+    'sourceRevision',
+    'version',
+  ]);
+  const normalizedAssets: unknown = { ...runtimeAssetRecord, loaders: [] };
+  expect(normalizedAssets).toEqual({
+    format: 'puni-runtime-asset-loads',
+    version: 1,
+    sourceRevision: revision,
+    loaders: [],
   });
   expect(runtimeAssetRecord.loaders).toHaveLength(1);
   const loaderRecord: unknown = runtimeAssetRecord.loaders.at(0);
-  if (typeof loaderRecord !== 'object' || loaderRecord === null || !('emittedSha256' in loaderRecord) || typeof loaderRecord.emittedSha256 !== 'string')
+  if (
+    typeof loaderRecord !== 'object' ||
+    loaderRecord === null ||
+    !('emittedSha256' in loaderRecord) ||
+    typeof loaderRecord.emittedSha256 !== 'string'
+  )
     throw new Error('installed loader record lacks its captured emitted digest');
   expect(loaderRecord.emittedSha256).toMatch(/^[0-9a-f]{64}$/u);
-  expect<unknown>({ ...loaderRecord, emittedSha256: '<checked digest>' }).toEqual({
-    kind: 'retained-forge-core', sourcePath: 'apps/puni/cli/src/packaging/forge-runtime-loader.ts',
-    sourceSha256: createHash('sha256').update(readFileSync(join(workspace, 'apps/puni/cli/src/packaging/forge-runtime-loader.ts'))).digest('hex'),
-    emittedSha256: '<checked digest>', role: 'puni.mjs', importCalls: 1,
-    payloadFormat: 'puni-forge-runtime', payloadVersion: 1, cacheIdentity: 'sha256-data-url',
+  const normalizedLoader: unknown = { ...loaderRecord, emittedSha256: '<checked digest>' };
+  expect(normalizedLoader).toEqual({
+    kind: 'retained-forge-core',
+    sourcePath: 'apps/puni/cli/src/packaging/forge-runtime-loader.ts',
+    sourceSha256: createHash('sha256')
+      .update(readFileSync(join(workspace, 'apps/puni/cli/src/packaging/forge-runtime-loader.ts')))
+      .digest('hex'),
+    emittedSha256: '<checked digest>',
+    role: 'puni.mjs',
+    importCalls: 1,
+    payloadFormat: 'puni-forge-runtime',
+    payloadVersion: 1,
+    cacheIdentity: 'sha256-data-url',
   });
 
   const callerScratch = join(root, 'installed caller scratch');
@@ -671,32 +880,69 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   expect(refusedReuse.stderr.toString()).toBe('puni install-puni: destination already exists\n');
   expect(readFileSync(selectedEntry)).toEqual(beforeReuse);
   expect(existsSync(sentinel)).toBe(false);
-  function observePackedForge(argv: readonly string[], cwd: string, variables: Record<string, string>, timeout: number, purpose: 'direct' | 'supervision' = 'direct') {
+  function observePackedForge(
+    argv: readonly string[],
+    cwd: string,
+    variables: Record<string, string>,
+    timeout: number,
+    purpose: 'direct' | 'supervision' = 'direct',
+  ) {
     const registered = roots.indexOf(root);
     if (registered < 0) throw new Error('Forge packaging fixture is not registered for cleanup');
     roots.splice(registered, 1);
     const observation = (() => {
       try {
-        return Bun.spawnSync([...argv], {cwd, env: variables, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe',
-          timeout, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024});
+        return Bun.spawnSync([...argv], {
+          cwd,
+          env: variables,
+          stdin: 'ignore',
+          stdout: 'pipe',
+          stderr: 'pipe',
+          timeout,
+          killSignal: 'SIGKILL',
+          maxBuffer: 1024 * 1024,
+        });
       } catch (cause: unknown) {
-        throw new Error('Forge packaging direct child acquisition unconfirmed; retained ' + root, { cause });
+        throw new Error('Forge packaging direct child acquisition unconfirmed; retained ' + root, {
+          cause,
+        });
       }
     })();
-    if (observation.signalCode !== undefined || observation.exitedDueToTimeout || observation.exitedDueToMaxBuffer ||
-        !Number.isInteger(observation.exitCode) || observation.exitCode < 0 || observation.exitCode > 255) {
+    if (
+      observation.signalCode !== undefined ||
+      observation.exitedDueToTimeout ||
+      observation.exitedDueToMaxBuffer ||
+      !Number.isInteger(observation.exitCode) ||
+      observation.exitCode < 0 ||
+      observation.exitCode > 255
+    ) {
       function describePackedOutput(bytes: Uint8Array) {
         const retained = Buffer.from(bytes);
-        return { bytes: retained.length, sha256: createHash('sha256').update(retained).digest('hex'),
+        return {
+          bytes: retained.length,
+          sha256: createHash('sha256').update(retained).digest('hex'),
           prefixHex: retained.subarray(0, 2048).toString('hex'),
-          suffixHex: retained.subarray(Math.max(2048, retained.length - 2048)).toString('hex') };
+          suffixHex: retained.subarray(Math.max(2048, retained.length - 2048)).toString('hex'),
+        };
       }
-      throw new Error('Forge packaging direct native/pipe settlement unconfirmed; retained ' + root, { cause: {
-        purpose, argv: [...argv], cwd, timeoutMs: timeout, pid: observation.pid, exitCode: observation.exitCode,
-        signalCode: observation.signalCode, exitedDueToTimeout: observation.exitedDueToTimeout,
-        exitedDueToMaxBuffer: observation.exitedDueToMaxBuffer,
-        stdout: describePackedOutput(observation.stdout), stderr: describePackedOutput(observation.stderr),
-      } });
+      throw new Error(
+        'Forge packaging direct native/pipe settlement unconfirmed; retained ' + root,
+        {
+          cause: {
+            purpose,
+            argv: [...argv],
+            cwd,
+            timeoutMs: timeout,
+            pid: observation.pid,
+            exitCode: observation.exitCode,
+            signalCode: observation.signalCode,
+            exitedDueToTimeout: observation.exitedDueToTimeout,
+            exitedDueToMaxBuffer: observation.exitedDueToMaxBuffer,
+            stdout: describePackedOutput(observation.stdout),
+            stderr: describePackedOutput(observation.stderr),
+          },
+        },
+      );
     }
     if (purpose === 'direct') roots.push(root);
     return observation;
@@ -705,26 +951,53 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   mkdirSync(forgeConsumer);
   writeFileSync(join(forgeConsumer, 'package.json'), '{"private":true}\n');
   writeFileSync(join(forgeConsumer, 'bun.lock'), 'owned malformed lockfile; no dependency URL\n');
-  const directFrozen = observePackedForge([process.execPath, '--no-env-file', '--config=/dev/null',
-    'install', '--frozen-lockfile'], forgeConsumer,
-    { PATH: bin, BUN_INSTALL_CACHE_DIR: join(root, 'forge cache') }, 15000);
+  const directFrozen = observePackedForge(
+    [process.execPath, '--no-env-file', '--config=/dev/null', 'install', '--frozen-lockfile'],
+    forgeConsumer,
+    { PATH: bin, BUN_INSTALL_CACHE_DIR: join(root, 'forge cache') },
+    15000,
+  );
   expect(directFrozen.signalCode).toBeUndefined();
   expect(directFrozen.exitedDueToTimeout).toBe(false);
   expect(directFrozen.exitedDueToMaxBuffer).toBe(false);
   expect(directFrozen.exitCode).not.toBe(0);
   const retainedSelection = readFileSync(join(provisioned, 'puni-selection.json'));
   const forgeLog = join(root, 'installed Forge termination.log');
-  const packedForge = observePackedForge([selectedEntry, 'dash', 'dev-env', 'supervise',
-    '--repository', forgeConsumer, '--termination-log', forgeLog], forgeConsumer,
-    { ...environment, PUNI_SELECTION: retainedSelection.toString('utf8'),
+  const packedForge = observePackedForge(
+    [
+      selectedEntry,
+      'dash',
+      'dev-env',
+      'supervise',
+      '--repository',
+      forgeConsumer,
+      '--termination-log',
+      forgeLog,
+    ],
+    forgeConsumer,
+    {
+      ...environment,
+      PUNI_SELECTION: retainedSelection.toString('utf8'),
       PUNI_SELECTION_SHA256: createHash('sha256').update(retainedSelection).digest('hex'),
-      PUNI_INSTALLATION_DIRECTORY: provisioned, PUNI_EXECUTABLE: selectedEntry,
-      BUN_INSTALL_CACHE_DIR: join(root, 'forge cache') }, 20000, 'supervision');
+      PUNI_INSTALLATION_DIRECTORY: provisioned,
+      PUNI_EXECUTABLE: selectedEntry,
+      BUN_INSTALL_CACHE_DIR: join(root, 'forge cache'),
+    },
+    // Four full selection checks precede install. The current178MiB profile takes6.5s per
+    // check; the actual retained installed entry returns its named refusal in27.329s.
+    // Proof: canonical-package-budget-v118 hit the20s observation deadline and refused
+    // native/pipe settlement; canonical-forge-entry-probe-v118 settled normally with65.
+    // This is the test observer's budget; Forge's20s stop grace remains unchanged.
+    60000,
+    'supervision',
+  );
   expect(packedForge.signalCode).toBeUndefined();
   expect(packedForge.exitedDueToTimeout).toBe(false);
   expect(packedForge.exitedDueToMaxBuffer).toBe(false);
   expect(packedForge.exitCode, packedForge.stderr.toString()).toBe(65);
-  expect(readFileSync(forgeLog, 'utf8')).toBe('install-required: bun install --frozen-lockfile exited ' + String(directFrozen.exitCode));
+  expect(readFileSync(forgeLog, 'utf8')).toBe(
+    'install-required: bun install --frozen-lockfile exited ' + String(directFrozen.exitCode),
+  );
   // Only this named install-refusal outcome establishes the packed core's nested install settlement.
   roots.push(root);
   expect(packedForge.stderr.toString()).toContain('[forge] install-required:');
@@ -1206,7 +1479,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     'toolkit/validator.mjs',
     'toolkit/prepare-activation.mjs',
     'toolkit/prepare-relocation-activation.mjs',
-    'toolkit/trusted-node-modules/typescript/package.json',
+    'toolkit/node_modules/typescript/package.json',
   ]) {
     const path = join(dist, relative),
       original = readFileSync(path),
@@ -1258,7 +1531,11 @@ it('packs and installs the captured PUNI package outside its checkout with prote
   );
   expect(service.exitCode).toBe(64);
   expect(service.stderr.toString()).toContain('service-config-invalid');
-}, 300000);
+  // The current profile adds source/installed Browser and Performance plus source-corruption
+  // controls to this aggregate build/pack/add session. The 300s owner expired at Forge after
+  // 352 assertions. Subprocess budgets remain per purpose; the measured current-profile
+  // Forge observer budget is recorded beside its invocation above.
+}, 600000);
 it('returns prior package cancellation before malformed revision or absent authority IO', async () => {
   let released = 0;
   const outcome = await buildPackage(

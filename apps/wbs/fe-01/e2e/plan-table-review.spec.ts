@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
+import { expect, type Locator, type Page, test } from './ordinary-test';
 import {
   fixtureClient,
   fixtureSuccess,
@@ -138,9 +138,9 @@ async function seedReviewPlan(page: Page, testName: string, worker: number): Pro
     },
   ];
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await client.postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await client.postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: { commands },
     }),
   );
@@ -190,9 +190,9 @@ async function seedDeepPlan(page: Page, testName: string, worker: number): Promi
   ];
   const client = fixtureClient(page);
   fixtureSuccess(
-    'postApiProjectsByIdCommands',
-    await client.postApiProjectsByIdCommands({
-      params: { id: seeded.projectId },
+    'postApiWorkPackagesByIdCommands',
+    await client.postApiWorkPackagesByIdCommands({
+      params: { id: seeded.workPackageId },
       body: { commands },
     }),
   );

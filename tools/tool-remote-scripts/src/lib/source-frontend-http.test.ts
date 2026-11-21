@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, posix, resolve } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
@@ -14,13 +14,17 @@ import {
   withSourceFrontendProducer,
 } from '../fixtures/source-frontend-producer';
 import { SOURCE_FRONTEND_PRODUCER_PROGRAM } from '../fixtures/source-frontend-producer-program';
+import type * as MaterializerModule from '../fixtures/source-frontend-profile';
 import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
+import { prepareRetainedSourceFrontendProfile } from '../fixtures/source-frontend-retained-inputs';
 import { artifact, configuration, git, modes, roots } from '../fixtures/source-startup';
 import { readFields } from './managed-cohort';
 import { selectSourceFrontendProfile } from './source-frontend-profile';
 import {
   createSourceStartupManifest,
   decodeSourceStartupManifest,
+  type SourceEntry,
+  type SourceStartupManifest,
 } from './source-startup-manifest';
 
 const CAPTURED_INPUTS = {
@@ -33,12 +37,12 @@ const CAPTURED_INPUTS = {
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
   },
   'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    bytes: 19552,
+    sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
   },
   'apps/wbs/fe-01/project.json': {
-    bytes: 8117,
-    sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    bytes: 8132,
+    sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
   },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
@@ -103,7 +107,7 @@ test('registry S3 current frontend pair materializes and selects without Vite', 
   const registration = roots.indexOf(prepared.root);
   if (registration < 0) throw new Error('canonical fixture root unregistered');
   try {
-    await prepareSourceFrontendProfile(prepared.root);
+    await prepareRetainedSourceFrontendProfile(prepared.root);
     await modes(prepared.root);
     await git(prepared.root, 'add', '.');
     await git(
@@ -124,17 +128,21 @@ test('registry S3 current frontend pair materializes and selects without Vite', 
       sourceSha,
       manifestSha256: generated.sha256,
     });
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
       const bytes = await readFile(join(prepared.root, path));
       const observed = {
         bytes: bytes.byteLength,
         sha256: createHash('sha256').update(bytes).digest('hex'),
       };
-      expect(observed).toEqual(CAPTURED_INPUTS[path]);
+      expect(observed).toEqual(expected);
+      const selected = path.replace('node_modules/vite/', 'node_modules/.frontend-profile/vite/');
       const entry = manifest.entries.find(
-        (candidate) => candidate.root === 'source' && candidate.path === path,
+        (candidate) =>
+          (candidate.root === 'dependencies'
+            ? `node_modules/${candidate.path}`
+            : candidate.path) === selected,
       );
-      if (entry?.kind !== 'file') throw new Error('canonical frontend pair absent');
+      if (entry?.kind !== 'file') throw new Error('canonical frontend input absent');
       expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(observed);
     }
     expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
@@ -143,6 +151,271 @@ test('registry S3 current frontend pair materializes and selects without Vite', 
     roots.splice(registration, 1);
   }
 }, 30000);
+
+const FRONTEND_CONFIGURATION_PATHS = [
+  'apps/wbs/fe-01/vite.config.ts',
+  'apps/wbs/fe-01/project.json',
+] as const;
+type FrontendConfigurationPath = (typeof FRONTEND_CONFIGURATION_PATHS)[number];
+const FRONTEND_CONFIGURATIONS = [
+  {
+    member: 'original',
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8117,
+      sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    },
+  },
+  {
+    member: 'current',
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19552,
+      sha256: 'd45d95dea5a91f92a8aa02312241fe435f6445c265888ae9d79c304382da47e6',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8132,
+      sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
+    },
+  },
+] as const;
+
+/** Reconstructs reviewed original configuration inputs, never historical HTTP captures. */
+function reconstructOriginalFrontendConfiguration(
+  path: FrontendConfigurationPath,
+  bytes: Uint8Array,
+): Buffer {
+  expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
+  let contents = Buffer.from(bytes).toString('utf8');
+  const reversals =
+    path === 'apps/wbs/fe-01/project.json'
+      ? ([
+          ['playwright.cross-work-package.config.ts', 'playwright.cross-project.config.ts', 3],
+        ] as const)
+      : ([
+          [
+            "      // Proof: omitting this leaf failed real app/suite alias parity; observed RED/GREEN, 2026-11-09.\n      '@wbs/domain/access-role': resolve(\n        __dirname,\n        '../../../libs/wbs/domain/domain/src/access-role.ts',\n      ),\n",
+            '',
+            1,
+          ],
+          ['@wbs/domain/work-package-address', '@wbs/domain/project-address', 1],
+          [
+            posix.relative('apps/wbs/fe-01', 'libs/wbs/domain/domain/src/work-package-address.ts'),
+            posix.relative('apps/wbs/fe-01', 'libs/wbs/domain/domain/src/project-address.ts'),
+            1,
+          ],
+          [
+            '// The order every reader draws a work package in (ADR 0023)',
+            '// The order every reader draws a project in (ADR 0023)',
+            1,
+          ],
+        ] as const);
+  for (const [present, prior, occurrences] of reversals) {
+    expect(contents.split(present).length - 1).toBe(occurrences);
+    contents = contents.replaceAll(present, prior);
+  }
+  const reconstructed = Buffer.from(contents);
+  const original = FRONTEND_CONFIGURATIONS[0];
+  expect(describeBytes(reconstructed)).toEqual(original[path]);
+  return reconstructed;
+}
+
+async function withFrontendConfigurationManifest(
+  consume: (manifest: SourceStartupManifest) => void,
+): Promise<void> {
+  const prepared = await artifact();
+  const registration = roots.indexOf(prepared.root);
+  if (registration < 0) throw new Error('configuration fixture root unregistered');
+  try {
+    await prepareRetainedSourceFrontendProfile(prepared.root);
+    await modes(prepared.root);
+    await git(prepared.root, 'add', '.');
+    await git(
+      prepared.root,
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.invalid',
+      'commit',
+      '-qm',
+      'frontend configuration selection',
+    );
+    await modes(prepared.root);
+    const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
+    const generated = await createSourceStartupManifest(prepared.root, sourceSha, configuration);
+    consume(
+      decodeSourceStartupManifest(generated.contents, {
+        ...prepared.pins,
+        sourceSha,
+        manifestSha256: generated.sha256,
+      }),
+    );
+  } finally {
+    await rm(prepared.root, { recursive: true });
+    roots.splice(registration, 1);
+  }
+}
+
+/** Modeled canonical selection metadata; this does not assert historical byte production. */
+function modelFrontendConfiguration(
+  manifest: SourceStartupManifest,
+  selected: ReadonlyMap<string, { readonly bytes: number; readonly sha256: string }>,
+): SourceStartupManifest {
+  const contents =
+    JSON.stringify({
+      ...manifest,
+      entries: manifest.entries.map((entry) => {
+        const expected = entry.root === 'source' ? selected.get(entry.path) : undefined;
+        if (expected === undefined || entry.kind !== 'file') return entry;
+        return { ...entry, size: expected.bytes, sha256: expected.sha256 };
+      }),
+    }) + '\n';
+  return decodeSourceStartupManifest(contents, {
+    version: 1,
+    sourceSha: manifest.sourceSha,
+    runtimeImageId: `sha256:${'a'.repeat(64)}`,
+    manifestSha256: createHash('sha256').update(contents).digest('hex'),
+    environmentSha256: 'b'.repeat(64),
+  });
+}
+
+test('modeled frontend configuration members retain all five complete package epochs', async () => {
+  await withFrontendConfigurationManifest((manifest) => {
+    for (const member of FRONTEND_CONFIGURATIONS)
+      for (const pair of [
+        HISTORICAL_PAIR,
+        CTT_PAIR,
+        PREVIOUS_MAIN_PAIR,
+        FOURTH_PAIR,
+        CAPTURED_INPUTS,
+      ]) {
+        const selected = new Map<string, { bytes: number; sha256: string }>();
+        for (const path of FRONTEND_CONFIGURATION_PATHS) selected.set(path, member[path]);
+        for (const path of ['package.json', 'bun.lock'] as const) selected.set(path, pair[path]);
+        expect(selectSourceFrontendProfile(modelFrontendConfiguration(manifest, selected))).toBe(
+          'wbs-source-frontend-wire-v1',
+        );
+      }
+  });
+}, 30000);
+
+test('modeled frontend configuration selection refuses mixed and unknown complete tuples', async () => {
+  await withFrontendConfigurationManifest((manifest) => {
+    const [original, current] = FRONTEND_CONFIGURATIONS;
+    for (const path of FRONTEND_CONFIGURATION_PATHS) {
+      const mixed = new Map<string, { bytes: number; sha256: string }>([[path, original[path]]]);
+      expect(() =>
+        selectSourceFrontendProfile(modelFrontendConfiguration(manifest, mixed)),
+      ).toThrow('source frontend input profile unsupported');
+      for (const expected of [
+        { bytes: current[path].bytes, sha256: original[path].sha256 },
+        { bytes: original[path].bytes, sha256: current[path].sha256 },
+        { bytes: current[path].bytes + 1, sha256: current[path].sha256 },
+        { bytes: current[path].bytes, sha256: 'a'.repeat(64) },
+      ]) {
+        expect(() =>
+          selectSourceFrontendProfile(
+            modelFrontendConfiguration(manifest, new Map([[path, expected]])),
+          ),
+        ).toThrow('source frontend input profile unsupported');
+      }
+      for (const fault of ['missing', 'kind'] as const) {
+        const entries: SourceEntry[] = manifest.entries.flatMap((entry) => {
+          if (entry.root !== 'source' || entry.path !== path) return [entry];
+          return fault === 'missing'
+            ? []
+            : [{ root: 'source', path, kind: 'directory', mode: 0o755 }];
+        });
+        expect(() => selectSourceFrontendProfile({ ...manifest, entries })).toThrow(
+          'source frontend input profile unsupported',
+        );
+      }
+    }
+  });
+}, 30000);
+
+for (const owner of ['materializer', 'producer'] as const)
+  for (const path of FRONTEND_CONFIGURATION_PATHS)
+    test.each(['original-alone', 'changed-size', 'changed-hash', 'missing', 'non-file'] as const)(
+      `frontend ${owner} configuration boundary refuses ${path} %s before consumption`,
+      async (fault) => {
+        const root = await mkdtemp(join(tmpdir(), 'frontend-configuration-boundary-'));
+        try {
+          await prepareRetainedSourceFrontendProfile(root);
+          const bytes = await readFile(join(root, path));
+          expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
+          if (fault === 'original-alone')
+            await writeFile(
+              join(root, path),
+              reconstructOriginalFrontendConfiguration(path, bytes),
+            );
+          else if (fault === 'changed-size')
+            await writeFile(join(root, path), Buffer.concat([bytes, Buffer.from('\n')]));
+          else if (fault === 'changed-hash') {
+            const changed = Buffer.from(bytes);
+            changed[changed.byteLength - 1] = 32;
+            expect(changed.byteLength).toBe(bytes.byteLength);
+            expect(describeBytes(changed).sha256).not.toBe(CAPTURED_INPUTS[path].sha256);
+            await writeFile(join(root, path), changed);
+          } else {
+            await rm(join(root, path));
+            if (fault === 'non-file') await mkdir(join(root, path));
+          }
+          const filename =
+            owner === 'materializer' ? 'source-frontend-profile.ts' : 'source-frontend-producer.ts';
+          const copied = join(root, 'tools/tool-remote-scripts/src/fixtures', filename);
+          const source = await readFile(resolve(import.meta.dir, '../fixtures', filename));
+          await mkdir(dirname(copied), { recursive: true });
+          await writeFile(copied, source);
+          expect(await readFile(copied)).toEqual(source);
+          if (owner === 'producer') {
+            await cp(resolve(import.meta.dir), join(root, 'tools/tool-remote-scripts/src/lib'), {
+              recursive: true,
+            });
+            const program = await readFile(
+              resolve(import.meta.dir, '../fixtures/source-frontend-producer-program.ts'),
+            );
+            await writeFile(join(dirname(copied), 'source-frontend-producer-program.ts'), program);
+            expect(
+              await readFile(join(dirname(copied), 'source-frontend-producer-program.ts')),
+            ).toEqual(program);
+          }
+          const destination = join(root, 'consumer-not-called');
+          await rejects(access(destination), { code: 'ENOENT' });
+          let consumed = false;
+          const consume = async () => {
+            consumed = true;
+            await writeFile(destination, 'unexpected');
+          };
+          const action =
+            owner === 'materializer'
+              ? () =>
+                  (import(copied) as Promise<typeof MaterializerModule>).then((materializer) =>
+                    materializer.prepareSourceFrontendProfile(destination),
+                  )
+              : () =>
+                  (import(copied) as Promise<typeof ProducerModule>).then((producer) =>
+                    producer.withSourceFrontendProducer(consume),
+                  );
+          if (fault === 'missing' || fault === 'non-file')
+            await rejects(action, { code: fault === 'missing' ? 'ENOENT' : 'EISDIR' });
+          else
+            await rejects(
+              action,
+              owner === 'materializer'
+                ? /^Error: frontend fixture inputs unsupported$/
+                : /^Error: unsupported source frontend producer inputs$/,
+            );
+          expect(consumed).toBe(false);
+          await rejects(access(destination), { code: 'ENOENT' });
+        } finally {
+          await rm(root, { recursive: true });
+        }
+      },
+      30000,
+    );
 
 test('actual pinned Vite producer reaches the complete frontend document and entry inspectors', async () => {
   await withSourceFrontendProducer(async (observations, directory) => {
@@ -1304,7 +1577,10 @@ async function removeFrontendRoots(
     throw new AggregateError(failures, 'frontend owned root removals failed');
 }
 
-async function prepareOwnedProducer(historicalCommit: boolean) {
+async function prepareOwnedProducer(
+  historicalCommit: boolean,
+  transition: 'package-lock' | 'configuration' = 'package-lock',
+) {
   const repository = resolve(import.meta.dir, '../../../..');
   const root = await mkdtemp(join(tmpdir(), 'frontend-owned-provenance-'));
   const allocationDiagnostic = publishProvenanceRoot('provenance', 'allocated', root);
@@ -1328,13 +1604,20 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
   expect(extracted.success).toBe(true);
   expect(extracted.signalCode).toBeUndefined();
   expect(extracted.stderr.byteLength).toBe(0);
-  const current = new Map<string, Buffer>();
-  const historical = new Map<string, Buffer>();
-  for (const path of ['package.json', 'bun.lock'] as const) {
+  const current = new Map<FrontendConfigurationPath | 'package.json' | 'bun.lock', Buffer>();
+  const historical = new Map<FrontendConfigurationPath | 'package.json' | 'bun.lock', Buffer>();
+  const changedPaths =
+    transition === 'configuration'
+      ? FRONTEND_CONFIGURATION_PATHS
+      : (['package.json', 'bun.lock'] as const);
+  for (const path of changedPaths) {
     const bytes = await readFile(join(root, path));
     expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[path]);
     current.set(path, bytes);
-    const old = reconstructHistoricalInput(path, bytes);
+    const old =
+      path === 'package.json' || path === 'bun.lock'
+        ? reconstructHistoricalInput(path, bytes)
+        : reconstructOriginalFrontendConfiguration(path, bytes);
     historical.set(path, old);
     if (historicalCommit) await writeFile(join(root, path), old);
   }
@@ -1428,8 +1711,10 @@ async function retainProvenanceEvidence(
   }
 }
 
-test('producer rejects separately supported Git and live epochs before Node', async () => {
-  const prepared = await prepareOwnedProducer(true);
+async function assertProducerOpeningEpochRefusal(
+  transition: 'package-lock' | 'configuration',
+): Promise<void> {
+  const prepared = await prepareOwnedProducer(true, transition);
   const actualSpawn = Bun.spawnSync;
   let probes = 0;
   let resolutions = 0;
@@ -1462,18 +1747,22 @@ test('producer rejects separately supported Git and live epochs before Node', as
     expect(resolutions).toBe(0);
     expect(consumed).toBe(false);
     if (retained === undefined) throw new Error('opening refusal capture absent');
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const [path, historical] of prepared.historical) {
       expect(describeBytes(await readFile(join(prepared.root, path)))).toEqual(
         CAPTURED_INPUTS[path],
       );
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(
-        HISTORICAL_PAIR[path],
+        describeBytes(historical),
       );
       expect(await git(prepared.root, 'rev-parse', `${prepared.sourceSha}:${path}`)).toMatch(
         /^[a-f0-9]{40}$/,
       );
     }
-    await retainProvenanceEvidence('opening-epoch-mismatch', prepared, retained);
+    await retainProvenanceEvidence(
+      transition === 'configuration' ? 'opening-configuration-mismatch' : 'opening-epoch-mismatch',
+      prepared,
+      retained,
+    );
     settled = true;
   } finally {
     spy.mockRestore();
@@ -1481,10 +1770,23 @@ test('producer rejects separately supported Git and live epochs before Node', as
       await removeFrontendRoots(prepared.root, retained, removeProvenanceRoot);
     }
   }
-}, 10000);
+}
 
-test('producer rejects a different supported live epoch after the actual child closes', async () => {
-  const prepared = await prepareOwnedProducer(false);
+test(
+  'producer rejects separately supported Git and live epochs before Node',
+  () => assertProducerOpeningEpochRefusal('package-lock'),
+  10000,
+);
+test(
+  'producer rejects separately supported Git and live configurations before Node',
+  () => assertProducerOpeningEpochRefusal('configuration'),
+  10000,
+);
+
+async function assertProducerClosingEpochRefusal(
+  transition: 'package-lock' | 'configuration',
+): Promise<void> {
+  const prepared = await prepareOwnedProducer(false, transition);
   const actualSpawn = Bun.spawnSync;
   let probes = 0;
   let node: string | undefined;
@@ -1584,12 +1886,12 @@ test('producer rejects a different supported live epoch after the actual child c
     expect(packet['selectedInputs']).toEqual(CAPTURED_INPUTS);
     for (const [path, expected] of Object.entries(CAPTURED_INPUTS))
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(expected);
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const [path, historical] of prepared.historical) {
       expect(describeBytes(await readFile(join(retained, 'snapshot', path)))).toEqual(
         CAPTURED_INPUTS[path],
       );
       expect(describeBytes(await readFile(join(prepared.root, path)))).toEqual(
-        HISTORICAL_PAIR[path],
+        describeBytes(historical),
       );
     }
     const observation = readFields(
@@ -1632,7 +1934,11 @@ test('producer rejects a different supported live epoch after the actual child c
         ),
       });
     }
-    await retainProvenanceEvidence('closing-epoch-mismatch', prepared, retained);
+    await retainProvenanceEvidence(
+      transition === 'configuration' ? 'closing-configuration-mismatch' : 'closing-epoch-mismatch',
+      prepared,
+      retained,
+    );
     settled = true;
   } finally {
     spy.mockRestore();
@@ -1642,7 +1948,18 @@ test('producer rejects a different supported live epoch after the actual child c
       );
     }
   }
-}, 130000);
+}
+
+test(
+  'producer rejects a different supported live epoch after the actual child closes',
+  () => assertProducerClosingEpochRefusal('package-lock'),
+  130000,
+);
+test(
+  'producer rejects a different supported live configuration after the actual child closes',
+  () => assertProducerClosingEpochRefusal('configuration'),
+  130000,
+);
 const FOURTH_PAIR = {
   'package.json': {
     bytes: 4992,

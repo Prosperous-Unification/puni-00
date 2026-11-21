@@ -11,20 +11,32 @@ import {
   retainSecurityPrincipal,
   type SecurityPrincipal,
 } from '@wbs/core';
+import * as authenticatedRoles from '@wbs/core/module/authentication/authentication.feature';
+import * as directoryRoles from '@wbs/core/module/directory/directory.resource';
+import * as claimRoles from '@wbs/core/module/work-item/claims';
+import * as resourceRoles from '@wbs/core/ports/organization-access';
 import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { AccessDecisionRepository } from './access-decisions';
-import { openDatabase, openDrizzle } from './db';
-import { resolveProjectWriteScopeIn } from './fanout-capture';
+import { messagesOf } from './constraint';
+import { openConnection, openDatabase } from './db';
+import * as enterpriseRoles from './enterprise-connection';
+import { resolveWorkPackageWriteScopeIn } from './fanout-capture';
 import { OPEN } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
 import { runMigrations } from './migrate';
-import { currentMembershipAccess, SqliteOrganizationAccess } from './organization-access';
+import { OnboardingRepository } from './onboarding';
+import * as membershipRoles from './organization';
+import { OrganizationRepository } from './organization';
+import * as storedRoles from './organization-access';
+import { readMembershipIn, SqliteOrganizationAccess } from './organization-access';
+import { SqliteOrganizationSelection } from './organization-selection';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
-import { admitResourceUseProject } from './resource-use';
+import { admitResourceUseWorkPackage } from './resource-use';
 import { UserRepository } from './user';
+import * as workPackageRoles from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let dir: string;
@@ -33,7 +45,13 @@ let access: SqliteOrganizationAccess;
 let decisions: AccessDecisionRepository;
 const target = {
   kind: 'work_package',
-  chain: { level: 'work_package', organizationId: 'org-a', workPackageId: 'wp-a' },
+  chain: {
+    level: 'work_package',
+    organizationId: 'org-a',
+    spaceId: null,
+    projectId: 'project-a',
+    workPackageId: 'wp-a',
+  },
   restricted: false,
 } as const;
 const human: OrganizationPrincipal = { id: 'ada' };
@@ -54,34 +72,80 @@ const consent: OrganizationPrincipal = {
   },
 };
 
+/** Connections and the directory actually acquired by this fixture, selected once in reverse order. */
+let fixtureCleanup: (() => void)[] = [];
+
+/** Retains the returned connection close without changing the caller's real connection identity. */
+function openFixtureConnection(path: string): ReturnType<typeof openConnection>['db'] {
+  const connection = openConnection(path);
+  fixtureCleanup.unshift(connection.close);
+  return connection.db;
+}
+
+/** Attempts every selected cleanup and retains exact operation/cleanup failures, including undefined. */
+function closeFixture(primary: { readonly cause: unknown } | null = null): void {
+  const selected = fixtureCleanup;
+  fixtureCleanup = [];
+  const failures: unknown[] = [];
+  for (const close of selected) {
+    try {
+      close();
+    } catch (cause) {
+      failures.push(cause);
+    }
+  }
+  if (primary !== null) {
+    if (failures.length === 0) throw primary.cause;
+    throw new AggregateError(
+      [primary.cause, ...failures],
+      'Organization fixture setup and cleanup failed',
+      { cause: primary.cause },
+    );
+  }
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'Organization fixture cleanup failed');
+}
+
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'wbs-organization-authorization-'));
-  const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  sqlite = openDatabase(path);
-  sqlite.run("INSERT INTO users (id, username, created_at) VALUES ('ada', 'ada', 1)");
-  sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
-  sqlite.run(
-    "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
-  );
-  sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, created_at) VALUES ('wp-a', 'A', 'ada', 0, 1)",
-  );
-  sqlite.run(
-    "INSERT INTO project_organization (resource_id, organization_id) VALUES ('wp-a', 'org-a')",
-  );
-  sqlite.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-  const db = openDrizzle(path);
-  access = new SqliteOrganizationAccess(
-    db,
-    () => Promise.resolve('org-a'),
-    () => 1000,
-  );
-  decisions = new AccessDecisionRepository(db);
+  try {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-organization-authorization-'));
+    fixtureCleanup.unshift(() => {
+      rmSync(directory, { recursive: true, force: true });
+    });
+    dir = directory;
+    const path = join(dir, 'test.db');
+    runMigrations(path, FOLDER);
+    const opened = openDatabase(path);
+    fixtureCleanup.unshift(opened.close.bind(opened));
+    sqlite = opened;
+    sqlite.run("INSERT INTO users (id, username, created_at) VALUES ('ada', 'ada', 1)");
+    sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+    sqlite.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
+    );
+    sqlite.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('project-a','org-a','A',1,'ada')",
+    );
+    sqlite.run(
+      "INSERT INTO work_package (id, name, project_id, created_by, restricted, created_at) VALUES ('wp-a', 'A', 'project-a', 'ada', 0, 1)",
+    );
+    sqlite.run(
+      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('wp-a', 'org-a')",
+    );
+    sqlite.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    const db = openFixtureConnection(path);
+    access = new SqliteOrganizationAccess(
+      db,
+      () => Promise.resolve('org-a'),
+      () => 1000,
+    );
+    decisions = new AccessDecisionRepository(db);
+  } catch (cause) {
+    closeFixture({ cause });
+  }
 });
 afterEach(() => {
-  sqlite.close();
-  rmSync(dir, { recursive: true, force: true });
+  closeFixture();
 });
 
 function grant(
@@ -102,7 +166,7 @@ describe('resolved organization authority with grants', () => {
       access: {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin', cap: null },
+        scope: { organizationId: 'org-a', userId: 'ada', cap: null },
       },
     });
     expect(await authorize(decisions, human, target, 'package.write')).toEqual({
@@ -137,7 +201,6 @@ describe('resolved organization authority with grants', () => {
           scope: {
             organizationId: 'org-a',
             userId: 'ada',
-            role: 'member',
             delegated: true,
             cap: CONTRIBUTOR_CAP,
           },
@@ -189,7 +252,6 @@ describe('resolved organization authority with grants', () => {
         scope: {
           organizationId: 'org-a',
           userId: 'ada',
-          role: 'super_admin',
           delegated: true,
           cap: null,
         },
@@ -201,14 +263,70 @@ describe('resolved organization authority with grants', () => {
     });
   });
 
-  it('returns membership facts without inventing a credential cap', () => {
-    expect(currentMembershipAccess(openDrizzle(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+  it('resolves authenticated context without interpreting the compatibility label', async () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    expect(await access.resolve(human)).toEqual({
       ok: true,
       access: {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'super_admin' },
+        principal: { id: 'ada' },
+        scope: { organizationId: 'org-a', userId: 'ada', cap: null },
       },
     });
+  });
+
+  it('returns credential facts without a membership authority label', async () => {
+    const answer = await access.credentialFactsOf(human, 'org-a');
+    expect(answer).toEqual({ facts: { enforced: [], policy: null, lifecycle: null } });
+  });
+
+  it('resolves borrowed package authority without interpreting the compatibility label', async () => {
+    grant('user', 'ada', 'package-contributor');
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    const resolve = resolveWorkPackageWriteScopeIn(
+      openFixtureConnection(join(dir, 'test.db')),
+      createReadSnapshotLifetime(),
+    );
+    expect(await resolve('wp-a', 'org-a', 'ada', undefined)).toEqual({
+      ok: true,
+      scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+    });
+  });
+
+  it('returns only current membership identity without inventing authority', () => {
+    expect(readMembershipIn(openFixtureConnection(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+      organizationId: 'org-a',
+      userId: 'ada',
+    });
+  });
+
+  it('reads current membership identity without interpreting the compatibility label', () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    expect(readMembershipIn(openFixtureConnection(join(dir, 'test.db')), 'org-a', 'ada')).toEqual({
+      organizationId: 'org-a',
+      userId: 'ada',
+    });
+  });
+
+  it('returns absent membership identity for a removed or foreign account', () => {
+    const db = openFixtureConnection(join(dir, 'test.db'));
+    expect(readMembershipIn(db, 'org-b', 'ada')).toBeNull();
+    expect(readMembershipIn(db, 'org-a', 'missing-account')).toBeNull();
   });
 
   for (const [kind, principal] of [
@@ -265,8 +383,8 @@ describe('resolved organization authority with grants', () => {
       });
       try {
         expect(
-          await admitResourceUseProject(
-            openDrizzle(join(dir, 'test.db')),
+          await admitResourceUseWorkPackage(
+            openFixtureConnection(join(dir, 'test.db')),
             'wp-a',
             {
               id: retained.id,
@@ -291,12 +409,12 @@ describe('resolved organization authority with grants', () => {
     });
   }
 
-  it('preserves the credential cap when resolving a borrowed project write scope', async () => {
+  it('preserves the credential cap when resolving a borrowed work package write scope', async () => {
     grant('user', 'ada', 'package-contributor');
     grant('machine_credential', 'cred-a', 'package-contributor');
     grant('machine_credential', 'cred-c', 'package-contributor');
-    const resolve = resolveProjectWriteScopeIn(
-      openDrizzle(join(dir, 'test.db')),
+    const resolve = resolveWorkPackageWriteScopeIn(
+      openFixtureConnection(join(dir, 'test.db')),
       createReadSnapshotLifetime(),
     );
     for (const principal of [human, machine, consent]) {
@@ -320,7 +438,7 @@ describe('resolved organization authority with grants', () => {
       "INSERT INTO machine_credential (id, organization_id, person_id, issued_by, source, name, created_at) VALUES (?, 'org-a', 'agent-a', 'ada', 'api_key', 'Agent key', 1)",
       [credentialId],
     );
-    const db = openDrizzle(join(dir, 'test.db'));
+    const db = openFixtureConnection(join(dir, 'test.db'));
     const auth = new AuthService({
       users: new UserRepository(db, OPEN),
       clock: clockOf({ now: () => 1000, newId: () => 'unused' }),
@@ -365,4 +483,103 @@ describe('resolved organization authority with grants', () => {
     sqlite.run('DROP TABLE access_role_permission');
     expect(authorize(decisions, human, target, 'package.read')).rejects.toThrow();
   });
+});
+
+for (const boundary of ['memberships', 'onboarding', 'selection'] as const) {
+  it(`refuses a malformed compatibility label at the explicit ${boundary} display boundary`, async () => {
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      sqlite.run("UPDATE organization_membership SET role = 'unused-label'");
+    } finally {
+      sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    const db = openFixtureConnection(join(dir, 'test.db'));
+    const read = async () =>
+      boundary === 'memberships'
+        ? new OrganizationRepository(db, OPEN).listMemberships('ada')
+        : boundary === 'onboarding'
+          ? new OnboardingRepository(db, OPEN).discover('ada')
+          : new SqliteOrganizationSelection(db).list('ada');
+    const failure = await read().then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure instanceof Error ? failure.message : failure).toMatch(
+      /malformed (role|membership label)/,
+    );
+  });
+}
+
+for (const [module, names] of [
+  [storedRoles, ['currentMembershipAccess', 'capStoredRole', 'validateStoredRole']],
+  [membershipRoles, ['roleIn', 'guardFinalSuperAdmin']],
+  [enterpriseRoles, ['superAdminRefusal']],
+  [authenticatedRoles, ['organizationRoleOf']],
+  [resourceRoles, ['mayEditWorkPackageWithin']],
+  [claimRoles, ['isClaimAdmin']],
+  [directoryRoles, ['machineCredentialReachOf']],
+  [workPackageRoles, ['classifyWorkPackageWriteIn']],
+] as const) {
+  for (const name of names)
+    it('does not expose the retired server role helper ' + name, () => {
+      expect(Reflect.has(module, name)).toBe(false);
+    });
+}
+
+for (const dependency of ['table', 'organization-column', 'user-column'] as const) {
+  it('throws on unreadable current membership identity at ' + dependency, () => {
+    const db = openFixtureConnection(join(dir, 'test.db'));
+    if (dependency === 'table')
+      sqlite.run('ALTER TABLE organization_membership RENAME TO unavailable_membership');
+    else if (dependency === 'organization-column')
+      sqlite.run(
+        'ALTER TABLE organization_membership RENAME COLUMN organization_id TO unavailable_organization',
+      );
+    else
+      sqlite.run('ALTER TABLE organization_membership RENAME COLUMN user_id TO unavailable_user');
+    let failure: unknown;
+    try {
+      readMembershipIn(db, 'org-a', 'ada');
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(messagesOf(failure).join('\n')).toMatch(
+      dependency === 'table'
+        ? /no such table: organization_membership/
+        : dependency === 'organization-column'
+          ? /no such column:.*organization_id/
+          : /no such column:.*user_id/,
+    );
+  });
+}
+
+it('resolves context facts membership and borrowed package authority without the unused label column', async () => {
+  grant('user', 'ada', 'package-contributor');
+  sqlite.run(
+    'ALTER TABLE organization_membership RENAME COLUMN role TO unavailable_compatibility_label',
+  );
+  expect(await access.resolve(human)).toEqual({
+    ok: true,
+    access: {
+      kind: 'scoped',
+      principal: { id: 'ada' },
+      scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+    },
+  });
+  expect(await access.admitTo(human, 'org-a')).toBeNull();
+  expect(await access.credentialFactsOf(human, 'org-a')).toEqual({
+    facts: { enforced: [], policy: null, lifecycle: null },
+  });
+  const db = openFixtureConnection(join(dir, 'test.db'));
+  expect(readMembershipIn(db, 'org-a', 'ada')).toEqual({ organizationId: 'org-a', userId: 'ada' });
+  expect(
+    await resolveWorkPackageWriteScopeIn(db, createReadSnapshotLifetime())(
+      'wp-a',
+      'org-a',
+      'ada',
+      undefined,
+    ),
+  ).toEqual({ ok: true, scope: { organizationId: 'org-a', userId: 'ada', cap: null } });
 });

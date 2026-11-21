@@ -18,7 +18,7 @@ const input = {
   },
 };
 
-test('direct directory bindings return every service list without inventing a project restriction', async () => {
+test('direct directory bindings return every service list without inventing a work package restriction', async () => {
   const service = testDirectoryService();
   await service.addTeam('owner', 'Team');
   await service.addPerson('owner', 'Person', []);

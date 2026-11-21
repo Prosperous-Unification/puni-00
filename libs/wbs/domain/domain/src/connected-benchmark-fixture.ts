@@ -1,10 +1,10 @@
 import type { ScopedTypedDependency } from './typed-dependency';
 
-/** A component joined by alternating incident edges and people, with unrelated projects excluded. */
+/** A component joined by alternating incident edges and people, with unrelated work packages excluded. */
 export function buildConnectedBenchmark(shape: 'sparse' | 'dense') {
   const count = shape === 'sparse' ? 202 : 26;
-  const projects = Array.from({ length: count }, (_, rank) => ({
-    projectId: `${shape}-${String(rank)}`,
+  const workPackages = Array.from({ length: count }, (_, rank) => ({
+    workPackageId: `${shape}-${String(rank)}`,
     workItemId: `${shape}-${String(rank)}-work`,
     stepId: `${shape}-${String(rank)}-step`,
     personId:
@@ -17,8 +17,8 @@ export function buildConnectedBenchmark(shape: 'sparse' | 'dense') {
           : null,
   }));
   const relationships: ScopedTypedDependency[] = [];
-  for (const [before, predecessor] of projects.entries()) {
-    for (const [after, successor] of projects.entries()) {
+  for (const [before, predecessor] of workPackages.entries()) {
+    for (const [after, successor] of workPackages.entries()) {
       const connects =
         shape === 'sparse'
           ? before % 2 === 0 && after === before + 1
@@ -27,12 +27,12 @@ export function buildConnectedBenchmark(shape: 'sparse' | 'dense') {
         relationships.push({
           id: `${shape}-edge-${String(before)}-${String(after)}`,
           predecessor: {
-            projectId: predecessor.projectId,
+            workPackageId: predecessor.workPackageId,
             workItemId: predecessor.workItemId,
             scope: 'whole',
           },
           successor: {
-            projectId: successor.projectId,
+            workPackageId: successor.workPackageId,
             workItemId: successor.workItemId,
             scope: 'whole',
           },
@@ -40,5 +40,5 @@ export function buildConnectedBenchmark(shape: 'sparse' | 'dense') {
         });
     }
   }
-  return { projects, relationships };
+  return { workPackages, relationships };
 }

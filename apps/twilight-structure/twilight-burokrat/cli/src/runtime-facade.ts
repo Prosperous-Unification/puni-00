@@ -17,7 +17,11 @@ import { readInstalledPuniToolkit, readInstalledToolkit } from './packaging/inst
 import { prepareToolkit, type Toolkit } from './policy/prepare-activation-cli';
 import { prepareRelocation } from './policy/prepare-relocation-activation-cli';
 import { toolkitRoles } from './policy/release';
-import { type BunExecutionToolkit, readCommittedBunToolkit } from './policy/toolkit';
+import {
+  type BunExecutionToolkit,
+  readCommittedBunToolkit,
+  resolveToolkitModules,
+} from './policy/toolkit';
 import { anchorPreparation } from './preparation-paths';
 import { readPushAudit } from './push-audit';
 import { anchorPath } from './validator-paths';
@@ -154,7 +158,7 @@ export function executeCurrentRequest(request: ValidatorRequest, context: Contex
   const directory = realpathSync.native(context.installedDirectory);
   // Proof: c28-ordinary-current-profile; Old package with otherwise valid toolkit2; asserts no candidate Git or launch before diagnostic.; injected fault failed `refuses a complete old package profile with valid toolkit2 before ordinary candidate Git or launch`; restoration passed.
   const toolkit = readInstalledPuniToolkit(directory, join(directory, 'toolkit'));
-  if(request.command==='lint-ci')readCommittedBunToolkit(toolkit.directory);
+  if (request.command === 'lint-ci') readCommittedBunToolkit(toolkit.directory);
   return executeValidator(request, { ...context, installedDirectory: directory }, toolkit);
 }
 
@@ -166,7 +170,7 @@ function executeValidator(
 ): number {
   const environment: Record<string, string> = {
     ...createGitEnvironment(context.path),
-    TOOL_WIKI_TRUSTED_NODE_MODULES: join(toolkit.directory, 'trusted-node-modules'),
+    TOOL_WIKI_TRUSTED_NODE_MODULES: resolveToolkitModules(toolkit),
   };
   // Proof: inheriting an absent binding, dropping propagation/anchoring, anchoring empty or forwarding to other commands each failed its selected-binding negative.
   const binding = context.ciTrustedBinding;
@@ -242,7 +246,7 @@ function executeSelectedLint(
   selected: Extract<InstalledLint, { kind: 'ready' }>,
   context: LintContext,
 ): Promise<number> {
-  if(context.required)readCommittedBunToolkit(selected.toolkit.directory);
+  if (context.required) readCommittedBunToolkit(selected.toolkit.directory);
   const environment: Record<string, string> = {
     // Proof: facade-environment; `passes only frozen environment and caller-anchored scratch with explicit activation and closure to the actual installed launcher` failed with the recorded source fault and passed after restoration.
     ...selected.runtime.environment,

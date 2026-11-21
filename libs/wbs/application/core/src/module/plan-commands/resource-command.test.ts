@@ -1,10 +1,9 @@
-import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
 import { servicesOver } from '../../compose';
-import type { ClaimStore } from '../../ports/claim-store';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { Scope } from '../../ports/unit-of-work';
 import {
   CommandNormalizationError,
@@ -15,6 +14,7 @@ import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -23,14 +23,15 @@ import { createPlanCommandRunner } from './composition';
 const F = 'account-f';
 
 /**
- * A project with its starting steps; root `080` with leaves `080.25` and
+ * A work package with its starting steps; root `080` with leaves `080.25` and
  * `080.26`, a free leaf `090`, and the person `claire` to claim them.
  */
 async function seeded() {
-  const source = openMemorySource();
+  const fixture = openMemorySourceFixture();
+  const source = fixture.source;
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -43,64 +44,70 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Resources', F));
-  const projectId = created.project.id;
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  for (const [index, name] of ['Dev', 'QA'].entries()) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'fixture-legacy-org',
+      {
+        id: 'resource-step-' + String(index),
+        code: name.toLowerCase(),
+        name,
+        position: (index + 1) * 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'resource-binding-' + String(index),
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: (index + 1) * 10,
+      },
       { at: 1, by: F },
     );
+    if (!defined.ok) throw new Error('resource fixture step refused: ' + defined.reason);
   }
-  const steps = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  const created = expectCreated(await graph.workPackages.create('Resources', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  expect(created.steps.map((step) => step.id)).toEqual(['resource-step-0', 'resource-step-1']);
+  const steps = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   for (const row of [
-    workItemRow({ id: '080', projectId, parentId: null, position: 1, name: 'Platform' }),
-    workItemRow({ id: '080.25', projectId, parentId: '080', position: 1, name: 'Build' }),
-    workItemRow({ id: '080.26', projectId, parentId: '080', position: 2, name: 'Test' }),
-    workItemRow({ id: '090', projectId, parentId: null, position: 2, name: 'Deploy' }),
+    workItemRow({ id: '080', workPackageId, parentId: null, position: 1, name: 'Platform' }),
+    workItemRow({ id: '080.25', workPackageId, parentId: '080', position: 1, name: 'Build' }),
+    workItemRow({ id: '080.26', workPackageId, parentId: '080', position: 2, name: 'Test' }),
+    workItemRow({ id: '090', workPackageId, parentId: null, position: 2, name: 'Deploy' }),
   ])
     await source.stores.workItems.insert(row, [], { at: 1, by: F });
   await source.stores.directory.addPerson({ id: 'claire', name: 'claire', kind: 'agent' }, [], {
     at: 1,
     by: F,
   });
-  // `claire` is bound to the account writing, so the account may claim as her.
-  const bound = (claims: ClaimStore): ClaimStore => ({
-    listByProject: (id) => claims.listByProject(id),
-    listStampedByProject: (id) => claims.listStampedByProject(id),
-    findById: (id, claimId) => claims.findById(id, claimId),
-    observeProject: (id, access) => claims.observeProject(id, access),
-    occupancyOf: (id) => claims.occupancyOf(id),
-    organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
-    organizationUnitsOf: (ids) => claims.organizationUnitsOf(ids),
-    add: (written, stated, stamp, occupancy, leases) =>
-      claims.add(written, stated, stamp, occupancy, leases),
-    remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
-    moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
-    renewLeases: (personId, runId, now) => claims.renewLeases(personId, runId, now),
-    expiredLeasesOf: (id, at) => claims.expiredLeasesOf(id, at),
-    projectsWithExpiredLeases: (at, limit) => claims.projectsWithExpiredLeases(at, limit),
-    boundAccountOf: (personId) => Promise.resolve(personId === 'claire' ? F : null),
-    pinnedPersonOf: () => Promise.resolve(null),
-  });
+  const bound = await source.stores.directory.patchPerson(
+    'claire',
+    { accountId: F },
+    { at: 1, by: F },
+  );
+  if (!bound.ok) throw new Error('resource fixture account binding refused: ' + bound.reason);
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(
-        { ...scope.stores, claims: bound(scope.stores.claims) },
-        {
-          ...options,
-          broadcast: announcements,
-          dependencyContext: createLocalDependencyContext(scope.stores),
-        },
-      ),
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      }),
   });
-  const demands = () => source.stores.demands.listByProject(projectId);
-  const capacities = () => graph.capacity.listResourceCapacitiesFor(projectId);
+  const demands = () => source.stores.demands.listByWorkPackage(workPackageId);
+  const capacities = () => graph.capacity.listResourceCapacitiesFor(workPackageId);
   const entries = async () =>
-    (await source.stores.journal.entriesFor({ projectId, userId: F, personId: null })).length;
+    (await source.stores.journal.entriesFor({ workPackageId, userId: F, personId: null })).length;
   /** Creates the two resources the cases use and answers their ids. */
   const declare = async () => {
     const answer = await runner.runDirectory(F, [
@@ -124,7 +131,7 @@ async function seeded() {
     if (ram === undefined || stage === undefined) throw new Error('resources minted no ids');
     return { ram, stage };
   };
-  return { source, graph, runner, projectId, steps, demands, capacities, entries, declare };
+  return { source, graph, runner, workPackageId, steps, demands, capacities, entries, declare };
 }
 
 describe('the resource directory commands', () => {
@@ -243,10 +250,10 @@ describe('the resource directory commands', () => {
   });
 
   it('refuses removing a demanded resource, naming 2 demands, 0 capacities, 0 occupancies', async () => {
-    const { source, graph, runner, projectId, demands, declare } = await seeded();
+    const { source, graph, runner, workPackageId, demands, declare } = await seeded();
     try {
       const { ram } = await declare();
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: 4 },
         { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 2 },
       ]);
@@ -260,9 +267,9 @@ describe('the resource directory commands', () => {
           counts: { demands: 2, capacities: 0, occupancies: 0 },
           usage: {
             members: [],
-            projects: [
+            workPackages: [
               {
-                id: projectId,
+                id: workPackageId,
                 workItems: [
                   {
                     id: '080.25',
@@ -290,10 +297,10 @@ describe('the resource directory commands', () => {
   });
 
   it('removes a resource with cascade, taking its demands and capacities with it', async () => {
-    const { source, graph, runner, projectId, demands, capacities, declare } = await seeded();
+    const { source, graph, runner, workPackageId, demands, capacities, declare } = await seeded();
     try {
       const { ram, stage } = await declare();
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: 4 },
         { kind: 'setResourceCapacity', resourceId: ram, units: 32 },
         { kind: 'setResourceCapacity', resourceId: stage, units: 1 },
@@ -325,12 +332,12 @@ describe('the resource directory commands', () => {
 
 describe('setResourceCapacity', () => {
   it('states, zeroes, remembers and clears one pair, journalling nothing', async () => {
-    const { source, runner, projectId, capacities, entries, declare } = await seeded();
+    const { source, runner, workPackageId, capacities, entries, declare } = await seeded();
     try {
       const { ram, stage } = await declare();
       const before = await entries();
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setResourceCapacity', resourceId: ram, units: 32 },
           { kind: 'setResourceCapacity', resourceId: stage, units: 0 },
         ]),
@@ -343,17 +350,17 @@ describe('setResourceCapacity', () => {
         ].sort((left, right) => left.resourceId.localeCompare(right.resourceId)),
       );
       // Remembered: no leaf demands RAM, and the number stays until cleared.
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 4 },
         { kind: 'setDemand', workItemId: '090', resourceId: ram, units: null },
       ]);
       expect(await capacities()).toContainEqual({ resourceId: ram, units: 32 });
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setResourceCapacity', resourceId: ram, units: null },
       ]);
       expect(await capacities()).toEqual([{ resourceId: stage, units: 0 }]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setResourceCapacity', resourceId: 'nothing', units: 1 },
         ]),
       ).toMatchObject({ ok: false, reason: 'unknown_resource' });
@@ -386,29 +393,29 @@ describe('setResourceCapacity', () => {
 
 describe('setDemand', () => {
   it('states, replaces and removes a demand, each one undoable entry', async () => {
-    const { source, runner, projectId, demands, entries, declare } = await seeded();
+    const { source, runner, workPackageId, demands, entries, declare } = await seeded();
     try {
       const { ram } = await declare();
       const before = await entries();
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: 4 },
       ]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: 6 },
       ]);
       expect(await demands()).toEqual([{ workItemId: '080.25', resourceId: ram, units: 6 }]);
       expect((await entries()) - before).toBe(2);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await demands()).toEqual([{ workItemId: '080.25', resourceId: ram, units: 4 }]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await demands()).toEqual([]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await demands()).toEqual([{ workItemId: '080.25', resourceId: ram, units: 4 }]);
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: null },
       ]);
       expect(await demands()).toEqual([]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await demands()).toEqual([{ workItemId: '080.25', resourceId: ram, units: 4 }]);
     } finally {
       await source.close();
@@ -416,12 +423,12 @@ describe('setDemand', () => {
   });
 
   it('refuses 2 units on an exclusive resource, writing nothing', async () => {
-    const { source, runner, projectId, demands, entries, declare } = await seeded();
+    const { source, runner, workPackageId, demands, entries, declare } = await seeded();
     try {
       const { stage } = await declare();
       const before = await entries();
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: stage, units: 2 },
         ]),
       ).toEqual({
@@ -433,13 +440,13 @@ describe('setDemand', () => {
       expect(await demands()).toEqual([]);
       expect(await entries()).toBe(before);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: stage, units: 1 },
         ]),
       ).toMatchObject({ ok: true });
       expect(await demands()).toEqual([{ workItemId: '090', resourceId: stage, units: 1 }]);
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: 'nothing', units: 1 },
         ]),
       ).toMatchObject({ ok: false, reason: 'unknown_resource' });
@@ -449,15 +456,15 @@ describe('setDemand', () => {
   });
 
   it('keeps a parent’s demand on the parent: its leaves state none and no date moves', async () => {
-    const { source, graph, runner, projectId, demands, declare } = await seeded();
+    const { source, graph, runner, workPackageId, demands, declare } = await seeded();
     try {
       const { ram } = await declare();
-      const before = await graph.workItems.tree(projectId);
-      await runner.run(projectId, F, [
+      const before = await graph.workItems.tree(workPackageId);
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080', resourceId: ram, units: 2 },
       ]);
       expect(await demands()).toEqual([{ workItemId: '080', resourceId: ram, units: 2 }]);
-      const after = await graph.workItems.tree(projectId);
+      const after = await graph.workItems.tree(workPackageId);
       if (before === null || after === null || 'kind' in before || 'kind' in after)
         throw new Error('the plan read was unavailable');
       expect(after.slices).toEqual(before.slices);
@@ -470,13 +477,13 @@ describe('setDemand', () => {
   });
 
   it('constrains nothing without a stated capacity: a demanding leaf is still claimed', async () => {
-    const { source, runner, projectId, steps, declare } = await seeded();
+    const { source, runner, workPackageId, steps, declare } = await seeded();
     try {
       const { ram } = await declare();
       const firstStep = steps.at(0);
-      if (firstStep === undefined) throw new Error('seeded project has no first step');
+      if (firstStep === undefined) throw new Error('seeded work package has no first step');
       expect(
-        await runner.run(projectId, F, [
+        await runner.run(workPackageId, F, [
           { kind: 'setDemand', workItemId: '090', resourceId: ram, units: 4 },
           { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [firstStep] },
         ]),
@@ -487,10 +494,10 @@ describe('setDemand', () => {
   });
 
   it('goes with its work item', async () => {
-    const { source, runner, projectId, demands, declare } = await seeded();
+    const { source, runner, workPackageId, demands, declare } = await seeded();
     try {
       const { ram, stage } = await declare();
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: ram, units: 4 },
         { kind: 'setDemand', workItemId: '090', resourceId: stage, units: 1 },
         { kind: 'deleteWorkItem', workItemId: '080.25' },
@@ -509,7 +516,7 @@ describe('setDemand', () => {
     });
     await fc.assert(
       fc.asyncProperty(fc.array(write, { minLength: 1, maxLength: 12 }), async (writes) => {
-        const { source, runner, projectId, demands, declare } = await seeded();
+        const { source, runner, workPackageId, demands, declare } = await seeded();
         try {
           const ids = await declare();
           for (const each of writes) {
@@ -525,7 +532,7 @@ describe('setDemand', () => {
               if (refused instanceof CommandNormalizationError) continue;
               throw refused;
             }
-            await runner.run(projectId, F, [command]);
+            await runner.run(workPackageId, F, [command]);
             for (const held of await demands()) {
               expect(Number.isSafeInteger(held.units)).toBe(true);
               expect(held.units).toBeGreaterThanOrEqual(1);

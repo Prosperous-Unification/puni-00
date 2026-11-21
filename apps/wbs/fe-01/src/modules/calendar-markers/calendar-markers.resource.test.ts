@@ -16,36 +16,38 @@ function fakeRoutes(): { api: CalendarMarkerRoutes; asked: string[] } {
   return {
     asked,
     api: {
-      createCalendarMarker: (projectId, marker) => {
-        asked.push(`create:${projectId}:${String(marker.markerId)}:${marker.date}:${marker.name}`);
+      createCalendarMarker: (workPackageId, marker) => {
+        asked.push(
+          `create:${workPackageId}:${String(marker.markerId)}:${marker.date}:${marker.name}`,
+        );
         return Promise.resolve(STORED);
       },
-      renameCalendarMarker: (projectId, markerId, name) => {
-        asked.push(`rename:${projectId}:${markerId}:${name}`);
+      renameCalendarMarker: (workPackageId, markerId, name) => {
+        asked.push(`rename:${workPackageId}:${markerId}:${name}`);
         return Promise.resolve(STORED);
       },
-      recolorCalendarMarker: (projectId, markerId, color) => {
-        asked.push(`recolor:${projectId}:${markerId}:${String(color)}`);
+      recolorCalendarMarker: (workPackageId, markerId, color) => {
+        asked.push(`recolor:${workPackageId}:${markerId}:${String(color)}`);
         return Promise.resolve(STORED);
       },
-      deleteCalendarMarker: (projectId, markerId) => {
-        asked.push(`delete:${projectId}:${markerId}`);
+      deleteCalendarMarker: (workPackageId, markerId) => {
+        asked.push(`delete:${workPackageId}:${markerId}`);
         return Promise.resolve();
       },
     },
   };
 }
 
-describe('the calendar markers of one project, as this browser writes them', () => {
+describe('the calendar markers of one work package, as this browser writes them', () => {
   it('names the markers resource, and only it, as what a marker edit dirties', () => {
-    const writes = createCalendarMarkerWrites({ projectId: 'p1', api: fakeRoutes().api });
+    const writes = createCalendarMarkerWrites({ workPackageId: 'p1', api: fakeRoutes().api });
 
     expect(writes.dirtied).toEqual(['markers']);
   });
 
-  it('sends an add to the create route, on the project it was built for', async () => {
+  it('sends an add to the create route, on the work package it was built for', async () => {
     const routes = fakeRoutes();
-    const writes = createCalendarMarkerWrites({ projectId: 'p1', api: routes.api });
+    const writes = createCalendarMarkerWrites({ workPackageId: 'p1', api: routes.api });
 
     await writes.send({
       kind: 'add',
@@ -57,7 +59,7 @@ describe('the calendar markers of one project, as this browser writes them', () 
 
   it('sends a rename to the rename route, with the name and nothing else', async () => {
     const routes = fakeRoutes();
-    const writes = createCalendarMarkerWrites({ projectId: 'p1', api: routes.api });
+    const writes = createCalendarMarkerWrites({ workPackageId: 'p1', api: routes.api });
 
     await writes.send({ kind: 'rename', markerId: 'launch', name: 'Go live' });
 
@@ -66,7 +68,7 @@ describe('the calendar markers of one project, as this browser writes them', () 
 
   it('sends a recolour to the recolour route, a cleared colour included', async () => {
     const routes = fakeRoutes();
-    const writes = createCalendarMarkerWrites({ projectId: 'p1', api: routes.api });
+    const writes = createCalendarMarkerWrites({ workPackageId: 'p1', api: routes.api });
 
     await writes.send({ kind: 'recolor', markerId: 'launch', color: '#0386a5' });
     await writes.send({ kind: 'recolor', markerId: 'launch', color: null });
@@ -76,7 +78,7 @@ describe('the calendar markers of one project, as this browser writes them', () 
 
   it('sends a removal to the delete route', async () => {
     const routes = fakeRoutes();
-    const writes = createCalendarMarkerWrites({ projectId: 'p1', api: routes.api });
+    const writes = createCalendarMarkerWrites({ workPackageId: 'p1', api: routes.api });
 
     await writes.send({ kind: 'remove', markerId: 'launch' });
 
@@ -87,7 +89,7 @@ describe('the calendar markers of one project, as this browser writes them', () 
     const routes = fakeRoutes();
     const refused = new Error('marker_not_found');
     const writes = createCalendarMarkerWrites({
-      projectId: 'p1',
+      workPackageId: 'p1',
       api: {
         ...routes.api,
         renameCalendarMarker: () => Promise.reject(refused),

@@ -2,8 +2,8 @@ import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fi
 import { describe, expect, it } from 'bun:test';
 
 import { LEGACY_ACCESS } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import type { AdmittedServices } from './admitted-write';
 import { createAdmittedWrites } from './composition';
@@ -35,18 +35,18 @@ function silent(log: string[]): Broadcaster {
 
 describe('admittedWrites', () => {
   /**
-   * Proof: `updateProjectWithin` calling the graph without `uow.run` made this case
+   * Proof: `updateWorkPackageWithin` calling the graph without `uow.run` made this case
    * fail on `- Expected - 2 / + Received + 0`, `begin` and `commit` missing
    * around `update`; watched 2026-09-27.
    */
-  it('checks and writes a project update inside one unit of work, announcing after commit', async () => {
+  it('checks and writes a work package update inside one unit of work, announcing after commit', async () => {
     const log: string[] = [];
     const graph = (_scope: Scope, broadcast: Broadcaster): AdmittedServices => ({
-      projects: {
+      workPackages: {
         createWithin: () => Promise.reject(new Error('creation not asked')),
         updateWithin: async (id) => {
           log.push('update');
-          await broadcast.publish(id, { type: 'project_settings_changed' } as never);
+          await broadcast.publish(id, { type: 'work_package_settings_changed' } as never);
           return { ok: true, value: {} as never };
         },
       },
@@ -59,7 +59,7 @@ describe('admittedWrites', () => {
       announcements: silent(log),
     });
 
-    await writes.updateProjectWithin(
+    await writes.updateWorkPackageWithin(
       'p',
       { id: 'u', username: 'u', scopes: ['write'] },
       { depReach: 'whole-item' },
@@ -75,14 +75,14 @@ describe('admittedWrites', () => {
       commandAccess: localCommandAccess,
       uow: recordingUnitOfWork(log),
       batch: (_scope, broadcast) => ({
-        projects: {
+        workPackages: {
           createWithin: () => Promise.reject(new Error('not asked')),
           updateWithin: () => Promise.reject(new Error('not asked')),
         },
         steps: {
-          removeWithin: async (projectId) => {
+          removeWithin: async (workPackageId) => {
             log.push('remove');
-            await broadcast.publish(projectId, { type: 'step_removed' } as never);
+            await broadcast.publish(workPackageId, { type: 'step_removed' } as never);
             return { ok: false, reason: 'dependency_cycle' };
           },
         },
@@ -119,7 +119,7 @@ it('refuses current command authority before constructing a direct-write graph',
     announcements: silent(log),
   });
   expect(
-    await writes.updateProjectWithin(
+    await writes.updateWorkPackageWithin(
       'p',
       { id: 'u', username: 'u', scopes: ['write'] },
       {},

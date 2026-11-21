@@ -16,7 +16,7 @@ import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import {
   CLAIM_LEASE_SWEEP_INTERVAL_MS,
-  CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+  CLAIM_LEASE_SWEEP_WORK_PACKAGES_PER_TICK,
   ClaimLeaseSweep,
 } from './module/plan-commands/claim-lease-sweep';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
@@ -26,7 +26,6 @@ import type { HistoryService } from './module/plan-history/plan-history.feature'
 import { installPlanImport } from './module/plan-import/check';
 import type { ImportService } from './module/plan-import/plan-import.feature';
 import { installPriorityBand } from './module/priority-band/check';
-import { installProject } from './module/project/check';
 import { installRealtime } from './module/realtime/check';
 import type { GatewayBroadcaster } from './module/realtime/gateway-broadcaster';
 import type { ReplayBuffer } from './module/realtime/replay-buffer';
@@ -35,21 +34,21 @@ import { installSavedPlans } from './module/saved-plans/check';
 import type { SavedPlanService } from './module/saved-plans/saved-plans.feature';
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
+import { installWorkPackage } from './module/work-package/check';
 import type { Clock } from './ports/clock';
 import type { CommandAccess } from './ports/command-access';
 import type { DependencyContext, ServiceDependencyContext } from './ports/dependency-context';
-import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
+import { type EditAdmission, LEGACY_EDIT_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type {
-  BeforeProjectUpdate,
   BeforeStepRemoval,
   BeforeStepWrite,
+  BeforeWorkPackageUpdate,
 } from './ports/fanout-capture-store';
 import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ConnectedOptimizationAdmission } from './ports/optimization-input';
 import type { ResourceAccess } from './ports/organization-access';
-import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
 import type { Digest, PasswordHasher, TokenCodec } from './ports/runtime';
 import type { Scheduler } from './ports/scheduler';
@@ -57,11 +56,12 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
+import type { Broadcaster } from './ports/work-package-event';
 import type { CommittedFanoutDelivery } from './service/committed-fanout';
 import { createLocalDependencyContext } from './service/dependency-context';
 import {
   OptimizerTriggerBroadcaster,
-  reactToProjectEvent,
+  reactToWorkPackageEvent,
 } from './service/optimizer-trigger-broadcaster';
 
 /** Runtime capabilities required by every service composition. */
@@ -76,7 +76,7 @@ export interface RuntimePorts {
   /** Live connected target admission; borrowed graphs never receive this capability. */
   readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** Adapter callback for plan edits that should refresh runtime-owned optimization. */
-  readonly onPlanChanged?: (projectId: string) => void;
+  readonly onPlanChanged?: (workPackageId: string) => void;
 }
 
 /** Account-only capabilities. Their presence selects the accountful overload. */
@@ -117,11 +117,9 @@ export interface ServicesOverOptions {
   readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
   readonly schedulerMode?: 'capture';
-  /** Who may write a project through the built services; see {@link EditAdmission}. */
+  /** Who may write a work package through the built services; see {@link EditAdmission}. */
   readonly admission: EditAdmission;
-  /** Scoped dependent writes use this only after their own unit of work grants it. */
-  readonly recoveryAdmission?: EditAdmission;
-  readonly beforeProjectUpdate?: BeforeProjectUpdate;
+  readonly beforeWorkPackageUpdate?: BeforeWorkPackageUpdate;
   readonly beforeStepRemoval?: BeforeStepRemoval;
   readonly beforeStepWrite?: BeforeStepWrite;
 }
@@ -131,7 +129,7 @@ export interface ServicesOverOptions {
  *
  * Called once for the public graph and once per admitted batch or import, so
  * every resource module is installed here, per call, over the stores it is
- * handed — never once for the process. Project and Step share one dependency
+ * handed — never once for the process. Work package and Step share one dependency
  * graph guard over those same stores. A shared installation would hand one
  * batch's staged stores to the next: the backend module map's "A singleton
  * module installation here would leak staged stores" hazard, and the
@@ -140,20 +138,19 @@ export interface ServicesOverOptions {
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
-  const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
   return {
-    projects: installProject({
+    workPackages: installWorkPackage({
       accessDecisions: stores.accessDecisions,
       clock,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
       dependencyContext: shared.dependencyContext,
-      beforeUpdate: shared.beforeProjectUpdate,
-    }).projects,
+      beforeUpdate: shared.beforeWorkPackageUpdate,
+    }).workPackages,
     capacity: installCapacity({
       clock,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       capacity: stores.capacity,
       resourceCapacity: stores.resourceCapacity,
       // Proof: with this spread removed, every activated statement case of
@@ -168,14 +165,13 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
     calendarMarkers: installCalendarMarker({
       accessDecisions: stores.accessDecisions,
       clock,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       markers: stores.calendarMarkers,
       broadcast,
-      recoveryAdmission,
     }).calendarMarkers,
     priorityBands: installPriorityBand({
       clock,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       bands: stores.priorityBands,
       broadcast,
       admission,
@@ -183,10 +179,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
     steps: installStep({
       accessDecisions: stores.accessDecisions,
       clock,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       steps: stores.steps,
       broadcast,
-      recoveryAdmission,
       dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
       beforeWrite: shared.beforeStepWrite,
@@ -206,7 +201,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       clock,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
-      projects: stores.projects,
+      workPackages: stores.workPackages,
       estimates: stores.estimates,
       actuals: stores.actuals,
       measures: stores.measures,
@@ -265,7 +260,7 @@ interface CommonServices extends WritingServices {
     broadcast: Broadcaster,
     admission: EditAdmission,
     dependencies: DependencyContext,
-    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeWorkPackageUpdate?: BeforeWorkPackageUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
     beforeStepWrite?: BeforeStepWrite,
   ) => WritingServices;
@@ -343,7 +338,10 @@ export function composeServices(
     maxAgeMs: shared.replayMaxAgeMs,
     ...(shared.replayMaxEvents === undefined ? {} : { maxEvents: shared.replayMaxEvents }),
     onPushFailed: (error, subscription) => {
-      shared.logger.warn({ err: error, subscription }, 'project event recorded but not pushed');
+      shared.logger.warn(
+        { err: error, subscription },
+        'work package event recorded but not pushed',
+      );
     },
   });
   const { replayBuffer: buffer, broadcaster } = realtime;
@@ -356,10 +354,10 @@ export function composeServices(
     deliverCommitted: async (events) => {
       // Every row is durable before this callback; trigger all recipients before transport can wait.
       if (runtime.onPlanChanged !== undefined)
-        for (const { projectId, event } of events)
+        for (const { workPackageId, event } of events)
           // Proof: omitting the committed reaction left the recipient unchanged
           // while transport was held; direct delivery test received [].
-          reactToProjectEvent(projectId, event, runtime.onPlanChanged);
+          reactToWorkPackageEvent(workPackageId, event, runtime.onPlanChanged);
       for (const { recorded, event } of events)
         // Proof: substituting publish advanced the durable sequence and the
         // direct delivery test received a second row instead of the original.
@@ -374,7 +372,7 @@ export function composeServices(
     ...(runtime.admitConnectedOptimization === undefined
       ? {}
       : { admitConnectedOptimization: runtime.admitConnectedOptimization }),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
   });
   const publicServices = {
     ...rawPublicServices,
@@ -395,12 +393,12 @@ export function composeServices(
     broadcast: Broadcaster,
     admission: EditAdmission,
     dependencies: DependencyContext,
-    beforeProjectUpdate?: BeforeProjectUpdate,
+    beforeWorkPackageUpdate?: BeforeWorkPackageUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
     beforeStepWrite?: BeforeStepWrite,
   ) =>
     // Proof: binding the public standalone directory service here made a
-    // project-null command attempt a nested UoW (typed 500 instead of 200)
+    // work-package-null command attempt a nested UoW (typed 500 instead of 200)
     // before its one durable fan-out could commit.
     servicesOver(scope.stores, {
       clock: runtime.clock,
@@ -412,9 +410,8 @@ export function composeServices(
       // enter the throwing live optimizer and answer 500 instead of 200.
       schedulerMode: 'capture',
       admission,
-      recoveryAdmission: admission,
       dependencyContext: { kind: 'bound', context: dependencies },
-      beforeProjectUpdate,
+      beforeWorkPackageUpdate,
       beforeStepRemoval,
       beforeStepWrite,
     });
@@ -423,15 +420,16 @@ export function composeServices(
     capture: source.history.savedPlanCapture,
     plans: source.history.savedPlans,
     scheduler: runtime.scheduler,
-    // The installed save/current path rechecks admitted human authority in this read snapshot.
+    // Raw save/compatibility capture rechecks admitted context in this read snapshot.
+    // HTTP current comparison uses its required configured observation purpose instead.
     // Proof: removing this entire binding failed mounted saved displacement (expected 3, got 0).
     ...(source.stores.livePlans === undefined
       ? {}
       : {
-          captureSharedPlan: async (projectId: string, access: ResourceAccess) => {
-            // Proof: project-owned readProject bypassed revoked human membership: mounted
+          captureSharedPlan: async (workPackageId: string, access: ResourceAccess) => {
+            // Proof: work-package-owned readWorkPackage bypassed revoked human membership: mounted
             // comparison returned 200 instead of 403/not_a_member; save writer still refused.
-            const captured = await source.stores.livePlans?.read(projectId, access);
+            const captured = await source.stores.livePlans?.read(workPackageId, access);
             if (captured === undefined)
               throw new Error('installed shared saved-plan capture lost its live-plan store');
             // Proof: injecting process-scheduler live mode here for an enabled optimized
@@ -471,7 +469,7 @@ export function composeServices(
       // Proof: dropping this binding made the mounted tied import answer 500
       // instead of recording (B,A); watched in 6j.a.
       committedFanout,
-      // An import writes only the project it creates for its importer, whom
+      // An import writes only the work package it creates for its importer, whom
       // the creator rule admits.
       // Proof: replacing this borrowed directory with the public standalone
       // wrapper made the mounted import hit its bounded nested-owner refusal.
@@ -481,28 +479,28 @@ export function composeServices(
           broadcast,
           scheduler: runtime.scheduler,
           schedulerMode: 'capture',
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           dependencyContext: createLocalDependencyContext(scope.stores),
         }),
     }).imports,
     commands,
     claimLeases: new ClaimLeaseSweep({
       runner: commands,
-      projectsWithExpiredLeases: (at, limit) =>
-        source.stores.claims.projectsWithExpiredLeases(at, limit),
+      workPackagesWithExpiredLeases: (at, limit) =>
+        source.stores.claims.workPackagesWithExpiredLeases(at, limit),
       now: () => runtime.clock.now(),
       intervals: runtime.intervals,
       intervalMs: CLAIM_LEASE_SWEEP_INTERVAL_MS,
-      projectsPerTick: CLAIM_LEASE_SWEEP_PROJECTS_PER_TICK,
+      workPackagesPerTick: CLAIM_LEASE_SWEEP_WORK_PACKAGES_PER_TICK,
       onSweep: (released) => {
         shared.logger.info({ released }, 'expired claim leases released');
       },
-      onError: (error, projectId) => {
-        shared.logger.error({ err: error, projectId }, 'claim lease sweep failed');
+      onError: (error, workPackageId) => {
+        shared.logger.error({ err: error, workPackageId }, 'claim lease sweep failed');
       },
     }),
     history: installPlanHistory({
-      projects: publicServices.projects,
+      workPackages: publicServices.workPackages,
       planEvents,
     }).history,
     plans: savedPlans,

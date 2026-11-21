@@ -10,7 +10,7 @@ const AUDIENCE = 'api://wbs';
 let signing: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let leaf: string;
 let firstStep: string;
 
@@ -55,17 +55,17 @@ beforeEach(async () => {
   h.member('org-a', 'kat', 'member', ['project-contributor', 'org-viewer']);
   for (const username of ['dany', 'mem', 'kat']) h.bind(username, 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Claims' });
+  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Claims' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
+  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   const step = h.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position LIMIT 1',
     )
-    .get(projectId);
-  if (step === null) throw new Error('claim identity project has no first step');
+    .get(workPackageId);
+  if (step === null) throw new Error('claim identity work package has no first step');
   firstStep = step.id;
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectId}/commands`, {
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
@@ -94,7 +94,7 @@ afterEach(() => {
 });
 
 function batch(username: string, commands: unknown[]): Promise<Answer> {
-  return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+  return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 
 // Identity admission claims the first runnable step; later unstarted workflow steps need Dev completion.

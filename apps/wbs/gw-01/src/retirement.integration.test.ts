@@ -3,9 +3,9 @@ import { expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
 import { Presence } from './service/presence';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
-const PROJECT = 'project:11111111-1111-4111-8111-111111111111';
+const WORK_PACKAGE = 'work-package:11111111-1111-4111-8111-111111111111';
 
 interface MountedSocket {
   data: {
@@ -52,7 +52,7 @@ test('mounted retirement removes presence and subscriptions and aborts before ph
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     localIdentity: 'ada',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     fetchImpl: () =>
       Promise.resolve(
         enabled
@@ -79,7 +79,7 @@ test('mounted retirement removes presence and subscriptions and aborts before ph
       // The physical close callback is deliberately withheld: these facts must already hold.
       beforeClose = {
         canceled: socket.data.cancellation?.signal.aborted,
-        subscriptions: [...app.decorator.subs.socketsFor(PROJECT)],
+        subscriptions: [...app.decorator.subs.socketsFor(WORK_PACKAGE)],
         presence: joined.at(-1)?.connectionCount,
       };
     },
@@ -91,9 +91,9 @@ test('mounted retirement removes presence and subscriptions and aborts before ph
       set: { headers: {} },
     });
     await websocket.open(socket);
-    await websocket.message(socket, { type: 'subscribe', subscription: PROJECT });
-    expect(joined.at(-1)?.list(PROJECT.slice('project:'.length))).toEqual(['ada']);
-    expect([...app.decorator.subs.socketsFor(PROJECT)]).toHaveLength(1);
+    await websocket.message(socket, { type: 'subscribe', subscription: WORK_PACKAGE });
+    expect(joined.at(-1)?.list(WORK_PACKAGE.slice('work-package:'.length))).toEqual(['ada']);
+    expect([...app.decorator.subs.socketsFor(WORK_PACKAGE)]).toHaveLength(1);
     enabled = true;
     await websocket.message(socket, { type: 'ping' });
     expect(closes).toBe(1);
@@ -127,7 +127,7 @@ test('mounted late identity verification cannot join presence after retirement',
     internalAuthSecret: 's'.repeat(32),
     jwtKey: 'k'.repeat(32),
     appOrigin: 'http://localhost',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     verifier: {
       verify: async () => {
         if (++inspections === 2) await held;

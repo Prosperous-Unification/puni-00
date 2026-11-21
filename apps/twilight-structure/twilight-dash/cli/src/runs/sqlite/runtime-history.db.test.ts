@@ -1040,11 +1040,6 @@ for (const history of ['generic run', 'authority pending', 'authority accepted']
     },
   );
 
-import {
-  admitExecution as admitExecutionForDown,
-  prepareClaimed as prepareClaimedForDown,
-  prepareSession as prepareSessionForDown,
-} from '../testing/fixtures';
 for (const history of ['queued attempt', 'prepared execution', 'accepted claim'] as const)
   test(
     'format3 down refuses retained ' + history + ' and rolls back the first guard error',
@@ -1052,10 +1047,32 @@ for (const history of ['queued attempt', 'prepared execution', 'accepted claim']
       const stores = await createRuntimeDatabaseFixture('historical');
       const database = new Database(stores.options.path);
       try {
-        if (history === 'queued attempt') await admitExecutionForDown<typeof stores.runs>(stores);
-        else if (history === 'prepared execution')
-          await prepareSessionForDown<typeof stores.runs>(stores);
-        else await prepareClaimedForDown<typeof stores.runs>(stores);
+        if (!('sourceDirectory' in stores)) throw new Error('historical fixture source absent');
+        const historical: unknown = await import(
+          stores.sourceDirectory +
+            '/apps/twilight-structure/twilight-dash/cli/src/runs/testing/fixtures.ts'
+        );
+        if (
+          typeof historical !== 'object' ||
+          historical === null ||
+          !('admitExecution' in historical) ||
+          typeof historical.admitExecution !== 'function' ||
+          !('prepareSession' in historical) ||
+          typeof historical.prepareSession !== 'function' ||
+          !('prepareClaimed' in historical) ||
+          typeof historical.prepareClaimed !== 'function'
+        )
+          throw new Error('historical down fixture exports absent');
+        // Boundary: format4SourceEntries pins this owner-retained published module. These setup-only calls retain original1 identities and return no projected current state.
+        type Populate = (fixture: typeof stores) => Promise<unknown>;
+        const helpers = historical as {
+          readonly admitExecution: Populate;
+          readonly prepareSession: Populate;
+          readonly prepareClaimed: Populate;
+        };
+        if (history === 'queued attempt') await helpers.admitExecution(stores);
+        else if (history === 'prepared execution') await helpers.prepareSession(stores);
+        else await helpers.prepareClaimed(stores);
         validateDatabaseForFormat(database, FORMAT4);
         const before = captureRuntimeDatabase(database);
         expect(() => {

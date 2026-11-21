@@ -1,65 +1,37 @@
-import { unitOfWorkConformance } from '@wbs/conformance';
-import { beforeEach, describe } from 'bun:test';
+import { stepCatalogueFixtureFromSource, unitOfWorkConformance } from '@wbs/conformance';
+import { afterEach, beforeEach, describe } from 'bun:test';
 
-import { projectRow } from './project-fixture';
-import { openMemorySource } from './source';
+import { openMemoryStepCatalogueCase } from './testing/step-catalogue-fixture';
 
 // Proof: after a confirmed `store-memory:test` local-cache hit, a throw in the
 // imported conformance source forced Nx to rerun and fail on
 // `injected conformance dependency cache fault`.
 
-let latestSource: ReturnType<typeof openMemorySource> | null = null;
-let latestFixture: {
-  readonly projectId: string;
-  readonly stamp: { readonly at: number; readonly by: string };
-} | null = null;
+let current: Awaited<ReturnType<typeof openCurrentSource>> | undefined;
+
+async function openCurrentSource() {
+  return await openMemoryStepCatalogueCase('unit-of-work', stepCatalogueFixtureFromSource);
+}
 
 beforeEach(async () => {
-  const source = openMemorySource();
-  const { stores } = source;
-  const ownerId = crypto.randomUUID();
-  const stamp = { at: 1, by: ownerId };
-  const projectId = 'p1';
-  const stepId = 'st-1';
-  await stores.users.create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    stamp,
-  );
-  await stores.projects.create(
-    projectRow({ id: projectId, name: 'Rewire the shed', ownerId }),
-    [
-      {
-        id: stepId,
-        projectId,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    stamp,
-  );
-  await stores.steps.add(
-    { id: stepId, projectId, name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' as const },
-    stamp,
-  );
-  latestFixture = { projectId, stamp };
-  latestSource = source;
+  current = await openCurrentSource();
+});
+
+afterEach(async () => {
+  if (current === undefined) return;
+  await current.close();
+  current = undefined;
 });
 
 describe('the in-memory unit of work', () => {
   unitOfWorkConformance(() => {
-    const source = latestSource;
-    const fixture = latestFixture;
-    if (source === null || fixture === null) {
-      throw new Error('the source was read before it opened');
-    }
+    if (current === undefined) throw new Error('unit-of-work Source has not opened');
     return {
-      uow: source.uow,
-      reader: source.stores,
-      projectId: fixture.projectId,
-      stamp: fixture.stamp,
+      uow: current.source.uow,
+      reader: current.source.stores,
+      workPackageId: current.seed.workPackageId,
+      stamp: current.seed.stamp,
+      readEvidence: current.readEvidence.bind(current),
     };
   });
 });

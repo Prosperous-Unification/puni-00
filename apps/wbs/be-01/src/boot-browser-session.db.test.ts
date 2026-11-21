@@ -118,10 +118,10 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
   await be.register('grace');
   be.organization('org-a');
   be.member('org-a', 'ada', 'member');
-  const created = await call(be, 'POST', '/api/projects', bearer(be, 'ada'), {
+  const created = await call(be, 'POST', '/api/work-packages', bearer(be, 'ada'), {
     name: 'A plan',
   });
-  const projectId = (created.body as { project: { id: string } }).project.id;
+  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   // A syntactically valid selection signed by someone else's key, and a
   // malformed one: before activation neither may change any answer.
   const forged = 'eyJhbGciOiJIUzI1NiJ9.eyJvcmciOiJvcmctYSJ9.c2lnbmF0dXJl';
@@ -137,24 +137,24 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
     origin: BOOTED_ORIGIN,
   };
   const requests: [string, string, Record<string, string>, unknown?][] = [
-    ['GET', '/api/projects', bearer(be, 'ada')],
-    ['GET', '/api/projects', bearer(be, 'grace')],
-    ['GET', '/api/projects', cookies(be, 'ada', forged)],
-    ['GET', '/api/projects', cookies(be, 'grace', 'not-a-jwt')],
+    ['GET', '/api/work-packages', bearer(be, 'ada')],
+    ['GET', '/api/work-packages', bearer(be, 'grace')],
+    ['GET', '/api/work-packages', cookies(be, 'ada', forged)],
+    ['GET', '/api/work-packages', cookies(be, 'grace', 'not-a-jwt')],
     ['GET', '/api/tags', cookies(be, 'ada', forged)],
     ['GET', '/api/people', bearer(be, 'grace')],
-    ['GET', `/api/projects/${projectId}`, cookies(be, 'grace', forged)],
+    ['GET', `/api/work-packages/${workPackageId}`, cookies(be, 'grace', forged)],
     ['GET', '/api/organization/memberships', bearer(be, 'ada')],
     ['GET', '/api/organization/memberships', bearer(be, 'grace')],
     ['GET', '/api/organization/memberships', {}],
     ['GET', '/api/organization/memberships', unidentified],
     ['POST', '/api/organization/active', unidentified, { organizationId: 'org-a' }],
-    ['GET', '/api/projects', unidentified],
+    ['GET', '/api/work-packages', unidentified],
     ['POST', '/api/organization/active', bearer(be, 'ada'), { organizationId: 'org-a' }],
     ['POST', '/api/organization/active', bearer(be, 'grace'), { organizationId: 'org-a' }],
     [
       'POST',
-      `/internal/gateway/projects/${projectId}/browser-access`,
+      `/internal/gateway/work-packages/${workPackageId}/browser-access`,
       {
         'x-internal-auth': BOOTED_INTERNAL_SECRET,
         cookie: `__Host-wbs_access=${be.token('grace')}; __Host-wbs_organization=${forged}`,
@@ -169,7 +169,7 @@ async function preActivationAnswers(authority: 'enabled' | 'disabled'): Promise<
       status: answer.status,
       body: JSON.parse(
         JSON.stringify(answer.body)
-          .replaceAll(projectId, '<project>')
+          .replaceAll(workPackageId, '<workPackage>')
           .replaceAll(be.userId('ada'), '<ada>')
           .replaceAll(be.userId('grace'), '<grace>')
           .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
@@ -252,10 +252,10 @@ describe('bootBe01 browser session authority', () => {
     const selection = await select(be, 'ada', 'org-a');
     const pair = cookies(be, 'ada', selection);
 
-    expect((await call(be, 'GET', '/api/projects', pair)).status).toBe(200);
+    expect((await call(be, 'GET', '/api/work-packages', pair)).status).toBe(200);
     expect((await call(be, 'POST', '/api/auth/logout', bearer(be, 'ada'))).status).toBe(204);
 
-    expect(await call(be, 'GET', '/api/projects', pair)).toMatchObject({
+    expect(await call(be, 'GET', '/api/work-packages', pair)).toMatchObject({
       status: 403,
       body: { error: 'no_active_organization' },
     });

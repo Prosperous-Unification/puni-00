@@ -104,9 +104,9 @@ describe('initial access through personally issued offers', () => {
       h.sqlite.query("SELECT id FROM organization_audit WHERE action='access_granted'").all(),
     ).toEqual([]);
     h.bind('recipient', 'org');
-    expect(await h.call('recipient', 'GET', '/api/projects')).toEqual({
+    expect(await h.call('recipient', 'GET', '/api/work-packages')).toEqual({
       status: 200,
-      body: { projects: [], nextCursor: null },
+      body: { workPackages: [], nextCursor: null },
     });
   });
 
@@ -512,9 +512,11 @@ it('does not use descendant grants outside the organization comparison scope', a
     'organization.manage_members',
     'organization.manage_access',
   ]);
-  const created = await h.call('owner', 'POST', '/api/projects', { name: 'Descendant comparison' });
+  const created = await h.call('owner', 'POST', '/api/work-packages', {
+    name: 'Descendant comparison',
+  });
   expect(created.status).toBe(200);
-  const packageId = (created.body as { project: { id: string } }).project.id;
+  const packageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   h.grant('org', 'clerk', 'package-viewer', 'work_package', packageId);
   expect(await offer('clerk', 'recipient@example.org', 'project-viewer')).toEqual({
     status: 403,

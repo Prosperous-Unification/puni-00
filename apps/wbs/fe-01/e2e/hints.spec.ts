@@ -1,6 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * Every hint this app shows, drawn by the page rather than by the browser.
@@ -14,7 +13,7 @@ import { createProject } from './create-project';
  * Dany, 2026-09-01: _"this must avoid unnecessary interruptions while moving
  * the cursor over UI elements, rn this is more annoying than useful when you
  * already know what buttons or UI elements do"_. So `tool-hints-wait` splits
- * them: words about the reader's own project keep `data-fact` and open at once,
+ * them: words about the reader's own work package keep `data-fact` and open at once,
  * words about what a control does keep `data-hint` and wait two seconds
  * behind a ring at the cursor.
  *
@@ -32,7 +31,7 @@ import { createProject } from './create-project';
 async function aPlan(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
   // Proof: delaying the first tree read made `a toolbar control waits two seconds,
   // and rings while it does` read Export's words without this wait (2026-10-27).
@@ -52,8 +51,8 @@ async function aPlan(page: Page): Promise<void> {
  */
 async function aPlanWithARow(page: Page): Promise<void> {
   await aPlan(page);
-  await page.getByLabel('Project start date').fill('2026-06-01');
-  await page.getByLabel('Project start date').blur();
+  await page.getByLabel('Work package start date').fill('2026-06-01');
+  await page.getByLabel('Work package start date').blur();
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
   // Deadline is contextual — a plan with no deadline in it does not draw the
@@ -595,7 +594,7 @@ test.describe('hints are the page’s own', () => {
     expect(preview.card, "the in-cell card's type").toBe(preview.cell);
   });
 
-  test('a project fact answers at once and never rings', async ({ page }) => {
+  test('a work package fact answers at once and never rings', async ({ page }) => {
     await aPlan(page);
     await page.getByRole('button', { name: 'Add work item' }).click();
 

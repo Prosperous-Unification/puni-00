@@ -18,13 +18,24 @@ commit before it.
 `bin/dev-deploy.sh` pushes a commit that is _already on main_ without waiting for the next poll
 tick, and shows the output while it happens:
 
+First independently provision and review a complete PUNI installation outside the
+checkout. Set `PUNI_EXECUTABLE` to its emitted absolute entrypoint, using the reviewed
+local installation selection; no registry version or source fallback is chosen here.
+Bun must resolve through the trusted caller PATH. The protected Bun backend-probe
+adapter removes startup hooks and candidate config/dotenv before loading that PUNI.
+It silently checks `dash dev-probe be --help` before the deployment caller runs Git
+or SSH, and uses the same explicitly selected operation for the later backend health
+request. Missing, unreadable, relative or obsolete selection refuses before deployment.
+
 ```sh
+export PUNI_EXECUTABLE="$REVIEWED_PUNI_ENTRYPOINT"
 git push && ./bin/dev-deploy.sh
 ```
 
 ## What a deploy does
 
-`bin/dev-deploy.sh` refuses a dirty tree or an unpushed SHA, then asks h2puni to
+`bin/dev-deploy.sh` checks its selected PUNI backend-probe grammar, refuses a dirty
+tree or an unpushed SHA, then asks h2puni to
 `git reset --hard` its checkout at `/home/puni1/wbs-dev/src`. That checkout is bind-mounted
 into one container, `wbs-dev-src`, running all three tiers via `bun run dev` — be-01 and
 gw-01 under `bun --watch`, fe-01 under Vite. **For ordinary application source the watchers are the
@@ -259,13 +270,28 @@ still require ADR 0025's preparation, installer and preflight evidence.
 The poller and its managed interpreter live outside the reset checkout. The installed helper is a
 recovery copy, but a normal tick streams `bin/dev-poll-sync.sh` from the exact fetched target commit;
 otherwise the first target that changes the candidate shape would run through an older loader that
-cannot materialize it. Install the poller, recovery helper, and exact gate interpreter together
-after their reviewed commit lands on `main`:
+cannot materialize it. Initial-access admission is earlier: the installed poller's literal SHA256
+pins one bundled Bun reader beside it. The reader checks immutable current, target and existing
+last-synced inventories before marker initialization, the proven fast return or backward recovery.
+Either protected grant-policy migration refuses; this is source-transition refusal, not a database
+cutover permit. Missing, unreadable, changed or unsupported installed admission refuses without
+borrowing candidate code. Missing markers are legitimate; unreadable or malformed markers refuse.
+
+Stage the poller generation from the reviewed source with the pinned Bun. Staging is local and
+creates a fresh directory outside the watched checkout; it neither publishes nor acquires a host
+lock. It produces poll.sh with the bundled reader's literal hash, the reader, recovery loader,
+Bun and version file. Keep these stage bytes together. The remote block below retains the existing
+host's matching gate interpreter selection; the copied stage Bun is useful for local acceptance,
+and must not be copied between incompatible host platforms. After the reviewed commit lands on
+`main`, install the poller, reader, recovery helper and interpreter under both existing locks:
 
 ```sh
-scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
-scp bin/dev-poll-sync.sh h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
-scp .bun-version h2puni:/home/puni1/wbs-dev/bin/bun-version.next
+poller_stage=/tmp/wbs-dev-poller-reviewed
+bun tools/tool-devsync/src/stage-dev-poller.ts "$poller_stage"
+scp "$poller_stage/poll.sh" h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
+scp "$poller_stage/initial-access-admission.js" h2puni:/home/puni1/wbs-dev/bin/initial-access-admission.next.js
+scp "$poller_stage/dev-poll-sync.sh" h2puni:/home/puni1/wbs-dev/bin/dev-poll-sync.next.sh
+scp "$poller_stage/bun-version" h2puni:/home/puni1/wbs-dev/bin/bun-version.next
 ssh h2puni 'if test ! -d /home/puni1/wbs/state || test -L /home/puni1/wbs/state; then echo invalid canonical edge state >&2; exit 1; fi; test -f /home/puni1/wbs/state/edge.lock && test ! -L /home/puni1/wbs/state/edge.lock && flock -n /home/puni1/wbs/state/edge.lock flock -n /home/puni1/wbs-dev/state/poll.lock sh -c \
   "set -eu; \
    for marker in edge-owner.json edge-owner.pending; do \
@@ -282,6 +308,9 @@ ssh h2puni 'if test ! -d /home/puni1/wbs/state || test -L /home/puni1/wbs/state;
    mv /home/puni1/wbs-dev/bin/bun-version.next /home/puni1/wbs-dev/bin/bun-version && \
    mv /home/puni1/wbs-dev/bin/dev-poll-sync.next.sh \
     /home/puni1/wbs-dev/bin/dev-poll-sync.sh && \
+   chmod 0644 /home/puni1/wbs-dev/bin/initial-access-admission.next.js && \
+   mv /home/puni1/wbs-dev/bin/initial-access-admission.next.js \
+    /home/puni1/wbs-dev/bin/initial-access-admission.js && \
    mv /home/puni1/wbs-dev/bin/poll.next.sh /home/puni1/wbs-dev/bin/poll.sh"'
 ```
 
@@ -296,7 +325,7 @@ markers. A retained marker, malformed/unreadable marker or pending publication
 closes recovery; do not remove it to force an install. This manual recipe uses
 fixed staging names, so serialize operators before staging and verify the selected
 source copies and interpreter separately. Its multiple renames can leave a partial
-installation on failure; inspect every installed copy under both locks before
+installation on failure; inspect every installed copy, including the admission bundle and the poller's literal digest, under both locks before
 retrying. It is not an installed-adoption or prior-holder-drain proof.
 
 For the swap/smoke bundles, use `bunx nx run tool-remote-scripts:install --
@@ -454,3 +483,37 @@ Before recreating the source-development container, independently provision and 
 Supply two explicit operator inputs to Compose: `PUNI_INSTALLATION_DIRECTORY` is the absolute host directory containing that complete installation; `PUNI_CONTAINER_EXECUTABLE` is the emitted entrypoint mapped under the read-only `/opt/puni-dev` mount. Preserve its suffix relative to the installation directory, including package assets. These values belong in the trusted operator process environment or an explicit trusted external Compose env file, not the candidate checkout's automatic `.env`. Compose requires both inputs and disables implicit host-directory creation for this mount. The container receives the mapped value as `PUNI_EXECUTABLE`.
 
 The Dockerfile and Compose command both select protected Bun and its internal package-script shell. Keep the existing source/data/solver mounts, user, limits, network and Nx-daemon setting. This change requires the normal reviewed container recreation path; it does not authorize a host action, CI resumption or infer public release provenance. Container configuration/startup/native-control and the installed caller still require their own actual observations. A package-only publication without this external installation/selection would leave container startup unconfigured.
+
+## Work package rename window
+
+This required procedure covers the non-additive entity windows in design E14/E36–E39,
+including tasks 1.9, 3.8 and 4.9. It is not yet an executable deployment receipt: the supported
+permissions 6.4 transition owner, immutable authenticated read handoff and admitted one-off
+candidate invocation remain open prerequisites. A raw migrate-cli command cannot replace them.
+Ordinary additive startup keeps its existing migration workflow.
+
+1. Establish the supported candidate/store/participant owner and authenticated immutable-snapshot
+   read handoff. Under the host heavy lock, pause the poller and stop/drain every live-store
+   writer, retaining continuous exclusion and full participant attribution through the transition.
+2. Create the verified backup/report with the existing Bun candidate entrypoints and explicit
+   retained artifacts. Run the exact-SHA canonical gate; if merging changes that SHA, gate the
+   final merged candidate before dispatch. Bind that exact gated candidate and complete baseline
+   applied name/hash ledger while the barrier remains held.
+3. Dispatch the qualified stopped one-off candidate migration through the supported 6.4b/6.4e
+   owner. Validate supported old-layout correspondence before SQL and the exact expected complete
+   post-ledger/current schema afterward. The verifier and a candidate image alone grant no permit.
+4. Only after that settlement, start the admitted current candidate for health and authenticated
+   read verification with upgraded exposure still fenced. Record bootCommit and actual read
+   checks. Retire old HTTP/WS authorizers before upgraded grant/write exposure; resume the poller
+   only through the supported handoff after all required facts are proven.
+5. On unknown, failed or interrupted transition, retain the barrier and keep startup/resumption
+   refused. Recovery uses the verified snapshot and matching compatible code only when the 6.4f
+   owner admits it. Possible or unknown upgraded-writer exposure prohibits automatic old-role
+   authorizer restoration and requires explicit recovery completion.
+
+Retain the report/snapshot, complete before/after ledgers, candidate and transition-owner
+attribution, gate output, health/read results, read-continuity/retirement/exposure facts and
+recovery outcome in the change verification record. No live execution is established by this
+procedure, a local verifier, or simulated Docker ordering. See
+[backup and artifact retention](runbook-work-package-windows.md) and the
+[window design](../openspec/changes/wbs-work-packages/design.md).

@@ -1,0 +1,191 @@
+import {createHash} from 'node:crypto';
+import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {basename,join} from 'node:path';
+
+import type {Claim,ResourceUseActor} from '@wbs/core';
+import {parseRuntimeClaim} from '@wbs/core/ports/runtime-command-records';
+import {resourceUseActorOf} from '@wbs/core/http/resource-use.routes';
+import {workItemRow} from '@wbs/core/testing/work-item-fixture';
+import {CONTRIBUTOR_CAP} from '@wbs/domain';
+import {expect,test} from 'bun:test';
+import {sql} from 'drizzle-orm';
+
+import {type Drizzle,openReadOnlyConnection} from '../db';
+import {readMigrationFolders} from '../migrate-down';
+import {SqliteResourceUses} from '../resource-use';
+import {createWindowBackup} from '../window-backup';
+import {openSqliteStepCatalogueCase} from './step-catalogue-fixture';
+import {MIGRATIONS_FOLDER} from './space-database';
+
+type Fixture=Awaited<ReturnType<typeof openSqliteStepCatalogueCase>>;
+const parentId='location-current-parent',childId='location-current-child',stepId='location-current-dev',personId='location-current-person',runId='location-current-run',resourceId='location-current-disk';
+const output='/tmp/puni-resource-use-117-frozen-native-v1';
+
+async function prepare(fixture:Fixture){
+  const {source,seed,port}=fixture;
+  expect((await port.defineAndBindStep(seed.organizationId,{id:stepId,code:stepId,name:stepId,position:0,defaultEstimateUnit:'workdays',defaultAllowancePercent:0},{bindingId:stepId+':binding',scopeKind:'organization',scopeId:seed.organizationId,position:0,workItemTypeId:null},seed.stamp)).ok).toBe(true);
+  await source.stores.workItems.insert(workItemRow({id:parentId,workPackageId:seed.workPackageId,name:'Immutable original parent',position:0}),[],seed.stamp);
+  source.db.run(sql`INSERT INTO person(id,name,account_id,created_at,created_by) VALUES(${personId},'Current lifecycle holder',${seed.stamp.by},100,${seed.stamp.by})`);
+  source.db.run(sql`INSERT INTO person_organization(resource_id,organization_id,name) VALUES(${personId},${seed.organizationId},'Current lifecycle holder')`);
+  source.db.run(sql`INSERT INTO resource(id,name,kind,unit_label,created_at,created_by) VALUES(${resourceId},'Current lifecycle disk','divisible','GB',100,${seed.stamp.by})`);
+  source.db.run(sql`INSERT INTO resource_organization(resource_id,organization_id,name) VALUES(${resourceId},${seed.organizationId},'Current lifecycle disk')`);
+  // Fixture-supplied account evidence; the real ResourceUses store still reads
+  // current membership, package.write grant, scope and activation on its owner.
+  // This does not certify request authentication or forwarded MCP credentials.
+  const principal={id:seed.stamp.by};
+  const actor:ResourceUseActor=resourceUseActorOf(principal,{kind:'scoped',scope:{organizationId:seed.organizationId,userId:seed.stamp.by,cap:CONTRIBUTOR_CAP},principal});
+  const uses=new SqliteResourceUses(source.db,source.gate);
+  const point:Claim={id:'location-point-claim',workItemId:parentId,stepId,personId,runId,parentClaimId:null,accountId:seed.stamp.by};
+  expect(source.db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);
+  return {uses,actor,point};
+}
+
+function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+function filePin(path:string){const bytes=readFileSync(path);return{path,sha256:digest(bytes),bytes:bytes.length};}
+function artifactPin(path:string){const pin=filePin(path);return{file:basename(path),sha256:pin.sha256,bytes:pin.bytes};}
+
+function readLedger(db:Drizzle){
+  const candidates=new Map(readMigrationFolders(MIGRATIONS_FOLDER).map(folder=>[folder.name,folder.hash]));
+  const names=new Set<string>();
+  return db.all<{name:unknown;hash:unknown}>(sql`SELECT name,hash FROM __drizzle_migrations ORDER BY name COLLATE BINARY`).map(row=>{
+    if(typeof row.name!=='string'||row.name===''||typeof row.hash!=='string'||!(/^[0-9a-f]{64}$/).test(row.hash)||candidates.get(row.name)!==row.hash||names.has(row.name))throw new Error('genuine fixture ledger is malformed, duplicated or edited');
+    names.add(row.name);return{name:row.name,hash:row.hash};
+  });
+}
+
+function captureStore(db:Drizzle){
+  const schema=db.all(sql`SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type COLLATE BINARY,name COLLATE BINARY`);
+  const tables=db.all<{name:unknown}>(sql`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name COLLATE BINARY`).map(({name})=>{
+    if(typeof name!=='string'||name==='')throw new Error('frozen fixture table name is malformed');
+    const rows=db.all<Record<string,unknown>>(sql.raw('SELECT * FROM "'+name.replaceAll('"','""')+'"'));
+    rows.sort((left,right)=>Buffer.compare(Buffer.from(JSON.stringify(left)),Buffer.from(JSON.stringify(right))));
+    return{name,rows};
+  });
+  return{schema,tables,ledger:readLedger(db)};
+}
+
+async function issueSeven(fixture:Fixture,workItemId:string){
+  for(let number=1;number<=7;number+=1){
+    const started=await fixture.source.stores.attempts.start({workItemId,stepId,startedAt:number*10,executorPersonId:personId,reference:'actual-seven-'+workItemId,note:null},fixture.seed.stamp);
+    expect(started.ok).toBe(true);if(!started.ok)throw new Error('actual producer attempt start refused');
+    expect(started.attempt.attemptNumber).toBe(number);
+    if(number!==7){
+      const ended=await fixture.source.stores.attempts.end({workItemId,stepId,endedAt:number*10+1,outcome:'failed'},fixture.seed.stamp);
+      expect(ended.ok).toBe(true);
+    }
+  }
+}
+
+async function prepareState(fixture:Fixture,kind:'unassociated'|'bound-moved'|'ambiguous-attempt'){
+  const prepared=await prepare(fixture),{source,seed}=fixture;
+  if(kind==='ambiguous-attempt')await issueSeven(fixture,parentId);
+  const registered=await prepared.uses.register(seed.workPackageId,prepared.actor,{
+    requestId:'freeze-'+kind,resourceId,workItemId:parentId,agentRun:runId,responsiblePersonId:personId,locator:'/fixture/frozen-'+kind,units:3,
+    ...(kind==='ambiguous-attempt'?{stepId,attemptNumber:7}:{}),
+  },101);
+  expect(registered.ok).toBe(true);if(!registered.ok)throw new Error('genuine117 fixture registration refused');
+  expect(registered.value).toMatchObject({state:'active',workItemId:parentId});
+  const runtimeScope={organizationId:seed.organizationId,workPackageId:seed.workPackageId,personId};
+  expect((await source.stores.runtimeCommands.inspectLedger()).bindingCount).toBe(0);
+  if(kind==='bound-moved'){
+    expect(await source.stores.claims.add([prepared.point],[],seed.stamp,[])).toBe('written');
+    const binding=parseRuntimeClaim({claimId:prepared.point.id,workItemId:parentId,stepId,parentClaimId:null,execution:{storeId:'frozen-runtime-store',runId,attemptId:'frozen-runtime-attempt',sessionId:'frozen-runtime-session'}});
+    await source.uow.run(async loan=>{
+      await loan.stores.runtimeCommands.insertBinding(runtimeScope,binding);
+      return{commit:true,value:undefined};
+    });
+    expect(await source.stores.runtimeCommands.readBinding(runtimeScope,prepared.point.id)).toEqual(binding);
+    expect((await source.stores.runtimeCommands.inspectLedger()).bindingCount).toBe(1);
+    await source.uow.run(async loan=>{
+      await loan.stores.workItems.insert(workItemRow({id:childId,workPackageId:seed.workPackageId,parentId,name:'Frozen moved child',position:0}),[],seed.stamp);
+      await loan.stores.claims.moveAll(parentId,childId,{...seed.stamp,at:102});
+      return{commit:true,value:undefined};
+    });
+    expect(source.db.all(sql`SELECT id,work_item_id,step_id,run_id FROM claim WHERE id=${prepared.point.id}`)).toEqual([{id:prepared.point.id,work_item_id:childId,step_id:stepId,run_id:runId}]);
+    expect(await source.stores.runtimeCommands.readBinding(runtimeScope,prepared.point.id)).toEqual(binding);
+  }
+  if(kind==='ambiguous-attempt'){
+    const independent='location-independent-child';
+    await source.uow.run(async loan=>{
+      await loan.stores.workItems.insert(workItemRow({id:childId,workPackageId:seed.workPackageId,parentId,name:'Frozen moved attempt',position:0}),[],seed.stamp);
+      await loan.stores.attempts.moveAll(parentId,childId,seed.stamp);
+      await loan.stores.workItems.insert(workItemRow({id:independent,workPackageId:seed.workPackageId,parentId,name:'Frozen independent attempt',position:10}),[],seed.stamp);
+      return{commit:true,value:undefined};
+    });
+    await issueSeven(fixture,independent);
+    expect(source.db.all(sql`SELECT work_item_id,step_id,attempt_number,executor_person_id FROM step_node_attempt WHERE ended_at IS NULL ORDER BY work_item_id COLLATE BINARY`)).toEqual([
+      {work_item_id:childId,step_id:stepId,attempt_number:7,executor_person_id:personId},
+      {work_item_id:independent,step_id:stepId,attempt_number:7,executor_person_id:personId},
+    ]);
+    expect((await source.stores.runtimeCommands.inspectLedger()).bindingCount).toBe(0);
+  }
+  if(kind==='unassociated'){
+    expect(source.db.all(sql`SELECT id FROM claim`)).toEqual([]);
+    expect(source.db.all(sql`SELECT work_item_id FROM step_node_attempt`)).toEqual([]);
+  }
+  const visible=await prepared.uses.list(seed.workPackageId,prepared.actor,{limit:50});
+  expect(visible.ok).toBe(true);if(!visible.ok)throw new Error('genuine fixture final resource read refused');
+  expect(visible.value.uses).toEqual([registered.value]);
+  expect(source.db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);
+  const ledger=readLedger(source.db);expect(ledger).toHaveLength(117);
+  expect(ledger.at(-1)?.name).toBe('20261115130000_add_step_catalogue');
+  expect(source.db.all(sql`SELECT name FROM sqlite_master WHERE type='table' AND name='resource_use_location'`)).toEqual([]);
+  return{use:registered.value,kind,runtimeScope,pointClaimId:kind==='bound-moved'?prepared.point.id:null};
+}
+
+/** Root-only finite producer, BEFORE mandatory118 hooks. Outputs are never replaced or cleaned automatically. */
+test('freeze genuine117 resource lifecycle migration fixtures from current production stores',async()=>{
+  if(existsSync(output))throw new Error('resource fixture output namespace already exists: '+output);
+  mkdirSync(output);
+  const produced:unknown[]=[];
+  for(const kind of ['unassociated','bound-moved','ambiguous-attempt'] as const){
+    const fixture=await openSqliteStepCatalogueCase('stepCatalogue.unbindStep:estimate-refusal-and-preview');
+    let hasUnknownDependentOwner=false;
+    let primary:{cause:unknown}|undefined;
+    try{
+      const expected=await prepareState(fixture,kind),before=captureStore(fixture.source.db);
+      const sourceFile=fixture.source.db.all<{name:unknown;file:unknown}>(sql`PRAGMA database_list`).find(({name})=>name==='main')?.file;
+      if(typeof sourceFile!=='string'||sourceFile==='')throw new Error('genuine Source physical path is absent');
+      const database=join(output,kind+'.db'),report=join(output,kind+'.window.json');
+      let receipt:ReturnType<typeof createWindowBackup>;
+      try{receipt=await fixture.source.gate.enter(()=>Promise.resolve(createWindowBackup({sourcePath:sourceFile,snapshotPath:database,reportPath:report,migrationsFolder:MIGRATIONS_FOLDER})));}
+      catch(cause:unknown){hasUnknownDependentOwner=true;throw cause;}
+      let reader:ReturnType<typeof openReadOnlyConnection>;
+      try{reader=openReadOnlyConnection(database);}catch(cause:unknown){hasUnknownDependentOwner=true;throw cause;}
+      let observed:{cause:unknown}|undefined;
+      try{
+        expect(captureStore(reader.db)).toEqual(before);
+        expect(reader.db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);
+        expect(reader.db.all(sql`PRAGMA integrity_check`)).toEqual([{integrity_check:'ok'}]);
+      }catch(cause:unknown){observed={cause};}
+      try{reader.close();}catch(cleanup:unknown){
+        hasUnknownDependentOwner=true;
+        if(observed!==undefined)throw new AggregateError([observed.cause,cleanup],'frozen fixture readback and owner close failed',{cause:cleanup});
+        throw cleanup;
+      }
+      if(observed!==undefined)throw observed.cause;
+      expect(captureStore(fixture.source.db)).toEqual(before);
+      const logical=join(output,kind+'.state.json');writeFileSync(logical,JSON.stringify(before,null,2)+'\n');
+      produced.push({kind,database:artifactPin(database),windowReport:artifactPin(report),logicalState:artifactPin(logical),expected,receipt,ledger:before.ledger});
+    }catch(cause:unknown){primary={cause};}
+    if(hasUnknownDependentOwner){
+      // The original directory and artifact namespace remain for reconciliation;
+      // fixture.close would remove the former despite an uncertain lower owner.
+      try{await fixture.source.close();}catch(cleanup:unknown){
+        if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'fixture production and Source close failed; namespaces retained',{cause:cleanup});
+        throw cleanup;
+      }
+      if(primary===undefined)throw new Error('unknown fixture owner without a recorded failure');
+      throw primary.cause;
+    }
+    try{await fixture.close();}catch(cleanup:unknown){
+      if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'fixture production and original Source close failed',{cause:cleanup});
+      throw cleanup;
+    }
+    if(primary!==undefined)throw primary.cause;
+  }
+  const sourcePins=['resource-use.ts','claim.ts','runtime-command.ts','step-node-attempt.ts','window-backup.ts','backup.ts','tuple-reads.ts','source.ts'].map(name=>filePin(join(import.meta.dir,'..',name)));
+  writeFileSync(join(output,'manifest.json'),JSON.stringify({format:'puni-resource-use-117-fixtures',version:1,produced,provenance:{sourcePins,producer:filePin(import.meta.path)},scope:'Actual fixture-owned storage APIs, not HTTP/MCP/runtime application admission or a host barrier. Root native receipt binds complete source cohort separately.'},null,2)+'\n');
+  expect(produced).toHaveLength(3);
+  console.log('Frozen resource fixture manifest: '+join(output,'manifest.json'));
+},30000);

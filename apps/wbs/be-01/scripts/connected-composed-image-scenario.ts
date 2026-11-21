@@ -12,7 +12,7 @@ import { clockOf } from '@wbs/core';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { canonicalConnectedStageInput } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import {
   openSqliteSource,
   SqliteOrganizationAccess,
@@ -34,8 +34,8 @@ import { type BeServices, buildServices } from '../src/services';
 import { testApp } from '../src/testing/app-fixture';
 import { testLocalAuthService } from '../src/testing/auth-fixture';
 
-export const TARGET_PROJECT_ID = '11111111-1111-4111-8111-111111111111';
-const FOREIGN_PROJECT_ID = '22222222-2222-4222-8222-222222222222';
+export const TARGET_WORK_PACKAGE_ID = '11111111-1111-4111-8111-111111111111';
+const FOREIGN_WORK_PACKAGE_ID = '22222222-2222-4222-8222-222222222222';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 30_000 };
 const access = {
@@ -56,14 +56,15 @@ export async function openComposedImageFixture(folder: string): Promise<string> 
     dbPath: path,
   });
   try {
-    for (const id of [TARGET_PROJECT_ID, FOREIGN_PROJECT_ID]) {
-      const created = await setup.stores.projects.createInOrganization(
-        projectRow({ id, name: id, ownerId: 'ada' }),
+    for (const id of [TARGET_WORK_PACKAGE_ID, FOREIGN_WORK_PACKAGE_ID]) {
+      const created = await setup.stores.workPackages.createInOrganization(
+        workPackageRow({ id, name: id, projectId: 'fixture-parent-org-a' }),
         [],
         { at: 1, by: 'ada' },
         'org-a',
+        { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
       );
-      assert.equal(typeof created, 'object', 'disposable image project creation refused');
+      assert.equal(typeof created, 'object', 'disposable image work package creation refused');
     }
   } finally {
     await setup.close();
@@ -71,54 +72,54 @@ export async function openComposedImageFixture(folder: string): Promise<string> 
   const sqlite = openDatabase(path);
   try {
     sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
-    sqlite.run(
-      "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
-    );
-    sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
+    sqlite.run("UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-05'");
     sqlite.run("UPDATE organization SET shared_people=0 WHERE id='org-a'");
     sqlite.run(
-      "UPDATE project SET schedule_engine='optimized',optimization_enabled=1,schedule_objective='pri' WHERE id=?",
-      [TARGET_PROJECT_ID],
+      "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1,schedule_objective='pri' WHERE id=?",
+      [TARGET_WORK_PACKAGE_ID],
     );
-    for (const [projectId, project] of [
-      [TARGET_PROJECT_ID, 'a1'],
-      [FOREIGN_PROJECT_ID, 'a2'],
+    for (const [workPackageId, workPackage] of [
+      [TARGET_WORK_PACKAGE_ID, 'a1'],
+      [FOREIGN_WORK_PACKAGE_ID, 'a2'],
     ] as const) {
-      sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [project, project]);
+      sqlite.run('INSERT INTO service_team(id,name) VALUES(?,?)', [workPackage, workPackage]);
       sqlite.run(
         "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES(?,'org-a',?)",
-        [project, project],
+        [workPackage, workPackage],
       );
       sqlite.run(
-        'INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES(?,?,1)',
-        [projectId, project],
+        'INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES(?,?,1)',
+        [workPackageId, workPackage],
       );
-      sqlite.run('INSERT INTO step(id,project_id,name,position) VALUES(?,?,?,0)', [
-        project + '-s',
-        projectId,
+      sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,0)', [
+        workPackage + '-s',
+        workPackageId,
         'Build',
       ]);
-      for (const [position, suffix] of (project === 'a1'
+      for (const [position, suffix] of (workPackage === 'a1'
         ? ['long', 'short']
         : ['foreign']
       ).entries()) {
-        const id = project + '-' + suffix;
+        const id = workPackage + '-' + suffix;
         const days = suffix === 'long' ? 2 : 1;
         sqlite.run(
-          'INSERT INTO work_item(id,project_id,position,name,priority) VALUES(?,?,?,?,1)',
-          [id, projectId, position, id],
+          'INSERT INTO work_item(id,work_package_id,position,name,priority) VALUES(?,?,?,?,1)',
+          [id, workPackageId, position, id],
         );
-        sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [id, project]);
+        sqlite.run('INSERT INTO work_item_team(work_item_id,team_id) VALUES(?,?)', [
+          id,
+          workPackage,
+        ]);
         sqlite.run(
           'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,?,?,?)',
-          [id, project + '-s', days, days, days],
+          [id, workPackage + '-s', days, days, days],
         );
       }
     }
     for (const suffix of ['long', 'short']) {
       sqlite.run(
-        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a',?,?,'a2-foreign',?,'whole','whole','FS')",
-        ['edge-' + suffix, FOREIGN_PROJECT_ID, TARGET_PROJECT_ID, 'a1-' + suffix],
+        "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES(?,'org-a',?,?,'a2-foreign',?,'whole','whole','FS')",
+        ['edge-' + suffix, FOREIGN_WORK_PACKAGE_ID, TARGET_WORK_PACKAGE_ID, 'a1-' + suffix],
       );
     }
   } finally {
@@ -242,6 +243,20 @@ export async function runComposedImageScenario(options: {
     const compose = (liveSource: SqliteSource): BeServices => {
       const bind = liveSource.bindLivePlans.bind(liveSource);
       return buildServices({
+        createWorkPackageObservation: (configured) =>
+          configured.createWorkPackageObservation({
+            activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+            now: Date.now,
+          }),
+        createSpaceRead: (configured) =>
+          configured.createSpaceRead({
+            activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+            now: Date.now,
+          }),
+        projectRead: liveSource.createProjectRead({
+          activeOrganizationOf: () => userBoundOrganizationOf(() => Promise.resolve('org-a')),
+          now: Date.now,
+        }),
         source: {
           ...liveSource,
           bindLivePlans: (configuration) => {
@@ -297,7 +312,7 @@ export async function runComposedImageScenario(options: {
         ),
       });
       const response = await app.handle(
-        new Request(`http://localhost/api/projects/${TARGET_PROJECT_ID}/work-items`, {
+        new Request(`http://localhost/api/work-packages/${TARGET_WORK_PACKAGE_ID}/work-items`, {
           headers: { 'X-WBS-Expected-Organization': 'org-a' },
         }),
       );
@@ -306,7 +321,7 @@ export async function runComposedImageScenario(options: {
     };
     const placement = async () => {
       assert.ok(bound);
-      const observed = await bound.stores.livePlans?.read(TARGET_PROJECT_ID, access);
+      const observed = await bound.stores.livePlans?.read(TARGET_WORK_PACKAGE_ID, access);
       if (observed?.kind !== 'connected') throw new Error('connected projection absent');
       const placed = observed.projection.placement;
       const placementDiagnosis = `complete connected placement required: ${placed.kind}${'reason' in placed ? `:${placed.reason}` : ''}`;
@@ -388,7 +403,8 @@ export async function runComposedImageScenario(options: {
       ],
     );
     assert.equal(
-      selected.stages.find((stage) => stage.stage.projectId === TARGET_PROJECT_ID)?.chosen?.chosen,
+      selected.stages.find((stage) => stage.stage.workPackageId === TARGET_WORK_PACKAGE_ID)?.chosen
+        ?.chosen,
       'optimized',
     );
     assert.deepEqual(sqlite.query('SELECT * FROM solver_slot').all(), []);

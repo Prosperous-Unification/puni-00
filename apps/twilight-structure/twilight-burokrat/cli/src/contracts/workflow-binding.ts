@@ -43,7 +43,7 @@ export interface Binding {
   readonly classes: Readonly<Record<string, ActivityClass>>;
 }
 /** Lists the sorted unique prompt paths of every declared class, including unused classes. */
-export function listBindingPromptPaths(binding: Binding): readonly string[] {
+export function listBindingPromptPaths(binding: Pick<Binding, 'classes'>): readonly string[] {
   return [
     ...new Set(
       Object.values(binding.classes).flatMap((settings) =>
@@ -81,6 +81,10 @@ export type WorkflowBindingErrorCode =
   | 'unmapped_type'
   | 'invalid_prompt_sources'
   | 'invalid_prompt_encoding'
+  | 'manifest_missing'
+  | 'manifest_unreadable'
+  | 'invalid_manifest'
+  | 'manifest_mismatch'
   | 'binding_missing'
   | 'binding_unreadable'
   | 'invalid_yaml'
@@ -160,7 +164,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 // Proof: bypassing this boundary accepted an accessor-backed model in
 // `refuses cyclic, accessor and symbol-bearing documents`.
-function checkJson(value: unknown, path: string, ancestors = new Set<object>()): void {
+/** Validates plain acyclic finite JSON without invoking accessors; throws a contextual binding refusal. */
+export function checkJson(value: unknown, path: string, ancestors = new Set<object>()): void {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
   if (typeof value === 'number' && Number.isFinite(value)) return;
   if (typeof value !== 'object') {
@@ -217,7 +222,8 @@ function checkJson(value: unknown, path: string, ancestors = new Set<object>()):
   ancestors.delete(value);
 }
 
-function parseAt<Schema extends Type>(
+/** Decodes one ArkType boundary and reports its earliest sorted logical failure path; unrelated failures rethrow. */
+export function parseAt<Schema extends Type>(
   schema: Schema,
   input: unknown,
   path: string,
@@ -241,9 +247,14 @@ function parseAt<Schema extends Type>(
   }
 }
 
-function checkDictionary(value: unknown, path: string): Record<string, unknown> {
+/** Enforces own nonreserved class/type/code dictionary keys; empty dictionaries require explicit version2 permission. */
+export function checkDictionary(
+  value: unknown,
+  path: string,
+  allowEmpty = false,
+): Record<string, unknown> {
   // Proof: removing nonemptiness accepted {} in `refuses empty types`.
-  if (!isRecord(value) || Object.keys(value).length === 0) {
+  if (!isRecord(value) || (!allowEmpty && Object.keys(value).length === 0)) {
     throw new WorkflowBindingError('invalid_binding', path, 'expected a nonempty dictionary');
   }
   for (const key of Object.keys(value).sort()) {
@@ -262,7 +273,8 @@ function checkDictionary(value: unknown, path: string): Record<string, unknown> 
 
 // Proof: bypassing returned freezing, or only recursive traversal, let Reflect.set change
 // nested selected settings in `freezes decoded and selected nested values`.
-function freezeValue<Value>(value: Value): Value {
+/** Deeply freezes an already validated acyclic JSON graph without retaining caller-owned aliases. */
+export function freezeValue<Value>(value: Value): Value {
   if (typeof value === 'object' && value !== null) {
     for (const child of Object.values(value)) freezeValue(child);
     Object.freeze(value);
@@ -270,25 +282,10 @@ function freezeValue<Value>(value: Value): Value {
   return value;
 }
 
-/**
- * Decodes all five strict executor shapes, including unused classes, without IO or defaults.
- * Returns a detached, deeply frozen binding; caller-owned JSON remains mutable.
- * @throws {WorkflowBindingError} with a logical path when version, settings or JSON shape is invalid.
- */
-export function decodeWorkflowBinding(input: unknown): Binding {
-  checkJson(input, 'binding');
-  // Proof: substituting caller aliases froze the caller's API settings; Reflect.set returned
-  // false instead of true in `detaches without freezing caller-owned input`.
-  const detached: unknown = structuredClone(input);
-  if (!isRecord(detached))
-    throw new WorkflowBindingError('invalid_binding', 'binding', 'expected a document object');
-  // Proof: removing this classification changed version 2 to invalid_binding in
-  // `refuses unsupported version`; Envelope still refused the unsupported shape.
-  if (Object.hasOwn(detached, 'version') && detached['version'] !== 1) {
-    throw new WorkflowBindingError('unsupported_version', 'version', 'expected version 1');
-  }
-  const envelope = parseAt(Envelope, detached, 'binding');
-  const suppliedClasses = checkDictionary(envelope.classes, 'classes');
+/** Decodes executor settings from an already JSON-validated detached class dictionary; callers enforce dictionary key/nonempty policy. */
+export function readActivityClasses(
+  suppliedClasses: Readonly<Record<string, unknown>>,
+): Record<string, ActivityClass> {
   const classes: Record<string, ActivityClass> = {};
   for (const name of Object.keys(suppliedClasses).sort()) {
     const settings = suppliedClasses[name];
@@ -356,6 +353,28 @@ export function decodeWorkflowBinding(input: unknown): Binding {
     }
     classes[name] = parseAt(Activity, settings, path);
   }
+  return classes;
+}
+
+/**
+ * Decodes all five strict executor shapes, including unused classes, without IO or defaults.
+ * Returns a detached, deeply frozen binding; caller-owned JSON remains mutable.
+ * @throws {WorkflowBindingError} with a logical path when version, settings or JSON shape is invalid.
+ */
+export function decodeWorkflowBinding(input: unknown): Binding {
+  checkJson(input, 'binding');
+  // Proof: substituting caller aliases froze the caller's API settings; Reflect.set returned
+  // false instead of true in `detaches without freezing caller-owned input`.
+  const detached: unknown = structuredClone(input);
+  if (!isRecord(detached))
+    throw new WorkflowBindingError('invalid_binding', 'binding', 'expected a document object');
+  // Proof: removing this classification changed version 2 to invalid_binding in
+  // `refuses unsupported version`; Envelope still refused the unsupported shape.
+  if (Object.hasOwn(detached, 'version') && detached['version'] !== 1) {
+    throw new WorkflowBindingError('unsupported_version', 'version', 'expected version 1');
+  }
+  const envelope = parseAt(Envelope, detached, 'binding');
+  const classes = readActivityClasses(checkDictionary(envelope.classes, 'classes'));
   const suppliedTypes = checkDictionary(envelope.types, 'types');
   const types: Record<string, Record<string, { readonly class: string }>> = {};
   for (const name of Object.keys(suppliedTypes).sort()) {
@@ -406,7 +425,7 @@ export type SelectedActivity = Omit<ClassSelection, 'settings'> & {
   );
 
 // Proof: F05 removed descriptor strictness and accepted an extra field in `refuses acceptance extra descriptor field`.
-const AcceptanceDescriptor = type({
+export const AcceptanceDescriptor = type({
   // Proof: F07/F08 removed path/drive validation; their descriptor-path tests changed invalid_binding
   // to invalid_prompt_sources. These prove classification only; exact path coverage still refused.
   path: RelativePath.narrow(

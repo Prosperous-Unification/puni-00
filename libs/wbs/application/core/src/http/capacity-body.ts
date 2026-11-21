@@ -4,7 +4,7 @@ import { MOST_PEOPLE_AT_ONCE } from '@wbs/domain';
  * A capacity the request got wrong, carried as the code a client branches on.
  *
  * The same shape `directoryController`'s `BadSize` had — this parser inherited
- * that route's whole job when `capacity-per-project` retired the global size.
+ * that route's whole job when `capacity-per-work-package` retired the global size.
  */
 export class BadCapacity extends Error {
   constructor(public readonly reason: string) {
@@ -13,7 +13,7 @@ export class BadCapacity extends Error {
 }
 
 /**
- * How many of one team this project may have at work at once, or `null` for
+ * How many of one team this work package may have at work at once, or `null` for
  * unstated.
  *
  * **Hand-parsed rather than declared through an Elysia schema**, which is

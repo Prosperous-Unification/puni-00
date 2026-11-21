@@ -48,8 +48,8 @@ it.each([null, 'org-admin', 'org-viewer', 'project-contributor', 'project-viewer
             : initialRoleId === 'org-viewer'
               ? 'Organization viewer'
               : initialRoleId === 'project-contributor'
-                ? 'Project contributor'
-                : 'Project viewer',
+                ? 'Work package contributor'
+                : 'Work package viewer',
         { selector: 'span' },
       ),
     ).toBeDefined();

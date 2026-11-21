@@ -11,7 +11,7 @@ import type {
   ResourceAccess,
   Scope,
 } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -27,6 +27,7 @@ import { MachineCredentialAdministrationRepository } from './machine-credential-
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -43,7 +44,7 @@ const SLOT = 'resource-slot';
 const admin: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture; credential pinning remains part of each modeled act. */
@@ -99,6 +100,7 @@ afterEach(async () => {
 async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
   source.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
   );
@@ -123,19 +125,23 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   const clock = clockOf({ now: () => now, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = await graph.projects.create('Race', 'dany');
-  if (typeof created === 'string') throw new Error(`lease fixture project refused: ${created}`);
-  const projectId = created.project.id;
-  source.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
+  const created = await seedOrganizationPackage(
+    source.stores.workPackages,
+    options.clock,
+    'org-a',
+    'fixture-project',
+    'dany',
+    'Race',
   );
+  const workPackageId = created.workPackage.id;
+
   const sabotaged = (claims: ClaimStore): ClaimStore => ({
     ...claims,
     expiredLeasesOf: (id, at) =>
@@ -159,7 +165,7 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
   });
   const run = (commands: PlanCommand[], credential: CredentialPin | null) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       principalOf(credential),
       commands.map((command) =>
         command.kind === 'claimWorkItem' ? { ...command, steps: [created.steps[0].id] } : command,
@@ -206,7 +212,7 @@ async function seeded(expiry: { read: ExpiryRead; snapshot: ExpiredLease[] }) {
     });
     if (outcome !== 'revoked') throw new Error(`revoke of ${agent} answered ${outcome}`);
   };
-  return { projectId, runner, run, leafIds, revoke };
+  return { workPackageId, runner, run, leafIds, revoke };
 }
 
 /** One step the model runs. */
@@ -332,7 +338,7 @@ describe('a sweep queued behind a release of the same expired claim', () => {
       ),
     ).toMatchObject({ ok: true });
     now = T + CLAIM_LEASE_MS;
-    expiry.snapshot = await source.stores.claims.expiredLeasesOf(world.projectId, now);
+    expiry.snapshot = await source.stores.claims.expiredLeasesOf(world.workPackageId, now);
     expect(expiry.snapshot).toHaveLength(1);
     expiry.read = RACE_EXPIRY_READ;
     let open: () => void = () => undefined;
@@ -353,7 +359,7 @@ describe('a sweep queued behind a release of the same expired claim', () => {
       [{ kind: 'releaseWorkItem', workItemId: leaf, personId: 'codex' }],
       null,
     );
-    const sweep = world.runner.releaseExpiredLeases(world.projectId);
+    const sweep = world.runner.releaseExpiredLeases(world.workPackageId);
     open();
     await held;
     expect(await release).toMatchObject({ ok: true });
@@ -401,6 +407,10 @@ describe('claim leases as a model', () => {
         now = T;
         const expiry = { read: 'turn' as ExpiryRead, snapshot: [] as ExpiredLease[] };
         const world = await seeded(expiry);
+        // Explicit CP14 fixture holder for this credential-revocation scenario; no harness default.
+        source.db.run(
+          sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('lease-model-cp14','org-a','organization','org-a','user','dany','org-super-admin','route',1)`,
+        );
         const model: Model = new Map();
         const leafOf = (n: number) => world.leafIds.at(n) ?? '';
         const personOf = (n: number) => PEOPLE.at(n) ?? 'ann';
@@ -461,7 +471,7 @@ describe('claim leases as a model', () => {
           return false;
         };
         const sweep = async () => {
-          reaped += await world.runner.releaseExpiredLeases(world.projectId);
+          reaped += await world.runner.releaseExpiredLeases(world.workPackageId);
         };
 
         for (const act of acts) {
@@ -504,7 +514,10 @@ describe('claim leases as a model', () => {
             }
             case 'race': {
               races += 1;
-              expiry.snapshot = await source.stores.claims.expiredLeasesOf(world.projectId, now);
+              expiry.snapshot = await source.stores.claims.expiredLeasesOf(
+                world.workPackageId,
+                now,
+              );
               const agent = isAgent(personOf(act.person)) ? personOf(act.person) : 'codex';
               // A racing release aims at a claim whose lease has run out, when
               // one is held, and names its holder: the case where the release

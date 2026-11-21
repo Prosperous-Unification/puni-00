@@ -1,12 +1,12 @@
 import { act, fireEvent, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
+import { DEV, fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { hintFor } from './column-hints';
 import { forgetRefusedDrafts } from './live-editing';
@@ -117,7 +117,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -131,12 +131,12 @@ beforeEach(() => {
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and
  * those tests are about the cells, not about the default column set. Stored as
- * the reader would have stored it — an empty hide-list — under both project ids
+ * the reader would have stored it — an empty hide-list — under both work package ids
  * the file renders. The tests that ARE about the default never call this.
  */
 const showEveryColumn = (): void => {
-  for (const projectId of ['p1', 'p2']) {
-    localStorage.setItem(`wbs.hiddenColumns.${projectId}`, '[]');
+  for (const workPackageId of ['p1', 'p2']) {
+    localStorage.setItem(`wbs.hiddenColumns.${workPackageId}`, '[]');
   }
 };
 
@@ -242,7 +242,9 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -291,7 +293,9 @@ describe('the WBS table', () => {
 
   itDom('types a three-level breakdown without touching the mouse', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -322,7 +326,9 @@ describe('the WBS table', () => {
 
   itDom('gives the number cell words only when the number does not fit', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -394,16 +400,18 @@ describe('the WBS table', () => {
     const inFlight: (() => void)[] = [];
     // Everything else answers at once; only the create waits, so the busy
     // window is exactly one call wide and nothing else in the table is slowed.
-    const slow: ProjectApi = {
+    const slow: WorkPackageApi = {
       ...api,
-      createWorkItem: async (projectId, input) => {
+      createWorkItem: async (workPackageId, input) => {
         await new Promise<void>((resolve) => {
           inFlight.push(resolve);
         });
-        return api.createWorkItem(projectId, input);
+        return api.createWorkItem(workPackageId, input);
       },
     };
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(slow)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(slow)} />,
+    );
     await screen.findByRole('button', { name: 'Add work item' });
 
     for (let i = 0; i < 6; i += 1) click('Add work item');
@@ -430,7 +438,7 @@ describe('the WBS table', () => {
     });
   });
 
-  itDom('keeps an add burst and its refetch inside the project where it started', async () => {
+  itDom('keeps an add burst and its refetch inside the work package where it started', async () => {
     const first = fakeApi();
     const second = fakeApi();
     const calls: string[] = [];
@@ -438,19 +446,19 @@ describe('the WBS table', () => {
     const heldFirst = new Promise<void>((resolve) => {
       releaseFirst = resolve;
     });
-    const forProject = (projectId: string) => (projectId === 'p1' ? first : second);
-    const api: ProjectApi = {
+    const forWorkPackage = (workPackageId: string) => (workPackageId === 'p1' ? first : second);
+    const api: WorkPackageApi = {
       ...first,
-      tree: (projectId) => forProject(projectId).tree(projectId),
-      steps: (projectId) => forProject(projectId).steps(projectId),
-      createWorkItem: async (projectId, input) => {
-        calls.push(projectId);
-        if (projectId === 'p1') await heldFirst;
-        return forProject(projectId).createWorkItem(projectId, input);
+      tree: (workPackageId) => forWorkPackage(workPackageId).tree(workPackageId),
+      steps: (workPackageId) => forWorkPackage(workPackageId).steps(workPackageId),
+      createWorkItem: async (workPackageId, input) => {
+        calls.push(workPackageId);
+        if (workPackageId === 'p1') await heldFirst;
+        return forWorkPackage(workPackageId).createWorkItem(workPackageId, input);
       },
     };
     const { rerender } = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
     );
     await screen.findByRole('button', { name: 'Add work item' });
 
@@ -459,7 +467,9 @@ describe('the WBS table', () => {
       expect(calls).toEqual(['p1']);
     });
 
-    rerender(<WbsTableOverClient projectId="p2" projectServices={projectServicesOf(api)} />);
+    rerender(
+      <WbsTableOverClient workPackageId="p2" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     releaseFirst?.();
 
@@ -476,7 +486,7 @@ describe('the WBS table', () => {
   itDom('abandons queued adds when unmounted during their covering read', async () => {
     const api = fakeApi();
     const view = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
     );
     await waitFor(() => {
       expect(document.querySelector('[data-export]')).not.toBeNull();
@@ -484,13 +494,13 @@ describe('the WBS table', () => {
 
     const readTree = api.tree.bind(api);
     let finishRead!: () => void;
-    api.tree = (projectId) =>
+    api.tree = (workPackageId) =>
       new Promise((resolve) => {
         finishRead = () => {
-          void readTree(projectId).then(resolve);
+          void readTree(workPackageId).then(resolve);
         };
       });
-    const creates: Parameters<ProjectApi['createWorkItem']>[] = [];
+    const creates: Parameters<WorkPackageApi['createWorkItem']>[] = [];
     recordCalls(api, 'createWorkItem', (...args) => creates.push(args));
     click('Add work item');
     click('Add work item');
@@ -510,7 +520,9 @@ describe('the WBS table', () => {
 
   itDom('outdents with shift-tab', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -538,7 +550,7 @@ describe('the WBS table', () => {
     // one's.
     const api = fakeApi();
     const { container } = render(
-      <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
     );
     const sliceCount = () =>
       container.querySelector('[data-slice-count]')?.getAttribute('data-slice-count');
@@ -573,16 +585,18 @@ describe('the WBS table', () => {
     // the hidden ones carry headers and hints of their own.
     showEveryColumn();
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     typeName('010', 'Strip');
-    // And the settings surface, opened, because `project-config-modal` moved
+    // And the settings surface, opened, because `work-package-config-modal` moved
     // the steps face off the toolbar and into a panel behind this control. A
     // sweep of the table alone would no longer read the word at all — which is
     // exactly what the anchor at the bottom caught when that change landed.
-    click('Project settings');
-    await screen.findByRole('dialog', { name: 'Project settings' });
+    click('Work package settings');
+    await screen.findByRole('dialog', { name: 'Work package settings' });
 
     /*
       The text and the three attributes a reader is read to through: `title` is
@@ -591,7 +605,7 @@ describe('the WBS table', () => {
       among them — it is a different vocabulary that shares four letters, and
       `steps-not-phases` design D1 keeps it.
 
-      Proof: the steps section's tab label in `project-settings-modal.tsx`
+      Proof: the steps section's tab label in `work-package-settings-modal.tsx`
       spelled back to `Phases`. This failed on `expected [ 'text: Phases' ] to
       deeply equal []`. Watched 2026-08-29, and again after the panel split.
     */
@@ -626,7 +640,9 @@ describe('the WBS table', () => {
 
   itDom('backspace at the start of the name outdents the row', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -649,7 +665,9 @@ describe('the WBS table', () => {
 
   itDom('backspace anywhere else, or over a selection, stays a backspace', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -680,7 +698,9 @@ describe('the WBS table', () => {
 
   itDom('backspace in an empty root row removes it and puts the focus above', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -700,7 +720,9 @@ describe('the WBS table', () => {
 
   itDom('a nested empty row outdents on backspace, and is not removed', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -727,7 +749,9 @@ describe('the WBS table', () => {
 
   itDom('anything the item holds vetoes the backspace removal', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     // 010 gets its child first, so the numbering of everything after is settled.
@@ -795,7 +819,9 @@ describe('the WBS table', () => {
     // not happened — so the note is still there for everyone else, and a
     // keystroke reflex must not take the row it belongs to with it.
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     const name = await screen.findByLabelText<HTMLInputElement>('Name of 010');
     fireEvent.change(name, { target: { value: '\nmeasure twice' } });
@@ -823,7 +849,9 @@ describe('the WBS table', () => {
 
   itDom('tab inside the text walks to the next cell instead of indenting', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -856,7 +884,9 @@ describe('the WBS table', () => {
 
   itDom('shift-tab inside the text walks backwards instead of outdenting', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -889,7 +919,9 @@ describe('the WBS table', () => {
 
   itDom('tab over a selection navigates rather than indenting', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     pressNewItem('010');
@@ -922,7 +954,9 @@ describe('the WBS table', () => {
 
   itDom('backspace at the start of a root row moves nothing', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
 
@@ -941,7 +975,9 @@ describe('the WBS table', () => {
 
   itDom('shows a parent estimate cell as read-only and a leaf as editable', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -961,7 +997,9 @@ describe('the WBS table', () => {
 
   itDom('locks a frozen row and offers to unfreeze it', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -979,13 +1017,15 @@ describe('the WBS table', () => {
 describe('the plan on a calendar', () => {
   async function oneRow() {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     click('Add work item');
     await screen.findByLabelText('Name of 010');
     return api;
   }
 
-  itDom('shows day offsets until the project has a start date, labelled as days', async () => {
+  itDom('shows day offsets until the work package has a start date, labelled as days', async () => {
     // F-032: a bare `0`, `6`, `14` under Start and End read as broken data.
     // Proof: `showSchedule` put back to the bare figure, this failed on
     // `expected '0' to be 'day 0'`. Watched 2026-10-13.
@@ -996,7 +1036,7 @@ describe('the plan on a calendar', () => {
     // And the cell says what the figure is and how to get a date — the header
     // hint was the only place that did (review of PR #409).
     // Proof: `undatedDayWords` made to answer null, this failed on the Start
-    // sentence `Starts with the project` lacking `Day 0 of the plan`. Watched 2026-10-13.
+    // sentence `Starts with the workPackage` lacking `Day 0 of the plan`. Watched 2026-10-13.
     expect(
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
     ).toContain('Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.');
@@ -1005,7 +1045,7 @@ describe('the plan on a calendar', () => {
     );
   });
 
-  itDom('shows dates once the project starts on a day, as somebody reads one', async () => {
+  itDom('shows dates once the work package starts on a day, as somebody reads one', async () => {
     // `2026-08-06` in a 52px column, for a reader who already knows what year
     // it is. The whole day stays in the cell's own card and in the
     // `data-start-said` beside it, so the shortening costs nothing.
@@ -1013,7 +1053,7 @@ describe('the plan on a calendar', () => {
     // failed on `expected '2026-08-06' to be '6 Aug'`. Watched, 2026-08-09.
     const api = await oneRow();
 
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
 
     await waitFor(() => {
       expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe('6 Aug');
@@ -1030,7 +1070,7 @@ describe('the plan on a calendar', () => {
     // the table. `startCellProps` says the whole of why.
     expect(
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
-    ).toBe('2026-08-06 — Starts with the project');
+    ).toBe('2026-08-06 — Starts with the work package');
     expect(rowFor('010').querySelector('[data-finish]')?.textContent).toContain('6 Aug');
     expect(rowFor('010').querySelector('[data-finish]')?.getAttribute('data-fact')).toContain(
       '2026-08-06',
@@ -1044,7 +1084,7 @@ describe('the plan on a calendar', () => {
     const today = new Date();
     await oneRow();
 
-    typeIntoDate('Project start date', `${String(today.getFullYear() + 1)}-06-01`);
+    typeIntoDate('Work package start date', `${String(today.getFullYear() + 1)}-06-01`);
 
     await waitFor(() => {
       // Two digits behind an apostrophe since 2026-09-13 (`shortIsoDate`'s `offYear`).
@@ -1055,7 +1095,7 @@ describe('the plan on a calendar', () => {
   });
 
   itDom('leaves the workday offsets alone while the plan has no start date', async () => {
-    // The fallback this change did not touch: without a project start date
+    // The fallback this change did not touch: without a work package start date
     // there are no dates to shorten, and the columns print day numbers with no
     // fuller day to say anywhere.
     //
@@ -1069,7 +1109,7 @@ describe('the plan on a calendar', () => {
     expect(
       rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
     ).toBe(
-      'Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
+      'Starts with the work package — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
     );
   });
 
@@ -1097,7 +1137,7 @@ describe('the plan on a calendar', () => {
       // The sentence is still there at rest for the oracles that read it: see
       // `startCellProps`.
       expect(cell?.getAttribute('data-start-said')).toBe(
-        'Starts with the project — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
+        'Starts with the work package — Day 0 of the plan, in workdays. Set Starts in the toolbar to see a date.',
       );
       // And the cell is on the keyboard, which is what makes the card reachable
       // without a pointer.
@@ -1125,7 +1165,7 @@ describe('the plan on a calendar', () => {
     // on `Unable to find role="tooltip" and name /^Start of 010 - /`.
     fireEvent.mouseEnter(cell);
     const card = await screen.findByRole('tooltip', { name: /^Start of 010 - / });
-    expect(card).toHaveTextContent('Starts with the project');
+    expect(card).toHaveTextContent('Starts with the work package');
     // The description the cell points at while the card is open — the keyboard's
     // half of the same fact, and what a `title` used to do for free.
     //
@@ -1172,14 +1212,16 @@ describe('the plan on a calendar', () => {
     await api.createWorkItem('p1', { parentId: held.id, afterId: null, name: 'Child' });
     await api.setStatus(held.id, 'on_hold', '2026-10-14');
     const read = api.tree.bind(api);
-    api.tree = (projectId) =>
-      read(projectId).then((plan) => ({
+    api.tree = (workPackageId) =>
+      read(workPackageId).then((plan) => ({
         ...plan,
         workItems: plan.workItems.map((row) =>
           row.status === 'on_hold' ? { ...row, schedule: null, dates: null } : row,
         ),
       }));
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
@@ -1192,7 +1234,7 @@ describe('the plan on a calendar', () => {
   });
 
   itDom('marks an undated parent’s Start, because it says how to get a date', async () => {
-    // A parent has no floor sentence of its own. Without a project calendar it
+    // A parent has no floor sentence of its own. Without a work package calendar it
     // used to have nothing for hover or focus to reveal, and was left unmarked;
     // since the review of PR #409 an undated day says which day of the plan it
     // is and that Starts gives it a date, so the affordance follows that
@@ -1204,7 +1246,9 @@ describe('the plan on a calendar', () => {
       name: 'Parent',
     });
     await api.createWorkItem('p1', { parentId: parent.id, afterId: null, name: 'Child' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     const cell = rowFor('010').querySelector<HTMLElement>('td[data-column="start"]');
@@ -1257,7 +1301,9 @@ describe('the plan on a calendar', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-09-15T00:00:00Z'));
     try {
-      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      render(
+        <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+      );
       await screen.findByLabelText('Name of 020');
 
       // The whole title through the real call site, day and sentence, spelled out
@@ -1279,14 +1325,14 @@ describe('the plan on a calendar', () => {
       // answer for themselves, which a single shared string would hide.
       expect(
         rowFor('010').querySelector('td[data-column="start"]')?.getAttribute('data-start-said'),
-      ).toBe('2026-09-01 — Starts with the project');
+      ).toBe('2026-09-01 — Starts with the work package');
     } finally {
       vi.useRealTimers();
     }
   });
 
   itDom('will not take an earliest start while the plan has no start date', async () => {
-    // Without a project start date there is no day zero, so be-01 ignores the
+    // Without a work package start date there is no day zero, so be-01 ignores the
     // constraint entirely. A date that saves and does nothing is worse than a
     // field that will not take one — this shipped and was found on dev.
     await oneRow();
@@ -1294,7 +1340,7 @@ describe('the plan on a calendar', () => {
     const cell = screen.getByLabelText<HTMLInputElement>('Earliest start for 010');
 
     expect(cell.disabled).toBe(true);
-    expect(cell.getAttribute('data-fact') ?? '').toContain('project start date');
+    expect(cell.getAttribute('data-fact') ?? '').toContain('work package start date');
     // And the columns say which of the two they are showing.
     // And the column says which of the two it is showing — in its `title`,
     // because the heading itself is one word wide now.
@@ -1304,7 +1350,7 @@ describe('the plan on a calendar', () => {
   itDom('takes one once the plan is on a calendar, and drops the "(day)" wording', async () => {
     await oneRow();
 
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
 
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
@@ -1332,7 +1378,9 @@ describe('the plan on a calendar', () => {
     expect(headers.length).toBeGreaterThan(5);
     for (const th of headers) {
       const columnId = th.getAttribute('data-column') ?? '';
-      expect(th.getAttribute('data-hint')).toBe(hintFor(columnId, { hasProjectStartDate: false }));
+      expect(th.getAttribute('data-hint')).toBe(
+        hintFor(columnId, { hasWorkPackageStartDate: false }),
+      );
     }
   });
 
@@ -1340,7 +1388,7 @@ describe('the plan on a calendar', () => {
     // The fault, exactly as a browser produces it. A native date input fires a
     // `change` for **every completed segment**, so typing the year `2026` fires
     // four of them and the first three are dates in years 2, 20 and 202. Each
-    // was committed, each commit refetched the project, and the controlled box
+    // was committed, each commit refetched the work package, and the controlled box
     // was re-rendered from be-01's answer mid-word — so the year segment reset
     // under the caret and the rest of the digits went nowhere. A plan was saved
     // starting in **year 0002**; observed in Chrome on 2026-08-09.
@@ -1350,9 +1398,9 @@ describe('the plan on a calendar', () => {
     // and its `Not before` twin on `expected [ …(4) ] to deeply equal []`.
     // Watched, 2026-08-09.
     const api = await oneRow();
-    const sent = recordCalls(api, 'setStartDate', (_projectId, day) => day);
+    const sent = recordCalls(api, 'setStartDate', (_work_packageId, day) => day);
 
-    const box = screen.getByLabelText<HTMLInputElement>('Project start date');
+    const box = screen.getByLabelText<HTMLInputElement>('Work package start date');
     box.focus();
     typeYearInto(box);
 
@@ -1372,7 +1420,7 @@ describe('the plan on a calendar', () => {
     // The same fault in the other date field on the page: `26.08.0002` was
     // typed into a row's `Not before` and saved, on the same pass.
     const api = await oneRow();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1399,9 +1447,9 @@ describe('the plan on a calendar', () => {
     // Proof: the `Enter` branch removed from `DateField`, this failed on
     // `expected [] to deeply equal [ '2026-08-17' ]`. Watched, 2026-08-09.
     const api = await oneRow();
-    const sent = recordCalls(api, 'setStartDate', (_projectId, day) => day);
+    const sent = recordCalls(api, 'setStartDate', (_work_packageId, day) => day);
 
-    const box = screen.getByLabelText<HTMLInputElement>('Project start date');
+    const box = screen.getByLabelText<HTMLInputElement>('Work package start date');
     box.focus();
     fireEvent.change(box, { target: { value: '2026-08-17' } });
     fireEvent.keyDown(box, { key: 'Enter' });
@@ -1418,7 +1466,7 @@ describe('the plan on a calendar', () => {
   itDom('sends a work item’s earliest start, and clears it again', async () => {
     const api = await oneRow();
     // The field only takes a date once the plan is on a calendar.
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1456,7 +1504,7 @@ describe('the plan on a calendar', () => {
     // to deeply equal [ { startNoEarlierThan: null, startNoEarlierThanReason:
     // null } ]`. Watched, 2026-08-18.
     const api = await oneRow();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1494,7 +1542,7 @@ describe('the plan on a calendar', () => {
     // on the way to the reason box and there is nothing left to type into.
     // Watched, 2026-08-18.
     const api = await oneRow();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1525,7 +1573,7 @@ describe('the plan on a calendar', () => {
     // Prio cell makes about an emptied number and the one thing be-01 cannot
     // see from a request that omits the field.
     const api = await oneRow();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1562,7 +1610,7 @@ describe('the plan on a calendar', () => {
     // the bar. What the constraint *does* is the part a reader cannot work out;
     // what it is *for* is the part only a planner can say.
     const api = await oneRow();
-    typeIntoDate('Project start date', '2026-08-06');
+    typeIntoDate('Work package start date', '2026-08-06');
     await waitFor(() => {
       expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').disabled).toBe(
         false,
@@ -1719,7 +1767,7 @@ describe('the order of the columns', () => {
     // `Not before` whole since the UI review of 2026-10-13 (F-006): headers
     // are sentence case now, and the narrow column is 60px to hold it.
     // The Work item deadline column is hidden here alongside the other three,
-    // which is where this project's reader left it: `work-item-deadline` 9.1
+    // which is where this work package's reader left it: `work-item-deadline` 9.1
     // ships it in {@link INITIAL_HIDDEN_COLUMNS} because the folded table at
     // 1280 has no 84px to give it. Shown, it sits between `Not before` and
     // `Start` — the two days a planner states, then the days be-01 worked out.

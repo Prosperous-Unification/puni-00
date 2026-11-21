@@ -65,7 +65,7 @@ export class GanttDataError extends Error {
  * carrying it came from the optimized path.
  */
 export type BindingFloor =
-  | 'projectStart'
+  | 'workPackageStart'
   | 'predecessor'
   | 'stepOrder'
   | 'notBefore'
@@ -504,7 +504,7 @@ export interface GanttSlice {
   estimated: boolean;
   earliestStart: number;
   earliestFinish: number;
-  /** How many workdays this slice can slip before the project's finish moves. */
+  /** How many workdays this slice can slip before the work package's finish moves. */
   float: number;
   critical: boolean;
   boundBy: BindingFloor;
@@ -520,7 +520,7 @@ export interface GanttSlice {
    */
   resourcePredecessorId: string | null;
   /** Present exactly when `boundBy` is `'elsewhere'`: the booking it waited for. */
-  elsewhereHolder?: { projectId: string; workItemId: string };
+  elsewhereHolder?: { workPackageId: string; workItemId: string };
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
   /**
@@ -591,14 +591,14 @@ export interface GanttStep {
   name: string;
 }
 
-/** Where {@link GanttPlan.elsewhereHolders} files a holder: its project and work item. */
-export function elsewhereHolderKey(projectId: string, workItemId: string): string {
-  return `${projectId}\u0000${workItemId}`;
+/** Where {@link GanttPlan.elsewhereHolders} files a holder: its work package and work item. */
+export function elsewhereHolderKey(workPackageId: string, workItemId: string): string {
+  return `${workPackageId}\u0000${workItemId}`;
 }
 
-/** A work item in another project that holds a booking, as its own plan names it. */
+/** A work item in another work package that holds a booking, as its own plan names it. */
 export interface ElsewhereHolderLabel {
-  projectName: string;
+  workPackageName: string;
   number: string;
   name: string;
 }
@@ -706,7 +706,7 @@ export interface GanttPlan {
   priorityBands: readonly PriorityBandView[];
   /**
    * How far into a predecessor this plan's dependencies reach — be-01's own
-   * `project.dep_reach`, off the same payload as the slices.
+   * `workPackage.dep_reach`, off the same payload as the slices.
    *
    * Read by {@link reachedSliceOf}, and the reason it is on the plan rather
    * than a prop of the panel is the one that matters: the arrow has to leave
@@ -808,7 +808,7 @@ export interface GanttBar {
   lane: number;
   /** How many lanes this bar's row cluster is split into — see {@link lane}. */
   lanes: number;
-  /** How many workdays this bar can slip before the project's finish moves. */
+  /** How many workdays this bar can slip before the work package's finish moves. */
   float: number;
   critical: boolean;
   /** False when nobody has estimated this slice, which is not the same fact as zero days. */
@@ -1118,7 +1118,7 @@ export interface CalendarScale {
  * The scale binding the chart to the plan's first working day: workday offsets
  * in, calendar-day offsets from that day out.
  *
- * The origin is `addWorkdays(startDate, 0)` and not `startDate`, so a project
+ * The origin is `addWorkdays(startDate, 0)` and not `startDate`, so a work package
  * whose start date lands on a weekend begins on the Monday — the same
  * normalisation the Start column already makes. Inherited rather than repeated:
  * two copies of that rule are two answers about which day a plan begins on.
@@ -1139,11 +1139,11 @@ export interface CalendarScale {
  * - `endOf` aliased to `startOf` — the end reading taken as the start one.
  *   `2 failed | 51 passed`, both on `expected 7 to be 5`: `ends a span that
  *   finished on the Friday at the Saturday` and the same reading inside
- *   `begins a Saturday project on the Monday`. Every case before the first
+ *   `begins a Saturday workPackage on the Monday`. Every case before the first
  *   weekend stayed green, which is exactly why those two are written at 5
  *   rather than at 3.
  * - the origin taken as `startDate` instead of `addWorkdays(startDate, 0)`.
- *   `2 failed | 51 passed`: `begins a Saturday project on the Monday` on
+ *   `2 failed | 51 passed`: `begins a Saturday workPackage on the Monday` on
  *   `expected 9 to be 7` — an origin two days early and every mark on the
  *   chart with it — and `refuses a start date that is not a calendar date` on
  *   `expected [Function] to throw an error`, because with no `addWorkdays` at
@@ -1476,7 +1476,7 @@ export function placeOnCalendar(chart: GanttGeometry, startDate: IsoDate): Place
  *
  * What a plan with no start date is drawn on. Not a fallback and not a scale of
  * one — there is no calendar to be on, so no scale is built and nothing is
- * asked for a date. See "Without a project start date the chart stays on the
+ * asked for a date. See "Without a work package start date the chart stays on the
  * workday axis" in the spec.
  */
 export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
@@ -1877,7 +1877,7 @@ export function routeArrow(
  * below it.
  */
 const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity' | 'elsewhere'>, string> = {
-  projectStart: 'Starts with the project',
+  workPackageStart: 'Starts with the work package',
   predecessor: 'Waits for a dependency’s first estimated step',
   stepOrder: 'Waits for an earlier step on this item',
   notBefore: 'Held by its start-no-earlier-than date',
@@ -1919,15 +1919,15 @@ function spokenNameOf(row: GanttRow): string {
 }
 
 /**
- * The sentence a bar held by a booking in another project shows: _"Waits for
+ * The sentence a bar held by a booking in another work package shows: _"Waits for
  * Ana to finish 010.3 in Platform"_ — the number the holding plan prints for
- * the work item, its name after it where it has one, and the holding project.
- * The number always, because it is what finds the row in that project; the
+ * the work item, its name after it where it has one, and the holding work package.
+ * The number always, because it is what finds the row in that work package; the
  * name because a number alone is a code.
  */
 function elsewhereFloorWords(person: string, holder: ElsewhereHolderLabel): string {
   const work = holder.name === '' ? holder.number : `${holder.number} ${holder.name}`;
-  return `Waits for ${person} to finish ${work} in ${holder.projectName}`;
+  return `Waits for ${person} to finish ${work} in ${holder.workPackageName}`;
 }
 
 /**
@@ -2775,7 +2775,7 @@ function floorWordsOf(
     // Task 4.10. The comment is ABOVE the group rather than between the labels
     // because a comment between two `case`s reads to eslint's `no-fallthrough`
     // as a body on the one above it, and it errored here.
-    case 'projectStart':
+    case 'workPackageStart':
     case 'stepOrder':
     case 'optimizer':
       return FLOOR_SENTENCE[slice.boundBy];
@@ -2892,22 +2892,22 @@ function floorWordsOf(
       }
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
-    // The person is held in another project, through a ranked booking
+    // The person is held in another work package, through a ranked booking
     // (ADR 0034) or a connected person predecessor: the sentence names them, the
-    // holding work item by the number its own plan prints, and that project.
+    // holding work item by the number its own plan prints, and that work package.
     case 'elsewhere': {
       const holder = slice.elsewhereHolder;
       // be-01 names a holder exactly when it writes this floor, and names each
       // holder in the same read; a slice or a label missing is the wire having
       // lost half of what it sent, and a sentence without it would blame
       // nobody.
-      // Proof: this lookup replaced by `'Waits for another project'` made
+      // Proof: this lookup replaced by `'Waits for another workPackage'` made
       // `throws when a bar held elsewhere names no holder the read labels`
       // (`gantt-geometry.test.ts`) not throw; re-watched 2026-10-11.
       const label =
         holder === undefined
           ? undefined
-          : elsewhereHolders.get(elsewhereHolderKey(holder.projectId, holder.workItemId));
+          : elsewhereHolders.get(elsewhereHolderKey(holder.workPackageId, holder.workItemId));
       if (label === undefined) {
         throw new GanttDataError(
           `slice ${slice.id} is held elsewhere but names no holder the read labels`,
@@ -3036,7 +3036,7 @@ export function startFloorByRow(
     if (own === null || own.length === 0) continue;
     // `<` and not `<=`, so a tie keeps the first in step order rather than the
     // last: two slices starting together are Dev and QA both standing on the
-    // project's first day, and the row is read Dev-first.
+    // work package's first day, and the row is read Dev-first.
     let anchor = own[0];
     for (const each of own) {
       if (each.slice.earliestStart < anchor.slice.earliestStart) anchor = each;
@@ -3213,7 +3213,7 @@ function leavesUnderOf(
 
 /**
  * The slice a dependency on `predecessorId` actually waits for, under the
- * project's own `reach`; for a parent, the latest-finishing such slice among
+ * work package's own `reach`; for a parent, the latest-finishing such slice among
  * its leaves (`dep-waits-on-first-role`'s design.md D6).
  *
  * - `whole-item`: the leaf's **last** slice in step order — the projection's
@@ -3506,12 +3506,12 @@ export interface AttemptProjection {
 }
 
 /**
- * Projects one mark per eligible attempt using one supplied clock reading, never reading a clock.
+ * Work packages one mark per eligible attempt using one supplied clock reading, never reading a clock.
  * The stage-one 09:00 anchor is retired by agent-calendar-instant-axis. Whole start-date cells
  * widen the display, while schedule offsets and original timestamps remain untouched.
  * @throws GanttDataError for malformed instants or reversed intervals.
  */
-export function projectAttemptMarks(
+export function workPackageAttemptMarks(
   plan: GanttPlan,
   forecast: PlacedGantt,
   startDate: string | null,

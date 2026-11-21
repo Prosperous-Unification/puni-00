@@ -143,11 +143,11 @@ describe('attempt marks in the panel', () => {
     render(draw(plan, start));
     if (start === null)
       expect(
-        screen.getByText('Attempt marks unavailable: set a project start date'),
+        screen.getByText('Attempt marks unavailable: set a work package start date'),
       ).toBeInTheDocument();
     if (zone === null)
       expect(
-        screen.getByText('Attempt marks unavailable: project timezone is unavailable'),
+        screen.getByText('Attempt marks unavailable: work package timezone is unavailable'),
       ).toBeInTheDocument();
     expect(document.querySelector('[data-attempt]')).toBeNull();
     expect(document.querySelector('[data-gantt-bar="slice"]')).not.toBeNull();

@@ -24,8 +24,10 @@ function seed() {
   sqlite.run(
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
-  sqlite.run("INSERT INTO project (id,name,owner_id,created_at) VALUES ('p','Project','u',1)");
-  sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('s','p','Dev',10)");
+  sqlite.run(
+    "INSERT INTO work_package (id,name,owner_id,created_at) VALUES ('p','WorkPackage','u',1)",
+  );
+  sqlite.run("INSERT INTO step (id,work_package_id,name,position) VALUES ('s','p','Dev',10)");
   return sqlite;
 }
 describe('step estimate unit migration', () => {
@@ -94,7 +96,7 @@ it('refuses rollback over minute-bound undo and redo history after clearing and 
     for (const undone of [0, 1]) {
       sqlite.run('DELETE FROM command_journal');
       sqlite.run(
-        `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'batch','{"forward":{"do":"batch","steps":[{"do":"clear_estimate","workItemId":"w","stepId":"s"}]}}','{"do":"batch","steps":[{"do":"set_estimate","workItemId":"w","stepId":"s","days":{"optimistic":240,"realistic":240,"pessimistic":240}}]}','{"expected":{},"from":{},"estimateUnits":{"s":"minutes"}}',?,1)`,
+        `INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'batch','{"forward":{"do":"batch","steps":[{"do":"clear_estimate","workItemId":"w","stepId":"s"}]}}','{"do":"batch","steps":[{"do":"set_estimate","workItemId":"w","stepId":"s","days":{"optimistic":240,"realistic":240,"pessimistic":240}}]}','{"expected":{},"from":{},"estimateUnits":{"s":"minutes"}}',?,1)`,
         [undone],
       );
       expect(() => rollbackTo(path, FOLDER, '20261012120000_add_step_node_attempts')).toThrow(
@@ -150,9 +152,9 @@ it.each([
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -176,12 +178,14 @@ it.each([
     ]);
     const sqlite = seed();
     try {
-      sqlite.run("INSERT INTO work_item (id,project_id,position,name) VALUES ('w','p',1,'Work')");
+      sqlite.run(
+        "INSERT INTO work_item (id,work_package_id,position,name) VALUES ('w','p',1,'Work')",
+      );
       sqlite.run(
         "INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('w','s',240,240,240)",
       );
       sqlite.run(
-        "INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'clear_estimate','{}','{}',?,0,1)",
+        "INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'clear_estimate','{}','{}',?,0,1)",
         [preconditions],
       );
       const read = () => ({
@@ -206,14 +210,14 @@ it('allows a legacy object journal without a unit map through direct down', () =
   const sqlite = seed();
   try {
     sqlite.run(
-      `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'rename','{}','{}','{"expected":{},"from":{}}',0,1)`,
+      `INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at) VALUES ('j','p','u',1,'rename','{}','{}','{"expected":{},"from":{}}',0,1)`,
     );
     // The columns that predate both migrations: the rollback also passes
     // `add_command_journal_person`, which drops `person_id`.
     const journal = () =>
       sqlite
         .query(
-          'SELECT id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at FROM command_journal',
+          'SELECT id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at FROM command_journal',
         )
         .all();
     const history = journal();

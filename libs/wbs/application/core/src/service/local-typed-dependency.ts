@@ -3,12 +3,15 @@ import type { DependencyEndpoint, ScopedDependencyEndpoint, TypedDependency } fr
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 
 /**
- * Projects stored local links into historical capture bodies without project fields.
+ * Work packages stored local links into historical capture bodies without work package fields.
  * External links require connected capture and cannot be represented by this format.
  */
 export function captureLocalTypedDependency(row: StoredTypedDependency): TypedDependency {
-  // Proof: bypassing this comparison made `refuses external rows in the historical single-project capture` resolve with a stripped foreign endpoint (2026-10-22).
-  if (row.predecessor.projectId !== row.projectId || row.successor.projectId !== row.projectId) {
+  // Proof: bypassing this comparison made `refuses external rows in the historical single-work-package capture` resolve with a stripped foreign endpoint (2026-10-22).
+  if (
+    row.predecessor.workPackageId !== row.workPackageId ||
+    row.successor.workPackageId !== row.workPackageId
+  ) {
     throw new Error(`external dependency ${row.id} requires connected capture`);
   }
   const endpoint = (scoped: ScopedDependencyEndpoint): DependencyEndpoint =>

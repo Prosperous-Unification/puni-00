@@ -74,6 +74,8 @@ const INDIRECT_DOM_SUITES: readonly string[] = [
   'src/lib/api.test.ts',
   // `readAuthMethods` goes through `browserClient`, which reads `location.origin`.
   'src/components/auth/auth-methods.test.ts',
+  // The actual undo/redo client reads location.origin before sending its protected request.
+  'src/modules/plan-writer/plan-writer.test.ts',
 ];
 
 /**

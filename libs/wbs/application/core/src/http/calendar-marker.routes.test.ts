@@ -1,11 +1,12 @@
 import { automaticColor } from '@wbs/domain';
 import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
-import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { calendarMarkerRoutes } from './calendar-marker.routes';
 import { EMPTY } from './endpoint';
@@ -13,29 +14,34 @@ import { EMPTY } from './endpoint';
 const markerId = '10000000-0000-4000-8000-000000000001';
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
 const input = {
-  params: { id: 'project', markerId },
+  params: { id: 'work_package', markerId },
   query: undefined,
   principal,
   request: {
     method: 'POST',
-    url: new URL('https://example.com/api/projects/project/calendar-markers'),
+    url: new URL('https://example.com/api/work-packages/work-package/calendar-markers'),
     headers: new Headers(),
     signal: new AbortController().signal,
   },
 };
 async function fixture() {
-  const projects = inMemoryProjects();
-  await projects.create(projectRow({ id: 'project' }), [], { at: 1, by: 'owner' });
+  const workPackages = (
+    await createLegacyWorkPackageFixture('owner', 'route-legacy', 'route-parent')
+  ).workPackages;
+  await workPackages.create(workPackageRow({ projectId: 'route-parent', id: 'work_package' }), [], {
+    at: 1,
+    by: 'owner',
+  });
   const store = inMemoryCalendarMarkers();
   const broadcast = recordingBroadcaster();
   const service = new CalendarMarkerService({
     clock: testClock,
-    projects,
+    workPackages,
     markers: store,
     broadcast,
   });
   return {
-    projects,
+    workPackages,
     store,
     broadcast,
     endpoints: calendarMarkerRoutes(service, legacyOrganizationAccess),
@@ -57,7 +63,7 @@ test('direct marker bindings preserve IDs, resolve automatic color and publish o
   expect(created.status).toBe(201);
   expect(created.body.marker.id).toBe(markerId);
   expect(created.body.marker.color).toBe(automaticColor(markerId));
-  expect((await store.listFor('project'))[0]?.color).toBeNull();
+  expect((await store.listFor('work_package'))[0]?.color).toBeNull();
   expect((await list.handle({ ...input, body: undefined })).ok).toBe(true);
   expect((await patch.handle({ ...input, body: { name: 'Release' } })).ok).toBe(true);
   expect(await remove.handle({ ...input, body: undefined })).toEqual({
@@ -70,7 +76,7 @@ test('direct marker bindings preserve IDs, resolve automatic color and publish o
   );
 });
 
-test('direct missing projects never blame a marker and marker misses do', async () => {
+test('direct missing work packages never blame a marker and marker misses do', async () => {
   const {
     endpoints: [, create, patch, remove],
   } = await fixture();

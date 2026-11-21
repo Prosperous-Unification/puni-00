@@ -2,10 +2,9 @@ import type { GrantOrigin } from '@wbs/domain';
 
 /**
  * Where a grant applies (`wbs-permissions` P1, P8). An organization scope is
- * the grant's own organization. A `project` scope names the project entity of
- * `wbs-work-packages` slice 2, which does not exist yet: until it does the
- * store refuses every project scope as `not_found`, because today's `project`
- * row is the work package and its id is a `kind: 'work_package'` scope.
+ * the grant's own organization. A `project` scope names an engagement project
+ * belonging to that organization. A work package remains a distinct
+ * `kind: 'work_package'` scope through its organization mapping.
  */
 export type GrantScope =
   | { readonly kind: 'organization' }
@@ -73,8 +72,7 @@ export interface AccessGrantRecord {
  * - `role_scope_mismatch`: the role's kind is broader than the scope's
  *   (`roleFitsScope` in `@wbs/domain`), as `org-admin` at a work package.
  * - `not_found`: the scope is absent or another organization's (a work
- *   package through `project_organization`), or a project scope (no project
- *   entity exists yet).
+ *   package through `work_package_organization`).
  * - `not_a_member`: a `user` subject holds no membership of the organization.
  * - `unknown_group`: a `group` subject is no access group of the organization.
  * - `unknown_credential`: a `machine_credential` subject is revoked, absent or

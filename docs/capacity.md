@@ -14,9 +14,9 @@ a slot per person while it runs, and work that cannot get its slots waits.
 
 ## What the number is a fact about
 
-**One project.** Not the team, and not the deployment. Two plans labelled
+**One work package.** Not the team, and not the deployment. Two plans labelled
 `Platform` each state their own number for `Platform`, and neither reads the
-other's. There is no global default behind the per-project number: a pair the
+other's. There is no global default behind the work package's number: a pair the
 plan has not stated is _unstated_ and constrains that plan not at all.
 
 This is Dany's call of 2026-08-13 — _"the capacity must be configurable per
@@ -33,7 +33,7 @@ and lists exactly the teams this plan's work is labelled with — including a te
 only an ancestor row names, because the leaves beneath it inherit the label and
 spend its slots. One box each.
 
-**Not the directory.** The directory page has no project, so a box there could
+**Not the directory.** The directory page has no selected work package, so a box there could
 only ever have meant "the plan you last had open". It keeps names, members and
 removal, and it offers no size. C3 did put a box there, correctly, while the
 number was still global; C5 moved it.
@@ -137,7 +137,7 @@ cumulative per resource (`model.py` clause 4, solver wire 4).
 
 ## The three states, one of which has no box
 
-A (project, team) pair is in one of three states, and only two of them are
+A (work package, team) pair is in one of three states, and only two of them are
 visible:
 
 1. **Stated** — a number in the `Teams` dialog's box. Bounds the work.
@@ -170,8 +170,8 @@ the sake of a display promise. The argument is `capacity-engine/design.md`, D7.
 
 | Thing                                  | File                                                                        |
 | -------------------------------------- | --------------------------------------------------------------------------- |
-| The stored number                      | `apps/wbs/be-01/src/repository/schema.ts`, `projectTeamCapacity`            |
-| The lookup the scheduler uses          | `apps/wbs/be-01/src/repository/capacity.ts`, `slotsFor`                     |
+| The stored number                      | `libs/wbs/adapters/store-sqlite/src/schema.ts`, `workPackageTeamCapacity`   |
+| The lookup the scheduler uses          | `libs/wbs/adapters/store-sqlite/src/capacity.ts`, `slotsFor`                |
 | Placement against the pool             | `libs/wbs/domain/domain/src/schedule.ts`                                    |
 | Label inheritance, shared by both apps | `libs/wbs/domain/domain/src/effective-team.ts`                              |
 | The box                                | `apps/wbs/fe-01/src/components/wbs/teams-panel.tsx`                         |

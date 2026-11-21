@@ -265,7 +265,13 @@ describe('agent pools panel states', () => {
   it.each([LIST, LIMITS])('renders no panel when %s answers forbidden', async (route) => {
     const sent = stub({
       [LIST]: [listing(swarm)],
-      [route]: [() => answer(403, { error: 'forbidden' })],
+      [route]: [
+        () =>
+          answer(403, {
+            error: 'forbidden',
+            permission: route === LIMITS ? 'organization.read' : 'organization.manage_directory',
+          }),
+      ],
     });
     mount();
     await waitFor(() => {
@@ -605,7 +611,10 @@ describe('agent pools panel create', () => {
 
   it('keeps the keys note when the reread hides the panel', async () => {
     stub({
-      [LIST]: [listing(), () => answer(403, { error: 'forbidden' })],
+      [LIST]: [
+        listing(),
+        () => answer(403, { error: 'forbidden', permission: 'organization.manage_directory' }),
+      ],
       [CREATE]: [() => answer(201, keysOf('pool-9', 'swarm-c', 3))],
     });
     mount();
@@ -659,7 +668,12 @@ describe('agent pools panel create', () => {
       { cap: 20, current: 15, added: 8 },
       'This pool needs 8 agent persons, and the organization holds 15 of its 20. At most 5 fit; remove agent persons or ask an operator to raise the limit. Nothing was created.',
     ],
-    ['forbidden', 403, {}, 'Only an admin can manage agent pools. Nothing was changed.'],
+    [
+      'forbidden',
+      403,
+      { permission: 'organization.manage_directory' },
+      'Only an admin can manage agent pools. Nothing was changed.',
+    ],
     [
       'invalid_body',
       400,

@@ -47,11 +47,11 @@ const addedNames = (created: PlanImportSummary['created']): string | null => {
 };
 
 /**
- * What a finished import says: the new project by the name it was given, how
+ * What a finished import says: the new work package by the name it was given, how
  * many work items it holds, and only the facts that happened — directory names
  * it added, and the solution link when the file carried one.
  *
- * `name` is the catalogue's name for the new project, not the file's: the two
+ * `name` is the catalogue's name for the new work package, not the file's: the two
  * differ when {@link distinctImportName} dated it.
  */
 export function importSummarySentence(summary: PlanImportSummary, name: string): string {
@@ -60,14 +60,27 @@ export function importSummarySentence(summary: PlanImportSummary, name: string):
   if (added !== null) sentences.push(added);
   if (summary.solutionRef === 'kept') sentences.push('It keeps its solution link.');
   if (summary.solutionRef === 'left-off')
-    sentences.push('Its solution link was left off: another project already has it.');
+    sentences.push('Its solution link was left off: another work package already has it.');
   return sentences.join(' ');
 }
 
 /** The sentence for be-01's refusal, before any location in the file is added. */
 function refusalWords(refusal: PlanImportRefusal): string {
   switch (refusal.error) {
+    case 'project_required':
+      return 'Choose a project before importing a plan.';
+    case 'not_found':
+      return 'That project is no longer available. Choose another project before importing.';
+    // Proof: before this arm, "explains incompatible inherited budget factor
+    // without exposing settings values" in plan-import-words.test.ts reached
+    // unreachable before its sentence assertion (2026-11-15).
+    case 'import_settings_conflict':
+      return 'This plan uses a different budget factor from the selected project. Choose a compatible project before importing.';
+    case 'invalid_json':
+      return 'This file is not JSON.';
     case 'invalid_body':
+      if (!('path' in refusal))
+        return 'The import request could not be read. Reload the page and try again.';
       return isDocumentLevel(refusal.path)
         ? NOT_A_PLAN_EXPORT
         : 'This plan export has a value the app cannot read.';
@@ -81,22 +94,34 @@ function refusalWords(refusal: PlanImportRefusal): string {
       return 'The dependencies in this plan export go round in a circle.';
     case 'ancestor':
       return 'This plan export makes a work item depend on a group it sits in.';
-    case 'deadline_before_project_start':
-      return 'This plan export has a work item deadline before the project starts.';
+    case 'deadline_before_work_package_start':
+      return 'This plan export has a work item deadline before the work package starts.';
     case 'work_item_takes_one_type':
       return 'This plan export gives a work item more than one type.';
     case 'engine_unavailable':
       return 'This plan uses the optimizing scheduler, which this server does not have.';
     case 'abbreviation_exhausted':
-      return 'There is no available abbreviation for this project name, so nothing was imported.';
+      return 'There is no available abbreviation for this work package name, so nothing was imported.';
     case 'abbreviation_taken':
-      return 'That project abbreviation is already in use, so nothing was imported.';
+      return 'That work package abbreviation is already in use, so nothing was imported.';
+    case 'unknown_step':
+      return 'A step used by this plan is no longer available, so nothing was imported.';
+    // Proof: absent unknown/retired arms reached `Unexpected response variant: object`
+    // in their ordered catalogue-code tests (catalogue-browser-red-v1).
+    case 'unknown_step_codes':
+      return `Unknown step codes: ${refusal.codes.join(', ')}. To create them, select “Define missing steps” and import again with project settings permission.`;
+    case 'retired_step_codes':
+      return `Retired step codes: ${refusal.codes.join(', ')}. These codes cannot be reused. Update the file to use active steps before importing again.`;
+    case 'step_not_resolved':
+      return 'An estimate uses a step that does not apply to its work item, so nothing was imported.';
+    case 'type_conflict':
+      return 'This plan would leave a work item with conflicting types, so nothing was imported.';
     case 'source_refused':
       return 'The server could not write one of this plan’s work items, so nothing was imported.';
     // Proof: omitting this arm made the real import-refusal sentence test throw
     // `Unexpected response variant: object`; watched 2026-10-22.
     case 'external_dependencies_inactive':
-      return 'This server does not accept dependencies between projects yet, so nothing was imported.';
+      return 'This server does not accept dependencies between work packages yet, so nothing was imported.';
     case 'step_blockage_inactive':
       return 'This server does not take blocked steps yet, so nothing was imported.';
     case 'unauthenticated':
@@ -104,8 +129,13 @@ function refusalWords(refusal: PlanImportRefusal): string {
     case 'invalid_origin':
       return 'The server did not trust the page the import came from. Reload, then try again.';
     case 'insufficient_scope':
-    case 'forbidden':
       return 'Your account can read plans here but not import them.';
+    case 'forbidden':
+      // Proof: the settings-permission sentence test received the generic import
+      // prohibition before this permission distinction (catalogue-browser-red-v1).
+      return refusal.permission === 'project.manage_settings'
+        ? 'Adding steps to this project requires project settings permission. Ask a project manager to prepare its steps before importing again.'
+        : 'Your account can read plans here but not import them.';
     case 'no_active_organization':
       return 'Choose an organization before importing a plan.';
     case 'not_a_member':
@@ -122,7 +152,7 @@ function refusalWords(refusal: PlanImportRefusal): string {
     case 'capacity_limit':
       // The numbers are the refusal's own (`wbs-organization-limits` L14).
       // The import dialog reads no resource directory, so the resource is named by its id.
-      return `Organization limit: this plan would state ${String(refusal.asked)} units of ${resourceLabel(refusal.resourceId, undefined)}, which your other projects already state ${String(refusal.declared)} of, past the cap of ${String(refusal.cap)}, so nothing was imported.`;
+      return `Organization limit: this plan would state ${String(refusal.asked)} units of ${resourceLabel(refusal.resourceId, undefined)}, which your other work packages already state ${String(refusal.declared)} of, past the cap of ${String(refusal.cap)}, so nothing was imported.`;
     default:
       return unreachable(refusal);
   }
@@ -147,8 +177,8 @@ function refusalLocation(refusal: PlanImportRefusal): string {
 const CLIENT_FAILURES: Readonly<Record<string, string | undefined>> = {
   invalid_json: 'This file is not JSON.',
   file_read_failed: 'The file could not be read. Choose it again.',
-  imported_project_missing:
-    'The plan was imported, but the new project is not in your list yet. Reload to see it.',
+  imported_work_package_missing:
+    'The plan was imported, but the new work package is not in your list yet. Reload to see it.',
 };
 
 /**
@@ -186,9 +216,9 @@ const nameKey = (name: string): string => name.trim().toLocaleLowerCase();
 
 /**
  * The name an imported plan is created under, so the account never holds two
- * projects the list cannot tell apart.
+ * work packages the list cannot tell apart.
  *
- * The file's name when no project in `taken` uses it (compared without case
+ * The file's name when no work package in `taken` uses it (compared without case
  * or outer spaces); otherwise the name dated with the reader's today, `Review
  * fixture (imported 15 Oct)`, then `(imported 15 Oct, 2)` and on. A name that
  * already ends in an import date is re-dated rather than given a second one.

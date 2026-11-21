@@ -8,10 +8,11 @@ import {
   type RuntimeClaimRequest,
   type RuntimeOperation,
   type RuntimeReceipt,
+  type RuntimeReceipt2,
   type RuntimeWriteRequest,
 } from './index';
 
-const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+const scope = { organizationId: 'org', workPackageId: 'work_package', personId: 'person' };
 const authority = { ownerId: 'owner', generation: 4 };
 const execution = { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' };
 const claim: RuntimeClaim = {
@@ -47,14 +48,14 @@ const write: RuntimeWriteRequest = {
 };
 const digest = 'b'.repeat(64);
 const envelope = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   ledgerId: 'ledger',
   scope,
   commandId: 'command',
   requestDigest: digest,
   actorId: 'account-distinct-from-person',
 };
-const authorityReceipt: RuntimeReceipt = {
+const authorityReceipt: RuntimeReceipt2 = {
   ...envelope,
   acceptance: { kind: 'authority', authority },
 };
@@ -109,7 +110,7 @@ describe('public runtime receipt correspondence', () => {
     expect(matchesRuntimeScope(scope, { ...scope })).toBe(true);
     expect(matchesRuntimeClaim(claim, structuredClone(claim))).toBe(true);
   });
-  it.each(['organizationId', 'projectId', 'personId'] as const)(
+  it.each(['organizationId', 'workPackageId', 'personId'] as const)(
     'rejects independent scope %s mismatch',
     (field) => {
       const changed = { ...scope, [field]: 'other' };

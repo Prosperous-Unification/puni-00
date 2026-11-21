@@ -1,0 +1,576 @@
+{
+  "schema": "puni-shared-step-history-retirement-verification-v1",
+  "recordedAt": "2026-11-20T04:52:30.247Z",
+  "scope": "Retire unused package-definition HTTP request shapes and adapters while preserving Step response compatibility and current admission/history guarantees. The current package values operation remains; no production history algorithm changed.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-package-step-values.controller.db.test.ts",
+      "sha256": "60f05b75d27921ffd83aefa716137dc82b34fa748339c23170588bf2fb520a20",
+      "bytes": 10343,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/package-step-history.controller.db.test.ts",
+      "sha256": "2cbd08a3d258cdc21b63424aba6070703feb7dfa3df39395516687f62bb3d6bb",
+      "bytes": 22303,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/package-step-values-fixture.ts",
+      "sha256": "c9b77997a04ee5facd311b86ebe79be6e3cfec76de80b520afa274d64b883708",
+      "bytes": 6047,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/step-admission.test.ts",
+      "sha256": "a9be83551613fe4fee86b219e307297755579711efe96d13e25403d9392d99ca",
+      "bytes": 8100,
+      "mode": 420
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step/contract.ts",
+      "sha256": "c65f33a9eb334c51905da9455bfb91046ceeed839cd568f25f42223d9f548f0c",
+      "bytes": 1526,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "4d3e37f6f5adc0db7230c095247fba07a538224f50847433c7a153ccf2192d60",
+      "bytes": 577088,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/compensating.ts",
+      "sha256": "eac9414d02035c072c1d5b1ce35280a3f2b8e757ab6e7814cd2c4124dc72205b",
+      "bytes": 73298,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-shapes.ts",
+      "sha256": "30e505b96abebc46230207d056f9483cab63eafeb8a6cff82acbdfe1e0014f6d",
+      "bytes": 4159,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-shapes.test.ts",
+      "sha256": "79d865fb67de16460d49b21bb46cb2436b4863d1acc2831a9d3b068a336c6bf8",
+      "bytes": 4763,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts",
+      "sha256": "8cb4e60ac59fbba162b23a0380f679731bdf0afece023bfffa8cb51dc979eb1d",
+      "bytes": 987,
+      "mode": 436
+    }
+  ],
+  "deleted": [
+    "libs/wbs/application/core/src/http/step.routes.ts",
+    "libs/wbs/application/core/src/http/step.routes.test.ts",
+    "apps/wbs/be-01/src/controller/step.routes.ts"
+  ],
+  "assumptions": [
+    "Existing response code/null/omission, optional allowancePercent and optional workdays/minutes compatibility remain unchanged.",
+    "The shared fixture is the actual composed HTTP/auth/SQLite Source and current catalogue materialization with observed package grants; explicit fixture directory rows are not an inferred runtime scope grant.",
+    "The two original core admission tests retain their former unit-double scope and are not described as mounted authority evidence.",
+    "Retiring eight obsolete core route cases does not discharge their broader domain invariants. Current values and thirteen history tests supply additive evidence; the mixed old SQLite file and original fifteen historical guarantees remain."
+  ],
+  "verification": {
+    "mountedHttpAndMcp": {
+      "phase": "package-step-retirement-http-mcp-final-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-http-mcp-final-v1.receipt.json",
+        "sha256": "a23a35d47b994867353c334632cb9ad1dabdb31d0aee843a4f8b702ee00660b7",
+        "bytes": 1622,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-http-mcp-final-v1.log",
+        "sha256": "79f01d2b2546ba3b4e376a1dc299c55e57f0f1da57cffd02d53eed016bfd829d",
+        "bytes": 14572,
+        "mode": 384
+      },
+      "tests": 67,
+      "assertions": 2153,
+      "files": 4
+    },
+    "contractsAndAdmission": {
+      "phase": "package-step-shared-retirement-contracts-v1",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-contracts-v1.receipt.json",
+        "sha256": "967458dc97b9bcbaeb96fcca34d7423f8d6dafb206df45ec9440c39e20c18d64",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-contracts-v1.log",
+        "sha256": "4240c5292b765c6a711b15aebdecd40a7a7b634bd6be84deef18b3179fc9c6f0",
+        "bytes": 1469,
+        "mode": 384
+      },
+      "tests": 13,
+      "assertions": 38,
+      "files": 3
+    },
+    "currentHistory": {
+      "phase": "package-step-current-history-expanded-v5",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-history-expanded-v5.receipt.json",
+        "sha256": "97c75927464470d9b29a0185e07efeb310a3a20d4d94b7efdd3aeac8379e2d23",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-history-expanded-v5.log",
+        "sha256": "424cef1ae12b415b17db971eaed6ffc75ad9bc4435897bb967663ede6120e91b",
+        "bytes": 3190,
+        "mode": 384
+      },
+      "tests": 13,
+      "assertions": 259,
+      "qualification": "These13 are also included in the final67; do not add the counts."
+    },
+    "sharedExportRed": {
+      "phase": "package-step-shape-retirement-red-v1",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-shape-retirement-red-v1.receipt.json",
+        "sha256": "04c49985e28bc248e34e5dba8965adc37c19d1ef43eb38dcb2b315f8aeea9912",
+        "bytes": 1353,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-shape-retirement-red-v1.log",
+        "sha256": "0d76b53c96251c1fd2e0a100f216ef669ed9fc3182ba461965846b7455fd89e6",
+        "bytes": 1512,
+        "mode": 384
+      }
+    },
+    "checks": [
+      {
+        "phase": "package-step-retirement-types-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v2.receipt.json",
+          "sha256": "27db677f67a555273e7c7d0b049fc7093a04392d8daf5708162ca437b19b3d3a",
+          "bytes": 1352,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-shared-retirement-e2e-types-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-e2e-types-v1.receipt.json",
+          "sha256": "5d058172acb4770b2955aa4e45bf3baea3677641ad099fea0f1e31942ce524f1",
+          "bytes": 1361,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-e2e-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-shared-retirement-lint-final-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-lint-final-v1.receipt.json",
+          "sha256": "c0aa822d3ad8aef4de9fb928fe2f40173a642a076ce9ce9e39b59fb15e0f3e08",
+          "bytes": 2032,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-lint-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-retirement-format-code-v1",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-format-code-v1.receipt.json",
+          "sha256": "7fb3196dfeb3e7555474fc53ef96e3c8f84306885be94125d35ea34eed7673dc",
+          "bytes": 2018,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-format-code-v1.log",
+          "sha256": "195748a1d26a1855e200f4fcbaa30c8e433ff80e35debba87c679b1285741c8c",
+          "bytes": 716,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "package-step-shared-retirement-audit-v2",
+        "exitCode": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-audit-v2.receipt.json",
+          "sha256": "728ef63fd94e49bdab39f8810302c0e6f872971c8be9897abbc648c9e35589b5",
+          "bytes": 1300,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-audit-v2.log",
+          "sha256": "f5ce268a2e83220d6fd400fb8c42bc6d6540997723ad64c030dfd24427926d97",
+          "bytes": 274,
+          "mode": 384
+        }
+      }
+    ],
+    "fullCore": {
+      "phase": "current-core-source-only-v12",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v12.receipt.json",
+        "sha256": "f13148987d2dc6967220500d75ad780ea676a4647a1199094538962e3c697395",
+        "bytes": 14593,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v12.log",
+        "sha256": "0544a950c83455453f166c0674855f45823221261afe739a34db653737b9ba5a",
+        "bytes": 261225,
+        "mode": 384
+      },
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v12.json",
+        "sha256": "7285478c7449d10db05288ab011844a58a884bec64bb89c236f47bb548eceb54",
+        "bytes": 43283,
+        "mode": 384
+      },
+      "tests": 2083,
+      "pass": 2056,
+      "fail": 27,
+      "assertions": 9394,
+      "sourceFiles": 168,
+      "addedFailureNames": [],
+      "removedObsoleteFailureNames": [
+        "a patched allowance runs as the one journalled setStepAllowance command",
+        "a rename sent with an allowance is the batch prelude, and its refusal runs no command"
+      ],
+      "qualification": "Exact168source headers and source hashes verified. Relative to V65, eight obsolete test cases retire6passes+2failures; two admission cases remain in their own file. All27other failure names persist. Aggregate assertions vary with unseeded property shrinking."
+    }
+  },
+  "proofs": {
+    "independentFaults": 6,
+    "selectedFailures": 6,
+    "manifests": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-effects-v1.json",
+        "sha256": "0818c4171dc554f218e4a9d672a286547c6b8ab08040cfd8858d55adcf237138",
+        "bytes": 2613,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-effects-v2.json",
+        "sha256": "9132ae795666a6d3cb52b60da9e1dd7cc825505422a2cd24511782cd166800fb",
+        "bytes": 1496,
+        "mode": 384
+      }
+    ],
+    "effects": [
+      {
+        "id": "unit-equality",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-unit-equality-v1.receipt.json",
+          "sha256": "85213708ed740ce6ee8ff679a8aa881bf6ba782842ff42cc793705edc14438aa",
+          "bytes": 1511,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-unit-equality-v1.log",
+          "sha256": "d024e15d7b6a347b3519a428d59df229d4e8cd73b984e47ec1500e6d7fa6f6d9",
+          "bytes": 1727,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Actual current HTTP/SQLite journal replay: unit mismatch refuses unsafe restore; retained minute metadata preserves lawful chained replay."
+      },
+      {
+        "id": "retained-bindings",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-retained-bindings-v1.receipt.json",
+          "sha256": "314b8ccb836f948f02e74437642f629a386aac54293007ec494e9346f6fb487e",
+          "bytes": 1515,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-retained-bindings-v1.log",
+          "sha256": "e158fcfe064d241950c40668444d29e16d22011155200d7cfef28739a7c3b6ec",
+          "bytes": 1793,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Actual current HTTP/SQLite journal replay: unit mismatch refuses unsafe restore; retained minute metadata preserves lawful chained replay."
+      },
+      {
+        "id": "subtree-bindings",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-subtree-bindings-v1.receipt.json",
+          "sha256": "63efa20284941e4c15ba5d22f14ee4d0290f3c291b987bfd3d12cad107ef99bb",
+          "bytes": 1512,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-subtree-bindings-v1.log",
+          "sha256": "2c7280cdd1781b5b23306f16ea424f705b0378556ff7275c263668929595e3c0",
+          "bytes": 1725,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Refusal precedence only: omitting the census changes stale_undo to step_blockage_inactive. No active structural replay or unsafe mutation proof is claimed."
+      },
+      {
+        "id": "batch-bindings",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-batch-bindings-v1.receipt.json",
+          "sha256": "d38b731bd51f3f7e19a962e251fa8dd1ee841ce90ce5dccb8c333e4f8516ab9f",
+          "bytes": 1532,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-batch-bindings-v1.log",
+          "sha256": "c8febe037ea91141e5306807a07bbe8a43ec96257b6f9d61f6d599be71d4b26a",
+          "bytes": 1884,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Refusal precedence only: omitting the census changes stale_undo to step_blockage_inactive. No active structural replay or unsafe mutation proof is claimed."
+      },
+      {
+        "id": "present-unit-coverage",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-present-unit-coverage-v1.receipt.json",
+          "sha256": "492de44a96722f75a4118dc54177d553373aa71fce2f5033074184c8ae178d11",
+          "bytes": 1534,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-present-unit-coverage-v1.log",
+          "sha256": "e65084e7bbd313620d3eeefbad98d67900263bd75f02ee63f54e972a6c741ecb",
+          "bytes": 2466,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Authored persisted-unit receiver boundary over real current HTTP/SQLite Source. No genuine pre-unit producer evidence is claimed."
+      },
+      {
+        "id": "authored-workday-boundary",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-authored-workday-boundary-v1.receipt.json",
+          "sha256": "591acda92ae2153511515ef6f723df0af175c588b32b46d819e3de492e100ca4",
+          "bytes": 1542,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-fault-authored-workday-boundary-v1.log",
+          "sha256": "dbd45d800f2f6e88a340a60ba6fa628291f2fe95525202fa42d21a1150de2247",
+          "bytes": 3223,
+          "mode": 384
+        },
+        "selectedFailures": 1,
+        "canonicalRestored": true,
+        "classification": "Authored persisted-unit receiver boundary over real current HTTP/SQLite Source. No genuine pre-unit producer evidence is claimed."
+      }
+    ],
+    "emissions": [
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "sha256": "4d3e37f6f5adc0db7230c095247fba07a538224f50847433c7a153ccf2192d60",
+          "bytes": 577088,
+          "mode": 436
+        },
+        "capturedSourceSha256": "8a65e0e5566d36f492bce6b01517fa473c84b8780f17a8d44286155325491b8a",
+        "canonicalEmissionMatched": true,
+        "emittedSha256": "0e635e7a186a2ad76a3bf2fd34f523784e118ef30c68c0ee5019549d772ac24f"
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/compensating.ts",
+          "sha256": "eac9414d02035c072c1d5b1ce35280a3f2b8e757ab6e7814cd2c4124dc72205b",
+          "bytes": 73298,
+          "mode": 436
+        },
+        "capturedSourceSha256": "49241e6b41bdd49b47c6ef49630b79a758e987e76c8304fdce0c6a56a9c1a632",
+        "canonicalEmissionMatched": true,
+        "emittedSha256": "39bd61edf192984b60412e237b714e93546732950027beee5a592e1d00abdf1c"
+      }
+    ],
+    "qualification": "Every selected fault actor stopped/reaped with closed descriptors before canonical restoration. The final mounted67 and source-only core epoch ran after restoration/comments. Emission equality proves history runtime algorithms unchanged by proof comments/formatting."
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v1.json",
+    "sha256": "6f5f23441200d226233428e949b1c3a9fe8977e107cee9d7ca302b0d19f467a2",
+    "bytes": 1852100,
+    "mode": 384
+  },
+  "caseInventory": {
+    "previous": [
+      "publishes a granted dependent write only after its unit of work commits",
+      "scoped step service preserves exact grant scope actor coherence and working-plan lifetime",
+      "typed step bindings preserve the service value, actor and trimmed name",
+      "typed name bindings preserve every modeled service refusal without a status fallback",
+      "typed name bindings refuse both actors on a restricted legacy package",
+      "typed removal carries every usage field and only literal true confirms cascade",
+      "typed removal preserves work package refusals and unknown repository failures reject",
+      "adds a step with the allowance it names, and refuses one with three decimals",
+      "a patched allowance runs as the one journalled setStepAllowance command",
+      "a rename sent with an allowance is the batch prelude, and its refusal runs no command"
+    ],
+    "preserved": [
+      "publishes a granted dependent write only after its unit of work commits",
+      "scoped step service preserves exact grant scope actor coherence and working-plan lifetime"
+    ],
+    "retired": [
+      "typed step bindings preserve the service value, actor and trimmed name",
+      "typed name bindings preserve every modeled service refusal without a status fallback",
+      "typed name bindings refuse both actors on a restricted legacy package",
+      "typed removal carries every usage field and only literal true confirms cascade",
+      "typed removal preserves work package refusals and unknown repository failures reject",
+      "adds a step with the allowance it names, and refuses one with three decimals",
+      "a patched allowance runs as the one journalled setStepAllowance command",
+      "a rename sent with an allowance is the batch prelude, and its refusal runs no command"
+    ],
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/step-admission.test.ts",
+      "sha256": "a9be83551613fe4fee86b219e307297755579711efe96d13e25403d9392d99ca",
+      "bytes": 8100,
+      "mode": 420
+    }
+  },
+  "retainedLegacyController": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+    "sha256": "d4ee9d24d9d9a747ac3ad39ee383902dab294404fd6c2da33611bbfde70948f0",
+    "bytes": 78152,
+    "mode": 436
+  },
+  "priorAttempts": {
+    "attempts": [
+      {
+        "phase": "package-step-retirement-types-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v1.receipt.json",
+          "sha256": "d853fd465c6aba631a807539adb7f4a8f8d46d42072120b2e62737246059577b",
+          "bytes": 1354,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v1.log",
+          "sha256": "feed0cd8464acf4982f1ae1b8a40b45cbe22d568099f27eebbfa105f045ac439",
+          "bytes": 446,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-history-lint-fix-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-lint-fix-v1.receipt.json",
+          "sha256": "d511243b25c1cdeb7855eaccaceeca08f82ebb3d68d365b82ab74b39bc781df1",
+          "bytes": 1554,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-history-lint-fix-v1.log",
+          "sha256": "7ca92e2224e3462037e6452c5831967d7ebb92276b9f284d76591aa0af6c33c2",
+          "bytes": 233,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-current-history-expanded-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-history-expanded-v2.receipt.json",
+          "sha256": "994ca11200c73ffdbc036e0998070160beff862cd79f749419e48546431db102",
+          "bytes": 1379,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-current-history-expanded-v2.log",
+          "sha256": "0e27426ce9891c2aa9f7b568cd8f275c9906d316c9ac5d3437c7b8d4eea4ce67",
+          "bytes": 2336,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-retirement-core-suite-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-core-suite-v1.receipt.json",
+          "sha256": "18b4c90cddc19d7519b18afc7271b1a1dbb20ed0dbf0e1a6ba0d622e856c5284",
+          "bytes": 1332,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-core-suite-v1.log",
+          "sha256": "2bbd9acc68e54391d87680fb2dd1001e4705af95e978d27de187c4d277794bd5",
+          "bytes": 342507,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-shared-retirement-audit-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-audit-v1.receipt.json",
+          "sha256": "5b8d2bdb833653a5c7d8a5c533956975919b55394a3099d0eae4f068cd387cd6",
+          "bytes": 1300,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-audit-v1.log",
+          "sha256": "a6d8723a6f451f9d4d9682edf2977ca7c757c75a5e1b7b3f16e2deab139a75c1",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      {
+        "phase": "package-step-shared-retirement-evidence-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-evidence-v1.receipt.json",
+          "sha256": "90cb4f0ab233564de699b4f7b8ad9dcc47838b0bfdc62ac176b53153d55a34d5",
+          "bytes": 1309,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-shared-retirement-evidence-v1.log",
+          "sha256": "5a08b5add7458de76631f59df161a7e86e417e42a547f5651bf54aa7966349f1",
+          "bytes": 833,
+          "mode": 384
+        },
+        "exitCode": 1
+      }
+    ],
+    "qualification": "Initial history query incorrectly sorted plan_event by nonexistent seq; corrected to id. Fixture extraction narrowed default seed parameter literals and optional charged projection; explicit string parameters/optional access fixed. Initial helper lint required a non-async Promise return. The first broad core filter repeated the earlier emitted-JS collection mistake:2181pass186fail141errors/336files is retained as a mixed-source failed attempt, not compared as a core baseline; explicit168source rerun is authoritative. Native audit PATH omitted rg; use the observed absolute rg executable, then audit6023source files passed."
+  },
+  "pending": [
+    "The mixed old step.controller.db.test.ts remains byte-identical and still fails its public-migrator117 bootstrap. Current-history coverage is additive; retained first/last-child arrays, removed-step applicability/undo, old producer metadata, allowance batching and other current guarantees still need complete explicit mapping before legacy cases are retired.",
+    "Actual current structural replay still returns step_blockage_inactive; the two recursive census faults prove refusal precedence only. No fabricated activation flag or Source was used to claim replay success.",
+    "All original fifteen historical guarantees, thirteen fact families, SC17/SC18 writer/read/applicability closure and frozen history bytes remain required. The current source-only core run is failed:2056pass27fail.",
+    "Private fixture migration/custody is not operator activation admission. Node assertion equivalence and every retained helper assertion have not each received independent omission proofs; only the previously recorded close-custody guard has one.",
+    "Astra quota remains unavailable until recorded November22,2026 10:09AM, timezone unspecified. Current fixture extraction/history classification/shape retirement and old-core case preservation await requested review; no retry or substitute.",
+    "All original PUNI/Optique1.3.6 aliases, complete Bun client-surface inventory, real installed clients/toolchain, full frontend/browser/visual and immutable exact-SHA host gate/integration/release scope remain active."
+  ]
+}

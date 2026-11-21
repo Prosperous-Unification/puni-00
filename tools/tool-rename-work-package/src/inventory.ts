@@ -70,6 +70,14 @@ export function schemaInventory(migrations: readonly string[]): InventoryRow[] {
             (each.sql ?? '').includes('project'),
         ).length,
       },
+      // Proof: span-view-inventory reporting zero named allocator views failed "counts the schema objects that name the old word" (inventory.test.ts); restored GREEN.
+      { surface: 'views named project', count: named('view') },
+      {
+        surface: 'views whose body names project',
+        count: objects.filter(
+          (each) => each.type === 'view' && (each.sql ?? '').includes('project'),
+        ).length,
+      },
       { surface: 'triggers named project', count: named('trigger') },
       {
         surface: 'triggers whose body names project',

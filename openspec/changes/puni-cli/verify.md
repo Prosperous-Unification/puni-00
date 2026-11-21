@@ -884,3 +884,177 @@ Configured Prettier covered only archive.ts/archive.test.ts. Current four CLI ty
 New toolkit3 controls pass4/72 assertions, and historical toolkit/release controls pass87/131. New execution retains explicit committed revision/tree or working base/capture identity. The runtime reader checks independently selected complete identity; committed-only reading refuses working source. Historical schema1/2 serialization and execution boundaries remain explicit. No new profile or release consumer is certified by these helpers alone.
 
 Seven single-check effects each have a passing selected baseline, actual missing-throw fault, exact restoration after known native custody, and passing same-selection after control. They cover reference agreement, complete expected identity, committed-only admission, required committed tree/working capture identity, and the two closed-key branches. The first reference flight's false classifier is retained: Bun rendered the no-argument toThrow() spelling, and a separate independent annotation confirms the printed mismatched reference/selection and known restoration without rerunning it. The remaining six use the corrected diagnostic matcher. Added Proof comments credit these first oracles only. Other schema3 format/runtime/pattern/absence checks, working-capture safeguards and cancellation/disposition safeguards still require their own controls. Full0.4 profile/producer/assets/source and source-removed installed checks, four actual Nx clients, the complete client-surface Bun inventory, combined WBS integration and exact-commit host gate remain open.
+
+## Complete WBS and CLI input integration — 2026-11-19
+
+The private proposal combines all2556WBS and206CLI physical changes, resolves12ordinary merge conflicts, and preserves the typed PUNI policy parser, installed caller-directory context and separate historical binding acceptance. The original version1 step-list transport remains accepted after closed validation; manifest requests reach all three Burokrat aliases. Dash now admits the actual current ordinary WBS service producer and retains the independently owned Bun/Vite execution path and per-invocation database.
+
+The combined12-file integration selection passes1578tests/2621assertions; mounted catalogue API passes37/1947. ThreeCLI, backend, frontend/MCP/gateway and tool-devsync compiler controls pass at their recorded epochs. Dedicated import, formatting and descriptor controls pass. Twenty-nine bounded omission effects restore exactly:9current request,5legacy transport,4service admission and11source-client policy controls.
+
+The complete Performance file first records65pass/2fail/633assertions. Both stale synchronous fault observers are repaired through actual child injection; their targeted rerun passes2/40 and requires all five fault markers. No fresh whole67-pass claim follows. Current memory Source remains84pass/2fail/11275assertions, covering package/WPS creation, legacy step operations and custom-measure ownership. The full original scope, Astra review, unchanged blocked archive refinement, installed/client/script closure and exact committed host gate remain open. No parent task checkbox or release follows.
+
+[Commands, native receipts, bounded effects, source identities and limits](verification-entities-integration-20261119.json).
+
+The following bounded Memory package-birth repair passes86focused tests/2607assertions, the memory compiler root and changed-file lint/format. [Its WBS record](../wbs-step-catalogue/verification-memory-package-birth-20261119.json) owns the nine finite fault injections and remaining84pass/2fail whole-Source contract cutover. The full integration and original PUNI/entity scope remain open.
+
+## 2026-11-21 — native output environment correction
+
+The V111 pipe-backed CLI69/13 and original-probe failures are restricted-environment observations,not defects in CLI runtime output. The unchanged CLI parser passes82/0 and saved original probes pass102/0 with approved unrestricted local execution. The unnecessary generated-probe writeSync changes are reverted while all Compose coverage remains. Current product IO,ownership and historical identities remain unchanged.
+
+Two exact copied-source Git status/warning omissions demonstrate false greens under restriction and required-rejection failures outside it. Diagnostic successors observe earlier rev-parse EPERM before the named fault. Details and the excluded/denied trace attempts live in [the incident catalogue](../../../docs/findings/checks-that-cannot-fail.md); [the evidence record](../puni-cli/verification-native-output-environment-20261121.json) binds current commands,source and outcomes. Earlier records retain their original observations; their CLI-defect interpretation is superseded.
+
+The full original entities/PUNI goal remains active. This environment qualification does not prove installed clients,complete inventory/container/native ownership,all13 fact families/all15 historical guarantees,Astra review,performance/history fixes,host gates or delivery. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified; no retry/substitute/new agent occurred.
+
+The final proper-native combined cohort passes244 tests across4 files with585 assertions. The unchanged30×300-row rollup fixture independently retains a real performance failure: space16.8ms,cold1243.0ms,warm985.3ms against400ms,canonical presentations20cold/0warm. Its preceding equality/leaf/scan checks reach the timing bound;workload,authority and120/400ms limits remain intact. No performance candidate is revived.
+
+### Current PAX and dependency transport — 2026-11-21
+
+The existing independently reviewed required-long regular-file PAX correction is now applied after renewed explicit goal authorization and fresh34 first controls (26pass/8fail). Current35 archive and18 selected-copy controls pass53/0 with305assertions. The full PUNI production/test TypeScript build and four-owner lint pass. [The compact record](verification-pax-transport-20261121.json) retains exact source/review identities, receipts,21 independently failing and restored finite controls, and two excluded survivors.
+
+The real build/pack/add advances beyond archive admission, then exposes10 transport-omitted metadata paths (54047produced/54037installed;0changed/0added). The producer now excludes those exact observed paths before selected/copied fingerprints; actual Bun pack preserves the resulting hash. Broad filename omissions remain forbidden and tested. No historical evidence or dependency-corruption check is rewritten.
+
+The next actual package attempt passes those two boundaries and stops during source import (3pass/1fail,37assertions,54.80s). Arkregex is already in the authenticated closure; physical trusted-node-modules placement breaks sibling resolution. Copying the same authentic Ark packages into a canonical node_modules directory imports and validates successfully, but does not qualify shipped/source toolchain layout. That implementation and all downstream Browser/Performance/alias/four-Nx clients remain open.
+
+The seven old local-installer controls all stop at a stale healthy historical package-metadata prerequisite, refused correctly by current0.4. Their later negative tails are unreached; upgrade the fixture before granting them credit. Task2.1c/3.1f.5 and every parent/full-goal requirement remain unchecked. Formal Astra/combined review, exact-SHA clean h2/h4 gates and authorized delivery remain required.
+
+### Current canonical toolkit layout — 2026-11-21
+
+Current unreleased0.4/toolkit3 now carries its authenticated closure at `toolkit/node_modules`; explicit historical1/2 readers retain their original directory. Producer, verifier, source/installed runtime and preparation inputs share the same selector. Current/historical toolkit and full PUNI boundary regression pass168/0 (479assertions), six real Vite/Playwright vectors pass6/0 (105assertions), and18 changed TypeScript roots plus19-owner lint pass. Five layout and six import-policy mutations each fail their own oracle and pass after exact restoration. [The evidence record](verification-canonical-layout-20261121.json) preserves source pins, receipts, failures and scope limits.
+
+A retained authenticated local package runs source/installed Browser and Performance2/0 (103assertions), and all eight public spellings perform real operations8/0 (34assertions) with producer source/output absent and hostile startup disabled. These controlled mini-service fixtures do not qualify real WBS browser/performance or all four Nx clients. The first complete package attempt reaches352 assertions and Forge before its300s aggregate harness expires; it remains3pass/1fail/1error and retains its namespace. Only the aggregate budget changes to600s; individual native and ownership limits stay unchanged. The final complete package native exit is 1, recorded separately without crediting unreachable tails.
+
+Task2.1c/3.1f.5 and parent tasks remain open: upgrade seven stale local-installer prerequisites, complete actual four-Nx/caller coverage and the Bun client-surface migration, obtain formal Astra review, and run exact-SHA clean host gates before authorized delivery. All nine original goal requirements remain.
+
+The next bounded diagnostic measures full verification of the genuine178MiB archive at6.56s/6.51s. Forge performs repeated verification before install. A separate90s observation of the actual installed entry reaches its expected explicit frozen-install refusal in27.329s, exit65, with the native owner stopped/reaped and descriptors closed. This explains why the20s package-test owner expires; it does not make that owner pass or qualify later clients. Keep its measured cost and every safety recheck when resolving the fixture budget.
+
+### Current installer and complete local client package — 2026-11-21
+
+The fresh complete build/pack/add suite passes4/0 with507assertions (355.15s). It executes source/installed Browser and Performance, real local provisioning, Forge frozen-install refusal, development package aliases, generated MCP headers and the final asset-tamper/service cases. Only the measured Forge test observer changes20s→60s; production20s stop grace remains unchanged. [The evidence record](verification-installer-clients-20261121.json) retains all diagnostics, source pins and scope limits.
+
+Current local-installer fixtures now supply actual schema3/0.4 healthy prerequisites before their negative tails:7/0,137assertions, plus current selected-source record1/0,13assertions. Six admission/metadata boundary faults each reach their forbidden child marker and pass after exact restoration. The broader installer/Source2/Forge file passes119/0 with1198assertions after a frozen physical dependency installation replaces only the isolated proposal symlink. Source2 code/version pins are unchanged; unknown-name/version and ownership mutation controls still run. Three-owner lint/type checking pass.
+
+The retained archiveSHA256 is `3958406dc9964ecb352dd6d0452865b33f088899cc93a4a39aedd4df987d794c`. A real packaged `puni d install-puni` installs it separately with a schema2 record; all eight public spellings then pass actual operations8/0,34assertions with the producer/output absent and hostile startup disabled. This is a controlled integration fixture: the test capture substitutes its fixed canonical mutex literal. It is not a production/default artifact or real-host lock proof. Mini-service Browser/Performance and controlled-Nx development tests do not replace real WBS/four-Nx acceptance.
+
+Task2.1c/3.1f.5 and parents remain open for formal Astra review, remaining actual clients, complete Bun/client-surface migration and exact-SHA host gates/delivery. All nine original goal requirements remain.
+
+## V123 — embedded backend deployment probe
+
+[Native receipts, source bridge and eleven finite pairs](verification-backend-probe-20261121.json)
+record `puni dash|d dev-probe be ORIGIN`. The typed PUNI-only leaf uses Bun HTTP,
+requests anonymous auth, refuses redirects and bounds headers/body consumption to
+15seconds. HTTP200, explicit null user, boolean deployment features and the
+organizations→onboarding invariant are required. Standalone Dash keeps its grammar.
+
+The corrected feature RED is7pass/23fail before implementation. Final source/root
+parser checks pass114/0 in2files, and the actual standalone Dash suite passes134/0.
+Five changed code roots pass types, lint and format. All343OpenSpec entries validate.
+The fresh real build/pack/add session passes4/0 with549assertions in338.17s. After
+producer checkout/output removal, six actual protected executable invocations exercise
+both aliases against healthy, HTTP201 and authenticated loopback responses, with no
+authorization/cookie headers, curl, Bash or Node executable dispatch.
+
+| Boundary    | Injected production fault                                                                | Observed negative and restoration                                                                                                                                 |
+| ----------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity    | Omit validation, null-user check, either feature type or feature dependency (5 variants) | Its invalid response succeeds and fails the named refusal assertion; each passes restored. Envelope omission does not prove every record predicate independently. |
+| HTTP status | Skip HTTP200 check                                                                       | HTTP201 with a valid identity succeeds and fails refusal; passes restored.                                                                                        |
+| Redirect    | Follow the actual302                                                                     | Probe succeeds through the redirect and fails refusal; restored case also observes zero target requests.                                                          |
+| Deadline    | Omit the request abort                                                                   | The fixture's20s release returns success and fails refusal; restored request aborts after15s.                                                                     |
+| Endpoint    | Request the wrong route                                                                  | Actual captured request path differs and fails; passes restored.                                                                                                  |
+| Dispatch    | Skip the typed root route                                                                | Actual anonymous success case fails; passes restored.                                                                                                             |
+| Grammar     | Remove blank-origin pattern                                                              | Runtime admission fails the expected usage-refusal assertion; passes restored.                                                                                    |
+
+Every actor settles/reaps/closes before byte/mode restoration. Current production
+structure, including operators, flags and literal text, matches all observed
+beforeimages after proof comments/formatting; each of the11 observed variants differs.
+
+The disk-backed package attempt fails ENOSPC before installed assertions. An actual
+native executable probe qualifies owned memory-backed temporary placement; physical
+dependencies and Source2 guards stay unchanged. The first memory run reaches a new
+fixture's wrong undefined signalCode assertion; a separate native async-child control
+confirms null, and only that test literal changes before the fresh passing run. These
+failed attempts are retained and receive no later-assertion credit. The accidentally
+requested nonexistent standalone parser test was ignored by Bun:114/0 is explicitly
+two files, and134/0 is the separate real standalone owner.
+
+The package retains the controlled mutex and mini-service/Nx fixture limits fromV119.
+The old backend-probe shell/deployment caller, MCP probes, complete inventory and all
+real clients remain open. Formal Astra review remains pending at its recorded limit.
+PR917 is still open/draft atb0d2df4 onfeat/puni-entities-cli. No public commit, push,
+PR update, merge, deployment, activation, host gate or parent/goal completion follows.
+
+## V124 — repository deployment caller uses the installed backend operation
+
+[Native checks, source identities and scoped failure proofs](verification-backend-caller-20261121.json)
+record the protected Bun `bin/dev-be-probe.ts` adapter. Manual deployment checks the
+explicit absolute selected PUNI backend grammar silently before its Git/SSH work,
+then uses the same embedded operation for health. The old backend Bash probe is
+removed; remaining deployment/MCP Bash logic stays visible migration work.
+
+All48caller/adapter/health tests pass223assertions in4.50s. The real complete
+build/pack/add session passes4/0 with558assertions in347.82s, including the actual
+repository adapter preflight and HTTP health through installed main after deleting
+the producer checkout/output. The operator source caller remains intentionally;
+this is not a standalone packaged-adapter or live remote deployment claim. Scoped
+types, effective lint, deployment shellcheck and all343OpenSpec entries pass.
+
+| Boundary           | Observed fault and restoration                                                                                                                                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Selection          | Existing relative selection imports successfully when absolute admission is removed; restored refusal passes. Regular/readable and main7 cases own explicit diagnostics, while later native import/apply may still refuse.                                                                                         |
+| Completion         | Whole validation omission admits status256 and exits0. Restored case refuses1; no per-conjunct omission claim follows.                                                                                                                                                                                             |
+| Preflight          | Removing silence exposes help bytes; removing selected-grammar status admission reaches the retained timer deadline. Both controls pass restored.                                                                                                                                                                  |
+| Invocation         | Wrong fixed purpose and late argv lookup change the captured actual vector; restored ABI cases pass.                                                                                                                                                                                                               |
+| Lifetime/reporting | Omitting explicit exit/failure termination reaches controlled native kill deadlines; late stderr factory loses its diagnostic; wrong error classification exposes the private failure. Each own assertion fails and passes restored. These do not prove arbitrary descendant absence or abandoned-output flushing. |
+| Import             | Removing executable-only admission performs ambient dispatch/status assignment; restored library import remains inert.                                                                                                                                                                                             |
+| Deployment         | Removing early admission reaches controlled SSH without selection; skipping later health reports healthy after selected37. Restored caller cases reject correctly.                                                                                                                                                 |
+| Startup            | Six startup erasure/configuration variants fail their own native controls. Two stronger valid preload payloads actually create their markers under omitted erasure, then pass restored. NODE_OPTIONS/BE_BUN own erasure only.                                                                                      |
+
+There are22distinct current variants and24qualified flights, not34. The first driver
+restores before rejecting a genuine custom-message assertion after10pairs; its stale
+liveFault label does not describe an active mutation. The complete current epoch
+reruns22 after the private predicate rename. Two valid no-space startup payloads
+strengthen existing variants. Current TypeScript structure plus exact shebang matches
+the observed beforeimages; the Bash caller differs only by its two exact proof-note
+insertions. Source/mode restoration follows settled/reaped/closed native ownership.
+
+The wider workspace run remains77pass/2fail: agent-output env is absent on e2e-local,
+and broader WBS/CLI cached tests omit fixture inputs. Two reported tools/libs paths
+are frontend configuration text, not real files there; neither phantom declarations
+nor scanner exemptions are accepted fixes. Frozen frontend fixtures contain two
+configuration tuples crossed with five package/lock epochs, distinct from the current
+working frontend config. Those historical pins/captures stay unchanged.
+
+Fresh discovery remains803sites/583unresolved, now72shell/387unknown; native Bun
+execution does not silently qualify its protected env-S shebang in the static
+collector. Complete inventory/Bun/client closure, actual WBS/four-Nx acceptance,
+error-accessor repair, pending Astra, full original requirements, exact-SHA clean
+host gates and delivery remain open. No public commit, push, PR update, merge,
+deployment, activation or parent/goal completion follows.
+
+### 2026-11-21: bounded Nx repair and implementation pause (V125)
+
+The two V124 workspace failures are repaired without relaxing the checker:
+ordinary/unit WBS tests and Navigator declare their fixture/provider inputs;
+`e2e-local` declares agent-output settings. Two frontend configuration-text paths
+are calculated relative to `apps/wbs/fe-01`, preserving their exact values while
+avoiding phantom `tools/libs` input declarations. All other metadata semantics
+and every existing assertion remain unchanged.
+
+The combined workspace/backend caller regression now passes **79/0, 331
+assertions**. The changed test's ESLint and scoped TypeScript checks exit 0.
+`verification-nx-inputs-20261121.json` records commands, receipt identities,
+the exact metadata/text audit and the separate frozen-frontend failure.
+
+The 22 selected frozen-frontend cases fail before their intended assertions at
+`frontend fixture inputs unsupported`. A baseline run with all seven V125 edits
+absent reproduces that refusal, then restores every byte and mode. Preparation
+reads the current repository inputs before admitting a known tuple; two retained
+frontend configurations are crossed with five package/lock epochs. The earlier
+V124 note did not establish independence from the current root configuration.
+Neither historical pins/profiles nor the input guard were changed. These 22 cases
+remain unverified beyond setup, rather than passing evidence for this repair.
+
+At the user's instruction, implementation stops after this bounded repair. The
+broader goal remains **paused**. The proposed restart order is recorded in
+`docs/superpowers/plans/2026-11-21-puni-completion-replan.md`; writing that plan
+does not execute it. No full gate, public commit, push, PR update, merge,
+deployment, activation or original-scope completion is claimed.

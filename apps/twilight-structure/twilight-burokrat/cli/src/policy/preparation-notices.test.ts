@@ -76,11 +76,17 @@ it('refuses repinned altered compiler notice bytes before normal output ownershi
 it('models compiler-free toolkits explicitly while refusing an incomplete selected compiler roster', () => {
   const root = mkdtempSync(join(tmpdir(), 'puni compiler-free notices '));
   roots.push(root);
-  expect(readPreparationNotices({ directory: root, trustedNodeModules: [] })).toEqual({
+  expect(
+    readPreparationNotices({ directory: root, schemaVersion: 2, trustedNodeModules: [] }),
+  ).toEqual({
     kind: 'compiler-free',
     notices: [],
   });
   expect(() =>
-    readPreparationNotices({ directory: root, trustedNodeModules: ['typescript'] }),
+    readPreparationNotices({
+      directory: root,
+      schemaVersion: 2,
+      trustedNodeModules: ['typescript'],
+    }),
   ).toThrow('preparation compiler roster is incomplete');
 });

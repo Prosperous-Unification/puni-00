@@ -9,7 +9,7 @@ import { executionCheckpoint, isExecuting } from './plan-execution';
 import { equalRecords } from './record-codecs';
 import type { ArtifactRef } from './records';
 import type { RunStore, ScopedAttemptGuard, StoreRefusal } from './run-store';
-import { equalRuntimeScopes, readRuntimeRequest } from './runtime-codecs';
+import { equalRuntimeScopes, mapCurrentScope, readRuntimeRequest } from './runtime-codecs';
 import { readRuntimeHistory } from './runtime-history';
 import { readRuntimeStateArtifact } from './runtime-state';
 import { ArtifactRefCodec } from './value-codecs';
@@ -84,7 +84,10 @@ export async function buildWriteRequest(
   if ('kind' in claim || claim.action.kind !== 'claim')
     throw new Error('write builder retained claim differs');
   const { kind: _kind, ...target } = claim.action;
-  const canonicalRequest = canonicalRuntimeRequest(capturedGuard.scope, {
+  // Proof: dash-write-fresh-current-scope: passing local scope directly to the current write encoder.
+  // 'write builder uses actual fresh state basis and exact approved batch without mutation' failed; exact restoration passed.
+  // Current producer/schema consistency failure; envelope2/body1 stays required.
+  const canonicalRequest = canonicalRuntimeRequest(mapCurrentScope(capturedGuard.scope), {
     schemaVersion: 1,
     commandId: captured.commandId,
     expectedLedgerId: scope.pin.ledgerId,

@@ -1,0 +1,110 @@
+{
+  "schemaEpoch": 110,
+  "qualification": "Exact historical metadata tokens only; never a whole-line allowance for table/column references",
+  "constraintLabels": [
+    {
+      "object": "calendar_marker",
+      "name": "fk_calendar_marker_project_id_project_id_fk"
+    },
+    {
+      "object": "command_journal",
+      "name": "fk_command_journal_project_id_project_id_fk"
+    },
+    {
+      "object": "dependency",
+      "name": "fk_dependency_project_id_project_id_fk"
+    },
+    {
+      "object": "optimization_generation",
+      "name": "fk_optimization_generation_project_id_project_id_fk"
+    },
+    {
+      "object": "optimized_schedule_cache",
+      "name": "fk_optimized_schedule_cache_project_id_project_id_fk"
+    },
+    {
+      "object": "plan_event",
+      "name": "fk_plan_event_project_id_project_id_fk"
+    },
+    {
+      "object": "saved_plan",
+      "name": "fk_saved_plan_project_id_project_id_fk"
+    },
+    {
+      "object": "solver_queue",
+      "name": "fk_solver_queue_project_id_project_id_fk"
+    },
+    {
+      "object": "solver_slot",
+      "name": "fk_solver_slot_project_id_project_id_fk"
+    },
+    {
+      "object": "step",
+      "name": "fk_role_project_id_project_id_fk"
+    },
+    {
+      "object": "work_item",
+      "name": "fk_work_item_project_id_project_id_fk"
+    },
+    {
+      "object": "work_package",
+      "name": "project_optimization_enabled"
+    },
+    {
+      "object": "work_package",
+      "name": "project_schedule_engine"
+    },
+    {
+      "object": "work_package",
+      "name": "project_schedule_objective"
+    },
+    {
+      "object": "work_package",
+      "name": "fk_project_owner_id_users_id_fk"
+    },
+    {
+      "object": "work_package_abbreviation",
+      "name": "project_abbreviation_grammar"
+    },
+    {
+      "object": "work_package_access",
+      "name": "fk_project_access_user_id_users_id_fk"
+    },
+    {
+      "object": "work_package_access",
+      "name": "fk_project_access_project_id_project_id_fk"
+    },
+    {
+      "object": "work_package_priority_band",
+      "name": "fk_project_priority_band_project_id_project_id_fk"
+    },
+    {
+      "object": "work_package_resource_capacity",
+      "name": "project_resource_capacity_units"
+    },
+    {
+      "object": "work_package_team_capacity",
+      "name": "fk_project_team_capacity_project_id_project_id_fk"
+    },
+    {
+      "object": "work_package_team_capacity",
+      "name": "fk_project_team_capacity_service_team_id_service_team_id_fk"
+    }
+  ],
+  "comments": [
+    {
+      "object": "work_package_abbreviation",
+      "text": "-- removing cascade prevented project deletion in `counter refuses malformed ordinals` (2026-10-22)."
+    }
+  ],
+  "literals": [
+    {
+      "object": "organization_invitation_initial_access",
+      "text": "'{\"kind\":\"role\",\"roleId\":\"project-contributor\"}'"
+    },
+    {
+      "object": "organization_invitation_initial_access",
+      "text": "'{\"kind\":\"role\",\"roleId\":\"project-viewer\"}'"
+    }
+  ]
+}

@@ -14,8 +14,10 @@ import {
 } from '@wbs/store-sqlite/connected-question-identity';
 import { openConnection } from '@wbs/store-sqlite/db';
 import { optimizedScheduleCache } from '@wbs/store-sqlite/schema';
+import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { expect, test } from 'bun:test';
 
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { captureMixedFixture, captureSavedConnectedFixture } from './saved-plan-connected.fixture';
 
 test.each(['isolated', 'shared'] as const)(
@@ -23,7 +25,7 @@ test.each(['isolated', 'shared'] as const)(
   async (mode) => {
     const captured = await captureSavedConnectedFixture(mode);
     const prepared = captureConnectedHistory(captured, 'a1');
-    expect(readSavedPlanInput(prepared.input, 10)).toEqual(prepared.input);
+    expect(readSavedPlanInput(prepared.input, 13)).toEqual(prepared.input);
     const history = prepared.input.dependencyHistory;
     if (history.kind !== 'connected') throw new Error('connected history expected');
     expect(history.mode).toBe(mode);
@@ -33,8 +35,8 @@ test.each(['isolated', 'shared'] as const)(
       'hb',
     ]);
     expect(
-      history.projects
-        .find((project) => project.projectId === 'a1')
+      history.workPackages
+        .find((workPackage) => workPackage.workPackageId === 'a1')
         ?.steps.map((step) => step.code),
     ).toEqual(['design', 'test']);
     expect(
@@ -48,18 +50,18 @@ test.each(['isolated', 'shared'] as const)(
       placement.stages.map((selection) => canonicalConnectedStageInput(selection.stage)),
     );
     const bytes = serializeSavedConnectedScheduleBody(prepared.schedule.body);
-    Map.prototype.clear.call(captured.metadataByProject);
+    Map.prototype.clear.call(captured.metadataByWorkPackage);
     expect(serializeSavedConnectedScheduleBody(prepared.schedule.body)).toBe(bytes);
   },
 );
 
 test.each([
-  ['project', 'name', 'Old project'],
-  ['project', 'abbreviation', 'OLD'],
-  ['project', 'startDate', '2026-09-01'],
-  ['project', 'scheduleEngine', 'optimized'],
-  ['project', 'scheduleObjective', 'time'],
-  ['project', 'optimizationEnabled', true],
+  ['work_package', 'name', 'Old work package'],
+  ['work_package', 'abbreviation', 'OLD'],
+  ['work_package', 'startDate', '2026-09-01'],
+  ['work_package', 'scheduleEngine', 'optimized'],
+  ['work_package', 'scheduleObjective', 'time'],
+  ['work_package', 'optimizationEnabled', true],
   ['row', 'hold', 'on_hold'],
   ['row', 'name', 'Old row'],
   ['row', 'parentId', 'missing'],
@@ -72,11 +74,11 @@ test.each([
   'refuses contradictory foreign %s %s before historical conversion',
   async (kind, field, value) => {
     const captured = await captureSavedConnectedFixture('isolated');
-    const foreign = captured.metadataByProject.get('a2');
+    const foreign = captured.metadataByWorkPackage.get('a2');
     if (foreign === undefined) throw new Error('foreign fixture expected');
     const facts =
-      kind === 'project'
-        ? foreign.project
+      kind === 'work_package'
+        ? foreign.workPackage
         : kind === 'row'
           ? foreign.workItems[0]
           : foreign.steps[0];
@@ -145,7 +147,7 @@ test('retains node whole and descendant-step endpoints with original parent and 
   const captured = await captureSavedConnectedFixture('isolated', {
     seed: (client) => {
       client.run(
-        "INSERT INTO work_item(id,project_id,position,name) VALUES('group','a1',5,'Alpha group')",
+        "INSERT INTO work_item(id,work_package_id,position,name) VALUES('group','a1',5,'Alpha group')",
       );
       client.run("UPDATE work_item SET parent_id='group' WHERE id='a'");
       client.run(
@@ -157,7 +159,7 @@ test('retains node whole and descendant-step endpoints with original parent and 
   const history = prepared.input.dependencyHistory;
   if (history.kind !== 'connected') throw new Error('connected history expected');
   expect(history.relationships.find((edge) => edge.id === 'ab')?.predecessor).toMatchObject({
-    projectId: 'a1',
+    workPackageId: 'a1',
     workItemId: 'group',
     scope: 'descendant-step',
     name: 'Alpha group',
@@ -175,13 +177,15 @@ test('nonempty held member stays historical and idle without a synthetic stage',
   });
   const prepared = captureConnectedHistory(captured, 'a1');
   if (!prepared.schedule.present) throw new Error('schedule expected');
-  expect(prepared.schedule.body.connection.idleProjects).toEqual(['a2']);
-  expect(prepared.schedule.body.connection.stages.map((stage) => stage.projectId)).toEqual(['a1']);
+  expect(prepared.schedule.body.connection.idleWorkPackages).toEqual(['a2']);
+  expect(prepared.schedule.body.connection.stages.map((stage) => stage.workPackageId)).toEqual([
+    'a1',
+  ]);
   const history = prepared.input.dependencyHistory;
   if (history.kind !== 'connected') throw new Error('connected history expected');
-  expect(history.projects.find((project) => project.projectId === 'a2')?.workItems).toMatchObject([
-    { id: 'b', hold: 'on_hold' },
-  ]);
+  expect(
+    history.workPackages.find((workPackage) => workPackage.workPackageId === 'a2')?.workItems,
+  ).toMatchObject([{ id: 'b', hold: 'on_hold' }]);
 });
 
 test.each(['engine', 'cycle', 'range'] as const)(
@@ -191,7 +195,7 @@ test.each(['engine', 'cycle', 'range'] as const)(
       seed: (client) => {
         if (reason === 'engine')
           client.run(
-            "UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a2'",
+            "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a2'",
           );
         if (reason === 'cycle')
           client.run("UPDATE external_dependency SET successor_step_id='design' WHERE id='ba'");
@@ -208,7 +212,7 @@ test.each(['engine', 'cycle', 'range'] as const)(
     if (history.kind !== 'connected') throw new Error('connected history expected');
     expect(history.placementState).toMatchObject(
       reason === 'engine'
-        ? { kind: 'engine_unavailable', projects: ['a2'], reason: 'adapter_missing' }
+        ? { kind: 'engine_unavailable', workPackages: ['a2'], reason: 'adapter_missing' }
         : { kind: 'unavailable', reason: reason === 'range' ? 'calendar_range' : 'cycle' },
     );
     expect(history.relationships).toHaveLength(3);
@@ -223,7 +227,7 @@ test.each(['team', 'resource'] as const)(
       seed: (client) => {
         client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
         client.run(
-          "INSERT INTO work_item(id,project_id,position,name) VALUES('c','a1',30,'Contending work')",
+          "INSERT INTO work_item(id,work_package_id,position,name) VALUES('c','a1',30,'Contending work')",
         );
         client.run(
           "INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES('c','design',1,1,1),('c','test',1,1,1)",
@@ -237,7 +241,7 @@ test.each(['team', 'resource'] as const)(
             "INSERT INTO work_item_team(work_item_id,team_id) VALUES('a','pool'),('c','pool')",
           );
           client.run(
-            "INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES('a1','pool',1)",
+            "INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES('a1','pool',1)",
           );
         } else {
           client.run(
@@ -250,7 +254,7 @@ test.each(['team', 'resource'] as const)(
             "INSERT INTO work_item_resource_demand(work_item_id,resource_id,units) VALUES('a','pool',1),('c','pool',1)",
           );
           client.run(
-            "INSERT INTO project_resource_capacity(project_id,resource_id,units) VALUES('a1','pool',1)",
+            "INSERT INTO work_package_resource_capacity(work_package_id,resource_id,units) VALUES('a1','pool',1)",
           );
         }
       },
@@ -284,7 +288,6 @@ test('saved fractional FS evidence retains durable movement scores and the real 
     seed: (client) => {
       client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
       client.run("DELETE FROM estimate WHERE step_id='test'");
-      client.run("DELETE FROM step WHERE id='test'");
       client.run(
         "UPDATE estimate SET optimistic=0.2,realistic=0.2,pessimistic=0.2 WHERE work_item_id='a'",
       );
@@ -292,17 +295,52 @@ test('saved fractional FS evidence retains durable movement scores and the real 
         "UPDATE estimate SET optimistic=1,realistic=1,pessimistic=1 WHERE work_item_id='b'",
       );
       client.run(
-        "UPDATE project SET start_date='2026-10-05',schedule_engine='fast',optimization_enabled=0 WHERE id='a1'",
+        "UPDATE work_package SET start_date='2026-10-05',schedule_engine='fast',optimization_enabled=0 WHERE id='a1'",
       );
       client.run(
-        "UPDATE project SET start_date='2026-10-05',schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a2'",
+        "UPDATE work_package SET start_date='2026-10-05',schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a2'",
       );
     },
     prepare: async (path, read) => {
+      const source = openSqliteSource({
+        dbPath: path,
+        dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+      });
+      let primary: { cause: unknown } | undefined;
+      try {
+        expect(
+          await source.stores.stepCatalogue.unbindStep(
+            'org-a',
+            'test:saved-connected',
+            { dryRun: false },
+            { at: 1, by: 'ada' },
+          ),
+        ).toMatchObject({ kind: 'unbound' });
+        expect(
+          await source.stores.stepCatalogue.retireStepDefinition('org-a', 'test', {
+            at: 1,
+            by: 'ada',
+          }),
+        ).toEqual({ ok: true });
+      } catch (cause: unknown) {
+        primary = { cause };
+      }
+      try {
+        await source.close();
+      } catch (cleanup: unknown) {
+        if (primary !== undefined)
+          throw new AggregateError(
+            [primary.cause, cleanup],
+            'fractional fixture seed and close failed',
+            { cause: cleanup },
+          );
+        throw cleanup;
+      }
+      if (primary !== undefined) throw primary.cause;
       const current = await read();
       if (current.projection.placement.kind !== 'scheduled') throw new Error('placement expected');
       const stage = current.projection.placement.stages.find(
-        (selection) => selection.stage.projectId === 'a2',
+        (selection) => selection.stage.workPackageId === 'a2',
       )?.stage;
       if (stage === undefined) throw new Error('stage expected');
       expect(stage.starts.get(sliceKey('b', 'build'))).toBeCloseTo(0.2, 14);
@@ -359,11 +397,13 @@ test('saved fractional FS evidence retains durable movement scores and the real 
   if (durableComparison === undefined) throw new Error('durable comparison expected');
   if (captured.projection.placement.kind !== 'scheduled') throw new Error('placement expected');
   const decision = captured.projection.placement.stages.find(
-    (selection) => selection.stage.projectId === 'a2',
+    (selection) => selection.stage.workPackageId === 'a2',
   )?.decisions.time;
   const history = captureConnectedHistory(captured, 'a2');
   if (!history.schedule.present) throw new Error('schedule expected');
-  const saved = history.schedule.body.connection.stages.find((stage) => stage.projectId === 'a2');
+  const saved = history.schedule.body.connection.stages.find(
+    (stage) => stage.workPackageId === 'a2',
+  );
   expect(saved?.selected).toBe('time');
   const variant = saved?.variants?.time;
   if (variant?.state !== 'ready') throw new Error('ready evidence expected');

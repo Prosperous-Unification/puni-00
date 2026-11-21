@@ -23,7 +23,7 @@ const inputOf = (elsewhere: Elsewhere): ScheduleInput => ({
 const booking = (start: number, end: number) => ({
   start,
   end,
-  projectId: 'higher',
+  workPackageId: 'higher',
   workItemId: 'held',
 });
 const baselineOf = (input: ScheduleInput) =>
@@ -56,7 +56,7 @@ const response = (start: number): SolverResponse => ({
 });
 
 describe('bookings on solver wire 3', () => {
-  it('rounds outward, clips pre-project time, and unions rounded overlap while preserving adjacency', () => {
+  it('rounds outward, clips pre-work-package time, and unions rounded overlap while preserving adjacency', () => {
     const input = inputOf(
       new Map([
         [
@@ -210,7 +210,7 @@ describe('bookings on solver wire 3', () => {
       expect(placed.slices.get(key)).toMatchObject({
         earliestStart: 1,
         boundBy: 'elsewhere',
-        elsewhereHolder: { projectId: 'higher', workItemId: 'held' },
+        elsewhereHolder: { workPackageId: 'higher', workItemId: 'held' },
       });
       expect(() =>
         materialiseOptimized(

@@ -10,7 +10,13 @@
       "options": {
         "command": "bun test --preload ../../../../tools/test/scratch/preload.ts src --timeout=30000",
         "cwd": "apps/twilight-structure/twilight-navigator/cli"
-      }
+      },
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/**/*",
+        "{workspaceRoot}/libs/shared/**/*"
+      ]
     },
     "lint": {
       "executor": "nx:run-commands",

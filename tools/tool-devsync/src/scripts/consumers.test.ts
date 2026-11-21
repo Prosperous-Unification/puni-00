@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, expect, it } from 'bun:test';
 
 import { discoverConsumers } from './consumers';
+import { checkInventory } from './inventory';
 import { readWorkspace } from './workspace';
 
 const roots: string[] = [];
@@ -808,3 +809,377 @@ for (const fault of ['children', 'property', 'key'] as const)
     expect(child.exitCode, new TextDecoder().decode(child.stderr)).toBe(0);
     expect(new TextDecoder().decode(child.stdout)).toBe('refused');
   });
+
+for (const source of ['compose.yml', 'docker-compose.yaml', '.new/jobs/compose.prod.override.yml'])
+  it('discovers container startup in ' + source + ' independently of declarations', () => {
+    const f = createFixture();
+    f.write(
+      source,
+      JSON.stringify({ services: { worker: { command: ['bun', './worker.unknown'] } } }),
+    );
+    const site = findSite(f.discover(), source, ['services', 'worker', 'command']);
+    expect(site.invocation).toEqual({ kind: 'argv', argv: ['bun', './worker.unknown'] });
+    expect(site.observedRuntime).toBe('bun');
+    expect(site.resolution.kind).toBe('unresolved');
+  });
+
+it('retains exact container argv without treating container paths as host programs', () => {
+  const f = createFixture();
+  f.write('worker.unknown', 'host program with the same spelling');
+  f.write(
+    'compose.yml',
+    JSON.stringify({
+      services: {
+        worker: {
+          image: 'reviewed@sha256:abc',
+          working_dir: '/app',
+          volumes: ['./elsewhere:/app:ro'],
+          command: [
+            'bun',
+            './worker.unknown',
+            '',
+            'space value',
+            '$(touch /tmp/forbidden)',
+            '--flag=a;b',
+          ],
+        },
+      },
+    }),
+  );
+  const sites = f.discover(),
+    site = findSite(sites, 'compose.yml', ['services', 'worker', 'command']);
+  expect(site.invocation).toEqual({
+    kind: 'argv',
+    argv: ['bun', './worker.unknown', '', 'space value', '$(touch /tmp/forbidden)', '--flag=a;b'],
+  });
+  expect(site.targets).toEqual([]);
+  expect(sites.some((candidate) => candidate.source === 'worker.unknown')).toBe(false);
+  expect(site.context).toEqual([
+    {
+      source: 'compose.yml',
+      location: [],
+      settings: {
+        compose: {
+          services: {
+            worker: {
+              image: 'reviewed@sha256:abc',
+              working_dir: '/app',
+              volumes: ['./elsewhere:/app:ro'],
+              command: [
+                'bun',
+                './worker.unknown',
+                '',
+                'space value',
+                '$(touch /tmp/forbidden)',
+                '--flag=a;b',
+              ],
+            },
+          },
+        },
+      },
+    },
+  ]);
+});
+
+for (const command of [
+  null,
+  '',
+  [],
+  'bun ./worker --value "space value"',
+  ['bun', './worker'],
+] as const)
+  it('preserves the declared container command form ' + JSON.stringify(command), () => {
+    const f = createFixture();
+    f.write('compose.yml', JSON.stringify({ services: { worker: { command } } }));
+    const site = findSite(f.discover(), 'compose.yml', ['services', 'worker', 'command']);
+    expect(site.body).toEqual({
+      kind: 'command',
+      text: typeof command === 'string' ? command : JSON.stringify(command),
+    });
+    expect(site.resolution.kind).toBe('unresolved');
+    if (command === null || typeof command === 'string')
+      expect(site.invocation.kind).toBe('unresolved');
+    else expect(site.invocation).toEqual({ kind: 'argv', argv: command });
+  });
+
+it('keeps image inheritance and include-only Compose files as explicit unresolved consumers', () => {
+  const f = createFixture();
+  f.write(
+    'compose.yml',
+    JSON.stringify({
+      include: ['./elsewhere.yaml'],
+      services: { inherited: { image: 'external:1' } },
+    }),
+  );
+  const inherited = findSite(f.discover(), 'compose.yml', ['services', 'inherited']);
+  expect(inherited.kind).toBe('reference');
+  expect(inherited.resolution.kind).toBe('unresolved');
+  f.write('compose.yml', JSON.stringify({ include: ['./elsewhere.yaml'] }));
+  const include = findSite(f.discover(), 'compose.yml', []);
+  expect(include.resolution.kind).toBe('unresolved');
+  expect(include.context[0]?.settings).toEqual({ compose: { include: ['./elsewhere.yaml'] } });
+});
+
+for (const field of ['entrypoint', 'post_start', 'pre_stop'] as const)
+  it('discovers actual Compose ' + field + ' executable bodies', () => {
+    const f = createFixture();
+    const value =
+      field === 'entrypoint'
+        ? ['node', '/app/start']
+        : [{ command: ['sh', '-c', 'touch /app/witness'], user: 'operator' }];
+    f.write('compose.yml', JSON.stringify({ services: { worker: { [field]: value } } }));
+    const location =
+      field === 'entrypoint'
+        ? ['services', 'worker', field]
+        : ['services', 'worker', field, 0, 'command'];
+    const site = findSite(f.discover(), 'compose.yml', location);
+    expect(site.invocation).toEqual({
+      kind: 'argv',
+      argv: field === 'entrypoint' ? ['node', '/app/start'] : ['sh', '-c', 'touch /app/witness'],
+    });
+    expect(site.observedRuntime).toBe(field === 'entrypoint' ? 'node' : 'shell');
+    expect(site.resolution.kind).toBe('unresolved');
+  });
+
+for (const command of [12, {}, ['bun', 12]])
+  it('refuses malformed Compose command values ' + JSON.stringify(command), () => {
+    const f = createFixture();
+    f.write('compose.yml', JSON.stringify({ services: { worker: { command } } }));
+    expect(() => f.discover()).toThrow(
+      'Compose command must be null, a string or an array of strings',
+    );
+  });
+
+for (const [field, value] of [
+  ['services', []],
+  ['service', []],
+  ['post_start', {}],
+  ['hook', []],
+  ['missing-command', {}],
+] as const)
+  it('refuses malformed Compose structural ' + field, () => {
+    const f = createFixture();
+    const configuration =
+      field === 'services'
+        ? { services: value }
+        : field === 'service'
+          ? { services: { worker: value } }
+          : field === 'post_start'
+            ? { services: { worker: { post_start: value } } }
+            : { services: { worker: { post_start: [value] } } };
+    f.write('compose.yml', JSON.stringify(configuration));
+    expect(() => f.discover()).toThrow(
+      field === 'post_start'
+        ? 'Compose hooks must be an array'
+        : field === 'missing-command'
+          ? 'Compose hook command is absent'
+          : 'requires an object',
+    );
+  });
+
+for (const field of [
+  'image',
+  'volumes',
+  'env_file',
+  'extends',
+  'unrecognized_execution_extension',
+] as const)
+  it('binds complete Compose ' + field + ' context to unchanged command identities', () => {
+    const f = createFixture();
+    f.write(
+      'compose.yml',
+      JSON.stringify({ services: { worker: { command: ['bun', './worker'], [field]: 'first' } } }),
+    );
+    const before = findSite(f.discover(), 'compose.yml', ['services', 'worker', 'command']);
+    f.write(
+      'compose.yml',
+      JSON.stringify({ services: { worker: { command: ['bun', './worker'], [field]: 'second' } } }),
+    );
+    const after = findSite(f.discover(), 'compose.yml', ['services', 'worker', 'command']);
+    expect(after.bodyDigest).toBe(before.bodyDigest);
+    expect(after.digest).not.toBe(before.digest);
+  });
+
+it('refuses an active Bun declaration for an unqualified container command', () => {
+  const f = createFixture();
+  f.write(
+    'compose.yml',
+    JSON.stringify({ services: { worker: { command: ['bun', './worker'] } } }),
+  );
+  const site = findSite(f.discover(), 'compose.yml', ['services', 'worker', 'command']);
+  expect(() =>
+    checkInventory([site], {
+      schemaVersion: 1,
+      entries: [
+        {
+          id: site.id,
+          digest: site.digest,
+          runtime: 'bun',
+          owner: 'puni dash',
+          callers: [site.id],
+          replacement: 'puni dash dev',
+          verification: 'actual container qualification remains required',
+          disposition: 'active',
+          clientExposure: { kind: 'client', command: ['puni', 'dash', 'dev'] },
+        },
+      ],
+    }),
+  ).toThrow('script inventory consumer is unresolved');
+});
+
+it('refuses null for a required Compose lifecycle command rather than interpreting image inheritance', () => {
+  const f = createFixture();
+  f.write(
+    'compose.yml',
+    JSON.stringify({ services: { worker: { post_start: [{ command: null }] } } }),
+  );
+  expect(() => f.discover()).toThrow('Compose hook command is absent');
+});
+
+for (const source of [
+  'Dockerfile',
+  'Containerfile',
+  '.new/images/worker.Dockerfile',
+  'images/Dockerfile.dev',
+])
+  it('discovers Docker execution in ' + source + ' independently of declarations', () => {
+    const f = createFixture();
+    f.write(source, 'FROM oven/bun:1\nRUN bun ./build.unknown\nCMD ["bun", "./start.unknown"]\n');
+    const sites = f.discover().filter((site) => site.source === source);
+    expect(sites).toHaveLength(3);
+    expect(findSite(sites, source, []).kind).toBe('reference');
+    expect(findSite(sites, source, ['instructions', 2]).body).toEqual({
+      kind: 'command',
+      text: 'RUN bun ./build.unknown\n',
+    });
+    expect(findSite(sites, source, ['instructions', 3]).body).toEqual({
+      kind: 'command',
+      text: 'CMD ["bun", "./start.unknown"]\n',
+    });
+    for (const site of sites) {
+      expect(site.resolution.kind).toBe('unresolved');
+      expect(site.targets).toEqual([]);
+    }
+  });
+
+it('retains complete Docker continuation bodies and all executable instruction families', () => {
+  const f = createFixture();
+  const continued = ['RUN first ' + String.fromCharCode(92), '  && second', ''].join('\n');
+  const contents =
+    'FROM scratch\n' +
+    continued +
+    'ENTRYPOINT ["/entry"]\nHEALTHCHECK --interval=5s CMD probe\nonbuild RUN bun ./generated\n';
+  f.write('Dockerfile', contents);
+  const sites = f.discover();
+  expect(findSite(sites, 'Dockerfile', ['instructions', 2]).body).toEqual({
+    kind: 'command',
+    text: continued,
+  });
+  for (const line of [4, 5, 6])
+    expect(findSite(sites, 'Dockerfile', ['instructions', line]).kind).toBe('command');
+  expect(findSite(sites, 'Dockerfile', []).body).toEqual({ kind: 'reference', text: contents });
+});
+
+for (const contents of [
+  'FROM scratch\nCOPY <<EOF /script\nRUN looks like an instruction\nEOF\nCMD ["bun", "/script"]\n',
+  '# escape=`\nFROM scratch\nRUN first `\nRUN is continuation\n',
+  '# syntax=example.invalid/custom:1\nFROM scratch\nCUSTOM_EXECUTE anything\nRUN may have custom semantics\n',
+])
+  it(
+    'keeps complex Docker syntax as a complete opaque execution boundary ' +
+      JSON.stringify(contents),
+    () => {
+      const f = createFixture();
+      f.write('Dockerfile', contents);
+      const sites = f.discover().filter((site) => site.source === 'Dockerfile');
+      expect(sites).toHaveLength(1);
+      expect(sites[0]?.body).toEqual({ kind: 'reference', text: contents });
+      expect(sites[0]?.resolution.kind).toBe('unresolved');
+    },
+  );
+
+it('binds Docker image and copy context to unchanged commands without resolving container paths on the host', () => {
+  const f = createFixture();
+  f.write('start', 'host program is not image authority');
+  f.write('Dockerfile', 'FROM image:first\nCOPY elsewhere /app\nCMD ["bun", "./start"]\n');
+  const before = findSite(f.discover(), 'Dockerfile', ['instructions', 3]);
+  f.write('Dockerfile', 'FROM image:second\nCOPY elsewhere /app\nCMD ["bun", "./start"]\n');
+  const sites = f.discover(),
+    after = findSite(sites, 'Dockerfile', ['instructions', 3]);
+  expect(before.bodyDigest).toBe(after.bodyDigest);
+  expect(before.digest).not.toBe(after.digest);
+  expect(after.targets).toEqual([]);
+  expect(sites.some((site) => site.source === 'start')).toBe(false);
+});
+
+it('does not accept declared Bun compliance for unqualified Docker execution', () => {
+  const f = createFixture();
+  f.write('Dockerfile', 'FROM oven/bun:1\nCMD ["bun", "./start"]\n');
+  const site = findSite(f.discover(), 'Dockerfile', ['instructions', 2]);
+  expect(() =>
+    checkInventory([site], {
+      schemaVersion: 1,
+      entries: [
+        {
+          id: site.id,
+          digest: site.digest,
+          runtime: 'bun',
+          owner: 'puni dash',
+          callers: [site.id],
+          replacement: 'puni dash dev',
+          verification: 'image qualification required',
+          disposition: 'active',
+          clientExposure: { kind: 'client', command: ['puni', 'dash', 'dev'] },
+        },
+      ],
+    }),
+  ).toThrow('script inventory consumer is unresolved');
+});
+
+it('retains Docker instructions with a standard frontend and ignores directive-looking comments and continued text', () => {
+  const f = createFixture();
+  const contents = [
+    '# syntax=docker/dockerfile:1',
+    'FROM scratch',
+    '# RUN is a comment',
+    'RUN first ' + String.fromCharCode(92),
+    '# ignored comment',
+    '',
+    '  CMD is continued text',
+    'ENTRYPOINT ["/entry"]',
+    '',
+  ].join('\r\n');
+  f.write('Dockerfile', contents);
+  const sites = f.discover().filter((site) => site.source === 'Dockerfile');
+  expect(sites).toHaveLength(3);
+  expect(findSite(sites, 'Dockerfile', ['instructions', 4]).body).toEqual({
+    kind: 'command',
+    text: [
+      'RUN first ' + String.fromCharCode(92),
+      '# ignored comment',
+      '',
+      '  CMD is continued text',
+      '',
+    ].join('\r\n'),
+  });
+  expect(findSite(sites, 'Dockerfile', ['instructions', 8]).body).toEqual({
+    kind: 'command',
+    text: 'ENTRYPOINT ["/entry"]\r\n',
+  });
+});
+
+it('refuses a Docker build-file symlink before treating it as captured instruction bytes', () => {
+  const f = createFixture();
+  f.write('outside-build', 'FROM scratch\nRUN unowned\n');
+  symlinkSync('outside-build', join(f.root, 'Dockerfile'));
+  expect(() => f.discover()).toThrow('Docker build file is not a captured regular file');
+});
+
+it('preserves the exact Docker final instruction without requiring a final newline', () => {
+  const f = createFixture();
+  f.write('Dockerfile', 'FROM scratch\nCMD ["bun", "./start"]');
+  expect(findSite(f.discover(), 'Dockerfile', ['instructions', 2]).body).toEqual({
+    kind: 'command',
+    text: 'CMD ["bun", "./start"]',
+  });
+});

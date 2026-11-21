@@ -1,12 +1,12 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ProjectApi } from '@/lib/wbs-api';
-import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import type { WorkPackageApi } from '@/lib/wbs-api';
+import { fakeWorkPackageApi as fakeApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import type * as TableFrameModule from './table-frame';
 import { collectPath } from './use-plan-structure';
@@ -138,7 +138,7 @@ const pressTab = (number: string, shiftKey = false) => {
   fireEvent.keyDown(screen.getByLabelText(`Name of ${number}`), { key: 'Tab', shiftKey });
 };
 
-// The table remembers each project's open branches in localStorage, so one
+// The table remembers each work package's open branches in localStorage, so one
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
@@ -181,7 +181,9 @@ async function threeRoots() {
   // Dev's columns take part in the keyboard grid below, so they are open.
 
   const api = fakeApi();
-  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
   // Named, not left blank. Blank names made an ordering assertion compare three
   // empty strings against three empty strings, which passes for any order.
   for (const [number, name] of [
@@ -215,10 +217,12 @@ const namesOnScreen = (): string[] =>
     });
 
 describe('duplicating a branch', () => {
-  /** A one-row project, already loaded, so the button has something to copy. */
-  async function shownRow(api: ProjectApi): Promise<void> {
+  /** A one-row work package, already loaded, so the button has something to copy. */
+  async function shownRow(api: WorkPackageApi): Promise<void> {
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
   }
 
@@ -230,7 +234,9 @@ describe('duplicating a branch', () => {
       afterId: null,
       name: 'Sockets',
     });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     takeRowAction('010', 'Duplicate');
@@ -300,18 +306,20 @@ describe('collectPath', () => {
 
 describe('adding a child from the row menu', () => {
   /** `010 Strip` with `010.1 Sockets` under it, and `020 Sand`, already on screen. */
-  async function shownBranch(api: ProjectApi, shown: ProjectApi = api): Promise<void> {
+  async function shownBranch(api: WorkPackageApi, shown: WorkPackageApi = api): Promise<void> {
     const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
     await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
     await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(shown)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(shown)} />,
+    );
     await screen.findByLabelText('Name of 020');
   }
 
   itDom('makes a leaf a parent with one create and lands the caret in the child', async () => {
     const api = fakeApi();
     await shownBranch(api);
-    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const creates = recordCalls(api, 'createWorkItem', (_work_packageId, input) => input);
     const moves = recordCalls(api, 'moveWorkItem');
 
     takeRowAction('020', 'Add child');
@@ -331,7 +339,7 @@ describe('adding a child from the row menu', () => {
   itDom('adds the last child of a parent', async () => {
     const api = fakeApi();
     await shownBranch(api);
-    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const creates = recordCalls(api, 'createWorkItem', (_work_packageId, input) => input);
 
     takeRowAction('010', 'Add child');
 
@@ -393,7 +401,9 @@ describe('adding a child from the row menu', () => {
     });
     await api.createWorkItem('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
     await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 020');
     click('Collapse all');
     fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Back' } });
@@ -435,11 +445,13 @@ describe('adding a child from the row menu', () => {
 
 describe('the row actions menu', () => {
   /** Three root rows, named, already on screen. */
-  async function threeRows(api: ProjectApi): Promise<void> {
+  async function threeRows(api: WorkPackageApi): Promise<void> {
     for (const name of ['Strip', 'Sand', 'Paint']) {
       await api.createWorkItem('p1', { parentId: null, afterId: null, name });
     }
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 030');
   }
 
@@ -623,7 +635,9 @@ describe('the row actions menu', () => {
       name: 'Sand',
     });
     const removed = recordCalls(api, 'removeWorkItem');
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010.1');
 
     takeRowAction('010', 'Delete');
@@ -764,7 +778,9 @@ describe('the row actions menu', () => {
 describe('collapsing a branch', () => {
   itDom('hides the children of a collapsed parent and brings them back', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -796,7 +812,9 @@ describe('collapsing a branch', () => {
 
   itDom('offers no expander on a leaf', async () => {
     const api = fakeApi();
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
 
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -996,7 +1014,9 @@ describe('dragging a row under another', () => {
     });
     await api.createWorkItem('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
     for (const [successor, predecessor] of edges) await api.addDependency(successor, predecessor);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 030');
     click('Collapse 010');
     await waitFor(() => {
@@ -1130,7 +1150,9 @@ describe('dragging a row under another', () => {
     await api.addDependency(rel.id, sand.id);
     await api.addDependency(sand.id, strip.id);
     await api.addDependency(strip.id, paint.id);
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 040');
     const moves = recordCalls(api, 'moveWorkItem');
 
@@ -1176,7 +1198,9 @@ describe('moving a row under a chosen parent', () => {
       name: 'Sand',
     });
     await api.createWorkItem('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 030');
     return api;
   }
@@ -1198,7 +1222,9 @@ describe('moving a row under a chosen parent', () => {
   itDom('says so when no row can take it', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
-    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    render(
+      <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+    );
     await screen.findByLabelText('Name of 010');
 
     takeRowAction('010', 'Move under…');
@@ -1250,15 +1276,15 @@ describe('a drag interrupted by someone else', () => {
     let notify: () => void = () => {
       throw new Error('the table never subscribed');
     };
-    const subscribe = (_projectId: string, handlers: SubscriptionHandlers) => {
+    const subscribe = (_work_packageId: string, handlers: SubscriptionHandlers) => {
       notify = handlers.onChange;
       return { seen: () => undefined, unsubscribe: () => undefined };
     };
     // Re-render with a subscription so a peer edit can be delivered.
     render(
       <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
+        workPackageId="p1"
+        workPackageServices={workPackageServicesOf(api)}
         subscribe={subscribe}
       />,
     );

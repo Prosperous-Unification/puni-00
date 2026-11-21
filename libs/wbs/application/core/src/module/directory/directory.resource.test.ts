@@ -10,7 +10,7 @@ import { DirectoryService } from './directory.resource';
 const scoped: ResourceAccess = {
   principal: { id: 'u' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'u', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'u' },
 };
 
 /**

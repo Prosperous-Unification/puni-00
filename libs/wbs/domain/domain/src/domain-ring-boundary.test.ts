@@ -28,7 +28,7 @@ const boundaryRule = '@nx/enforce-module-boundaries';
 
 // The core already depends on this library, so a port import is refused as a circular
 // dependency before the `ring:domain` tag constraint is consulted; either is a lint failure.
-// The text is linted as a real moved file, because a path outside the project service is a
+// The text is linted as a real moved file, because a path outside the work package service is a
 // parse error rather than a boundary verdict.
 // Proof (2026-10-11): turning `@nx/enforce-module-boundaries` off in `eslint.config.js` failed
 // this case with `Received: []` (1 pass, 1 fail); importing `WorkItemStore` from

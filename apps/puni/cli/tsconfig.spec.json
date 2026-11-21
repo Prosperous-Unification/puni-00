@@ -6,6 +6,7 @@
     "src/**/*.spec.ts",
     "../../../bin/tool-wiki-lint.ts",
     "../../../bin/dev-ports.ts",
+    "../../../bin/dev-be-probe.ts",
     "../../../bin/dev.ts"
   ]
 }

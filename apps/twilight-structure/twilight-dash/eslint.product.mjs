@@ -181,11 +181,29 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts',
+        // Proof: dash-policy-exact-runtime-scope-boundary.test.ts: removing the exact scope-boundary test public-contract admission.
+        // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts',
+        // Proof: dash-policy-exact-recovery-codecs.ts: removing the exact recovery-codec public-contract admission.
+        // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
+        // Proof: dash-policy-exact-runtime-rename.db.test.ts: removing the exact native compatibility-test public-contract admission.
+        // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+        // Proof: dash-policy-closed-importer (separate human review; automated excluded).
+        // Widening this selector admitted the specific plan-runtime peer to the Nx public-contract boundary. The first peer assertion failed at107, not predicted109; this separately reviewed human pair leaves the automated exclusion unchanged.
+        // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+        'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts',
       ],
       // Proof: F35 removed exact public WBS admission; 'Dash runtime history' failed and exact restoration passed.
       // Proof: F36 widened the WBS alias exception; 'Dash runtime history' failed and exact restoration passed.
       // Proof: F43 allowed a relative WBS shortcut; 'Dash runtime history' failed and exact restoration passed.
+      // Proof: dash-policy-closed-alias: unanchoring the public-contract alias.
+      // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+      // First resolvable solver-subpath denial at the first listed importer only.
+      // Proof: dash-policy-retained-options: weakening the inherited buildable-dependency option.
+      // 'the effective production and test boundaries > Dash runtime history consumes only the public WBS contract at seven exact paths' failed; exact restoration passed.
+      // Structural options equality, not observed nonbuildable-library admission.
       rules: boundary(['^@wbs/contracts$']),
     },
     {
@@ -271,6 +289,9 @@ export default ({
       // R01–R04 widened alias/subpath or fixture/production scope; T03 widened only the Nx
       // relative prefix. Their named real-target denials failed with zero fatal errors.
       // Proof: T7P03 removed this consumer and actual-source admission failed. T7P09 widened relative access and other-fixture denial failed; fatalErrorCount zero.
+      // Proof: dash-policy-migrate-peer (separate human review; automated excluded).
+      // Widening the receiver selector removed the required Nx rule from the specific migration-import fixture peer. Its lint response still contained an unrelated style rule; this human pair proves only Nx absence, not empty lint output or all-rule admission. Automated exclusion stays false.
+      // 'Task3 exact write recovery policy > receiver scope keeps the same reboot alias denied to sibling ../../../../../../wbs/be-01/src/repository/migrate' failed; exact restoration passed.
       files: ['apps/twilight-structure/twilight-dash/cli/src/runs/testing/recovery-receiver.ts'],
       rules: {
         ...boundary([
@@ -279,6 +300,10 @@ export default ({
           '^@wbs/observability$',
           '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/app$',
           '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/boot$',
+          // Proof: dash-policy-migrate-owner (separate human review; automated excluded).
+          // Removing the exact migration-owner allowance made unchanged receiver source receive the Nx boundary rule after import-presence and fatal0 checks. Its custom-message Bun assertion failed; this separately reviewed human pair leaves automated style exclusion unchanged.
+          // 'Task3 exact write recovery policy > receiver actual source admits only exact owned reboot imports' failed; exact restoration passed.
+          '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/repository/migrate$',
           '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/organization-harness$',
           '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/auth-fixture$',
           '^\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./\\.\\./wbs/be-01/src/testing/machine-grant-fixture$',

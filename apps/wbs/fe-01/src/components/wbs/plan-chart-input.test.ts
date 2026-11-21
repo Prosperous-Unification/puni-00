@@ -128,8 +128,8 @@ describe('the holders a plan read labels, on the chart', () => {
     estimateRounding: 'ceil',
     elsewhereHolders: [
       {
-        projectId: 'platform',
-        projectName: 'Platform',
+        workPackageId: 'platform',
+        workPackageName: 'Platform',
         workItemId: 'w-9',
         number: '010.3',
         name: 'Rewire',
@@ -145,7 +145,7 @@ describe('the holders a plan read labels, on the chart', () => {
           sliceAt('strip-dev', 'strip', 2, 5, {
             personId: 'kat',
             boundBy: 'elsewhere',
-            elsewhereHolder: { projectId: 'platform', workItemId: 'w-9' },
+            elsewhereHolder: { workPackageId: 'platform', workItemId: 'w-9' },
           }),
         ],
         personNames: new Map([['kat', 'Kat']]),
@@ -167,7 +167,7 @@ describe('the holders a plan read labels, on the chart', () => {
   });
 });
 
-it('counts marks as visible leaves times project steps', () => {
+it('counts marks as visible leaves times work package steps', () => {
   expect(
     markCount(
       planOf({

@@ -77,7 +77,7 @@ function ask(overrides: Partial<CapturedScheduleAsk> & { mode: 'capture' }): Cap
 function ask(overrides?: Partial<LiveScheduleAsk>): LiveScheduleAsk;
 function ask(overrides: Partial<ScheduleAsk> = {}): ScheduleAsk {
   return {
-    projectId: 'project',
+    workPackageId: 'work_package',
     input: INPUT,
     engine: 'fast',
     objective: 'pri',
@@ -206,17 +206,17 @@ describe('createScheduler', () => {
       ],
     ]);
     expect(liveAsks).toEqual([
-      { projectId: 'project', input: INPUT, objective: 'pri', enabled: true },
-      { projectId: 'project', input: INPUT, objective: 'time', enabled: false },
+      { workPackageId: 'work_package', input: INPUT, objective: 'pri', enabled: true },
+      { workPackageId: 'work_package', input: INPUT, objective: 'time', enabled: false },
     ]);
     expect(capturedAsks).toEqual([
-      { projectId: 'project', input: INPUT, objective: 'time', enabled: true },
+      { workPackageId: 'work_package', input: INPUT, objective: 'time', enabled: true },
     ]);
   });
 
   it('hands the bookings elsewhere to Fast', () => {
     const elsewhere = new Map([
-      ['ana', [{ start: 0, end: 2, projectId: 'platform', workItemId: 'x1' }]],
+      ['ana', [{ start: 0, end: 2, workPackageId: 'platform', workItemId: 'x1' }]],
     ]);
     const seen: unknown[] = [];
     const scheduler = createScheduler((...args) => {

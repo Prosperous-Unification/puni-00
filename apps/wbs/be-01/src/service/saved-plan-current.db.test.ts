@@ -7,8 +7,9 @@ import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import {
   diffPlans,
   planDiffIsEmpty,
+  projectSavedPlanInput,
+  readSavedPlanInput,
   SCHEDULE_ALGORITHM_ID,
-  serialiseCanonicalPlanInput,
 } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -20,15 +21,16 @@ import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
-import { projectRow } from '../testing/project-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -72,7 +74,7 @@ describe('projecting the live plan as a comparison side', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -97,24 +99,25 @@ describe('projecting the live plan as a comparison side', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-current-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyProject(path, 'saved-current-legacy', 'saved-current-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-current-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -171,48 +174,57 @@ describe('projecting the live plan as a comparison side', () => {
     (engine) => fastScheduler.supports(engine),
   );
 
-  it('returns null for a project that is not there', async () => {
-    expect(await service().projectCurrentPlan('missing')).toBeNull();
+  it('returns null for a work package that is not there', async () => {
+    expect(await service().workPackageCurrentPlan('missing')).toBeNull();
   });
 
   it('writes no row and consumes no quota', async () => {
     expect(savedPlanCount()).toBe(0);
 
-    const side = await service().projectCurrentPlan('p1');
+    const side = await service().workPackageCurrentPlan('p1');
 
     expect(side).not.toBeNull();
     expect(savedPlanCount()).toBe(0);
   });
 
   /**
-   * The strongest available statement of "the same canonical function the save
-   * uses": save the project, then project it, and require the two input bodies
-   * to be **byte-identical**. A `current` assembled from the live projection
-   * instead of the capture's read set fails here on the registry and junction
-   * rows, which is defect (1) above, and it fails on the bytes rather than on a
-   * field list nobody has to remember to extend.
+   * Save and current comparison must project the same complete captured facts and evidence.
+   * The original saved input12 bytes remain independently readable; comparison separates its
+   * parent/version envelope rather than pretending that the view is a serialized body.
+   * Equality is over complete values, including registry and junction rows, not an enumerated list.
    */
-  it('produces the same input bytes the save path stores', async () => {
+  it('projects the same captured input facts and evidence the save path stores', async () => {
     const saved = await service().save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before',
       createdBy: 'owner',
       createdById: 'owner',
     });
     expect(saved.outcome).toBe('saved');
 
-    const side = await service('sp-2').projectCurrentPlan('p1');
+    const side = await service('sp-2').workPackageCurrentPlan('p1');
 
-    if (side?.input.schemaVersion !== 9)
-      throw new Error('current capture must retain the published v9 writer');
-    expect(serialiseCanonicalPlanInput(side.input)).toBe(
-      saved.outcome === 'saved' ? saved.record.input.bytes : '',
+    if (side === null || saved.outcome !== 'saved')
+      throw new Error('current and saved fixtures must exist');
+    expect(saved.record.input.schemaVersion).toBe(12);
+    const captured = readSavedPlanInput(
+      JSON.parse(saved.record.input.bytes),
+      saved.record.input.schemaVersion,
     );
+    expect(captured.workPackage).toHaveProperty('projectId', 'saved-current-parent');
+    expect(captured.workPackage).not.toHaveProperty('ownerId');
+    expect({ input: side.input, inputEvidence: side.inputEvidence }).toEqual(
+      projectSavedPlanInput(captured, 12),
+    );
+    expect(side.inputEvidence.parent).toEqual({
+      kind: 'recorded',
+      projectId: 'saved-current-parent',
+    });
   });
 
   /** 7.3a: the live side has a schedule, and it is labelled with today's identity. */
   it('carries a schedule under the algorithm identity currently in force', async () => {
-    const side = await service().projectCurrentPlan('p1');
+    const side = await service().workPackageCurrentPlan('p1');
 
     expect(side!.schedule.present).toBe(true);
     expect(side!.schedule.present && side!.schedule.algorithmId).toBe(SCHEDULE_ALGORITHM_ID);
@@ -242,7 +254,7 @@ describe('projecting the live plan as a comparison side', () => {
         },
         (engine) => fastScheduler.supports(engine),
       ),
-    ).projectCurrentPlan('p1');
+    ).workPackageCurrentPlan('p1');
 
     expect(side).not.toBeNull();
     expect(sampled).toEqual([0]);
@@ -265,25 +277,25 @@ describe('projecting the live plan as a comparison side', () => {
     const conn = openConnection(path);
     const deps = new DependencyRepository(conn.db, OPEN);
     await deps.add(
-      { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+      { id: 'dep-1', workPackageId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
       wrote,
     );
     await deps.add(
-      { id: 'dep-2', projectId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' },
+      { id: 'dep-2', workPackageId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' },
       wrote,
     );
     conn.close();
 
-    const side = await service().projectCurrentPlan('p1');
+    const side = await service().workPackageCurrentPlan('p1');
 
     expect(side!.schedule).toEqual({ present: false, absentReason: 'infeasible' });
     expect(side!.input.workItems.map((row) => row.id)).toEqual(['wi-1', 'wi-2']);
   });
 
   it('maps a calendar-range plan to infeasible and still carries the input', async () => {
-    const side = await service('sp-1', calendarRangeScheduler).projectCurrentPlan('p1');
+    const side = await service('sp-1', calendarRangeScheduler).workPackageCurrentPlan('p1');
 
-    // Proof: return `buildScheduleBody` directly from `projectCurrentPlan` and
+    // Proof: return `buildScheduleBody` directly from `workPackageCurrentPlan` and
     // this awaited comparison-side projection throws CalendarRangeError.
     expect(side!.schedule).toEqual({ present: false, absentReason: 'infeasible' });
     expect(side!.input.workItems.map((row) => row.id)).toEqual(['wi-1', 'wi-2']);
@@ -291,21 +303,21 @@ describe('projecting the live plan as a comparison side', () => {
 
   /** The two sides meet: an unchanged plan compares clean against itself. */
   it('compares clean against a plan saved from the same rows', async () => {
-    const left = await service().projectCurrentPlan('p1');
-    const right = await service('sp-2').projectCurrentPlan('p1');
+    const left = await service().workPackageCurrentPlan('p1');
+    const right = await service('sp-2').workPackageCurrentPlan('p1');
 
     expect(planDiffIsEmpty(diffPlans(left!, right!))).toBe(true);
   });
 
   /** And a live edit shows up, on the input side and on the dates. */
   it('reports a live edit against a side captured before it', async () => {
-    const before = await service().projectCurrentPlan('p1');
+    const before = await service().workPackageCurrentPlan('p1');
 
     const conn = openConnection(path);
     await new WorkItemRepository(conn.db, OPEN).insert(item('wi-3', 30), [], wrote);
     conn.close();
 
-    const after = await service('sp-2').projectCurrentPlan('p1');
+    const after = await service('sp-2').workPackageCurrentPlan('p1');
     const diff = diffPlans(before!, after!);
 
     expect(diff.input.some((d) => d.path === 'workItems[wi-3]' && d.category === 'added')).toBe(

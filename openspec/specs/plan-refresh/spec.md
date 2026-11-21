@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how one project and API lifetime coordinates resource-scoped reads, failures, stream
+Define how one work package and API lifetime coordinates resource-scoped reads, failures, stream
 acknowledgment and disposal so every invalidation reaches a covering outcome without replacing
 unrelated state or disturbing an active editor.
 
@@ -96,14 +96,14 @@ A sequence SHALL be acknowledged only after the required installed generations c
 - **THEN** acknowledgment SHALL NOT advance across unseen B
 - **AND** bounded replay or anchored full resync SHALL recover the unknown gap without requiring another event or disconnect.
 
-### Requirement: Read ownership ends with its project and API lifetime
+### Requirement: Read ownership ends with its work package and API lifetime
 
-Disposal SHALL settle outstanding callers as disposed and prevent subsequent installation, stale changes, notifications, toasts and acknowledgments. A new project or API identity SHALL use a distinct owner, including when the project ID is unchanged.
+Disposal SHALL settle outstanding callers as disposed and prevent subsequent installation, stale changes, notifications, toasts and acknowledgments. A new work package or API identity SHALL use a distinct owner, including when the work package ID is unchanged.
 
 #### Scenario: Old requests settle after departure
 
 - **WHEN** a departed owner's held read resolves or rejects
-- **THEN** the active project SHALL receive no state, stale, toast or acknowledgment effect from it.
+- **THEN** the active work package SHALL receive no state, stale, toast or acknowledgment effect from it.
 
 #### Scenario: StrictMode remount establishes a live owner
 

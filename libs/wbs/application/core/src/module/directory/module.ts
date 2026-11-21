@@ -3,7 +3,7 @@ import { DiBag } from 'di-bag';
 import type { Clock } from '../../ports/clock';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
-import type { Broadcaster } from '../../ports/project-event';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { DIRECTORY_LABEL } from './contract';
 import { DirectoryService, type DirectoryServiceOptions } from './directory.resource';
 

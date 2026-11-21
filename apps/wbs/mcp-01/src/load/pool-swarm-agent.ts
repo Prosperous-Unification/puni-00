@@ -20,12 +20,12 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
  * each echoing the command's `seq`; every helper run and 401 is also printed as an event line
  * (`{"event":…}`). Commands:
  * - `tools`: the tool names `/mcp` lists;
- * - `claim` `{ projectId }`: reads the startable work and claims the first leaf it can, for its
+ * - `claim` `{ workPackageId }`: reads the startable work and claims the first leaf it can, for its
  *   own person with `assign: true`, answering the claim (or every refusal it met);
  * - `heartbeat`: `postApiClaimsRenew`;
- * - `register_use` `{ projectId, workItemId, resourceId, units, run }`: reports the physical copy
- *   it made for the claim (`postApiProjectsByIdResourceUses`), responsible person itself;
- * - `release` `{ projectId, workItemId }`: releases its own claim on `workItemId`;
+ * - `register_use` `{ workPackageId, workItemId, resourceId, units, run }`: reports the physical copy
+ *   it made for the claim (`postApiWorkPackagesByIdResourceUses`), responsible person itself;
+ * - `release` `{ workPackageId, workItemId }`: releases its own claim on `workItemId`;
  * - `stop`: closes the client and exits 0.
  *
  * A tool call answers `{ outcome, text }`: `ok`, `tool_error:<code>`, `http_<status>` or
@@ -172,14 +172,14 @@ interface Startable {
   readonly leaves: readonly { readonly workItemId: string; readonly stepIds: readonly string[] }[];
 }
 
-async function claim(projectId: string): Promise<Record<string, unknown>> {
-  const read = await callTool('getApiProjectsByIdStartable', { id: projectId });
+async function claim(workPackageId: string): Promise<Record<string, unknown>> {
+  const read = await callTool('getApiWorkPackagesByIdStartable', { id: workPackageId });
   if (read.outcome !== 'ok') return { outcome: read.outcome, text: read.text };
   const startable = JSON.parse(read.text) as Startable;
   const refusals: string[] = [];
   for (const leaf of startable.leaves) {
-    const answer = await callTool('postApiProjectsByIdCommands', {
-      id: projectId,
+    const answer = await callTool('postApiWorkPackagesByIdCommands', {
+      id: workPackageId,
       commands: [
         {
           kind: 'claimWorkItem',
@@ -220,7 +220,7 @@ async function answer(command: Record<string, unknown>): Promise<Record<string, 
       }
     }
     case 'claim':
-      return await claim(String(command['projectId']));
+      return await claim(String(command['workPackageId']));
     case 'heartbeat': {
       const renewed = await callTool('postApiClaimsRenew', {});
       return renewed.outcome === 'ok'
@@ -228,8 +228,8 @@ async function answer(command: Record<string, unknown>): Promise<Record<string, 
         : { ...renewed };
     }
     case 'register_use': {
-      const registered = await callTool('postApiProjectsByIdResourceUses', {
-        id: String(command['projectId']),
+      const registered = await callTool('postApiWorkPackagesByIdResourceUses', {
+        id: String(command['workPackageId']),
         requestId: crypto.randomUUID(),
         resourceId: String(command['resourceId']),
         workItemId: String(command['workItemId']),
@@ -243,8 +243,8 @@ async function answer(command: Record<string, unknown>): Promise<Record<string, 
       return { outcome: 'ok', useId: use.id, state: use.state };
     }
     case 'release': {
-      const released = await callTool('postApiProjectsByIdCommands', {
-        id: String(command['projectId']),
+      const released = await callTool('postApiWorkPackagesByIdCommands', {
+        id: String(command['workPackageId']),
         commands: [
           { kind: 'releaseWorkItem', workItemId: String(command['workItemId']), personId },
         ],

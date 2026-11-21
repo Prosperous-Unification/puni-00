@@ -113,9 +113,31 @@ describe('typed Burokrat policy requests', () => {
     ).toEqual({
       command: 'validate workflow-binding',
       file: '/absent/binding.json',
-      steps: ['design', 'build'],
+      catalogue: { kind: 'steps', steps: ['design', 'build'] },
     });
   });
+
+  for (const alias of ['burokrat', 'bur', 'b']) {
+    it(alias + ' carries a manifest path as a typed request before operation IO', () => {
+      const invocation = readInvocation(
+        [alias, 'validate', 'workflow-binding', 'workflow.json', '--manifest', 'manifest.json'],
+        () => {
+          throw Error('manifest request unexpectedly printed');
+        },
+      );
+      expect(invocation).toEqual({
+        kind: 'command',
+        command: {
+          tool: 'burokrat',
+          request: {
+            command: 'validate workflow-binding',
+            file: 'workflow.json',
+            catalogue: { kind: 'manifest', file: 'manifest.json' },
+          },
+        },
+      });
+    });
+  }
 
   const activationFlags = [
     '--candidate-repository',

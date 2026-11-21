@@ -12,16 +12,16 @@ import {
 describe('solverBinDirectory', () => {
   /**
    * `tools/dev/solver-environment.ts` provisions `.venv-solver` at the repo
-   * root, so the project directory must climb exactly to the directory holding
-   * `nx.json`. The real project directory is used rather than a fake one,
+   * root, so the work package directory must climb exactly to the directory holding
+   * `nx.json`. The real work package directory is used rather than a fake one,
    * because the fault is a depth that stopped matching the tree.
    *
    * Proof: restoring the pre-namespacing `'../..'` failed this case with
    * `Expected: true / Received: false`.
    */
   it('resolves the provisioned bin under the repo root', () => {
-    const projectDirectory = resolve(import.meta.dir, '../..');
-    const bin = solverBinDirectory(projectDirectory);
+    const workPackageDirectory = resolve(import.meta.dir, '../..');
+    const bin = solverBinDirectory(workPackageDirectory);
     expect(bin.endsWith(join('.venv-solver', 'bin'))).toBe(true);
     expect(existsSync(join(bin, '..', '..', 'nx.json'))).toBe(true);
   });

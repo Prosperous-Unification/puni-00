@@ -99,7 +99,7 @@ export interface ReferenceSetStripProps {
    */
   face?: 'cell' | 'sheet';
   'data-hint'?: string;
-  /** The project fact this box carries, drawn at once where a hint would wait. */
+  /** The work package fact this box carries, drawn at once where a hint would wait. */
   'data-fact'?: string;
 }
 

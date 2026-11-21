@@ -9,7 +9,7 @@ Stable workflow-run construction and exact private persistence.
 ### Requirement: New workflow runs have stable generated identities
 
 Workflow-run construction SHALL generate one random UUID and one revision-zero Run
-record from project, work-item, manifest and retry-budget inputs. Retrying persistence
+record from work package, work-item, manifest and retry-budget inputs. Retrying persistence
 or recovering that same run MUST reuse its retained ID. Existing store ports SHALL
 continue to accept the complete currently admitted opaque-ID domain.
 

@@ -41,9 +41,9 @@ export {
   widthOverridesKey,
 };
 
-/** One project's expansion, judged by {@link isExpansion} — see {@link remembered}. */
-export const storedExpansion = (projectId: string): RuntimeRemembered<ExpandedState> =>
-  remembered(expansionKey(projectId), isExpansion);
+/** One work package's expansion, judged by {@link isExpansion} — see {@link remembered}. */
+export const storedExpansion = (workPackageId: string): RuntimeRemembered<ExpandedState> =>
+  remembered(expansionKey(workPackageId), isExpansion);
 
 /**
  * Whether a value read back out of storage is an expansion this table can use.
@@ -59,13 +59,13 @@ export function isExpansion(value: unknown): value is ExpandedState {
 }
 
 /**
- * The expansion this browser last saved for `projectId`, or everything open
+ * The expansion this browser last saved for `workPackageId`, or everything open
  * when it has never saved one.
  *
  * The stored value is a claim, not a fact. It is user-editable storage read at
  * a boundary, so it is validated here and dropped — key and all — when it is
- * not an expansion, the same posture `project-page.tsx` takes to a remembered
- * project the list no longer holds. Deliberately not the "unknown is not OK"
+ * not an expansion, the same posture `work-package-page.tsx` takes to a remembered
+ * work package the list no longer holds. Deliberately not the "unknown is not OK"
  * throw: the alternative is a table that cannot be opened at all until somebody
  * clears storage by hand, over a preference about which triangles point down.
  *
@@ -81,43 +81,43 @@ export function isExpansion(value: unknown): value is ExpandedState {
  *   over: the alternative is a fourth state to keep in step with the other
  *   three.
  */
-export function rememberedExpansion(projectId: string): Recalled<ExpandedState> {
-  const recalled = storedExpansion(projectId).readAndDrop();
+export function rememberedExpansion(workPackageId: string): Recalled<ExpandedState> {
+  const recalled = storedExpansion(workPackageId).readAndDrop();
   return { value: recalled.value ?? true, persists: recalled.persists };
 }
 
-/** Writes the expansion in force for `projectId`, answering whether a live runtime took it. */
-export function rememberExpansion(projectId: string, expanded: ExpandedState): boolean {
-  return storedExpansion(projectId).write(expanded);
+/** Writes the expansion in force for `workPackageId`, answering whether a live runtime took it. */
+export function rememberExpansion(workPackageId: string, expanded: ExpandedState): boolean {
+  return storedExpansion(workPackageId).write(expanded);
 }
 
 /**
- * One project's dragged widths, as **stored** — a record, not the `Map` the
+ * One work package's dragged widths, as **stored** — a record, not the `Map` the
  * table holds, because the two are different shapes and only one of them is
  * JSON. Per-entry sanitising is {@link rememberedWidthOverrides}'s.
  */
 export const storedWidthOverrides = (
-  projectId: string,
+  workPackageId: string,
 ): RuntimeRemembered<Record<string, number>> =>
-  remembered(widthOverridesKey(projectId), isWidthOverrides);
+  remembered(widthOverridesKey(workPackageId), isWidthOverrides);
 
 /**
- * One project's panel height, in bounds or not stored at all.
+ * One work package's panel height, in bounds or not stored at all.
  *
  * The range is part of the guard rather than a check after it, for the reason
  * {@link remembered} states: a height outside the bounds a drag can reach is
  * not a height this app wrote, and `1e999` parses to an `Infinity` above every
  * ceiling.
  */
-export const storedGanttHeight = (projectId: string): RuntimeRemembered<number> =>
+export const storedGanttHeight = (workPackageId: string): RuntimeRemembered<number> =>
   remembered(
-    ganttHeightKey(projectId),
+    ganttHeightKey(workPackageId),
     (claimed): claimed is number =>
       typeof claimed === 'number' && claimed >= GANTT_MIN_PX && claimed <= GANTT_CEILING_PX,
   );
 
 /**
- * The panel height this browser last saved for `projectId`, or none where it
+ * The panel height this browser last saved for `workPackageId`, or none where it
  * has never saved one.
  *
  * The stored value is a claim, not a fact — user-editable storage read at a
@@ -133,7 +133,7 @@ export const storedGanttHeight = (projectId: string): RuntimeRemembered<number> 
  * rememberedWidthOverrides}'s reason: the alternative is a chart nobody can
  * open until they clear storage by hand, over a preference about its height.
  */
-export function rememberedGanttHeight(projectId: string): Recalled<number | null> {
+export function rememberedGanttHeight(workPackageId: string): Recalled<number | null> {
   // Proof: the range dropped from `storedGanttHeight`'s guard, leaving
   // `typeof claimed === 'number'`. `refuses a height below the floor, and drops
   // the key` failed on `expected '10px' to be ''` and `refuses a height above
@@ -142,35 +142,35 @@ export function rememberedGanttHeight(projectId: string): Recalled<number | null
   // that is not a number` stays green under that fault, which is why the range
   // is in the guard rather than beside it. Observed 2026-09-02; the original
   // watch of these two was 2026-08-10.
-  return storedGanttHeight(projectId).readAndDrop();
+  return storedGanttHeight(workPackageId).readAndDrop();
 }
 
 /**
- * Writes the panel height in force for `projectId`.
+ * Writes the panel height in force for `workPackageId`.
  *
  * Called when a drag is let go of and at no other time, for {@link
- * rememberWidthOverrides}'s reason: opening a project must not change what is
+ * rememberWidthOverrides}'s reason: opening a work package must not change what is
  * remembered about it.
  */
-export function rememberGanttHeight(projectId: string, heightPx: number): boolean {
-  return storedGanttHeight(projectId).write(heightPx);
+export function rememberGanttHeight(workPackageId: string, heightPx: number): boolean {
+  return storedGanttHeight(workPackageId).write(heightPx);
 }
 
 /**
- * One project's rung, accepting legacy numeric widths at the storage boundary.
+ * One work package's rung, accepting legacy numeric widths at the storage boundary.
  * Proof: accepting every number/string let 9 survive; the production layout refusal case failed (2026-10-12).
  */
-export const storedGanttDayPx = (projectId: string): RuntimeRemembered<DayPx | AxisRungId> =>
+export const storedGanttDayPx = (workPackageId: string): RuntimeRemembered<DayPx | AxisRungId> =>
   remembered(
-    ganttDayPxKey(projectId),
+    ganttDayPxKey(workPackageId),
     (claimed): claimed is DayPx | AxisRungId => isDayPx(claimed) || isAxisRungId(claimed),
   );
 
 /** Reads a rung by id or legacy width, dropping unknown claims and reporting the reset. */
 export function rememberedGanttDayPx(
-  projectId: string,
+  workPackageId: string,
 ): Recalled<DayPx | null> & { wasReset: boolean } {
-  const stored = storedGanttDayPx(projectId);
+  const stored = storedGanttDayPx(workPackageId);
   const recalled = stored.claim();
   if (recalled.value.status !== 'held') {
     // Proof: replacing this predicate with false retained the key and removed the reset title; the width-refusal case failed (2026-10-12).
@@ -187,36 +187,36 @@ export function rememberedGanttDayPx(
 }
 
 /**
- * Writes the day scale in force for `projectId`.
+ * Writes the day scale in force for `workPackageId`.
  *
  * Called when the control is used and at no other time, for
- * {@link rememberGanttHeight}'s reason: opening a project must not change what
+ * {@link rememberGanttHeight}'s reason: opening a work package must not change what
  * is remembered about it.
  */
-export function rememberGanttDayPx(projectId: string, dayPx: DayPx): boolean {
-  return storedGanttDayPx(projectId).write(resolveAxisRung(dayPx).id);
+export function rememberGanttDayPx(workPackageId: string, dayPx: DayPx): boolean {
+  return storedGanttDayPx(workPackageId).write(resolveAxisRung(dayPx).id);
 }
 
-/** Forgets the remembered day scale for `projectId` — the third part of a {@link Layout reset}. */
-export function forgetGanttDayPx(projectId: string): boolean {
-  return storedGanttDayPx(projectId).forget();
+/** Forgets the remembered day scale for `workPackageId` — the third part of a {@link Layout reset}. */
+export function forgetGanttDayPx(workPackageId: string): boolean {
+  return storedGanttDayPx(workPackageId).forget();
 }
 
 /**
- * Whether one project's chart draws its name column.
+ * Whether one work package's chart draws its name column.
  *
  * A boolean and nothing else to check: unlike a height there is no range, and
  * `false` is a real stored answer that a `??` would eat — which is why the
  * caller keeps the `boolean | null` this answers with.
  */
-export const storedGanttLabels = (projectId: string): RuntimeRemembered<boolean> =>
+export const storedGanttLabels = (workPackageId: string): RuntimeRemembered<boolean> =>
   remembered(
-    ganttLabelsKey(projectId),
+    ganttLabelsKey(workPackageId),
     (claimed): claimed is boolean => typeof claimed === 'boolean',
   );
 
 /**
- * Whether this browser last left `projectId`'s row names shown, or none where
+ * Whether this browser last left `workPackageId`'s row names shown, or none where
  * it has never said — which opens the chart with them shown.
  *
  * A boolean is the whole domain, so the guard is `typeof` and there is nothing
@@ -227,30 +227,30 @@ export const storedGanttLabels = (projectId: string): RuntimeRemembered<boolean>
  * Deliberately not the "unknown is not OK" throw, for
  * {@link rememberedGanttHeight}'s reason.
  */
-export function rememberedGanttLabels(projectId: string): Recalled<boolean | null> {
-  return storedGanttLabels(projectId).readAndDrop();
+export function rememberedGanttLabels(workPackageId: string): Recalled<boolean | null> {
+  return storedGanttLabels(workPackageId).readAndDrop();
 }
 
 /**
- * Writes whether `projectId`'s row names are shown.
+ * Writes whether `workPackageId`'s row names are shown.
  *
  * Called when the control is used and at no other time, for
  * {@link rememberGanttDayPx}'s reason.
  */
-export function rememberGanttLabels(projectId: string, labelsShown: boolean): boolean {
-  return storedGanttLabels(projectId).write(labelsShown);
+export function rememberGanttLabels(workPackageId: string, labelsShown: boolean): boolean {
+  return storedGanttLabels(workPackageId).write(labelsShown);
 }
 
-/** Forgets the remembered name column for `projectId` — the fourth part of a {@link Layout reset}. */
-export function forgetGanttLabels(projectId: string): boolean {
-  return storedGanttLabels(projectId).forget();
+/** Forgets the remembered name column for `workPackageId` — the fourth part of a {@link Layout reset}. */
+export function forgetGanttLabels(workPackageId: string): boolean {
+  return storedGanttLabels(workPackageId).forget();
 }
 
 /**
  * Where this browser remembers what the two Mermaid exports group their bars
  * into sections by.
  *
- * **One key for the browser, not one per project**, and that is where it sides
+ * **One key for the browser, not one per work package**, and that is where it sides
  * with `wbs.ganttDetail` rather than with {@link ganttLabelsKey} above it. A
  * column's width or a panel's height is this plan's share of this screen, so it
  * is answered per plan; grouping a fence by assignee is an answer about **what
@@ -313,15 +313,15 @@ export function rememberMermaidSectionMode(sectionMode: SectionMode): boolean {
 }
 
 /**
- * Forgets the remembered panel height for `projectId` — the chart half of a
+ * Forgets the remembered panel height for `workPackageId` — the chart half of a
  * {@link Layout reset}.
  *
  * `removeItem`, never a default written over it: what the panel returns to is
  * its default share as it stands then, exactly as the columns return to what
  * the frame layout resolves now.
  */
-export function forgetGanttHeight(projectId: string): boolean {
-  return storedGanttHeight(projectId).forget();
+export function forgetGanttHeight(workPackageId: string): boolean {
+  return storedGanttHeight(workPackageId).forget();
 }
 
 /**
@@ -361,7 +361,7 @@ export function isWidthOverrides(value: unknown): value is Record<string, number
 }
 
 /**
- * The column widths this browser last saved for `projectId`, or none where it
+ * The column widths this browser last saved for `workPackageId`, or none where it
  * has never saved any.
  *
  * The stored value is a claim, not a fact — user-editable storage read at a
@@ -388,7 +388,7 @@ export function isWidthOverrides(value: unknown): value is Record<string, number
  * have been about. The range check below is what really refuses both, and it is
  * the line the negative watches. R5, and `P phases-ui`'s sanitizer before it.
  *
- * An id naming a step this project no longer holds survives all three and is
+ * An id naming a step this work package no longer holds survives all three and is
  * then never looked at — the harmlessness a remembered expansion's deleted row
  * ids have, and the reason the step coming back finds its width waiting.
  *
@@ -396,8 +396,8 @@ export function isWidthOverrides(value: unknown): value is Record<string, number
  * rememberedExpansion}'s reason: the alternative is a plan nobody can open
  * until they clear storage by hand, over a preference about a column.
  */
-export function rememberedWidthOverrides(projectId: string): Recalled<Map<string, number>> {
-  const recalled = storedWidthOverrides(projectId).readAndDrop();
+export function rememberedWidthOverrides(workPackageId: string): Recalled<Map<string, number>> {
+  const recalled = storedWidthOverrides(workPackageId).readAndDrop();
   const claimed = recalled.value;
   if (claimed === null) return { value: new Map(), persists: recalled.persists };
   const kept = new Map<string, number>();
@@ -418,22 +418,22 @@ export function rememberedWidthOverrides(projectId: string): Recalled<Map<string
 }
 
 /**
- * Writes the widths in force for `projectId`.
+ * Writes the widths in force for `workPackageId`.
  *
  * Called when a drag is let go of and at no other time. In particular the
- * sanitized set is **not** written back on read: opening a project must not
+ * sanitized set is **not** written back on read: opening a work package must not
  * change what is remembered about it, and a write-back would quietly discard
  * the entry for a step that is only temporarily absent.
  */
 export function rememberWidthOverrides(
-  projectId: string,
+  workPackageId: string,
   overrides: ReadonlyMap<string, number>,
 ): boolean {
-  return storedWidthOverrides(projectId).write(Object.fromEntries(overrides));
+  return storedWidthOverrides(workPackageId).write(Object.fromEntries(overrides));
 }
 
 /**
- * Forgets every remembered width for `projectId` — the widths half of a
+ * Forgets every remembered width for `workPackageId` — the widths half of a
  * {@link Layout reset}.
  *
  * `removeItem`, never an empty object written over it. What the columns return
@@ -441,19 +441,19 @@ export function rememberWidthOverrides(
  * stored here is that promise broken: a column whose default has changed since
  * the drag would come back to the old one.
  */
-export function forgetWidthOverrides(projectId: string): boolean {
-  return storedWidthOverrides(projectId).forget();
+export function forgetWidthOverrides(workPackageId: string): boolean {
+  return storedWidthOverrides(workPackageId).forget();
 }
 
-/** One project's hide-list, judged by {@link isStringArray}. */
-export const storedHiddenColumns = (projectId: string): RuntimeRemembered<readonly string[]> =>
-  remembered(hiddenColumnsKey(projectId), isStringArray);
+/** One work package's hide-list, judged by {@link isStringArray}. */
+export const storedHiddenColumns = (workPackageId: string): RuntimeRemembered<readonly string[]> =>
+  remembered(hiddenColumnsKey(workPackageId), isStringArray);
 
-export const storedLinksResetShown = (projectId: string): RuntimeRemembered<true> =>
-  remembered(linksResetShownKey(projectId), (value): value is true => value === true);
+export const storedLinksResetShown = (workPackageId: string): RuntimeRemembered<true> =>
+  remembered(linksResetShownKey(workPackageId), (value): value is true => value === true);
 
 /**
- * The hide-list this browser last saved for `projectId`, or the default hidden
+ * The hide-list this browser last saved for `workPackageId`, or the default hidden
  * columns where it has never saved one.
  *
  * A **hide-list**, so a column this table learns to draw later is on screen by
@@ -468,7 +468,7 @@ export const storedLinksResetShown = (projectId: string): RuntimeRemembered<true
  * known once the steps have loaded, so the list is kept whole and
  * `hiddenColumnIds` in the component filters it against
  * {@link hideableColumnIds} on every render that could change the answer. It
- * is also not written back — opening a project must not change what is
+ * is also not written back — opening a work package must not change what is
  * remembered about it, and a hidden step that is only temporarily absent must
  * find its entry waiting.
  *
@@ -482,10 +482,10 @@ export const storedLinksResetShown = (projectId: string): RuntimeRemembered<true
  * component as a list; with only the `removeItem` deleted, on `expected '4' to
  * be null`. Watched, 2026-08-28.
  */
-export function rememberedHiddenColumns(projectId: string): Recalled<readonly string[]> {
-  const explicit = storedHiddenColumns(projectId).readAndDrop();
+export function rememberedHiddenColumns(workPackageId: string): Recalled<readonly string[]> {
+  const explicit = storedHiddenColumns(workPackageId).readAndDrop();
   if (explicit.value !== null) return { value: explicit.value, persists: explicit.persists };
-  const marker = storedLinksResetShown(projectId).readAndDrop();
+  const marker = storedLinksResetShown(workPackageId).readAndDrop();
   return {
     value: marker.value === true ? resetHiddenColumns(true) : INITIAL_HIDDEN_COLUMNS,
     persists: explicit.persists && marker.persists,
@@ -493,58 +493,61 @@ export function rememberedHiddenColumns(projectId: string): Recalled<readonly st
 }
 
 /**
- * Writes the hide-list in force for `projectId`.
+ * Writes the hide-list in force for `workPackageId`.
  *
  * Called when a reader ticks or unticks a column in the Columns control, or
  * applies a saved view that carries a column set, and at no other time — see
  * {@link rememberedHiddenColumns} for why not on read.
  */
-export function rememberHiddenColumns(projectId: string, hidden: readonly string[]): boolean {
-  const written = storedHiddenColumns(projectId).write(hidden);
-  storedLinksResetShown(projectId).forget();
+export function rememberHiddenColumns(workPackageId: string, hidden: readonly string[]): boolean {
+  const written = storedHiddenColumns(workPackageId).write(hidden);
+  storedLinksResetShown(workPackageId).forget();
   return written;
 }
 
 /**
- * Forgets which columns are hidden for `projectId` — the columns half of a
+ * Forgets which columns are hidden for `workPackageId` — the columns half of a
  * {@link Layout reset}.
  *
  * `removeItem`, never the default list written over it: the default column set
  * is whatever {@link DEFAULT_HIDDEN_COLUMNS} says *now*, and a snapshot stored
  * here is that promise broken the day the default moves.
  */
-export function forgetHiddenColumns(projectId: string): boolean {
-  return storedHiddenColumns(projectId).forget();
+export function forgetHiddenColumns(workPackageId: string): boolean {
+  return storedHiddenColumns(workPackageId).forget();
 }
 
-/** One project's measure column answers, judged by {@link isMeasureToggles}. */
-export const storedMeasureColumns = (projectId: string): RuntimeRemembered<MeasureToggles> =>
-  remembered(measureColumnsKey(projectId), isMeasureToggles);
+/** One work package's measure column answers, judged by {@link isMeasureToggles}. */
+export const storedMeasureColumns = (workPackageId: string): RuntimeRemembered<MeasureToggles> =>
+  remembered(measureColumnsKey(workPackageId), isMeasureToggles);
 
 /**
- * The measure column answers this browser holds for `projectId`, or none.
+ * The measure column answers this browser holds for `workPackageId`, or none.
  *
  * None means every definition follows its own `showByDefault`
  * ({@link isMeasureShown}). A stored value that is not a record of booleans is
  * dropped by {@link remembered}, exactly as a malformed hide-list is.
  */
-export function rememberedMeasureColumns(projectId: string): MeasureToggles {
-  return storedMeasureColumns(projectId).readAndDrop().value ?? {};
+export function rememberedMeasureColumns(workPackageId: string): MeasureToggles {
+  return storedMeasureColumns(workPackageId).readAndDrop().value ?? {};
 }
 
-/** Forgets the measure column answers for `projectId`: Reset layout's measure half (D54). */
-export function forgetMeasureColumns(projectId: string): boolean {
-  return storedMeasureColumns(projectId).forget();
+/** Forgets the measure column answers for `workPackageId`: Reset layout's measure half (D54). */
+export function forgetMeasureColumns(workPackageId: string): boolean {
+  return storedMeasureColumns(workPackageId).forget();
 }
 
-/** Writes the measure column answers in force for `projectId`. */
-export function rememberMeasureColumns(projectId: string, toggles: MeasureToggles): boolean {
-  return storedMeasureColumns(projectId).write(toggles);
+/** Writes the measure column answers in force for `workPackageId`. */
+export function rememberMeasureColumns(workPackageId: string, toggles: MeasureToggles): boolean {
+  return storedMeasureColumns(workPackageId).write(toggles);
 }
 
 /** Remembers only the reset outcome that differs from the initial hidden-Links baseline. */
-export function rememberLinksResetTarget(projectId: string, hasAnyExternalRefs: boolean): boolean {
-  const marker = storedLinksResetShown(projectId);
+export function rememberLinksResetTarget(
+  workPackageId: string,
+  hasAnyExternalRefs: boolean,
+): boolean {
+  const marker = storedLinksResetShown(workPackageId);
   return hasAnyExternalRefs ? marker.write(true) : marker.forget();
 }
 
@@ -570,12 +573,14 @@ export interface SavedView {
 }
 
 /**
- * One project's saved views, as a **list of anything** — each entry is judged
+ * One work package's saved views, as a **list of anything** — each entry is judged
  * by {@link isSavedView} in {@link rememberedSavedViews}, which keeps the ones
  * that are views rather than dropping the whole key over one bad entry.
  */
-export const storedSavedViews = (projectId: string): RuntimeRemembered<readonly unknown[]> =>
-  remembered(savedViewsKey(projectId), (claimed): claimed is unknown[] => Array.isArray(claimed));
+export const storedSavedViews = (workPackageId: string): RuntimeRemembered<readonly unknown[]> =>
+  remembered(savedViewsKey(workPackageId), (claimed): claimed is unknown[] =>
+    Array.isArray(claimed),
+  );
 
 /** Whether a claimed value is a list of strings — a facet's chosen ids. */
 export function isStringArray(value: unknown): value is string[] {
@@ -683,7 +688,7 @@ export function isSavedView(value: unknown): value is SavedView {
 }
 
 /**
- * The views this browser last saved for `projectId`, or none where it has
+ * The views this browser last saved for `workPackageId`, or none where it has
  * never saved any.
  *
  * The stored value is a claim, not a fact — user-editable storage read at a
@@ -692,7 +697,7 @@ export function isSavedView(value: unknown): value is SavedView {
  * not a usable view is dropped **on its own**, and the views beside it still
  * apply — one hand-edited view is no reason to forget the rest.
  *
- * A view naming a team, a person or a step this project no longer holds
+ * A view naming a team, a person or a step this work package no longer holds
  * survives this check and is simply never a live checkbox: applying it ticks
  * a box the facet panel already knows how to draw for an absent value
  * (`optionsFor`, "a team this plan has not loaded"), and narrowing by an id
@@ -700,8 +705,8 @@ export function isSavedView(value: unknown): value is SavedView {
  * facet with nothing left to match gets. Nothing here repairs or deletes the
  * view on the reader's behalf.
  */
-export function rememberedSavedViews(projectId: string): Recalled<SavedView[]> {
-  const recalled = storedSavedViews(projectId).readAndDrop();
+export function rememberedSavedViews(workPackageId: string): Recalled<SavedView[]> {
+  const recalled = storedSavedViews(workPackageId).readAndDrop();
   const claimed = recalled.value;
   if (claimed === null) return { value: [], persists: recalled.persists };
   return {
@@ -713,13 +718,13 @@ export function rememberedSavedViews(projectId: string): Recalled<SavedView[]> {
 }
 
 /**
- * Writes the saved views in force for `projectId`.
+ * Writes the saved views in force for `workPackageId`.
  *
  * Called on Save and on Delete, and at no other time — same as {@link
- * rememberWidthOverrides}, opening a project must not change what it
+ * rememberWidthOverrides}, opening a work package must not change what it
  * remembers about it, and the sanitized set from {@link rememberedSavedViews}
  * is never written back on a read.
  */
-export function rememberSavedViews(projectId: string, views: readonly SavedView[]): boolean {
-  return storedSavedViews(projectId).write(views);
+export function rememberSavedViews(workPackageId: string, views: readonly SavedView[]): boolean {
+  return storedSavedViews(workPackageId).write(views);
 }

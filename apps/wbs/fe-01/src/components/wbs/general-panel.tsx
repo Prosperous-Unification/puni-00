@@ -6,6 +6,8 @@ import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 export interface GeneralPanelProps extends SettingsSectionReport {
   abbreviation: string;
+  /** Resolved package-read value managed at project level, without provenance metadata. */
+  budgetFactor?: number;
   /** Returns the server's canonical code; refuses with its typed error code. */
   setAbbreviation: (abbreviation: string) => Promise<string>;
   /** Refreshes the existing catalog and this plan after a successful edit. */
@@ -13,12 +15,15 @@ export interface GeneralPanelProps extends SettingsSectionReport {
 }
 
 /**
- * Edits the persisted project address prefix on blur or Enter.
+ * Edits the persisted work package address prefix on blur or Enter and displays
+ * the resolved project-managed budget factor read-only. Older replies without
+ * that optional value render an explicit unavailable state.
  * Catalog refreshes update the saved baseline while preserving a pending draft;
  * Escape restores the latest saved abbreviation.
  */
 export function GeneralPanel({
   abbreviation,
+  budgetFactor,
   setAbbreviation,
   onChanged,
   onDirtyChange,
@@ -49,7 +54,7 @@ export function GeneralPanel({
         invalid_abbreviation:
           'Start with a letter, then use letters, digits, hyphens or underscores, up to 20 characters.',
         abbreviation_taken:
-          'Another project in this organization already uses that abbreviation. Choose another.',
+          'Another work package in this organization already uses that abbreviation. Choose another.',
       },
       otherwise: () => 'That abbreviation change did not land. Try again.',
     },
@@ -57,7 +62,7 @@ export function GeneralPanel({
     onDirtyChange,
     ...(onBusyChange === undefined ? {} : { onBusyChange }),
     onChanged: async () => {
-      // Proof: removing this guard failed `an old response after a project switch
+      // Proof: removing this guard failed `an old response after a workPackage switch
       // cannot overwrite or refresh the current field`: oldRefresh was called once
       // instead of never. Watched 2026-10-22.
       if (current.current) await onChanged();
@@ -84,9 +89,14 @@ export function GeneralPanel({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-sm">
-        The abbreviation prefixes this project’s work item addresses, such as {saved}.080.39.
-        Changing it keeps the project and its relationships.
+        The abbreviation prefixes this work package’s work item addresses, such as {saved}.080.39.
+        Changing it keeps the work package and its relationships.
       </p>
+      <fieldset className="flex flex-col gap-1">
+        <legend className="text-sm font-medium">Budget factor</legend>
+        <p className="text-muted-foreground text-xs">Managed at project level</p>
+        <p className="text-sm">{budgetFactor ?? 'Budget factor is unavailable.'}</p>
+      </fieldset>
       <SectionProblem problem={section.problem} />
       <form
         className="flex flex-col gap-2"
@@ -95,14 +105,14 @@ export function GeneralPanel({
           apply();
         }}
       >
-        <Label htmlFor="project-abbreviation">Project abbreviation</Label>
+        <Label htmlFor="work-package-abbreviation">Work package abbreviation</Label>
         <Input
-          id="project-abbreviation"
+          id="work-package-abbreviation"
           autoComplete="off"
           spellCheck={false}
           readOnly={section.busy}
           value={draft}
-          aria-describedby="project-abbreviation-hint"
+          aria-describedby="work-package-abbreviation-hint"
           onChange={(event) => {
             const typed = event.currentTarget.value;
             setEdit((previous) => ({ ...previous, draft: typed }));
@@ -121,7 +131,7 @@ export function GeneralPanel({
           }}
         />
         <p
-          id="project-abbreviation-hint"
+          id="work-package-abbreviation-hint"
           className="text-muted-foreground text-xs"
           aria-live="polite"
         >

@@ -2,11 +2,11 @@ import { fireEvent, render as renderBare, screen, waitFor, within } from '@testi
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WbsRequestError } from '@/lib/wbs-api';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
-import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
+import { workPackageServicesOf } from '@/testing/work-package-services-of';
 
 import { refusalSentence } from './plan-refusal';
 import { DemandPanel, type DemandPanelRow, demandStatements } from './resource-demand-panel';
@@ -42,7 +42,7 @@ const STAGING = {
 
 /** Two roots and a child under the first, `010` a parent; RAM and staging in the directory. */
 async function planWithResources() {
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const parent = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Build' });
   const leaf = await api.createWorkItem('p1', {
     parentId: null,
@@ -59,8 +59,10 @@ async function planWithResources() {
   return { api, parent: parent.id, leaf: leaf.id, child: child.id };
 }
 
-function drawTable(api: ReturnType<typeof fakeProjectApi>) {
-  return render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+function drawTable(api: ReturnType<typeof fakeWorkPackageApi>) {
+  return render(
+    <WbsTableOverClient workPackageId="p1" workPackageServices={workPackageServicesOf(api)} />,
+  );
 }
 
 async function openFromCell(number: string): Promise<HTMLElement> {
@@ -105,8 +107,8 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     let panel = await openFromCell('020');
     const ram = await within(panel).findByLabelText<HTMLInputElement>('RAM units for 020');
     expect(ram.value).toBe('6');
-    expect(within(panel).getByText(/This project states 32 GiB/)).toBeDefined();
-    expect(within(panel).getByText(/Unstated by this project/)).toBeDefined();
+    expect(within(panel).getByText(/This work package states 32 GiB/)).toBeDefined();
+    expect(within(panel).getByText(/Unstated by this work package/)).toBeDefined();
     fireEvent.change(ram, { target: { value: '8' } });
     fireEvent.click(within(panel).getByLabelText('staging needed by 020'));
     fireEvent.click(within(panel).getByRole('button', { name: 'Save resources' }));
@@ -219,12 +221,12 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
   itDom('says an unconfirmed save as the reader’s own, not somebody else’s', async () => {
     const { api } = await planWithResources();
     const real = api.setDemands.bind(api);
-    api.setDemands = async (projectId, statements) => {
+    api.setDemands = async (workPackageId, statements) => {
       // It lands, and then the answer is lost on the way back.
-      await real(projectId, statements);
+      await real(workPackageId, statements);
       throw new WbsRequestError({
         kind: 'failure',
-        operation: 'postApiProjectsByIdCommands',
+        operation: 'postApiWorkPackagesByIdCommands',
         failure: { code: 'transport', cause: new Error('connection reset') },
       });
     };
@@ -266,8 +268,8 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     const { api } = await planWithResources();
     const real = api.readResources.bind(api);
     let refusals = 1;
-    api.readResources = (projectId) =>
-      refusals-- > 0 ? Promise.reject(new Error('not_found')) : real(projectId);
+    api.readResources = (workPackageId) =>
+      refusals-- > 0 ? Promise.reject(new Error('not_found')) : real(workPackageId);
     drawTable(api);
     const panel = await openFromCell('020');
     expect((await within(panel).findByRole('alert')).textContent).toBe(
@@ -283,7 +285,7 @@ describe('the Resources cell (wbs-resources 1.5)', () => {
     drawTable(api);
     const panel = await openFromCell('020');
     expect((await within(panel).findByText(/holds no resources yet/)).textContent).toMatch(
-      /Project settings → Resources/,
+      /Work package settings → Resources/,
     );
     expect(within(panel).queryByRole('button', { name: 'Save resources' })).toBeNull();
   });

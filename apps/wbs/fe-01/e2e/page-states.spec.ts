@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from './ordinary-test';
 
 /**
  * The Directory, Organization and Spaces pages as a local-mode reader meets

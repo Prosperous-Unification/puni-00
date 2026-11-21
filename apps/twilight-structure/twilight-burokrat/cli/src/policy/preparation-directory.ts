@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 
 import { anchorPath } from '../validator-paths';
 import type { PreparationSource } from './preparation-source';
+import { resolveToolkitModules } from './toolkit';
 
 export interface ProtectedDirectoryContext {
   readonly callerDirectory: string;
@@ -99,7 +100,7 @@ export function selectPreparationPaths(
     // Proof: material-protect-runtime; `refuses output beneath native protected runtime authority before reservation` failed under its recorded source fault and passed after restoration.
     selection.runtime.directory,
     // Proof: material-protect-closure; `refuses output beneath native protected closure authority before reservation` failed under its recorded source fault and passed after restoration.
-    join(toolkit, 'trusted-node-modules'),
+    resolveToolkitModules(selection.toolkit),
     // Proof: material-descriptor-availability; `refuses missing selected descriptor target before output ownership` failed under its recorded source fault and passed after restoration.
     join(toolkit, 'toolkit.json'),
     // Proof: material-role-availability; `refuses missing selected role target before output ownership` failed under its recorded source fault and passed after restoration.

@@ -84,3 +84,12 @@ infra/platform/observability/production/metrics-template.json
 infra/platform/observability/elastic/settings/settings.yaml
 infra/platform/observability/local/apply.js
 infra/platform/observability/production/apply.js
+
+# Historical backup reports retain the exact published bytes pinned by the fixture manifest.
+# Proof: without this rule, fixtureFormat listed all three captured window reports and exited 1.
+libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117/*.window.json
+
+# Exact merged-step capture metadata and reports retain their producer bytes.
+# Proof: mergedFixtureFormat listed the manifest and both reports without these rules.
+libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/*.window.json
+libs/wbs/adapters/store-sqlite/src/testing/fixtures/resource-use-117-merged/manifest.json

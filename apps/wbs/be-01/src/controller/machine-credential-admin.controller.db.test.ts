@@ -149,7 +149,7 @@ describe('creating an API key', () => {
     const secret = secretOf(created.key);
     const digest = await digestMachineSecret(secret);
     expect(rows('SELECT digest FROM machine_credential_secret')).toEqual([{ digest }]);
-    expect(await asAgent(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(created.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
 
     const list = await h.call('dany', 'GET', PATH);
     expect(list.status).toBe(200);
@@ -179,7 +179,7 @@ describe('creating an API key', () => {
   it('lets a member issue for their own agent, acting as the member with read and write only', async () => {
     const created = await create('mem', 'mems-agent');
     expect(created.answer).toMatchObject({ status: 201, body: { issuedBy: h.userId('mem') } });
-    expect(await asAgent(created.key, 'GET', '/api/projects')).toMatchObject({ status: 200 });
+    expect(await asAgent(created.key, 'GET', '/api/work-packages')).toMatchObject({ status: 200 });
     expect(await asAgent(created.key, 'GET', '/api/organization/members')).toEqual({
       status: 403,
       body: { error: 'insufficient_scope' },
@@ -305,7 +305,7 @@ describe('listing', () => {
 
   it('shows last use, and revoked credentials only when asked', async () => {
     const created = await create('dany', 'claire');
-    await asAgent(created.key, 'GET', '/api/projects');
+    await asAgent(created.key, 'GET', '/api/work-packages');
     expect(listed(await h.call('dany', 'GET', PATH))[0]).toMatchObject({
       lastUsedAt: clockAt,
       revokedAt: null,
@@ -345,14 +345,14 @@ describe('rotation', () => {
     });
 
     clockAt = t0 + 23 * HOUR;
-    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
-    expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/work-packages')).status).toBe(200);
+    expect((await asAgent(next, 'GET', '/api/work-packages')).status).toBe(200);
     clockAt = t0 + 25 * HOUR;
     // Through mcp-01 the grant's lifetime cap at the secret's expiry refuses
     // the old key as well as `admitMachineCredential`'s expiry predicate, whose
     // own negative is `machine-credential.test.ts` since 7.1 (M9).
-    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect((await asAgent(next, 'GET', '/api/projects')).status).toBe(200);
+    expect(await asAgent(created.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
+    expect((await asAgent(next, 'GET', '/api/work-packages')).status).toBe(200);
 
     const audit = auditRows().filter((row) => row.action === 'machine_credential_rotated');
     expect(audit).toHaveLength(1);
@@ -403,8 +403,8 @@ describe('revocation', () => {
       status: 204,
       body: null,
     });
-    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect(await asAgent(next, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await asAgent(created.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
+    expect(await asAgent(next, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     expect(await h.call('dany', 'DELETE', `${PATH}/${created.id}`)).toEqual({
       status: 404,
       body: { error: 'not_found' },
@@ -438,7 +438,7 @@ describe('revocation', () => {
         status: 404,
         body: { error: 'not_found' },
       });
-    expect((await asAgent(strangers.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(strangers.key, 'GET', '/api/work-packages')).status).toBe(200);
     const own = await create('mem', 'mems-agent');
     expect((await h.call('mem', 'POST', `${PATH}/${own.id}/rotate`)).status).toBe(201);
     expect((await h.call('mem', 'DELETE', `${PATH}/${own.id}`)).status).toBe(204);
@@ -559,7 +559,7 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'deletePerson',
-        usage: { projects: [], members: [], machineCredentials: 1 },
+        usage: { workPackages: [], members: [], machineCredentials: 1 },
       },
     });
     expect(credentialCount()).toBe(1);
@@ -568,7 +568,7 @@ describe("a credential's person", () => {
     ).toBe(200);
     expect(credentialCount()).toBe(0);
     expect(rows('SELECT id FROM machine_credential_secret')).toEqual([]);
-    expect(await asAgent(created.key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await asAgent(created.key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     const revoked = auditRows().filter((row) => row.action === 'machine_credential_revoked');
     expect(revoked).toHaveLength(1);
     expect(revoked[0]).toMatchObject({ actor_id: h.userId('dany'), subject_id: created.id });
@@ -630,7 +630,7 @@ describe("a credential's person", () => {
           error: 'in_use',
           at: 0,
           kind: 'patchPerson',
-          usage: { projects: [], members: [], machineCredentials: 1 },
+          usage: { workPackages: [], members: [], machineCredentials: 1 },
         },
       });
     expect(rows("SELECT account_id FROM person WHERE id = 'claire'")).toEqual([
@@ -662,11 +662,11 @@ describe("a credential's person", () => {
         error: 'in_use',
         at: 0,
         kind: 'patchPerson',
-        usage: { projects: [], members: [], machineCredentials: 1 },
+        usage: { workPackages: [], members: [], machineCredentials: 1 },
       },
     });
     expect(rows("SELECT kind FROM person WHERE id = 'claire'")).toEqual([{ kind: 'agent' }]);
-    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/work-packages')).status).toBe(200);
   });
 
   const cascade = (personId: string) => ({
@@ -684,7 +684,7 @@ describe("a credential's person", () => {
     );
     expect(credentialCount()).toBe(1);
     expect(auditRows().map((row) => row.action)).toEqual(['machine_credential_created']);
-    expect((await asAgent(strangers.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(strangers.key, 'GET', '/api/work-packages')).status).toBe(200);
     await create('mem', 'mems-agent');
     expect(await h.call('mem', 'POST', '/api/directory/commands', cascade('mems-agent'))).toEqual(
       FORBIDDEN,
@@ -701,7 +701,7 @@ describe("a credential's person", () => {
       await asAgent(created.key, 'POST', '/api/directory/commands', cascade('claire')),
     ).toEqual(FORBIDDEN);
     expect(credentialCount()).toBe(1);
-    expect((await asAgent(created.key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await asAgent(created.key, 'GET', '/api/work-packages')).status).toBe(200);
   });
 });
 

@@ -8,16 +8,16 @@ import { OrganizationResourcesProvider } from '@/runtime/organization-resources'
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@/testing/organization-render';
 import { answerJson as answer, stubServer as baseStubServer } from '@/testing/stub-server';
 
-import { type ProjectResource, ResourceRow, ResourcesPanel } from './resources-panel';
+import { ResourceRow, ResourcesPanel, type WorkPackageResource } from './resources-panel';
 
 const NOW = Date.UTC(2026, 9, 23, 10, 0);
 const CADENCE_S = 300;
-const READ = 'GET /api/projects/p1/resources';
+const READ = 'GET /api/work-packages/p1/resources';
 const PROVIDERS = 'GET /api/organization/compute-providers';
-const PLAN = 'POST /api/projects/p1/commands';
+const PLAN = 'POST /api/work-packages/p1/commands';
 const DIRECTORY = 'POST /api/directory/commands';
-const STARTABLE = 'GET /api/projects/p1/startable';
-const RESOURCE_USES = 'GET /api/projects/p1/resource-uses';
+const STARTABLE = 'GET /api/work-packages/p1/startable';
+const RESOURCE_USES = 'GET /api/work-packages/p1/resource-uses';
 const stubServer = (routes: Parameters<typeof baseStubServer>[0]) =>
   baseStubServer({
     [RESOURCE_USES]: [() => answer(200, { uses: [], nextCursor: null })],
@@ -54,7 +54,7 @@ const h2puni: ComputeProvider = {
 };
 const builder: ComputeProvider = { ...h2puni, id: 'cp-2', kind: 'docker', name: 'builder' };
 
-type Report = NonNullable<ProjectResource['report']>;
+type Report = NonNullable<WorkPackageResource['report']>;
 const measured = (fields: Partial<Report> = {}): Report => ({
   providerId: 'cp-1',
   observedAt: NOW - 120_000,
@@ -65,7 +65,7 @@ const measured = (fields: Partial<Report> = {}): Report => ({
   ...fields,
 });
 
-const resourceOf = (fields: Partial<ProjectResource> = {}): ProjectResource => ({
+const resourceOf = (fields: Partial<WorkPackageResource> = {}): WorkPackageResource => ({
   id: 'r1',
   name: 'h2puni ram',
   kind: 'divisible',
@@ -75,7 +75,7 @@ const resourceOf = (fields: Partial<ProjectResource> = {}): ProjectResource => (
 });
 
 const readOf =
-  (resources: ProjectResource[], capacities: { resourceId: string; units: number }[] = []) =>
+  (resources: WorkPackageResource[], capacities: { resourceId: string; units: number }[] = []) =>
   () =>
     answer(200, { resources, capacities, demands: [] });
 const providersOf =
@@ -99,7 +99,12 @@ const applied = () => answer(200, { results: [{ index: 0 }], undoable: false, re
 function mount(onChanged: () => Promise<void> = () => Promise.resolve(), resourceScope = scope) {
   return renderBare(
     <OrganizationResourcesProvider scope={resourceScope}>
-      <ResourcesPanel projectId="p1" shown onChanged={onChanged} onDirtyChange={() => undefined} />
+      <ResourcesPanel
+        workPackageId="p1"
+        shown
+        onChanged={onChanged}
+        onDirtyChange={() => undefined}
+      />
     </OrganizationResourcesProvider>,
   );
 }
@@ -353,7 +358,7 @@ describe('resources section states', () => {
     renderBare(
       <OrganizationResourcesProvider scope={scope}>
         <ResourcesPanel
-          projectId="p1"
+          workPackageId="p1"
           shown={false}
           onChanged={() => Promise.resolve()}
           onDirtyChange={() => undefined}
@@ -485,7 +490,7 @@ describe('resources section writes', () => {
     const panelShown = (shown: boolean) => (
       <OrganizationResourcesProvider scope={scope}>
         <ResourcesPanel
-          projectId="p1"
+          workPackageId="p1"
           shown={shown}
           onChanged={() => Promise.resolve()}
           onDirtyChange={() => undefined}
@@ -549,7 +554,7 @@ describe('resources section writes', () => {
     const ram = await row('h2puni ram');
     fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Organization limit: h2puni ram would declare 23 of 16 units across your projects (8 stated by your other projects, 15 asked here). Nothing was changed.',
+      'Organization limit: h2puni ram would declare 23 of 16 units across your work packages (8 stated by your other work packages, 15 asked here). Nothing was changed.',
     );
     expect(within(ram).queryByRole('status')).toBeNull();
     expect(within(ram).getByText('12 GB')).toBeDefined();
@@ -765,7 +770,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const panelShown = (shown: boolean) => (
       <OrganizationResourcesProvider scope={scope}>
         <ResourcesPanel
-          projectId="p1"
+          workPackageId="p1"
           shown={shown}
           onChanged={() => Promise.resolve()}
           onDirtyChange={() => undefined}
@@ -810,7 +815,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
       at: 0,
       kind: 'deleteResource',
       usage: {
-        projects: [
+        workPackages: [
           {
             id: 'p1',
             name: 'This plan',
@@ -848,7 +853,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
     const alert = await within(ram).findByText(/is still used by/);
     expect(alert.closest('[role="alert"]')).toHaveTextContent(
-      'h2puni ram is still used by 2 demands, 1 capacity and 1 claim holding it. Its demands are in this project (1 work item) and “Swarm B” (1 work item). Capacities and claims are counted across every project. Removing it with them takes all of these away, and cannot be undone.' +
+      'h2puni ram is still used by 2 demands, 1 capacity and 1 claim holding it. Its demands are in this work package (1 work item) and “Swarm B” (1 work item). Capacities and claims are counted across every work package. Removing it with them takes all of these away, and cannot be undone.' +
         '1 live claim holds it: its agent keeps the claim but no longer holds these units.',
     );
     expect(onChanged).not.toHaveBeenCalled();
@@ -895,7 +900,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const ram = await row('h2puni ram');
     fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
     expect(await within(ram).findByRole('alert')).toHaveTextContent(
-      'Remove h2puni ram from the directory? Every project loses it, and it cannot be undone: the plan’s Undo does not reach the directory, and its compute provider link goes with it.',
+      'Remove h2puni ram from the directory? Every work package loses it, and it cannot be undone: the plan’s Undo does not reach the directory, and its compute provider link goes with it.',
     );
     // Keep is where the keyboard lands, and Keep sends nothing.
     expect(document.activeElement).toBe(
@@ -925,7 +930,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const ram = await row('h2puni ram');
     expect(within(ram).getByRole('button', { name: 'Edit h2puni ram' })).toBeDefined();
     expect(
-      within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+      within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' }),
     ).toHaveValue('4');
     expect(within(ram).queryByRole('button', { name: /Remove/ })).toBeNull();
     expect(screen.getByText('Only an organization admin can remove a resource.')).toBeDefined();
@@ -1105,7 +1110,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     mount();
     const ram = await row('h2puni ram');
     fireEvent.change(
-      within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+      within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' }),
       { target: { value: '3' } },
     );
     fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
@@ -1241,7 +1246,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     );
   });
 
-  it('states and clears this project’s capacity by hand', async () => {
+  it('states and clears this work package’s capacity by hand', async () => {
     const onChanged = vi.fn(() => Promise.resolve());
     const sent = serve({
       [READ]: [
@@ -1254,7 +1259,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     });
     mount(onChanged);
     const ram = await row('h2puni ram');
-    const box = within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' });
+    const box = within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' });
     fireEvent.change(box, { target: { value: '16' } });
     fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
     expect(await within(ram).findByText('16 GB')).toBeDefined();
@@ -1280,7 +1285,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     });
     mount();
     const ram = await row('h2puni ram');
-    const box = within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' });
+    const box = within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' });
     for (const typed of ['3', '5']) {
       fireEvent.change(box, { target: { value: typed } });
       fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
@@ -1320,7 +1325,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
     const ram = await row('h2puni ram');
     for (const typed of ['0x10', '9'.repeat(400)]) {
       fireEvent.change(
-        within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+        within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' }),
         { target: { value: typed } },
       );
       fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
@@ -1329,7 +1334,7 @@ describe('resources section directory (wbs-resources 1.5)', () => {
       );
       // Unsent, so the box keeps what was typed for correcting.
       expect(
-        within(ram).getByRole('textbox', { name: 'This project may use h2puni ram' }),
+        within(ram).getByRole('textbox', { name: 'This work package may use h2puni ram' }),
         typed,
       ).toHaveValue(typed);
     }
@@ -1344,7 +1349,7 @@ const startableOf =
       leaves: [],
       claimed: [],
       subtreeClaims: [],
-      occupancyScope: 'project',
+      occupancyScope: 'work_package',
       resources: resources.map((each) => ({
         ...each,
         name: 'h2puni ram',
@@ -1427,8 +1432,8 @@ describe('resource-use integration', () => {
                 id: 'u1',
                 source: 'reported',
                 organizationId: 'org-a',
-                projectId: 'p1',
-                projectName: 'Plan',
+                workPackageId: 'p1',
+                workPackageName: 'Plan',
                 resourceId: 'r1',
                 resourceName: 'h2puni ram',
                 unitLabel: 'GB',

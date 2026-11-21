@@ -1,13 +1,15 @@
-import type { ActualStore, StepStore, StoredActual, WorkItemStore } from '@wbs/core';
+import type { ActualStore, StoredActual, WorkItemStore } from '@wbs/core';
+import { readStoredActual } from '@wbs/core';
 
-import { readTargetedSatelliteRows } from './targeted-satellite-rows';
-import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+import { readMemoryStepFactsIn } from './estimate-reads';
+import { type MemoryStepWriteContext, readMemoryStepWriteIn } from './step-write';
+import { listValueGroupPlacements } from './value-group-placement';
 
 /** An ActualStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryActuals(
   workItems: WorkItemStore,
-  table: MemoryActualTable = memoryActualTable(),
-  steps?: StepStore,
+  context: MemoryStepWriteContext,
+  table: MemoryActualTable,
 ): ActualStore {
   const { rows } = table;
   /**
@@ -16,43 +18,30 @@ export function inMemoryActuals(
    */
 
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
-      return order(
-        rows.filter((row) => ids.has(row.workItemId)),
-        await steps?.listByProject(projectId),
+    async listByWorkPackage(workPackageId) {
+      return await Promise.resolve(
+        readMemoryStepFactsIn(context, rows, workPackageId, null, readStoredActual, 'actual'),
       );
     },
-    async listByWorkItems(projectId, workItemIds) {
-      const targeted = await readTargetedSatelliteRows(
-        'actual',
-        rows,
-        projectId,
-        workItemIds,
-        workItems,
-        steps,
-        (row) => {
-          if (typeof row.days !== 'number' || !Number.isFinite(row.days) || row.days < 0) {
-            throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid day value`);
-          }
-          if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
-            throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid recorded time`);
-          }
-        },
+    async listByWorkItems(workPackageId, ids) {
+      return await Promise.resolve(
+        readMemoryStepFactsIn(context, rows, workPackageId, ids, readStoredActual, 'actual'),
       );
-      return order(targeted.rows, targeted.steps);
     },
-    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
-    set(toSet, _stamp) {
+    listPlacements: (workPackageId, ids) =>
+      listValueGroupPlacements(rows, workPackageId, ids, workItems),
+    async set(toSet, _stamp) {
+      const keptValue = structuredClone(toSet);
+      const decision = readMemoryStepWriteIn(context, keptValue.workItemId, keptValue.stepId);
+      // Proof: removing this refusal made memory stepCatalogue.pointWrite:actual-untyped
+      // return written for an unresolved step after its healthy typed write/read/remove.
+      // Restoring the guard returned the same isolated owner to passing.
+      if (decision.kind !== 'resolved') return await Promise.resolve(decision.kind);
       const kept = rows.filter(
-        (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
+        (row) => !(row.workItemId === keptValue.workItemId && row.stepId === keptValue.stepId),
       );
-      rows.splice(0, rows.length, ...kept, structuredClone(toSet));
-      // `'written'`, always: these fixtures enforce no references at all, so
-      // they cannot tell a step that has gone from one that never existed. That
-      // is the memory source lagging the SQLite one on a named method (D29),
-      // and slice 5 is where it goes on the allowlist or is tightened.
-      return Promise.resolve('written' as const);
+      rows.splice(0, rows.length, ...kept, keptValue);
+      return await Promise.resolve<'written'>('written');
     },
     remove(workItemId, stepId, _stamp) {
       const kept = rows.filter((row) => !(row.workItemId === workItemId && row.stepId === stepId));
@@ -67,20 +56,6 @@ export function inMemoryActuals(
       return Promise.resolve();
     },
   };
-}
-
-function order(
-  rows: StoredActual[],
-  steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
-): StoredActual[] {
-  if (steps === undefined) return rows;
-  const position = new Map(steps.map((step) => [step.id, step.position]));
-  return [...rows].sort(
-    (left, right) =>
-      compareValueGroupIds(left.workItemId, right.workItemId) ||
-      (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
-      left.stepId.localeCompare(right.stepId),
-  );
 }
 
 export interface MemoryActualTable {

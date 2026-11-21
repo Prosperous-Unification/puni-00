@@ -3,7 +3,6 @@ import { Button } from '@ui/saas-01';
 import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
-  type ChangeEventHandler,
   type ComponentProps,
   memo,
   type ReactNode,
@@ -129,8 +128,6 @@ import {
 import { type PlanViewport, usePlanViewport } from './use-plan-viewport';
 import { usePlanAssignments, usePlanLabels, useReferenceSets } from './use-reference-sets';
 import { type TreeRow } from './wbs-rows';
-
-const ignoreImportFile: ChangeEventHandler<HTMLInputElement> = () => undefined;
 
 /** What {@link PlanRow} needs beyond the cells it is handed. */
 interface PlanRowProps {
@@ -599,8 +596,8 @@ interface PlanHeaderCellProps {
   header: Header<PlanTableFeatures, PlanRenderRow>;
   frameState: FrameLayoutState;
   layout: FrameLayout;
-  hasProjectStartDate: boolean;
-  projectId: string;
+  hasWorkPackageStartDate: boolean;
+  workPackageId: string;
   resizeHandle: (columnId: string, heading: unknown) => ReactNode;
 }
 
@@ -609,14 +606,14 @@ interface PlanHeaderCellProps {
  *
  * `resizeHandle` is deliberately absent from the comparator: its closure changes
  * with the table render, while the behavior it closes over changes only with the
- * project or frame readings compared below. Keeping it out is what makes a Find
+ * work package or frame readings compared below. Keeping it out is what makes a Find
  * leave invariant headings still.
  */
 function PlanHeaderCellView({
   header,
   frameState,
   layout,
-  hasProjectStartDate,
+  hasWorkPackageStartDate,
   resizeHandle,
 }: PlanHeaderCellProps) {
   const columnId = header.column.id;
@@ -625,7 +622,7 @@ function PlanHeaderCellView({
       scope="col"
       data-column={columnId}
       aria-label={header.column.columnDef.meta?.spokenHeading}
-      data-hint={hintFor(columnId, { hasProjectStartDate })}
+      data-hint={hintFor(columnId, { hasWorkPackageStartDate })}
       style={{
         ...CELL,
         ...STICKY_HEADER_CELL,
@@ -649,8 +646,8 @@ const PlanHeaderCell = memo(
     before.header.column.columnDef === after.header.column.columnDef &&
     before.frameState === after.frameState &&
     before.layout === after.layout &&
-    before.projectId === after.projectId &&
-    before.hasProjectStartDate === after.hasProjectStartDate,
+    before.workPackageId === after.workPackageId &&
+    before.hasWorkPackageStartDate === after.hasWorkPackageStartDate,
 );
 
 /**
@@ -679,10 +676,10 @@ export function useToday(): Date {
  * which would be a second implementation of the derivation as well.
  */
 export function WbsTable({
-  project,
+  workPackage,
   planActive = true,
   viewControls,
-  projectName,
+  workPackageName,
   generalSettings,
   planImport,
   toastApi: toastApiOverride,
@@ -691,18 +688,18 @@ export function WbsTable({
 }: WbsTableProps) {
   const interaction = usePlanInteractionScope();
   const isPlanActive = useCallback(() => interaction?.isPlanActive() ?? true, [interaction]);
-  const projectId = project.projectId;
+  const workPackageId = workPackage.workPackageId;
   const today = useToday();
   /**
-   * This project's commands, bound to it by its runtime. Everything below
+   * This work package's commands, bound to it by its runtime. Everything below
    * writes through these and never sees the client.
    */
-  const commands = project.commands;
+  const commands = workPackage.commands;
   const {
     plan,
-    activeProject,
+    activeWorkPackage,
     workItems,
-    treeReadProject,
+    treeReadWorkPackage,
     remoteBlockageLabels,
     stepNodes,
     typedDependencies,
@@ -730,13 +727,13 @@ export function WbsTable({
     teamCapacities,
     priorityBands,
     people,
-  } = usePlanReadState({ project });
+  } = usePlanReadState({ workPackage });
   const {
     expanded,
     setExpanded,
     widthOverrides,
     setWidthOverrides,
-    widthProject,
+    widthWorkPackage,
     ganttHeightPx,
     setGanttHeightPx,
     ganttColumn,
@@ -750,9 +747,9 @@ export function WbsTable({
     setGanttLabelsShown,
     mermaidSectionMode,
     setMermaidSectionMode,
-  } = useRememberedPlanLayout({ projectId });
+  } = useRememberedPlanLayout({ workPackageId });
   const { query, commitQuery, facets, setFacets, savedViews, setSavedViews } = usePlanFilterState({
-    projectId,
+    workPackageId,
   });
   /**
    * What happened, in the corner, one message per event.
@@ -824,8 +821,8 @@ export function WbsTable({
     forgetMeasureToggles,
     isTimeShown,
     toggleTime,
-  } = useColumnSet({ projectId, steps });
-  const measureDefinitions = useMeasureDefinitions(commands, projectId);
+  } = useColumnSet({ workPackageId, steps });
+  const measureDefinitions = useMeasureDefinitions(commands, workPackageId);
   /**
    * The definitions whose columns this reader has on the table: none until
    * the definitions are read, and none before organization activation.
@@ -838,8 +835,8 @@ export function WbsTable({
     [measureDefinitions, measureToggles],
   );
   usePlanLayoutSwap({
-    widthProject,
-    projectId,
+    widthWorkPackage,
+    workPackageId,
     setWidthOverrides,
     setStoredHiddenColumns,
     setGanttHeightPx,
@@ -1011,7 +1008,7 @@ export function WbsTable({
    *
    * Off to begin with, and not remembered anywhere: the plan is the editor and
    * the chart is a second thing to look at, so a reader who opened it once on
-   * one project has not asked for it on every project they open afterwards.
+   * one work package has not asked for it on every work package they open afterwards.
    */
   const [ganttOpen, setGanttOpen] = useState(false);
 
@@ -1060,11 +1057,11 @@ export function WbsTable({
     markers: markerGestures,
   } = usePlanRead({
     setDrafts,
-    projectId,
-    project,
+    workPackageId,
+    workPackage,
     commands,
     plan,
-    treeReadProject,
+    treeReadWorkPackage,
     rowPlacements,
     cellCards,
     pushToast,
@@ -1122,7 +1119,7 @@ export function WbsTable({
     stepNodes,
   });
 
-  const hasSuccessfulTreeRead = treeReadProject.current === projectId;
+  const hasSuccessfulTreeRead = treeReadWorkPackage.current === workPackageId;
   const hasAnyExternalRefs = useMemo(() => flat.some((row) => row.externalRefs.length > 0), [flat]);
   const resetTargetHiddenColumnIds = resetHiddenColumns(hasAnyExternalRefs);
 
@@ -1257,8 +1254,8 @@ export function WbsTable({
 
   const { siblingsOf, addWorkItem } = useAddWorkItem({
     flat,
-    projectId,
-    activeProject,
+    workPackageId,
+    activeWorkPackage,
     run,
     commands,
     focusIntent,
@@ -1269,7 +1266,7 @@ export function WbsTable({
       typedDependencies,
       widthOverrides,
       setWidthOverrides,
-      projectId,
+      workPackageId,
       setGanttHeightPx,
       setGanttDayPx,
       setGanttRungNotice,
@@ -1292,7 +1289,7 @@ export function WbsTable({
     registerSvgDownload,
     downloadChartSvg,
   } = usePlanExportActions({
-    projectName,
+    workPackageName,
     estimateMethod,
     startDate,
     scheduleError,
@@ -1377,16 +1374,16 @@ export function WbsTable({
   const { dependenciesOf, dependOn, depEntriesFor, pickDependency, moveDepHighlight } =
     usePlanDependencies({
       flat,
-      projectId,
-      lookup: project.dependencyLookup,
+      workPackageId,
+      lookup: workPackage.dependencyLookup,
       stepNodes,
       pushToast,
       busy: busyWrites,
       commands,
       // Proof: on 2026-09-25, `isCurrent: () => true` here failed `says nothing in the next
-      // project when a dependency list asked of the last one is refused`: expected
+      // work package when a dependency list asked of the last one is refused`: expected
       // [ Array(1) ] to deeply equal [].
-      isCurrent: project.isCurrent,
+      isCurrent: workPackage.isCurrent,
       refreshOrMarkStale,
       setDepPicker,
       run,
@@ -1811,7 +1808,7 @@ export function WbsTable({
    * initialiser saw on the first one.
    */
   const liveNow: PlanLiveValues = {
-    projectId,
+    workPackageId,
     pushToast,
     focusIntent,
     gridElement,
@@ -1847,7 +1844,7 @@ export function WbsTable({
     depLights,
     setOpenMenuRowId,
     depEntriesFor,
-    dependencyLookup: project.dependencyLookup,
+    dependencyLookup: workPackage.dependencyLookup,
     pickDependency,
     moveDepHighlight,
     commitEstimate,
@@ -2002,7 +1999,7 @@ export function WbsTable({
     // back` failed with the whole plan open. Both watched, 2026-08-06.
     state: { expanded: search.expandedOverlay ?? hoverOpened.overlay(expanded) },
     onExpandedChange: setExpanded,
-    // The expansion is this component's — remembered per project, opened on
+    // The expansion is this component's — remembered per work package, opened on
     // a drop and on a gap visit, never the table's to reset. TanStack Table 9
     // resets it to `{}` after every row-structure change unless told not to,
     // and every write here refetches the tree, so without this line the plan
@@ -2145,18 +2142,18 @@ export function WbsTable({
     (picked, notice) => {
       setGanttDayPx(picked);
       setGanttRungNotice(notice ?? null);
-      rememberGanttDayPx(projectId, picked);
+      rememberGanttDayPx(workPackageId, picked);
     },
-    [projectId, setGanttDayPx, setGanttRungNotice],
+    [workPackageId, setGanttDayPx, setGanttRungNotice],
   );
   const pickGanttLabels = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onPickLabelsShown']>
   >(
     (shown) => {
       setGanttLabelsShown(shown);
-      rememberGanttLabels(projectId, shown);
+      rememberGanttLabels(workPackageId, shown);
     },
-    [projectId, setGanttLabelsShown],
+    [workPackageId, setGanttLabelsShown],
   );
   const createGanttMarker = useCallback<
     NonNullable<ComponentProps<typeof GanttPanel>['onCreateMarker']>
@@ -2238,7 +2235,7 @@ export function WbsTable({
         anchor.href = url;
         anchor.download = planFileName(
           {
-            projectName: document.settings.name,
+            workPackageName: document.settings.name,
             generatedAt: document.document.exportedAt,
             scope: undefined,
           },
@@ -2355,16 +2352,21 @@ export function WbsTable({
     const id = url.searchParams.get('stepNode');
     const linkedWorkItem = url.searchParams.get('workItem');
     if ((id === null && linkedWorkItem === null) || !hasSuccessfulTreeRead) return;
-    // Proof: without this guard, the wrong project's table consumed
-    // ?project=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
-    // Proof: bypassing it also consumed another project's workItem link in the mounted view (2026-10-22).
-    if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId)
+    // Proof: without this guard, the wrong work package's table consumed
+    // ?work package=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
+    // Proof: bypassing it also consumed another work package's workItem link in the mounted view (2026-10-22).
+    // Proof: using work_package here consumed stepNode from another package's
+    // workPackage link; the pending-step-link mounted test failed (2026-11-13).
+    if (
+      url.searchParams.get('workPackage') !== null &&
+      url.searchParams.get('workPackage') !== workPackageId
+    )
       return;
     const dismissLink = (message?: string) => {
       if (message !== undefined) pushToast({ kind: 'error', text: message });
       url.searchParams.delete('stepNode');
       url.searchParams.delete('workItem');
-      url.searchParams.delete('project');
+      url.searchParams.delete('workPackage');
       window.history.replaceState(window.history.state, '', url.href);
     };
     // Proof: returning before this branch left the stable work-item link unfocused and unconsumed in the mounted view (2026-10-22).
@@ -2462,7 +2464,7 @@ export function WbsTable({
     flat,
     filtering,
     hasSuccessfulTreeRead,
-    projectId,
+    workPackageId,
     hiddenColumnIds,
     revealRow,
     pushToast,
@@ -2481,10 +2483,10 @@ export function WbsTable({
    *
    * Read in the `<thead>` render and nowhere else, and deliberately **not**
    * inside a column definition — landmine #1 again: the schedule columns'
-   * sentence changes the day the project gets a start date, and a definition
+   * sentence changes the day the work package gets a start date, and a definition
    * that changed with it would remount every cell in the table on that edit.
    */
-  const hintState: ColumnHintState = { hasProjectStartDate: startDate !== null };
+  const hintState: ColumnHintState = { hasWorkPackageStartDate: startDate !== null };
 
   /**
    * The resize handle for one heading — every leaf column carries one since
@@ -2591,20 +2593,20 @@ export function WbsTable({
       Reset layout
     </Button>
   );
-  const claimsOffered = useClaimsOffered(projectId, claims);
+  const claimsOffered = useClaimsOffered(workPackageId, claims);
   const toolbarControls = (
     <PlanToolbar
-      // Its urgent Find value belongs to one project. Proof: this key removed,
-      // `a project switch cannot show or apply the previous project’s query`
+      // Its urgent Find value belongs to one work package. Proof: this key removed,
+      // `a workPackage switch cannot show or apply the previous workPackage’s query`
       // failed on `expected 'skirting' to be ''`. Watched 2026-09-08.
-      key={projectId}
+      key={workPackageId}
       criteria={criteria}
       freezeMenuOpen={freezeMenuOpen}
       setFreezeMenuOpen={setFreezeMenuOpen}
       busy={busy}
       run={run}
       commands={commands}
-      projectId={projectId}
+      workPackageId={workPackageId}
       {...(generalSettings === undefined ? {} : { generalSettings })}
       scheduleError={scheduleError}
       arrangeBySchedule={arrangeBySchedule}
@@ -2623,7 +2625,6 @@ export function WbsTable({
       steps={steps}
       hiddenColumnIds={hiddenColumnIds}
       frameState={frameState}
-      people={people}
       chartRead={chartRead}
       estimateMethod={estimateMethod}
       commitQuery={commitQuery}
@@ -2667,14 +2668,13 @@ export function WbsTable({
       downloadChartSvg={downloadChartSvg}
       downloadOnScreen={downloadOnScreen}
       downloadJson={downloadJson}
-      importBusy={planImport?.busy ?? false}
-      importJson={planImport?.chooseFile ?? ignoreImportFile}
+      planImport={planImport}
       mermaidSectionMode={mermaidSectionMode}
       setMermaidSectionMode={setMermaidSectionMode}
       startDate={startDate}
       chooseEstimateMethod={chooseEstimateMethod}
       // The saved-plan shelf, which on a phone lives on the sheet and nowhere
-      // else — the header's project row cannot afford it, and
+      // else — the header's work package row cannot afford it, and
       // `SavedPlanShelf` carries the 21.4px that says so. Under Schedule,
       // beside the start date and the method it records. Above `md` the shelf
       // is in the app header and the sheet is not rendered at all.
@@ -2707,7 +2707,7 @@ export function WbsTable({
       <OptimizationCue
         optimization={chartRead.optimization}
         stale={treeMayBeStale}
-        projectStart={startDate}
+        workPackageStart={startDate}
         today={today}
         workItemName={(id) => flat.find((row) => row.id === id)?.name ?? null}
         menuOpen={cueMenuOpen}
@@ -2745,7 +2745,7 @@ export function WbsTable({
       the height its parent has, and passes the remainder — what the toolbar and
       any banner leave — to the frame at the bottom of it. `min-h-0` is what
       lets it shrink below the table's own height; without it the whole chain
-      falls back to content height and the frame never scrolls. `ProjectPage`
+      falls back to content height and the frame never scrolls. `WorkPackagePage`
       has the same pair on `<main>`, and `table-frame.ts` has the why.
     */
     <section
@@ -2760,7 +2760,7 @@ export function WbsTable({
       // lets `wbs-table.test.tsx` watch "a refetch replaces the slices" break
       // without opening a chart.
       data-slice-count={chartRead.slices.length}
-      data-project-id={projectId}
+      data-work-package-id={workPackageId}
     >
       {/*
         Two places for one toolbar, and which one is a fact about the viewport.
@@ -2863,7 +2863,7 @@ export function WbsTable({
             type="button"
             className="h-6 px-2 text-xs"
             onClick={() => {
-              void project.reread(['claims']);
+              void workPackage.reread(['claims']);
             }}
           >
             Retry claims
@@ -2950,8 +2950,8 @@ export function WbsTable({
           nothing sticky to hold, because there are no columns to pin.
         */
             <PlanCards
-              projectId={projectId}
-              dependencyLookup={project.dependencyLookup}
+              workPackageId={workPackageId}
+              dependencyLookup={workPackage.dependencyLookup}
               rows={shownRows.map((row) => ({
                 row: row.original,
                 depth: row.depth,
@@ -3078,8 +3078,8 @@ export function WbsTable({
               // The `not-before` and `deadline` cells' calendar, handed to the face
               // that cannot read it from a row. Both controls derive availability
               // from it, and the deadline also uses the date to identify a stored
-              // deadline that the project start has moved past.
-              projectStart={startDate}
+              // deadline that the work package start has moved past.
+              workPackageStart={startDate}
               // Both boxes in one call, which is what the third argument is for —
               // `setNotBefore` is the table's own writer widened, not a card-shaped
               // copy, so a date set on a phone reaches be-01 by the path a date set
@@ -3306,8 +3306,8 @@ export function WbsTable({
                             header={header}
                             frameState={frameState}
                             layout={layout}
-                            hasProjectStartDate={hintState.hasProjectStartDate}
-                            projectId={projectId}
+                            hasWorkPackageStartDate={hintState.hasWorkPackageStartDate}
+                            workPackageId={workPackageId}
                             resizeHandle={resizeHandleFor}
                           />
                         ))}
@@ -3574,7 +3574,7 @@ export function WbsTable({
             dayPx={ganttDayPx}
             rungNotice={ganttRungNotice}
             // Stored where it is set and nowhere else, exactly as a let-go drag
-            // is: opening a project must not write to it.
+            // is: opening a work package must not write to it.
             onPickDayPx={pickGanttDayPx}
             labelsShown={ganttLabelsShown}
             // Stored where it is set and nowhere else, as the rung beside it is.
@@ -3731,7 +3731,7 @@ export function WbsTable({
             if (!open) setRefsEditing(null);
           }}
           number={refsEditingRow.number}
-          projectId={projectId}
+          workPackageId={workPackageId}
           workItemId={refsEditingRow.id}
           refs={refsEditingRow.externalRefs}
           systems={externalSystems}
@@ -3744,7 +3744,7 @@ export function WbsTable({
   );
 }
 
-// `SubscriptionHandlers` for `project-page.tsx`, which mounts this component,
+// `SubscriptionHandlers` for `work-package-page.tsx`, which mounts this component,
 // and `WbsTableProps` for the suite that builds one. Nothing else is re-exported
 // through here: `widthFromDrag` and `PlanReadScope` were, and a table acting as
 // a barrel for modules it no longer owns is the shape this split was for —

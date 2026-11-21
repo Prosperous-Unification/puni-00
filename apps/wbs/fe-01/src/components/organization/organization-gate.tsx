@@ -171,9 +171,15 @@ export function OrganizationGate({
         {renderRuntime(
           state.runtime,
           <>
-            <details className="relative">
-              <summary className="cursor-pointer">Organization: {state.organization.name}</summary>
+            <details className="relative min-w-0 shrink-0">
+              <summary
+                aria-label={`Organization: ${state.organization.name}`}
+                className="border-control-edge h-8 max-w-24 cursor-pointer truncate rounded-md border px-2 py-1 text-xs max-md:h-11 max-md:py-3 min-[1440px]:max-w-48"
+              >
+                Organization: {state.organization.name}
+              </summary>
               <div className="bg-background border-border absolute right-0 z-50 mt-2 max-h-80 w-72 overflow-y-auto rounded-md border p-3 shadow-lg">
+                <p className="mb-2 text-sm font-medium break-words">{state.organization.name}</p>
                 {switcher}
               </div>
             </details>

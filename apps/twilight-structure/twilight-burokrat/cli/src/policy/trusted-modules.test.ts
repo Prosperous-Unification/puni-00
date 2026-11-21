@@ -12,7 +12,13 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, expect, test } from 'bun:test';
 
-import { copyTrustedModules, trustedDeclarationRoots, trustedModuleNames } from './trusted-modules';
+import {
+  copyTrustedModules,
+  hashSelectedModules,
+  hashTrustedModules,
+  trustedDeclarationRoots,
+  trustedModuleNames,
+} from './trusted-modules';
 
 const roots: string[] = [];
 
@@ -143,6 +149,88 @@ test('canonical release copies omit metadata that Bun pack cannot transport', ()
   expect(readFileSync(join(copied, 'typescript/retained.d.ts'), 'utf8')).toBe(
     'export interface Retained {}\n',
   );
+});
+
+test('PUNI runtime closure keeps its selected byte identity through actual Bun pack', async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'puni runtime transport '));
+  roots.push(parent);
+  const modules = join(parent, 'selected modules');
+  const metadata = [
+    '@protobufjs/inquire/.npmignore',
+    '@protobufjs/pool/.npmignore',
+    '@protobufjs/utf8/.npmignore',
+    'require-directory/.npmignore',
+    'wcwidth/.npmignore',
+    'delayed-stream/.npmignore',
+    'clone/.npmignore',
+    'is-arrayish/.npmignore',
+    '@elysiajs/opentelemetry/bunfig.toml',
+    '@elysiajs/openapi/bunfig.toml',
+  ];
+  const names = metadata.map((path) => path.slice(0, path.lastIndexOf('/')));
+  for (const [index, name] of names.entries()) {
+    manifest(modules, name);
+    writeFileSync(
+      join(modules, name, 'runtime.js'),
+      'export const selected = ' + String(index) + ';\n',
+    );
+    writeFileSync(join(modules, name, '.npmignore.runtime'), 'retained runtime bytes\n');
+  }
+  for (const path of metadata) writeFileSync(join(modules, path), 'transport-only\n');
+  const packageRoot = join(parent, 'produced package'),
+    copied = join(packageRoot, 'dist/closure');
+  copyTrustedModules(copied, modules, names);
+  const selectedIdentity = hashSelectedModules(modules, names);
+  expect(hashTrustedModules(copied)).toBe(selectedIdentity);
+  writeFileSync(
+    join(packageRoot, 'package.json'),
+    JSON.stringify({ name: 'puni-transport-probe', version: '1.0.0', files: ['dist/'] }),
+  );
+  const packedDirectory = join(parent, 'packed');
+  mkdirSync(packedDirectory);
+  const packed = Bun.spawnSync(
+    [
+      process.execPath,
+      '--no-env-file',
+      '--config=/dev/null',
+      'pm',
+      'pack',
+      '--ignore-scripts',
+      '--gzip-level',
+      '1',
+      '--destination',
+      packedDirectory,
+      '--quiet',
+    ],
+    {
+      cwd: packageRoot,
+      env: { PATH: '/usr/bin:/bin' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 30000,
+    },
+  );
+  expect(packed.exitCode, packed.stderr.toString()).toBe(0);
+  const delivered = join(parent, 'delivered');
+  mkdirSync(delivered);
+  const files = await new Bun.Archive(
+    readFileSync(join(packedDirectory, 'puni-transport-probe-1.0.0.tgz')),
+  ).files();
+  for (const [path, file] of files) {
+    const prefix = 'package/dist/closure/';
+    if (!path.startsWith(prefix)) continue;
+    const destination = join(delivered, path.slice(prefix.length));
+    mkdirSync(dirname(destination), { recursive: true });
+    writeFileSync(destination, new Uint8Array(await file.arrayBuffer()));
+  }
+  expect(hashTrustedModules(delivered)).toBe(selectedIdentity);
+  for (const path of metadata) expect(() => readFileSync(join(copied, path))).toThrow();
+  for (const name of names)
+    expect(readFileSync(join(delivered, name, '.npmignore.runtime'), 'utf8')).toBe(
+      'retained runtime bytes\n',
+    );
+  writeFileSync(join(modules, names[0], 'runtime.js'), 'export const selected = "changed";\n');
+  expect(hashSelectedModules(modules, names)).not.toBe(selectedIdentity);
 });
 
 test('refuses an intermediate nested dependency directory symlink to ambient packages', () => {

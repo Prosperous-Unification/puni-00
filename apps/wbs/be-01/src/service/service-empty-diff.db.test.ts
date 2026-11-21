@@ -1,9 +1,11 @@
+import { seedLegacyProject } from '../testing/project-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -26,11 +28,11 @@ import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -74,7 +76,7 @@ import { fastScheduler } from './optimizer-wiring';
  * dead column, and the FK's `on delete set null` nulled it again on removal.
  * Green, and measuring the one field in the schema that no scheduler could read
  * even if it wanted to. Every case below now labels through `serviceIds` and
- * asserts the label's presence **in the shape `listByProject` delivers**, so the
+ * asserts the label's presence **in the shape `listByWorkPackage` delivers**, so the
  * plan under test is one the engine can actually see.
  *
  * **Why the gate could not catch it:** `nx typecheck` builds
@@ -90,8 +92,8 @@ let workItems: WorkItemService;
 let workItemStore: WorkItemRepository;
 let directoryStore: DirectoryRepository;
 let capacityStore: CapacityRepository;
-let projects: ProjectService;
-let projectId: string;
+let workPackages: WorkPackageService;
+let workPackageId: string;
 let ownerId: string;
 let steps: Step[];
 
@@ -106,19 +108,20 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 const dev = (): string => {
   const found = steps.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting steps');
+  if (found === undefined)
+    throw new Error('the work package was created without its starting steps');
   return found.id;
 };
 
 async function root(name: string, afterId: string | null = null): Promise<string> {
-  const outcome = await workItems.create(projectId, ownerId, { parentId: null, afterId, name });
+  const outcome = await workItems.create(workPackageId, ownerId, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create refused: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 /** Every row's name beside its dates — what "no date moved" is asserted over. */
 async function datesNow(): Promise<unknown> {
-  const tree = await workItems.tree(projectId);
+  const tree = await workItems.tree(workPackageId);
   return {
     workItems: tree?.workItems.map((row) => ({
       name: row.name,
@@ -133,9 +136,10 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-service-empty-diff-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   const db = openDrizzle(path);
 
-  const projectStore = new ProjectRepository(db, OPEN);
+  const workPackageStore = new WorkPackageRepository(db, OPEN);
   workItemStore = new WorkItemRepository(db, OPEN);
   directoryStore = new DirectoryRepository(db, OPEN);
   capacityStore = new CapacityRepository(db, OPEN);
@@ -151,26 +155,26 @@ beforeEach(async () => {
     wrote(),
   );
 
-  projects = new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+  workPackages = new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: workItemStore,
       estimates: new EstimateRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
       typedDependencies: new TypedDependencyRepository(db, OPEN),
     }),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: new EstimateRepository(db, OPEN),
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
@@ -192,10 +196,12 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
-  projectId = created.project.id;
+  const created = expectCreated(
+    await workPackages.create('Rewire the shed', PARENT_PROJECT_ID, ownerId),
+  );
+  workPackageId = created.workPackage.id;
   steps = created.steps;
-  await projects.update(projectId, ownerId, { startDate: '2026-09-01' });
+  await workPackages.update(workPackageId, ownerId, { startDate: '2026-09-01' });
 });
 
 afterEach(() => {
@@ -240,7 +246,7 @@ describe('a service and the ownership map decide no date, on a plan where a labe
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     await workItems.setEstimate(cable, ownerId, dev(), DAYS);
     // One at a time, which is what makes the team label decide a date.
-    await capacityStore.set(projectId, platform.id, 1, wrote());
+    await capacityStore.set(workPackageId, platform.id, 1, wrote());
     await workItems.patch(strip, ownerId, {
       serviceTeamId: platform.id,
       serviceIds: [payments.id],
@@ -254,8 +260,9 @@ describe('a service and the ownership map decide no date, on a plan where a labe
     // is the guard that would have failed the file the moment `serviceId` went
     // stale, and it is cheaper than typechecking specs.
     expect(
-      (await workItemStore.listByProject(projectId)).filter((row) => row.serviceIds.length > 0)
-        .length,
+      (await workItemStore.listByWorkPackage(workPackageId)).filter(
+        (row) => row.serviceIds.length > 0,
+      ).length,
     ).toBe(2);
     return {
       strip,
@@ -317,7 +324,9 @@ describe('a service and the ownership map decide no date, on a plan where a labe
     // chunk 22: that column is nulled by the FK whether or not the removal
     // understood the join at all.
     expect(
-      (await workItemStore.listByProject(projectId)).every((row) => row.serviceIds.length === 0),
+      (await workItemStore.listByWorkPackage(workPackageId)).every(
+        (row) => row.serviceIds.length === 0,
+      ),
     ).toBe(true);
     expect(await datesNow()).toEqual(before);
   });
@@ -371,7 +380,9 @@ describe('a service and the ownership map decide no date, on a plan where a labe
     await workItems.patch(strip, ownerId, { serviceIds: [serviceId, otherServiceId] });
 
     expect(
-      (await workItemStore.listByProject(projectId)).map((row) => row.serviceIds.length).sort(),
+      (await workItemStore.listByWorkPackage(workPackageId))
+        .map((row) => row.serviceIds.length)
+        .sort(),
     ).toEqual([1, 2]);
     expect(await datesNow()).toEqual(before);
   });

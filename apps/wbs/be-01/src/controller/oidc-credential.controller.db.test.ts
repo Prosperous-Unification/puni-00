@@ -25,8 +25,8 @@ let machineGrants: HarnessMachineGrants;
 let idp: LocalIssuer;
 let ci: LocalIssuer;
 let h: OrganizationHarness;
-let projectA: string;
-let projectB: string;
+let workPackageA: string;
+let workPackageB: string;
 let reports: Record<string, unknown>[];
 /** The tests' authorization server: every new audience sits under it (`wbs-mcp-agent-surface` M2). */
 const ROOT = TEST_MCP_AUTHORIZATION_SERVER;
@@ -102,17 +102,17 @@ async function populate(): Promise<void> {
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  projectA = await createProject('dany', 'Plan of A');
-  projectB = await createProject('bob', 'Plan of B');
+  workPackageA = await createWorkPackage('dany', 'Plan of A');
+  workPackageB = await createWorkPackage('bob', 'Plan of B');
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'mems-agent', 'org-a', h.userId('mem'));
   addAgentPerson(h.sqlite, 'bobs-agent', 'org-b', h.userId('bob'));
 }
 
-async function createProject(username: string, name: string): Promise<string> {
-  const created = await h.call(username, 'POST', '/api/projects', { name });
+async function createWorkPackage(username: string, name: string): Promise<string> {
+  const created = await h.call(username, 'POST', '/api/work-packages', { name });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  return (created.body as { project: { id: string } }).project.id;
+  return (created.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** Registers `issuer` for the caller's organization with `audience` and answers its id. */
@@ -160,8 +160,10 @@ function viaMcp(token: string, method: string, path: string, body?: unknown): Pr
 
 const TRANSPORTS = [["through mcp-01's jwt-bearer grant", viaMcp]] as const;
 
-function projectIds(answer: Answer): string[] {
-  return (answer.body as { projects: { id: string }[] }).projects.map((project) => project.id);
+function workPackageIds(answer: Answer): string[] {
+  return (answer.body as { workPackages: { id: string }[] }).workPackages.map(
+    (workPackage) => workPackage.id,
+  );
 }
 
 function lastUsedAt(id: string): number | null {
@@ -264,9 +266,9 @@ describe('creating an OIDC credential', () => {
       body: { error: 'rotation_at_issuer' },
     });
     expect((await h.call('dany', 'DELETE', `${CREDENTIALS}/${id}`)).status).toBe(204);
-    expect(await viaMcp(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
-      UNKNOWN,
-    );
+    expect(
+      await viaMcp(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages'),
+    ).toEqual(UNKNOWN);
   });
 
   it('refuses a body missing the pair or carrying an out-of-range subject', async () => {
@@ -318,10 +320,10 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('is admitted end to end as its person, capped to a member of its organization', async () => {
     const { id } = await claireCredential();
     const token = await ci.sign({ sub: MAIN, aud: WBS });
-    const projects = await send(token, 'GET', '/api/projects');
-    expect(projects.status).toBe(200);
-    expect(projectIds(projects)).toEqual([projectA]);
-    expect(projectIds(projects)).not.toContain(projectB);
+    const workPackages = await send(token, 'GET', '/api/work-packages');
+    expect(workPackages.status).toBe(200);
+    expect(workPackageIds(workPackages)).toEqual([workPackageA]);
+    expect(workPackageIds(workPackages)).not.toContain(workPackageB);
     expect(lastUsedAt(id)).not.toBeNull();
     expect(await send(token, 'GET', '/api/organization/members')).toEqual({
       status: 403,
@@ -339,7 +341,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('refuses a token signed by another key', async () => {
     await claireCredential();
     expect(
-      await send(await issuers.forge(ci, { sub: MAIN, aud: WBS }), 'GET', '/api/projects'),
+      await send(await issuers.forge(ci, { sub: MAIN, aud: WBS }), 'GET', '/api/work-packages'),
     ).toEqual(INVALID);
   });
 
@@ -353,18 +355,23 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
         .status,
     ).toBe(201);
     expect((await createOidc('dany', { trustedIssuerId }, 'd')).status).toBe(201);
-    expect(await send(await ci.sign({ sub: MAIN, aud: 'other' }), 'GET', '/api/projects')).toEqual(
-      INVALID,
-    );
-    expect(await send(await ci.sign({ sub: 'pinned', aud: WBS }), 'GET', '/api/projects')).toEqual(
-      INVALID,
-    );
     expect(
-      await send(await ci.sign({ sub: 'pinned', aud: DEPLOY }), 'GET', '/api/projects'),
+      await send(await ci.sign({ sub: MAIN, aud: 'other' }), 'GET', '/api/work-packages'),
     ).toEqual(INVALID);
     expect(
-      (await send(await ci.sign({ sub: 'pinned', aud: [WBS, DEPLOY] }), 'GET', '/api/projects'))
-        .status,
+      await send(await ci.sign({ sub: 'pinned', aud: WBS }), 'GET', '/api/work-packages'),
+    ).toEqual(INVALID);
+    expect(
+      await send(await ci.sign({ sub: 'pinned', aud: DEPLOY }), 'GET', '/api/work-packages'),
+    ).toEqual(INVALID);
+    expect(
+      (
+        await send(
+          await ci.sign({ sub: 'pinned', aud: [WBS, DEPLOY] }),
+          'GET',
+          '/api/work-packages',
+        )
+      ).status,
     ).toBe(200);
     // A wrong `aud` selects no registration, so nothing is fetched for it.
     expect(ci.jwksFetches).toBe(1);
@@ -377,7 +384,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
       (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' }, 'b')).status,
     ).toBe(201);
     expect(
-      await send(await ci.sign({ sub: MAIN, aud: [WBS, WBS_B] }), 'GET', '/api/projects'),
+      await send(await ci.sign({ sub: MAIN, aud: [WBS, WBS_B] }), 'GET', '/api/work-packages'),
     ).toEqual(INVALID);
     expect(ci.jwksFetches).toBe(0);
   });
@@ -390,7 +397,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
       { nbf: now + 600, exp: now + 900 },
     ])
       expect(
-        await send(await ci.sign({ sub: MAIN, aud: WBS, ...claims }), 'GET', '/api/projects'),
+        await send(await ci.sign({ sub: MAIN, aud: WBS, ...claims }), 'GET', '/api/work-packages'),
       ).toEqual(INVALID);
   });
 
@@ -398,7 +405,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     await claireCredential();
     const before = usersTable();
     expect(
-      await send(await ci.sign({ sub: 'repo:acme/other', aud: WBS }), 'GET', '/api/projects'),
+      await send(await ci.sign({ sub: 'repo:acme/other', aud: WBS }), 'GET', '/api/work-packages'),
     ).toEqual(UNKNOWN);
     expect(usersTable()).toEqual(before);
   });
@@ -406,7 +413,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('refuses a revoked credential unknown_identity', async () => {
     const { id } = await claireCredential();
     expect((await h.call('dany', 'DELETE', `${CREDENTIALS}/${id}`)).status).toBe(204);
-    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       UNKNOWN,
     );
   });
@@ -420,7 +427,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     const stranger = await issuers.add(`stranger-${crypto.randomUUID().slice(0, 8)}.test`);
     const idpFetches = idp.jwksFetches;
     expect(
-      await send(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects'),
+      await send(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages'),
     ).toEqual(INVALID);
     expect(stranger.jwksFetches + stranger.discoveryFetches).toBe(0);
     expect(ci.jwksFetches).toBe(0);
@@ -432,7 +439,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('refuses invalid_token when the key set answers 503, and reports it', async () => {
     await claireCredential();
     ci.jwksStatus = 503;
-    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       INVALID,
     );
     expect(reports).toHaveLength(1);
@@ -440,7 +447,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     // Within the 30 s failure cooldown the key set is not fetched again,
     // even once it would answer.
     ci.jwksStatus = 200;
-    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       INVALID,
     );
     expect(ci.jwksFetches).toBe(1);
@@ -454,7 +461,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
       (await h.call('dany', 'DELETE', `/api/organization/trusted-issuers/${trustedIssuerId}`))
         .status,
     ).toBe(204);
-    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       INVALID,
     );
   });
@@ -465,12 +472,12 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     await populate();
     await claireCredential();
     expect(
-      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).status,
+      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).status,
     ).toBe(200);
     expect(ci.jwksFetches).toBe(1);
     await ci.rotate('key-2');
     expect(
-      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).status,
+      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).status,
     ).toBe(200);
     expect(ci.jwksFetches).toBe(2);
   });
@@ -478,13 +485,13 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('refetches no key set for an unknown kid inside the cooldown', async () => {
     await claireCredential();
     expect(
-      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).status,
+      (await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).status,
     ).toBe(200);
     await ci.rotate('key-2');
     for (let attempt = 0; attempt < 3; attempt += 1)
-      expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
-        INVALID,
-      );
+      expect(
+        await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages'),
+      ).toEqual(INVALID);
     expect(ci.jwksFetches).toBe(1);
   });
 
@@ -494,10 +501,10 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
     expect(
       (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' })).status,
     ).toBe(201);
-    const a = await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects');
-    expect(projectIds(a)).toEqual([projectA]);
-    const b = await send(await ci.sign({ sub: MAIN, aud: WBS_B }), 'GET', '/api/projects');
-    expect(projectIds(b)).toEqual([projectB]);
+    const a = await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages');
+    expect(workPackageIds(a)).toEqual([workPackageA]);
+    const b = await send(await ci.sign({ sub: MAIN, aud: WBS_B }), 'GET', '/api/work-packages');
+    expect(workPackageIds(b)).toEqual([workPackageB]);
     expect(ci.jwksFetches).toBe(1);
   });
 
@@ -511,7 +518,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
        VALUES (?, 'org-b', 'bobs-agent', ?, 'oidc', 'planted', ?, ?, ?, 1, ?)`,
       [crypto.randomUUID(), h.userId('bob'), ci.url, MAIN, trustedIssuerId, h.userId('bob')],
     );
-    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       UNKNOWN,
     );
   });
@@ -536,7 +543,7 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
       await send(
         await idp.sign({ sub: 'machine@clients', aud: UPSTREAM_AUDIENCE }),
         'GET',
-        '/api/projects',
+        '/api/work-packages',
       ),
     ).toEqual(UNKNOWN);
     expect(lastUsedAt(planted)).toBeNull();
@@ -568,12 +575,12 @@ describe('a stored audience outside the authorization server (task 1.5 at use)',
     );
     const legacy = await ci.sign({ sub: MAIN, aud: 'wbs:org:org-a' });
     const narrowedToken = await ci.sign({ sub: 'narrowed', aud: ['wbs:org:org-a', 'deploy'] });
-    expect(await viaMcp(legacy, 'GET', '/api/projects')).toEqual(INVALID);
-    expect(await viaMcp(narrowedToken, 'GET', '/api/projects')).toEqual(INVALID);
+    expect(await viaMcp(legacy, 'GET', '/api/work-packages')).toEqual(INVALID);
+    expect(await viaMcp(narrowedToken, 'GET', '/api/work-packages')).toEqual(INVALID);
     expect(ci.jwksFetches).toBe(0);
     expect(lastUsedAt(credential)).toBeNull();
     expect(lastUsedAt(narrowed)).toBeNull();
-    expect(await as(legacy, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+    expect(await as(legacy, 'GET', '/api/work-packages')).toEqual(NOT_ACCEPTED);
   });
 });
 
@@ -582,7 +589,7 @@ describe('a trusted issuer token on /api (wbs-mcp-agent-surface M9)', () => {
     const { id } = await claireCredential();
     // Registration fetched the discovery document; nothing after it may fetch.
     const fetchedAtRegistration = ci.jwksFetches + ci.discoveryFetches;
-    expect(await as(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
+    expect(await as(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).toEqual(
       NOT_ACCEPTED,
     );
     expect(
@@ -592,7 +599,7 @@ describe('a trusted issuer token on /api (wbs-mcp-agent-surface M9)', () => {
     expect(lastUsedAt(id)).toBeNull();
     // The same token is admitted through the grant.
     expect(
-      (await viaMcp(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).status,
+      (await viaMcp(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages')).status,
     ).toBe(200);
   });
 
@@ -601,9 +608,9 @@ describe('a trusted issuer token on /api (wbs-mcp-agent-surface M9)', () => {
   it('refuses a stranger issuer’s token the same, fetching nothing', async () => {
     await claireCredential();
     const stranger = await issuers.add(`stranger-${crypto.randomUUID().slice(0, 8)}.test`);
-    expect(await as(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/projects')).toEqual(
-      NOT_ACCEPTED,
-    );
+    expect(
+      await as(await stranger.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages'),
+    ).toEqual(NOT_ACCEPTED);
     expect(stranger.jwksFetches + stranger.discoveryFetches).toBe(0);
     expect(ci.jwksFetches).toBe(0);
   });

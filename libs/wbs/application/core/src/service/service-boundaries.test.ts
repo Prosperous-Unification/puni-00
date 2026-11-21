@@ -20,7 +20,7 @@ const services = [
 
 // Proof: importing be-01's repository/schema from adjacent
 // gateway-broadcaster.ts failed core:lint at that production import with
-// @nx/enforce-module-boundaries: "Projects cannot be imported by a relative or
+// @nx/enforce-module-boundaries: "Work packages cannot be imported by a relative or
 // absolute path, and must begin with a npm scope" (2026-09-09).
 // Proof: importing be-01's repository from command-normalizers.ts failed this
 // assertion with the same @nx/enforce-module-boundaries message (2026-09-12).

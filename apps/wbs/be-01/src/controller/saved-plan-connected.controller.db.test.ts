@@ -2,14 +2,15 @@ import * as connectedHistory from '@wbs/core/module/saved-plans/connected-histor
 import * as domain from '@wbs/domain';
 import { planDiffIsEmpty } from '@wbs/domain';
 import * as sqliteDb from '@wbs/store-sqlite/db';
-import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
+import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
-import { runMigrations } from '../repository/migrate';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 import { trackReadObservations } from '../testing/read-observation.fixture';
+import { createFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness | undefined;
 afterEach(async () => {
@@ -43,7 +44,7 @@ async function openFixture(mode: 'isolated' | 'shared' = 'isolated') {
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
     },
     migrate: (path) => {
-      runMigrations(path, new URL('../../drizzle', import.meta.url).pathname);
+      migrateOrganizationCatalogueFixture(path);
       seedDependencyAuthority(path);
     },
   });
@@ -56,37 +57,63 @@ async function openFixture(mode: 'isolated' | 'shared' = 'isolated') {
   mounted.activate();
   if (mode === 'shared')
     mounted.sqlite.run("UPDATE organization SET shared_people=1 WHERE id='org'");
-  const projects: string[] = [];
+  const workPackages: string[] = [];
   for (const name of ['Alpha', 'Beta']) {
-    const created = await mounted.call('ada', 'POST', '/api/projects', { name });
-    if (created.status !== 200) throw new Error(JSON.stringify(created));
-    const project = created.body as { project: { id: string } };
-    projects.push(project.project.id);
+    workPackages.push(await createFixturePackage(mounted, 'ada', name));
   }
-  const [alpha, beta] = projects;
-  mounted.sqlite.run("UPDATE project SET start_date='2026-10-05',estimate_rounding='exact'");
+  const [alpha, beta] = workPackages;
+  mounted.sqlite.run("UPDATE work_package SET start_date='2026-10-05',estimate_rounding='exact'");
   mounted.sqlite.run(
-    "INSERT INTO work_item(id,project_id,position,name) VALUES('a',?,10,'Alpha work'),('b',?,10,'Beta work')",
+    "INSERT INTO work_item(id,work_package_id,position,name) VALUES('a',?,10,'Alpha work'),('b',?,10,'Beta work')",
     [alpha, beta],
   );
-  mounted.sqlite.run(
-    "INSERT INTO step(id,project_id,name,position) VALUES('design',?,'Design',10),('build',?,'Build',10)",
-    [alpha, beta],
-  );
+  await mounted.publicWrites().uow.run(async ({ stores }) => {
+    for (const [id, workPackageId, name] of [
+      ['design', alpha, 'Design'],
+      ['build', beta, 'Build'],
+    ] as const) {
+      const workPackage = await stores.workPackages.findById(workPackageId);
+      if (workPackage === null) throw new Error('connected fixture package is absent');
+      expect(
+        (
+          await stores.stepCatalogue.defineAndBindStep(
+            'org',
+            {
+              id,
+              code: id,
+              name,
+              position: 30,
+              defaultEstimateUnit: 'workdays',
+              defaultAllowancePercent: 0,
+            },
+            {
+              bindingId: id + '-binding',
+              scopeKind: 'project',
+              scopeId: workPackage.projectId,
+              workItemTypeId: null,
+              position: 30,
+            },
+            { at: 100, by: mounted.userId('ada') },
+          )
+        ).ok,
+      ).toBe(true);
+    }
+    return { commit: true, value: undefined };
+  });
   mounted.sqlite.run(
     "INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES('a','design',1,1,1),('b','build',1,1,1)",
   );
   mounted.sqlite.run(
-    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('ab','org',?,?,'a','b','whole','whole','FS')",
+    "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('ab','org',?,?,'a','b','whole','whole','FS')",
     [alpha, beta],
   );
   return { mounted, alpha, beta, probe, readConnections };
 }
 
 // Proof: the initial test returned 500 at compose's connected guard; duplicate publication later failed the once-only assertion (slice-d-fault-announcement-repeat.log).
-test('mounted connected save persists input9 schedule2 and equals one current observation', async () => {
+test('mounted connected save persists input13 schedule4 and equals one current observation', async () => {
   const { mounted, beta, probe } = await openFixture();
-  const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+  const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
     name: 'Connected',
   });
   expect(saved.status).toBe(201);
@@ -96,11 +123,11 @@ test('mounted connected save persists input9 schedule2 and equals one current ob
     mounted.sqlite
       .query('SELECT input_schema_version,schedule_schema_version FROM saved_plan WHERE id=?')
       .get(savedPlan.id),
-  ).toEqual({ input_schema_version: 10, schedule_schema_version: 2 });
+  ).toEqual({ input_schema_version: 13, schedule_schema_version: 4 });
   const compared = await mounted.call(
     'ada',
     'GET',
-    `/api/projects/${beta}/saved-plans/compare?left=${savedPlan.id}&right=current`,
+    `/api/work-packages/${beta}/saved-plans/compare?left=${savedPlan.id}&right=current`,
   );
   expect(compared.status).toBe(200);
   const comparison = compared.body as {
@@ -121,9 +148,9 @@ test('connected current/current captures once and serialization follows read con
   const before = probe.observations;
   const convertHistory = connectedHistory.captureConnectedHistory;
   const convert = spyOn(connectedHistory, 'captureConnectedHistory').mockImplementation(
-    (held, projectId) => {
+    (held, workPackageId) => {
       expect(probe.borrowed).toBe(0);
-      return convertHistory(held, projectId);
+      return convertHistory(held, workPackageId);
     },
   );
   const serialize = spyOn(domain, 'serializeSavedConnectedScheduleBody').mockImplementation(
@@ -136,7 +163,7 @@ test('connected current/current captures once and serialization follows read con
     const compared = await mounted.call(
       'ada',
       'GET',
-      `/api/projects/${beta}/saved-plans/compare?left=current&right=current`,
+      `/api/work-packages/${beta}/saved-plans/compare?left=current&right=current`,
     );
     expect(compared.status).toBe(200);
     expect(probe.observations - before).toBe(1);
@@ -158,7 +185,7 @@ test('connected save reauthorizes target after capture before writing either bod
       mounted.userId('ada'),
     ]);
   };
-  const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+  const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
     name: 'Revoked',
   });
   expect(saved.status).toBe(403);
@@ -173,7 +200,7 @@ test('connected save rolls back header and input when schedule insert fails', as
   mounted.sqlite.run(
     "CREATE TRIGGER fail_saved_schedule BEFORE INSERT ON saved_plan_body WHEN NEW.kind='schedule' BEGIN SELECT RAISE(ABORT,'injected schedule failure'); END",
   );
-  const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+  const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
     name: 'Failed',
   });
   expect(saved.status).toBe(500);
@@ -187,12 +214,12 @@ test('connected save rolls back header and input when schedule insert fails', as
 // history conversion; captured-scheduler expiry threw and this mounted save returned 500.
 test('enabled connected capture never enters solver admission or changes durable optimization state', async () => {
   const { mounted, beta, probe } = await openFixture();
-  mounted.sqlite.run("UPDATE project SET optimization_enabled=1,schedule_engine='optimized'");
+  mounted.sqlite.run("UPDATE work_package SET optimization_enabled=1,schedule_engine='optimized'");
   const admission = spyOn(mounted.publicOptimizer(), 'admitCaptured').mockImplementation(() => {
     throw new Error('forbidden solver admission');
   });
   try {
-    const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+    const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
       name: 'Read only',
     });
     expect(saved.status).toBe(201);
@@ -235,51 +262,54 @@ for (const mode of ['isolated', 'shared'] as const) {
       let foreignReads = 0;
       // The spy forwards the exact repository receiver through call below.
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      const findProject = ProjectRepository.prototype.findInOrganization;
-      const read = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-        async function (this: ProjectRepository, projectId, organizationId) {
-          if (projectId === alpha && probe.borrowed > 0) {
+      const findWorkPackage = WorkPackageRepository.prototype.findInOrganization;
+      const read = spyOn(WorkPackageRepository.prototype, 'findInOrganization').mockImplementation(
+        async function (this: WorkPackageRepository, workPackageId, organizationId) {
+          if (workPackageId === alpha && probe.borrowed > 0) {
             expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
             foreignReads += 1;
           }
-          return findProject.call(this, projectId, organizationId);
+          return findWorkPackage.call(this, workPackageId, organizationId);
         },
       );
       let injected = 0;
       let refusal: unknown;
       const convertHistory = connectedHistory.captureConnectedHistory;
       const convert = spyOn(connectedHistory, 'captureConnectedHistory').mockImplementation(
-        (captured, projectId) => {
+        (captured, workPackageId) => {
           expect(probe.borrowed).toBe(0);
           expect(captured.projection.capture.mode).toBe(mode);
-          expect(captured.projection.capture.projects.map((member) => member.projectId)).toContain(
-            alpha,
-          );
+          expect(
+            captured.projection.capture.workPackages.map((member) => member.workPackageId),
+          ).toContain(alpha);
           expect(foreignReads).toBeGreaterThan(0);
-          const foreign = captured.metadataByProject.get(alpha);
+          const foreign = captured.metadataByWorkPackage.get(alpha);
           if (foreign === undefined) throw new Error('fixture requires real foreign metadata');
           injected += 1;
           try {
             if (fault === 'absent') {
               // Delete required readiness from the real detached observation, never a fabricated service read.
               Map.prototype.delete.call(captured.readiness.statuses, 'a');
-              return convertHistory(captured, projectId);
+              return convertHistory(captured, workPackageId);
             }
             if (fault === 'unreadable') {
-              const metadata = new Map(captured.metadataByProject);
+              const metadata = new Map(captured.metadataByWorkPackage);
               const get = metadata.get.bind(metadata);
               metadata.get = (id) => {
                 if (id === alpha) throw new Error('injected unreadable foreign capture');
                 return get(id);
               };
-              return convertHistory({ ...captured, metadataByProject: metadata }, projectId);
+              return convertHistory(
+                { ...captured, metadataByWorkPackage: metadata },
+                workPackageId,
+              );
             }
-            const metadata = new Map(captured.metadataByProject);
+            const metadata = new Map(captured.metadataByWorkPackage);
             metadata.set(alpha, {
               ...foreign,
-              project: { ...foreign.project, name: 'Contradictory Alpha' },
+              workPackage: { ...foreign.workPackage, name: 'Contradictory Alpha' },
             });
-            return convertHistory({ ...captured, metadataByProject: metadata }, projectId);
+            return convertHistory({ ...captured, metadataByWorkPackage: metadata }, workPackageId);
           } catch (cause) {
             refusal = cause;
             throw cause;
@@ -287,7 +317,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         },
       );
       try {
-        const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+        const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
           name: `Refuse ${fault}`,
         });
         expect(saved.status).toBe(500);
@@ -309,7 +339,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         convert.mockRestore();
         read.mockRestore();
       }
-      const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+      const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
         name: 'Restored healthy capture',
       });
       expect(saved.status).toBe(201);
@@ -330,12 +360,14 @@ for (const mode of ['isolated', 'shared'] as const) {
       const { mounted, alpha, beta, probe, readConnections } = await openFixture(mode);
       const abbreviation = mounted.sqlite
         .query<{ namespace: string; abbreviation: string }, [string]>(
-          'SELECT namespace,abbreviation FROM project_abbreviation WHERE project_id=?',
+          'SELECT namespace,abbreviation FROM work_package_abbreviation WHERE work_package_id=?',
         )
         .get(alpha);
       if (abbreviation === null) throw new Error('foreign abbreviation fixture required');
       if (fault === 'absent abbreviation') {
-        mounted.sqlite.run('DELETE FROM project_abbreviation WHERE project_id=?', [alpha]);
+        mounted.sqlite.run('DELETE FROM work_package_abbreviation WHERE work_package_id=?', [
+          alpha,
+        ]);
       }
       const before = captureDurableState(mounted);
       const pushes = probe.pushes;
@@ -365,39 +397,44 @@ for (const mode of ['isolated', 'shared'] as const) {
       });
       // Receiver is forwarded explicitly; only the foreign owned-capture read is poisoned.
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      const listRows = WorkItemRepository.prototype.listByProject;
-      const rows = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-        async function (this: WorkItemRepository, projectId) {
-          if (fault === 'unreadable rows' && projectId === alpha) {
+      const listRows = WorkItemRepository.prototype.listByWorkPackage;
+      const rows = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+        async function (this: WorkItemRepository, workPackageId) {
+          if (fault === 'unreadable rows' && workPackageId === alpha) {
             expect(probe.borrowed).toBe(1);
             expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
             reached += 1;
             sourceRefusal = new Error('injected owned foreign row read failure');
             throw sourceRefusal;
           }
-          return listRows.call(this, projectId);
+          return listRows.call(this, workPackageId);
         },
       );
       // Proves the missing persisted row was actually read by the captured repository.
       // eslint-disable-next-line @typescript-eslint/unbound-method
-      const findProject = ProjectRepository.prototype.findInOrganization;
-      const project = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-        async function (this: ProjectRepository, projectId, organizationId) {
-          if (fault === 'absent abbreviation' && projectId === alpha) {
-            expect(probe.borrowed).toBe(1);
-            expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
-            reached += 1;
-          }
-          try {
-            return await findProject.call(this, projectId, organizationId);
-          } catch (cause) {
-            sourceRefusal = cause;
-            throw cause;
-          }
-        },
-      );
+      const findWorkPackage = WorkPackageRepository.prototype.findInOrganization;
+      const workPackage = spyOn(
+        WorkPackageRepository.prototype,
+        'findInOrganization',
+      ).mockImplementation(async function (
+        this: WorkPackageRepository,
+        workPackageId,
+        organizationId,
+      ) {
+        if (fault === 'absent abbreviation' && workPackageId === alpha) {
+          expect(probe.borrowed).toBe(1);
+          expect(readConnections.has(Reflect.get(this, 'db'))).toBe(true);
+          reached += 1;
+        }
+        try {
+          return await findWorkPackage.call(this, workPackageId, organizationId);
+        } catch (cause) {
+          sourceRefusal = cause;
+          throw cause;
+        }
+      });
       try {
-        const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+        const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
           name: 'Refused owned capture',
         });
         expect(saved.status).toBe(500);
@@ -405,7 +442,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         expect(sourceRefusal).toBeInstanceOf(Error);
         expect(String(sourceRefusal)).toContain(
           fault === 'absent abbreviation'
-            ? `project ${alpha} abbreviation is missing`
+            ? `work package ${alpha} abbreviation is missing`
             : 'injected owned foreign row read failure',
         );
         expect(probe.observations - observations).toBe(1);
@@ -415,17 +452,17 @@ for (const mode of ['isolated', 'shared'] as const) {
         expect(captureDurableState(mounted)).toEqual(before);
         expect(probe.pushes).toBe(pushes);
       } finally {
-        project.mockRestore();
+        workPackage.mockRestore();
         rows.mockRestore();
         transaction.mockRestore();
         if (fault === 'absent abbreviation') {
           mounted.sqlite.run(
-            'INSERT INTO project_abbreviation(project_id,namespace,abbreviation) VALUES(?,?,?)',
+            'INSERT INTO work_package_abbreviation(work_package_id,namespace,abbreviation) VALUES(?,?,?)',
             [alpha, abbreviation.namespace, abbreviation.abbreviation],
           );
         }
       }
-      const saved = await mounted.call('ada', 'POST', `/api/projects/${beta}/saved-plans`, {
+      const saved = await mounted.call('ada', 'POST', `/api/work-packages/${beta}/saved-plans`, {
         name: 'Restored owned capture',
       });
       expect(saved.status).toBe(201);

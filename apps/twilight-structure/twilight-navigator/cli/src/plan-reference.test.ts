@@ -8,7 +8,7 @@ import {
   PlanReferenceRecord,
   PlanTasks,
 } from '@twilight-burokrat/contracts';
-import type { PlanDocument } from '@wbs/contracts';
+import type { PlanDocumentV11 as PlanDocument } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import {
@@ -116,6 +116,7 @@ describe('twin plan-reference', () => {
       ['010.2', 'plan-reference command', ['Navigator CLI']],
       ['020', 'Documentation', []],
     ]);
+    if (tasks.schemaVersion !== 1) throw new Error('v7 must retain task schema 1');
     expect(tasks.tasks[1].typedDependencies).toEqual([
       {
         id: '00000000-0000-4000-8000-000000000028',
@@ -125,7 +126,7 @@ describe('twin plan-reference', () => {
       },
     ]);
     expect(tasks.tasks[2].dependsOn).toEqual(['00000000-0000-4000-8000-000000000010']);
-    if (tasks.schemaVersion !== 1) throw new Error('v7 must retain task schema 1');
+
     expect(tasks.tasks[0].estimateDays).toEqual([
       { stepCode: 'dev', optimistic: 1, realistic: 2, pessimistic: 4 },
       { stepCode: 'qa', optimistic: 1, realistic: 2, pessimistic: 4 },
@@ -198,7 +199,7 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads versions 7 and 8 and 9 and 10 and 11 only/,
+      /has version 6; twin reads versions 7 and 8 and 9 and 10 and 11 and 12 and 13 and 14 and 15 and 16 only/,
     );
   });
 
@@ -363,13 +364,13 @@ describe('twin plan-reference', () => {
     if (fault === 'fractional time') fact.blockedAt = 1.5;
     if (fault === 'missing facts') Reflect.deleteProperty(document, 'stepBlockages');
     if (fault === 'unknown nested key') Reflect.set(fact, 'extra', true);
-    if (fault === 'future version') Reflect.set(document.document, 'version', 12);
+    if (fault === 'future version') Reflect.set(document.document, 'version', 17);
     const path = join(scratch.path, 'v9.json');
     writeFileSync(path, JSON.stringify(document));
     expectRefusal(
       await planReference({ '--export': path }),
       fault === 'future version'
-        ? /has version 12; twin reads versions 7 and 8 and 9 and 10 and 11 only/
+        ? /has version 17; twin reads versions 7 and 8 and 9 and 10 and 11 and 12 and 13 and 14 and 15 and 16 only/
         : /plan export is malformed/,
     );
   });

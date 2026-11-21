@@ -215,13 +215,13 @@ export function capacityReportStateOf(
 }
 
 /**
- * Declared capacity beside the measured one (P7): what this project states,
+ * Declared capacity beside the measured one (P7): what this work package states,
  * what the latest report measured and when, and how that report reads now.
  * Nothing here is a planning input; `declared` is the only number a schedule
  * or a claim ever sees, and it is read elsewhere.
  */
 export interface CapacityComparison {
-  /** This project's stated units, or null when unstated. */
+  /** This work package's stated units, or null when unstated. */
   readonly declared: number | null;
   /** The latest measured capacity, or null when the latest report is not a measurement. */
   readonly measured: number | null;

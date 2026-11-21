@@ -83,7 +83,7 @@ describe('the enterprise SSO migrations', () => {
 
   it('round-trips a populated previous schema byte for byte', () => {
     run(
-      "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_project_recovery', 'project', 'p1', '{}', 1)",
+      "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_work_package_recovery', 'work_package', 'p1', '{}', 1)",
     );
     const migrated = schema();
     expect(rollbackTo(path, FOLDER, BEFORE)).toEqual([
@@ -105,9 +105,9 @@ describe('the enterprise SSO migrations', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -287,7 +287,7 @@ describe('the enterprise SSO migrations', () => {
 
   it('keeps admitting the outgoing release audit row and refusing an unknown action', () => {
     run(
-      "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_project_recovery', 'project', 'p1', '{\"fields\":[\"name\"]}', 1)",
+      "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('r1', 'org-a', 'ada', 'restricted_work_package_recovery', 'work_package', 'p1', '{\"fields\":[\"name\"]}', 1)",
     );
     expect(() =>
       run(

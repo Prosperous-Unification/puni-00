@@ -1,32 +1,35 @@
 import { buildApp, type SocketCredential } from './app';
 import type { loadConfig } from './config';
 import type { FetchLike } from './service/backend-request';
-import { browserProjectAccess } from './service/browser-access-client';
-import { type CheckProjectAccess, LOCAL_PROJECT_ACCESS } from './service/project-access';
+import { browserWorkPackageAccess } from './service/browser-access-client';
+import {
+  type CheckWorkPackageAccess,
+  LOCAL_WORK_PACKAGE_ACCESS,
+} from './service/work-package-access';
 
 /**
- * The production project access check for one socket: be-01 proves a cookie
+ * The production work package access check for one socket: be-01 proves a cookie
  * socket's principal from its forwarded browser credential; only a local-mode
- * socket gets {@link LOCAL_PROJECT_ACCESS}.
+ * socket gets {@link LOCAL_WORK_PACKAGE_ACCESS}.
  */
-export function projectAccessFor(be: {
+export function workPackageAccessFor(be: {
   beUrl: string;
   secret: string;
   fetchImpl: FetchLike;
-}): (credential: SocketCredential) => CheckProjectAccess {
-  const browser = browserProjectAccess(be);
+}): (credential: SocketCredential) => CheckWorkPackageAccess {
+  const browser = browserWorkPackageAccess(be);
   return (credential) =>
     credential.kind === 'local'
-      ? LOCAL_PROJECT_ACCESS
+      ? LOCAL_WORK_PACKAGE_ACCESS
       : browser(credential.forwarded, credential.dependencySemantics);
 }
 
 /**
  * The gateway `main.ts` serves, from its loaded configuration.
  *
- * Proof: selecting LOCAL_PROJECT_ACCESS for every socket made `the production
- * gateway composition > asks be-01 and refuses a foreign project`
- * (composition.integration.test.ts) subscribe the foreign project (2026-10-11).
+ * Proof: selecting LOCAL_WORK_PACKAGE_ACCESS for every socket made `the production
+ * gateway composition > asks be-01 and refuses a foreign workPackage`
+ * (composition.integration.test.ts) subscribe the foreign work package (2026-10-11).
  */
 export function buildGateway(
   cfg: ReturnType<typeof loadConfig>,
@@ -39,7 +42,7 @@ export function buildGateway(
     previousJwtKey: cfg.JWT_SIGNING_KEY_PREVIOUS,
     ...cfg.wsAuth,
     fetchImpl,
-    projectAccess: projectAccessFor({
+    workPackageAccess: workPackageAccessFor({
       beUrl: cfg.BE_URL,
       secret: cfg.INTERNAL_AUTH_SECRET,
       fetchImpl,

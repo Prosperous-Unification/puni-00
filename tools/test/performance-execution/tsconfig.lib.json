@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../../dist/tools/test/performance-execution",
+    "declaration": true
+  },
+  "include": ["index.ts"]
+}

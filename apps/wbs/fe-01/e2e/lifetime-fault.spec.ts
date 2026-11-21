@@ -1,9 +1,8 @@
-import { expect, test } from '@playwright/test';
-
 import { buildBrowserProbeBundle } from './browser-probe-bundle';
 // A type-only import, and it has to stay one: Playwright loads a spec in Node, so a value
 // imported from the probe would execute the probe here and fail before a browser existed.
 import type { LifetimeFaultProof } from './lifetime-fault-probe';
+import { expect, test } from './ordinary-test';
 
 /**
  * Strings that exist only inside the refused construction, and must exist nowhere else.

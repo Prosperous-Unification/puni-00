@@ -25,7 +25,7 @@ import {
  * (`solver-units`, `build-solver-slices`, `build-solver-edges`,
  * `build-solver-request`, `quantised-baseline`), so the import direction is
  * established; the reverse would make `@wbs/domain` depend on the package that
- * depends on it, which is a project cycle rather than a tag violation, and the
+ * depends on it, which is a work package cycle rather than a tag violation, and the
  * tag constraints would have allowed it.
  *
  * **Why the row is not a bare schedule (Sol r7 Critical 6).** `Schedule`

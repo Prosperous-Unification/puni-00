@@ -2,117 +2,69 @@ import { expect, test } from 'bun:test';
 
 import { documentFromShapes } from './document-from-shapes';
 import { validateSchema } from './schema-shape';
-import { addStep, removeStep, renameStep } from './step-shapes';
+import * as stepShapes from './step-shapes';
+import { patchWorkPackageStepValues } from './step-shapes';
 
-test('emits the existing step operation names, name bodies and optional string cascade', () => {
-  const document = documentFromShapes([addStep, renameStep, removeStep]);
-  const add = document.paths['/api/projects/{id}/steps']?.['post'];
-  const rename = document.paths['/api/projects/{id}/steps/{stepId}']?.['patch'];
-  const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  expect(add?.operationId).toBe('postApiProjectsByIdSteps');
-  expect(rename?.operationId).toBe('patchApiProjectsByIdStepsByStepId');
-  expect(remove?.operationId).toBe('deleteApiProjectsByIdStepsByStepId');
-  expect(add?.requestBody?.content['application/json']?.schema).toMatchObject({
+test('exports only the current package values operation and compatible response shape', () => {
+  expect(Object.keys(stepShapes).sort()).toEqual(['patchWorkPackageStepValues', 'stepShape']);
+});
+
+test('documents the current addressed values request without definition or cascade operations', () => {
+  const document = documentFromShapes([patchWorkPackageStepValues]);
+  const path = document.paths['/api/work-packages/{id}/steps/{stepId}'];
+  expect(path?.['patch']?.operationId).toBe('patchWorkPackageStepValues');
+  expect(document.paths['/api/work-packages/{id}/steps']).toBeUndefined();
+  expect(path?.['delete']).toBeUndefined();
+  const patch = path?.['patch'];
+  expect(patch?.requestBody?.content['application/json']?.schema).toMatchObject({
     type: 'object',
-    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
-    required: ['name'],
+    properties: {
+      estimateUnit: { enum: ['minutes', 'workdays'] },
+      allowanceBps: { type: 'integer', minimum: 0, maximum: 100000 },
+    },
     additionalProperties: false,
   });
-  const patchBody = rename?.requestBody?.content['application/json']?.schema;
-  expect(patchBody).toMatchObject({
-    type: 'object',
-    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
-    additionalProperties: false,
-  });
-  expect(patchBody).not.toHaveProperty('required');
-  expect(remove?.parameters).toEqual([
+  expect(patch?.parameters).toEqual([
     { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
     { in: 'path', name: 'stepId', required: true, schema: { type: 'string' } },
-    { in: 'query', name: 'cascade', required: false, schema: { type: 'string' } },
   ]);
-  expect(remove?.requestBody).toBeUndefined();
-  expect(remove?.responses['204']).toEqual({ description: 'Success' });
 });
 
-test('keeps names structural and cascade textual while refusing undeclared inputs', async () => {
-  expect((await validateSchema(addStep.body, { name: '   ' })).issues).toBeUndefined();
+test('closes package values to exact allowance basis points and supported units', async () => {
+  const body = patchWorkPackageStepValues.body;
   expect(
-    (await validateSchema(renameStep.body, { name: 'Design', extra: true })).issues,
-  ).toBeDefined();
-  expect((await validateSchema(removeStep.query, { cascade: '1' })).issues).toBeUndefined();
-  expect(
-    (await validateSchema(removeStep.query, { cascade: 'true', extra: true })).issues,
-  ).toBeDefined();
+    (await validateSchema(body, { allowanceBps: 1234, estimateUnit: 'minutes' })).issues,
+  ).toBeUndefined();
+  for (const supplied of [
+    { name: 'Global rename' },
+    { allowancePercent: 30 },
+    { allowanceBps: 1234, extra: true },
+    { allowanceBps: 1.5 },
+    { allowanceBps: -1 },
+    { allowanceBps: 100001 },
+    { estimateUnit: 'hours' },
+  ])
+    expect((await validateSchema(body, supplied)).issues).toBeDefined();
 });
 
-test('declares the full step response and each usage count and assumed-assignee field', () => {
-  const document = documentFromShapes([addStep, removeStep]);
-  const add = document.paths['/api/projects/{id}/steps']?.['post'];
-  expect(add?.responses['200']?.content?.['application/json']?.schema).toMatchObject({
+test('retains the compatible step response on the current values operation', () => {
+  const document = documentFromShapes([patchWorkPackageStepValues]);
+  expect(
+    document.paths['/api/work-packages/{id}/steps/{stepId}']?.['patch']?.responses['200']
+      ?.content?.['application/json']?.schema,
+  ).toMatchObject({
     properties: {
       step: {
         properties: {
           id: { type: 'string' },
-          projectId: { type: 'string' },
+          workPackageId: { type: 'string' },
           name: { type: 'string' },
           position: { type: 'number' },
           code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           allowancePercent: { type: 'number' },
           estimateUnit: { enum: ['minutes', 'workdays'] },
         },
-        required: ['id', 'name', 'position', 'projectId'],
-      },
-    },
-  });
-  const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  // Context and retained sparse policy join in-use, typed dependency and cycle conflicts.
-  interface Variant {
-    anyOf?: Variant[];
-    properties?: Record<string, unknown>;
-  }
-  const flatten = (schema: Variant): Variant[] =>
-    schema.anyOf === undefined ? [schema] : schema.anyOf.flatMap(flatten);
-  const conflicts = remove?.responses['409']?.content?.['application/json']?.schema;
-  const variants = conflicts === undefined ? [] : flatten(conflicts as Variant);
-  expect(variants.map((variant) => Object.keys(variant.properties ?? {}).sort())).toEqual([
-    ['error'],
-    ['error'],
-    ['error', 'inUse'],
-    ['dependencyIds', 'error'],
-    ['error', 'nodes'],
-    ['error'],
-    ['error', 'required'],
-  ]);
-  // Proof: removing the sparse refusal or its node workItemId independently failed this test (2026-10-17).
-  expect(variants.at(4)).toMatchObject({
-    required: ['error', 'nodes'],
-    properties: {
-      error: { const: 'referenced_by_step_parallel' },
-      nodes: {
-        type: 'array',
-        items: {
-          type: 'object',
-          required: ['stepId', 'workItemId'],
-          properties: { stepId: { type: 'string' }, workItemId: { type: 'string' } },
-        },
-      },
-    },
-  });
-  expect(variants.at(2)).toMatchObject({
-    properties: {
-      inUse: {
-        required: [
-          'actuals',
-          'assignments',
-          'assumedAssignees',
-          'estimates',
-          'measures',
-          'progress',
-        ],
-        properties: {
-          blockages: { type: 'number' },
-          assumedAssignees: { items: { required: ['assumedAfter', 'assumedNow', 'workItemId'] } },
-        },
+        required: ['id', 'name', 'position', 'workPackageId'],
       },
     },
   });
@@ -122,13 +74,13 @@ test('still reads a step from a be-01 that predates step codes', async () => {
   const older = {
     step: {
       id: 'step',
-      projectId: 'project',
+      workPackageId: 'work_package',
       name: 'Dev',
       position: 10,
       estimateUnit: 'workdays' as const,
     },
   };
-  const reply = addStep.responses[0].schema;
+  const reply = patchWorkPackageStepValues.responses[0].schema;
 
   expect(await validateSchema(reply, older)).toEqual({ value: older });
   const uncoded = { step: { ...older.step, code: null } };
@@ -144,14 +96,14 @@ test('still reads a step from a be-01 that predates step allowances', async () =
   const older = {
     step: {
       id: 'step',
-      projectId: 'project',
+      workPackageId: 'work_package',
       name: 'Dev',
       position: 10,
       estimateUnit: 'workdays' as const,
       code: 'dev',
     },
   };
-  const reply = renameStep.responses[0].schema;
+  const reply = patchWorkPackageStepValues.responses[0].schema;
 
   expect(await validateSchema(reply, older)).toEqual({ value: older });
   const current = { step: { ...older.step, allowancePercent: 30 } };
@@ -162,8 +114,8 @@ test('still reads a step from a be-01 that predates step allowances', async () =
 });
 
 test('reads a pre-unit backend as the historical workday protocol and refuses malformed present units', async () => {
-  const reply = addStep.responses[0].schema;
-  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  const reply = patchWorkPackageStepValues.responses[0].schema;
+  const older = { step: { id: 'step', workPackageId: 'work_package', name: 'Dev', position: 10 } };
   expect((await validateSchema(reply, older)).issues).toBeUndefined();
   expect(
     (await validateSchema(reply, { step: { ...older.step, estimateUnit: 'hours' } })).issues,

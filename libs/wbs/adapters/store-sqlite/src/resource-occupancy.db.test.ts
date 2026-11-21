@@ -3,22 +3,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { PlanCommand, Scope, Source, TransactionalStores } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
+import { seedLegacyPackageParent as seedMemoryPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
+import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent as seedSqlitePackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -35,16 +38,28 @@ const STORES: readonly {
   readonly open: () => {
     source: Source<TransactionalStores>;
     isMemory: boolean;
+    seedParent: () => void;
     dispose: () => void;
   };
 }[] = [
   {
     name: 'memory',
-    open: () => ({
-      source: openMemorySourceFixture().source,
-      isMemory: true,
-      dispose: () => undefined,
-    }),
+    open: () => {
+      const fixture = openMemorySourceFixture();
+      return {
+        source: fixture.source,
+        isMemory: true,
+        seedParent: () => {
+          seedMemoryPackageParent(fixture, {
+            organizationId: 'fixture-legacy-org',
+            projectId: 'fixture-project',
+            creator: F,
+          });
+          fixture.setPackageCreationMembers('fixture-legacy-org', [F, G]);
+        },
+        dispose: () => undefined,
+      };
+    },
   },
   {
     name: 'sqlite',
@@ -61,6 +76,19 @@ const STORES: readonly {
           dbPath,
         }),
         isMemory: false,
+        seedParent: () => {
+          seedSqlitePackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+          const sqlite = openDatabase(dbPath);
+          try {
+            for (const id of [F, G])
+              sqlite.run(
+                "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES(?,?,'member',1)",
+                ['fixture-legacy-org', id],
+              );
+          } finally {
+            sqlite.close();
+          }
+        },
         dispose: () => {
           rmSync(folder, { recursive: true, force: true });
         },
@@ -75,9 +103,9 @@ const STORES: readonly {
  * states a capacity for. Capacities and demands are each case's own.
  */
 async function seeded(store: (typeof STORES)[number]) {
-  const { source, isMemory, dispose } = store.open();
+  const { source, isMemory, seedParent, dispose } = store.open();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -90,13 +118,20 @@ async function seeded(store: (typeof STORES)[number]) {
       { at: 1, by: id },
     );
   }
-  const created = expectCreated(await graph.projects.create('Occupancy', F));
-  const projectId = created.project.id;
+  seedParent();
+  const created = expectCreated(await graph.workPackages.create('Occupancy', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   if (isMemory) {
-    // The memory source keeps a project's steps apart from the step table its progress reads.
+    // The memory source keeps a work package's steps apart from the step table its progress reads.
     for (const step of created.steps) {
       await source.stores.steps.add(
-        { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+        {
+          id: step.id,
+          workPackageId,
+          name: step.name,
+          allowancePercent: 0,
+          estimateUnit: 'workdays',
+        },
         { at: 1, by: F },
       );
     }
@@ -136,7 +171,7 @@ async function seeded(store: (typeof STORES)[number]) {
       }),
   });
   const tree = await runner.run(
-    projectId,
+    workPackageId,
     F,
     Array.from({ length: LEAVES }, (_, index): PlanCommand => ({
       kind: 'createWorkItem',
@@ -152,7 +187,7 @@ async function seeded(store: (typeof STORES)[number]) {
     if (id === undefined) throw new Error(`no leaf ${String(index)}`);
     return id;
   };
-  const run = (commands: PlanCommand[], actor = F) => runner.run(projectId, actor, commands);
+  const run = (commands: PlanCommand[], actor = F) => runner.run(workPackageId, actor, commands);
   const claim = (
     index: number,
     personId: string,
@@ -172,7 +207,7 @@ async function seeded(store: (typeof STORES)[number]) {
   });
   /** The occupied units of one resource, 0 when nothing holds it. */
   const occupied = async (resourceId: string): Promise<number> =>
-    (await graph.workItems.occupancyOf(projectId)).occupied.find(
+    (await graph.workItems.occupancyOf(workPackageId)).occupied.find(
       (each) => each.resourceId === resourceId,
     )?.occupied ?? 0;
   const close = async () => {
@@ -184,7 +219,7 @@ async function seeded(store: (typeof STORES)[number]) {
     broadcast: options.broadcast,
     graph,
     runner,
-    projectId,
+    workPackageId,
     dev,
     review,
     leaf,
@@ -198,8 +233,8 @@ async function seeded(store: (typeof STORES)[number]) {
 
 for (const store of STORES) {
   describe(`claim occupancy on the ${store.name} store`, () => {
-    it('acquires the declared demand and reads it per project and per resource', async () => {
-      const { graph, projectId, run, claim, occupied, leaf, close } = await seeded(store);
+    it('acquires the declared demand and reads it per work package and per resource', async () => {
+      const { graph, workPackageId, run, claim, occupied, leaf, close } = await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 32 },
@@ -211,7 +246,7 @@ for (const store of STORES) {
           results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 4 }] }],
         });
         expect(await occupied(RAM)).toBe(4);
-        expect(await graph.workItems.occupancyOf(projectId)).toEqual({
+        expect(await graph.workItems.occupancyOf(workPackageId)).toEqual({
           occupied: [
             {
               resourceId: RAM,
@@ -229,18 +264,18 @@ for (const store of STORES) {
     // Proof: bypassing decideClaim's fresh-step admission predicate made this
     // test acquire Dev and QA on both stores (0 pass, 2 fail; 2026-10-22).
     it('refuses all unfinished steps atomically, rolling back an earlier staged command', async () => {
-      const { source, projectId, run, claim, leaf, close } = await seeded(store);
+      const { source, workPackageId, run, claim, leaf, close } = await seeded(store);
       try {
         const before = {
-          rows: await source.stores.workItems.listByProject(projectId),
+          rows: await source.stores.workItems.listByWorkPackage(workPackageId),
           journal: await source.stores.journal.entriesFor({
-            projectId: projectId,
+            workPackageId: workPackageId,
             userId: F,
             personId: null,
           }),
-          progress: await source.stores.progress.listByProject(projectId),
-          claims: await source.stores.claims.listByProject(projectId),
-          occupancy: await source.stores.claims.occupancyOf(projectId),
+          progress: await source.stores.progress.listByWorkPackage(workPackageId),
+          claims: await source.stores.claims.listByWorkPackage(workPackageId),
+          occupancy: await source.stores.claims.occupancyOf(workPackageId),
         };
         const refused = await run([
           { kind: 'patchWorkItem', workItemId: leaf(1), patch: { name: 'Staged rename' } },
@@ -248,15 +283,15 @@ for (const store of STORES) {
         ]);
         expect(refused).toMatchObject({ ok: false, at: 1, reason: 'prerequisites_unmet' });
         expect({
-          rows: await source.stores.workItems.listByProject(projectId),
+          rows: await source.stores.workItems.listByWorkPackage(workPackageId),
           journal: await source.stores.journal.entriesFor({
-            projectId: projectId,
+            workPackageId: workPackageId,
             userId: F,
             personId: null,
           }),
-          progress: await source.stores.progress.listByProject(projectId),
-          claims: await source.stores.claims.listByProject(projectId),
-          occupancy: await source.stores.claims.occupancyOf(projectId),
+          progress: await source.stores.progress.listByWorkPackage(workPackageId),
+          claims: await source.stores.claims.listByWorkPackage(workPackageId),
+          occupancy: await source.stores.claims.occupancyOf(workPackageId),
         }).toEqual(before);
       } finally {
         await close();
@@ -518,7 +553,7 @@ for (const store of STORES) {
     });
 
     // Scenario: Unstated capacity never refuses.
-    it('applies a claim on a resource whose capacity the project never stated', async () => {
+    it('applies a claim on a resource whose capacity the work package never stated', async () => {
       const { run, claim, leaf, occupied, close } = await seeded(store);
       try {
         await run([
@@ -535,16 +570,16 @@ for (const store of STORES) {
 
     // Scenario: Undo.
     it('undo of a claim takes its occupancy; redo re-acquires it', async () => {
-      const { runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      const { runner, workPackageId, run, claim, leaf, occupied, close } = await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 4 },
           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
         ]);
         await run([claim(0, 'a0')]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(0);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(4);
       } finally {
         await close();
@@ -552,7 +587,7 @@ for (const store of STORES) {
     });
 
     it('redo of a claim is refused resources_exhausted once another leaf took the units', async () => {
-      const { runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      const { runner, workPackageId, run, claim, leaf, occupied, close } = await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 4 },
@@ -560,9 +595,9 @@ for (const store of STORES) {
           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
         ]);
         await run([claim(0, 'a0')]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
-        const redone = await runner.redo(projectId, F);
+        const redone = await runner.redo(workPackageId, F);
         expect(redone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(redone.ok || !('detail' in redone) ? null : redone.detail).toBe(
           'resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.',
@@ -574,7 +609,8 @@ for (const store of STORES) {
     });
 
     it('undo of a release re-acquires the units', async () => {
-      const { runner, projectId, run, claim, release, leaf, occupied, close } = await seeded(store);
+      const { runner, workPackageId, run, claim, release, leaf, occupied, close } =
+        await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 4 },
@@ -583,7 +619,7 @@ for (const store of STORES) {
         await run([claim(0, 'a0')]);
         await run([release(0, 'a0')]);
         expect(await occupied(RAM)).toBe(0);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(4);
       } finally {
         await close();
@@ -591,7 +627,7 @@ for (const store of STORES) {
     });
 
     it('undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits', async () => {
-      const { dev, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      const { dev, runner, workPackageId, run, claim, leaf, occupied, close } = await seeded(store);
       try {
         const tree = await run([
           { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -637,7 +673,7 @@ for (const store of STORES) {
         ).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(0);
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
-        const undone = await runner.undo(projectId, F);
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toStartWith(
           'resources_exhausted:',
@@ -649,12 +685,13 @@ for (const store of STORES) {
     });
 
     it('hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo', async () => {
-      const { source, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      const { source, runner, workPackageId, run, claim, leaf, occupied, close } =
+        await seeded(store);
       try {
         await run([{ kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 }]);
         await run([claim(0, 'a0')]);
         const demands = async () =>
-          (await source.stores.demands.listByProject(projectId)).map(
+          (await source.stores.demands.listByWorkPackage(workPackageId)).map(
             ({ workItemId, units }) =>
               `${workItemId === leaf(0) ? 'parent' : 'child'}:${String(units)}`,
           );
@@ -664,10 +701,10 @@ for (const store of STORES) {
         expect(split).toMatchObject({ ok: true });
         expect(await demands()).toEqual(['child:4']);
         expect(await occupied(RAM)).toBe(4);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual(['parent:4']);
         expect(await occupied(RAM)).toBe(4);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual(['child:4']);
       } finally {
         await close();
@@ -675,7 +712,7 @@ for (const store of STORES) {
     });
 
     it('hands the last child’s demand back up when its delete promotes the parent, and back on undo', async () => {
-      const { graph, source, runner, projectId, run, claim, leaf, close } = await seeded(store);
+      const { graph, source, runner, workPackageId, run, claim, leaf, close } = await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
@@ -688,21 +725,23 @@ for (const store of STORES) {
         const child = split.results[0]?.id;
         if (child === undefined) throw new Error('the split created no child');
         const demands = async () =>
-          (await graph.workItems.demandsOf(projectId)).map(({ workItemId, resourceId, units }) => ({
-            owner: workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId,
-            resourceId,
-            units,
-          }));
+          (await graph.workItems.demandsOf(workPackageId)).map(
+            ({ workItemId, resourceId, units }) => ({
+              owner: workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId,
+              resourceId,
+              units,
+            }),
+          );
         expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
         expect(await run([{ kind: 'deleteWorkItem', workItemId: child }])).toMatchObject({
           ok: true,
         });
         expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
-        expect(await source.stores.demands.listByProject(projectId)).toHaveLength(1);
+        expect(await source.stores.demands.listByWorkPackage(workPackageId)).toHaveLength(1);
         expect(await run([claim(0, 'a0')])).toMatchObject({
           ok: true,
           results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 4 }] }],
@@ -713,8 +752,19 @@ for (const store of STORES) {
     });
 
     it('hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo', async () => {
-      const { dev, review, source, runner, projectId, run, claim, release, leaf, occupied, close } =
-        await seeded(store);
+      const {
+        dev,
+        review,
+        source,
+        runner,
+        workPackageId,
+        run,
+        claim,
+        release,
+        leaf,
+        occupied,
+        close,
+      } = await seeded(store);
       try {
         // Both historical steps are held, preserving the multi-claim restoration case.
         await run([
@@ -727,7 +777,7 @@ for (const store of STORES) {
         expect(await run([claim(0, 'a0', { runId: 'run-0', steps: [dev, review] })])).toMatchObject(
           { ok: true },
         );
-        const held = await source.stores.claims.listByProject(projectId);
+        const held = await source.stores.claims.listByWorkPackage(workPackageId);
         expect(held).toHaveLength(2);
         const split = await run([
           { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
@@ -739,11 +789,11 @@ for (const store of STORES) {
           const name = (workItemId: string) =>
             workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId;
           return {
-            claims: (await source.stores.claims.listByProject(projectId)).map((each) => ({
+            claims: (await source.stores.claims.listByWorkPackage(workPackageId)).map((each) => ({
               ...each,
               workItemId: name(each.workItemId),
             })),
-            occupancy: (await source.stores.claims.occupancyOf(projectId)).map(
+            occupancy: (await source.stores.claims.occupancyOf(workPackageId)).map(
               ({ claimId, workItemId, resourceId, units }) => ({
                 claimId,
                 workItemId: name(workItemId),
@@ -782,14 +832,14 @@ for (const store of STORES) {
         });
         expect(await sorted()).toEqual(expected('L'));
         expect(await occupied(RAM)).toBe(4);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await sorted()).toEqual(expected('C'));
         expect(await occupied(RAM)).toBe(4);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await sorted()).toEqual(expected('L'));
         expect(await occupied(RAM)).toBe(4);
         expect(await run([release(0, 'a0')])).toMatchObject({ ok: true });
-        expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
+        expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual([]);
         expect(await occupied(RAM)).toBe(0);
       } finally {
         await close();
@@ -797,7 +847,7 @@ for (const store of STORES) {
     });
 
     it('hands up the largest units any former leaf of a deleted last branch demanded', async () => {
-      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      const { graph, runner, workPackageId, run, leaf, close } = await seeded(store);
       try {
         const tree = await run([
           { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf(0), afterId: null },
@@ -827,7 +877,7 @@ for (const store of STORES) {
         const branchId = tree.results[0]?.id;
         if (branchId === undefined) throw new Error('no branch');
         const onParent = async () =>
-          (await graph.workItems.demandsOf(projectId))
+          (await graph.workItems.demandsOf(workPackageId))
             .filter(({ workItemId }) => workItemId === leaf(0))
             .map(({ resourceId, units }) => ({ resourceId, units }));
         expect(
@@ -837,7 +887,7 @@ for (const store of STORES) {
           { resourceId: RAM, units: 6 },
           { resourceId: WORKTREE, units: 1 },
         ]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await onParent()).toEqual([{ resourceId: RAM, units: 2 }]);
       } finally {
         await close();
@@ -845,14 +895,14 @@ for (const store of STORES) {
     });
 
     it('clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo', async () => {
-      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      const { graph, runner, workPackageId, run, leaf, close } = await seeded(store);
       try {
         await run([
           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
         ]);
         const demands = async () =>
-          (await graph.workItems.demandsOf(projectId))
+          (await graph.workItems.demandsOf(workPackageId))
             .map(({ workItemId, units }) => ({
               owner: workItemId === leaf(0) ? 'P' : workItemId === leaf(1) ? 'X' : workItemId,
               units,
@@ -865,12 +915,12 @@ for (const store of STORES) {
           ]),
         ).toMatchObject({ ok: true });
         expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual([
           { owner: 'P', units: 4 },
           { owner: 'X', units: 2 },
         ]);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
       } finally {
         await close();
@@ -878,7 +928,7 @@ for (const store of STORES) {
     });
 
     it('refuses deleting a resource a claim holds, counting it, and cascades on confirmation', async () => {
-      const { broadcast, projectId, runner, run, claim, occupied, close } = await seeded(store);
+      const { broadcast, workPackageId, runner, run, claim, occupied, close } = await seeded(store);
       try {
         await run([claim(0, 'a0', { resources: [{ resourceId: WORKTREE, units: 1 }] })]);
         expect(
@@ -896,9 +946,9 @@ for (const store of STORES) {
           ]),
         ).toMatchObject({ ok: true });
         expect(await occupied(WORKTREE)).toBe(0);
-        // Its only link to the project was the occupancy, and still it is told.
-        expect(broadcast.published.slice(announced).map((each) => each.projectId)).toEqual([
-          projectId,
+        // Its only link to the work package was the occupancy, and still it is told.
+        expect(broadcast.published.slice(announced).map((each) => each.workPackageId)).toEqual([
+          workPackageId,
         ]);
       } finally {
         await close();
@@ -907,7 +957,7 @@ for (const store of STORES) {
 
     // Design R5: the engines level demands and never read a claim.
     it('leaves the canonical schedule input unchanged by a claim that occupies units', async () => {
-      const { graph, projectId, run, claim, dev, review, leaf, occupied, close } =
+      const { graph, workPackageId, run, claim, dev, review, leaf, occupied, close } =
         await seeded(store);
       try {
         await run([
@@ -918,8 +968,8 @@ for (const store of STORES) {
           { kind: 'setProgress', workItemId: leaf(0), stepId: review, state: 'in_progress' },
         ]);
         const input = async () => {
-          const read = await graph.workItems.scheduleInput(projectId);
-          if (read === null) throw new Error('the project has no schedule input');
+          const read = await graph.workItems.scheduleInput(workPackageId);
+          if (read === null) throw new Error('the work package has no schedule input');
           return canonicalScheduleInput(read);
         };
         const before = await input();
@@ -963,23 +1013,23 @@ for (const store of STORES) {
     };
 
     it('undo of a delete puts the demands back exactly; redo takes them again', async () => {
-      const { source, runner, projectId, run, leaf, close } = await seeded(store);
+      const { source, runner, workPackageId, run, leaf, close } = await seeded(store);
       try {
         await run([
           { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
           { kind: 'setDemand', workItemId: leaf(0), resourceId: WORKTREE, units: 1 },
           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
         ]);
-        const demands = () => source.stores.demands.listByProject(projectId);
+        const demands = () => source.stores.demands.listByWorkPackage(workPackageId);
         const before = await demands();
         expect(before.filter(({ workItemId }) => workItemId === leaf(0))).toHaveLength(2);
         expect(await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }])).toMatchObject({
           ok: true,
         });
         expect(await demands()).toEqual(before.filter(({ workItemId }) => workItemId !== leaf(0)));
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual(before);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await demands()).toEqual(before.filter(({ workItemId }) => workItemId !== leaf(0)));
       } finally {
         await close();
@@ -987,39 +1037,39 @@ for (const store of STORES) {
     });
 
     it('undo of a cascading delete puts every row’s demands back', async () => {
-      const { source, runner, projectId, run, close } = await seeded(store);
+      const { source, runner, workPackageId, run, close } = await seeded(store);
       try {
         const { parent, x, y } = await branch(run);
         await run([
           { kind: 'setDemand', workItemId: x, resourceId: RAM, units: 4 },
           { kind: 'setDemand', workItemId: y, resourceId: DISK, units: 3 },
         ]);
-        const before = await source.stores.demands.listByProject(projectId);
+        const before = await source.stores.demands.listByWorkPackage(workPackageId);
         expect(
           await run([{ kind: 'deleteWorkItem', workItemId: parent, strategy: 'cascade' }]),
         ).toMatchObject({ ok: true });
-        expect(await source.stores.demands.listByProject(projectId)).toEqual([]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
-        expect(await source.stores.demands.listByProject(projectId)).toEqual(before);
+        expect(await source.stores.demands.listByWorkPackage(workPackageId)).toEqual([]);
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+        expect(await source.stores.demands.listByWorkPackage(workPackageId)).toEqual(before);
       } finally {
         await close();
       }
     });
 
     it('refuses an undo of a delete whose demanded resource was deleted since', async () => {
-      const { source, runner, projectId, run, leaf, close } = await seeded(store);
+      const { source, runner, workPackageId, run, leaf, close } = await seeded(store);
       try {
         await run([{ kind: 'setDemand', workItemId: leaf(0), resourceId: DISK, units: 2 }]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
         expect(
           await runner.runDirectory(F, [{ kind: 'deleteResource', resourceId: DISK }]),
         ).toMatchObject({ ok: true });
-        const undone = await runner.undo(projectId, F);
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'a resource it demanded is no longer in the directory.',
         );
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
       } finally {
         await close();
@@ -1027,26 +1077,26 @@ for (const store of STORES) {
     });
 
     it('duplicate copies the demands with the subtree; undo takes the copies, redo brings them back', async () => {
-      const { source, runner, projectId, run, close } = await seeded(store);
+      const { source, runner, workPackageId, run, close } = await seeded(store);
       try {
         const { parent, x, y } = await branch(run);
         await run([
           { kind: 'setDemand', workItemId: x, resourceId: RAM, units: 4 },
           { kind: 'setDemand', workItemId: y, resourceId: WORKTREE, units: 1 },
         ]);
-        const originals = await source.stores.demands.listByProject(projectId);
+        const originals = await source.stores.demands.listByWorkPackage(workPackageId);
         const copied = await run([{ kind: 'duplicateWorkItem', workItemId: parent }]);
         if (!copied.ok) throw new Error(`the duplicate was refused: ${JSON.stringify(copied)}`);
         const copyId = copied.results[0]?.id;
         if (copyId === undefined) throw new Error('the duplicate wrote no row');
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         const nameOf = new Map(rows.map(({ id, name }) => [id, name]));
         const copyChildren = new Set(
           rows.filter(({ parentId }) => parentId === copyId).map(({ id }) => id),
         );
         /** The copies' demands, named by their row's name rather than its new id. */
         const copiedDemands = async () =>
-          (await source.stores.demands.listByProject(projectId))
+          (await source.stores.demands.listByWorkPackage(workPackageId))
             .filter(({ workItemId }) => copyChildren.has(workItemId))
             .map(({ workItemId, resourceId, units }) => ({
               name: nameOf.get(workItemId),
@@ -1060,14 +1110,14 @@ for (const store of STORES) {
         ];
         expect(await copiedDemands()).toEqual(expected);
         expect(
-          (await source.stores.demands.listByProject(projectId)).filter(
+          (await source.stores.demands.listByWorkPackage(workPackageId)).filter(
             ({ workItemId }) => !copyChildren.has(workItemId),
           ),
         ).toEqual(originals);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await copiedDemands()).toEqual([]);
-        expect(await source.stores.demands.listByProject(projectId)).toEqual(originals);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await source.stores.demands.listByWorkPackage(workPackageId)).toEqual(originals);
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await copiedDemands()).toEqual(expected);
       } finally {
         await close();
@@ -1075,7 +1125,7 @@ for (const store of STORES) {
     });
 
     it('undo of a delete puts the claims and their occupancy back; redo takes them again', async () => {
-      const { dev, review, source, runner, projectId, run, claim, leaf, occupied, close } =
+      const { dev, review, source, runner, workPackageId, run, claim, leaf, occupied, close } =
         await seeded(store);
       try {
         // Both historical steps are held, preserving the multi-claim restoration case.
@@ -1089,7 +1139,7 @@ for (const store of STORES) {
         expect(await run([claim(0, 'a0', { runId: 'run-0', steps: [dev, review] })])).toMatchObject(
           { ok: true },
         );
-        const claims = () => source.stores.claims.listByProject(projectId);
+        const claims = () => source.stores.claims.listByWorkPackage(workPackageId);
         const before = await claims();
         expect(before).toHaveLength(2);
         expect(await occupied(RAM)).toBe(4);
@@ -1098,10 +1148,10 @@ for (const store of STORES) {
         });
         expect(await claims()).toEqual([]);
         expect(await occupied(RAM)).toBe(0);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await claims()).toEqual(before);
         expect(await occupied(RAM)).toBe(4);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await claims()).toEqual([]);
         expect(await occupied(RAM)).toBe(0);
       } finally {
@@ -1110,7 +1160,8 @@ for (const store of STORES) {
     });
 
     it('refuses an undo of a delete resources_exhausted once another leaf took the units', async () => {
-      const { source, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      const { source, runner, workPackageId, run, claim, leaf, occupied, close } =
+        await seeded(store);
       try {
         await run([
           { kind: 'setResourceCapacity', resourceId: RAM, units: 4 },
@@ -1120,12 +1171,12 @@ for (const store of STORES) {
         await run([claim(0, 'a0')]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
-        const undone = await runner.undo(projectId, F);
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.',
         );
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
         expect(await occupied(RAM)).toBe(4);
       } finally {
@@ -1134,7 +1185,7 @@ for (const store of STORES) {
     });
 
     it('undo of a promoting delete puts back the subtree claim and the claims delegated under it', async () => {
-      const { dev, source, runner, projectId, run, close } = await seeded(store);
+      const { dev, source, runner, workPackageId, run, close } = await seeded(store);
       try {
         const { parent, x } = await branch(run);
         const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
@@ -1148,14 +1199,14 @@ for (const store of STORES) {
             { kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim, steps: [dev] },
           ]),
         ).toMatchObject({ ok: true });
-        const claims = () => source.stores.claims.listByProject(projectId);
+        const claims = () => source.stores.claims.listByWorkPackage(workPackageId);
         const before = await claims();
         expect(
           await run([{ kind: 'deleteWorkItem', workItemId: parent, strategy: 'promote' }]),
         ).toMatchObject({ ok: true });
         // The delegated claims went with their parent claim; `X` stayed.
         expect(await claims()).toEqual([]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await claims()).toEqual(before);
       } finally {
         await close();
@@ -1163,7 +1214,7 @@ for (const store of STORES) {
     });
 
     it('hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent', async () => {
-      const { dev, source, runner, projectId, run, close } = await seeded(store);
+      const { dev, source, runner, workPackageId, run, close } = await seeded(store);
       try {
         const { parent, x } = await branch(run);
         const nested = await run([
@@ -1180,7 +1231,7 @@ for (const store of STORES) {
             { kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim, steps: [dev] },
           ]),
         ).toMatchObject({ ok: true });
-        const before = await source.stores.claims.listByProject(projectId);
+        const before = await source.stores.claims.listByWorkPackage(workPackageId);
         const delegated = before.filter(({ workItemId }) => workItemId === z);
         expect(delegated.length).toBeGreaterThan(0);
         expect(delegated.every((each) => each.parentClaimId === parentClaim)).toBe(true);
@@ -1188,7 +1239,7 @@ for (const store of STORES) {
         const movedTo = (owner: string) =>
           before.map((each) => (each.workItemId === z ? { ...each, workItemId: owner } : each));
         const claims = async () =>
-          (await source.stores.claims.listByProject(projectId)).toSorted((a, b) =>
+          (await source.stores.claims.listByWorkPackage(workPackageId)).toSorted((a, b) =>
             a.id.localeCompare(b.id),
           );
         const sorted = (list: typeof before) => list.toSorted((a, b) => a.id.localeCompare(b.id));
@@ -1196,9 +1247,9 @@ for (const store of STORES) {
           ok: true,
         });
         expect(await claims()).toEqual(sorted(movedTo(x)));
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await claims()).toEqual(sorted(before));
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await claims()).toEqual(sorted(movedTo(x)));
       } finally {
         await close();
@@ -1206,7 +1257,7 @@ for (const store of STORES) {
     });
 
     it('refuses a promoting delete whose claims sit on two former leaves, naming every holder', async () => {
-      const { dev, source, projectId, run, close } = await seeded(store);
+      const { dev, source, workPackageId, run, close } = await seeded(store);
       try {
         // `R` above one branch `B` whose two leaves are both claimed: deleting
         // `B` promotes `R`, and both leaves' Dev claims cannot sit on it.
@@ -1245,8 +1296,8 @@ for (const store of STORES) {
             { kind: 'claimWorkItem', workItemId: y2, personId: 'a1', steps: [dev] },
           ]),
         ).toMatchObject({ ok: true });
-        const held = await source.stores.claims.listByProject(projectId);
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const held = await source.stores.claims.listByWorkPackage(workPackageId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         const refused = await run([{ kind: 'deleteWorkItem', workItemId: b, strategy: 'cascade' }]);
         expect(refused).toMatchObject({
           ok: false,
@@ -1262,15 +1313,15 @@ for (const store of STORES) {
           held.map(({ id }) => id).toSorted(),
         );
         expect(new Set(holders.map(({ name }) => name))).toEqual(new Set(['agent a0', 'agent a1']));
-        expect(await source.stores.claims.listByProject(projectId)).toEqual(held);
-        expect(await source.stores.workItems.listByProject(projectId)).toEqual(rows);
+        expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual(held);
+        expect(await source.stores.workItems.listByWorkPackage(workPackageId)).toEqual(rows);
       } finally {
         await close();
       }
     });
 
     it('refuses a promoting delete handing claims up to a parent that holds its own subtree claim', async () => {
-      const { dev, source, projectId, run, close } = await seeded(store);
+      const { dev, source, workPackageId, run, close } = await seeded(store);
       try {
         const tree = await run([
           { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
@@ -1294,7 +1345,7 @@ for (const store of STORES) {
             { kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim, steps: [dev] },
           ]),
         ).toMatchObject({ ok: true });
-        const held = await source.stores.claims.listByProject(projectId);
+        const held = await source.stores.claims.listByWorkPackage(workPackageId);
         const refused = await run([{ kind: 'deleteWorkItem', workItemId: x }]);
         expect(refused).toMatchObject({ ok: false, reason: 'children_claimed' });
         if (refused.ok || !('reason' in refused) || refused.reason !== 'children_claimed')
@@ -1305,14 +1356,14 @@ for (const store of STORES) {
         expect(holders.map(({ claimId }) => claimId).toSorted()).toEqual(
           held.map(({ id }) => id).toSorted(),
         );
-        expect(await source.stores.claims.listByProject(projectId)).toEqual(held);
+        expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual(held);
       } finally {
         await close();
       }
     });
 
     it('refuses an undo of a delete once the claim it was delegated under was released', async () => {
-      const { dev, source, runner, projectId, run, close } = await seeded(store);
+      const { dev, source, runner, workPackageId, run, close } = await seeded(store);
       try {
         const { parent, x } = await branch(run);
         // A grandchild, so the subtree claim sits above the deleted leaf's
@@ -1339,15 +1390,15 @@ for (const store of STORES) {
         ).toMatchObject({ ok: true });
         await run([{ kind: 'deleteWorkItem', workItemId: z }]);
         // Released outside this account's stack, so the delete stays its newest entry.
-        const held = await source.stores.claims.listByProject(projectId);
+        const held = await source.stores.claims.listByWorkPackage(workPackageId);
         expect(held.map(({ id }) => id)).toEqual([parentClaim]);
         await source.stores.claims.remove(held, [], { at: 9, by: G });
-        const undone = await runner.undo(projectId, F);
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'the claim it was delegated under has been released since.',
         );
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         expect(rows.some(({ id }) => id === z)).toBe(false);
       } finally {
         await close();
@@ -1355,27 +1406,27 @@ for (const store of STORES) {
     });
 
     it('refuses an undo of a delete once a step its claims and progress name was removed', async () => {
-      const { source, graph, runner, projectId, run, claim, leaf, dev, close } =
+      const { source, graph, runner, workPackageId, run, claim, leaf, dev, close } =
         await seeded(store);
       try {
         await run([claim(0, 'a0')]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
-        expect(await graph.steps.remove(projectId, dev, F, true)).toMatchObject({ ok: true });
-        const undone = await runner.undo(projectId, F);
+        expect(await graph.steps.remove(workPackageId, dev, F, true)).toMatchObject({ ok: true });
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
-          `step ${dev} has been removed from this project since.`,
+          `step ${dev} has been removed from this work package since.`,
         );
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
-        expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
+        expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual([]);
       } finally {
         await close();
       }
     });
 
     it('refuses an undo of a delete once the claimant was removed from the directory', async () => {
-      const { source, runner, projectId, run, claim, leaf, close } = await seeded(store);
+      const { source, runner, workPackageId, run, claim, leaf, close } = await seeded(store);
       try {
         await run([claim(0, 'a0')]);
         await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
@@ -1386,12 +1437,12 @@ for (const store of STORES) {
           { kind: 'every' },
         );
         expect(removed).toMatchObject({ ok: true });
-        const undone = await runner.undo(projectId, F);
+        const undone = await runner.undo(workPackageId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
         expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'a person who held it is no longer in the directory.',
         );
-        const rows = await source.stores.workItems.listByProject(projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(workPackageId);
         expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
       } finally {
         await close();

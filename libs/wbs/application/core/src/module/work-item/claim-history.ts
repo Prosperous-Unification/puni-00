@@ -179,7 +179,7 @@ function releaseReasonOf(after: unknown): ClaimHistoryReason {
  * people and rows (C14).
  *
  * @throws when a row of this read has no derived number: the rows are one
- * project's tree, so an unnumbered one is corrupt trusted state.
+ * work package's tree, so an unnumbered one is corrupt trusted state.
  */
 export function nameClaimHistory(
   decoded: readonly DecodedClaimEvent[],
@@ -196,7 +196,7 @@ export function nameClaimHistory(
     // "deleted since". No negative reaches this line: `deriveNumbers` already
     // throws for a row no root reaches, which `fails the read for a row the
     // tree cannot number, …` (claim-history.test.ts) pins; it narrows the
-    // map's answer as project-claims.ts and person-work.ts do.
+    // map's answer as work-package-claims.ts and person-work.ts do.
     if (number === undefined) throw new Error(`work item ${workItemId} has no number in this read`);
     return { number, numberIsFrozen: row.frozenNumber !== null, name: row.name };
   };

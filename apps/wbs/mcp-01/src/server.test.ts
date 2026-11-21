@@ -24,8 +24,8 @@ const CONFIG: McpConfig = {
 };
 
 const READ: DerivedTool = {
-  name: 'getApiProjectsByIdWorkItems',
-  description: 'Read a project’s work items',
+  name: 'getApiWorkPackagesByIdWorkItems',
+  description: 'Read a work package’s work items',
   inputSchema: {
     type: 'object',
     properties: { id: { type: 'string' } },
@@ -33,7 +33,7 @@ const READ: DerivedTool = {
     additionalProperties: false,
   },
   method: 'get',
-  path: '/api/projects/{id}/work-items',
+  path: '/api/work-packages/{id}/work-items',
   locations: { id: 'path' },
 };
 
@@ -53,8 +53,8 @@ const WRITE: DerivedTool = {
 
 /** The batch route as the committed document derives it, cut to what this test reads. */
 const COMMANDS: DerivedTool = {
-  name: 'postApiProjectsByIdCommands',
-  description: 'Apply a batch of commands to a project, all or none',
+  name: 'postApiWorkPackagesByIdCommands',
+  description: 'Apply a batch of commands to a work package, all or none',
   inputSchema: {
     type: 'object',
     properties: { id: { type: 'string' }, commands: { type: 'array' } },
@@ -62,7 +62,7 @@ const COMMANDS: DerivedTool = {
     additionalProperties: false,
   },
   method: 'post',
-  path: '/api/projects/{id}/commands',
+  path: '/api/work-packages/{id}/commands',
   locations: { id: 'path', commands: 'body' },
 };
 
@@ -136,7 +136,7 @@ describe('the round trip over MCP', () => {
     const listed = await client.listTools();
 
     expect(listed.tools.map((tool) => tool.name)).toEqual([
-      'getApiProjectsByIdWorkItems',
+      'getApiWorkPackagesByIdWorkItems',
       'patchApiWorkItemsById',
     ]);
     // The schema the document produced, not a re-description of it.
@@ -153,13 +153,13 @@ describe('the round trip over MCP', () => {
     const { client } = await connected([READ, WRITE], stub(seen, '{"workItems":[]}'));
 
     const result = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
     expect(seen).toHaveLength(1);
     expect(seen[0]?.method).toBe('GET');
-    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/projects/p-1/work-items');
+    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/work-packages/p-1/work-items');
     expect(seen[0]?.headers['authorization']).toBe('Bearer token-abc');
     expect(seen[0]?.body).toBeUndefined();
     // be-01's body, passed through rather than re-serialised.
@@ -236,16 +236,18 @@ describe('the round trip over MCP', () => {
     ];
 
     const result = await client.callTool({
-      name: 'postApiProjectsByIdCommands',
+      name: 'postApiWorkPackagesByIdCommands',
       arguments: { id: 'p-1', commands: batch },
     });
 
     expect(seen[0]?.method).toBe('POST');
-    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/projects/p-1/commands');
+    expect(seen[0]?.url).toBe('https://dev.wbs.bulletpoints.club/api/work-packages/p-1/commands');
     expect(JSON.parse(seen[0]?.body ?? 'null')).toEqual({ commands: batch });
     expect(result.isError).toBe(true);
     const [content] = result.content as [{ type: string; text: string }];
-    expect(content.text).toContain('HTTP 404 unknown_step from POST /api/projects/{id}/commands');
+    expect(content.text).toContain(
+      'HTTP 404 unknown_step from POST /api/work-packages/{id}/commands',
+    );
     expect(content.text).toContain('"at":1');
     expect(content.text).toContain('"kind":"setEstimate"');
   });
@@ -309,7 +311,7 @@ describe('the MCP grant scope', () => {
     const { client } = await connected([READ, WRITE], stub(seen, '[]'), { authInfo: readOnly });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -323,7 +325,7 @@ describe('the MCP grant scope', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -400,7 +402,7 @@ describe('a call that cannot be built', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1', parentID: 'typo' },
     });
 
@@ -408,7 +410,7 @@ describe('a call that cannot be built', () => {
     // The message names the input and what the tool does declare, because that
     // is what the caller has to fix.
     expect(JSON.stringify(toolResponse.content)).toContain('parentID');
-    expect(JSON.stringify(toolResponse.content)).toContain('getApiProjectsByIdWorkItems');
+    expect(JSON.stringify(toolResponse.content)).toContain('getApiWorkPackagesByIdWorkItems');
     // And the request was never made: an undeclared input is refused here, not
     // stripped by be-01 into a write that did something else.
     expect(seen).toHaveLength(0);
@@ -460,7 +462,7 @@ describe('a call that cannot be built', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -490,7 +492,7 @@ describe('a call that cannot be built', () => {
     );
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -530,7 +532,7 @@ describe('an unexpected tool failure', () => {
     });
 
     const toolResponse = await client.callTool({
-      name: 'getApiProjectsByIdWorkItems',
+      name: 'getApiWorkPackagesByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
@@ -780,7 +782,7 @@ describe('describeTool', () => {
     const already: DerivedTool = {
       ...WRITE,
       description:
-        'Add a work item to a project. Numbers are derived from the tree and re-derived on every read.',
+        'Add a work item to a work package. Numbers are derived from the tree and re-derived on every read.',
     };
 
     expect(describeTool(already)).toBe(already.description);

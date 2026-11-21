@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
 import {
-  CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
   canonicalisePlanInput,
   type CanonicalPlanInput,
   type PlanInputRows,
@@ -18,8 +17,8 @@ describe('canonicalisePlanInput', () => {
     expect(right).toBe(left);
   });
 
-  it('stamps the schema version the body carries', () => {
-    expect(canonicalisePlanInput(rows).schemaVersion).toBe(CANONICAL_PLAN_INPUT_SCHEMA_VERSION);
+  it('assembles fields without claiming a persisted format version', () => {
+    expect('schemaVersion' in canonicalisePlanInput(rows)).toBe(false);
   });
 
   it('captures typed endpoints by value in relationship id order', () => {
@@ -65,8 +64,8 @@ describe('canonicalisePlanInput', () => {
     // — the three classes the JSDoc rules out. None may reach the bytes.
     const contaminated = {
       ...rows,
-      project: {
-        ...rows.project,
+      workPackage: {
+        ...rows.workPackage,
         revision: 41,
         createdAt: 1_756_000_000,
         updatedAt: 1_756_000_001,
@@ -186,7 +185,7 @@ describe('canonicalisePlanInput round trip', () => {
     .map(({ ids, tagIds, teamIds, startDate }): PlanInputRows => {
       const named = (id: string) => ({ id, name: `name ${id}` });
       return {
-        project: { ...rows.project, startDate },
+        workPackage: { ...rows.workPackage, startDate },
         workItems: ids.map((id, index) => ({
           id,
           parentId: index === 0 ? null : (ids[0] ?? null),

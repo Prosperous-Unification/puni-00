@@ -64,9 +64,9 @@ function previousWorkdayByWalking(date: IsoDate): IsoDate {
 }
 
 /** The same, for `deadlineOffsetOf`. */
-function deadlineOffsetOfByWalking(projectStart: IsoDate, deadline: IsoDate): DeadlineOffset {
-  // Day zero is the first workday on or after projectStart
-  let dayZero = new Date(`${projectStart}T00:00:00Z`);
+function deadlineOffsetOfByWalking(workPackageStart: IsoDate, deadline: IsoDate): DeadlineOffset {
+  // Day zero is the first workday on or after workPackageStart
+  let dayZero = new Date(`${workPackageStart}T00:00:00Z`);
   while (dayZero.getUTCDay() === 0 || dayZero.getUTCDay() === 6) {
     dayZero = new Date(dayZero.getTime() + DAY_MS);
   }
@@ -77,9 +77,9 @@ function deadlineOffsetOfByWalking(projectStart: IsoDate, deadline: IsoDate): De
     at = new Date(at.getTime() - DAY_MS);
   }
 
-  // If rolled deadline is before day zero, it's before project start
+  // If rolled deadline is before day zero, it's before work package start
   if (at.getTime() < dayZero.getTime()) {
-    return { kind: 'before-project-start' };
+    return { kind: 'before-work-package-start' };
   }
 
   // Count workdays from dayZero to at
@@ -99,7 +99,7 @@ function deadlineOffsetOfByWalking(projectStart: IsoDate, deadline: IsoDate): De
  * A `DeadlineOffset` as one comparable string.
  *
  * Reading `.offset` off the union to compare two of them does not typecheck —
- * `before-project-start` has no such field, which is the whole reason the
+ * `before-work-package-start` has no such field, which is the whole reason the
  * variant exists — and a per-case `if` inside the loop would compare the two
  * kinds under different rules. One string compares both kinds under one.
  */
@@ -231,8 +231,10 @@ describe('the closed form and the walk agree', () => {
       }
     }
     expect(disagreements).toEqual([]);
-    // A deadline before the project's day zero rolls back to before-project-start
-    expect(deadlineOffsetOf('2026-06-08', '2026-06-01')).toEqual({ kind: 'before-project-start' });
+    // A deadline before the work package's day zero rolls back to before-work-package-start
+    expect(deadlineOffsetOf('2026-06-08', '2026-06-01')).toEqual({
+      kind: 'before-work-package-start',
+    });
   });
 
   it('previousWorkday walks backward to the nearest workday', () => {
@@ -258,14 +260,16 @@ describe('the closed form and the walk agree', () => {
   it('deadlineOffsetOf agrees with the backward walk for arbitrary date pairs', () => {
     // The loop above covers one week of starts exhaustively; this covers pairs
     // no hand-written week would reach — month and year boundaries, leap days,
-    // and deadlines on either side of their own project start.
+    // and deadlines on either side of their own work package start.
     fc.assert(
-      fc.property(isoDate, fc.integer({ min: -400, max: 400 }), (projectStart, ahead) => {
-        const deadline = new Date(new Date(`${projectStart}T00:00:00Z`).getTime() + ahead * DAY_MS)
+      fc.property(isoDate, fc.integer({ min: -400, max: 400 }), (workPackageStart, ahead) => {
+        const deadline = new Date(
+          new Date(`${workPackageStart}T00:00:00Z`).getTime() + ahead * DAY_MS,
+        )
           .toISOString()
           .slice(0, 10);
-        expect(shown(deadlineOffsetOf(projectStart, deadline))).toBe(
-          shown(deadlineOffsetOfByWalking(projectStart, deadline)),
+        expect(shown(deadlineOffsetOf(workPackageStart, deadline))).toBe(
+          shown(deadlineOffsetOfByWalking(workPackageStart, deadline)),
         );
       }),
       { numRuns: 1000, seed: 20_260_906 },

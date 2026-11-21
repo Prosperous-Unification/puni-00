@@ -6,7 +6,7 @@ import {
 } from '@wbs/auth';
 import { clockOf, type DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
-import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
+import { WorkPackageAddressSearch } from '@wbs/core/service/work-package-address-search';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { SqliteResourceRuntime } from '@wbs/store-sqlite';
@@ -15,7 +15,6 @@ import {
   AgentPoolRepository,
   computeProvidersOver,
   ConsentCredentialRepository,
-  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
@@ -31,6 +30,7 @@ import {
   OrganizationLimitsRepository,
   OrganizationRepository,
   ProvisioningTokenRepository,
+  readMembershipIn,
   readOrganizationActivation,
   ScimUserRepository,
   SessionPolicyRepository,
@@ -47,10 +47,11 @@ import {
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
-import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
+import type { SqliteProjectReadOptions } from '@wbs/store-sqlite/project-read';
 import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
+import { WorkPackageAddressSearchRepository } from '@wbs/store-sqlite/work-package-address-search';
 import { DiBag } from 'di-bag';
 
 import { type AppOptions, buildApp } from './app';
@@ -179,16 +180,21 @@ function browserComposition(
   opts: BootOptions,
   services: Pick<BeServices, 'clock' | 'gate'>,
   db: ReturnType<typeof openSqliteSource>['db'],
-): Pick<AppOptions, 'oidc' | 'organizationSelection' | 'organizations' | 'projectAddressSearch'> & {
+): Pick<
+  AppOptions,
+  'oidc' | 'organizationSelection' | 'organizations' | 'workPackageAddressSearch'
+> & {
   browserSession?: Omit<NonNullable<AppOptions['browserSession']>, 'verifyNativeBrowserCredential'>;
+  projectActiveOrganizationOf: SqliteProjectReadOptions['activeOrganizationOf'];
 } {
   // Proof: composing the authority whatever the setting failed `keeps the
   // legacy browser composition when disabled` and the native-logout 404 case
   // in boot-browser-session.db.test.ts (3 pass, 2 fail, 2026-10-11).
   if (opts.browserSessionAuthority === 'disabled')
     return {
-      projectAddressSearch: new ProjectAddressSearch(
-        new ProjectAddressSearchRepository({
+      projectActiveOrganizationOf: () => NO_BOUND_ORGANIZATION,
+      workPackageAddressSearch: new WorkPackageAddressSearch(
+        new WorkPackageAddressSearchRepository({
           openConnection: () => openReadOnlyConnection(opts.dbPath),
           activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
           now: () => services.clock.now(),
@@ -197,7 +203,7 @@ function browserComposition(
       ),
       oidc: opts.oidc,
       // Proof: wiring legacy access here instead made `refuses the
-      // project and directory lists after activation until a session
+      // work package and directory lists after activation until a session
       // binds an organization` in `boot.db.test.ts` receive 200 instead
       // of 403; watched 2026-09-27.
       organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, () =>
@@ -222,7 +228,7 @@ function browserComposition(
     // selection cannot be presented as an access token or the reverse.
     organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
     // Proof: a lookup that never answers revoked let the old access and
-    // organization cookie pair list projects after its logout committed
+    // organization cookie pair list work packages after its logout committed
     // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
     revocations,
     // The same rule evaluation resolution applies, read with membership.
@@ -233,7 +239,20 @@ function browserComposition(
     selection.activeOrganizationOf,
     () => services.clock.now(),
   );
+  const projectActiveOrganizationOf: SqliteProjectReadOptions['activeOrganizationOf'] = (
+    snapshot,
+  ) =>
+    organizationSelection(
+      new SqliteOrganizationSelection(snapshot),
+      organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
+      new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+      (principal, organizationId) =>
+        new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+          services.clock.now(),
+        ).admitTo(principal, organizationId),
+    ).activeOrganizationOf;
   return {
+    projectActiveOrganizationOf,
     oidc,
     browserSession: {
       lifecycle,
@@ -246,19 +265,10 @@ function browserComposition(
     // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
     // 1 fail, 2026-10-11).
     organizations,
-    projectAddressSearch: new ProjectAddressSearch(
-      new ProjectAddressSearchRepository({
+    workPackageAddressSearch: new WorkPackageAddressSearch(
+      new WorkPackageAddressSearchRepository({
         openConnection: () => openReadOnlyConnection(opts.dbPath),
-        activeOrganizationOf: (snapshot) =>
-          organizationSelection(
-            new SqliteOrganizationSelection(snapshot),
-            organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
-            new SqliteBrowserCredentialRevocations(snapshot, OPEN),
-            (principal, organizationId) =>
-              new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
-                services.clock.now(),
-              ).admitTo(principal, organizationId),
-          ).activeOrganizationOf,
+        activeOrganizationOf: projectActiveOrganizationOf,
         now: () => services.clock.now(),
       }),
       nodeDigest,
@@ -330,7 +340,7 @@ function mcpDelegationComposition(
         access.credentialFactsOf(principal, organizationId),
       mappedUserOf,
       isMember: (userId, organizationId) =>
-        Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+        Promise.resolve(readMembershipIn(db, organizationId, userId) !== null),
       activationState: () => readOrganizationActivation(db),
       signingKey: keys?.signingKey ?? null,
       consents: new ConsentCredentialRepository(db, services.gate),
@@ -502,7 +512,7 @@ export async function bootBe01(
       }),
       // Proof: replacing all admittedSource dependencies with source let real
       // listener/DNS/retention/optimizer startup run against enabled authority
-      // in cross-project-dependency.boot.db.test.ts (2026-10-22).
+      // in cross-work-package-dependency.boot.db.test.ts (2026-10-22).
       admittedSource: DiBag.createProvider(
         ({ source }: { source: OwnedSource }): OwnedSource => {
           if (opts.migrateOnStartup === true) {
@@ -563,6 +573,20 @@ export async function bootBe01(
           browser: ReturnType<typeof browserComposition>;
         }): BeServices =>
           buildServices({
+            createWorkPackageObservation: (configured) =>
+              configured.createWorkPackageObservation({
+                activeOrganizationOf: browser.projectActiveOrganizationOf,
+                now: () => clock.now(),
+              }),
+            createSpaceRead: (configured) =>
+              configured.createSpaceRead({
+                activeOrganizationOf: browser.projectActiveOrganizationOf,
+                now: () => clock.now(),
+              }),
+            projectRead: source.createProjectRead({
+              activeOrganizationOf: browser.projectActiveOrganizationOf,
+              now: () => clock.now(),
+            }),
             source,
             clock,
             commandAccess: new SqliteCommandAccess(
@@ -739,7 +763,9 @@ export async function bootBe01(
                         opts.jwtKey,
                       ),
                     },
+              spaceRead: services.spaceRead,
               projects: services.projects,
+              workPackages: services.workPackages,
               memberships: new OrganizationRepository(db, services.gate),
               sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
                 db,
@@ -810,7 +836,7 @@ export async function bootBe01(
               // Proof: replacing this bound service with the raw rank repository
               // left the cold boot rank move without its second durable a2 event
               // in boot.db.test.ts (R5 boot-rank-binding).
-              projectRanks: services.projectRanks,
+              workPackageRanks: services.workPackageRanks,
               accessDecisions: services.accessDecisions,
               // Proof: retaining the refusing sink made boot's real-TLS challenge test answer503 instead of201.
               emailDelivery,
@@ -818,6 +844,8 @@ export async function bootBe01(
               calendarMarkers: services.calendarMarkers,
               stepParallels: new StepParallelRepository(db, services.gate),
               workItems: services.workItems,
+              planExports: services.planExports,
+              workPackageObservation: services.workPackageObservation,
               optimizer: services.optimizer,
               savedPlans: services.savedPlans,
               directory: services.directory,

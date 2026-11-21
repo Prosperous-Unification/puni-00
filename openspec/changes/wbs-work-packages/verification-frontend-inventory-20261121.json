@@ -1,0 +1,1494 @@
+{
+  "schema": "puni-frontend-inventory-v121",
+  "recordedAt": "2026-11-21T19:00:53.134Z",
+  "goalStatus": "active",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v120.json",
+    "sha256": "62cbafb3012f24cdaee3bcb8ed9424c17d0d6b59aa6ab59095ac37a84d83a19b",
+    "bytes": 11233,
+    "mode": 384
+  },
+  "parentStagedTree": "b68d70b14902a803692d03af89d245a5f07c7f68",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/vitest.setup.ts",
+      "sha256": "436a3b2959df1fbc97df6e742193aafdd85cbb2d2a44a23698e73d9923ba8aff",
+      "bytes": 9908,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/agent-pools-panel.test.tsx",
+      "sha256": "8cf182041a11ef2c081d2dbe5f87ac9236a4d59c81d8f42508535e5d5e5309ff",
+      "bytes": 42734,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/limits-panel.test.tsx",
+      "sha256": "ef5d11a4b47ce527531c79098f0f99d80744a2167e82fc2d9a6f7b777a553d59",
+      "bytes": 12850,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/person-binding.test.tsx",
+      "sha256": "89a6dafa6844cf008c87e4f2647a63b90fa2dde99c57b5668b16eb9eb5520c1d",
+      "bytes": 7095,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/dependency-search.test.tsx",
+      "sha256": "dc29b4fc1ce3800f2f3a9f118e85b712cf4543e8d66b949235cb00563a37a50f",
+      "bytes": 12923,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/optimization-retry-reconciliation.test.tsx",
+      "sha256": "fe3e1a716a4cbac484d749282a6332c238c28eed8f2ec7e019a1ea79e7f0dd50",
+      "bytes": 16710,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+      "sha256": "800d3b203ec39340edb3dacc39af48f68c7f696592c817b8d0e63c74d32ab9bc",
+      "bytes": 258689,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-export-bytes.test.ts",
+      "sha256": "08498d27453668a8384fd826a46595aa5b35ad402364364b88d8bb928821376a",
+      "bytes": 3549,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/session-features.test.tsx",
+      "sha256": "260426c513c2c578abb61b953b3008f874761fbfbd585d0444fa4cb080036a7c",
+      "bytes": 4401,
+      "mode": 436
+    }
+  ],
+  "protectedOwners": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/use-plan-import.ts",
+      "sha256": "5109f83733c9c607ad9ca8dd0374f2d7d3a80787858b4a6207fba620fcb7b175",
+      "bytes": 9569,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/gantt-fault.tsx",
+      "sha256": "21c31ceb2b21b8b079678a372d0273e907c1391eb4fc1e9709c89986d963001e",
+      "bytes": 5628,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/shared/domain/failures/src/report-failure.ts",
+      "sha256": "093a797089777eab45ce449da31acd67af1f8db73a82ac655a5bba67127eae6a",
+      "bytes": 8817,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-export.ts",
+      "sha256": "c85f634fde991d0ea5e07ac044b7a6ee044d18391aec27225d4027c4f5db95e4",
+      "bytes": 33310,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/bun.lock",
+      "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "bytes": 543082,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/package.json",
+      "sha256": "d1f294babbe059c1c241de434d69c6770125f3be6907311626127f55810a0e68",
+      "bytes": 5185,
+      "mode": 436
+    }
+  ],
+  "checks": [
+    {
+      "name": "app-fault-trace-owner-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-app-fault-trace-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-trace-owner-v121.receipt.json",
+        "sha256": "b5a7aec1e344081accedfcace81d5fc76ea9db88ebc97a9c5de43ca26f073cd9",
+        "bytes": 1262,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-trace-owner-v121.log",
+        "sha256": "be7727bc30e638063359a690da4852d7eabefde4cb81b6b51fb693b83426d38a",
+        "bytes": 57,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-trace-owner-v121.validation.json",
+        "sha256": "e393cb66cfb881931d3ff51b88f4fbb965d55f055a3258446e003f96d585a47f",
+        "bytes": 483,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "app-fault-primitives-owner-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-app-fault-primitives-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-primitives-owner-v121.receipt.json",
+        "sha256": "0902180e89d1654b9c254a2df780ef61dca51c99526cd54e13c129184c76b509",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-primitives-owner-v121.log",
+        "sha256": "9915915892669413c3dfc3cb999ab9539245b4cbc6aa00b3f40c8970349bbe0f",
+        "bytes": 57,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/app-fault-primitives-owner-v121.validation.json",
+        "sha256": "75beac4031e4cdeb443d233f2208b45215d168f826490e80da58281651affcdb",
+        "bytes": 493,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "reporter-runtime-probe-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-reporter-runtime-probe-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-runtime-probe-v121.receipt.json",
+        "sha256": "97b73ab3958af840d9af58d4dd1a18a6593ba908dd6997b74f9a0f4360732cf7",
+        "bytes": 1273,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-runtime-probe-v121.log",
+        "sha256": "ca8cbd7d235d96f5664ec2dc394444dca4ea446fbab5b1e62cc1a32fa5d6b0dc",
+        "bytes": 1004,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-runtime-probe-v121.validation.json",
+        "sha256": "083f381b87646cda94d38d217833bf26cf1a122b2ac6585a0d10406ef4ec77fc",
+        "bytes": 487,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "reporter-vm-probe-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-reporter-vm-probe-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-vm-probe-v121.receipt.json",
+        "sha256": "f3717026ce946f4d16d09f20420107fd4cd423dc4be1c272ef7301ecf8da0bba",
+        "bytes": 1258,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-vm-probe-v121.log",
+        "sha256": "24e541be0de168afeb91b5ab1ecdffdbb4565590b158d889266d5e94cb31bcca",
+        "bytes": 1791,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-vm-probe-v121.validation.json",
+        "sha256": "a90e0dca79844f8c92a1cab04e546003396d1fe8381687441c9af1da0c2c27ee",
+        "bytes": 477,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "reporter-prepare-stack-probe-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-prepare-stack-probe-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-prepare-stack-probe-v121.receipt.json",
+        "sha256": "f2cc5fb2511356094b086087e3f311ade3581b23987b0be1a34319f1560caef4",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-prepare-stack-probe-v121.log",
+        "sha256": "2c9d3d37073bdd57329bfafb0a2f02af6d7ebcb0d40a4fecc28627dad6b6a240",
+        "bytes": 2446,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-prepare-stack-probe-v121.validation.json",
+        "sha256": "964657dbc29f54f123e0d7a5119d791064b1220a08b077f8b5b9a79ff801cd1d",
+        "bytes": 499,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-root-unit-v121",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.unit-root.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-root-unit-v121.receipt.json",
+        "sha256": "4d71da76a338292da7952dca79397b55bcb332df32245d2828be6804ec1ffea6",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-root-unit-v121.log",
+        "sha256": "a871987e90065a6417c77bc91b96a93bc37679e74290de666aa6f4194bd43d9a",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [
+        " FAIL  vite-config.test.ts [ vite-config.test.ts ]",
+        " FAIL  browser-packages.test.ts [ browser-packages.test.ts ]",
+        " Test Files  2 failed (2)",
+        "      Tests  no tests",
+        "   Duration  159ms (worker 95%, environment 5%)"
+      ]
+    },
+    {
+      "name": "frontend-root-unit-after-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.unit-root.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-root-unit-after-v121.receipt.json",
+        "sha256": "f8b9e12d02370341e0e6f2b10d615acc25de7e013d4a887a3352c48d07edb3b2",
+        "bytes": 1405,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-root-unit-after-v121.log",
+        "sha256": "821b9c325c69439d19afcfd5498100209f3cf6f8dce931db2246d9888fba0912",
+        "bytes": 837,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-root-unit-after-v121.validation.json",
+        "sha256": "1149ba50292505c6df0102a71e2a8282cdb222ccdae92be3ed09169cc3206a23",
+        "bytes": 490,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  2 passed (2)",
+        "      Tests  21 passed (21)",
+        "   Duration  987ms (tests 60%, import 21%, setup 9%, transform 9%, worker 1%)"
+      ]
+    },
+    {
+      "name": "frontend-auckland-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.zoned.config.ts",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "Pacific/Auckland",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-auckland-v121.receipt.json",
+        "sha256": "191ecea44b5eba20234f99a7c6d52b33cf9247447ee131eb0e8ae2713ee99a00",
+        "bytes": 1456,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-auckland-v121.log",
+        "sha256": "253619b9ab2f99461624c967dea9b7bdd6778dba92183f5737a8b145b81aa0d4",
+        "bytes": 1086,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-auckland-v121.validation.json",
+        "sha256": "cafeddcbbf0f19267641d391db8492cd7fc0fb6f16efb8966fc68d547f4d1fce",
+        "bytes": 477,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  4 passed (4)",
+        "      Tests  5 passed (5)",
+        "   Duration  6.66s (import 47%, transform 28%, environment 18%, setup 4%, tests 3%)"
+      ]
+    },
+    {
+      "name": "reporter-host-fault-owner-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-reporter-host-fault-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-owner-v121.receipt.json",
+        "sha256": "8749ebce396c01bd7a06d0e8cd2b8568898728ecabbafcb7a3c5e71704cad7fd",
+        "bytes": 1274,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-owner-v121.log",
+        "sha256": "0ef095b7bb18965db41727b6a4358ab2b1a0d55744809269a384471a430ff911",
+        "bytes": 78,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-owner-v121.validation.json",
+        "sha256": "eb17c4d7bb40c1ca5222b11c2569fd30e3bd2d466a81cde42f750b82e71f8542",
+        "bytes": 491,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-export-bytes-probe-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-export-bytes-observation-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-probe-v121.receipt.json",
+        "sha256": "de58a6f39428ef76068157c30f333bedb14127d1700ead3708ae37cbcff17a6d",
+        "bytes": 1285,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-probe-v121.log",
+        "sha256": "49ad8c36a00fbeea90cf732de206bee2a56a6d34d58f98408b5af7024c7e46e6",
+        "bytes": 1776,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-probe-v121.validation.json",
+        "sha256": "994d6d0c5a1c7f76356fe7a852682353615dcf3d55154c609f95cabf0e115d7d",
+        "bytes": 497,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-mechanical-after-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/dependency-search.test.tsx",
+          "src/components/organization/limits-panel.test.tsx",
+          "src/components/organization/person-binding.test.tsx",
+          "src/components/wbs/optimization-retry-reconciliation.test.tsx",
+          "src/lib/session-features.test.tsx",
+          "src/components/organization/agent-pools-panel.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-mechanical-after-v121.receipt.json",
+        "sha256": "0797fa2b00d5b6ade67c487be169f41504a64a2588fcda7ea81eeb1e8cdf490e",
+        "bytes": 1811,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-mechanical-after-v121.log",
+        "sha256": "9b4193693ca0e06345be42ce8d0840f15ddb27091dcaf8e55b6d480643fcd291",
+        "bytes": 2485,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-mechanical-after-v121.validation.json",
+        "sha256": "34b7c7bc2fa888e5821e086e9a19590891e4c6b5be9bc9db6f4250d5987e8abc",
+        "bytes": 493,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  6 passed (6)",
+        "      Tests  95 passed (95)",
+        "   Duration  24.94s (import 53%, tests 28%, transform 11%, environment 7%, setup 1%)"
+      ]
+    },
+    {
+      "name": "frontend-project-choice-control-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/work-package-page.test.tsx",
+          "-t",
+          "resets catalogue import opt-in when the selected project is replaced",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-project-choice-control-v121.receipt.json",
+        "sha256": "65b9bcaea45651717db96a33493d6e06bd44d10e18386622a9f5f1c3f2086738",
+        "bytes": 1560,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-project-choice-control-v121.log",
+        "sha256": "324019cd2620a6aa565629e84a9f38caeb96df8b328def28839e3a23ef95be58",
+        "bytes": 1361,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-project-choice-control-v121.validation.json",
+        "sha256": "12f4fc7e90262f7888d269fded656e077ed18a5c3b7289fcbd77249e810f4e67",
+        "bytes": 505,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  1 passed (1)",
+        "      Tests  1 passed | 201 skipped (202)",
+        "   Duration  6.77s (import 44%, transform 40%, tests 11%, environment 4%, setup 1%)"
+      ]
+    },
+    {
+      "name": "frontend-page-complete-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/work-package-page.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-page-complete-v121.receipt.json",
+        "sha256": "7d3f62f54d318bc932905c67cf8ed28b858e3735eb51cd650fb525cdbdd8d1f3",
+        "bytes": 1508,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-page-complete-v121.log",
+        "sha256": "54049f04488470f4ff0ddfee05d13fa38e91934adc7b62d8bf8fd1cecd398657",
+        "bytes": 61221,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-page-complete-v121.validation.json",
+        "sha256": "310ff05d8a3ca572cad6decee21c5f9927920e275e3969aea04575d0d5d294e4",
+        "bytes": 488,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  1 passed (1)",
+        "      Tests  202 passed (202)",
+        "   Duration  29.67s (tests 77%, transform 12%, import 10%, environment 1%)"
+      ]
+    },
+    {
+      "name": "frontend-export-bytes-after-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/plan-export-bytes.test.ts",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-after-v121.receipt.json",
+        "sha256": "e84debf82dda65d96d268d086e3f41945ff0f3c35fab190d7302754340ab7914",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-after-v121.log",
+        "sha256": "f8297ca0cc1a14f6c083d99a37c38c7c75a1040ce9d783fcb25d4f4ac2531a2d",
+        "bytes": 931,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-export-bytes-after-v121.validation.json",
+        "sha256": "01887827ed199bb0bd19dff11e0dcfcb85a737aee0a8ba4fbcb69a6fdbf3643c",
+        "bytes": 496,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  1 passed (1)",
+        "      Tests  1 passed (1)",
+        "   Duration  4.16s (import 60%, transform 32%, environment 7%, setup 1%)"
+      ]
+    },
+    {
+      "name": "export-csv-lf-fault-owner-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-export-lf-fault-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-lf-fault-owner-v121.receipt.json",
+        "sha256": "7150685ce8c1894febb0a4e8418a2d84e7e3ab4930bd0fb6f1e60df0a68ebdc7",
+        "bytes": 1270,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-lf-fault-owner-v121.log",
+        "sha256": "0ef095b7bb18965db41727b6a4358ab2b1a0d55744809269a384471a430ff911",
+        "bytes": 78,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-lf-fault-owner-v121.validation.json",
+        "sha256": "2188795451175b27c571c9fdaa1122c99130f3cf61edc7c1d9ebd6610fb8187e",
+        "bytes": 491,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "export-csv-one-lf-fault-owner-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-export-one-lf-fault-v121.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-owner-v121.receipt.json",
+        "sha256": "0d3fd9f2e2efb49b93b324ca32347719281c580e006cff7c660ba8cacbdc7c61",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-owner-v121.log",
+        "sha256": "0ef095b7bb18965db41727b6a4358ab2b1a0d55744809269a384471a430ff911",
+        "bytes": 78,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-owner-v121.validation.json",
+        "sha256": "16f7605795597df1a4c2b20f7436645ac22ee44223d0c511786702d63d0eb6c0",
+        "bytes": 499,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-final-lint-fix-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-frontend-quality-v121.ts", "lint-fix"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-final-lint-fix-v121.receipt.json",
+        "sha256": "e50233ee6e9ade0955fefb22e02ef3ec83ec6dddc52f97543734331a40c6a66a",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-final-lint-fix-v121.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-final-lint-fix-v121.validation.json",
+        "sha256": "f34f3e9fafbf922aa38f52953c08cd4fcf892c0b1cfa860061c0bef11afe0f90",
+        "bytes": 486,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-format-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-frontend-quality-v121.ts", "format"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-format-v121.receipt.json",
+        "sha256": "a2aa280c1b8852dd397d84675a3446573618858f772ef0ec2c671b279a4715f0",
+        "bytes": 1268,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-format-v121.log",
+        "sha256": "90c3aad2b5aebdaa4f378d077480f419ae4ffd713d0bb7e5689e57699f2e8a85",
+        "bytes": 658,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-format-v121.validation.json",
+        "sha256": "e50620932baa514317888dc15a258acfa59c34d786640dd4468420da0b68824b",
+        "bytes": 472,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-repaired-final-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/organization/agent-pools-panel.test.tsx",
+          "src/components/organization/limits-panel.test.tsx",
+          "src/components/organization/person-binding.test.tsx",
+          "src/components/wbs/dependency-search.test.tsx",
+          "src/components/wbs/optimization-retry-reconciliation.test.tsx",
+          "src/components/wbs/work-package-page.test.tsx",
+          "src/components/wbs/plan-export-bytes.test.ts",
+          "src/lib/session-features.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-repaired-final-v121.receipt.json",
+        "sha256": "0250456cb3b076407dd0f4dab8c441a3064b55302b365918b88261c0f697faa9",
+        "bytes": 1917,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-repaired-final-v121.log",
+        "sha256": "c9fb26ad3fe37f7973b7b96cd5ad071848c26f0d406faa9f94a67e07a87f626b",
+        "bytes": 67307,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-repaired-final-v121.validation.json",
+        "sha256": "c9aa666836850bd2f3dd74ed971f14e1936c6926e7a115bb5f74c854b98c4133",
+        "bytes": 490,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  8 passed (8)",
+        "      Tests  298 passed (298)",
+        "   Duration  55.50s (tests 55%, import 33%, transform 7%, environment 4%, setup 1%)"
+      ]
+    },
+    {
+      "name": "frontend-types-final-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-frontend-types-v121.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-types-final-v121.receipt.json",
+        "sha256": "328f9b45fc028a907bec5e6e95ab86057b60e656a101532c000a3be4c275e084",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-types-final-v121.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-types-final-v121.validation.json",
+        "sha256": "dbb46087dcc92fae531ebc9ee35b32e91796e3a8c3fa99957ef3355a8bf0147d",
+        "bytes": 480,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-lint-final-v121",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-frontend-quality-v121.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-lint-final-v121.receipt.json",
+        "sha256": "c9508603858edbae32517cdd59474e4ca3fa255f5104ff2479ebfd3c290c0354",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-lint-final-v121.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-lint-final-v121.validation.json",
+        "sha256": "ddfe4a23dacb728898321abf790275d6a5169ca61e04246453bcac4261475977",
+        "bytes": 478,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-remaining-v121",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/chrome/app-fault.test.tsx",
+          "src/components/projects/project-picker.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "environment": {
+        "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "HOME": "/home/df",
+        "TMPDIR": "/tmp",
+        "TZ": "UTC",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_ENV": "test",
+        "NO_COLOR": "1",
+        "NX_DAEMON": "false",
+        "NX_ISOLATE_PLUGINS": "false"
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-remaining-v121.receipt.json",
+        "sha256": "5f91ab2ff6d9d977a5a6a728aefd87440d7583cbc8b4fd74665a5ff463152dfd",
+        "bytes": 1551,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-remaining-v121.log",
+        "sha256": "59159d0116ce812c58082aec51c1c876ae47ed124429407158dfc60bb04d8add",
+        "bytes": 5510,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-remaining-v121.validation.json",
+        "sha256": "ed185c50e7181f9b377e17bf95bda026beca244f570966a3c6129f7046fe456c",
+        "bytes": 479,
+        "mode": 384
+      },
+      "summary": [
+        " FAIL  src/components/chrome/app-fault.test.tsx > a caught value that cannot be inspected > never invokes an accessor to read the chart’s sentence",
+        " FAIL  src/components/projects/project-picker.test.tsx > import destination retention > retains the selected parent before FileReader even when the visible choice changes",
+        " Test Files  2 failed (2)",
+        "      Tests  2 failed | 24 passed (26)",
+        "   Duration  5.75s (import 48%, tests 24%, transform 16%, environment 10%, setup 2%)"
+      ]
+    }
+  ],
+  "viewInventory": {
+    "audit": {
+      "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-complete-audit-v121.json",
+      "sha256": "f0340df1b4510089a3d4bb7050f6838a659736192a2540cc5eaf4a3f3edd0a8b",
+      "bytes": 27239,
+      "mode": 384
+    },
+    "plan": {
+      "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-partitions-v121b.json",
+      "sha256": "ece3a9669df910af99adb505e9753ef6b2afc5fcae4334898f2944b4af132dcf",
+      "bytes": 51755,
+      "mode": 384
+    },
+    "files": 176,
+    "pass": 4245,
+    "fail": 18,
+    "total": 4263,
+    "completeExecution": true,
+    "passing": false,
+    "qualification": "These are complete pre-repair totals, not a current all-green UI claim. All four native exits are1 and their expected-zero wrapper success validations are absent. Exact executed-file equality and final native receipts own the coverage.",
+    "transcriptJoin": {
+      "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-transcript-join-v121.json",
+      "sha256": "b2e428ed82ddd80bb677ec3b3dd330ee85ef43054f1330549e1189faf7614dec",
+      "bytes": 1101,
+      "mode": 384
+    }
+  },
+  "verification": {
+    "repairedView": {
+      "files": 8,
+      "pass": 298,
+      "fail": 0,
+      "seconds": 55.5
+    },
+    "remaining": {
+      "files": 2,
+      "pass": 24,
+      "fail": 2,
+      "total": 26,
+      "seconds": 5.75
+    },
+    "rootUnit": {
+      "files": 2,
+      "pass": 21,
+      "fail": 0
+    },
+    "auckland": {
+      "files": 4,
+      "pass": 5,
+      "fail": 0,
+      "timezone": "Pacific/Auckland"
+    },
+    "changedTypeRoots": 9,
+    "lintOwners": 9,
+    "newSafetyGuards": 1,
+    "finiteGuardOrByteFlights": 2,
+    "exactRestoredFlights": 2,
+    "completeGoal": false,
+    "transcriptJoins": 4,
+    "rawTranscriptCorruptionRefusals": 4
+  },
+  "faults": [
+    {
+      "name": "reporter-host-fault",
+      "state": {
+        "negativeExit": 1,
+        "restoredExit": 0,
+        "exactRestored": true,
+        "liveMutation": false,
+        "originalSha256": "facbc82ff6fe4f4f090e811033e1e9749361149da39e9cec1e2b4d957392a21b"
+      },
+      "plan": {
+        "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-plan-v121.json",
+        "sha256": "2911eae13ac91431366040ff76dc5c5dcd0596c8efd6667abe924070e7eaf226",
+        "bytes": 13347,
+        "mode": 384
+      },
+      "negative": {
+        "name": "reporter-host-fault-v121",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "bunx",
+            "--no-install",
+            "vitest",
+            "run",
+            "--config",
+            "vitest.unit-root.config.ts",
+            "--testTimeout=30000",
+            "--hookTimeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+          "deadlineMs": 90000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-v121.receipt.json",
+          "sha256": "2ab77801f148e2ecdb661995408c9b9b0dd2ef481d66d77eac32df7b723d65f2",
+          "bytes": 1395,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-v121.log",
+          "sha256": "53161fdc165c9237903cad7447fa599c091f0ec122c1c12895c3040ec76a255a",
+          "bytes": 1494,
+          "mode": 384
+        },
+        "validation": null,
+        "summary": [
+          " FAIL  vite-config.test.ts [ vite-config.test.ts ]",
+          " FAIL  browser-packages.test.ts [ browser-packages.test.ts ]",
+          " Test Files  2 failed (2)",
+          "      Tests  no tests",
+          "   Duration  159ms (worker 95%, environment 5%)"
+        ]
+      },
+      "restored": {
+        "name": "reporter-host-fault-v121-restored",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "bunx",
+            "--no-install",
+            "vitest",
+            "run",
+            "--config",
+            "vitest.unit-root.config.ts",
+            "--testTimeout=30000",
+            "--hookTimeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+          "deadlineMs": 90000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-v121-restored.receipt.json",
+          "sha256": "9f46bb660f2a64098d952e193fb2486db5f0b4c04bb766274d59918356d282f6",
+          "bytes": 1412,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/reporter-host-fault-v121-restored.log",
+          "sha256": "d1b6fc01038b70b9b1641ece2b82145c95f9d8eff98dc5205d2a0c9162ea6913",
+          "bytes": 839,
+          "mode": 384
+        },
+        "validation": null,
+        "summary": [
+          " Test Files  2 passed (2)",
+          "      Tests  21 passed (21)",
+          "   Duration  828ms (tests 56%, import 21%, transform 12%, setup 10%, worker 1%)"
+        ]
+      }
+    },
+    {
+      "name": "export-csv-one-lf-fault",
+      "state": {
+        "negativeExit": 1,
+        "restoredExit": 0,
+        "exactRestored": true,
+        "liveMutation": false,
+        "originalSha256": "c85f634fde991d0ea5e07ac044b7a6ee044d18391aec27225d4027c4f5db95e4"
+      },
+      "plan": {
+        "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-plan-v121.json",
+        "sha256": "2315aca69590eefb6ad51bfd3ebb08d765bd3e21a2347e69223321a14b8dd69b",
+        "bytes": 44816,
+        "mode": 384
+      },
+      "negative": {
+        "name": "export-csv-one-lf-fault-v121",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "bunx",
+            "--no-install",
+            "vitest",
+            "run",
+            "--config",
+            "vitest.view.config.ts",
+            "src/components/wbs/plan-export-bytes.test.ts",
+            "--testTimeout=30000",
+            "--hookTimeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+          "deadlineMs": 90000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-v121.receipt.json",
+          "sha256": "e22e1a10598a7a7a8c40a3e0bd2156ae54f78ffe7871f99af8c5b6bfb60f251f",
+          "bytes": 1452,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-v121.log",
+          "sha256": "a90a0918efc1ee53cfdd829c22ded940ae6a64afe2381068d21e51f42914ed07",
+          "bytes": 2301,
+          "mode": 384
+        },
+        "validation": null,
+        "summary": [
+          " FAIL  src/components/wbs/plan-export-bytes.test.ts > fixed plan export documents > changes only the explicit work-package headers and preserves every other byte",
+          " Test Files  1 failed (1)",
+          "      Tests  1 failed (1)",
+          "   Duration  3.88s (import 65%, transform 27%, environment 7%, setup 2%)"
+        ]
+      },
+      "restored": {
+        "name": "export-csv-one-lf-fault-v121-restored",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "bunx",
+            "--no-install",
+            "vitest",
+            "run",
+            "--config",
+            "vitest.view.config.ts",
+            "src/components/wbs/plan-export-bytes.test.ts",
+            "--testTimeout=30000",
+            "--hookTimeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+          "deadlineMs": 90000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-v121-restored.receipt.json",
+          "sha256": "71aaa33261dcd47651cf6a1deb7224b7c595c290588e96ffa722ad322787bfb7",
+          "bytes": 1469,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/export-csv-one-lf-fault-v121-restored.log",
+          "sha256": "790e1c622349bab54ed7f867c48e6033a17a21107e8dc3ba2b710b787fe8e97e",
+          "bytes": 930,
+          "mode": 384
+        },
+        "validation": null,
+        "summary": [
+          " Test Files  1 passed (1)",
+          "      Tests  1 passed (1)",
+          "   Duration  3.82s (import 63%, transform 28%, environment 7%, setup 1%)"
+        ]
+      }
+    }
+  ],
+  "diagnostics": {
+    "getterTrace": {
+      "path": "/tmp/puni-combined-proposal-v1/control/app-fault-trace-state-v121.json",
+      "sha256": "d6ac8d99cfae92b2fd0b91e2764715d1439fc9de929d546406fb650704f3d1b7",
+      "bytes": 232,
+      "mode": 384
+    },
+    "getterPrimitives": {
+      "path": "/tmp/puni-combined-proposal-v1/control/app-fault-primitives-state-v121.json",
+      "sha256": "52854cd8222f56b70accad80d2548856c7c860f9aa54c43973716b689736b2a6",
+      "bytes": 158,
+      "mode": 384
+    },
+    "duplicateCsvFlight": {
+      "path": "/tmp/puni-combined-proposal-v1/control/export-csv-lf-fault-state-v121.json",
+      "sha256": "51b4399954ee32f63a5613c05aa9e35a257e62abbd2e1476d1326a8bbec802c9",
+      "bytes": 183,
+      "mode": 384
+    },
+    "qualification": "Both CSV variants actually append one LF: literal character codes39,92,110,39,59. Escaped tool output was misread and caused an unnecessary equivalent second flight. They are not independent guards. The immutable complete audit was also harmlessly rerun and refused EEXIST; it was not overwritten."
+  },
+  "review": {
+    "status": "pending-astra",
+    "retryAfterRecorded": "2026-11-22 10:09AM",
+    "timezone": "unspecified",
+    "noRetryOrSubstitute": true,
+    "questions": [
+      {
+        "topic": "Import destination and consent lifetimes",
+        "evidence": "usePlanImport currently keys both file admission/publication and definition consent by actual projectId. The original retained-parent test fails because changing only the visible destination cancels the already captured attempt. The consent-reset/currentness controls also need preservation.",
+        "candidateDirection": "Separate the catalog/isCurrent publication owner from the project-specific consent owner. Capture projectId and defineMissing before FileReader; serialize busy/file admission under the publication owner across destination changes. Keep stale setters bound to the consent owner and replacement/unmount/currentness fences under the publication owner. Prove captured A/true, new B/false, one admitted read, withdrawal/cancel and cleanup before acceptance.",
+        "applied": false
+      },
+      {
+        "topic": "Hostile error message getter under Bun/Vitest",
+        "evidence": "The actual zero-getter assertion fails inside caught-object-report-json15.hasPropertyWithoutReading. Scoped Vitest/jsdom probes show own-property,Reflect.has,in and own-name enumeration each invoke the message getter; message-descriptor lookup does not. The same native primitives and actual reporter in plain Bun, a plain node:vm context and fixed/message Error.prepareStackTrace-hook probes invoke no getter. A minimal framework-independent reproducer is not established.",
+        "candidateDirection": "Preserve the assertion and production selector/reporting implementation until the exact environment interaction is understood. Review an upstream no-invoke fix versus a fixture that materializes its ordinary stack before installing the hostile message accessor; any fixture change must still fail when the actual Gantt selector reads thrown.message. Changing runners to bypass Bun is not accepted.",
+        "applied": false
+      }
+    ]
+  },
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "unverified": [
+    "Two current failures remain: the actual Gantt/error reporter accessor assertion and the captured import destination after a visible parent change. Neither implementation nor assertion is weakened; no full UI success is claimed.",
+    "Plain Bun/VM/global-hook probes fail to reproduce the Vitest property-query behavior. The trace narrows the call path but does not prove a framework-independent dependency defect or its safe fix.",
+    "Public CSV/Markdown/bundled export headers are the only proven byte changes. New current fingerprints and every original fingerprint are both asserted; a header-only reverse substitution exactly recovers the originals. Mermaid remains byte-identical. No stored plan body, hash, historical decoder or protected migration is changed.",
+    "Fresh complete176-file View execution plus repaired owning files is bounded verification. It does not replace the real WBS browser/performance/current authority/manual cohort, actual four Nx clients, full entity/catalogue/fact/history/API/UI acceptance, complete Bun/script inventory, Astra review, full builds/secrets/migrations/exact-SHA host gate or delivery.",
+    "The V120 Memory115/0,SQLite129/0 and core2124/0 evidence remains the latest unchanged-source baseline. V119 CLI package/installer/aliases remain controlled local-fixture evidence, not production/default qualification. The V116803-site/583-unresolved script census still needs refresh and closure.",
+    "Astra remains unavailable until the recorded deadline; no new agent,retry or substitute. No public commit,push,PR update,merge,deploy,activation or goal/parent completion occurs."
+  ]
+}

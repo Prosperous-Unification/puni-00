@@ -1,0 +1,1171 @@
+{
+  "schema": "puni-current-input-memo-verification-v114",
+  "recordedAt": "2026-11-21T13:51:04.245Z",
+  "goalStatus": "active",
+  "classification": "progress",
+  "previousGoal": {
+    "path": "/tmp/puni-goal-continuation-20261121-v113.json",
+    "sha256": "4ab7c62a8b8f22264125df7bb09851ceedf11653330aa8306cec713aea4760bf",
+    "bytes": 17829,
+    "mode": 384
+  },
+  "previousState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/epoch-performance-final-state-v113.json",
+    "sha256": "d43f96f897a6e345b2314aaf2470cf4a95bf9860b62cbfc64074b7d1d4e0fcda",
+    "bytes": 199794,
+    "mode": 384
+  },
+  "baselineSourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/epoch-performance-source-audit-v113.json",
+    "sha256": "2277cc256dddeba0a837cb1e23bfe29a89a7f63cff3809ae339aa487fc766580",
+    "bytes": 1705824,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-before-v114.json",
+    "sha256": "197085a71d04ff1465cdcca246fa4e751bd1718a268adba45a4b4344833970cf",
+    "bytes": 134553,
+    "mode": 384
+  },
+  "changedSources": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/db.ts",
+      "sha256": "5dc2978b2ff0cf92c08c030f3daf823ff7e4b11a1b5986851bc547bd9416d9fb",
+      "bytes": 31680,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/current-plan-input-memo.ts",
+      "sha256": "1e52bcf3bbe98daa6ae11e08cb8d99586e59d07c6d8c3b9f644bd3bf94cd08cd",
+      "bytes": 5431,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+      "sha256": "d3413fc4d2700acb976520c742d8848001f5b951f0bd6c494a2675b635e35bfa",
+      "bytes": 20501,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+      "sha256": "2aae3b240345e5e79058ff225780263a31a7877930aa82d60d0af9d5102ba4c5",
+      "bytes": 16703,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+      "sha256": "4754ea45202f4a0fbcd017e98f221415854b8d66b2a50f586bf44895cae716b6",
+      "bytes": 8424,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+      "sha256": "04cc6efc24f411b065cd322097e73d2e0f61adc39b1c0a09b9ac35c3e2071c7a",
+      "bytes": 8599,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+      "sha256": "28138a1d9d421a4c9036ebfa4c5166880e370e184aaad7ea0dde82064838c08b",
+      "bytes": 39878,
+      "mode": 436
+    }
+  ],
+  "verification": {
+    "cohort": {
+      "pass": 65,
+      "fail": 0,
+      "files": 3,
+      "assertions": 510
+    },
+    "typeRoots": 7,
+    "lintOwners": 7,
+    "negativeProcesses": 18,
+    "performance": {
+      "spaceMs": 19,
+      "coldMs": 1241.3,
+      "warmMs": 328.6,
+      "coldPresentations": 20,
+      "warmPresentations": 0,
+      "workPackages": 30,
+      "rowsPerPackage": 300,
+      "chunk": 20,
+      "boundsMs": {
+        "space": 120,
+        "warm": 400
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "current-input-cohort-final-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/db.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-cohort-final-v114.receipt.json",
+        "sha256": "b4f925df839036d931edfb34daeec2d8771f6257243fc051413b3bc363991876",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-cohort-final-v114.log",
+        "sha256": "3828f9d26f496d1e415a7f2a29d36ab6cb207912334336ad2220eb2c7f817dd9",
+        "bytes": 6245,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-types-final-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-current-input-types-v114.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-final-v114.receipt.json",
+        "sha256": "fa54f3ff2cad5157a7856ccfbffae2b095823f7bdee7bb5d6a30febca8ef6c93",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-final-v114.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lint-final-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/db.ts",
+          "libs/wbs/adapters/store-sqlite/src/current-plan-input-memo.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-final-v114.receipt.json",
+        "sha256": "73e556b214cc886ebe49ac9e215612ac3d8b253b67df97d1a156a3ea0f46536e",
+        "bytes": 1735,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-final-v114.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-performance-final-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-performance-final-v114.receipt.json",
+        "sha256": "4d16cb176806ecd9605faad20aa4addc72c4df34ddde35aadc7aeefeabde0d09",
+        "bytes": 1357,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-performance-final-v114.log",
+        "sha256": "0919f4e261cf62814cef6418068ba2b8b2179a2f307575dfb26f65168035ba84",
+        "bytes": 382,
+        "mode": 384
+      }
+    }
+  ],
+  "proofs": [
+    {
+      "name": "current-input-fault-native-client-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=missing native client",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-client-v114.receipt.json",
+        "sha256": "7d691457e4f15cce2d18d523da4bc86a1a48b757b75df81d8ce17ab0eb099f09",
+        "bytes": 1410,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-client-v114.log",
+        "sha256": "21dea9ced2460bac948bff4ae89d979d59dd4cfbb50f7f772a1379f91aa0db01",
+        "bytes": 889,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-owner-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=a writable native owner",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-owner-v114.receipt.json",
+        "sha256": "8359cada2d7c7900ecfafdeddddf688528d8b0089a909b530400985e2242d83b",
+        "bytes": 1411,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-owner-v114.log",
+        "sha256": "176147341750729cb0b3f7ee6d29b5b917cf04bfd7c891b087d5826b411dd356",
+        "bytes": 1115,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-state-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=malformed native transaction state",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-state-v114.receipt.json",
+        "sha256": "b237f4ed1c93db8663c4bc19095b2ef2fb3651ab4fedc5791b2c08f9d104c57c",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-state-v114.log",
+        "sha256": "8d408b8dc2a1c4043185bf126d72aeaa64e7b832a2c9ebd38844c17cc133f2be",
+        "bytes": 1076,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-transaction-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=a readonly owner without an active snapshot",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-transaction-v114.receipt.json",
+        "sha256": "a4f4e2abbd290a187cda7484c0c018083e51fa9c81bb59858ae6cb575cf341b7",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-transaction-v114.log",
+        "sha256": "ae699e41204c5ba0776353dcacc7523e1e3d6f59bc07b4d4e6ca9bf75cae73de",
+        "bytes": 937,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-main-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=missing main schema",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-main-v114.receipt.json",
+        "sha256": "d6ad08bdcdefac36616a879d4801311d3d902d12ce9a77937f818c9a05a37936",
+        "bytes": 1404,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-main-v114.log",
+        "sha256": "bacaa6b38d162046d6f24be9ba5002ce8af210ac1822e56e8f3e62bd0ced148c",
+        "bytes": 775,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-schema-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=malformed schema names",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-schema-v114.receipt.json",
+        "sha256": "bdcccfc83c3db861f10380e1f7a7e4e6ce95bc6aebc6b9ee0272d4d9e1a970d4",
+        "bytes": 1411,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-schema-v114.log",
+        "sha256": "860ee435fae4617ef0562001363e29da2340a47599586a7fbfc47b9a43979706",
+        "bytes": 984,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-attached-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=attached databases visibly disable",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-attached-v114.receipt.json",
+        "sha256": "92b4239c4ed71c5ab2e882fce56fb131583875cb7147256c917aa3cd3dbabc45",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-attached-v114.log",
+        "sha256": "0c962e005ee72494f630a85c1c6a0af081858a7940e1cec06f680cc0360d5214",
+        "bytes": 1141,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-native-integer-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "--test-name-pattern=malformed native scalars",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-integer-v114.receipt.json",
+        "sha256": "00ea8deef08af49677e288a826065dd53a5f1826861b672eace7a976f286de38",
+        "bytes": 1416,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-native-integer-v114.log",
+        "sha256": "7930db858ffdc5f41c9ea0a007cd7405d323ec169dbd935db3bdd5c169cc102d",
+        "bytes": 3153,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-temp-invalidation-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=warm current rows invalidate a TEMP estimate shadow",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-temp-invalidation-v114.receipt.json",
+        "sha256": "651d2a870ac707d137242ac7e6127444cf4886f13b4a0998f0932f1b3052c0fb",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-temp-invalidation-v114.log",
+        "sha256": "2bca9afd45196f5c47bb0144713665ee2d2fefe184bb877dce1a0bd4501bb1a6",
+        "bytes": 6062,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-commit-invalidation-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=memoizes canonical child figures without hiding same-revision",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-commit-invalidation-v114.receipt.json",
+        "sha256": "9c3deb311947d41686dc6309cf229f3f3126c63b5143aff6c2a2e90778288e61",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-commit-invalidation-v114.log",
+        "sha256": "b75ccf9eecbd9955532b88d85a15fbd6745308a48828f65a8105e4fdba6b30b4",
+        "bytes": 5699,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-insert-clone-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=retained current rows isolate both initial and warm",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-insert-clone-v114.receipt.json",
+        "sha256": "2bdcc61f53bf1db13cff8693f614e9a1d022d986800bdee10149e50197bd78ba",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-insert-clone-v114.log",
+        "sha256": "e4839db8a4661cd3cb7f349dc5d8b66a6a22a0f48fb4be66ad78cff4702a81d5",
+        "bytes": 1207,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-read-clone-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=retained current rows isolate both initial and warm",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-read-clone-v114.receipt.json",
+        "sha256": "903a57620c350eb18ef60c77c82dec5c9bdf1770783ca23a7dd74753095dd246",
+        "bytes": 1438,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-read-clone-v114.log",
+        "sha256": "29a05dc0f4a9f81b0bc7df68e8f1dee7dd427b758673c57e37167abfdaafdc03",
+        "bytes": 1204,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-row-fingerprint-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current input fingerprints cover row facts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-row-fingerprint-v114.receipt.json",
+        "sha256": "9b6ae32817053cb6c430833c12c73282030f80492ab682a7ed2f84a8e2cc9f3a",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-row-fingerprint-v114.log",
+        "sha256": "8cf49d64c310a4e157c88796a674e093fb3fb246a7d81e87f156be527400d9f0",
+        "bytes": 1693,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-settings-fingerprint-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current row memo includes fresh settings",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-settings-fingerprint-v114.receipt.json",
+        "sha256": "6542dd8681eb66b30e90c97c2d7b64e24a3d49b1083b807158e86d17ecbb76de",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-settings-fingerprint-v114.log",
+        "sha256": "a75e9352e23ebd48cdd695e25fbfcb673a2abc6c145152a94116d1bc85061ba6",
+        "bytes": 1735,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-publication-epoch-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current row memo includes fresh settings",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-epoch-v114.receipt.json",
+        "sha256": "3e5652437f38333eb950ef4acbc49e9ce73c1c7a03c32153cef023bb26dc2b29",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-epoch-v114.log",
+        "sha256": "3ab89fba5a56a1403c02a94c6a7bc8c7326bf427824ac5ac8dd87adf56264435",
+        "bytes": 1606,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-package-bound-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current row memo evicts old packages",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-package-bound-v114.receipt.json",
+        "sha256": "8ef6d27cfccb445486a317720ff17d3aac30cbff3bd1de4c40b8bc6f555eb432",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-package-bound-v114.log",
+        "sha256": "50c33d9e1137a77f83184b266465a152cf411eccd1f066cc38edd09847c52fb9",
+        "bytes": 5600,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-publication-existing-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-existing-v114.receipt.json",
+        "sha256": "8a3ac774e2aecc30d7e06008383b745cb0092d8685b6fd71436b7b26d562de84",
+        "bytes": 1452,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-existing-v114.log",
+        "sha256": "d85fcea74e782056d9389ec1125fe7b5f84245883b08c4bc3650ccfd28c25049",
+        "bytes": 1180,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-byte-bound-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current row memo evicts old packages",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-byte-bound-v114.receipt.json",
+        "sha256": "ceb28de435c1a11752275c3650f41a9ab482b2651012b52a087c2d14936bee85",
+        "bytes": 1423,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-byte-bound-v114.log",
+        "sha256": "9e4fa7854e02b5ff2d9f3657fb26e026948c01466960e9e8202faff681465fd3",
+        "bytes": 1658,
+        "mode": 384
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "name": "read-epoch-red-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/read-epoch-red-v114.receipt.json",
+        "sha256": "b68d13ad7f206b353a95769903b90add325a72f71ffdd1a24de69c1f40fe7ea9",
+        "bytes": 1298,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/read-epoch-red-v114.log",
+        "sha256": "ce8e88414f58920c188caf08076458faa0db28215acb5208bfe8330201a378a4",
+        "bytes": 13319,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-cohort-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/db.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-cohort-v114.receipt.json",
+        "sha256": "a7d093c01bdc8ee148e04a9f446dec0a86fc24217e9699fe727a9ddad8655eb7",
+        "bytes": 1633,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-cohort-v114.log",
+        "sha256": "6e0729a0715fc35d25360353884af605d4ef38e596174f5661cb520837bcb83d",
+        "bytes": 266355,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-types-v114",
+      "exitCode": 2,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-current-input-types-v114.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-v114.receipt.json",
+        "sha256": "23c851cb52feb10d8849b76e5fdee5d68d27e5a6464891cb0e7a4760023890e5",
+        "bytes": 1322,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-v114.log",
+        "sha256": "9b3a64185c8e7d03da37c290b07973004d9c6403234083d506730029ff1ba111",
+        "bytes": 2996,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lint-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/db.ts",
+          "libs/wbs/adapters/store-sqlite/src/current-plan-input-memo.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-v114.receipt.json",
+        "sha256": "dc9d3b097a67b527fb36db178d144df459617a654cb4b0576b940ec3351f985b",
+        "bytes": 1726,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-v114.log",
+        "sha256": "0c7bdb017543ed627d6138dc4fc285ab786cc2821692b37a08bc29e85ccf11e6",
+        "bytes": 6986,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-sort-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--fix",
+          "libs/wbs/adapters/store-sqlite/src/db.ts",
+          "libs/wbs/adapters/store-sqlite/src/current-plan-input-memo.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-sort-v114.receipt.json",
+        "sha256": "4095ef3b8758b7d568a227a0b73b512e26dd2439b5c401c49fefcf1f8a64f4d9",
+        "bytes": 1740,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-sort-v114.log",
+        "sha256": "d1c0506066fd01e1f92d17673e1d5aa43177ebc07d0abc69edbff4397a33d759",
+        "bytes": 525,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-types-v2-v114",
+      "exitCode": 2,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-current-input-types-v114.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-v2-v114.receipt.json",
+        "sha256": "e3e0bfa03ddbcfc1b1c251b43b22581772cc220d64637fe1609fd87d2f5a5f54",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-types-v2-v114.log",
+        "sha256": "346a02a4b8cdb5e96c5eafc60e2ad73910fa416d81e9ff9dfd7ec80f699d8e5b",
+        "bytes": 1395,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lint-v2-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/db.ts",
+          "libs/wbs/adapters/store-sqlite/src/current-plan-input-memo.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-current-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/space-roll-up.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-v2-v114.receipt.json",
+        "sha256": "b54b839d80770444bf8693507f42d5a0a1c4103aa69f1e54c896893d2dd4269d",
+        "bytes": 1731,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lint-v2-v114.log",
+        "sha256": "180490916809941fad0c4f01a1ea2fb34ca2a79973eeb54032f018bc9c41725a",
+        "bytes": 361,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-faults-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "/tmp/puni-current-input-faults-v114.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-faults-v114.receipt.json",
+        "sha256": "a6c917756be4a3d742ec9daf434ebadd5b5545766f20f4aabf4d01c439b8c09a",
+        "bytes": 1267,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-faults-v114.log",
+        "sha256": "2c5949ee1d3f35cc172248faafe51ba6fa32e51991b5318473597e9f40694757",
+        "bytes": 1976,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lifetime-stack-v114",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-current-input-lifetime-stack-v114.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-stack-v114.receipt.json",
+        "sha256": "5aa73e8826501ae328ecb6e9f28c6af351b115ab0cbbc31f0ffe874144b9a2e8",
+        "bytes": 1503,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-stack-v114.log",
+        "sha256": "32176e406998843a345498295d4ec526b0c71e68179d8ea9840436cb6a283142",
+        "bytes": 2642,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-fault-publication-lifetime-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-lifetime-v114.receipt.json",
+        "sha256": "db25967fd45c64e142d94cf8b9059f8971f248e1681468f3897d62e1db138ead",
+        "bytes": 1451,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-fault-publication-lifetime-v114.log",
+        "sha256": "c1064dace1565841199b4b64ef913be452d0134df45c1ff09b906246d7e6b2be",
+        "bytes": 297,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lifetime-diagnostic-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-current-input-lifetime-diagnostic-v114.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-diagnostic-v114.receipt.json",
+        "sha256": "d9ac01a57c9ac54f4ca76c0dc76ee448fb016eadae27a1522b9721d76a6d3277",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-diagnostic-v114.log",
+        "sha256": "bfdfafc7b9dc8c8f1a1e40f96bcab7b89448c9ffbe90f0dff249e102598871fc",
+        "bytes": 656,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-lifetime-fault-diagnostic-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-current-input-lifetime-diagnostic-v114.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-fault-diagnostic-v114.receipt.json",
+        "sha256": "a6369d89c813bc0757003b043715409d6ace7b7615361e5d8f0a99d025a3d2b7",
+        "bytes": 1529,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-lifetime-fault-diagnostic-v114.log",
+        "sha256": "5909db0f77d4305376114b84e204f02c459ff98f7803eff608ace6e65bc0aa7e",
+        "bytes": 656,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-input-expiry-stack-fault-v114",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-current-input-expiry-stack-v114.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "--test-name-pattern=current capture stops before memo publication",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-expiry-stack-fault-v114.receipt.json",
+        "sha256": "41f86dbf98d0d0a8a155814f199744e0816827e76bb33af48ceb347d8148b033",
+        "bytes": 1509,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-input-expiry-stack-fault-v114.log",
+        "sha256": "4f32c3bc54e68057dda81119915f7ecfb02e44a9d951e30f572e45a6851f042b",
+        "bytes": 1737,
+        "mode": 384
+      }
+    }
+  ],
+  "proofPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-faults-plan-v114.json",
+    "sha256": "099a8fe23b5bf16d5693d899e1d68b27fb3aaf4cbaba8339aa2d481d2f3322a8",
+    "bytes": 82712,
+    "mode": 384
+  },
+  "proofState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-faults-state-v114.json",
+    "sha256": "a89772ab29695b089da25c096f1209e9cc9d9450422d0ac894fa19816053127e",
+    "bytes": 13582,
+    "mode": 384
+  },
+  "publicationProofPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-publication-proof-plan-v114.json",
+    "sha256": "a17d9d88d99d3ec965a91e143d3aff9dc42a7bf249256d376c24de620c96f6ab",
+    "bytes": 27782,
+    "mode": 384
+  },
+  "byteProofPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-byte-bound-proof-plan-v114.json",
+    "sha256": "0f92cfa937bf1ea8af1d8c5d4ae485a328816a368a3497fb567f7aea6148f806",
+    "bytes": 6715,
+    "mode": 384
+  },
+  "proofSources": [
+    {
+      "path": "/tmp/puni-current-input-faults-v114.ts",
+      "sha256": "75daddd3c023a5a7b772e0bd3458a6c2b43b0deccd07bd842eb795c9ef0a0de1",
+      "bytes": 8460,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-publication-proof-v114.ts",
+      "sha256": "18c50e71670fff565342b3655b50c849b035be4299fa167106388071e73a329b",
+      "bytes": 2471,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-byte-proof-v114.ts",
+      "sha256": "36ade9b5739c381b69b882aec4828d57baab232543c3716c44a858bccca9a956",
+      "bytes": 2378,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-lifetime-diagnostic-v114.ts",
+      "sha256": "3972eb0a56e17a4b69bcfe942b228913b65610f074dc9d196720b3e403a3db0e",
+      "bytes": 808,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-lifetime-stack-v114.ts",
+      "sha256": "0efe958dc560ce87fca3f197c8313751331ff0bddaac149e7f5aadb3695c0b8e",
+      "bytes": 497,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-expiry-stack-v114.ts",
+      "sha256": "c0f27120f8e13eb76b65083bf0dc92dab0eda0b0ae4b8c9d2f273accdb982630",
+      "bytes": 533,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-test-fixes-v114.ts",
+      "sha256": "326beba4618308b1249e64ac3eea6546e71fa79bd4f18bb362a375e4c94a0327",
+      "bytes": 3228,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-types-v114.json",
+      "sha256": "8e72004b06a99dc03a2beffd02fd047d783ed9b1054b9307f43990ea2ef0b889",
+      "bytes": 1144,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-input-checkpoint-v114.ts",
+      "sha256": "033421c7387ea211f6717c97058a8c28cbe8089b33e0d628b25b846bda6bd366",
+      "bytes": 24611,
+      "mode": 436
+    }
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": [
+    "This is a production implementation and scoped qualification,not full scope completion. Current local plan rows may reuse an exact readonly native snapshot; workPackage/settings/ownership/parent,authority,membership,graph discovery,optimized cache selection including now(),and metadata remain fresh. Historical readers omit memo; connected capture stays uncached; configured capture seams disable it.",
+    "Opaque per-native-owner epochs include main data_version,main/TEMP schema versions,total_changes. Registered readonly acquisition and an active transaction are prerequisites. Writable/unregistered,no-transaction and attached cases visibly decline optional reuse; malformed/absent required evidence throws. Pool wrappers expose no native capability.",
+    "Every retained row is cloned on insertion and read. Each native owner retains at most32packages and8MiB of serialized row input; actual heap size and transient capture/encoding/cloning allocation are not bounded by that byte count. Complete row fingerprints plus fresh package/settings evidence replace redundant ask.input serialization in local rollup keys.",
+    "The final actual native fixture passes unchanged30x300/chunk20 and120/400ms bounds. Reply equality,leaf counts,scan controls and20cold/0warm presentations remain. Cold time is printed only. This is one local native observation,not calibrated h2/h4 or coverage/browser performance acceptance.",
+    "Native epochs17cases,space/current memo25cases and existing DB23cases total65/0; the command output is authoritative. Seven changed/new roots typecheck and lint. No broad Source/history/settings/controller acceptance follows from65cases.",
+    "Eighteen selected negative processes fail at their own oracles and stop/reap/close before exact restoration. Whole scalar validation is one boundary,not independent-bit proof. Native main/TEMP/change fields are characterized; the finite consumer omission list does not independently prove every compared epoch scalar,all13fact families,all15historical guarantees,physical-collision cache consumers,clock-only liveness,all custom seams or all Source owners.",
+    "The initial17-fault driver accepted16 own negatives then stopped on a genuine false-green redundant final lifetime assertion. That newly added duplicate was removed. Diagnostic expiry stack identifies the existing post-resource guard; its actual omission issues five late native queries before the later caller refusal. Only that late-query oracle gets proof credit. A nested directory-spy diagnostic recursed and receives no proof credit.",
+    "The initial broad199-test cohort has61pass138fail. One new TEMP view referenced nonexistent updated_by; its corrected catalogue-aware tests now pass. Untouched work-package-observation/saved-plan fixtures call ordinary runMigrations and hit the explicit catalogue apply-owner guard before capture. Their broader fixture upgrade and fresh reruns remain owed; the migration guard is preserved. This turn does not independently rerun the old-source representative to label all137remaining fixture failures baseline.",
+    "Earlier type/lint failures are retained diagnostic receipts and superseded by final seven-root checks. All dependent source edits stopped during ordinary checks and each native fault. Post-proof production parsed-source bridges ignore comments/whitespace only; the existing post-resource guard preimage is separately bound after duplicate removal. The oversize consumer boolean assertion replaces an equivalent undefined assertion to avoid large negative logs.",
+    "All9 original requirements remain verbatim. Fresh current Settings/catalogue/SC17/entity/API/UI/docs17/18/all13facts/all15history/allSource/inventory/installedPUNI/allaliases/fourNx/nativeownership/builds/secrets/migrations/Astra/exactSHAhostgates/delivery closure remains unproven. Prior619/0 and244/0 are retained historical scoped evidence,not rerun here.",
+    "No public commit,push,PRupdate,merge,deploy,activation,hostgate,dependencyinstall,newagent,Astra retry or protectedPAX/history/default rewrite occurs. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified."
+  ]
+}

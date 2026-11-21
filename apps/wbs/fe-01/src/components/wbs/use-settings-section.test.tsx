@@ -53,7 +53,7 @@ function Section(props: {
  *
  * Every one of steps, teams, priorities and estimating had its own watched
  * negative for reporting `dirty` (2026-08-30, in
- * `project-settings-modal.test.tsx`). Those still stand and are about the
+ * `work-package-settings-modal.test.tsx`). Those still stand and are about the
  * modal; these are about the rule itself, now that there is one of it.
  *
  * Proof: the unmount effect deleted, watched failing on `expected [ true ] to deeply equal

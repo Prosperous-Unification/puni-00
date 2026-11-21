@@ -20,7 +20,7 @@ export const claimLimitCrossed = { cap: 'number', current: 'number' } as const;
 
 /**
  * What `capacity_limit` carries beside its code (L2, L9): the resource, the
- * cap, the units the organization's other projects state and the units asked.
+ * cap, the units the organization's other work packages state and the units asked.
  */
 export const capacityLimitCrossed = {
   resourceId: 'string',

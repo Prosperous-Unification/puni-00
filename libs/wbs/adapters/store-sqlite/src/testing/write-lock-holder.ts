@@ -46,7 +46,7 @@ export class WriteLockHolder {
   }
 
   /**
-   * Starts the holder on project `p1` of `path` and resolves once it holds the write lock.
+   * Starts the holder on work package `p1` of `path` and resolves once it holds the write lock.
    *
    * @throws when the holder closes stdout or prints anything before `held`; the
    *   error carries its exit code and stderr.

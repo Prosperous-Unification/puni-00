@@ -1,16 +1,16 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { httpProjectApi, type ProjectAddressApi, type ProjectApi } from '@/lib/wbs-api';
-import { projectServicesOver } from '@/modules/project/composition';
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { httpWorkPackageApi, type WorkPackageAddressApi, type WorkPackageApi } from '@/lib/wbs-api';
+import { workPackageServicesOver } from '@/modules/work-package/composition';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
-const project = { projectId: 'remote', abbreviation: 'PUNI', name: 'Puni remote' };
+const workPackage = { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Puni remote' };
 const node = {
-  projectId: 'remote',
+  workPackageId: 'remote',
   workItemId: 'remote-row',
   number: '080',
   name: 'Remote build',
@@ -25,13 +25,15 @@ const success = <T,>(body: T) => ({
   body,
   headers: new Headers(),
 });
-function addresses(): ProjectAddressApi {
+function addresses(): WorkPackageAddressApi {
   return {
-    projects: vi.fn().mockResolvedValue(success({ projects: [project], nextCursor: null })),
+    workPackages: vi
+      .fn()
+      .mockResolvedValue(success({ workPackages: [workPackage], nextCursor: null })),
     candidates: vi
       .fn()
       .mockResolvedValue(
-        success({ project, addressRevision: 'r1', candidates: [node], nextCursor: null }),
+        success({ workPackage, addressRevision: 'r1', candidates: [node], nextCursor: null }),
       ),
     resolve: vi.fn(),
   };
@@ -42,20 +44,20 @@ afterEach(() => {
 });
 async function mount(phone = false) {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: phone ? 390 : 1024 });
-  const api = fakeProjectApi();
+  const api = fakeWorkPackageApi();
   const source = await api.createWorkItem('p1', {
     parentId: null,
     afterId: null,
     name: 'Puni local title',
   });
   await api.createWorkItem('p1', { parentId: null, afterId: source.id, name: 'Successor' });
-  const add = vi.fn<ProjectApi['addTypedDependency']>().mockResolvedValue(undefined);
+  const add = vi.fn<WorkPackageApi['addTypedDependency']>().mockResolvedValue(undefined);
   const client = { ...api, addTypedDependency: add };
   const routes = addresses();
   render(
     <WbsTableOverClient
-      projectId="p1"
-      projectServices={projectServicesOver(client, NO_SAVED_PLANS, routes)}
+      workPackageId="p1"
+      workPackageServices={workPackageServicesOver(client, NO_SAVED_PLANS, routes)}
     />,
   );
   if (phone) fireEvent.click(await screen.findByRole('button', { name: 'Depends on for 020' }));
@@ -66,16 +68,16 @@ async function mount(phone = false) {
 
 describe('actual dependency autocomplete fields', () => {
   for (const phone of [false, true])
-    it(`scopes project selection and writes exact remote node identity on ${phone ? 'phone' : 'desktop'}`, async () => {
+    it(`scopes work package selection and writes exact remote node identity on ${phone ? 'phone' : 'desktop'}`, async () => {
       const { box, add, routes } = await mount(phone);
       fireEvent.change(box, { target: { value: '010,  puni' } });
-      const projectChoice = await screen.findByRole(phone ? 'button' : 'option', {
-        name: 'Project PUNI - Puni remote',
+      const workPackageChoice = await screen.findByRole(phone ? 'button' : 'option', {
+        name: 'Work package PUNI - Puni remote',
       });
       expect(
         screen.getByRole(phone ? 'button' : 'option', { name: '010 - Puni local title' }),
       ).toBeDefined();
-      fireEvent.click(projectChoice);
+      fireEvent.click(workPackageChoice);
       expect(add).not.toHaveBeenCalled();
       expect(box.value).toBe('010,  PUNI.');
       fireEvent.click(
@@ -86,7 +88,12 @@ describe('actual dependency autocomplete fields', () => {
       await waitFor(() => {
         expect(add).toHaveBeenCalledWith(
           'p1',
-          { projectId: 'remote', scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
+          {
+            workPackageId: 'remote',
+            scope: 'node',
+            workItemId: 'remote-row',
+            stepId: 'remote-dev',
+          },
           expect.objectContaining({ scope: 'whole' }),
           'FS',
         );
@@ -101,10 +108,10 @@ describe('actual dependency autocomplete fields', () => {
       );
     });
 
-  it('Customize remote node never authors before Add and retains exact project/step identities', async () => {
+  it('Customize remote node never authors before Add and retains exact work-package/step identities', async () => {
     const { box, add } = await mount();
     fireEvent.change(box, { target: { value: '010, puni' } });
-    fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
     fireEvent.click(
       await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
     );
@@ -117,7 +124,7 @@ describe('actual dependency autocomplete fields', () => {
     await waitFor(() => {
       expect(add).toHaveBeenCalledWith(
         'p1',
-        { projectId: 'remote', scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
+        { workPackageId: 'remote', scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
         expect.objectContaining({ scope: 'whole' }),
         'FS',
       );
@@ -138,7 +145,7 @@ it('retains a refused remote draft and locks repeated taps by endpoint identity'
       }),
   );
   fireEvent.change(box, { target: { value: '010, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   const option = await screen.findByRole('option', { name: 'PUNI.080.s1-dev - Remote build' });
   fireEvent.click(option);
   fireEvent.click(option);
@@ -155,7 +162,7 @@ it('retains a refused remote draft and locks repeated taps by endpoint identity'
         .getAllByRole('alert')
         .some((alert) =>
           alert.textContent.includes(
-            'Dependencies between projects are not enabled on this server.',
+            'Dependencies between work packages are not enabled on this server.',
           ),
         ),
     ).toBe(true);
@@ -163,21 +170,21 @@ it('retains a refused remote draft and locks repeated taps by endpoint identity'
   expect(box.value).toBe('010, PUNI.080.s1-dev');
 });
 
-it('a pending endpoint in one project never locks the same opaque work-item/step IDs in another', async () => {
+it('a pending endpoint in one work package never locks the same opaque work-item/step IDs in another', async () => {
   const { box, add, routes } = await mount();
-  const other = { projectId: 'other', abbreviation: 'OTHER', name: 'Other project' };
-  vi.mocked(routes.projects).mockImplementation((query) =>
+  const other = { workPackageId: 'other', abbreviation: 'OTHER', name: 'Other work package' };
+  vi.mocked(routes.workPackages).mockImplementation((query) =>
     Promise.resolve(
-      success({ projects: query.q === 'OTHER' ? [other] : [project], nextCursor: null }),
+      success({ workPackages: query.q === 'OTHER' ? [other] : [workPackage], nextCursor: null }),
     ),
   );
-  vi.mocked(routes.candidates).mockImplementation((projectId) => {
-    const selected = projectId === 'other' ? other : project;
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) => {
+    const selected = workPackageId === 'other' ? other : workPackage;
     return Promise.resolve(
       success({
-        project: selected,
+        workPackage: selected,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId, reference: `${selected.abbreviation}.080.s1-dev` }],
+        candidates: [{ ...node, workPackageId, reference: `${selected.abbreviation}.080.s1-dev` }],
         nextCursor: null,
       }),
     );
@@ -190,11 +197,13 @@ it('a pending endpoint in one project never locks the same opaque work-item/step
       }),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(await screen.findByRole('option', { name: 'PUNI.080.s1-dev - Remote build' }));
   expect(add).toHaveBeenCalledTimes(1);
   fireEvent.change(box, { target: { value: 'OTHER' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project OTHER - Other project' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package OTHER - Other work package' }),
+  );
   fireEvent.click(await screen.findByRole('option', { name: 'OTHER.080.s1-dev - Remote build' }));
   expect(add).toHaveBeenCalledTimes(2);
   await act(async () => {
@@ -210,7 +219,7 @@ it('mixed list submit keeps successful local/remote identities and reports unres
   const { box, add, routes } = await mount();
   vi.mocked(routes.resolve).mockResolvedValue(
     success({
-      projectId: 'remote',
+      workPackageId: 'remote',
       endpoint: node.endpoint,
       reference: node.reference,
       addressRevision: 'r1',
@@ -229,10 +238,10 @@ it('mixed list submit keeps successful local/remote identities and reports unres
   });
 });
 
-it('keyboard project and endpoint selection preserve earlier tokens without submitting them', async () => {
+it('keyboard work package and endpoint selection preserve earlier tokens without submitting them', async () => {
   const { box, add } = await mount();
   fireEvent.change(box, { target: { value: '010, PUNI' } });
-  await screen.findByRole('option', { name: 'Project PUNI - Puni remote' });
+  await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' });
   fireEvent.keyDown(box, { key: 'ArrowDown' });
   fireEvent.keyDown(box, { key: 'ArrowDown' });
   fireEvent.keyDown(box, { key: 'Enter' });
@@ -250,25 +259,25 @@ it('keyboard project and endpoint selection preserve earlier tokens without subm
   expect(screen.queryByRole('button', { name: /^Stop 020 waiting for 010/ })).toBeNull();
 });
 
-it('switching remote Customize follows the newly selected stable project', async () => {
+it('switching remote Customize follows the newly selected stable work package', async () => {
   const { box, add, routes } = await mount();
-  const other = { projectId: 'other', abbreviation: 'OTHER', name: 'Other project' };
-  vi.mocked(routes.projects).mockResolvedValue(
-    success({ projects: [project, other], nextCursor: null }),
+  const other = { workPackageId: 'other', abbreviation: 'OTHER', name: 'Other work package' };
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [workPackage, other], nextCursor: null }),
   );
-  vi.mocked(routes.candidates).mockImplementation((projectId) => {
-    const selected = projectId === 'other' ? other : project;
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) => {
+    const selected = workPackageId === 'other' ? other : workPackage;
     return Promise.resolve(
       success({
-        project: selected,
+        workPackage: selected,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId, reference: `${selected.abbreviation}.080.s1-dev` }],
+        candidates: [{ ...node, workPackageId, reference: `${selected.abbreviation}.080.s1-dev` }],
         nextCursor: null,
       }),
     );
   });
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -276,7 +285,9 @@ it('switching remote Customize follows the newly selected stable project', async
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Add$/ }).disabled).toBe(false);
   });
   fireEvent.change(box, { target: { value: 'OTHER' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project OTHER - Other project' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package OTHER - Other work package' }),
+  );
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize OTHER.080.s1-dev - Remote build' }),
   );
@@ -287,7 +298,7 @@ it('switching remote Customize follows the newly selected stable project', async
   await waitFor(() => {
     expect(add).toHaveBeenCalledWith(
       'p1',
-      expect.objectContaining({ projectId: 'other' }),
+      expect.objectContaining({ workPackageId: 'other' }),
       expect.anything(),
       'FS',
     );
@@ -297,7 +308,7 @@ it('switching remote Customize follows the newly selected stable project', async
 it('remote Customize returns keyboard focus to its dependency input', async () => {
   const { box } = await mount();
   fireEvent.change(box, { target: { value: '010, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -306,26 +317,32 @@ it('remote Customize returns keyboard focus to its dependency input', async () =
   expect(box.value).toBe('010, PUNI.');
 });
 
-it('a selected stable project stays pinned after a trailing comma', async () => {
+it('a selected stable work package stays pinned after a trailing comma', async () => {
   const { box, add, routes } = await mount();
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
-  const other = { ...project, projectId: 'reused-project', name: 'Replacement holder' };
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
+  const other = {
+    ...workPackage,
+    workPackageId: 'reused-work-package',
+    name: 'Replacement holder',
+  };
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -339,11 +356,11 @@ it('a selected stable project stays pinned after a trailing comma', async () => 
   });
   expect(add).toHaveBeenCalledWith(
     'p1',
-    expect.objectContaining({ projectId: 'remote' }),
+    expect.objectContaining({ workPackageId: 'remote' }),
     expect.anything(),
     'FS',
   );
-  expect(routes.projects).toHaveBeenCalledTimes(1);
+  expect(routes.workPackages).toHaveBeenCalledTimes(1);
 });
 
 it('local Customize retains previous mixed tokens after successful Add', async () => {
@@ -360,24 +377,24 @@ it('local Customize retains previous mixed tokens after successful Add', async (
   expect(box.value).toBe('999, ');
 });
 
-it('switching same-abbreviation remote Customize never offers the previous project endpoint', async () => {
+it('switching same-abbreviation remote Customize never offers the previous work package endpoint', async () => {
   const { box, add, routes } = await mount();
-  const other = { projectId: 'other', abbreviation: 'PUNI', name: 'Other Puni holder' };
-  vi.mocked(routes.projects).mockResolvedValue(
-    success({ projects: [project, other], nextCursor: null }),
+  const other = { workPackageId: 'other', abbreviation: 'PUNI', name: 'Other Puni holder' };
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [workPackage, other], nextCursor: null }),
   );
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -385,7 +402,9 @@ it('switching same-abbreviation remote Customize never offers the previous proje
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Add$/ }).disabled).toBe(false);
   });
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other Puni holder' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package PUNI - Other Puni holder' }),
+  );
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -402,7 +421,7 @@ it('switching same-abbreviation remote Customize never offers the previous proje
   });
   expect(add).toHaveBeenCalledWith(
     'p1',
-    expect.objectContaining({ projectId: 'other' }),
+    expect.objectContaining({ workPackageId: 'other' }),
     expect.anything(),
     'FS',
   );
@@ -410,10 +429,13 @@ it('switching same-abbreviation remote Customize never offers the previous proje
 
 it('current lookup cancellation is visible in the actual field', async () => {
   const { box, routes } = await mount();
-  vi.mocked(routes.projects).mockResolvedValue({ kind: 'failure', failure: { code: 'cancelled' } });
+  vi.mocked(routes.workPackages).mockResolvedValue({
+    kind: 'failure',
+    failure: { code: 'cancelled' },
+  });
   fireEvent.change(box, { target: { value: 'PUNI' } });
   await waitFor(() => {
-    expect(routes.projects).toHaveBeenCalledTimes(1);
+    expect(routes.workPackages).toHaveBeenCalledTimes(1);
   });
   await waitFor(() => {
     expect(screen.queryByText('Loading dependency choices…')).toBeNull();
@@ -421,23 +443,23 @@ it('current lookup cancellation is visible in the actual field', async () => {
   expect(screen.getByText(/cancelled/i)).toBeDefined();
 });
 
-it('separately selected occurrences of one abbreviation keep their own stable projects', async () => {
+it('separately selected occurrences of one abbreviation keep their own stable work packages', async () => {
   const { box, add, routes } = await mount();
-  const other = { ...project, projectId: 'other', name: 'Other Puni holder' };
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  const other = { ...workPackage, workPackageId: 'other', name: 'Other Puni holder' };
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -445,17 +467,21 @@ it('separately selected occurrences of one abbreviation keep their own stable pr
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other Puni holder' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package PUNI - Other Puni holder' }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev,' } });
   fireEvent.keyDown(box, { key: 'Enter' });
   await waitFor(() => {
     expect(add).toHaveBeenCalledTimes(2);
   });
-  expect(add.mock.calls.map((call) => call[1].projectId)).toEqual(['remote', 'other']);
-  expect(routes.projects).toHaveBeenCalledTimes(2);
+  expect(add.mock.calls.map((call) => call[1].workPackageId)).toEqual(['remote', 'other']);
+  expect(routes.workPackages).toHaveBeenCalledTimes(2);
 });
 
 for (const phone of [false, true]) {
@@ -465,7 +491,7 @@ for (const phone of [false, true]) {
       fireEvent.change(box, { target: { value: '999, PUNI' } });
       fireEvent.click(
         await screen.findByRole(phone ? 'button' : 'option', {
-          name: 'Project PUNI - Puni remote',
+          name: 'Work package PUNI - Puni remote',
         }),
       );
       fireEvent.click(
@@ -519,24 +545,26 @@ it('local Customize success preserves newer edits and restores the existing draf
 for (const phone of [false, true])
   it(`current cancellation can deliberately retry on ${phone ? 'phone' : 'desktop'}`, async () => {
     const { box, routes } = await mount(phone);
-    vi.mocked(routes.projects).mockResolvedValueOnce({
+    vi.mocked(routes.workPackages).mockResolvedValueOnce({
       kind: 'failure',
       failure: { code: 'cancelled' },
     });
     fireEvent.change(box, { target: { value: 'PUNI' } });
     expect(await screen.findByText('Dependency lookup cancelled.')).toBeDefined();
-    expect(routes.projects).toHaveBeenCalledTimes(1);
+    expect(routes.workPackages).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Retry lookup' }));
     expect(
-      await screen.findByRole(phone ? 'button' : 'option', { name: 'Project PUNI - Puni remote' }),
+      await screen.findByRole(phone ? 'button' : 'option', {
+        name: 'Work package PUNI - Puni remote',
+      }),
     ).toBeDefined();
-    expect(routes.projects).toHaveBeenCalledTimes(2);
+    expect(routes.workPackages).toHaveBeenCalledTimes(2);
   });
 
-it('current Customize cancellation is visible and retries only the selected stable project', async () => {
+it('current Customize cancellation is visible and retries only the selected stable work package', async () => {
   const { box, routes, add } = await mount();
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   await screen.findByRole('option', { name: 'PUNI.080.s1-dev - Remote build' });
   vi.mocked(routes.candidates).mockResolvedValueOnce({
     kind: 'failure',
@@ -553,20 +581,20 @@ it('current Customize cancellation is visible and retries only the selected stab
   await waitFor(() => {
     expect(add).toHaveBeenCalledWith(
       'p1',
-      expect.objectContaining({ projectId: 'remote' }),
+      expect.objectContaining({ workPackageId: 'remote' }),
       expect.anything(),
       'FS',
     );
   });
-  expect(routes.projects).toHaveBeenCalledTimes(1);
+  expect(routes.workPackages).toHaveBeenCalledTimes(1);
 });
 
 it('local Customize focus restoration retains a previous remote token binding', async () => {
   const { box, add, routes } = await mount();
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -574,7 +602,7 @@ it('local Customize focus restoration retains a previous remote token binding', 
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, 010' } });
   fireEvent.click(await screen.findByRole('button', { name: 'Customize 010 - Puni local title' }));
   fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
@@ -582,34 +610,34 @@ it('local Customize focus restoration retains a previous remote token binding', 
     expect(document.activeElement).toBe(box);
   });
   expect(box.value).toBe('PUNI.080.s1-dev, ');
-  vi.mocked(routes.projects).mockResolvedValue(
-    success({ projects: [{ ...project, projectId: 'replacement' }], nextCursor: null }),
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [{ ...workPackage, workPackageId: 'replacement' }], nextCursor: null }),
   );
   fireEvent.keyDown(box, { key: 'Enter' });
   await waitFor(() => {
     expect(add).toHaveBeenCalledTimes(2);
   });
-  expect(add.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ projectId: 'remote' }));
-  expect(routes.projects).toHaveBeenCalledTimes(1);
+  expect(add.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ workPackageId: 'remote' }));
+  expect(routes.workPackages).toHaveBeenCalledTimes(1);
 });
 
 it('ambiguous deletion between identically spelled separately bound occurrences requires reselection', async () => {
   const { box, add, routes } = await mount();
-  const other = { ...project, projectId: 'other', name: 'Other Puni holder' };
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  const other = { ...workPackage, workPackageId: 'other', name: 'Other Puni holder' };
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -617,18 +645,22 @@ it('ambiguous deletion between identically spelled separately bound occurrences 
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other Puni holder' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package PUNI - Other Puni holder' }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev,' } });
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
   fireEvent.keyDown(box, { key: 'Enter' });
   expect(
-    await screen.findByText('These were refused: PUNI.080.s1-dev (choose a project).'),
+    await screen.findByText('These were refused: PUNI.080.s1-dev (choose a work package).'),
   ).toBeDefined();
   expect(add).not.toHaveBeenCalled();
-  expect(routes.projects).toHaveBeenCalledTimes(2);
+  expect(routes.workPackages).toHaveBeenCalledTimes(2);
 });
 
 it('actual HTTP409 through the mounted writer retains the mixed draft and readable refusal', async () => {
@@ -642,26 +674,26 @@ it('actual HTTP409 through the mounted writer retains the mixed draft and readab
     ),
   );
   vi.stubGlobal('fetch', fetcher);
-  add.mockImplementation((...args) => httpProjectApi('token').addTypedDependency(...args));
+  add.mockImplementation((...args) => httpWorkPackageApi('token').addTypedDependency(...args));
   try {
     fireEvent.change(box, { target: { value: '010, PUNI' } });
-    fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
     fireEvent.click(await screen.findByRole('option', { name: 'PUNI.080.s1-dev - Remote build' }));
     expect(
-      await screen.findByText('Dependencies between projects are not enabled on this server.'),
+      await screen.findByText('Dependencies between work packages are not enabled on this server.'),
     ).toBeDefined();
     expect(box.value).toBe('010, PUNI.080.s1-dev');
     expect(fetcher).toHaveBeenCalledTimes(1);
     const call = fetcher.mock.calls[0];
     if (typeof call[1]?.body !== 'string') throw new Error('Command body absent');
-    expect(call[0]).toBe('/api/projects/p1/commands');
+    expect(call[0]).toBe('/api/work-packages/p1/commands');
     expect(JSON.parse(call[1].body)).toEqual({
       commands: [
         {
           kind: 'addTypedDependency',
           predecessor: {
             scope: 'node',
-            projectId: 'remote',
+            workPackageId: 'remote',
             workItemId: 'remote-row',
             stepId: 'remote-dev',
           },
@@ -704,7 +736,7 @@ it('remote Customize success preserves newer typed work when returning focus', a
       }),
   );
   fireEvent.change(box, { target: { value: '999, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -734,19 +766,19 @@ it('an older Customize success does not erase a newly selected holder with the i
         release = resolve;
       }),
   );
-  const other = { ...project, projectId: 'other', name: 'Other Puni holder' };
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  const other = { ...workPackage, workPackageId: 'other', name: 'Other Puni holder' };
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
   fireEvent.change(box, { target: { value: '999, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.click(
     await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
   );
@@ -755,9 +787,13 @@ it('an older Customize success does not erase a newly selected holder with the i
     expect(submit.disabled).toBe(false);
   });
   fireEvent.click(submit);
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
   fireEvent.change(box, { target: { value: '999, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other Puni holder' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package PUNI - Other Puni holder' }),
+  );
   expect(box.value).toBe('999, PUNI.');
   if (release === undefined) throw new Error('Write did not start');
   await act(async () => {
@@ -773,13 +809,13 @@ it('an older Customize success does not erase a newly selected holder with the i
 for (const phone of [false, true])
   it(`an older one-click completion preserves the new identical token on ${phone ? 'phone' : 'desktop'}`, async () => {
     const { box, add, routes } = await mount(phone);
-    const other = { ...project, projectId: 'other', name: 'Other Puni holder' };
-    vi.mocked(routes.candidates).mockImplementation((projectId) =>
+    const other = { ...workPackage, workPackageId: 'other', name: 'Other Puni holder' };
+    vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
       Promise.resolve(
         success({
-          project: projectId === 'remote' ? project : other,
+          workPackage: workPackageId === 'remote' ? workPackage : other,
           addressRevision: 'r1',
-          candidates: [{ ...node, projectId }],
+          candidates: [{ ...node, workPackageId }],
           nextCursor: null,
         }),
       ),
@@ -793,11 +829,15 @@ for (const phone of [false, true])
     );
     const role = phone ? 'button' : 'option';
     fireEvent.change(box, { target: { value: 'PUNI' } });
-    fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Puni remote' }));
+    fireEvent.click(await screen.findByRole(role, { name: 'Work package PUNI - Puni remote' }));
     fireEvent.click(await screen.findByRole(role, { name: 'PUNI.080.s1-dev - Remote build' }));
-    vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+    vi.mocked(routes.workPackages).mockResolvedValue(
+      success({ workPackages: [other], nextCursor: null }),
+    );
     fireEvent.change(box, { target: { value: 'PUNI' } });
-    fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Other Puni holder' }));
+    fireEvent.click(
+      await screen.findByRole(role, { name: 'Work package PUNI - Other Puni holder' }),
+    );
     fireEvent.click(await screen.findByRole(role, { name: 'PUNI.080.s1-dev - Remote build' }));
     expect(add).toHaveBeenCalledTimes(2);
     await act(async () => {
@@ -823,21 +863,21 @@ it('an older list completion retains a newly selected identical-text occurrence'
         release = resolve;
       }),
   );
-  const other = { ...project, projectId: 'other', name: 'Other Puni holder' };
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  const other = { ...workPackage, workPackageId: 'other', name: 'Other Puni holder' };
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -845,15 +885,19 @@ it('an older list completion retains a newly selected identical-text occurrence'
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
   fireEvent.keyDown(box, { key: 'Enter' });
   await waitFor(() => {
     expect(add).toHaveBeenCalledTimes(1);
   });
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other Puni holder' }));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'Work package PUNI - Other Puni holder' }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
   if (release === undefined) throw new Error('Write did not start');
   await act(async () => {
@@ -864,19 +908,19 @@ it('an older list completion retains a newly selected identical-text occurrence'
 });
 
 for (const phone of [false, true])
-  for (const selectedProjectId of ['other', 'remote'])
-    it(`round2 an old pending Customize completion cannot close a newer editor on ${phone ? 'phone' : 'desktop'} for ${selectedProjectId}`, async () => {
+  for (const selectedWorkPackageId of ['other', 'remote'])
+    it(`round2 an old pending Customize completion cannot close a newer editor on ${phone ? 'phone' : 'desktop'} for ${selectedWorkPackageId}`, async () => {
       const { box, add, routes } = await mount(phone);
-      const other = { ...project, projectId: selectedProjectId, name: 'Other holder' };
-      vi.mocked(routes.candidates).mockImplementation((projectId) =>
+      const other = { ...workPackage, workPackageId: selectedWorkPackageId, name: 'Other holder' };
+      vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
         Promise.resolve(
           success({
-            project: projectId === 'remote' ? project : other,
+            workPackage: workPackageId === 'remote' ? workPackage : other,
             addressRevision: 'r1',
             candidates: [
-              { ...node, projectId },
+              { ...node, workPackageId },
               {
-                projectId,
+                workPackageId,
                 workItemId: node.workItemId,
                 number: node.number,
                 name: node.name,
@@ -897,7 +941,7 @@ for (const phone of [false, true])
       );
       const role = phone ? 'button' : 'option';
       fireEvent.change(box, { target: { value: '999, PUNI' } });
-      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Puni remote' }));
+      fireEvent.click(await screen.findByRole(role, { name: 'Work package PUNI - Puni remote' }));
       fireEvent.click(
         await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
       );
@@ -908,11 +952,11 @@ for (const phone of [false, true])
       });
       fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
       expect(add).toHaveBeenCalledTimes(1);
-      vi.mocked(routes.projects).mockResolvedValue(
-        success({ projects: [other], nextCursor: null }),
+      vi.mocked(routes.workPackages).mockResolvedValue(
+        success({ workPackages: [other], nextCursor: null }),
       );
       fireEvent.change(box, { target: { value: '999, PUNI' } });
-      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Other holder' }));
+      fireEvent.click(await screen.findByRole(role, { name: 'Work package PUNI - Other holder' }));
       fireEvent.click(
         await screen.findByRole('button', { name: 'Customize PUNI.080.s1-dev - Remote build' }),
       );
@@ -923,7 +967,7 @@ for (const phone of [false, true])
       });
       const relationship = screen.getByLabelText<HTMLSelectElement>('Relationship');
       fireEvent.change(screen.getByLabelText('Predecessor'), {
-        target: { value: JSON.stringify([selectedProjectId, node.workItemId, 'whole', null]) },
+        target: { value: JSON.stringify([selectedWorkPackageId, node.workItemId, 'whole', null]) },
       });
       fireEvent.change(relationship, { target: { value: 'SS' } });
       act(() => {
@@ -938,7 +982,7 @@ for (const phone of [false, true])
       expect(screen.getByLabelText<HTMLSelectElement>('Relationship').value).toBe('SS');
       expect(box.value).toBe('999, PUNI.');
       expect(screen.getByLabelText<HTMLSelectElement>('Predecessor').value).toBe(
-        JSON.stringify([selectedProjectId, node.workItemId, 'whole', null]),
+        JSON.stringify([selectedWorkPackageId, node.workItemId, 'whole', null]),
       );
       expect(document.activeElement).toBe(relationship);
       fireEvent.click(screen.getByRole('button', { name: /^Add$/ }));
@@ -946,7 +990,7 @@ for (const phone of [false, true])
         expect(add).toHaveBeenCalledTimes(2);
       });
       expect(add.mock.calls[1][1]).toEqual({
-        projectId: selectedProjectId,
+        workPackageId: selectedWorkPackageId,
         scope: 'whole',
         workItemId: node.workItemId,
       });
@@ -958,21 +1002,21 @@ for (const phone of [false, true])
     it(`round2 known ${customize ? 'Customize' : 'one-click'} consumption preserves the first identical binding on ${phone ? 'phone' : 'desktop'}`, async () => {
       const { box, add, routes } = await mount(phone);
       const role = phone ? 'button' : 'option';
-      const other = { ...project, projectId: 'other', name: 'Other holder' };
-      vi.mocked(routes.candidates).mockImplementation((projectId) =>
+      const other = { ...workPackage, workPackageId: 'other', name: 'Other holder' };
+      vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
         Promise.resolve(
           success({
-            project: projectId === 'remote' ? project : other,
+            workPackage: workPackageId === 'remote' ? workPackage : other,
             addressRevision: 'r1',
-            candidates: [{ ...node, projectId }],
+            candidates: [{ ...node, workPackageId }],
             nextCursor: null,
           }),
         ),
       );
-      vi.mocked(routes.resolve).mockImplementation((projectId) =>
+      vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
         Promise.resolve(
           success({
-            projectId,
+            workPackageId,
             endpoint: node.endpoint,
             reference: node.reference,
             addressRevision: 'r1',
@@ -980,12 +1024,12 @@ for (const phone of [false, true])
         ),
       );
       fireEvent.change(box, { target: { value: 'PUNI' } });
-      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Puni remote' }));
-      vi.mocked(routes.projects).mockResolvedValue(
-        success({ projects: [other], nextCursor: null }),
+      fireEvent.click(await screen.findByRole(role, { name: 'Work package PUNI - Puni remote' }));
+      vi.mocked(routes.workPackages).mockResolvedValue(
+        success({ workPackages: [other], nextCursor: null }),
       );
       fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
-      fireEvent.click(await screen.findByRole(role, { name: 'Project PUNI - Other holder' }));
+      fireEvent.click(await screen.findByRole(role, { name: 'Work package PUNI - Other holder' }));
       fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev' } });
       if (customize) {
         fireEvent.click(
@@ -1002,7 +1046,7 @@ for (const phone of [false, true])
       await waitFor(() => {
         expect(box.value).toBe('PUNI.080.s1-dev, ');
       });
-      expect(add.mock.calls.map((call) => call[1].projectId)).toEqual(['other']);
+      expect(add.mock.calls.map((call) => call[1].workPackageId)).toEqual(['other']);
       if (phone) {
         fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev' } });
         fireEvent.click(await screen.findByRole(role, { name: 'PUNI.080.s1-dev - Remote build' }));
@@ -1010,27 +1054,27 @@ for (const phone of [false, true])
       await waitFor(() => {
         expect(add).toHaveBeenCalledTimes(2);
       });
-      expect(add.mock.calls.map((call) => call[1].projectId)).toEqual(['other', 'remote']);
-      expect(routes.projects).toHaveBeenCalledTimes(2);
+      expect(add.mock.calls.map((call) => call[1].workPackageId)).toEqual(['other', 'remote']);
+      expect(routes.workPackages).toHaveBeenCalledTimes(2);
     });
 
 it('round2 deliberate reselection after ambiguous duplicate deletion restores one pinned occurrence', async () => {
   const { box, add, routes } = await mount();
-  const other = { ...project, projectId: 'other', name: 'Other holder' };
-  vi.mocked(routes.candidates).mockImplementation((projectId) =>
+  const other = { ...workPackage, workPackageId: 'other', name: 'Other holder' };
+  vi.mocked(routes.candidates).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        project: projectId === 'remote' ? project : other,
+        workPackage: workPackageId === 'remote' ? workPackage : other,
         addressRevision: 'r1',
-        candidates: [{ ...node, projectId }],
+        candidates: [{ ...node, workPackageId }],
         nextCursor: null,
       }),
     ),
   );
-  vi.mocked(routes.resolve).mockImplementation((projectId) =>
+  vi.mocked(routes.resolve).mockImplementation((workPackageId) =>
     Promise.resolve(
       success({
-        projectId,
+        workPackageId,
         endpoint: node.endpoint,
         reference: node.reference,
         addressRevision: 'r1',
@@ -1038,23 +1082,25 @@ it('round2 deliberate reselection after ambiguous duplicate deletion restores on
     ),
   );
   fireEvent.change(box, { target: { value: 'PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Puni remote' }));
-  vi.mocked(routes.projects).mockResolvedValue(success({ projects: [other], nextCursor: null }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Puni remote' }));
+  vi.mocked(routes.workPackages).mockResolvedValue(
+    success({ workPackages: [other], nextCursor: null }),
+  );
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other holder' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Other holder' }));
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev, PUNI.080.s1-dev,' } });
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
   fireEvent.keyDown(box, { key: 'Enter' });
   expect(
-    await screen.findByText('These were refused: PUNI.080.s1-dev (choose a project).'),
+    await screen.findByText('These were refused: PUNI.080.s1-dev (choose a work package).'),
   ).toBeDefined();
   expect(add).not.toHaveBeenCalled();
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev' } });
-  fireEvent.click(await screen.findByRole('option', { name: 'Project PUNI - Other holder' }));
+  fireEvent.click(await screen.findByRole('option', { name: 'Work package PUNI - Other holder' }));
   fireEvent.change(box, { target: { value: 'PUNI.080.s1-dev,' } });
   fireEvent.keyDown(box, { key: 'Enter' });
   await waitFor(() => {
     expect(add).toHaveBeenCalledTimes(1);
   });
-  expect(add.mock.calls[0][1]).toEqual(expect.objectContaining({ projectId: 'other' }));
+  expect(add.mock.calls[0][1]).toEqual(expect.objectContaining({ workPackageId: 'other' }));
 });

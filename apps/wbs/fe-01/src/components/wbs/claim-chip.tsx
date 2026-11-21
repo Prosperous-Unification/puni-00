@@ -15,7 +15,7 @@ import { type LeaseClock, useLeaseNow } from './lease-clock';
 /**
  * One claim the table or the cards draw: the claim, its holder's initials, the
  * subtree claim it is delegated under (null when none), the clock its read was taken on, the
- * plan's one lease clock it is read at, and the project's zone its instant is
+ * plan's one lease clock it is read at, and the work package's zone its instant is
  * printed in (null from a read that predates the zone, which leaves the instant
  * out rather than printing the reader's own).
  */

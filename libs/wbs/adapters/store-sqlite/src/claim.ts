@@ -23,12 +23,14 @@ import { renewalAt } from '@wbs/domain';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { readSqliteClaimLeafStepsIn } from './claim-observation';
 import { type Connection, type Drizzle, observeCommitted } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { signalClaimResourceUses } from './resource-use';
+import { enrollResourceUseClaimIn, moveResourceUseClaimLocationsIn } from './resource-use-location';
 import { bumpWorkItems } from './revision';
 import {
   claim,
@@ -36,14 +38,14 @@ import {
   machineCredential,
   person,
   personOrganization,
-  project,
-  projectOrganization,
   resource,
   resourceOrganization,
-  step,
   stepProgress,
   workItem,
+  workPackage,
+  workPackageOrganization,
 } from './schema';
+import { readCatalogueStepsIn } from './step';
 
 /** A stored claim with its write instant (null for a row written outside `add`) and lease. */
 type StoredClaim = Claim & {
@@ -76,7 +78,7 @@ export class ClaimRepository implements ClaimStore {
   private readonly identity: ClaimIdentity;
 
   /**
-   * `observation` is the connection {@link observeProject} reads committed
+   * `observation` is the connection {@link observeWorkPackage} reads committed
    * state through; absent, it reads the process connection (see there).
    */
   constructor(
@@ -87,20 +89,20 @@ export class ClaimRepository implements ClaimStore {
     this.identity = claimIdentityOf(new DirectoryRepository(db, gate));
   }
 
-  async listByProject(projectId: string): Promise<Claim[]> {
-    return (await this.read(projectId)).map(unstampClaim);
+  async listByWorkPackage(workPackageId: string): Promise<Claim[]> {
+    return (await this.read(workPackageId)).map(unstampClaim);
   }
 
-  async listStampedByProject(projectId: string): Promise<StampedClaim[]> {
-    return (await this.read(projectId)).map(stampedOf);
+  async listStampedByWorkPackage(workPackageId: string): Promise<StampedClaim[]> {
+    return (await this.read(workPackageId)).map(stampedOf);
   }
 
-  async findById(projectId: string, claimId: string): Promise<Claim | null> {
-    const found = (await this.read(projectId, claimId)).at(0);
+  async findById(workPackageId: string, claimId: string): Promise<Claim | null> {
+    const found = (await this.read(workPackageId, claimId)).at(0);
     return found === undefined ? null : unstampClaim(found);
   }
 
-  async occupancyOf(projectId: string): Promise<OccupancyRow[]> {
+  async occupancyOf(workPackageId: string): Promise<OccupancyRow[]> {
     return await this.db
       .select({
         claimId: claimOccupancy.claimId,
@@ -113,13 +115,13 @@ export class ClaimRepository implements ClaimStore {
       .from(claimOccupancy)
       .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-      .where(eq(workItem.projectId, projectId))
+      .where(eq(workItem.workPackageId, workPackageId))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId));
   }
 
   /**
-   * Joined `claim → work_item → project_organization` and to the resource's
-   * own `resource_organization` row on the same organization, so a project
+   * Joined `claim → work_item → work_package_organization` and to the resource's
+   * own `resource_organization` row on the same organization, so a work package
    * outside the resource's organization contributes nothing (S2). Read on this
    * repository's connection: inside a batch, the batch's own, after its turn.
    */
@@ -128,8 +130,8 @@ export class ClaimRepository implements ClaimStore {
   ): Promise<OrganizationOccupancyRow[]> {
     await Promise.resolve();
     if (resourceIds.length === 0) return [];
-    // One read: the project's organization is left-joined, so a row whose
-    // project belongs to none is seen here and thrown on, as the units read
+    // One read: the work package's organization is left-joined, so a row whose
+    // work package belongs to none is seen here and thrown on, as the units read
     // throws (review S3-8), and a row of another organization is skipped.
     const rows = this.db
       .select({
@@ -139,8 +141,8 @@ export class ClaimRepository implements ClaimStore {
         runId: claim.runId,
         resourceId: claimOccupancy.resourceId,
         units: claimOccupancy.units,
-        projectId: workItem.projectId,
-        organizationId: projectOrganization.organizationId,
+        workPackageId: workItem.workPackageId,
+        organizationId: workPackageOrganization.organizationId,
         owner: resourceOrganization.organizationId,
       })
       .from(claimOccupancy)
@@ -150,17 +152,20 @@ export class ClaimRepository implements ClaimStore {
         resourceOrganization,
         eq(resourceOrganization.resourceId, claimOccupancy.resourceId),
       )
-      .leftJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .leftJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .where(inArray(claimOccupancy.resourceId, [...resourceIds]))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId))
       .all();
     return rows.flatMap(({ owner, organizationId, ...row }) => {
       // Proof: with this throw removed (the row skipped instead), the holder
-      // read of `throws on a holder in a project of no organization`
+      // read of `throws on a holder in a workPackage of no organization`
       // (shared-occupancy.db.test.ts) answered it; watched 2026-10-25.
       if (organizationId === null)
         throw new Error(
-          `resource ${row.resourceId} is held in a project of no organization: corrupt trusted state`,
+          `resource ${row.resourceId} is held in a work package of no organization: corrupt trusted state`,
         );
       return organizationId === owner ? [{ ...row, organizationId }] : [];
     });
@@ -170,12 +175,12 @@ export class ClaimRepository implements ClaimStore {
    * Each leaf's largest copy summed per resource in SQL, with no rows
    * materialised and no ordering: what the claim check counts, on this
    * repository's connection (inside a batch, the batch's own, after its turn).
-   * A row on a resource some organization owns whose project belongs to no
+   * A row on a resource some organization owns whose work package belongs to no
    * organization is corrupt trusted state, counted in the same statement and
-   * thrown on: after activation every project has its `project_organization`
+   * thrown on: after activation every work package has its `work_package_organization`
    * row, and a legacy store's resources have no organization to be counted in.
    *
-   * Proof: with the throw removed, `throws on a holder in a project of no
+   * Proof: with the throw removed, `throws on a holder in a workPackage of no
    * organization` (shared-occupancy.db.test.ts) answered the units without it,
    * on SQLite; watched 2026-10-25.
    * Proof: with the per-leaf `MAX(co.units)` made `SUM`, every claim row of
@@ -203,7 +208,7 @@ export class ClaimRepository implements ClaimStore {
         JOIN claim AS c ON c.id = co.claim_id
         JOIN work_item AS wi ON wi.id = c.work_item_id
         JOIN resource_organization AS ro ON ro.resource_id = co.resource_id
-        LEFT JOIN project_organization AS po ON po.resource_id = wi.project_id
+        LEFT JOIN work_package_organization AS po ON po.resource_id = wi.work_package_id
         WHERE co.resource_id IN (${ids})
         GROUP BY co.resource_id, c.work_item_id
       ) AS leaf
@@ -211,7 +216,7 @@ export class ClaimRepository implements ClaimStore {
     const corrupt = rows.find(({ unowned }) => unowned > 0);
     if (corrupt !== undefined)
       throw new Error(
-        `resource ${corrupt.resourceId} is held in a project of no organization: corrupt trusted state`,
+        `resource ${corrupt.resourceId} is held in a work package of no organization: corrupt trusted state`,
       );
     return rows.flatMap(({ resourceId, units }) =>
       units === null || units === 0 ? [] : [{ resourceId, units }],
@@ -239,7 +244,10 @@ export class ClaimRepository implements ClaimStore {
    * process runs between them, but an open batch's uncommitted writes on that
    * connection are seen.
    */
-  async observeProject(projectId: string, access: ResourceAccess): Promise<ClaimObservation> {
+  async observeWorkPackage(
+    workPackageId: string,
+    access: ResourceAccess,
+  ): Promise<ClaimObservation> {
     const { observation } = this;
     // Proof, each watched 2026-10-23 on claim-observation.db.test.ts: with the
     // process connection read here in place of the owned one, `does not see a
@@ -248,24 +256,29 @@ export class ClaimRepository implements ClaimStore {
     // while another connection commits a row and its claim` threw `claim
     // claim-other is on no row of this read` (4 pass, 1 fail).
     if (observation !== undefined)
-      return observeCommitted(observation.openConnection, (db) => observeIn(db, projectId, access));
+      // Proof: owned-snapshot uses this actual reader without its transaction;
+      // the racing row/claim commit is seen after the tree read and public
+      // projection throws `on no row of this read` (one failure, 2026-11-19).
+      return observeCommitted(observation.openConnection, (db) =>
+        observeIn(db, workPackageId, access),
+      );
     await Promise.resolve();
-    return this.observeNow(projectId, access);
+    return this.observeNow(workPackageId, access);
   }
 
   /**
-   * {@link observeProject} on the process connection: every read synchronous,
+   * {@link observeWorkPackage} on the process connection: every read synchronous,
    * with no await between them, inside one savepoint, which nests inside a
    * batch's open transaction where `BEGIN` would fail.
    *
    * @throws an AggregateError of the read's failure and the rollback's when
    * the savepoint cannot be rolled back.
    */
-  private observeNow(projectId: string, access: ResourceAccess): ClaimObservation {
+  private observeNow(workPackageId: string, access: ResourceAccess): ClaimObservation {
     this.db.run(sql.raw('SAVEPOINT claim_observation'));
     let observed: ClaimObservation;
     try {
-      observed = observeIn(this.db, projectId, access);
+      observed = observeIn(this.db, workPackageId, access);
     } catch (cause) {
       try {
         this.db.run(sql.raw('ROLLBACK TO claim_observation'));
@@ -287,9 +300,9 @@ export class ClaimRepository implements ClaimStore {
   }
 
   /** Claims with their write instant as stored and their lease, as {@link StoredClaim}. */
-  private async read(projectId: string, claimId?: string): Promise<StoredClaim[]> {
+  private async read(workPackageId: string, claimId?: string): Promise<StoredClaim[]> {
     await Promise.resolve();
-    return readClaimsIn(this.db, projectId, claimId);
+    return readClaimsIn(this.db, workPackageId, claimId);
   }
 
   async add(
@@ -360,6 +373,7 @@ export class ClaimRepository implements ClaimStore {
             })
             .run();
         }
+        for (const each of claims) enrollResourceUseClaimIn(tx, each);
         for (const row of occupancy) {
           tx.insert(claimOccupancy)
             .values({ ...row, ...auditOnCreate(stamp) })
@@ -438,7 +452,7 @@ export class ClaimRepository implements ClaimStore {
     const dueAt = (at: number) =>
       and(inForceAt(at), lt(claim.leaseExpiresAt, renewalAt(at).dueBefore));
     let at = now();
-    let renewedProjectIds: string[] = [];
+    let renewedWorkPackageIds: string[] = [];
     const anyDue = this.db.select({ id: claim.id }).from(claim).where(dueAt(at)).limit(1).all();
     // Read before the turn: a heartbeat within the resolution answers without
     // waiting for whatever write holds it (issue #668's lesson).
@@ -456,24 +470,24 @@ export class ClaimRepository implements ClaimStore {
         // (claim-lease.db.test.ts) renewed it (10 pass, 1 fail); watched 2026-10-23.
         at = now();
         const renewed = renewalAt(at).expiresAt;
-        // The projects come back from the statement that moves their leases:
+        // The work packages come back from the statement that moves their leases:
         // one write statement, so a rolled-back renewal names none
         // (`wbs-claim-display` C4) and no read snapshot taken before it can
         // refuse its upgrade to a write (SQLITE_BUSY_SNAPSHOT mid-swap).
-        // Only the rows this statement moved can name a project here.
+        // Only the rows this statement moved can name a work package here.
         // Proof: unsorted, and again undeduplicated, the SQLite certification's
-        // `claims.lease:write-renew-expire` case failed on the project list
+        // `claims.lease:write-renew-expire` case failed on the work package list
         // (74 pass, 1 fail each); watched 2026-10-23.
         const moved = this.db
           .update(claim)
           .set({ leaseExpiresAt: renewed, ...auditOnUpdate({ at }) })
           .where(dueAt(at))
           .returning({
-            projectId: sql<string>`(SELECT ${workItem.projectId} FROM ${workItem} WHERE ${workItem.id} = ${claim.workItemId})`,
+            workPackageId: sql<string>`(SELECT ${workItem.workPackageId} FROM ${workItem} WHERE ${workItem.id} = ${claim.workItemId})`,
           })
           .all();
         // Code-unit order, as SQLite's binary collation orders the ids.
-        renewedProjectIds = [...new Set(moved.map(({ projectId }) => projectId))].sort(
+        renewedWorkPackageIds = [...new Set(moved.map(({ workPackageId }) => workPackageId))].sort(
           (left, right) => (left < right ? -1 : Number(left > right)),
         );
       });
@@ -489,16 +503,16 @@ export class ClaimRepository implements ClaimStore {
     if (standing === undefined) throw new Error('a count of leases answered no row');
     return {
       standing: { leases: standing.leases, leaseExpiresAt: standing.leaseExpiresAt },
-      renewedProjectIds,
+      renewedWorkPackageIds,
     };
   }
 
-  async expiredLeasesOf(projectId: string, at: number): Promise<ExpiredLease[]> {
+  async expiredLeasesOf(workPackageId: string, at: number): Promise<ExpiredLease[]> {
     const rows = await this.db
       .select({ claimId: claim.id, revokedAt: claim.leaseRevokedAt })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-      .where(and(eq(workItem.projectId, projectId), lte(claim.leaseExpiresAt, at)))
+      .where(and(eq(workItem.workPackageId, workPackageId), lte(claim.leaseExpiresAt, at)))
       .orderBy(asc(claim.id));
     return rows.map(({ claimId, revokedAt }) => ({
       claimId,
@@ -506,28 +520,29 @@ export class ClaimRepository implements ClaimStore {
     }));
   }
 
-  async projectsWithExpiredLeases(at: number, limit: number): Promise<string[]> {
+  async workPackagesWithExpiredLeases(at: number, limit: number): Promise<string[]> {
     const oldest = sql<number>`min(${claim.leaseExpiresAt})`;
     const rows = await this.db
-      .select({ projectId: workItem.projectId, oldest })
+      .select({ workPackageId: workItem.workPackageId, oldest })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
       .where(and(isNotNull(claim.leaseExpiresAt), lte(claim.leaseExpiresAt, at)))
-      .groupBy(workItem.projectId)
-      // Oldest expiry first, so a project stuck at the head cannot pin the
-      // tick's bound to project-id order (the sweep also catches per project).
-      // Proof: ordered by project id alone, the SQLite certification's
+      .groupBy(workItem.workPackageId)
+      // Oldest expiry first, so a work package stuck at the head cannot pin the
+      // tick's bound to work-package-id order (the sweep also catches per work package).
+      // Proof: ordered by work package id alone, the SQLite certification's
       // `claims.lease:write-renew-expire` case failed (74 pass, 1 fail);
       // watched 2026-10-23.
-      .orderBy(asc(oldest), asc(workItem.projectId))
+      .orderBy(asc(oldest), asc(workItem.workPackageId))
       .limit(limit);
-    return rows.map(({ projectId }) => projectId);
+    return rows.map(({ workPackageId }) => workPackageId);
   }
 
   async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db.transaction((tx) => {
+        moveResourceUseClaimLocationsIn(tx, fromWorkItemId, toWorkItemId);
         // An update, never a delete and insert: the `parent_claim_id` cascade
         // would take every delegated claim under a moved one.
         // Proof: with the update aimed at no row, the SQLite certification's
@@ -543,50 +558,50 @@ export class ClaimRepository implements ClaimStore {
 }
 
 /**
- * {@link ClaimRepository.observeProject}'s reads, all synchronous on `db`.
- * Ownership is the tree read's (`ProjectRepository.findInOrganization`): the
- * project row joined to its `project_organization` row for the organization.
+ * {@link ClaimRepository.observeWorkPackage}'s reads, all synchronous on `db`.
+ * Ownership is the tree read's (`WorkPackageRepository.findInOrganization`): the
+ * work package row joined to its `work_package_organization` row for the organization.
  */
-function observeIn(db: Drizzle, projectId: string, access: ResourceAccess): ClaimObservation {
+function observeIn(db: Drizzle, workPackageId: string, access: ResourceAccess): ClaimObservation {
   const activated = readOrganizationActivation(db) !== 'pre_activation';
   if (access.kind === 'legacy') {
     // Proof: with this recheck skipped, `refuses legacy access once the
     // deployment is activated` (claim-observation.db.test.ts) observed the
-    // project (2 pass, 1 fail); watched 2026-10-23.
+    // work package (2 pass, 1 fail); watched 2026-10-23.
     if (activated) return { kind: 'access_refused', refusal: 'no_active_organization' };
     const found = db
-      .select({ id: project.id })
-      .from(project)
-      .where(eq(project.id, projectId))
+      .select({ id: workPackage.id })
+      .from(workPackage)
+      .where(eq(workPackage.id, workPackageId))
       .get();
     if (found === undefined) return { kind: 'not_found' };
   } else {
     // Proof: with this recheck skipped, `refuses an activation marker reset
-    // between admission and the observation` (project-claims-organization.
+    // between admission and the observation` (work-package-claims-organization.
     // controller.db.test.ts) answered 200 with the claims (7 pass, 1 fail);
     // watched 2026-10-23.
     if (!activated) return { kind: 'access_refused', refusal: 'no_active_organization' };
     const { organizationId, userId } = access.scope;
-    const member = currentMembershipAccess(db, organizationId, userId);
+    const member = readMembershipIn(db, organizationId, userId);
     // Proof: with this recheck skipped, `refuses a member removed between
     // admission and the observation, as the tree read does`
-    // (project-claims-organization.controller.db.test.ts) answered 200 with
+    // (work-package-claims-organization.controller.db.test.ts) answered 200 with
     // the claims (7 pass, 1 fail); watched 2026-10-23.
-    if (!member.ok) return { kind: 'access_refused', refusal: member.refusal };
+    if (member === null) return { kind: 'access_refused', refusal: 'not_a_member' };
     const owned = db
-      .select({ id: project.id })
-      .from(project)
+      .select({ id: workPackage.id })
+      .from(workPackage)
       .innerJoin(
-        projectOrganization,
+        workPackageOrganization,
         and(
-          eq(projectOrganization.resourceId, project.id),
-          eq(projectOrganization.organizationId, organizationId),
+          eq(workPackageOrganization.resourceId, workPackage.id),
+          eq(workPackageOrganization.organizationId, organizationId),
         ),
       )
-      .where(eq(project.id, projectId))
+      .where(eq(workPackage.id, workPackageId))
       .get();
-    // Proof: with this recheck skipped, `answers a project moved out of the
-    // organization after admission as not found` (project-claims-organization.
+    // Proof: with this recheck skipped, `answers a workPackage moved out of the
+    // organization after admission as not found` (work-package-claims-organization.
     // controller.db.test.ts) answered 200 with the claims (7 pass, 1 fail);
     // watched 2026-10-23.
     if (owned === undefined) return { kind: 'not_found' };
@@ -601,18 +616,15 @@ function observeIn(db: Drizzle, projectId: string, access: ResourceAccess): Clai
     })
     .from(workItem)
     // Proof: with this filter dropped, the SQLite certification's
-    // `claims.observeProject:legacy-observation` case read the other
-    // project's rows (74 pass, 1 fail); watched 2026-10-23.
-    .where(eq(workItem.projectId, projectId))
+    // `claims.observeWorkPackage:legacy-observation` case read the other
+    // work package's rows (74 pass, 1 fail); watched 2026-10-23.
+    .where(eq(workItem.workPackageId, workPackageId))
     .all();
-  const stepIds = db
-    .select({ id: step.id })
-    .from(step)
-    .where(eq(step.projectId, projectId))
-    .orderBy(step.position, step.id)
-    .all()
-    .map(({ id }) => id);
-  const claims = readClaimsIn(db, projectId).map(stampedOf);
+  // Proof: sqlite-package-values bypasses this dependency; a real package with
+  // no claims answers despite missing physical explicit values (one failure).
+  const stepIds = readCatalogueStepsIn(db, workPackageId).map(({ id }) => id);
+  const claims = readClaimsIn(db, workPackageId).map(stampedOf);
+  const leafSteps = readSqliteClaimLeafStepsIn(db, workPackageId, claims);
   const holders = [...new Set(claims.map(({ personId }) => personId))];
   const named =
     holders.length === 0
@@ -637,13 +649,14 @@ function observeIn(db: Drizzle, projectId: string, access: ResourceAccess): Clai
     kind: 'observed',
     rows,
     stepIds,
+    leafSteps,
     claims,
     personNames: new Map(named.map(({ id, name }) => [id, name])),
   };
 }
 
-/** A project's stored claims (one by id when `claimId` is given), synchronously on `db`. */
-function readClaimsIn(db: Drizzle, projectId: string, claimId?: string): StoredClaim[] {
+/** A work package's stored claims (one by id when `claimId` is given), synchronously on `db`. */
+function readClaimsIn(db: Drizzle, workPackageId: string, claimId?: string): StoredClaim[] {
   const rows = db
     .select({
       id: claim.id,
@@ -664,7 +677,7 @@ function readClaimsIn(db: Drizzle, projectId: string, claimId?: string): StoredC
     .innerJoin(workItem, eq(workItem.id, claim.workItemId))
     .where(
       and(
-        eq(workItem.projectId, projectId),
+        eq(workItem.workPackageId, workPackageId),
         claimId === undefined ? undefined : eq(claim.id, claimId),
       ),
     )

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/service/committed-fanout';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -124,7 +124,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
   return { path, db: openDrizzle(path) };
 }
 
-function seedProject(path: string, projectId = 'p-1'): void {
+function seedWorkPackage(path: string, workPackageId = 'p-1'): void {
   const db = openDatabase(path);
   try {
     db.run(
@@ -132,10 +132,10 @@ function seedProject(path: string, projectId = 'p-1'): void {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     db.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
-      [projectId, `Plan ${projectId}`],
+      [workPackageId, `Plan ${workPackageId}`],
     );
   } finally {
     db.close();
@@ -208,7 +208,7 @@ function seedReadyVariant(
   objective: 'pri' | 'time',
 ): void {
   const admission = reserveSolverSlot(db, {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation,
     objective,
@@ -219,7 +219,7 @@ function seedReadyVariant(
   });
   if (admission.kind !== 'reserved') throw new Error('ready variant fixture was not admitted');
   const claim = {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation,
     objective,
@@ -259,19 +259,19 @@ function seedReadyVariant(
 describe('OptimizationCoordinator read', () => {
   it('hands off the stored outcome before downstream rows and releases its slot while delivery is held', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const log = new DrizzleEventLogStore(db, OPEN);
     // The extra durable row is injected at the consumer boundary; 6k.b owns
     // the installed transactional producer proof.
     const downstream = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await log.recordEvent('project:p-1', downstream, 3);
-    const envelope = { projectId: 'p-1', event: downstream, recorded };
+    const recorded = await log.recordEvent('work-package:p-1', downstream, 3);
+    const envelope = { workPackageId: 'p-1', event: downstream, recorded };
     const held = deferred<undefined>();
-    const delivered: CommittedProjectEvent[][] = [];
+    const delivered: CommittedWorkPackageEvent[][] = [];
     const errors: unknown[] = [];
     const instance = coordinator(
       db,
@@ -306,7 +306,7 @@ describe('OptimizationCoordinator read', () => {
         },
       },
     );
-    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT });
     for (let turn = 0; turn < 100 && db.select().from(solverSlot).all().length > 0; turn += 1)
       await new Promise((resolve) => setTimeout(resolve, 1));
     expect(db.select().from(solverSlot).all()).toEqual([]);
@@ -340,7 +340,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('does not invoke committed delivery for empty adapter envelopes', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     let deliveries = 0;
     const instance = coordinator(
@@ -361,24 +361,29 @@ describe('OptimizationCoordinator read', () => {
         },
       },
     );
-    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.readPlan({
+      workPackageId: 'p-1',
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
     await instance.drain();
     expect(deliveries).toBe(0);
   });
 
   it('hands off a committed reservation envelope without waiting for held delivery', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
     const log = new DrizzleEventLogStore(db, OPEN);
-    const recorded = await log.recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
+    const recorded = await log.recordEvent('work-package:p-1', event, 3);
+    const envelope = { workPackageId: 'p-1', event, recorded };
     const held = Promise.withResolvers<undefined>();
-    const delivered: CommittedProjectEvent[] = [];
+    const delivered: CommittedWorkPackageEvent[] = [];
     const calls: ReservedSpawnRequest[] = [];
     let injected = false;
     const instance = coordinator(
@@ -408,7 +413,7 @@ describe('OptimizationCoordinator read', () => {
       },
     );
     const reading = instance.readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input: INPUT,
       enabled: true,
@@ -441,14 +446,14 @@ describe('OptimizationCoordinator read', () => {
     expect(stopped).toBe(true);
   });
 
-  it('delivers a committed project-full reservation answer before its early branch', async () => {
+  it('delivers a committed work-package-full reservation answer before its early branch', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
     for (let budgetMs = 1; budgetMs <= 4; budgetMs += 1) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',
@@ -461,12 +466,16 @@ describe('OptimizationCoordinator read', () => {
     }
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
-    const delivered: CommittedProjectEvent[] = [];
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
+    const delivered: CommittedWorkPackageEvent[] = [];
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
       db,
@@ -481,7 +490,7 @@ describe('OptimizationCoordinator read', () => {
         ...repository,
         reserveSlot: async (request) => {
           const committed = await repository.reserveSlot(request);
-          expect(committed.decision.kind).toBe('project-full');
+          expect(committed.decision.kind).toBe('work-package-full');
           return { ...committed, envelopes: [envelope] };
         },
       }),
@@ -493,7 +502,12 @@ describe('OptimizationCoordinator read', () => {
         },
       },
     );
-    await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+    await instance.readPlan({
+      workPackageId: 'p-1',
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
     await instance.drain();
     expect(delivered).toEqual([envelope, envelope]);
     expect(calls).toEqual([]);
@@ -501,15 +515,19 @@ describe('OptimizationCoordinator read', () => {
 
   it('delivers an empty-dequeue commit before the queue pump returns', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
-    const delivered: CommittedProjectEvent[] = [];
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
+    const delivered: CommittedWorkPackageEvent[] = [];
     const entered = Promise.withResolvers<undefined>();
     const held = Promise.withResolvers<undefined>();
     const instance = coordinator(
@@ -553,11 +571,11 @@ describe('OptimizationCoordinator read', () => {
 
   it('keeps a dequeued token while its committed delivery is held then rejected', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -567,13 +585,17 @@ describe('OptimizationCoordinator read', () => {
     ).toEqual({ kind: 'queued' });
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
     const held = Promise.withResolvers<undefined>();
-    const delivered: CommittedProjectEvent[] = [];
+    const delivered: CommittedWorkPackageEvent[] = [];
     const errors: unknown[] = [];
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
@@ -609,7 +631,7 @@ describe('OptimizationCoordinator read', () => {
     expect(delivered).toEqual([envelope]);
     const secondWriter = openDatabase(path);
     try {
-      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+      secondWriter.run("UPDATE work_package SET name = 'writer-entered' WHERE id = 'p-1'");
     } finally {
       secondWriter.close();
     }
@@ -623,14 +645,14 @@ describe('OptimizationCoordinator read', () => {
     await stopping;
     expect(errors).toHaveLength(1);
     expect(stopped).toBe(true);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:p-1', -1)).toEqual([
       recorded,
     ]);
   });
 
   it('coalesces reconciliation ticks behind one unsettled source turn', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const repository = createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN);
     const entered = Promise.withResolvers<undefined>();
     const release = Promise.withResolvers<undefined>();
@@ -683,16 +705,16 @@ describe('OptimizationCoordinator read', () => {
     // calls on each tick instead of coalescing a single follow-up.
   });
 
-  it('finishes unlaunched slot release before dequeuing the next project', async () => {
+  it('finishes unlaunched slot release before dequeuing the next work package', async () => {
     const { path, db } = database();
-    seedProject(path);
-    seedProject(path, 'p-2');
+    seedWorkPackage(path);
+    seedWorkPackage(path, 'p-2');
     const inputHash = scheduleInputHash(INPUT);
-    for (const projectId of ['p-1', 'p-2']) {
-      const generation = allocateGeneration(db, projectId, CONTRACT, inputHash, 2);
+    for (const workPackageId of ['p-1', 'p-2']) {
+      const generation = allocateGeneration(db, workPackageId, CONTRACT, inputHash, 2);
       expect(
         enqueueSolverRequest(db, {
-          projectId,
+          workPackageId,
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',
@@ -715,7 +737,7 @@ describe('OptimizationCoordinator read', () => {
           return await repository.dequeueRequest(request);
         },
         releaseSlot: async (slot) => {
-          if (slot.projectId === 'p-1') {
+          if (slot.workPackageId === 'p-1') {
             entered.resolve(undefined);
             await release.promise;
           }
@@ -729,7 +751,7 @@ describe('OptimizationCoordinator read', () => {
       ownerId: 'blue',
       now: () => 10,
       attemptToken: () => `pump-${String(tokens++)}`,
-      inputOf: (projectId) => Promise.resolve(projectId === 'p-1' ? null : INPUT),
+      inputOf: (workPackageId) => Promise.resolve(workPackageId === 'p-1' ? null : INPUT),
       enabledOf: () => Promise.resolve(true),
       spawn: (request) => {
         calls.push(request);
@@ -762,19 +784,19 @@ describe('OptimizationCoordinator read', () => {
     }
     await instance.drain();
     await instance.stop();
-    expect(calls.map(({ key }) => key.projectId)).toEqual(['p-2']);
+    expect(calls.map(({ key }) => key.workPackageId)).toEqual(['p-2']);
     expect(db.select().from(solverSlot).all()).toHaveLength(1);
     // Proof: dropping the awaited unlaunched release in pumpQueue lets the
-    // second dequeue run while the first project's starting seat is held.
+    // second dequeue run while the first work package's starting seat is held.
   });
 
   it('holds shutdown and the next queue step until durable dequeue settles', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 10);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -824,7 +846,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('tracks held reconciliation through stop and releases the draining generation', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     allocateGeneration(db, 'p-1', CONTRACT, 'draining-input', 10);
     expect(beginOptimizationDrain(db, 'p-1', { at: 11, by: 'u-1' }, CONTRACT)).toBe(0);
     const entered = Promise.withResolvers<undefined>();
@@ -868,7 +890,7 @@ describe('OptimizationCoordinator read', () => {
     'refuses a %s request after observation and before reservation',
     async (change) => {
       const { path, db } = database();
-      seedProject(path);
+      seedWorkPackage(path);
       const calls: ReservedSpawnRequest[] = [];
       let changed = false;
       const instance = coordinator(
@@ -886,14 +908,19 @@ describe('OptimizationCoordinator read', () => {
           else if (change === 'disabled') {
             const write = openDatabase(path);
             try {
-              write.run("UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'");
+              write.run("UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-1'");
             } finally {
               write.close();
             }
           } else beginOptimizationDrain(db, 'p-1', { at: 11, by: 'u-1' }, CONTRACT);
         },
       );
-      await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true });
+      await instance.readPlan({
+        workPackageId: 'p-1',
+        objective: 'pri',
+        input: INPUT,
+        enabled: true,
+      });
       await instance.drain();
       expect(changed).toBe(true);
       expect(calls).toEqual([]);
@@ -903,14 +930,14 @@ describe('OptimizationCoordinator read', () => {
   );
   it('reconciles abandoned drains at startup and on the owned interval without resuming work', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const markDraining = (hash: string): void => {
       allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
       const raw = openDatabase(path);
       try {
         raw.run(
           `UPDATE optimization_generation SET admission_state = 'draining'
-           WHERE project_id = 'p-1' AND contract_version = '${CONTRACT}'`,
+           WHERE work_package_id = 'p-1' AND contract_version = '${CONTRACT}'`,
         );
       } finally {
         raw.close();
@@ -969,7 +996,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('debounces edits and reads the newest enabled input once', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const sleeps: ReturnType<() => ReturnType<typeof deferred<undefined>>>[] = [];
     let inputReads = 0;
@@ -1035,7 +1062,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('bypasses allocation and both solvers when the canonical plan has no work', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const empty: ScheduleInput = { ...INPUT, rows: [], slices: [] };
     const zeroDuration: ScheduleInput = {
@@ -1045,7 +1072,7 @@ describe('OptimizationCoordinator read', () => {
 
     for (const input of [empty, zeroDuration]) {
       const read = await coordinator(db, calls).readPlan({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         input,
         enabled: true,
@@ -1068,7 +1095,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('requests both absent objectives once while Fast remains the immediate answer', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
 
     const read = await Promise.race([
@@ -1079,7 +1106,7 @@ describe('OptimizationCoordinator read', () => {
           new WriteCoordinator(),
         ),
       ).readPlan({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         input: INPUT,
         enabled: true,
@@ -1119,7 +1146,7 @@ describe('OptimizationCoordinator read', () => {
 
     expect(
       await coordinator(db, calls, 'green').read({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'time',
         input: INPUT,
       }),
@@ -1132,14 +1159,14 @@ describe('OptimizationCoordinator read', () => {
 
   it('admits only a missing objective after a ready hit and none after a full hit', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
     seedReadyVariant(db, generation, 'pri');
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(db, calls);
 
     const oneMissing = await instance.readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input: INPUT,
       enabled: true,
@@ -1150,13 +1177,13 @@ describe('OptimizationCoordinator read', () => {
     expect(calls.map(({ objective }) => objective)).toEqual(['time']);
 
     const { path: fullPath, db: fullDb } = database();
-    seedProject(fullPath);
+    seedWorkPackage(fullPath);
     const fullGeneration = allocateGeneration(fullDb, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
     seedReadyVariant(fullDb, fullGeneration, 'pri');
     seedReadyVariant(fullDb, fullGeneration, 'time');
     const fullCalls: ReservedSpawnRequest[] = [];
     const fullHit = await coordinator(fullDb, fullCalls).readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'time',
       input: INPUT,
       enabled: true,
@@ -1171,12 +1198,12 @@ describe('OptimizationCoordinator read', () => {
 
   it('does not label a terminal row retrying from a different-budget slot', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const inputHash = scheduleInputHash(INPUT);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, inputHash, 2);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash,
         objective: 'pri',
         contractVersion: CONTRACT,
@@ -1190,7 +1217,7 @@ describe('OptimizationCoordinator read', () => {
       .run();
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -1202,7 +1229,7 @@ describe('OptimizationCoordinator read', () => {
     ).toMatchObject({ kind: 'reserved' });
 
     const read = await coordinator(db, []).readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input: INPUT,
       enabled: true,
@@ -1216,14 +1243,14 @@ describe('OptimizationCoordinator read', () => {
     // to `retrying`, even though the only running solve cannot fill this row.
   });
 
-  it('persists both absent objectives when project capacity is already full', async () => {
+  it('persists both absent objectives when work package capacity is already full', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
     for (let index = 0; index < 4; index += 1) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: index % 2 === 0 ? 'pri' : 'time',
@@ -1237,7 +1264,7 @@ describe('OptimizationCoordinator read', () => {
     const calls: ReservedSpawnRequest[] = [];
 
     expect(
-      await coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await coordinator(db, calls).read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     expect(calls).toEqual([]);
     expect(
@@ -1256,34 +1283,45 @@ describe('OptimizationCoordinator read', () => {
     ]);
 
     await coordinator(db, calls, 'green').read({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'time',
       input: INPUT,
     });
     expect(db.select().from(solverQueue).all()).toHaveLength(2);
 
-    // Proof: ignoring project-full/global-full leaves this FIFO empty; replacing
+    // Proof: ignoring work-package-full/global-full leaves this FIFO empty; replacing
     // the full-key conflict policy changes the second read to four rows or throws.
   });
 
-  it('launches two capacity-blocked projects in durable FIFO order as owned seats release', async () => {
+  it('launches two capacity-blocked work packages in durable FIFO order as owned seats release', async () => {
     const { path, db } = database();
-    for (const projectId of ['p-0', 'p-1', 'p-2', 'held-a', 'held-b', 'held-c', 'held-d']) {
-      seedProject(path, projectId);
+    for (const workPackageId of ['p-0', 'p-1', 'p-2', 'held-a', 'held-b', 'held-c', 'held-d']) {
+      seedWorkPackage(path, workPackageId);
     }
-    for (const [projectIndex, projectId] of ['held-a', 'held-b', 'held-c', 'held-d'].entries()) {
-      const generation = allocateGeneration(db, projectId, CONTRACT, scheduleInputHash(INPUT), 1);
-      const seats = projectId === 'held-d' ? 2 : 4;
+    for (const [workPackageIndex, workPackageId] of [
+      'held-a',
+      'held-b',
+      'held-c',
+      'held-d',
+    ].entries()) {
+      const generation = allocateGeneration(
+        db,
+        workPackageId,
+        CONTRACT,
+        scheduleInputHash(INPUT),
+        1,
+      );
+      const seats = workPackageId === 'held-d' ? 2 : 4;
       for (let seat = 0; seat < seats; seat += 1) {
         expect(
           reserveSolverSlot(db, {
-            projectId,
+            workPackageId,
             contractVersion: CONTRACT,
             generation,
             objective: seat % 2 === 0 ? 'pri' : 'time',
-            budgetMs: BUDGET + projectIndex * 10 + seat + 1,
-            ownerId: `held-${String(projectIndex)}-${String(seat)}`,
-            attemptToken: `held-token-${String(projectIndex)}-${String(seat)}`,
+            budgetMs: BUDGET + workPackageIndex * 10 + seat + 1,
+            ownerId: `held-${String(workPackageIndex)}-${String(seat)}`,
+            attemptToken: `held-token-${String(workPackageIndex)}-${String(seat)}`,
             now: 1,
           }),
         ).toMatchObject({ kind: 'reserved' });
@@ -1293,7 +1331,7 @@ describe('OptimizationCoordinator read', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         enqueueSolverRequest(db, {
-          projectId: 'p-0',
+          workPackageId: 'p-0',
           contractVersion: CONTRACT,
           generation: queuedGeneration,
           objective,
@@ -1326,9 +1364,9 @@ describe('OptimizationCoordinator read', () => {
 
     instance.start();
     await untilCalls(calls, 2);
-    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
-    await instance.read({ projectId: 'p-2', objective: 'pri', input: INPUT });
-    expect(calls.map(({ key, objective }) => `${key.projectId}:${objective}`)).toEqual([
+    await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ workPackageId: 'p-2', objective: 'pri', input: INPUT });
+    expect(calls.map(({ key, objective }) => `${key.workPackageId}:${objective}`)).toEqual([
       'p-0:pri',
       'p-0:time',
     ]);
@@ -1337,7 +1375,7 @@ describe('OptimizationCoordinator read', () => {
     exits[0].resolve(1);
     exits[1].resolve(1);
     await untilCalls(calls, 4);
-    expect(calls.map(({ key, objective }) => `${key.projectId}:${objective}`)).toEqual([
+    expect(calls.map(({ key, objective }) => `${key.workPackageId}:${objective}`)).toEqual([
       'p-0:pri',
       'p-0:time',
       'p-1:pri',
@@ -1347,7 +1385,7 @@ describe('OptimizationCoordinator read', () => {
     exits[2].resolve(1);
     exits[3].resolve(1);
     await untilCalls(calls, 6);
-    expect(calls.map(({ key, objective }) => `${key.projectId}:${objective}`)).toEqual([
+    expect(calls.map(({ key, objective }) => `${key.workPackageId}:${objective}`)).toEqual([
       'p-0:pri',
       'p-0:time',
       'p-1:pri',
@@ -1365,9 +1403,9 @@ describe('OptimizationCoordinator read', () => {
     // post-release pump leaves p-1 and p-2 queued after the p-0 children exit.
   });
 
-  it('does not allocate a replacement generation when a stale queued project was switched off', async () => {
+  it('does not allocate a replacement generation when a stale queued work package was switched off', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const oldHash = scheduleInputHash(INPUT);
     const replacementInput: ScheduleInput = {
       ...INPUT,
@@ -1376,7 +1414,7 @@ describe('OptimizationCoordinator read', () => {
     const generation = allocateGeneration(db, 'p-1', CONTRACT, oldHash, 2);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -1406,7 +1444,7 @@ describe('OptimizationCoordinator read', () => {
       },
       spawn: (request) => {
         calls.push(request);
-        throw new Error('an OFF project reached the launcher');
+        throw new Error('an OFF work package reached the launcher');
       },
       deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
@@ -1435,13 +1473,13 @@ describe('OptimizationCoordinator read', () => {
 
   it('releases a stale queued seat before observing replacement enablement', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const oldHash = scheduleInputHash(INPUT);
     const replacement: ScheduleInput = { ...INPUT, notBefore: new Map([['w-1', 1]]) };
     const generation = allocateGeneration(db, 'p-1', CONTRACT, oldHash, 2);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -1501,7 +1539,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('fences allocation when OFF commits as the stale-input enabled read returns', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const oldHash = scheduleInputHash(INPUT);
     const replacementInput: ScheduleInput = {
       ...INPUT,
@@ -1510,7 +1548,7 @@ describe('OptimizationCoordinator read', () => {
     const generation = allocateGeneration(db, 'p-1', CONTRACT, oldHash, 2);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -1531,12 +1569,12 @@ describe('OptimizationCoordinator read', () => {
       attemptToken: () => 'blue-token',
       inputOf: () => Promise.resolve(replacementInput),
       enabledOf: () => {
-        switcher.run("UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'");
+        switcher.run("UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-1'");
         return Promise.resolve(true);
       },
       spawn: (request) => {
         calls.push(request);
-        throw new Error('an OFF project reached the launcher');
+        throw new Error('an OFF work package reached the launcher');
       },
       deliverCommitted: () => Promise.resolve(),
       onChildError: (error) => {
@@ -1563,7 +1601,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('stores both preflight refusals without creating a launcher', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const tooLate: ScheduleInput = {
       ...INPUT,
@@ -1571,7 +1609,7 @@ describe('OptimizationCoordinator read', () => {
     };
 
     const captured = await coordinator(db, calls).readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input: tooLate,
       enabled: true,
@@ -1584,7 +1622,7 @@ describe('OptimizationCoordinator read', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
 
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(tooLate),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -1601,14 +1639,14 @@ describe('OptimizationCoordinator read', () => {
 
   it('does not automatically request exact-key failed or corrupt objectives', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const inputHash = scheduleInputHash(INPUT);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, inputHash, 2);
     const write = openDatabase(path);
     try {
       write.run(
         `INSERT INTO optimized_schedule_cache
-           (project_id, input_hash, objective, contract_version, budget_ms,
+           (work_package_id, input_hash, objective, contract_version, budget_ms,
             generation, status, result_json, failure_reason, created_at)
          VALUES ('p-1', '${inputHash}', 'pri', '${CONTRACT}', ${String(BUDGET)},
                  ${String(generation)}, 'failed', NULL, 'timeout', 3),
@@ -1621,7 +1659,7 @@ describe('OptimizationCoordinator read', () => {
     const calls: ReservedSpawnRequest[] = [];
 
     expect(
-      await coordinator(db, calls).read({ projectId: 'p-1', objective: 'pri', input: INPUT }),
+      await coordinator(db, calls).read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
     ).toBeNull();
     expect(calls).toEqual([]);
 
@@ -1631,14 +1669,14 @@ describe('OptimizationCoordinator read', () => {
 
   it('aborts and awaits a launcher whose reservation was reclaimed before its PID bind', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const verdicts: string[] = [];
     let killed = 0;
     const instance = coordinator(db, calls, 'blue', (request) => {
       expect(
         reserveSolverSlot(db, {
-          projectId: request.key.projectId,
+          workPackageId: request.key.workPackageId,
           contractVersion: request.key.contractVersion,
           generation: request.generation,
           objective: request.objective,
@@ -1662,7 +1700,9 @@ describe('OptimizationCoordinator read', () => {
       };
     });
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
     expect(verdicts).toEqual(['abort', 'abort']);
     expect(killed).toBe(0);
@@ -1683,7 +1723,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('waits for durable PID bind before sending the child bound verdict', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const verdicts: string[] = [];
     const entered = deferred<undefined>();
@@ -1715,7 +1755,7 @@ describe('OptimizationCoordinator read', () => {
         },
       }),
     );
-    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT });
     try {
       await entered.promise;
       await Promise.resolve();
@@ -1733,7 +1773,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('runs bound children through evaluation, the token-fenced store, and release', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
       db,
@@ -1750,11 +1790,13 @@ describe('OptimizationCoordinator read', () => {
       runSolverChildLifecycle,
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -1763,14 +1805,14 @@ describe('OptimizationCoordinator read', () => {
     expect(pair.time.kind).toBe('ok');
     expect(db.select().from(solverSlot).all()).toEqual([]);
     expect(
-      await instance.read({ projectId: 'p-1', objective: 'time', input: INPUT }),
+      await instance.read({ workPackageId: 'p-1', objective: 'time', input: INPUT }),
     ).not.toBeNull();
     expect(calls).toHaveLength(2);
   });
 
   it('persists a terminal outcome before the lifecycle releases its seat', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const entered = deferred<undefined>();
     const release = deferred<undefined>();
@@ -1804,7 +1846,7 @@ describe('OptimizationCoordinator read', () => {
         },
       }),
     );
-    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT });
     try {
       await entered.promise;
       await Promise.resolve();
@@ -1817,7 +1859,7 @@ describe('OptimizationCoordinator read', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
     expect(
       readOptimizedPair(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: scheduleInputHash(INPUT),
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
@@ -1827,7 +1869,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('reports an admission-closed miss idle beside a ready incomplete result', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
       db,
@@ -1846,7 +1888,7 @@ describe('OptimizationCoordinator read', () => {
     const inputHash = scheduleInputHash(INPUT);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, inputHash, 2);
     const admission = reserveSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -1857,7 +1899,7 @@ describe('OptimizationCoordinator read', () => {
     });
     if (admission.kind !== 'reserved') throw new Error('broken fixture: Pri was not admitted');
     const claim = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri' as const,
@@ -1894,7 +1936,7 @@ describe('OptimizationCoordinator read', () => {
     expect(releaseSolverSlot(db, claim).released).toBe(true);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'time',
@@ -1908,7 +1950,7 @@ describe('OptimizationCoordinator read', () => {
     expect(db.select().from(solverQueue).all()).toEqual([]);
 
     const plan = await instance.readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input: INPUT,
       enabled: true,
@@ -1926,7 +1968,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('stores an internal failure but retains admission when creation has no terminal proof', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const errors: unknown[] = [];
     const instance = coordinator(
@@ -1940,11 +1982,13 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -1959,7 +2003,9 @@ describe('OptimizationCoordinator read', () => {
     ]);
     expect(errors).toHaveLength(2);
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'time', input: INPUT }),
+    ).toBeNull();
     expect(calls).toHaveLength(2);
   });
 
@@ -1971,7 +2017,7 @@ describe('OptimizationCoordinator read', () => {
    * variant honestly reads `retrying`. What was wrong is what happened AFTER
    * that lifetime: the reader never compared the deadline, so the seat stayed
    * "live" for ever, the stored `failed` kept reading as `retrying`, and the
-   * explicit Retry that would have freed the project refused with
+   * explicit Retry that would have freed the work package refused with
    * `already-running` because it consults the same predicate.
    *
    * Both instants are asserted rather than one: at `deadline - 1` the mask is
@@ -1988,7 +2034,7 @@ describe('OptimizationCoordinator read', () => {
    */
   it('frees a variant whose retained seat expired, for both the read and Retry', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     let clock = 10;
     const instance = coordinator(
@@ -2003,11 +2049,13 @@ describe('OptimizationCoordinator read', () => {
       () => clock,
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
 
     const key = {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -2026,14 +2074,20 @@ describe('OptimizationCoordinator read', () => {
     const deadline = seats[0];
 
     const stateOf = async (): Promise<string> =>
-      (await instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true }))
-        .variants.pri.state;
+      (
+        await instance.readPlan({
+          workPackageId: 'p-1',
+          objective: 'pri',
+          input: INPUT,
+          enabled: true,
+        })
+      ).variants.pri.state;
 
     clock = deadline - 1;
     expect(await stateOf()).toBe('retrying');
     expect(
       await instance.retry({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
         input: INPUT,
@@ -2046,7 +2100,7 @@ describe('OptimizationCoordinator read', () => {
     // what puts a real solve back on the wire and sweeps the dead seat.
     expect(
       await instance.retry({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
         input: INPUT,
@@ -2057,7 +2111,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('kills and stores failure without releasing when bind transport has no terminal proof', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const errors: unknown[] = [];
     let killed = 0;
@@ -2081,11 +2135,13 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -2104,7 +2160,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('tracks asynchronous start through bind and child lifecycle in drain', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const starts: ReturnType<typeof deferred<ReservedSolverChild>>[] = [];
     const instance = coordinator(db, calls, 'blue', () => {
@@ -2113,7 +2169,9 @@ describe('OptimizationCoordinator read', () => {
       return start.promise;
     });
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     expect(calls).toHaveLength(2);
     expect(starts).toHaveLength(2);
     expect(db.select({ lifecycle: solverSlot.lifecycle }).from(solverSlot).all()).toEqual([
@@ -2190,7 +2248,7 @@ describe('OptimizationCoordinator read', () => {
 
     for (const item of cases) {
       const { path, db } = database();
-      seedProject(path);
+      seedWorkPackage(path);
       const calls: ReservedSpawnRequest[] = [];
       const terminal: Promise<ReservedSolverTerminal> = Promise.resolve(item.terminal);
       const instance = coordinator(
@@ -2209,10 +2267,12 @@ describe('OptimizationCoordinator read', () => {
         runSolverChildLifecycle,
       );
 
-      expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+      expect(
+        await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+      ).toBeNull();
       await instance.drain();
       const pair = readOptimizedPair(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: scheduleInputHash(INPUT),
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
@@ -2235,7 +2295,7 @@ describe('OptimizationCoordinator read', () => {
    */
   it('reads the raw exit code when no terminal frame authenticates it', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
       db,
@@ -2252,10 +2312,12 @@ describe('OptimizationCoordinator read', () => {
       runSolverChildLifecycle,
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -2267,7 +2329,7 @@ describe('OptimizationCoordinator read', () => {
 
   it('stores internal-error and retains the slot when terminal evidence is lost after start', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const calls: ReservedSpawnRequest[] = [];
     const terminals: ReturnType<typeof deferred<ReservedSolverTerminal>>[] = [];
     const errors: unknown[] = [];
@@ -2292,7 +2354,9 @@ describe('OptimizationCoordinator read', () => {
       (error) => void errors.push(error),
     );
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await Promise.resolve();
     for (const terminal of terminals) {
       terminal.reject(new Error('supervisor EOF before terminal'));
@@ -2300,7 +2364,7 @@ describe('OptimizationCoordinator read', () => {
     await instance.drain();
 
     const pair = readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(INPUT),
       contractVersion: CONTRACT,
       budgetMs: BUDGET,
@@ -2325,12 +2389,12 @@ describe('OptimizationCoordinator Retry admission', () => {
     input: ScheduleInput = INPUT,
     createdAt = 3,
   ): number {
-    seedProject(path);
+    seedWorkPackage(path);
     const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(input), 2);
     if (marker !== 'none') {
       db.insert(optimizedScheduleCache)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           inputHash: scheduleInputHash(input),
           objective: 'pri',
           contractVersion: CONTRACT,
@@ -2352,7 +2416,7 @@ describe('OptimizationCoordinator Retry admission', () => {
   }
 
   const ask = (bodyHash = inputHash, input: ScheduleInput = INPUT) => ({
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     objective: 'pri' as const,
     inputHash: bodyHash,
     input,
@@ -2363,13 +2427,17 @@ describe('OptimizationCoordinator Retry admission', () => {
     const generation = generationWith(path, db, 'failed');
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
     const held = Promise.withResolvers<undefined>();
-    const delivered: CommittedProjectEvent[] = [];
+    const delivered: CommittedWorkPackageEvent[] = [];
     const errors: unknown[] = [];
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
@@ -2403,7 +2471,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     expect(calls).toHaveLength(1);
     const secondWriter = openDatabase(path);
     try {
-      secondWriter.run("UPDATE project SET name = 'writer-entered' WHERE id = 'p-1'");
+      secondWriter.run("UPDATE work_package SET name = 'writer-entered' WHERE id = 'p-1'");
     } finally {
       secondWriter.close();
     }
@@ -2411,7 +2479,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     await instance.drain();
     expect(errors).toHaveLength(1);
     expect(db.select().from(solverSlot).all()).toHaveLength(1);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toEqual([
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:p-1', -1)).toEqual([
       recorded,
     ]);
   });
@@ -2421,11 +2489,15 @@ describe('OptimizationCoordinator Retry admission', () => {
     const generation = generationWith(path, db, 'failed');
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
     const errors: unknown[] = [];
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
@@ -2463,12 +2535,16 @@ describe('OptimizationCoordinator Retry admission', () => {
     generationWith(path, db, 'none');
     const event = {
       type: 'elsewhere_changed' as const,
-      projectId: 'p-1',
-      causeProjectId: 'p-2',
+      workPackageId: 'p-1',
+      causeWorkPackageId: 'p-2',
     };
-    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent('project:p-1', event, 3);
-    const envelope = { projectId: 'p-1', event, recorded };
-    const delivered: CommittedProjectEvent[] = [];
+    const recorded = await new DrizzleEventLogStore(db, OPEN).recordEvent(
+      'work-package:p-1',
+      event,
+      3,
+    );
+    const envelope = { workPackageId: 'p-1', event, recorded };
+    const delivered: CommittedWorkPackageEvent[] = [];
     const calls: ReservedSpawnRequest[] = [];
     const instance = coordinator(
       db,
@@ -2518,7 +2594,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const generation = generationWith(path, db, 'none');
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -2581,7 +2657,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const generation = generationWith(path, db, 'failed');
     expect(
       reserveSolverSlot(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -2599,13 +2675,13 @@ describe('OptimizationCoordinator Retry admission', () => {
     expect(db.select().from(solverSlot).all()).toHaveLength(2);
   });
 
-  it('queues a failed Retry behind project capacity without replacing its marker', async () => {
+  it('queues a failed Retry behind work package capacity without replacing its marker', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     for (let index = 0; index < 4; index += 1) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: index % 2 === 0 ? 'pri' : 'time',
@@ -2628,14 +2704,14 @@ describe('OptimizationCoordinator Retry admission', () => {
     expect(db.select().from(solverQueue).all()).toHaveLength(1);
     expect(
       readOptimizedPair(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash,
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
       }).pri.kind,
     ).toBe('failed');
 
-    // Proof: returning on project-full leaves the queue empty; replacing the
+    // Proof: returning on work-package-full leaves the queue empty; replacing the
     // retained marker at admission changes its final kind away from `failed`.
   });
 
@@ -2656,7 +2732,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       now: () => 10,
       attemptToken: () => {
         try {
-          contender.run("UPDATE project SET name = 'contender' WHERE id = 'p-1'");
+          contender.run("UPDATE work_package SET name = 'contender' WHERE id = 'p-1'");
         } catch (error) {
           contention = error;
         }
@@ -2692,17 +2768,17 @@ describe('OptimizationCoordinator Retry admission', () => {
   });
 
   it.each(['OFF', 'draining'] as const)(
-    'refuses a failed Retry while the project is %s',
+    'refuses a failed Retry while the work package is %s',
     async (condition) => {
       const { path, db } = database();
       generationWith(path, db, 'failed');
       const write = openDatabase(path);
       try {
         if (condition === 'OFF') {
-          write.run("UPDATE project SET optimization_enabled = 0 WHERE id = 'p-1'");
+          write.run("UPDATE work_package SET optimization_enabled = 0 WHERE id = 'p-1'");
         } else {
           write.run(
-            "UPDATE optimization_generation SET admission_state = 'draining' WHERE project_id = 'p-1'",
+            "UPDATE optimization_generation SET admission_state = 'draining' WHERE work_package_id = 'p-1'",
           );
         }
       } finally {
@@ -2732,7 +2808,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     for (let index = 0; index < 4; index += 1) {
       expect(
         reserveSolverSlot(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation: refusedGeneration,
           objective: index % 2 === 0 ? 'pri' : 'time',
@@ -2755,7 +2831,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       ownerId: 'blue',
       now: () => 10,
       attemptToken: () => `blue-token-${String(token++)}`,
-      inputOf: (projectId) => Promise.resolve(projectId === 'p-1' ? refusedInput : INPUT),
+      inputOf: (workPackageId) => Promise.resolve(workPackageId === 'p-1' ? refusedInput : INPUT),
       enabledOf: () => Promise.resolve(true),
       spawn: (request) => {
         calls.push(request);
@@ -2779,11 +2855,11 @@ describe('OptimizationCoordinator Retry admission', () => {
       kind: 'accepted',
       generation: refusedGeneration,
     });
-    seedProject(path, 'p-2');
+    seedWorkPackage(path, 'p-2');
     const nextGeneration = allocateGeneration(db, 'p-2', CONTRACT, inputHash, 22);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-2',
+        workPackageId: 'p-2',
         contractVersion: CONTRACT,
         generation: nextGeneration,
         objective: 'pri',
@@ -2797,11 +2873,11 @@ describe('OptimizationCoordinator Retry admission', () => {
     await instance.stop();
 
     expect(errors).toEqual([]);
-    expect(calls.map((call) => call.key.projectId)).toEqual(['p-2']);
+    expect(calls.map((call) => call.key.workPackageId)).toEqual(['p-2']);
     expect(db.select().from(solverQueue).all()).toEqual([]);
     expect(
       readOptimizedPair(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: refusedHash,
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
@@ -2815,7 +2891,7 @@ describe('OptimizationCoordinator Retry admission', () => {
 
 it('retires an old integer-infeasibility certificate under the current solver cache key', () => {
   const { path, db } = database();
-  seedProject(path);
+  seedWorkPackage(path);
   const oldContract = '14+0.1.3';
   const currentRequest = JSON.parse(
     readFileSync(
@@ -2830,7 +2906,7 @@ it('retires an old integer-infeasibility certificate under the current solver ca
   const generation = allocateGeneration(db, 'p-1', oldContract, inputHash, 2);
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash,
       objective: 'pri',
       contractVersion: oldContract,
@@ -2844,7 +2920,7 @@ it('retires an old integer-infeasibility certificate under the current solver ca
     .run();
   expect(
     readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash,
       contractVersion: oldContract,
       budgetMs: BUDGET,
@@ -2852,7 +2928,7 @@ it('retires an old integer-infeasibility certificate under the current solver ca
   ).toBe('plan-infeasible');
   expect(
     readOptimizedPair(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash,
       contractVersion: currentRequest.contractVersion,
       budgetMs: BUDGET,
@@ -2865,7 +2941,7 @@ describe('wire 3 preflight admission cleanup', () => {
     'finishes %s preflight release before requesting another queue dequeue',
     async (pathway) => {
       const { path, db } = database();
-      seedProject(path);
+      seedWorkPackage(path);
       const input: ScheduleInput = {
         ...INPUT,
         slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
@@ -2875,7 +2951,7 @@ describe('wire 3 preflight admission cleanup', () => {
         const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
         db.insert(optimizedScheduleCache)
           .values({
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             inputHash: hash,
             objective: 'pri',
             contractVersion: CONTRACT,
@@ -2916,8 +2992,8 @@ describe('wire 3 preflight admission cleanup', () => {
       );
       const reading =
         pathway === 'initial'
-          ? instance.readPlan({ projectId: 'p-1', objective: 'pri', input, enabled: true })
-          : instance.retry({ projectId: 'p-1', objective: 'pri', inputHash: hash, input });
+          ? instance.readPlan({ workPackageId: 'p-1', objective: 'pri', input, enabled: true })
+          : instance.retry({ workPackageId: 'p-1', objective: 'pri', inputHash: hash, input });
       try {
         await entered.promise;
         await Promise.resolve();
@@ -2934,7 +3010,7 @@ describe('wire 3 preflight admission cleanup', () => {
   );
   it('persists a queued preflight refusal before releasing its reserved seat', async () => {
     const { path, db } = database();
-    seedProject(path);
+    seedWorkPackage(path);
     const input: ScheduleInput = {
       ...INPUT,
       slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
@@ -2943,7 +3019,7 @@ describe('wire 3 preflight admission cleanup', () => {
     const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
     expect(
       enqueueSolverRequest(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         contractVersion: CONTRACT,
         generation,
         objective: 'pri',
@@ -3003,7 +3079,7 @@ describe('wire 3 preflight admission cleanup', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
     expect(
       readOptimizedPair(db, {
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         inputHash: hash,
         contractVersion: CONTRACT,
         budgetMs: BUDGET,
@@ -3014,7 +3090,7 @@ describe('wire 3 preflight admission cleanup', () => {
     'persists a %s preflight refusal before releasing its reserved seat',
     async (pathway) => {
       const { path, db } = database();
-      seedProject(path);
+      seedWorkPackage(path);
       const input: ScheduleInput = {
         ...INPUT,
         slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })),
@@ -3024,7 +3100,7 @@ describe('wire 3 preflight admission cleanup', () => {
         const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
         db.insert(optimizedScheduleCache)
           .values({
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             inputHash: hash,
             objective: 'pri',
             contractVersion: CONTRACT,
@@ -3064,8 +3140,8 @@ describe('wire 3 preflight admission cleanup', () => {
       );
       const reading =
         pathway === 'initial'
-          ? instance.readPlan({ projectId: 'p-1', objective: 'pri', input, enabled: true })
-          : instance.retry({ projectId: 'p-1', objective: 'pri', inputHash: hash, input });
+          ? instance.readPlan({ workPackageId: 'p-1', objective: 'pri', input, enabled: true })
+          : instance.retry({ workPackageId: 'p-1', objective: 'pri', inputHash: hash, input });
       try {
         await entered.promise;
         await Promise.resolve();
@@ -3073,7 +3149,7 @@ describe('wire 3 preflight admission cleanup', () => {
         expect(db.select().from(solverSlot).all()).toHaveLength(1);
         expect(
           readOptimizedPair(db, {
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             inputHash: hash,
             contractVersion: CONTRACT,
             budgetMs: BUDGET,
@@ -3086,7 +3162,7 @@ describe('wire 3 preflight admission cleanup', () => {
       expect(db.select().from(solverSlot).all()).toEqual([]);
       expect(
         readOptimizedPair(db, {
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           inputHash: hash,
           contractVersion: CONTRACT,
           budgetMs: BUDGET,
@@ -3109,7 +3185,10 @@ describe('wire 3 preflight admission cleanup', () => {
       input: {
         ...INPUT,
         elsewhere: new Map([
-          ['ana', [{ start: 0, end: Number.MAX_VALUE, projectId: 'higher', workItemId: 'held' }]],
+          [
+            'ana',
+            [{ start: 0, end: Number.MAX_VALUE, workPackageId: 'higher', workItemId: 'held' }],
+          ],
         ]),
       },
     },
@@ -3120,12 +3199,12 @@ describe('wire 3 preflight admission cleanup', () => {
       async (pathway) => {
         const { path, db } = database();
         const hash = scheduleInputHash(refusal.input);
-        seedProject(path);
+        seedWorkPackage(path);
         if (pathway === 'retry') {
           const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
           db.insert(optimizedScheduleCache)
             .values({
-              projectId: 'p-1',
+              workPackageId: 'p-1',
               inputHash: hash,
               objective: 'pri',
               contractVersion: CONTRACT,
@@ -3165,7 +3244,7 @@ describe('wire 3 preflight admission cleanup', () => {
         if (pathway === 'queued') {
           const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 1);
           enqueueSolverRequest(db, {
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             contractVersion: CONTRACT,
             generation,
             objective: 'pri',
@@ -3175,7 +3254,7 @@ describe('wire 3 preflight admission cleanup', () => {
         } else if (pathway === 'retry') {
           expect(
             await instance.retry({
-              projectId: 'p-1',
+              workPackageId: 'p-1',
               objective: 'pri',
               inputHash: hash,
               input: refusal.input,
@@ -3183,7 +3262,7 @@ describe('wire 3 preflight admission cleanup', () => {
           ).toMatchObject({ kind: 'accepted' });
         } else {
           await instance.readPlan({
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             objective: 'pri',
             input: refusal.input,
             enabled: true,
@@ -3197,7 +3276,7 @@ describe('wire 3 preflight admission cleanup', () => {
         expect(db.select().from(solverQueue).all()).toEqual([]);
         expect(
           readOptimizedPair(db, {
-            projectId: 'p-1',
+            workPackageId: 'p-1',
             inputHash: hash,
             contractVersion: CONTRACT,
             budgetMs: BUDGET,

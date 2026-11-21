@@ -52,7 +52,7 @@ it('keeps both movement references and hints clear of fractional bookings', () =
     ...INPUT,
     slices: INPUT.slices.map((slice) => ({ ...slice, personId: 'ana' })),
     elsewhere: new Map([
-      ['ana', [{ start: -1, end: 1.01, projectId: 'higher', workItemId: 'held' }]],
+      ['ana', [{ start: -1, end: 1.01, workPackageId: 'higher', workItemId: 'held' }]],
     ]),
   };
   const pair = buildSolverRequestPair(input, '0.4.0', 1000);

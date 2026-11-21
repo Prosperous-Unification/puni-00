@@ -239,6 +239,15 @@ test('write builder uses actual fresh state basis and exact approved batch witho
     expect(built.kind).toBe('built');
     if (built.kind !== 'built') throw Error('request refused');
     expect(built.request.canonicalRequest).toBe(setup.canonicalRequest);
+    expect(JSON.parse(built.request.canonicalRequest)).toMatchObject({
+      schemaVersion: 2,
+      scope: {
+        organizationId: setup.scope.organizationId,
+        workPackageId: setup.scope.projectId,
+        personId: setup.scope.personId,
+      },
+    });
+    expect(readRuntimeRequest(built.request.canonicalRequest).operation.schemaVersion).toBe(1);
     expect(await stores.runs.readRun(setup.run.runId)).toEqual(before);
   } finally {
     await stores.close();

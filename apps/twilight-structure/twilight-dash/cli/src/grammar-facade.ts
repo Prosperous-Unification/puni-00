@@ -63,6 +63,24 @@ const devPorts = command(
   { brief: message`Resolve, check, or explicitly release this checkout's development ports.` },
 );
 
+/**
+ * Embedded deployment HTTP checks, outside standalone Dash.
+ * Proof: backend-probe-fault-origin-grammar-v123 admitted a blank origin to the
+ * runtime and failed its usage-refusal assertion; exact restoration passed.
+ */
+const devProbe = command(
+  'dev-probe',
+  command(
+    'be',
+    object({
+      command: constant('dev-probe'),
+      service: constant('be'),
+      origin: argument(string({ metavar: 'ORIGIN', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u })),
+    }),
+  ),
+  { brief: message`Verify the backend's mounted anonymous authentication response.` },
+);
+
 /** Complete PUNI-only foreground development; standalone Dash keeps its original surface. */
 const development = command(
   'dev',
@@ -78,11 +96,25 @@ const development = command(
 );
 
 /** The installed Forge owner is a closed PUNI operation, outside standalone Dash. */
-const developmentEnvironment = command('dev-env', command('supervise', object({
-  command: constant('dev-env'), action: constant('supervise'),
-  repository: option('--repository', string({ metavar: 'DIRECTORY', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u })),
-  terminationLog: option('--termination-log', string({ metavar: 'PATH', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u })),
-})), { brief: message`Supervise an explicitly selected installed PUNI development environment.` });
+const developmentEnvironment = command(
+  'dev-env',
+  command(
+    'supervise',
+    object({
+      command: constant('dev-env'),
+      action: constant('supervise'),
+      repository: option(
+        '--repository',
+        string({ metavar: 'DIRECTORY', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u }),
+      ),
+      terminationLog: option(
+        '--termination-log',
+        string({ metavar: 'PATH', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u }),
+      ),
+    }),
+  ),
+  { brief: message`Supervise an explicitly selected installed PUNI development environment.` },
+);
 
 /** Execute only an owned browser level against the explicitly selected repository. */
 const browser = command(
@@ -107,16 +139,27 @@ const performance = command(
       '--repository',
       string({ metavar: 'DIRECTORY', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u }),
     ),
-    rulePolicy: optional(option(
-      '--rule-policy',
-      string({ metavar: 'FILE', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u }),
-    )),
+    rulePolicy: optional(
+      option(
+        '--rule-policy',
+        string({ metavar: 'FILE', pattern: /^(?!--)(?=[\s\S]*\S)[\s\S]+$/u }),
+      ),
+    ),
   }),
   { brief: message`Execute performance observations using an independently selected rule policy.` },
 );
 
 /** The composed PUNI surface; legacy standalone parsing and runtime requests stay unchanged. */
-export const parser = or(dashParser, installPuni, devPorts, development, developmentEnvironment, browser, performance);
+export const parser = or(
+  dashParser,
+  installPuni,
+  devPorts,
+  devProbe,
+  development,
+  developmentEnvironment,
+  browser,
+  performance,
+);
 
 export type InstallPuniRequest = InferValue<typeof installPuni>;
 export type DevelopmentRequest = InferValue<typeof development>;
@@ -127,6 +170,7 @@ export type PerformanceRequest = InferValue<typeof performance>;
 export function findRefusal(request: InferValue<typeof parser>): string | undefined {
   return request.command === 'install-puni' ||
     request.command === 'dev-ports' ||
+    request.command === 'dev-probe' ||
     request.command === 'dev' ||
     request.command === 'dev-env' ||
     request.command === 'browser' ||

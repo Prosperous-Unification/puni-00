@@ -3,7 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import type { PlanCommand } from '../../service/command-normalizers';
@@ -144,7 +144,7 @@ async function seededPlan(shape: PlanShape) {
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -154,17 +154,45 @@ async function seededPlan(shape: PlanShape) {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Schedule', F));
-  const projectId = created.project.id;
-  fixture.ownProjectInOrganization(projectId, ORG);
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'fixture-project',
+    organizationId: ORG,
+    name: 'Fixture project',
+    createdBy: F,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+  });
+  for (const [index, name] of ['Dev', 'QA'].entries()) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      ORG,
+      {
+        id: 'measure-step-' + String(index),
+        code: name.toLowerCase(),
+        name,
+        position: (index + 1) * 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'measure-binding-' + String(index),
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: (index + 1) * 10,
+      },
       { at: 1, by: F },
     );
+    if (!defined.ok) throw new Error('measure property step refused: ' + defined.reason);
   }
+  const created = expectCreated(await graph.workPackages.create('Schedule', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  fixture.ownWorkPackageInOrganization(workPackageId, ORG);
+  expect(created.steps.map((step) => step.id)).toEqual(['measure-step-0', 'measure-step-1']);
   const stepIds = created.steps.map(({ id }) => id);
-  const updated = await graph.projects.update(projectId, F, { startDate: '2026-01-05' });
+  const updated = await graph.workPackages.update(workPackageId, F, { startDate: '2026-01-05' });
   if (!updated.ok) throw new Error(`the start date was refused: ${JSON.stringify(updated)}`);
   const runner = createPlanCommandRunner({
     uow: source.uow,
@@ -190,9 +218,9 @@ async function seededPlan(shape: PlanShape) {
     },
   ]);
   if (!defined.ok) throw new Error(`kwh was refused: ${JSON.stringify(defined)}`);
-  const run = (commands: readonly PlanCommand[]) => runner.run(projectId, F, commands);
+  const run = (commands: readonly PlanCommand[]) => runner.run(workPackageId, F, commands);
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };

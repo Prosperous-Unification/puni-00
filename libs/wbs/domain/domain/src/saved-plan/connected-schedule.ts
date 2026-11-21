@@ -4,6 +4,7 @@ import type { Schedule } from '../schedule';
 import {
   type SavedConnectedDependencyHistory,
   type SavedDependencyHistory,
+  type SavedDependencyWorkPackage,
   validateDependencyReferences,
 } from './dependency-history';
 import {
@@ -17,6 +18,12 @@ import {
   SavedHistoryError,
   serializeHistory,
 } from './history-json';
+import {
+  readLeafDependencyHistory,
+  type SavedLeafDependencyHistory,
+} from './leaf-dependency-history';
+import { readSavedCanonicalStage as readLegacyCanonicalStage1 } from './legacy-connected-schedule2';
+import { upgradeCanonicalStage1 } from './upgrade-schedule2';
 
 const numberPair = type(['string', 'number']);
 const ownerPair = type(['string', 'string']);
@@ -38,14 +45,14 @@ const slice = type({
   stepId: 'string | null',
   personId: 'string | null',
   boundBy:
-    "'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere' | 'optimizer'",
+    "'workPackageStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'elsewhere' | 'optimizer'",
   resourcePredecessorId: 'string | null',
   capacityPredecessorIds: 'string[]',
   capacityTeamId: 'string | null',
   width: 'number',
   effort: 'number',
   lateBy: 'number | null',
-  'elsewhereHolder?': { '+': 'reject', projectId: 'string', workItemId: 'string' },
+  'elsewhereHolder?': { '+': 'reject', workPackageId: 'string', workItemId: 'string' },
   'capacityResource?': { '+': 'reject', resourceId: 'string', units: 'number' },
 });
 const placement = type({
@@ -84,15 +91,15 @@ const selector = type(['string', "'whole'", 'string']).or([
   'string',
   'string',
 ]);
-const canonicalStageV1 = type({
+const canonicalStageV2 = type({
   '+': 'reject',
   kind: "'connected-stage'",
-  projectId: 'string',
+  workPackageId: 'string',
   mode: "'isolated' | 'shared'",
   originOrdinal: 'number',
-  projects: type({
+  workPackages: type({
     '+': 'reject',
-    projectId: 'string',
+    workPackageId: 'string',
     rank: 'number',
     anchorOrdinal: 'number | null',
   }).array(),
@@ -138,7 +145,7 @@ const canonicalStageV1 = type({
       '+': 'reject',
       start: 'number',
       end: 'number',
-      projectId: 'string',
+      workPackageId: 'string',
       workItemId: 'string',
     }).array(),
   }).array(),
@@ -147,7 +154,7 @@ const canonicalStageV1 = type({
 });
 const question = type({
   '+': 'reject',
-  projectId: 'string',
+  workPackageId: 'string',
   inputHash: 'string',
   questionHash: 'string',
   objective: "'pri' | 'time'",
@@ -160,7 +167,7 @@ const question = type({
 const scores = type({ '+': 'reject', makespan: 'number', priority: 'number', movement: 'number' });
 const decision = type({
   '+': 'reject',
-  scope: { '+': 'reject', kind: "'connected-stage'", projectId: 'string' },
+  scope: { '+': 'reject', kind: "'connected-stage'", workPackageId: 'string' },
   chosen: "'baseline' | 'optimized'",
   schedule: placement,
   baseline: placement,
@@ -205,10 +212,10 @@ const variant = type({
   });
 const optimizationStage = type({
   '+': 'reject',
-  projectId: 'string',
+  workPackageId: 'string',
   engine: "'fast' | 'optimized'",
   objective: "'pri' | 'time'",
-  format: "'connected-stage-v1'",
+  format: "'connected-stage-v1' | 'connected-stage-v2'",
   stageBytes: 'string',
   observation: type({
     '+': 'reject',
@@ -224,13 +231,13 @@ const optimizationStage = type({
 const evidence = type({
   '+': 'reject',
   kind: "'connected'",
-  targetProjectId: 'string',
+  targetWorkPackageId: 'string',
   mode: "'isolated' | 'shared'",
   originOrdinal: 'number | null',
   baseline: placement,
   composite: placement,
   stages: optimizationStage.array(),
-  idleProjects: 'string[]',
+  idleWorkPackages: 'string[]',
 });
 /** JSON timing values on the common captured axis; instrumentation is deliberately excluded. */
 export type SavedPlacement = Historical<typeof placement.infer>;
@@ -240,45 +247,47 @@ export type SavedOptimizationVariant = Historical<typeof variant.infer>;
 export type SavedOptimizationStage = Historical<typeof optimizationStage.infer>;
 /** Connected selected schedule evidence, independent of any current scheduler runtime. */
 export type SavedConnectedScheduleEvidence = Historical<typeof evidence.infer>;
-/** Frozen v1 canonical packet; future engines must add a different historical format reader. */
-export type SavedCanonicalStageV1 = Historical<typeof canonicalStageV1.infer>;
+/** Current v2 packet fields, also used as the in-memory projection of an explicitly decoded historical v1. */
+export type SavedCanonicalStageV2 = Historical<typeof canonicalStageV2.infer>;
 
-/** Read canonical v1 structure and references without replay, re-canonicalization or engine imports. */
-export function readSavedCanonicalStage(format: string, bytes: string): SavedCanonicalStageV1 {
-  requireHistory(format === 'connected-stage-v1', 'stage_format', '$.stages.format');
-  let captured: SavedCanonicalStageV1;
+/** Dispatch by the explicit packet format; legacy v1 bytes are checked by their frozen reader before owned-name projection. */
+export function readSavedCanonicalStage(format: string, bytes: string): SavedCanonicalStageV2 {
+  if (format === 'connected-stage-v1')
+    return upgradeCanonicalStage1(readLegacyCanonicalStage1(format, bytes));
+  requireHistory(format === 'connected-stage-v2', 'stage_format', '$.stages.format');
+  let captured: SavedCanonicalStageV2;
   try {
-    captured = detachHistory(canonicalStageV1.assert(detachHistory(JSON.parse(bytes))));
+    captured = detachHistory(canonicalStageV2.assert(detachHistory(JSON.parse(bytes))));
   } catch (cause) {
     if (cause instanceof SavedHistoryError) throw cause;
     throw new SavedHistoryError('stage_shape', '$.stages.stageBytes', { cause });
   }
-  const projects = indexHistory(
-    captured.projects,
-    (project) => project.projectId,
-    '$.stage.projects',
+  const workPackages = indexHistory(
+    captured.workPackages,
+    (workPackage) => workPackage.workPackageId,
+    '$.stage.workPackages',
   );
-  requireHistory(projects.has(captured.projectId), 'stage_owner', '$.stage.projectId');
+  requireHistory(workPackages.has(captured.workPackageId), 'stage_owner', '$.stage.workPackageId');
   const rows = indexHistory(captured.rows, (row) => row.id, '$.stage.rows');
   const ownership = indexHistory(captured.ownership, ([id]) => id, '$.stage.ownership');
   const ranks = indexHistory(captured.ranks, ([id]) => id, '$.stage.ranks');
   requireHistory(
-    ownership.size === rows.size && ranks.size === projects.size,
+    ownership.size === rows.size && ranks.size === workPackages.size,
     'stage_ownership',
     '$.stage',
   );
   for (const row of rows.values())
     requireHistory(
-      projects.has(ownership.get(row.id)?.[1] ?? '') &&
+      workPackages.has(ownership.get(row.id)?.[1] ?? '') &&
         (row.parentId === null || rows.has(row.parentId)),
       'stage_ownership',
       '$.stage.rows',
     );
-  for (const project of projects.values())
+  for (const workPackage of workPackages.values())
     requireHistory(
-      ranks.get(project.projectId)?.[1] === project.rank,
+      ranks.get(workPackage.workPackageId)?.[1] === workPackage.rank,
       'stage_rank',
-      '$.stage.projects',
+      '$.stage.workPackages',
     );
   const slices = indexHistory(captured.slices, (group) => group.workItemId, '$.stage.slices');
   const keys = new Set<string>();
@@ -357,7 +366,7 @@ export function readSavedCanonicalStage(format: string, bytes: string): SavedCan
   for (const relationship of relationships.values())
     for (const selector of [relationship.predecessor, relationship.successor])
       requireHistory(
-        projects.has(selector[0]) &&
+        workPackages.has(selector[0]) &&
           (ownership.get(selector[2]) === undefined ||
             ownership.get(selector[2])?.[1] === selector[0]),
         'stage_selector',
@@ -452,12 +461,12 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
   }
   validatePlacement(captured.baseline);
   validatePlacement(captured.composite);
-  indexHistory(captured.stages, (stage) => stage.projectId, '$.stages');
-  indexHistory(captured.idleProjects, (id) => id, '$.idleProjects');
+  indexHistory(captured.stages, (stage) => stage.workPackageId, '$.stages');
+  indexHistory(captured.idleWorkPackages, (id) => id, '$.idleWorkPackages');
   for (const stage of captured.stages) {
     const packet = readSavedCanonicalStage(stage.format, stage.stageBytes);
     requireHistory(
-      packet.projectId === stage.projectId &&
+      packet.workPackageId === stage.workPackageId &&
         packet.mode === captured.mode &&
         packet.originOrdinal === captured.originOrdinal,
       'stage_identity',
@@ -483,7 +492,7 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
       const question =
         variant.state === 'ready' ? variant.candidate.question : variant.certificate.question;
       requireHistory(
-        question.projectId === stage.projectId &&
+        question.workPackageId === stage.workPackageId &&
           question.objective === objective &&
           // Codec evidence only: omitting byte equality admitted the mismatched-stage candidate; production save/read proof remains pending.
           question.stageBytes === stage.stageBytes,
@@ -537,7 +546,7 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
         );
 
         requireHistory(
-          variant.decision.scope.projectId === stage.projectId,
+          variant.decision.scope.workPackageId === stage.workPackageId,
           'decision_scope',
           '$.stages.variants',
         );
@@ -547,7 +556,7 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
           '$.stages.candidate.starts',
         );
         const ownRows = new Set(
-          packet.ownership.filter(([, owner]) => owner === stage.projectId).map(([id]) => id),
+          packet.ownership.filter(([, owner]) => owner === stage.workPackageId).map(([id]) => id),
         );
         const localKeys = packet.slices
           .filter((group) => ownRows.has(group.workItemId))
@@ -593,11 +602,47 @@ export function validateSavedConnectedHistory(
   history: SavedDependencyHistory,
   schedule: SavedConnectedScheduleEvidence | null,
 ): void {
+  if (history.kind === 'connected') validateDependencyReferences(history);
+  validateConnectedHistoryWithInventory(history, schedule, (member) =>
+    member.steps.map((step) => step.id),
+  );
+}
+
+/**
+ * Validates declared input13 against its own captured inventories, including empty leaves.
+ * Selection belongs to the enclosing input version; the original uniform reader is unchanged.
+ * @throws SavedHistoryError for malformed history or cross-body placement contradictions.
+ */
+export function validateSavedLeafConnectedHistory(
+  history: SavedLeafDependencyHistory,
+  schedule: SavedConnectedScheduleEvidence | null,
+): void {
+  const captured = readLeafDependencyHistory(history);
+  const orders = new Map(
+    captured.kind === 'local'
+      ? []
+      : captured.workPackages.flatMap((member) =>
+          member.leafSteps.map((leaf) => [leaf.workItemId, leaf.stepIds] as const),
+        ),
+  );
+  validateConnectedHistoryWithInventory(captured, schedule, (_member, workItemId) =>
+    orders.get(workItemId),
+  );
+}
+
+/** Cross-body invariants are shared only after the selected input grammar validates its history. */
+function validateConnectedHistoryWithInventory(
+  history: SavedDependencyHistory,
+  schedule: SavedConnectedScheduleEvidence | null,
+  readSteps: (
+    member: SavedDependencyWorkPackage,
+    workItemId: string,
+  ) => readonly string[] | undefined,
+): void {
   if (history.kind === 'local') {
     requireHistory(schedule === null, 'local_schedule', '$.connection');
     return;
   }
-  validateDependencyReferences(history);
   requireHistory(
     history.placementState.kind === 'scheduled' ? schedule !== null : schedule === null,
     'placement_state',
@@ -605,36 +650,39 @@ export function validateSavedConnectedHistory(
   );
   if (schedule === null) return;
   requireHistory(
-    history.targetProjectId === schedule.targetProjectId && history.mode === schedule.mode,
+    history.targetWorkPackageId === schedule.targetWorkPackageId && history.mode === schedule.mode,
     'connection_identity',
     '$.connection',
   );
-  validateComponentPlacement(history, schedule.baseline);
-  validateComponentPlacement(history, schedule.composite);
-  const projects = [...history.projects].sort(
-    (left, right) => left.rank - right.rank || compareHistoryKeys(left.projectId, right.projectId),
+  validateComponentPlacement(history, schedule.baseline, readSteps);
+  validateComponentPlacement(history, schedule.composite, readSteps);
+  const workPackages = [...history.workPackages].sort(
+    (left, right) =>
+      left.rank - right.rank || compareHistoryKeys(left.workPackageId, right.workPackageId),
   );
   const activeOwners = new Set(
     Object.values(schedule.composite.slices).map(
       (slice) => history.ownership.find(([id]) => id === slice.workItemId)?.[1],
     ),
   );
-  const active = projects.filter((project) => activeOwners.has(project.projectId));
+  const active = workPackages.filter((workPackage) => activeOwners.has(workPackage.workPackageId));
   requireHistory(
     active.length === schedule.stages.length &&
-      active.every((project, index) => project.projectId === schedule.stages[index]?.projectId),
+      active.every(
+        (workPackage, index) => workPackage.workPackageId === schedule.stages[index]?.workPackageId,
+      ),
     'stage_order',
     '$.stages',
   );
-  const idle = projects
-    .filter((project) => !activeOwners.has(project.projectId))
-    .map((project) => project.projectId)
+  const idle = workPackages
+    .filter((workPackage) => !activeOwners.has(workPackage.workPackageId))
+    .map((workPackage) => workPackage.workPackageId)
     .sort(compareHistoryKeys);
   requireHistory(
     serializeHistory(idle) ===
-      serializeHistory([...schedule.idleProjects].sort(compareHistoryKeys)),
-    'idle_projects',
-    '$.idleProjects',
+      serializeHistory([...schedule.idleWorkPackages].sort(compareHistoryKeys)),
+    'idle_work_packages',
+    '$.idleWorkPackages',
   );
   const expectedStarts = new Map(
     Object.entries(schedule.baseline.slices).map(([key, projected]) => [
@@ -667,15 +715,15 @@ export function validateSavedConnectedHistory(
         }
       }
     }
-    const project = projects.find((entry) => entry.projectId === stage.projectId);
+    const workPackage = workPackages.find((entry) => entry.workPackageId === stage.workPackageId);
     requireHistory(
-      project?.engine === stage.engine && project.objective === stage.objective,
+      workPackage?.engine === stage.engine && workPackage.objective === stage.objective,
       'stage_configuration',
       '$.stages',
     );
     // Codec evidence only: bypassing enablement admitted disabled observations and missing required optimized observations; production read proof remains pending.
     requireHistory(
-      project.enabled
+      workPackage.enabled
         ? stage.engine === 'fast' || stage.variants !== null
         : stage.variants === null,
       'stage_enablement',
@@ -688,8 +736,8 @@ export function validateSavedConnectedHistory(
       end: SavedConnectedDependencyHistory['relationships'][number]['predecessor'],
     ): readonly string[] =>
       end.scope === 'whole'
-        ? [end.projectId, end.scope, end.workItemId]
-        : [end.projectId, end.scope, end.workItemId, end.stepId];
+        ? [end.workPackageId, end.scope, end.workItemId]
+        : [end.workPackageId, end.scope, end.workItemId, end.stepId];
     const capturedRelationships = new Map(
       history.relationships.map((relationship) => [relationship.id, relationship]),
     );
@@ -710,11 +758,15 @@ export function validateSavedConnectedHistory(
         '$.stages',
       );
     }
-    requireHistory(packet.projects.length === projects.length, 'stage_membership', '$.stages');
-    for (const member of packet.projects)
+    requireHistory(
+      packet.workPackages.length === workPackages.length,
+      'stage_membership',
+      '$.stages',
+    );
+    for (const member of packet.workPackages)
       requireHistory(
-        projects.some(
-          (entry) => entry.projectId === member.projectId && entry.rank === member.rank,
+        workPackages.some(
+          (entry) => entry.workPackageId === member.workPackageId && entry.rank === member.rank,
         ),
         'stage_membership',
         '$.stages',
@@ -742,19 +794,24 @@ export function validateSavedConnectedHistory(
 function validateComponentPlacement(
   history: SavedConnectedDependencyHistory,
   captured: SavedPlacement,
+  readSteps: (
+    member: SavedDependencyWorkPackage,
+    workItemId: string,
+  ) => readonly string[] | undefined,
 ): void {
   const owners = new Map(history.ownership);
   for (const id of Object.keys(captured.workItems))
     requireHistory(owners.has(id), 'placement_owner', '$.workItems');
   for (const projected of Object.values(captured.slices)) {
-    const project = history.projects.find(
-      (entry) => entry.projectId === owners.get(projected.workItemId),
+    const workPackage = history.workPackages.find(
+      (entry) => entry.workPackageId === owners.get(projected.workItemId),
     );
+    const steps =
+      workPackage === undefined ? undefined : readSteps(workPackage, projected.workItemId);
+    // Proof: omission admitted coherent extra-policy, false-boundary and parent-node connected placements (input13-fault-placement-step-v1).
     requireHistory(
-      project !== undefined &&
-        (projected.stepId === null
-          ? project.steps.length === 0
-          : project.steps.some((entry) => entry.id === projected.stepId)),
+      steps !== undefined &&
+        (projected.stepId === null ? steps.length === 0 : steps.includes(projected.stepId)),
       'placement_step',
       '$.slices',
     );
@@ -768,6 +825,6 @@ export function serializeSavedConnectedScheduleEvidence(
   const checked = readSavedConnectedScheduleEvidence(captured);
   return serializeHistory({
     ...checked,
-    idleProjects: [...checked.idleProjects].sort(compareHistoryKeys),
+    idleWorkPackages: [...checked.idleWorkPackages].sort(compareHistoryKeys),
   });
 }

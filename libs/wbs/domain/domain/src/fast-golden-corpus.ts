@@ -53,6 +53,7 @@ import {
   schedule,
   type Slice,
 } from './schedule';
+import type { TypedDependency } from './typed-dependency';
 
 /** One corpus case: a whole `schedule()` argument tuple under a stable name. */
 export interface FastGoldenCase {
@@ -63,6 +64,7 @@ export interface FastGoldenCase {
   readonly notBefore?: ReadonlyMap<string, number>;
   readonly poolSizes?: PoolSizes;
   readonly reach?: DependencyReach;
+  readonly typed?: readonly TypedDependency[];
 }
 
 const leaf = (id: string, position: number, priority: number | null = null): PlannedRow => ({
@@ -84,7 +86,7 @@ const work = (workItemId: string, days: number | null, extra: Partial<Slice> = {
 });
 
 /**
- * Ten cases, chosen so each one can lose something a different engine change
+ * Fixed cases, chosen so each one can lose something a different engine change
  * would break. A corpus of one plan is a corpus that only notices whatever that
  * plan happens to exercise.
  */
@@ -245,6 +247,33 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
     ],
     poolSizes: new Map([['team', 1]]),
   },
+  {
+    name: 'mixed-leaf-descendant-qa-and-boundary',
+    rows: [
+      leaf('P', 0),
+      { ...leaf('story', 10), parentId: 'P' },
+      { ...leaf('spike', 20), parentId: 'P' },
+      { ...leaf('zero', 30), parentId: 'P' },
+      leaf('qa-first', 40),
+    ],
+    edges: [],
+    slices: [
+      work('story', 2, { stepId: 'dev' }),
+      work('story', 1, { stepId: 'qa' }),
+      work('spike', 3, { stepId: 'research' }),
+      work('zero', null),
+      work('qa-first', 2, { stepId: 'qa' }),
+      work('qa-first', 1, { stepId: 'dev' }),
+    ],
+    typed: [
+      {
+        id: 'qa-after-story',
+        type: 'FS',
+        predecessor: { scope: 'descendant-step', workItemId: 'P', stepId: 'qa' },
+        successor: { scope: 'node', workItemId: 'qa-first', stepId: 'qa' },
+      },
+    ],
+  },
 ];
 
 /**
@@ -274,13 +303,9 @@ export const computeFastGoldenCorpus = (): {
 } => {
   const cases: Record<string, unknown> = {};
   for (const each of FAST_GOLDEN_CASES) {
-    // TASK-280's audit: the seventh argument is omitted here **and that is the
-    // correct value**, unlike the publication guard's omission this task fixed.
-    // A `FastGoldenCase` has no deadline field, so there is no deadline to pass
-    // — and the corpus is the fixture 1.6 and 4.3's no-op proof compares
-    // against, which requires every case to come out byte-identical whether the
-    // argument is supplied empty or left to its default. Adding `new Map()` here
-    // would change nothing and would read as if a source had been consulted.
+    // No case states deadlines: use their default while forwarding the authored
+    // relationships in the eighth argument. Existing deadline-free cases keep
+    // the same schedule values.
     cases[each.name] = serializeSchedule(
       schedule(
         each.rows,
@@ -289,6 +314,8 @@ export const computeFastGoldenCorpus = (): {
         each.notBefore ?? new Map(),
         each.poolSizes ?? new Map(),
         each.reach ?? 'whole-item',
+        undefined,
+        each.typed ?? [],
       ),
     );
   }

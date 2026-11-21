@@ -7,7 +7,7 @@ import {
 } from './gantt-geometry';
 
 /**
- * Resolve authored endpoints with whole/node/descendant-step rules and project step order.
+ * Resolve authored endpoints with whole/node/descendant-step rules and work package step order.
  * @throws GanttDataError when a typed endpoint names an unknown work item, missing slice or step,
  * or a scope that cannot describe that tree node.
  */
@@ -30,7 +30,7 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
     own.push(slice);
     slices.set(slice.workItemId, own);
   }
-  // Proof: without this ordering, `uses project step order for whole endpoints
+  // Proof: without this ordering, `uses workPackage step order for whole endpoints
   // despite shuffled slices` selected A-dev → B-qa instead of A-qa → B-dev.
   // Watched 2026-09-28.
   for (const own of slices.values())

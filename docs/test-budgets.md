@@ -30,8 +30,19 @@ healthy tests at random (WBS 080.15), so every Bun test a target runs states its
   own.
 - A test whose own budget timed out on the loaded run gets a new budget. It must be at least 3
   times its idle time and twice the budget it overran, since the loaded run did not show how long
-  the test really needed. Round it up to a step: 20, 30, 45, 60, 90, 120, 180, 240 or 420 seconds.
+  the test really needed. Round it up to a step: 20, 30, 45, 60, 90, 120, 180, 240, 420 or 600 seconds.
 - A budget still ends a hang: Bun kills the test's subprocesses when it times out.
+
+## SQLite Source certificate, 2026-11-19
+
+The actual 221-case SQLite Source certificate takes 151.557 seconds in its healthy
+local run. Three times that measurement is 454.672 seconds; twice its overrun
+120-second allowance is 240 seconds. The new 600-second policy step supplies its
+explicit allowance because 420 seconds cannot meet the measured three-times rule.
+The bounded measurement first restored the original allowance; the final normal
+configuration is verified separately. Hosted load remains unmeasured. Commands,
+source identities and results live in the
+[claim observation verification record](../openspec/changes/wbs-step-catalogue/verification-current-claims-20261119.json).
 
 ## Measurements, 2026-09-27
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 
+import { readComposeSites } from './compose';
 import {
   canonicalize,
   decodeUtf8,
@@ -13,6 +14,7 @@ import {
   requireObject,
   requireString,
 } from './configuration';
+import { readDockerSites } from './docker';
 import type { Consumer, Context, Location, Runtime, Target } from './model';
 import type { Entry, Workspace } from './workspace';
 export type { Consumer } from './model';
@@ -108,6 +110,16 @@ class Discovery {
       // Proof: c31c-consumer-workflow-family; injected else if (entry.path.startsWith('.github/workflows/') && /\.ya?ml$/u.test(name)) → else if (false) failed `discovers workflow run uses and referenced local composite run bodies in dot directories`; restoration passed. Discovery omission/wiring fault; credit only actual named failure and restored matching pass, not complete syntax support.
       else if (entry.path.startsWith('.github/workflows/') && /\.ya?ml$/u.test(name))
         this.collectWorkflow(entry.path);
+      // Proof: family omission hides actual startup in standard, legacy and hidden-directory override names (compose-inventory-fault-family-v1).
+      else if (/^(?:docker-)?compose(?:[.-][A-Za-z0-9_-]+)*\.ya?ml$/u.test(name))
+        this.collectCompose(entry.path);
+      else if (
+        /^(?:(?:Dockerfile|Containerfile)(?:[.-][A-Za-z0-9_-]+)*|[A-Za-z0-9_.-]+\.(?:Dockerfile|Containerfile))$/u.test(
+          name,
+        )
+      )
+        // Proof: docker-inventory-fault-family-v116b omitted this call; all four build-file discovery cases found zero sites and failed, then passed after restoration.
+        this.collectDocker(entry);
     }
     return [...this.sites.values()].sort((left, right) =>
       left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
@@ -127,6 +139,54 @@ class Discovery {
     const configuration = readConfiguration(entry, syntax);
     this.configurations.set(path, configuration);
     return configuration;
+  }
+  private collectCompose(source: string): void {
+    const configuration = this.readConfig(source);
+    // Proof: context omission keeps identical digests after an image change with unchanged argv (compose-inventory-fault-context-v1).
+    const context: readonly Context[] = [
+      { source, location: [], settings: { compose: configuration } },
+    ];
+    for (const site of readComposeSites(configuration, source)) {
+      const first = site.invocation.kind === 'argv' ? site.invocation.argv.at(0) : undefined;
+      this.emit(
+        source,
+        { kind: 'property', path: site.path },
+        site.kind,
+        site.body,
+        first === undefined ? 'unknown' : readRuntime(first),
+        site.invocation,
+        context,
+        [],
+        // Proof: unqualified omission admits the actual Bun command site when the checker assesses that site (compose-inventory-fault-unqualified-v1); not a complete-graph acceptance claim.
+        'Compose image, mounts and merged execution require qualification',
+      );
+    }
+  }
+  private collectDocker(entry: Entry): void {
+    // Proof: docker-inventory-fault-regular-v116b removed this refusal; the symlink fixture no longer threw. The restored production path passed.
+    if (entry.kind !== 'file')
+      throw new Error('Docker build file is not a captured regular file: ' + entry.path);
+    const contents = decodeUtf8(entry.bytes, entry.path);
+    // Proof: docker-inventory-fault-context-v116b removed the full-file context; changing only FROM left command digests equal and failed the identity oracle. Restoration passed.
+    const context: readonly Context[] = [
+      { source: entry.path, location: [], settings: { dockerfile: contents } },
+    ];
+    for (const site of readDockerSites(contents))
+      this.emit(
+        entry.path,
+        { kind: 'property', path: site.path },
+        site.kind,
+        site.body,
+        'unknown',
+        {
+          kind: 'unresolved',
+          reason: 'Docker build frontend, stages and image execution require qualification',
+        },
+        context,
+        [],
+        // Proof: docker-inventory-fault-unqualified-v116b omitted this reason; the actual declaration test lost its consumer-unresolved diagnostic, then passed after restoration. The later unknown-runtime refusal still blocks acceptance; no independent admission claim.
+        'Docker build frontend, stages and image execution require qualification',
+      );
   }
   private readContext(
     source: string,
@@ -885,11 +945,13 @@ class Discovery {
 }
 
 /**
- * Discover only the initial entrypoint/package/Nx/GitHub consumer families from captured bytes.
+ * Discover entrypoint/package/Nx/GitHub and captured Compose service startup/hook consumers.
  * IDs preserve tagged structural locations; digests include canonical context and target identity.
  * Literal argv syntax never proves wrapper/indirection resolution. Unsupported forms remain
  * explicit blockers, and declarations cannot choose this discovery universe. This is neither
  * complete generated/remote/infra coverage nor a certificate that the observed programs run on Bun.
+ * Compose sites preserve their complete configuration and remain unresolved until image, mounted
+ * paths and merge/inheritance semantics have independent qualification; host paths never substitute.
  */
 export function discoverConsumers(workspace: Workspace): readonly Consumer[] {
   return new Discovery(workspace).collect();

@@ -43,13 +43,13 @@ function seed(sqlite: Database): void {
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
   sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+    "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
   );
   sqlite.run(
-    "INSERT INTO step (id, project_id, name, position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
+    "INSERT INTO step (id, work_package_id, name, position) VALUES ('dev','p','Dev',10),('qa','p','QA',20)",
   );
   sqlite.run(
-    "INSERT INTO work_item (id, project_id, position, name, revision) VALUES ('a','p',1,'A',0)",
+    "INSERT INTO work_item (id, work_package_id, position, name, revision) VALUES ('a','p',1,'A',0)",
   );
 }
 
@@ -83,19 +83,21 @@ const tableNames = (sqlite: Database) =>
     .all()
     .map(({ name }) => name);
 
-const columnsOfProject = (sqlite: Database) =>
+const columnsOfWorkPackage = (sqlite: Database) =>
   sqlite
-    .query<{ name: string }, []>("SELECT name FROM pragma_table_info('project')")
+    .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_package')")
     .all()
     .map(({ name }) => name);
 
 describe(ATTEMPTS, () => {
-  it('applies the table and an old-writer project insert reads UTC', () => {
+  it('applies the table and an old-writer work package insert reads UTC', () => {
     withDatabase((sqlite) => {
       seed(sqlite);
       expect(tableNames(sqlite)).toContain('step_node_attempt');
       expect(
-        sqlite.query<{ timezone: string }, []>("SELECT timezone FROM project WHERE id = 'p'").get(),
+        sqlite
+          .query<{ timezone: string }, []>("SELECT timezone FROM work_package WHERE id = 'p'")
+          .get(),
       ).toEqual({ timezone: 'UTC' });
       insertAttempt(sqlite, { number: 1, endedAt: 200, outcome: 'failed' });
       insertAttempt(sqlite, { number: 2, endedAt: null, outcome: null });
@@ -160,12 +162,12 @@ describe(ATTEMPTS, () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toContain(ATTEMPTS);
     withDatabase((sqlite) => {
       expect(tableNames(sqlite)).not.toContain('step_node_attempt');
-      expect(columnsOfProject(sqlite)).not.toContain('timezone');
+      expect(columnsOfWorkPackage(sqlite)).not.toContain('timezone');
     });
     runMigrations(path, FOLDER);
     withDatabase((sqlite) => {
       expect(tableNames(sqlite)).toContain('step_node_attempt');
-      expect(columnsOfProject(sqlite)).toContain('timezone');
+      expect(columnsOfWorkPackage(sqlite)).toContain('timezone');
     });
   });
 

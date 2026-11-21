@@ -9,7 +9,7 @@ graph factory into a mapped transaction before constructing `ImportService`.
 
 `plan-import.feature.ts` (the moved `service/import.service.ts`) admits one prepared archival plan
 inside a single unit of work, reconciling deployment-global directory names before writing a fresh
-project tree and publishing only after commit. `prepare-import.ts` is its private support: it
+work package tree and publishing only after commit. `prepare-import.ts` is its private support: it
 validates and normalizes a plan document over pure values, asking only the `Scheduler` port whether
 the requested engine is supported. `import-values.ts` owns the prepared file-reference vocabulary
 and its two pure row projections; `prepare-import.ts` retains the public type exports.

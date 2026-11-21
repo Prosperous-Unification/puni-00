@@ -1,60 +1,65 @@
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore, WorkItemStore } from '../index';
+import type { WorkItemStore, WorkPackage, WorkPackageStore } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { inMemoryServices } from '../testing/harness';
+import { createTestServices } from '../testing/harness';
+import { createLegacyWorkPackageFixture } from '../testing/legacy-work-package-fixture';
 
+const PROJECT_ID = 'caller-fixture-parent';
 const OWNER = 'owner-account';
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let workItems: WorkItemStore;
 let service: WorkItemService;
-let projectId: string;
+let workPackageId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects, workItems } = harness.stores);
+  const harness = createTestServices(
+    (await createLegacyWorkPackageFixture(OWNER, 'caller-legacy', PROJECT_ID)).source,
+    {},
+  );
+  ({ workPackages, workItems } = harness.stores);
   service = harness.service;
-  const project: Project = projectRow({
+  const workPackage: WorkPackage = workPackageRow({
     id: crypto.randomUUID(),
-    ownerId: OWNER,
+    projectId: PROJECT_ID,
   });
-  await projects.create(project, [], { at: 1, by: OWNER });
-  projectId = project.id;
+  await workPackages.create(workPackage, [], { at: 1, by: OWNER });
+  workPackageId = workPackage.id;
 });
 
 async function add(name: string, afterId: string | null = null): Promise<string> {
-  const outcome = await service.create(projectId, OWNER, { parentId: null, afterId, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId: null, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
 
 async function numbered(): Promise<Record<string, string>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return Object.fromEntries(tree.workItems.map((w) => [w.name, w.number]));
 }
 
-/** Name and number in the order the project reads, which is what a move changes. */
+/** Name and number in the order the work package reads, which is what a move changes. */
 async function inOrder(): Promise<[string, string][]> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return tree.workItems.map((w) => [w.name, w.number]);
 }
 
 async function storedNumbers(): Promise<(string | null)[]> {
-  const rows = await workItems.listByProject(projectId);
+  const rows = await workItems.listByWorkPackage(workPackageId);
   return rows.sort((a, b) => a.position - b.position).map((w) => w.frozenNumber);
 }
 
 describe('freezing', () => {
   it('writes every derived number into storage', async () => {
     await add('Strip');
-    const strip = (await workItems.listByProject(projectId))[0]?.id ?? '';
+    const strip = (await workItems.listByWorkPackage(workPackageId))[0]?.id ?? '';
     await add('Cable', strip);
 
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     expect(await storedNumbers()).toEqual(['010', '020']);
   });
@@ -62,7 +67,7 @@ describe('freezing', () => {
   it('leaves later work items deriving until the next freeze', async () => {
     const strip = await add('Strip');
     await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     await add('Survey', strip);
 
@@ -76,22 +81,22 @@ describe('freezing', () => {
   it('a second freeze pins the newcomer and rewrites neither neighbour', async () => {
     const strip = await add('Strip');
     await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
     await add('Survey', strip);
 
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     // `030`, per the case above; the neighbours are still not rewritten, which
     // is what this case is about.
     expect(await storedNumbers()).toEqual(['010', '030', '020']);
   });
 
-  it('unfreezing the project clears every stored number', async () => {
+  it('unfreezing the work package clears every stored number', async () => {
     const strip = await add('Strip');
     await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
-    await service.unfreezeProject(projectId, OWNER);
+    await service.unfreezeWorkPackage(workPackageId, OWNER);
 
     expect(await storedNumbers()).toEqual([null, null]);
   });
@@ -99,7 +104,7 @@ describe('freezing', () => {
   it('unfreezing one work item releases only that one', async () => {
     const strip = await add('Strip');
     const cable = await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     await service.unfreeze(cable, OWNER);
 
@@ -121,7 +126,7 @@ describe('a frozen work item moves, and keeps the number that left the tool', ()
   it('moves a frozen work item and reports its number unchanged', async () => {
     const strip = await add('Strip');
     const cable = await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     const outcome = await service.move(
       cable,
@@ -144,7 +149,7 @@ describe('a frozen work item moves, and keeps the number that left the tool', ()
   it('gives an unfrozen mover the first label its frozen sibling leaves free', async () => {
     const strip = await add('Strip');
     const cable = await add('Cable', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
     await service.unfreeze(cable, OWNER);
 
     const outcome = await service.move(
@@ -166,7 +171,7 @@ describe('a frozen work item moves, and keeps the number that left the tool', ()
   });
 });
 
-describe('deletion against a frozen project', () => {
+describe('deletion against a frozen work package', () => {
   it('leaves the hole where the deleted number was', async () => {
     // The counterpart of the unfrozen rule in section 4: there, deleting 020
     // closes the gap and 030 becomes 020. Once frozen, 030 is a number someone
@@ -174,7 +179,7 @@ describe('deletion against a frozen project', () => {
     const strip = await add('Strip');
     const cable = await add('Cable', strip);
     await add('Test', cable);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     await service.remove(cable, OWNER, null, { kind: 'legacy' });
 

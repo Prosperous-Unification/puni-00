@@ -1,6 +1,13 @@
-import type { Hold, IsoDate, Readiness } from '@wbs/domain';
+import type { Hold, IsoDate, LeafStepOrder, Readiness } from '@wbs/domain';
 
-import type { LabelledWorkItem, Service, Tag, WorkItem, WorkItemType } from './work-item-values';
+import type {
+  LabelledWorkItem,
+  Service,
+  Tag,
+  TreeWorkItem,
+  WorkItem,
+  WorkItemType,
+} from './work-item-values';
 import type { WriteStamp } from './write-stamp';
 export type {
   ExternalRef,
@@ -8,9 +15,22 @@ export type {
   LabelledWorkItem,
   Service,
   Tag,
+  TreeWorkItem,
   WorkItem,
   WorkItemType,
 } from './work-item-values';
+
+/** Explicit direct types for a projected row; an empty list deliberately means untyped. */
+export interface WorkItemDirectTypes {
+  readonly workItemId: string;
+  readonly typeIds: readonly string[];
+}
+
+/** Complete proposed topology, with explicit replacements required for every identity absent from storage. */
+export interface WorkItemStepProjection {
+  readonly rows: readonly Pick<WorkItem, 'id' | 'workPackageId' | 'parentId'>[];
+  readonly directTypes: readonly WorkItemDirectTypes[];
+}
 
 /**
  * What a tag rename answered.
@@ -19,12 +39,12 @@ export type {
  * it — and the controller turns this into the 409 the directory page shows.
  * {@link ServiceTeamWritten}'s shape, one dimension over.
  *
- * `projectIds` is every project holding a row that carries the tag, read in the
+ * `workPackageIds` is every work package holding a row that carries the tag, read in the
  * rename's own transaction so the events published after it name the plans that
  * were labelled when it happened.
  */
 export type TagWritten =
-  | { ok: true; tag: Tag; projectIds: readonly string[] }
+  | { ok: true; tag: Tag; workPackageIds: readonly string[] }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 /**
@@ -32,24 +52,24 @@ export type TagWritten =
  * dimension over, including `taken` carrying no surviving name because the
  * caller typed it.
  *
- * `projectIds` is every project holding a row that carries the type, read in the
+ * `workPackageIds` is every work package holding a row that carries the type, read in the
  * rename's own transaction so the events published after it name the plans that
  * were labelled when it happened.
  */
 export type WorkItemTypeWritten =
-  | { ok: true; workItemType: WorkItemType; projectIds: readonly string[] }
+  | { ok: true; workItemType: WorkItemType; workPackageIds: readonly string[] }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 /**
  * What a service rename answered — {@link TagWritten}'s shape, one dimension
  * over, and the same reading of each arm.
  *
- * `projectIds` is every project holding a work item that names the service,
+ * `workPackageIds` is every work package holding a work item that names the service,
  * read inside the rename's own transaction so the events published after it
  * name the plans that were labelled when it happened.
  */
 export type ServiceWritten =
-  | { ok: true; service: Service; projectIds: readonly string[] }
+  | { ok: true; service: Service; workPackageIds: readonly string[] }
   | { ok: false; reason: 'taken' | 'not_found' };
 
 export interface WorkItemPatch {
@@ -83,9 +103,9 @@ export interface WorkItemPatch {
    * `IsoDate` or `null` and refuses neither. Two layers above it do. The
    * **controller** refuses a value that is not an `IsoDate`, through the same
    * malformed-payload path the floor uses — a 400, like every other malformed
-   * field. The **service** refuses a date before the project's day zero, which
+   * field. The **service** refuses a date before the work package's day zero, which
    * is where that check has to live because it is the first layer holding the
-   * project as well as the payload; that one is a 422.
+   * work package as well as the payload; that one is a 422.
    */
   deadline?: IsoDate | null;
   /**
@@ -329,31 +349,50 @@ export interface WorkItemPlacement {
 
 export interface WorkItemStore {
   /**
-   * Every work item of one project, each carrying the teams it is joined to.
+   * Tree rows and current leaf applicability captured together on this store's observation.
+   * Current leaves carry an explicit list, including zero-step and conflicting leaves;
+   * parents carry no list. Independent legacy fixtures expose ordinary rows only.
+   * This display read does not change stored rows or structural history recipes.
+   */
+  listTreeByWorkPackage(workPackageId: string): Promise<TreeWorkItem[]>;
+  /**
+   * Resolves candidate leaves on this admitted observation's actual chain, bindings,
+   * types and explicit values. Existing parents retain their direct types when becoming
+   * leaves; new/restored rows require explicit type evidence. Returns detached own
+   * inventories without changing storage or conferring authority over another owner.
+   * Plain inputs are retained before queueing; Source/ordinary/repair lifetimes apply.
+   * @throws for absent/foreign ownership, incomplete types, malformed topology or values.
+   */
+  resolveStepOrders(
+    workPackageId: string,
+    projection: WorkItemStepProjection,
+  ): Promise<LeafStepOrder[]>;
+  /**
+   * Every work item of one work package, each carrying the teams it is joined to.
    *
    * The join is the read since `team-sets`: `work_item.service_team_id` is
    * still written beside it and is still what the outgoing release selects, but
    * nothing here consults it.
    */
-  listByProject(projectId: string): Promise<LabelledWorkItem[]>;
+  listByWorkPackage(workPackageId: string): Promise<LabelledWorkItem[]>;
   /**
-   * Every work item of one project with its own update instant, the stamped
+   * Every work item of one work package with its own update instant, the stamped
    * `updated_at` its writes and its satellites' writes move; `null` for a row
    * last written before the audit columns. Read beside the tree by work-item
    * pages (spec `list-reads`), never folded into the tree's rows, whose wire
    * shape stays unchanged.
    */
-  listUpdateInstants(projectId: string): Promise<ReadonlyMap<string, number | null>>;
-  /** The requested rows that belong to `projectId`, in the full project reader's order. */
-  listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
+  listUpdateInstants(workPackageId: string): Promise<ReadonlyMap<string, number | null>>;
+  /** The requested rows that belong to `workPackageId`, in the full work package reader's order. */
+  listByIds(workPackageId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
   /**
-   * Placement of each requested existing row in the full project reader's order.
+   * Placement of each requested existing row in the full work package reader's order.
    *
-   * Missing or foreign-project IDs are absent. Each answer names the immediate
-   * predecessor across the complete project, whether or not that predecessor
+   * Missing or foreign-work-package IDs are absent. Each answer names the immediate
+   * predecessor across the complete work package, whether or not that predecessor
    * was requested. Empty IDs return an empty collection.
    */
-  listPlacements(projectId: string, ids: readonly string[]): Promise<WorkItemPlacement[]>;
+  listPlacements(workPackageId: string, ids: readonly string[]): Promise<WorkItemPlacement[]>;
   findById(id: string): Promise<WorkItem | null>;
   /**
    * Inserts, and respaces the sibling group in the same transaction when the
@@ -380,7 +419,7 @@ export interface WorkItemStore {
    * bumps the revision of **only** the work items named in `moved`.
    *
    * One call rather than a `move` per work item, for the reason
-   * {@link setFrozenNumbers} is one call: a project half arranged is a project
+   * {@link setFrozenNumbers} is one call: a work package half arranged is a work package
    * where some rows are in schedule order and some are not, and nobody reading
    * it could tell which. It also keeps a press to one journal entry and one
    * broadcast.
@@ -398,8 +437,8 @@ export interface WorkItemStore {
   /**
    * Writes or clears stored numbers. `null` returns a work item to deriving.
    *
-   * A freeze is one call rather than a write per work item: a project half
-   * frozen is a project where some numbers moved and some did not, and nobody
+   * A freeze is one call rather than a write per work item: a work package half
+   * frozen is a work package where some numbers moved and some did not, and nobody
    * reading it could tell which.
    */
   setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp): Promise<void>;

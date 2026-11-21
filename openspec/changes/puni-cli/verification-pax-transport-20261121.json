@@ -1,0 +1,725 @@
+{
+  "schema": "puni-pax-transport-v117",
+  "recordedAt": "2026-11-21T15:18:00.531Z",
+  "classification": "progress",
+  "parent": {
+    "path": "/tmp/puni-goal-continuation-20261121-v116.json",
+    "sha256": "e26f634f825638207dbdf35b8ddaab79c72ed000e98fd1df6f5ae5631f455722",
+    "bytes": 22180,
+    "mode": 384
+  },
+  "review": {
+    "path": "/tmp/puni-required-pax-archive-independent-review-v2.json",
+    "sha256": "b1a5c2968c17ca017481f44d4554bae87007d2ccbac6c46f9e806b53fb894979",
+    "bytes": 2268,
+    "mode": 436
+  },
+  "reviewedManifest": {
+    "path": "/tmp/puni-required-pax-archive-source-v2/manifest.json",
+    "sha256": "3b14a0886886e7c36658e175945d577591007615694aa35d9a413744eff363da",
+    "bytes": 2827,
+    "mode": 384
+  },
+  "reviewedApply": "The exact two-file correction was applied through require_escalated after the renewed explicit user goal and fresh34 first controls; old archive/source preimages remain in pax-beforeimages-v117.json. The approved runtime is unchanged beyond comments/formatting.",
+  "beforeimages": {
+    "path": "/tmp/puni-combined-proposal-v1/control/pax-beforeimages-v117.json",
+    "sha256": "ab65fe9529975a9e744d94cfc614e48ee761db304142da1628c1a13fe355e20b",
+    "bytes": 109953,
+    "mode": 384
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+      "sha256": "fb21878a8324129c338ff9aaf0c55dd6f98ed66f0f90b8577b554beaba74f20d",
+      "bytes": 10761,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.test.ts",
+      "sha256": "5bc345889cdecfb6c2fb02fa96cc0f37ffd4ba3b2122fa7e6a2ee39b9300cc41",
+      "bytes": 22876,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+      "sha256": "71b5bdb35eeab55ae60a2c958be0f02c308cdf50a2c63cdb8787f6808f85783d",
+      "bytes": 19846,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts",
+      "sha256": "6ec3ad91c3b12941eb8f4bfaec98d489b45b0aeb17c506953d31651956f10685",
+      "bytes": 12035,
+      "mode": 436
+    }
+  ],
+  "bridges": [
+    {
+      "path": "apps/puni/cli/src/packaging/archive.ts",
+      "emittedSha256": "19d8e914e28e68edbba043140170265b99349fe040a322ea0e5f67d0a62db23e",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+        "sha256": "fb21878a8324129c338ff9aaf0c55dd6f98ed66f0f90b8577b554beaba74f20d",
+        "bytes": 10761,
+        "mode": 436
+      }
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+      "emittedSha256": "7d71849796489c41c38d51cb5452d9329cff365e873a464caaf734f03bfe7587",
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts",
+        "sha256": "71b5bdb35eeab55ae60a2c958be0f02c308cdf50a2c63cdb8787f6808f85783d",
+        "bytes": 19846,
+        "mode": 436
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "pax-closure-final-regression-v117b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-final-regression-v117b.receipt.json",
+        "sha256": "149fb66af4e5ca58d8a055b5a1834d7ccb1be5e03d3b8bc106a44f79bb845ded",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-final-regression-v117b.log",
+        "sha256": "6096326293fefacd533aed87746a8358724a3c013019b18b073ba46bf8bdcc60",
+        "bytes": 5800,
+        "mode": 384
+      }
+    },
+    {
+      "name": "puni-cli-full-types-final-v117",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/puni-cli-full-types-final-v117.receipt.json",
+        "sha256": "1cb21f76aafc2bc53f20b94af267fd04f6da23fbef1c9ddd06674f865ae9e0f2",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/puni-cli-full-types-final-v117.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pax-closure-final-lint-v117b",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-final-lint-v117b.receipt.json",
+        "sha256": "9202508434dd93a4161c2e2fbf460322a085132bb3c7fac1848b97edd16d0505",
+        "bytes": 1541,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-final-lint-v117b.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pax-closure-faults-v117c",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-faults-v117c.receipt.json",
+        "sha256": "1bca26a6b64424eaa60dd8dd0f011b076a960712dcbe1be7d9ee2f8047d7b68c",
+        "bytes": 1261,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-faults-v117c.log",
+        "sha256": "da1f3c2a7aef7dc6ba0c4e09ddae43421cedcff98ba9b5ab1ef13e4e85a20218",
+        "bytes": 54,
+        "mode": 384
+      }
+    },
+    {
+      "name": "closure-resolution-probe-v117",
+      "exitCode": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/closure-resolution-probe-v117.receipt.json",
+        "sha256": "cac6008f97f308ff5cfbaf5f7a41378fb624cf4042318826f53856f8e117d828",
+        "bytes": 1329,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/closure-resolution-probe-v117.log",
+        "sha256": "2fde2e41be61a333738dedbb0e00012cd53210ef53032309a387cec6731851dd",
+        "bytes": 500,
+        "mode": 384
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "name": "pax-current-before-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-current-before-v117.receipt.json",
+        "sha256": "60390026a946c29e7beff3a60ab7405a427e4022ec89bbd102c37e8d2fb2a072",
+        "bytes": 1319,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-current-before-v117.log",
+        "sha256": "6cb3a5c8f36bfd326f7f2a242bf732399b2c79a47605f92d46e9417fe046aedf",
+        "bytes": 11649,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-current-v116",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-current-v116.receipt.json",
+        "sha256": "242731775512dafbb74558dc910614cb7c79faa3556a2456ba26a641827a7b9e",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-current-v116.log",
+        "sha256": "7a849abdc66823d73d4b26ac3d71f9529dca512b4c8080c76e236738830e43b1",
+        "bytes": 2391,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-pax-after-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-pax-after-v117.receipt.json",
+        "sha256": "476c52335201961e94761091a7be5f2930fe4b32978d5128d75c3d8355cabf93",
+        "bytes": 1383,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-pax-after-v117.log",
+        "sha256": "75be801254fd81f514beed8cb5db5d605629c6ed04ddae6cc9c33e04f10bf21f",
+        "bytes": 3132,
+        "mode": 384
+      }
+    },
+    {
+      "name": "cli-package-transport-after-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-transport-after-v117.receipt.json",
+        "sha256": "749943c4b90d2cf6957028e4017c5b7ccf17aa3e421510466ed36adde10f46a5",
+        "bytes": 1395,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/cli-package-transport-after-v117.log",
+        "sha256": "cdf0c30b9cb40b80f9446c7e38006cf505111b9bd1a5e628c1c84ca3fa70a43a",
+        "bytes": 1421,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pax-current-local-install-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-current-local-install-v117.receipt.json",
+        "sha256": "9c275d4f9744102a65eb6a5795ec431ce9c48f272facff4b7aaae1ec78e296bd",
+        "bytes": 1461,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-current-local-install-v117.log",
+        "sha256": "0b3405a449ac1b3fe94c2ab2a099b4ac9d37f85835630a3edc842e8a3f515250",
+        "bytes": 5775,
+        "mode": 384
+      }
+    },
+    {
+      "name": "source-reader-diagnostic-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/source-reader-diagnostic-v117.receipt.json",
+        "sha256": "9a68b6c852eba4863abcdaeec01bdf4565d49955d75cb9082b7dfbff2b205b0c",
+        "bytes": 1327,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/source-reader-diagnostic-v117.log",
+        "sha256": "ab9fa83090252c2a7116af28424910642b638e42625e4af946f7791bf77e8342",
+        "bytes": 402,
+        "mode": 384
+      }
+    },
+    {
+      "name": "closure-transport-before-v117",
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/closure-transport-before-v117.receipt.json",
+        "sha256": "f6abbeacb88aa84786558cd78efb6ffe28135ec2081510bc115b7144a21083c0",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/closure-transport-before-v117.log",
+        "sha256": "ec8e6c130e883a40b2ae4fca34f0991c3b61c83ee65cb68deebcb0aa70d56b8e",
+        "bytes": 1033,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "archiveTests": 35,
+    "moduleTests": 18,
+    "pass": 53,
+    "fail": 0,
+    "assertions": 305,
+    "files": 2,
+    "fullPuniCliTypeProjects": ["production", "tests"],
+    "lintOwners": 4,
+    "finiteFaults": 21,
+    "restoredControls": 21
+  },
+  "faults": [
+    {
+      "name": "short-physical",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-short-physical-v117",
+      "oracle": "function did not throw",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-short-physical-v117.receipt.json",
+        "sha256": "34a5ab89e1a97bff266db603c6e5ee0357b4f25c589dcc0e14c87246b232ec8e",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-short-physical-v117-restored.receipt.json",
+        "sha256": "0348c20bbb347fbbaa849f6a32f5e6e81ee9a5629662d3e074f76349425208c9",
+        "bytes": 1438,
+        "mode": 384
+      }
+    },
+    {
+      "name": "effective",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-effective-v117",
+      "oracle": "function did not throw",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-effective-v117.receipt.json",
+        "sha256": "fa223600a173db8a3adce8db9fba9a73f873b2d674a3f7059d4258390abbeae8",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-effective-v117-restored.receipt.json",
+        "sha256": "27da402598ec7ec6ed7dc606c0dfd7f21b5bd1e8b1a75757e323f244f74d0a54",
+        "bytes": 1435,
+        "mode": 384
+      }
+    },
+    {
+      "name": "placeholder-record",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-placeholder-record-v117b",
+      "oracle": "PUNI tar member is duplicated",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-placeholder-record-v117b.receipt.json",
+        "sha256": "ab758271173674287a4a2fabed5d8c20fac28c18110a6f29a92f996e9c6cad23",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-placeholder-record-v117b-restored.receipt.json",
+        "sha256": "011aa3e2ffcc3650d22ecc519ea2c718c86f7a9a5482427b45e60e3119cc9229",
+        "bytes": 1480,
+        "mode": 384
+      }
+    },
+    {
+      "name": "ordinary-history",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-ordinary-history-v117c",
+      "oracle": "function did not throw",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-ordinary-history-v117c.receipt.json",
+        "sha256": "eea970982250c9258c261aaa0f414062235f587655602daffe869fb0007e93d8",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-ordinary-history-v117c-restored.receipt.json",
+        "sha256": "223a072a7480580d9fca6c9c05555bc24e6577818637009546e1720d68b774cf",
+        "bytes": 1448,
+        "mode": 384
+      }
+    },
+    {
+      "name": "critical-alias",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-critical-alias-v117c",
+      "oracle": "function did not throw",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-critical-alias-v117c.receipt.json",
+        "sha256": "b6c8891d44da725d0fc59a8b5d1cc80fdc17947cab6df84fb9b232f0d404eb48",
+        "bytes": 1438,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-critical-alias-v117c-restored.receipt.json",
+        "sha256": "bb7bc5f8b74ea66185b6c11f2c9d59f38f369c0da8d7e9317d36b11afc4f6c6b",
+        "bytes": 1455,
+        "mode": 384
+      }
+    },
+    {
+      "name": "utf8-width",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-utf8-width-v117c",
+      "oracle": "PUNI tar member is duplicated",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-utf8-width-v117c.receipt.json",
+        "sha256": "d2fbbb2be62a9c64a23abc7f1d61b2d3fc9388ee519b5fbdf54f196f758d007d",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-utf8-width-v117c-restored.receipt.json",
+        "sha256": "b7e5fb195f1b953584885b77f7c36997ace1c3c7e3be05d4247543c201bf4b8f",
+        "bytes": 1424,
+        "mode": 384
+      }
+    },
+    {
+      "name": "prefix-width",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-prefix-width-v117c",
+      "oracle": "PUNI tar member is duplicated",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-prefix-width-v117c.receipt.json",
+        "sha256": "8e62273e9f30a4e4f626cf762c31f7b27acca4d995182bffaaf891686a726c61",
+        "bytes": 1418,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-prefix-width-v117c-restored.receipt.json",
+        "sha256": "3ccdfa53cadfb9dba19f17b92b123847df883e0d08b1c6437c37dd5ca5c461a3",
+        "bytes": 1435,
+        "mode": 384
+      }
+    },
+    {
+      "name": "name-width",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-name-width-v117c",
+      "oracle": "PUNI tar member is duplicated",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-name-width-v117c.receipt.json",
+        "sha256": "89da12bd81fdc8849d13df8b10f72b2cd4d703226393dea4b710938deb2a9dc5",
+        "bytes": 1408,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-name-width-v117c-restored.receipt.json",
+        "sha256": "aa7c14dc05596da13afc99e6351526ad175d68dc3ae26376581a4d5bd356a004",
+        "bytes": 1425,
+        "mode": 384
+      }
+    },
+    {
+      "name": "regular-only",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-regular-only-v117c",
+      "oracle": "function did not throw",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-regular-only-v117c.receipt.json",
+        "sha256": "598e9cbbdb240a0fff1a428e7ef978270a5ca0c500a15f1b1e23b961c214bb48",
+        "bytes": 1414,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-regular-only-v117c-restored.receipt.json",
+        "sha256": "b5faa4c08ebc8fb2e1541cdb0f454d3ccee7364bd144183c39fc219155150926",
+        "bytes": 1431,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-1",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-1-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-1-v117c.receipt.json",
+        "sha256": "ba45d9506f270b72c38d969b343d408e8672dc3dabb825f5ca308d2ce95e5117",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-1-v117c-restored.receipt.json",
+        "sha256": "a449fd9773fadc1aecc47f0ad0e075cb88ccb187d187d868fb25ecede47ec6ee",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-2",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-2-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-2-v117c.receipt.json",
+        "sha256": "98c7245e551f67f2d60a0d9af47f4ad65d964456bc1ea42af27a23c70dfe9500",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-2-v117c-restored.receipt.json",
+        "sha256": "2e05222f606b0c0866b48e96c0947fd1b2db7c6c569c88174b0c119733b7f4ca",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-3",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-3-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-3-v117c.receipt.json",
+        "sha256": "e1d3a31843ca875f7438b7cf2545e967a1a8ce21e38c285535c2102b772357a5",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-3-v117c-restored.receipt.json",
+        "sha256": "51939592aa3f1179b3224e9522365c7f2181ce6409d2c68e598327e26e77d93c",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-4",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-4-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-4-v117c.receipt.json",
+        "sha256": "d7411bab218f056e8df3dbf63f89662b0d4ebe9514975a8c2b9975d58b08ccb9",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-4-v117c-restored.receipt.json",
+        "sha256": "49ad52b7003ef7bd244f88793d458147dc2bd5a4e55ecfc0d4349cfaac07afce",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-5",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-5-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-5-v117c.receipt.json",
+        "sha256": "41f4dab7b296b8e28bc5eb04e2170f061730dfbe10a46b1e259f1955ea1ba03f",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-5-v117c-restored.receipt.json",
+        "sha256": "1b185b3c0254ba1fa30a3cbe9e1af5324ac9cfb5c6281b61b56a71a61c1e4e72",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-6",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-6-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-6-v117c.receipt.json",
+        "sha256": "bdcb873ca24fc94043c45caa042f8096083d7d0d50e1f0de4feae9eefaa5ef86",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-6-v117c-restored.receipt.json",
+        "sha256": "b4d168662bf0957c35997eb1825349803c11d959a78d9453726cb510e3eddb96",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-7",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-7-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-7-v117c.receipt.json",
+        "sha256": "7f509f3550c398c0b32596ad5841caa6cc16fb69c363944f6213350a5415a97a",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-7-v117c-restored.receipt.json",
+        "sha256": "a04c79457e748652895b9b585dadccbe9c3670dc4ff8a70ff8111afdfcde08d4",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-8",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-8-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-8-v117c.receipt.json",
+        "sha256": "519b5849955f05ac9965670acbc93d855b3316982405454665308b784edf5834",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-8-v117c-restored.receipt.json",
+        "sha256": "771de0151d9a03662671ac2553461f49164666c855327e0409818f3db7a7138e",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-9",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-9-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-9-v117c.receipt.json",
+        "sha256": "4df593596fd205e8a60c9b16b02d4cf44e3f9fef8dd99482391a408f6e37b3a1",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-9-v117c-restored.receipt.json",
+        "sha256": "78ceace3ba498993d6c39adcf75ba05419537de7839619a559c8cb3c04bb5caa",
+        "bytes": 1462,
+        "mode": 384
+      }
+    },
+    {
+      "name": "transport-10",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-10-v117c",
+      "oracle": "hashTrustedModules(delivered)",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-10-v117c.receipt.json",
+        "sha256": "afbc134961a2947c64ebb534cf63ee7f424ba9f72c2be17c1331a15968530f87",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-transport-10-v117c-restored.receipt.json",
+        "sha256": "ceb801787cf3d7f038a308de174600e77ef20a98613fd288c4e51dd74a1a0ef7",
+        "bytes": 1464,
+        "mode": 384
+      }
+    },
+    {
+      "name": "npmignore-scope",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-npmignore-scope-v117c",
+      "oracle": "ENOENT",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-npmignore-scope-v117c.receipt.json",
+        "sha256": "8b8bbf288525f1212fa336b699caa99c9ff321e65e912497ab406d328e1afbcf",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-npmignore-scope-v117c-restored.receipt.json",
+        "sha256": "ac57bd176e864e53ccc94d86754d157686ab9866a082c6659226e83b35920e0b",
+        "bytes": 1482,
+        "mode": 384
+      }
+    },
+    {
+      "name": "bunfig-scope",
+      "prefix": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-bunfig-scope-v117c",
+      "oracle": "ENOENT",
+      "exactBytesAndModeRestored": true,
+      "restoredExitCode": 0,
+      "negative": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-bunfig-scope-v117c.receipt.json",
+        "sha256": "5435090f3816c82e882a5735ab828acde6f87c6c9de436f8011256dd8c3e2f57",
+        "bytes": 1459,
+        "mode": 384
+      },
+      "restored": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-bunfig-scope-v117c-restored.receipt.json",
+        "sha256": "506d303d04cd6e9cc469a438220c5d32c4069362f28b6fb1df973a0f7e1a71e9",
+        "bytes": 1476,
+        "mode": 384
+      }
+    }
+  ],
+  "faultPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-plan-v117c.json",
+    "sha256": "822437d8728ea9d347f8d3fb9a53d0dd1cccf3a0dc4ca29167bbacf08c3db2e0",
+    "bytes": 47357,
+    "mode": 384
+  },
+  "faultState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-fault-state-v117c.json",
+    "sha256": "fb7dc3989e1ddd6966098584b4b91521eefceb0b113cbdd46ca35517f2fb9307",
+    "bytes": 5340,
+    "mode": 384
+  },
+  "closureComparison": {
+    "path": "/tmp/puni-combined-proposal-v1/control/pax-closure-comparison-v117.json",
+    "sha256": "0692c6eb84421ad0e7d9c839736bb3f99f32051fa5baa17a9d9cad44a59f5e59",
+    "bytes": 503,
+    "mode": 384
+  },
+  "resolutionProbe": {
+    "path": "/tmp/puni-combined-proposal-v1/control/closure-resolution-probe-v117.json",
+    "sha256": "a34a92601e8baee97bc40aaf492f44542a513b6ec90620be83599ccad6e5c9bb",
+    "bytes": 521,
+    "mode": 384
+  },
+  "observedProgress": [
+    "Fresh unchanged34 archive controls first26pass8fail, then34/0 after the reviewed correction. One additional short-PAX history control brings final archive coverage to35. UTF8 byte widths and actual155/100 slash splits alone classify regular-file long placeholders; effective identities, ordinary/short physical identities, critical aliases, path trie, kinds and metadata guards remain.",
+    "Real pack/add next passed archive admission and refused a closure identity mismatch. Produced54047/installed54037files differ only in10 missing metadata files;0changed/0added. Ten exact observed metadata paths are omitted before selected/copied closure fingerprints; no blanket filename filtering or runtime hash relaxation.",
+    "The independent actual-Bun-pack fixture fails at delivered closure equality before the metadata correction and passes afterward. Each of10 individual omission removals breaks that own equality; broad npmignore/bunfig filtering separately fails existing retained-TypeScript-metadata controls.",
+    "The next actual package attempt passes archive and closure admission, then source import fails. The authenticated descriptor already includes arkregex; the physically named trusted-node-modules directory prevents sibling resolution. A separately copied canonical node_modules control imports the same authentic ArkType packages and validates a string. No roster addition, NODE_PATH fallback, symlink exception or shipped-layout qualification follows."
+  ],
+  "limits": [
+    "Real full package still3pass1fail37assertions/54.80s and retains /tmp/puni captured package integration T4s1Bq. Source/installed Browser/Performance, all aliases/four Nx/client owners downstream remain unreached. Current canonical runtime layout and actual caller custody still require implementation and formal review.",
+    "All7 existing local-installer owners stop at their healthy historical metadata prerequisite (0pass7fail35assertions), which current0.4 rightly refuses. No duplicate/alias/link/metadata negative tail gets credit. The fixture must be upgraded without weakening current package admission or historical decoders.",
+    "Two initial omission witnesses survive without credit: recording placeholders is invisible to long/long-only pairs; clearing raw names remains caught by effective uniqueness for pure ordinary duplicates. The actual mixed reverse-order and new distinct-effective short-PAX controls kill those faults. Earlier settled survivor receipts remain.",
+    "Lint initially reports18 void-expression errors in the preexisting/new archive tests. Four positive void-value checks become explicit no-throw calls and throwing callbacks gain blocks; all original behavior assertions stay present. Final53/0,full CLI type build and four-owner lint are independent current checks.",
+    "The bounded archive has an existing independent source review. The newly observed metadata/layout work and all combined goal obligations still need formal Astra review, unavailable until recorded2026-11-22 10:09AM,timezone unspecified. No retry/substitute/new agent, public commit/push/PR/merge/deploy/default activation or host gate occurs.",
+    "All9 original WBS/entity/catalogue/settings/spaces/13facts/15history/Source/API/UI/CLI/Bun inventory/exact-SHA gates/delivery requirements remain intact. The earlier protected-archive-unchanged statements describe prior epochs and are superseded only by this exact reviewed applied correction."
+  ]
+}

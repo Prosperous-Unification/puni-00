@@ -83,7 +83,7 @@ const slice = (over: Partial<ExportSlice> & Pick<ExportSlice, 'id' | 'workItemId
     latestFinish: 3,
     float: 0,
     critical: false,
-    boundBy: 'projectStart',
+    boundBy: 'workPackageStart',
     resourcePredecessorId: null,
     width: 1,
     effort: 3,
@@ -95,7 +95,7 @@ const slice = (over: Partial<ExportSlice> & Pick<ExportSlice, 'id' | 'workItemId
 const plan = (over: Partial<PlanExport> = {}): PlanExport =>
   Object.assign(
     {
-      projectName: 'Rewire the shed',
+      workPackageName: 'Rewire the shed',
       generatedAt: '2026-09-01T09:15:00.000Z',
       method: 'pert',
       startDate: START,
@@ -177,7 +177,7 @@ describe('the header', () => {
     ]);
   });
 
-  it('names the project and when the export was taken, in a comment', () => {
+  it('names the work package and when the export was taken, in a comment', () => {
     expect(drawn(plan())).toContain(
       '%% Rewire the shed — exported from the WBS tool at 2026-09-01T09:15:00.000Z.',
     );
@@ -189,8 +189,8 @@ describe('the header', () => {
     expect(text).toContain('Copy as');
   });
 
-  it('titles a nameless project rather than emitting a bare title keyword', () => {
-    expect(lines(plan({ projectName: '   ' }))[1]).toBe('title Plan');
+  it('titles a nameless work package rather than emitting a bare title keyword', () => {
+    expect(lines(plan({ workPackageName: '   ' }))[1]).toBe('title Plan');
   });
 });
 
@@ -563,8 +563,8 @@ describe('the escaping', () => {
     expect(text).toContain('010 Strip, #2; fast - Dev :s1, 2026-09-01, 2026-09-03');
   });
 
-  it('keeps a comment from being ended early by a project name', () => {
-    expect(drawn(plan({ projectName: 'Shed\nworks' }))).toContain(
+  it('keeps a comment from being ended early by a work package name', () => {
+    expect(drawn(plan({ workPackageName: 'Shed\nworks' }))).toContain(
       '%% Shed works — exported from the WBS tool',
     );
   });
@@ -619,7 +619,7 @@ describe('planToMermaidDocument — the bundled document (M2)', () => {
 
   it('bundles the header, the fence and the table, in that order', () => {
     const text = bundled(plan());
-    const headerAt = text.indexOf('**Project:**');
+    const headerAt = text.indexOf('**Work package:**');
     const fenceOpenAt = text.indexOf('```mermaid');
     const ganttAt = text.indexOf('\ngantt\n');
     const fenceCloseAt = text.indexOf('```\n', fenceOpenAt + 1);

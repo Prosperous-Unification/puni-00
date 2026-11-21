@@ -41,7 +41,7 @@ async function openBoundary() {
   const principal = await harness.authenticatedCommandPrincipal('keeper', '');
   const access: Extract<ResourceAccess, { kind: 'scoped' }> = {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'viewer', cap: null },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: null },
     principal: {
       id: principal.id,
       authentication: structuredClone(principal.authentication),
@@ -78,7 +78,7 @@ function invoke(
   actor: ResourceRuntimeActor,
 ): Promise<unknown> {
   const use = {
-    projectId: 'addressed-package',
+    workPackageId: 'addressed-package',
     resourceId: 'addressed-resource',
     workItemId: 'addressed-work',
     agentRun: 'run-a',
@@ -107,14 +107,14 @@ function invoke(
   switch (operation) {
     case 'register':
       return boundary.uses.register(
-        use.projectId,
+        use.workPackageId,
         actor,
         { ...use, requestId: 'registration-request' },
         2,
       );
     case 'append':
       return boundary.uses.append(
-        use.projectId,
+        use.workPackageId,
         admission.useId,
         actor,
         {
@@ -126,9 +126,9 @@ function invoke(
         2,
       );
     case 'list':
-      return boundary.uses.list(use.projectId, actor, { limit: 50 });
+      return boundary.uses.list(use.workPackageId, actor, { limit: 50 });
     case 'history':
-      return boundary.uses.history(use.projectId, admission.useId, actor, { limit: 50 });
+      return boundary.uses.history(use.workPackageId, admission.useId, actor, { limit: 50 });
     case 'bind':
       return boundary.runtime.bind(
         'addressed-authority',
@@ -225,7 +225,7 @@ async function makeMachineActor() {
   const principal = await harness.authenticatedMachinePrincipal(credential.key);
   const access: Extract<ResourceAccess, { kind: 'scoped' }> = {
     kind: 'scoped',
-    scope: { organizationId: 'org-a', userId: principal.id, role: 'viewer', cap: CONTRIBUTOR_CAP },
+    scope: { organizationId: 'org-a', userId: principal.id, cap: CONTRIBUTOR_CAP },
     principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
   };
   return {
@@ -386,7 +386,7 @@ function invokeRoute(
     state: 'active' as const,
   };
   const use = {
-    projectId: 'original-package',
+    workPackageId: 'original-package',
     resourceId: 'original-resource',
     workItemId: 'original-work',
     agentRun: 'original-run',

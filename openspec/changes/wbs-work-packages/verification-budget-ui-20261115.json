@@ -1,0 +1,261 @@
+{
+  "scope": "UI4.8 first read-only project-managed budget display through the actual package-authorized client and selected catalog entry.",
+  "source": {
+    "cohort": {
+      "path": "/tmp/puni-wbs-settings-budget-final-v6/index.json",
+      "sha256": "7e2de176ad2101b623ba36636347b7c741c86ff9ef22f0a6a97221c4d028c513",
+      "bytes": 11382,
+      "mode": 384
+    },
+    "rows": [
+      {
+        "path": "apps/wbs/fe-01/src/lib/wbs-api.ts",
+        "sha256": "fcaca6af278bf57571d02057342ac9fd1b544db6457fb3ee4722f6e2974b82f2",
+        "bytes": 156909,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx",
+        "sha256": "8fafdecfa5777fcaed847409f1b0e9ed09d3e597d4f5db96302a50626d4be9c2",
+        "bytes": 103069,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/fe-01/src/components/wbs/general-panel.tsx",
+        "sha256": "8b24e83308a5e014c3bb6dbce8a563867d2149840c49a484e754a602bd55b955",
+        "bytes": 5330,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.tsx",
+        "sha256": "d079182f98ad01ab12452126e29474e3157f94e6e747890ab45e674a50942ca8",
+        "bytes": 37686,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/fe-01/src/components/wbs/work-package-settings-budget.test.tsx",
+        "sha256": "27b23d8110599bb6960258a335264314ebadd68e3fd1efd626c834606c86a501",
+        "bytes": 7749,
+        "mode": 436
+      }
+    ]
+  },
+  "firstRed": {
+    "pass": 0,
+    "fail": 2,
+    "firstOracle": "Budget factor group missing after actual declared wire/tree decode, enabled trigger, dialog/General and PLAN abbreviation prerequisites.",
+    "raw": {
+      "path": "/tmp/puni-wbs-settings-budget-full-red-v5/native.log",
+      "sha256": "beab7a6f2969d4299a83f062a94a4160d2fea100a7bce395bc26200c21a4f352",
+      "bytes": 31277,
+      "mode": 384
+    },
+    "receipt": {
+      "path": "/tmp/puni-wbs-settings-budget-full-red-v5/native.receipt.json",
+      "sha256": "d9449853f905dea69baf93319de81357067681e1daa7abccf77bc335e3a63838",
+      "bytes": 1742,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-wbs-settings-budget-full-red-v5/native.validation.json",
+      "sha256": "bc1e0cdd2c2d946c60fc87f2b5660fc405300609892e1a9c0d25ef45ea429d5f",
+      "bytes": 1043,
+      "mode": 384
+    },
+    "qualification": "Earlier worker/cache/trigger/wire-fixture failures were setup only and receive no feature RED credit. Final test differs from this owner only by product-copy tail, type-only import, braced beforeEach and formatting; missing-group oracle precedes those tails."
+  },
+  "checks": [
+    {
+      "phase": "format5",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx",
+          "apps/wbs/fe-01/src/components/wbs/general-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.tsx",
+          "apps/wbs/fe-01/src/components/wbs/work-package-settings-budget.test.tsx"
+        ],
+        "cwd": "/tmp/puni-wbs-settings-budget-final-tree-v6/tree",
+        "deadlineMs": 120000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/format5/native.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/format5/native.receipt.json",
+        "sha256": "0672e569dd30fed09a48e47fa60bc6bbf698e37f4315f3c56822c0b5b8614a2f",
+        "bytes": 1632,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/format5/native.validation.json",
+        "sha256": "3ee714b84454ba94d545a47ac3cf0c62c9be1c38445fcce78aec945050742e29",
+        "bytes": 1055,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "lint5",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/eslint/bin/eslint.js",
+          "--no-cache",
+          "--max-warnings=0",
+          "--format=json",
+          "apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "apps/wbs/fe-01/src/components/wbs/work-package-page.tsx",
+          "apps/wbs/fe-01/src/components/wbs/general-panel.tsx",
+          "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.tsx",
+          "apps/wbs/fe-01/src/components/wbs/work-package-settings-budget.test.tsx"
+        ],
+        "cwd": "/tmp/puni-wbs-settings-budget-final-tree-v6/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/lint5/native.log",
+        "sha256": "a7677fad291345de402f059c2d6646890b0d1c0816f55a84eb8f15ef092a5e50",
+        "bytes": 2229,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/lint5/native.receipt.json",
+        "sha256": "1558c913aeeb9d892f1d80f3223fa3da60d474bd2912f59863e1f3683a2bce4c",
+        "bytes": 1677,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/lint5/native.validation.json",
+        "sha256": "52a65e1cf27dccfeb1b4927afd772281b6dbc2a0a10ee9532b0dd181177ef5ed",
+        "bytes": 1053,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "types-fe",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/fe-01/tsconfig.json"
+        ],
+        "cwd": "/tmp/puni-wbs-settings-budget-final-tree-v6/tree",
+        "deadlineMs": 240000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/types-fe/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/types-fe/native.receipt.json",
+        "sha256": "4f799e5fe0910417ae98f86e75c32da303f2cb62ff185c4a6bdf76c8b75bab59",
+        "bytes": 1364,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/types-fe/native.validation.json",
+        "sha256": "c5642f1337546a1c20eba8f202bd2637ba90401fdc4671c2f5dbb78c9d0ce081",
+        "bytes": 1056,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "ui-regression",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "../../../node_modules/vitest/vitest.mjs",
+          "run",
+          "--config",
+          "vitest.config.ts",
+          "src/components/wbs/work-package-settings-budget.test.tsx",
+          "src/components/wbs/work-package-settings-modal.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-wbs-settings-budget-final-tree-v6/tree/apps/wbs/fe-01",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/ui-regression/native.log",
+        "sha256": "10e063fc52ed613e40c1584a43b33a711b6135a0afd040106fdc380dc56f0520",
+        "bytes": 12619,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/ui-regression/native.receipt.json",
+        "sha256": "12248963fe6ea1d26fe58545c0a7f242e4fe26b204b8d517949ad86d30927bf8",
+        "bytes": 1620,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-wbs-settings-budget-final-checks-v6/ui-regression/native.validation.json",
+        "sha256": "8f8196264d5d61926586b8387b2ac31f0de40e2b4e745b455ba08398b0014a34",
+        "bytes": 1061,
+        "mode": 384
+      }
+    }
+  ],
+  "counts": {
+    "settingsTests": 56,
+    "existingModalTests": 54,
+    "newBudgetTests": 2,
+    "files": 2,
+    "eslintFiles": 5,
+    "formattedFiles": 5,
+    "typescriptRoots": 1
+  },
+  "warnings": {
+    "timezoneActWarnings": 21,
+    "baselinePass": 54,
+    "baselineRaw": {
+      "path": "/tmp/puni-wbs-settings-budget-modal-baseline-v1/native.log",
+      "sha256": "b929962326fd01de41e36b5f85a4ad01f1faa45c8b226823795487664bda712b",
+      "bytes": 12131,
+      "mode": 384
+    },
+    "baselineReceipt": {
+      "path": "/tmp/puni-wbs-settings-budget-modal-baseline-v1/native.receipt.json",
+      "sha256": "6bb330717d4dc7249a98e33172ccd5cce9ea488d66078b588daa2099b9a9ef48",
+      "bytes": 1527,
+      "mode": 384
+    },
+    "baselineValidation": {
+      "path": "/tmp/puni-wbs-settings-budget-modal-baseline-v1/native.validation.json",
+      "sha256": "e5085cf729f0aac75a305dfedbca80206489cf557d21c6ac99a31890a4a5b4a2",
+      "bytes": 1048,
+      "mode": 384
+    },
+    "sameWarningIdentities": true,
+    "qualification": "Both baseline and changed suite emit the same TimezonePanel act warnings in the same existing cases. The run is not warning-free. The existing Vite __dirname/config-loader warning is also retained."
+  },
+  "review": {
+    "path": "/tmp/puni-wbs-settings-budget-final-astra-v6.md",
+    "sha256": "5d28467844f325d5bda0434b7594c73346d1dbd20a20be60e37b70147ba34d00",
+    "bytes": 2104,
+    "mode": 384
+  },
+  "limits": [
+    "No new API request, API method, owner, permission, write or default factor1; selected validated LIST value is displayed. LIST/GET fixtures use the same scalar, so no independent metadata-source necessity proof.",
+    "Declared project shell and forbidden stronger endpoint are client-fixture premises, not actual server-grant proof.",
+    "Only management scope is shown, not inferred inheritance/default/override provenance.",
+    "Full task4.8 provenance/clear/typed refusals/previews/project-space pages, live setting-event refresh and browser/by-eye coverage remain required.",
+    "Frontend normal build root only; full repository gate/build and remaining entity/CLI scope are not established."
+  ]
+}

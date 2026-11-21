@@ -1,0 +1,1192 @@
+{
+  "recordedAt": "2026-11-19T18:36:25.495Z",
+  "goalStatus": "active",
+  "scope": "Selected organization-limits HTTP fixture/current creation and actual fixture cleanup. No production permission change; task1.5.1/1.6.1 and parent scope stay open.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+      "sha256": "e54240bb4ca16dc63672ab654cdf0680b9323e9ec419cff9179f9ee0749a0e61",
+      "bytes": 15910,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-harness.ts",
+      "sha256": "4e188e511edd111aa52e9c9a8c85eefa85c3c113406e217d40d3567f7cafa80c",
+      "bytes": 73358,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-catalogue-fixture.ts",
+      "sha256": "0020ed2298cd356e2bc6fd5967f3bff7fd76b4b47930a2ab944b5ef8fe1803e9",
+      "bytes": 654,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+      "sha256": "8d585265e1cedbd325a5ca806b2346014d5b4db15cf60ddc986b0b6cb23ef3cb",
+      "bytes": 2454,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "79c01db6c6a8ec5cafa06f2706a29cf7001b0821e7766f3ece22997573b0fb6b",
+      "bytes": 15239,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-organization-http-close-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-close-red-v1.receipt.json",
+        "sha256": "24faa641867dd476dd01718818eaa18b1fff0832042b2aa5ee00a3d24de64161",
+        "bytes": 1361,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-close-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:31:44.330Z",
+        "endedAt": "2026-11-19T18:31:48.859Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-close-red-v1.log",
+          "sha256": "ea31c3c0869c71eba5ed467b95fddca58231136e291cee04d3b14f33ce3661b6",
+          "bytes": 930
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-close-red-v1.log",
+        "sha256": "ea31c3c0869c71eba5ed467b95fddca58231136e291cee04d3b14f33ce3661b6",
+        "bytes": 930,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-doc-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-doc-format-v1.receipt.json",
+        "sha256": "d84f3268c7e473c1f28a5854017565af9dfe478e2fa4d9d83132913909d356d0",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-doc-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "openspec/changes/wbs-step-catalogue/verify.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:36:01.899Z",
+        "endedAt": "2026-11-19T18:36:02.199Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-doc-format-v1.log",
+          "sha256": "a8b5cb24c3f32e1a0fd1340931743d44749bc1b00e1f4e40ff1be233aec3b282",
+          "bytes": 126
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-doc-format-v1.log",
+        "sha256": "a8b5cb24c3f32e1a0fd1340931743d44749bc1b00e1f4e40ff1be233aec3b282",
+        "bytes": 126,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-effects-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v1.receipt.json",
+        "sha256": "93266b355ee9a2310632f2631ce181a54eb3539ab685af0e1622da32b715e9e4",
+        "bytes": 1302,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-organization-http-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:32:48.159Z",
+        "endedAt": "2026-11-19T18:32:53.451Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v1.log",
+          "sha256": "04ac2a562da4b77e6a592c244d5fcc82ca329ba043f5dde716c601d5cfce1516",
+          "bytes": 1147
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v1.log",
+        "sha256": "04ac2a562da4b77e6a592c244d5fcc82ca329ba043f5dde716c601d5cfce1516",
+        "bytes": 1147,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-effects-root-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v2.receipt.json",
+        "sha256": "93623e1813001c9bb3acc88ef761bbc060c4e689f73e90976ae2c11595dbf518",
+        "bytes": 1300,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v2",
+        "command": {
+          "argv": ["bun", "/tmp/puni-organization-http-effects-v2.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:33:20.553Z",
+        "endedAt": "2026-11-19T18:33:29.485Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v2.log",
+          "sha256": "e838ffd450bf5d5f10c028ba46bd7dd694571630b25d0a85a59b7dc8400c4fef",
+          "bytes": 90
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-effects-root-v2.log",
+        "sha256": "e838ffd450bf5d5f10c028ba46bd7dd694571630b25d0a85a59b7dc8400c4fef",
+        "bytes": 90,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1.receipt.json",
+        "sha256": "4bd634ba6117290f17c0c36fdb3d7d0843799eb8273c53108260b567984db38e",
+        "bytes": 2255,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "libs/wbs/application/core/src/http/work-package.routes.test.ts",
+            "libs/wbs/application/core/src/http/work-package-parent.test.ts",
+            "libs/wbs/application/core/src/compose.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/current-birth-response.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-birth-response.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/current-project-birth.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/package-value-returning.db.test.ts",
+            "libs/wbs/application/core/src/service/project.resource.test.ts",
+            "libs/wbs/adapters/store-memory/src/settings-fixture.test.ts",
+            "libs/wbs/application/conformance/src/stores/existing.test.ts",
+            "libs/wbs/application/conformance/src/case-manifest.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:34:21.995Z",
+        "endedAt": "2026-11-19T18:34:57.321Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1.log",
+          "sha256": "0d85d338787e257704ff4b588f70d3334deb11047e10ca501dc871e55dfa251d",
+          "bytes": 11628
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1.log",
+        "sha256": "0d85d338787e257704ff4b588f70d3334deb11047e10ca501dc871e55dfa251d",
+        "bytes": 11628,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-first-green-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-first-green-v1.receipt.json",
+        "sha256": "f8767e1abb808f87ae2f3f74bcc9c6539f618812273837ddbe3bcb6f52725b00",
+        "bytes": 1441,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-first-green-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+            "--test-name-pattern",
+            "answers an admin and a super-admin",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:31:07.017Z",
+        "endedAt": "2026-11-19T18:31:11.176Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-first-green-v1.log",
+          "sha256": "ea05aba8a02acf1e7d8813a35c27e16ffda6b3681efcb90f251d04252d619ad4",
+          "bytes": 309
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-first-green-v1.log",
+        "sha256": "ea05aba8a02acf1e7d8813a35c27e16ffda6b3681efcb90f251d04252d619ad4",
+        "bytes": 309,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-format-v1.receipt.json",
+        "sha256": "1a1c5615076792c42de7caba584d3d5fdf8951e5e4a18ccaa8e7cd518ad89d61",
+        "bytes": 1583,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "apps/wbs/be-01/src/testing/organization-harness.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:33:46.912Z",
+        "endedAt": "2026-11-19T18:33:52.967Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-format-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-format-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-lint-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-final-v1.receipt.json",
+        "sha256": "185d3b5dfd9cd1404612af38ed0b7c387d8cf818526b0e434bff76a3572aef9d",
+        "bytes": 1576,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "apps/wbs/be-01/src/testing/organization-harness.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:34:21.984Z",
+        "endedAt": "2026-11-19T18:34:26.924Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-v1.receipt.json",
+        "sha256": "1eccfdbbe2ea125d4c4cfb0560889511d056fdbbcaeeb452308b0a9bb0f1b88b",
+        "bytes": 1566,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "apps/wbs/be-01/src/testing/organization-harness.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:33:21.821Z",
+        "endedAt": "2026-11-19T18:33:27.621Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-v1.log",
+          "sha256": "ccc27280e776d38433c2fbb76face1b273b8639a5e36d6cc9f4ccbf99c7f5731",
+          "bytes": 566
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-lint-v1.log",
+        "sha256": "ccc27280e776d38433c2fbb76face1b273b8639a5e36d6cc9f4ccbf99c7f5731",
+        "bytes": 566,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-prettier-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-prettier-v1.receipt.json",
+        "sha256": "08dd48f782d726ad6fbd260c45f6d1b6d4f328b768b25d5280f35a086e9f8bf4",
+        "bytes": 1596,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-prettier-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/be-01/src/testing/organization-harness.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:34:04.098Z",
+        "endedAt": "2026-11-19T18:34:04.488Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-prettier-v1.log",
+          "sha256": "fd2eab751bfb0708996fbe63bd1ccc6e86b3329c629f6ee8e23aab87b867729b",
+          "bytes": 297
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-prettier-v1.log",
+        "sha256": "fd2eab751bfb0708996fbe63bd1ccc6e86b3329c629f6ee8e23aab87b867729b",
+        "bytes": 297,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-red-v1.receipt.json",
+        "sha256": "bbcb44f97200f35d8a6d014c0c43b87baed5b4de648545b38f23d3510efecb19",
+        "bytes": 1426,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+            "--test-name-pattern",
+            "answers an admin and a super-admin",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:28:34.869Z",
+        "endedAt": "2026-11-19T18:28:38.031Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-red-v1.log",
+          "sha256": "b39ed243f0e2e9c4acbcca82e4472f10e3eae9a866379bbd315fc8502162b18e",
+          "bytes": 1696
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-red-v1.log",
+        "sha256": "b39ed243f0e2e9c4acbcca82e4472f10e3eae9a866379bbd315fc8502162b18e",
+        "bytes": 1696,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-spec-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-spec-v1.receipt.json",
+        "sha256": "6e1a64e7de9ee862be3628a7d07ee4b8f55da6547af817dc81b4247475b3cf80",
+        "bytes": 1345,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-spec-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:36:18.874Z",
+        "endedAt": "2026-11-19T18:36:19.709Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-spec-v1.log",
+          "sha256": "00831cc6ba2f2213f9ac7e6e3071092ae04027d7c7ef89f3899f8be43c9fbdc8",
+          "bytes": 345945
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-spec-v1.log",
+        "sha256": "00831cc6ba2f2213f9ac7e6e3071092ae04027d7c7ef89f3899f8be43c9fbdc8",
+        "bytes": 345945,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-storage-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-storage-red-v1.receipt.json",
+        "sha256": "d49b11aa7d9a3da9b27e1927a46a77e913a10c565cf460b8254dc24858aa9b7b",
+        "bytes": 1442,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-storage-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+            "--test-name-pattern",
+            "answers an admin and a super-admin",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:30:03.705Z",
+        "endedAt": "2026-11-19T18:30:07.375Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-storage-red-v1.log",
+          "sha256": "f6c5e7ae80adea2d59c581de5c92859c22822ce73be70b3076353497c52986a8",
+          "bytes": 1213
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-storage-red-v1.log",
+        "sha256": "f6c5e7ae80adea2d59c581de5c92859c22822ce73be70b3076353497c52986a8",
+        "bytes": 1213,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-suite-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-suite-v1.receipt.json",
+        "sha256": "bc35420d4a56274015ccc121db78a36cc2680582754f447feeed6916e7a60767",
+        "bytes": 1435,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-suite-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "apps/wbs/be-01/src/controller/organization-limits.controller.db.test.ts",
+            "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:32:04.476Z",
+        "endedAt": "2026-11-19T18:32:19.809Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-suite-v1.log",
+          "sha256": "7673831aceb80154c5de5d7d7613c9c583996500bce71633fbca306543594da6",
+          "bytes": 1658
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-suite-v1.log",
+        "sha256": "7673831aceb80154c5de5d7d7613c9c583996500bce71633fbca306543594da6",
+        "bytes": 1658,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-types-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-final-v1.receipt.json",
+        "sha256": "ccc2ce87f5abb48bbfa536e9effc2acb74a61023b24c1404000d2db38a0825ee",
+        "bytes": 1580,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:34:42.305Z",
+        "endedAt": "2026-11-19T18:35:13.016Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-final-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-organization-http-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-v1.receipt.json",
+        "sha256": "04e10cb6389725d29499761f56e959a09759ae4a342d5a0557166f47d5536f1e",
+        "bytes": 1568,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:32:18.949Z",
+        "endedAt": "2026-11-19T18:32:52.515Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    }
+  ],
+  "firstRed": {
+    "name": "current-organization-http-red-v1",
+    "passed": 0,
+    "failed": 1,
+    "reason": "Correct default pending-catalogue migration refusal occurs before HTTP or old step insertion; secondary old afterEach also accesses unacquired harness."
+  },
+  "storageRed": {
+    "name": "current-organization-http-storage-red-v1",
+    "passed": 0,
+    "failed": 1,
+    "reason": "After actual empty catalogue apply, fixture reaches removed work_package.owner_id. No claim that old INSERT step was reached independently."
+  },
+  "cleanupRed": {
+    "name": "current-organization-http-close-red-v1",
+    "passed": 1,
+    "failed": 1,
+    "reason": "Required closeOwned is absent. Scaffolding only; the later composed failure-injection assertions do not receive negative credit from this run."
+  },
+  "final": {
+    "passed": 112,
+    "failed": 0,
+    "assertions": 846,
+    "files": 13,
+    "controllerFixturePassed": 14,
+    "httpCompositionPassed": 42,
+    "birthSettingsInventoryPassed": 56,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1.receipt.json",
+      "sha256": "4bd634ba6117290f17c0c36fdb3d7d0843799eb8273c53108260b567984db38e",
+      "bytes": 2255,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-organization-http-final-v1.log",
+      "sha256": "0d85d338787e257704ff4b588f70d3334deb11047e10ca501dc871e55dfa251d",
+      "bytes": 11628,
+      "mode": 384
+    },
+    "libraryRoots": ["core", "conformance", "store-memory", "store-sqlite"],
+    "backendTypecheck": "passed",
+    "lintFiles": 4,
+    "formatCodeFiles": 4,
+    "openspec": "all passed",
+    "qualification": "Local Bun selection on private integrated dirty tree. Full Source222 certificate belongs to predecessor epoch; no new complete product/API/UI/adapter/host gate or release claim."
+  },
+  "finiteEffects": {
+    "observations": [
+      {
+        "name": "application-writer-close",
+        "before": "    this.closeStandalone?.();",
+        "after": "    // omitted actual standalone writer close",
+        "matcher": "current uncomposed organization fixture closes",
+        "diagnostic": "Received function did not throw",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-harness.ts",
+        "canonicalSha256": "77a2bb0ab0a53debdc222445c044a43c1374945ce27ce322ef321fd1c10adaf7",
+        "candidateSha256": "67c1986c717cfb11908874ce0ff08b1cba2ef5b4300325f1147356609bbe1035",
+        "restoredSha256": "77a2bb0ab0a53debdc222445c044a43c1374945ce27ce322ef321fd1c10adaf7",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/organization-http-effect-application-writer-close-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/organization-http-effect-application-writer-close-v2.log"
+      },
+      {
+        "name": "composed-source-close",
+        "before": "    if (this.composedSource !== undefined) await this.composedSource.close();",
+        "after": "    // omitted actual composed Source close",
+        "matcher": "current composed organization fixture retains",
+        "diagnostic": "injected organization fixture Source close failure",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-harness.ts",
+        "canonicalSha256": "77a2bb0ab0a53debdc222445c044a43c1374945ce27ce322ef321fd1c10adaf7",
+        "candidateSha256": "d62c255a0a53a9a89ae9d300975e8d8d4d840d29ac8116af1c99be369bc372c5",
+        "restoredSha256": "77a2bb0ab0a53debdc222445c044a43c1374945ce27ce322ef321fd1c10adaf7",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/organization-http-effect-composed-source-close-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/organization-http-effect-composed-source-close-v2.log"
+      }
+    ],
+    "qualification": "Actual uncomposed writer still answers after omission; actual composed close failure is skipped and directory removed. Exact restoration occurs only after child terminal/reaped. Tests target fixture cleanup, not production safety admission."
+  },
+  "rejectedRuns": [
+    {
+      "phase": "current-organization-http-effects-root-v1",
+      "reason": "Actual uncomposed close omission fails, but effect verifier expects Expected function to throw instead of Bun Received function did not throw. Exact bytes restored; corrected v2 observes both effects."
+    },
+    {
+      "phase": "current-organization-http-lint-v1",
+      "reason": "Import order and default void shorthand require autofix; final lint passes after explicit callback braces. No safety check removed."
+    }
+  ],
+  "decisions": [
+    "Explicit test-only migration seam delegates to the real empty fixture report/backup/atomic apply; it does not bypass pending catalogue migration refusal or grant operator authority.",
+    "Actual Source performs scoped package births and catalogue definitions/bindings; claims retain their original literals and grouping semantics.",
+    "Current selected cleanup awaits composed Source and retains storage on close rejection. Uncomposed application writer has a retained close owner. Legacy synchronous composed callers and acquisition-failure matrix remain separately incomplete."
+  ],
+  "pending": [
+    "Other organization/controller fixtures still use legacy step storage and ordinary pending-catalogue migration discovery.",
+    "Full product/API/UI/adapter coverage, known corrupt ownership/definition/budget boundaries and complete entity/settings/spaces/SC13/17/22/25 scope remain active.",
+    "Complete client classification, Bun-only scripts, PUNI aliases/installed-source-removed checks and package closure remain active.",
+    "Astra review remains unavailable at recorded account quota until Nov22,2026 10:09AM, timezone unspecified; no retry/spawn bypass.",
+    "Exact committed host gates, public commit/push/PR update/merge/deploy remain open. Original source inventories and protected archive remain exact."
+  ]
+}

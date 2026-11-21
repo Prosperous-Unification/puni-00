@@ -14,7 +14,7 @@ export interface Declaration {
     | { readonly kind: 'client'; readonly command: readonly string[] };
 }
 export interface Inventory {
-  readonly scope: 'entrypoint-package-nx-github';
+  readonly scope: 'entrypoint-package-nx-github-compose-docker';
   readonly entries: readonly Declaration[];
   readonly compliance:
     | { readonly kind: 'bun-compatible' }
@@ -170,7 +170,8 @@ function readExpectedRuntime(
  * Exact execution digests, real caller edges and observed runtimes cannot be replaced by declared
  * approval. Unknown/stale/duplicate/changed/unresolved sites refuse. Historical disposition applies
  * only to unreferenced file candidates; metadata cannot make active fields or shipped clients historical.
- * The returned compliance describes these initial families only, not generated/remote/infra coverage.
+ * The returned compliance describes these discovered families only, not generated/remote/infra coverage.
+ * Compose and Docker execution remain unresolved pending image/build/mount qualification.
  * Client command metadata is not proof that a typed route or installed implementation exists.
  */
 export function checkInventory(consumers: readonly Consumer[], input: unknown): Inventory {
@@ -257,7 +258,7 @@ export function checkInventory(consumers: readonly Consumer[], input: unknown): 
     if (observed !== 'bun' && observed !== 'external') remaining.push(consumer.id);
   }
   return {
-    scope: 'entrypoint-package-nx-github',
+    scope: 'entrypoint-package-nx-github-compose-docker',
     entries: [...declarations].sort((left, right) =>
       left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
     ),

@@ -64,7 +64,13 @@ test('mounted resource freshly checks durable authority and exact claims without
           headers: claim === undefined ? {} : { 'X-WBS-Dependency-Semantics': claim },
         }),
       );
-    for (const claim of [undefined, '', 'older-client', 'cross-project-dependencies-v1'])
+    for (const claim of [
+      undefined,
+      '',
+      'older-client',
+      'cross-project-dependencies-v1',
+      'cross-work-package-dependencies-v1',
+    ])
       expect((await request(claim)).status).toBe(200);
     const auth = testAuthService();
     const registered = await auth.register('ada', 'lovelace99');
@@ -75,7 +81,7 @@ test('mounted resource freshly checks durable authority and exact claims without
     });
     const resource = (claim?: string) =>
       productionApp.handle(
-        new Request('http://localhost/api/projects', {
+        new Request('http://localhost/api/work-packages', {
           headers: {
             authorization: `Bearer ${registered.value.token}`,
             ...(claim === undefined ? {} : { 'X-WBS-Dependency-Semantics': claim }),
@@ -84,14 +90,14 @@ test('mounted resource freshly checks durable authority and exact claims without
       );
     expect((await resource()).status).toBe(200);
     seedDependencyAuthority(path);
-    const retained = ['project', 'command_journal', 'event_log', 'event_sequencer'].map((table) =>
-      connection.db.all(`SELECT * FROM ${table}`),
+    const retained = ['work_package', 'command_journal', 'event_log', 'event_sequencer'].map(
+      (table) => connection.db.all(`SELECT * FROM ${table}`),
     );
     expect((await resource()).status).toBe(409);
     expect(
       (
         await productionApp.handle(
-          new Request('http://localhost/api/projects', {
+          new Request('http://localhost/api/work-packages', {
             method: 'POST',
             headers: {
               authorization: `Bearer ${registered.value.token}`,
@@ -105,7 +111,7 @@ test('mounted resource freshly checks durable authority and exact claims without
     ).toBe(409);
     expect((await resource('cross-project-dependencies-v1')).status).toBe(200);
     expect(
-      ['project', 'command_journal', 'event_log', 'event_sequencer'].map((table) =>
+      ['work_package', 'command_journal', 'event_log', 'event_sequencer'].map((table) =>
         connection.db.all(`SELECT * FROM ${table}`),
       ),
     ).toEqual(retained);
@@ -113,6 +119,7 @@ test('mounted resource freshly checks durable authority and exact claims without
       undefined,
       '',
       'cross-project-dependencies-v2',
+      'cross-work-package-dependencies-v1',
       'cross-project-dependencies-v1, cross-project-dependencies-v1',
     ]) {
       const response = await request(claim);
@@ -146,7 +153,7 @@ test('mounted resource freshly checks durable authority and exact claims without
         admitDependencyClient(connection.db, { ...capable, semantics: [] }, claim),
     });
     const incompatible = await incapable.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         headers: {
           authorization: `Bearer ${registered.value.token}`,
           'X-WBS-Dependency-Semantics': 'cross-project-dependencies-v1',
@@ -159,12 +166,12 @@ test('mounted resource freshly checks durable authority and exact claims without
       required: 'cross-project-dependencies-v1',
     });
     connection.db.run('PRAGMA ignore_check_constraints=ON');
-    connection.db.run("UPDATE cross_project_dependency_activation SET state='UNKNOWN'");
+    connection.db.run("UPDATE cross_work_package_dependency_activation SET state='UNKNOWN'");
     expect((await request('cross-project-dependencies-v1')).status).toBe(500);
-    connection.db.run('DELETE FROM cross_project_dependency_activation');
+    connection.db.run('DELETE FROM cross_work_package_dependency_activation');
     expect((await request('cross-project-dependencies-v1')).status).toBe(500);
     expect(failures).toHaveLength(2);
-    connection.db.run('DROP TABLE cross_project_dependency_activation_receipt');
+    connection.db.run('DROP TABLE cross_work_package_dependency_activation_receipt');
     expect((await request('cross-project-dependencies-v1')).status).toBe(500);
     connection.close();
     expect((await request('cross-project-dependencies-v1')).status).toBe(500);
@@ -247,7 +254,7 @@ test('request authority uses one coherent snapshot when another connection activ
     });
     const request = () =>
       app.handle(
-        new Request('http://localhost/api/projects', {
+        new Request('http://localhost/api/work-packages', {
           headers: { authorization: `Bearer ${registered.value.token}` },
         }),
       );

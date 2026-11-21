@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
@@ -28,12 +29,12 @@ const FIXTURE = [
   "INSERT INTO users (id, username, idp_issuer, idp_sub, created_at) VALUES ('u-dany', 'dany', 'https://auth0.test/', 'auth0|dany', 1)",
   "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-ada', 'ada', 'x', 1)",
   "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-grace', 'grace', 'x', 1)",
-  "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p-1', 'Launch', 'u-dany', 1)",
-  "INSERT INTO project (id, name, owner_id, created_at, solution_slug, solution_url) VALUES ('p-2', 'Billing', 'u-ada', 1, 'billing', 'https://solutions.test/billing')",
-  "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p-3', 'Hiring', 'u-grace', 1)",
-  "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-1', 'p-1', NULL, 0, 'Root')",
-  "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-2', 'p-1', 'w-1', 0, 'Child')",
-  "INSERT INTO step (id, project_id, name, position) VALUES ('st-1', 'p-1', 'Build', 0)",
+  "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p-1', 'Launch', 'u-dany', 1)",
+  "INSERT INTO work_package (id, name, owner_id, created_at, solution_slug, solution_url) VALUES ('p-2', 'Billing', 'u-ada', 1, 'billing', 'https://solutions.test/billing')",
+  "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p-3', 'Hiring', 'u-grace', 1)",
+  "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-1', 'p-1', NULL, 0, 'Root')",
+  "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-2', 'p-1', 'w-1', 0, 'Child')",
+  "INSERT INTO step (id, work_package_id, name, position) VALUES ('st-1', 'p-1', 'Build', 0)",
   "INSERT INTO person (id, name) VALUES ('pe-1', 'Ada Lovelace')",
   "INSERT INTO person (id, name) VALUES ('pe-2', 'Grace Hopper')",
   "INSERT INTO service_team (id, name) VALUES ('tm-1', 'Platform')",
@@ -42,19 +43,19 @@ const FIXTURE = [
   "INSERT INTO tag (id, name) VALUES ('tg-1', 'urgent')",
   "INSERT INTO work_item_type (id, name) VALUES ('ty-1', 'Spike')",
   "INSERT INTO external_system (id, name) VALUES ('es-1', 'Jira')",
-  "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-1', 'p-1', 'w-1', 'w-2')",
+  "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('d-1', 'p-1', 'w-1', 'w-2')",
   "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-1', 'tg-1')",
   "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w-1', 'tm-1')",
   "INSERT INTO work_item_external_ref (id, work_item_id, system_id, url, name, position) VALUES ('x-1', 'w-1', 'es-1', 'https://jira.test/X-1', 'X-1', 0)",
   "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-1', 'st-1', 'pe-1')",
   "INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-1', 'tm-1')",
   "INSERT INTO team_service (team_id, service_id) VALUES ('tm-1', 'sv-1')",
-  "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-1', 'tm-1', 2)",
-  "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:p-1', 1)",
-  "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:p-1', 0, '{}', 1)",
-  `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+  "INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('p-1', 'tm-1', 2)",
+  "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work-package:p-1', 1)",
+  "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('work-package:p-1', 0, '{}', 1)",
+  `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
    VALUES ('sp-1', 'p-1', 'Baseline', 'u-dany', 1, 1, 0, 'x', 'not-scheduled')`,
-  `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+  `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
    VALUES ('sp-2', 'p-2', 'Baseline', 'u-ada', 1, 1, 0, 'x', 'not-scheduled')`,
 ];
 
@@ -147,12 +148,98 @@ function writable(): Record<string, unknown> {
     organizations: rows('SELECT * FROM organization'),
     memberships: rows('SELECT * FROM organization_membership'),
     identities: rows('SELECT * FROM external_identity'),
-    solutions: rows('SELECT * FROM project_solution'),
-    legacySolutions: rows('SELECT id, solution_slug, solution_url FROM project ORDER BY id'),
+    solutions: rows('SELECT * FROM work_package_solution'),
+    legacySolutions: rows('SELECT id, solution_slug, solution_url FROM work_package ORDER BY id'),
     marker: rows('SELECT * FROM organization_activation'),
     mappings: OWNED_ROOT_KINDS.map((kind) => count(`${kind}_organization`)),
   };
 }
+
+function captureLogicalStore() {
+  const db = openDatabase(path);
+  try {
+    const schema = db
+      .query<{ type: string; name: string; sql: string | null }, []>(
+        'SELECT type, name, sql FROM sqlite_schema ORDER BY type, name',
+      )
+      .all();
+    const quote = (identifier: string) => '"' + identifier.replaceAll('"', '""') + '"';
+    const tables = schema
+      .filter(({ type }) => type === 'table')
+      .map(({ name }) => {
+        const columns = db.query<{ name: string }, []>(`PRAGMA table_info(${quote(name)})`).all();
+        if (columns.length === 0) throw new Error('fixture table has no columns: ' + name);
+        return {
+          name,
+          rows: db
+            .query(
+              `SELECT * FROM ${quote(name)} ORDER BY ${columns.map(({ name }) => quote(name)).join(', ')}`,
+            )
+            .all(),
+        };
+      });
+    return { schema, tables };
+  } finally {
+    db.close();
+  }
+}
+
+function seedStream(subscription: string, shape: 'log' | 'sequencer' | 'both', ordinal: number) {
+  const db = openDatabase(path);
+  try {
+    if (shape !== 'sequencer')
+      db.run('INSERT INTO event_log (subscription, seq, message, created_at) VALUES (?, ?, ?, ?)', [
+        subscription,
+        ordinal,
+        '{ "projectId" : "old-value", "opaque" : [3, 1] }',
+        ordinal + 100,
+      ]);
+    if (shape !== 'log')
+      db.run('INSERT INTO event_sequencer (subscription, next_seq) VALUES (?, ?)', [
+        subscription,
+        ordinal + 7,
+      ]);
+  } finally {
+    db.close();
+  }
+}
+
+function seedRetainedHistory() {
+  seedStream('project:p-1', 'both', 34);
+  sqlite([
+    `UPDATE event_log SET message = '{ "workPackageId" : "p-1", "text" : "projectId stays raw" }',
+     created_at = 217 WHERE subscription = 'work-package:p-1'`,
+    `INSERT INTO plan_event (id, work_package_id, user_id, kind, label, before, after, created_at)
+     VALUES ('history-live', 'p-1', 'u-dany', 'renamed', 'History',
+      '{ "projectId" : "p-1", "name" : "before" }', '{ "projectId" : "p-1", "name" : "after" }', 219)`,
+  ]);
+  for (const prefix of ['project:', 'work-package:']) {
+    seedStream(prefix + 'gone', 'both', 5);
+    seedStream(prefix + 'gone-log', 'log', 7);
+    seedStream(prefix + 'gone-seq', 'sequencer', 11);
+  }
+}
+
+function captureLiveHistory() {
+  return {
+    log: rows(
+      `SELECT * FROM event_log WHERE subscription IN ('project:p-1', 'work-package:p-1') ORDER BY subscription, seq`,
+    ),
+    sequencer: rows(
+      `SELECT * FROM event_sequencer WHERE subscription IN ('project:p-1', 'work-package:p-1') ORDER BY subscription`,
+    ),
+    plans: rows('SELECT * FROM plan_event ORDER BY id'),
+  };
+}
+
+const RETAINED_ORPHANS = [
+  'project:gone',
+  'project:gone-log',
+  'project:gone-seq',
+  'work-package:gone',
+  'work-package:gone-log',
+  'work-package:gone-seq',
+];
 
 const PRE_ACTIVATION = [{ singleton: 1, state: 'pre_activation', activated_at: null }];
 
@@ -192,7 +279,7 @@ describe('organization-activation-cli', () => {
       { userId: 'u-dany', issuer: 'https://auth0.test/', subject: 'auth0|dany' },
     ]);
     expect(plan['solutionLinks']).toEqual([
-      { projectId: 'p-2', slug: 'billing', url: 'https://solutions.test/billing' },
+      { workPackageId: 'p-2', slug: 'billing', url: 'https://solutions.test/billing' },
     ]);
     expect(plan['prunedStreams']).toEqual([]);
     expect(plan['mappedRoots']).toEqual(
@@ -228,15 +315,19 @@ describe('organization-activation-cli', () => {
       expect(count(`${kind}_organization`)).toBe(count(kind));
       expect(count(`${kind}_organization WHERE organization_id != '${id}'`)).toBe(0);
     }
-    expect(rows('SELECT project_id, organization_id, slug, url FROM project_solution')).toEqual([
+    expect(
+      rows('SELECT work_package_id, organization_id, slug, url FROM work_package_solution'),
+    ).toEqual([
       {
-        project_id: 'p-2',
+        work_package_id: 'p-2',
         organization_id: id,
         slug: 'billing',
         url: 'https://solutions.test/billing',
       },
     ]);
-    expect(count('project WHERE solution_slug IS NOT NULL OR solution_url IS NOT NULL')).toBe(0);
+    expect(count('work_package WHERE solution_slug IS NOT NULL OR solution_url IS NOT NULL')).toBe(
+      0,
+    );
     expect(rows('SELECT user_id, issuer, subject FROM external_identity')).toEqual([
       { user_id: 'u-dany', issuer: 'https://auth0.test/', subject: 'auth0|dany' },
     ]);
@@ -342,8 +433,10 @@ describe('organization-activation-cli', () => {
     expect(count("tag WHERE id = 'orphan'")).toBe(0);
   });
 
-  it('refuses an event stream that resolves to no project', () => {
-    sqlite(["INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)"]);
+  it('refuses an event stream that resolves to no work package', () => {
+    sqlite([
+      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work-package:gone', 1)",
+    ]);
     const before = writable();
 
     const refused = run(APPLY);
@@ -352,13 +445,13 @@ describe('organization-activation-cli', () => {
     expect(refusalOf(refused.stderr)).toMatchObject({
       refusal: 'reconciliation_failed',
       unmappedRoots: [],
-      ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
+      ownershipConflicts: [{ kind: 'event_stream', id: 'work-package:gone' }],
     });
     expect(writable()).toEqual(before);
   });
 
   it('throws on a half legacy solution pair, writing nothing', () => {
-    sqlite(["UPDATE project SET solution_url = 'https://solutions.test/x' WHERE id = 'p-3'"]);
+    sqlite(["UPDATE work_package SET solution_url = 'https://solutions.test/x' WHERE id = 'p-3'"]);
     const before = writable();
 
     const refused = run(APPLY);
@@ -368,33 +461,60 @@ describe('organization-activation-cli', () => {
     expect(writable()).toEqual(before);
   });
 
-  it("prunes a deleted project's retained stream only with --apply", () => {
-    sqlite([
-      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
-      "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:gone', 0, '{}', 1)",
-    ]);
-    const before = writable();
+  it("prunes a deleted work package's retained stream only with --apply", () => {
+    seedRetainedHistory();
+    const before = captureLogicalStore();
+    const live = captureLiveHistory();
+    const expected = {
+      refusal: 'reconciliation_failed',
+      unmappedRoots: [],
+      catalogNameDrift: [],
+      ownershipConflicts: RETAINED_ORPHANS.map((id) => ({ kind: 'event_stream', id })),
+    };
     const rehearsed = run(['--name', 'default', '--super-admin', 'dany']);
     expect(rehearsed.exitCode).toBe(6);
-    expect(refusalOf(rehearsed.stderr)).toMatchObject({
-      ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
-    });
+    expect(rehearsed.stdout).toBe('');
+    expect(refusalOf(rehearsed.stderr)).toEqual(expected);
+    expect(captureLogicalStore()).toEqual(before);
 
-    const refused = run(['--name', 'default', '--super-admin', 'dany', '--prune-retained-streams']);
-    expect(refused.exitCode).toBe(1);
-    expect(refused.stderr).toContain('usage');
-    expect(writable()).toEqual(before);
+    const refused = run(APPLY);
+    expect(refused.exitCode).toBe(6);
+    expect(refused.stdout).toBe('');
+    expect(refusalOf(refused.stderr)).toEqual(expected);
+    expect(captureLogicalStore()).toEqual(before);
 
     const applied = run([...APPLY, '--prune-retained-streams']);
     expect(applied.stderr).toBe('');
     expect(applied.exitCode).toBe(0);
-    expect(JSON.parse(applied.stdout)).toMatchObject({ prunedStreams: ['project:gone'] });
-    expect(rows('SELECT subscription FROM event_sequencer ORDER BY subscription')).toEqual([
-      { subscription: 'project:p-1' },
-    ]);
-    expect(rows('SELECT DISTINCT subscription FROM event_log')).toEqual([
-      { subscription: 'project:p-1' },
-    ]);
+    expect(JSON.parse(applied.stdout)).toMatchObject({
+      mode: 'applied',
+      prunedStreams: RETAINED_ORPHANS,
+    });
+    expect(rows('SELECT state FROM organization_activation')).toEqual([{ state: 'activated' }]);
+    const surviving = [{ subscription: 'project:p-1' }, { subscription: 'work-package:p-1' }];
+    expect(rows('SELECT subscription FROM event_sequencer ORDER BY subscription')).toEqual(
+      surviving,
+    );
+    expect(rows('SELECT DISTINCT subscription FROM event_log ORDER BY subscription')).toEqual(
+      surviving,
+    );
+    expect(captureLiveHistory()).toEqual(live);
+  });
+
+  it('flagged activation refuses an unknown stored key and rolls back known orphan cleanup', () => {
+    seedRetainedHistory();
+    seedStream('work_package:unknown', 'both', 17);
+    const before = captureLogicalStore();
+    const refused = run([...APPLY, '--prune-retained-streams']);
+    expect(refused.exitCode).toBe(6);
+    expect(refused.stdout).toBe('');
+    expect(refusalOf(refused.stderr)).toEqual({
+      refusal: 'reconciliation_failed',
+      unmappedRoots: [],
+      catalogNameDrift: [],
+      ownershipConflicts: [{ kind: 'event_stream', id: 'work_package:unknown' }],
+    });
+    expect(captureLogicalStore()).toEqual(before);
   });
 
   it('refuses without --mcp-store before opening the database', () => {
@@ -425,7 +545,23 @@ describe('organization-activation-cli', () => {
     it(`refuses ${label} before opening the database`, () => {
       const before = writable();
 
-      const refused = dbPath === undefined ? run(args) : run(args, dbPath);
+      const unused = join(directory, 'unused-prune.db');
+      const refused =
+        label === 'pruning without --apply'
+          ? run(args, unused)
+          : dbPath === undefined
+            ? run(args)
+            : run(args, dbPath);
+      if (label === 'pruning without --apply') {
+        expect(existsSync(unused)).toBe(false);
+        expect(
+          stripVTControlCharacters(refused.stderr)
+            .split('\n')
+            .filter((line) => line.startsWith('error: ')),
+        ).toEqual([
+          'error: usage: DB_PATH=/path/plan.db bun organization-activation-cli.ts --mcp-store <mcp store> --name <name> --super-admin <user id or username> [--apply [--prune-retained-streams]]',
+        ]);
+      }
 
       expect(refused.exitCode).toBe(1);
       expect(refused.stdout).toBe('');

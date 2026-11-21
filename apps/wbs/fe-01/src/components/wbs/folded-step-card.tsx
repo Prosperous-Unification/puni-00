@@ -45,8 +45,8 @@ export const SHORTHAND_HELP =
 export interface FoldedStepCardProps {
   stepName: string;
   estimateUnit: EstimateUnit;
-  /** The project the copied node belongs to, so a reopened link can select it. */
-  projectId: string;
+  /** The work package the copied node belongs to, so a reopened link can select it. */
+  workPackageId: string;
   /** Null means an older read omitted node metadata or a parent has no node: hide node details. A present node with `reference: null` is uncoded and still offers Copy link. */
   stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
   /** Returns keyboard focus from the card actions to their folded step cell. */
@@ -127,13 +127,13 @@ export interface FoldedStepCardProps {
  * A focused step cell offers F2 to enter its copy actions. Tab walks those
  * actions and returns to the cell after the last one; Escape returns at once.
  * Copy reference uses the canonical code when present. Copy link writes the
- * project and node IDs in the URL so opening it can select the plan, reveal
+ * work package and node IDs in the URL so opening it can select the plan, reveal
  * and focus this cell.
  */
 export function FoldedStepCard({
   stepName,
   estimateUnit,
-  projectId,
+  workPackageId,
   stepNode,
   onExitActions,
   onAddDependency,
@@ -268,7 +268,7 @@ export function FoldedStepCard({
               onKeyDown={onActionKeyDown}
               onClick={() => {
                 const url = new URL(window.location.href);
-                url.searchParams.set('project', projectId);
+                url.searchParams.set('workPackage', workPackageId);
                 url.searchParams.set('stepNode', stepNode.id);
                 copyText(url.href, 'Copied step link.', 'Could not copy step link.');
               }}

@@ -14,7 +14,7 @@ import type { LabelledWorkItem, WorkItem } from '../index';
 export function workItemRow(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
     id: crypto.randomUUID(),
-    projectId: 'project',
+    workPackageId: 'work_package',
     parentId: null,
     position: POSITION_STEP,
     name: 'Rewire the shed',

@@ -7,6 +7,7 @@ import type {
   MeasureStore,
   StepProgressStore,
   SubtreeStore,
+  SubtreeWriteOutcome,
   WorkItemStore,
 } from '@wbs/core';
 
@@ -36,9 +37,9 @@ export function inMemorySubtrees(
     demands: DemandStore;
   },
   afterFinalSatellite: (satelliteKeys: readonly string[]) => void = () => undefined,
-): SubtreeStore {
+): Pick<SubtreeStore, 'insertSubtree'> {
   return {
-    async insertSubtree(copy, stamp) {
+    async insertSubtree(copy, stamp): Promise<SubtreeWriteOutcome> {
       const satelliteKeys: string[] = [];
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
       // takes it — one call applies both, as the one transaction does.
@@ -69,12 +70,26 @@ export function inMemorySubtrees(
         await stores.workItems.move(child.id, child.parentId, child.position, [], stamp);
       }
       for (const estimate of copy.estimates) {
-        await stores.estimates.set(estimate, stamp);
+        const written = await stores.estimates.set(estimate, stamp);
+        if (written !== 'written')
+          throw new Error('non-atomic subtree fixture cannot restore estimate: ' + written);
         satelliteKeys.push(`${estimate.workItemId}:${estimate.stepId}`);
       }
-      for (const recorded of copy.actuals) await stores.actuals.set(recorded, stamp);
-      for (const said of copy.progress) await stores.progress.set(said, stamp);
-      for (const measured of copy.measures) await stores.measures.set(measured, stamp);
+      for (const recorded of copy.actuals) {
+        const written = await stores.actuals.set(recorded, stamp);
+        if (written !== 'written')
+          throw new Error('non-atomic subtree fixture cannot restore actuals: ' + written);
+      }
+      for (const said of copy.progress) {
+        const written = await stores.progress.set(said, stamp);
+        if (written !== 'written')
+          throw new Error('non-atomic subtree fixture cannot restore progress: ' + written);
+      }
+      for (const measured of copy.measures) {
+        const written = await stores.measures.set(measured, stamp);
+        if (written !== 'written')
+          throw new Error('non-atomic subtree fixture cannot restore measures: ' + written);
+      }
       for (const assigned of copy.assignments) {
         await stores.directory.assign(
           assigned.workItemId,
@@ -111,6 +126,7 @@ export function inMemorySubtrees(
         await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
       afterFinalSatellite(satelliteKeys);
+      return 'written';
     },
   };
 }

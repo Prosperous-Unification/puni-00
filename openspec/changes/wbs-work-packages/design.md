@@ -27,7 +27,7 @@ shapes and persisted connected formats; its conclusions are incorporated here.
 | Audit                   | `organization_audit.subject_kind` CHECK includes `project`; action `restricted_project_recovery`                                                                                                                                                                                                                                                                                | a CHECK rebuild                                        |
 | Non-additive migrations | lint forbids `RENAME COLUMN`, `DROP TABLE`, `DROP COLUMN`; `WAIVERS` keyed by folder with a required gate script; precedent `20260831120000_rename_role_to_step` gated by `bin/assert-no-prod-release.sh`; `backup-db-cli.ts` writes a verified snapshot (path, sha256, bytes, migrations)                                                                                      | a window exception with a writer barrier (E36–E39)     |
 | Deploy                  | dev: one container `wbs-dev-src`, migrates at boot, poller follows `main`; prod: blue/green image swap; the organization-activation runbook already stops the container, backs up and restarts                                                                                                                                                                                  | a stop-the-world procedure for a rename                |
-| Twilight readers        | Navigator `plan-reference.ts` reads `document.project.id` (fixtures v7–v10) and names `POST /api/projects/:id/commands`; Dash's and Burokrat's `projectId` are Nx project ids                                                                                                                                                                                                   | a v12 reader                                           |
+| Twilight readers        | Navigator `plan-reference.ts` reads `document.project.id` (fixtures v7–v10) and names `POST /api/projects/:id/commands`; Dash also consumes WBS SDK/runtime records; Burokrat's Nx project ids stay unchanged                                                                                                                                                                   | a v12 reader                                           |
 | puni-plan tooling       | no live script calls `/api/projects` (90 files mention it: RESUME, batch notes, evidence); the wbs-dev MCP client lists tools by name                                                                                                                                                                                                                                           | nothing to build; names to relearn                     |
 
 ## Goals / Non-Goals
@@ -121,22 +121,21 @@ was also "a space-level override of anything", now allowed where E18 says._
   future stamp applied on dev before later real-dated migrations splits dev's order from a
   fresh database's order and can make the `--capture` rollback refuse. Newest on `main` at
   `0b1dddaa0` is `20261023170000_add_work_item_budget` (93 folders; WP-6).
-  Versions: `PLAN_DOCUMENT_VERSION` 12 (slice 1), 13 (slice 2), 14 (slice 3a); slice 3b
-  bumps nothing unless its task proves a document or hashed byte changes.
+  Document allocations: published ordinary11/connected12 remain frozen; slice1 writes
+  ordinary13/connected14. Reserve15/16 for the changed slice2 owner/project-parent shape
+  and17/18 for slice3a settings, as ordinary/connected pairs; materialize each only with
+  its actual shape change. Slice3b bumps nothing unless serialized meaning changes.
   _Plan document versions revised 2026-10-24 after review:_ the budgets change (#663,
   `wbs-measure-budgets`) holds version 11 (`PLAN_DOCUMENT_VERSION = 11`,
   `LEGACY_PLAN_DOCUMENT_VERSION = 10`) and has landed on `main` (`1bb1cb392`); this change
-  keeps its v11 classifier branch and builds on it. `feat/cross-project-dependencies` is still at 10 and renumbers when
-  it lands. The same branch also holds `CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 9`, so the
-  saved-plan input goes 9 → 10 at slice 1, → 11 at slice 2 and → 12 at slice 3a (assumed by
-  the same reasoning; overturn with E10). _Revised 2026-10-25 after the Codex review (F4):
-  slice 2's owner removal takes 11 (E40); was 11 at slice 3a._ `SOLVER_WIRE_VERSION` stays 5 through explicit internal boundary mapping (E26).
+  keeps its v11 classifier branch and builds on it. _Current-code reconciliation2026-11-11:_ base canonical input9 and published stored input10 (the dependencyHistory wrapper) both already exist. Slice1 emits fresh stored/current input11, slice2 takes12 for owner retirement and the new project parent, and slice3a takes13 for resolved settings. The legacy1–9→legacy9→published10 chain stays frozen; an explicit10→11 conversion performs the rename without rewriting original bytes/hashes. Historical types and the legacy normalizer ceiling9 do not inherit renamed current types or defaults. Current11 assembly requires explicit captured dependencyHistory, including known-local evidence. The observed production saved-plan capture is version10; reusing10 for renamed fields was rejected. SOLVER_WIRE_VERSION remains5 through explicit internal boundary mapping (E26).
   `SCHEDULER_CONTRACT_VERSION` advances 18 → 19 because current elsewhere and connected-stage
   canonical host inputs carry project keys that the rename changes. Numerical scheduling
   behavior and quantum stay unchanged; canonical hashes and cache identities change. Landing order: budgets #663 before slice
   1 (done, merged), `feat/cross-project-dependencies` renumbering after.
   Rejected: one document bump at the end (E4 wants slice 1 shipped renamed, and a document
   that still says `project` at the old level would be a dual vocabulary for weeks).
+  _Retained recovery identity reconciliation2026-11-11:_ published shared-people-save1 keeps its original projectId rank vocabulary and exact canonical digest. New writers emit shared-people-save2 with workPackageId. Decode and hash the declared wire generation before a separate current-row projection; host fencing and diagnostics retain that original versioned snapshot across awaits and read the file once. Existing operation, approval, receipt and consumption rows/digests remain untouched through111. Equivalent logical state in2 cannot reuse1 approvals; completed1 cold retries return original facts without replay. Complete-state removal compares every validated mode/rank/audit fact across generations. Standalone rank files admit only historical project-rank-save1/projectId and current work-package-rank-save2/workPackageId; unshipped work-package-rank-save1 and mixed/future pairs refuse. This necessary compatibility repair adds explicit codecs/caller tests rather than rehashing or retargeting retained recovery authority. It belongs to coupled1.3–1.6 and precedes Navigator1.7 readiness. No approval schema or migration rewrite is required.
 - **E11. The rename vocabulary** is one ordered map, applied by case family and word boundary:
   `project` → `work_package` (SQL), `workPackage` (identifiers, JSON keys, document fields),
   `WorkPackage` (types, operationId segments), `work-package` (paths, module directories,
@@ -153,7 +152,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   preference key `lastOpenedProject` → `lastOpenedWorkPackage` (the old key is ignored, so the
   first load after the deploy opens nothing; accepted). **Excluded from the map:** Nx
   vocabulary (`project.json`, `projectType`, `nx run <project>`, `tool-devsync`'s project
-  names, Burokrat's Nx `projectId`, Dash's ledger `project` columns), every existing
+  names and Burokrat's Nx `projectId`), Dash's published config/attribution/ledger and retained runtime-record keys, every existing
   `migration.sql`/`down.sql` (rollback refuses an edited migration), `openspec/changes/**`
   other than this change, dated records (`docs/findings/**` proof details,
   `docs/superpowers/**`, `docs/plans/**`, `docs/wbs/testing/**`, `*-history.md`, evidence
@@ -166,12 +165,7 @@ was also "a space-level override of anything", now allowed where E18 says._
   (`project.read`, `project.manage_packages`, …), the project role names, the access target
   `{ kind: 'project'; chain }` and grant rows whose scope kind is `project`, plus anything
   else those slices add (listed from their landed code on the slice 1 branch); each is a
-  per-line pattern in `allow-list.ts` (E12), never a path exclusion. (WP-13) the solver wire
-  schemas `libs/wbs/domain/contracts/solver/solver-wire.v1–v5.json` and their byte-identical
-  copies under `libs/wbs/adapters/solver-py/src/wbs_solver/`: "project" appears in their
-  `$comment` strings only (v4 lines 149, 156, 304, 318), and rewriting the solver-py copy
-  would change solver-py, which E26 keeps untouched; the comments are reworded with the next
-  wire version. (WP-8) the scenario ids `[PROJECT-ASSIGNMENT-READS-00n]`, which tests in
+  path/context-qualified protected character span in `allow-list.ts` (E12), never a blanket permission-file or mixed-line exclusion. (WP-13) the frozen Python0.4.0 implementation, package metadata/locks/tests and solver-image build inputs, plus solver-wire.v1–v5 JSON and both schema copies, remain byte-identical. The Python implementation and TypeScript wire boundary contain live `projectId`/`projects`/`foreignProjectId` keys, not merely comments. TypeScript host DTOs still rename; only exact wire occurrences remain protected and host-to-wire mappings make the distinction (E26). (WP-8) the scenario ids `[PROJECT-ASSIGNMENT-READS-00n]`, which tests in
   store-sqlite and core cite by id.
 - **E12. The rename is a committed, rerunnable script**: Nx project `tool-rename-work-package`
   under `tools/tool-rename-work-package/` with `src/rename-map.ts` (the map above, as data),
@@ -183,59 +177,90 @@ was also "a space-level override of anything", now allowed where E18 says._
   (every key has all five spellings and none collides with an existing identifier); `check`
   fails on an injected residual in a non-excluded file and passes on an excluded one (R5
   negative, watched); `apply` twice equals `apply` once. _New-sense rule added 2026-10-24
-  after the Fable review (WP-2):_ `allow-list.ts` carries, beside excluded paths, per-line
-  patterns for identifiers already in the new sense (E11's list); `apply` leaves a matching
-  line untouched (so `ScopeChain.projectId` never becomes a second `workPackageId`) and
-  `check` does not report it (so `check` can reach exit 0). The rename-map test asserts that
-  each listed pattern still matches at least one line of the tree, so a pattern outlived by
-  its code fails the test instead of silently widening the allow-list. The reviewer reruns `check` on the PR
-  head. _Review rule added 2026-10-24 after review:_ the mechanical commit is reproducible: the
-  reviewer runs `tool-rename-work-package apply` on that commit's parent and the resulting
-  diff is byte-identical to the commit; hand fixes (articles, plural grammar, sorted fields,
-  prettier wrapping) go in a separate commit after it and are reviewed as an ordinary diff.
+  after the Fable review (WP-2), refined from current permission callers in2026-11:_ genuine prose/Nx whole-line rules remain; permission and frozen-wire exceptions use explicit protected character spans. A closed permission/role literal or exact new identifier is protected without protecting unrelated old tokens on its line. Overloaded parent fields and kind tokens require an exact path plus named structural enclosure and captured token offsets; arbitrary chain/scope property access is never exempt. Both original and moved paths select the same intended rule. Missing or ambiguous required witnesses refuse. Apply, residual checking and target-collision detection consume the same spans. Each rule has actual tracked witnesses, mixed old/new-line controls and removed-rule negatives; an outlived witness fails instead of silently widening protection. Whole-line permission guards were rejected because a `work_package` kind could hide an old planning argument; global property guards were rejected because an unrelated captured.chain.projectId still means the old package. This bounded lexical qualification does not introduce a semantic TypeScript refactoring engine. The reviewer reruns `check` on the PR
+  head. _Review rule added 2026-10-24 after review:_ the mechanical component is reproducible: the reviewer runs `tool-rename-work-package apply` on its recorded exact parent and retains the generated patch/tree and composed formatting recipe. The named mechanical component, rather than every subsequent semantic repair, is byte-identical to that reproduction. The reproduction recipe includes the pinned local Bun-run formatter over the exact generated supported-file list, after apply and before the mechanical commit. Preserve the raw generated patch/hashes, formatter argv/version/config identity and a formatter-only executable bridge; independently reproduce apply plus formatting from the exact parent. This bounded correction is required because the observed actual apply produced686 format refusals while normal commit hooks require formatting. Hooks are never bypassed. Semantic hand fixes (articles, plural grammar, field ownership, historical codecs and compatibility repairs) are always a separately archived and reviewed diff from the sealed formatted tree. Prefer a separate commit when normal hooks permit it. The actual required staged-lint adapter refused the mechanical quoted host keys with six error-typed diagnostics; therefore the ordinary implementation commit may compose the reproducible mechanical component with that explicitly separate repair diff. The complete parent-to-final tree must equal that composition. Never call the combined commit purely mechanical, never bypass hooks, and never present semantic repairs as formatting or add them to the rename engine.
   Rejected: a one-off sed in a PR description (not
   rerunnable, not testable).
-- **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the nine
-  tables, `ALTER TABLE … RENAME COLUMN project_id TO work_package_id` for the nineteen, `DROP
-INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER` for the 25 indexes and 9
-  triggers whose name carries `project`, under their new names (the bodies of all 16 triggers
-  that name `project` follow SQLite's own rename rewriting; task 1.3 asserts no index or
-  trigger in `sqlite_master` still names `project` in name or body; counts per WP-6 at
-  `0b1dddaa0`, re-derived by `report`), a rebuild of `organization_audit` with the renamed CHECK
+  **Readiness boundary:** tasks1.3–1.6 are coupled. The exact-parent mechanical checkpoint may record dependent REDs, but saved-plan/import compatibility requires the explicit legacy9/10→current11 and published document11/12→ordinary13/connected14 upgrades, preserving historical reader keys/bytes. Solver compatibility also requires current-host→frozen-wire mapping and stored connected DTO upgrades. Scheduler18→19 and old-cache rejection do not substitute for those boundaries. ScheduleBody advances only if its actual serialized timing shape changes. Database JSON rewrites address owned old-package keys, never global text replacement or stable grant/replay permission meanings.
+- **E13. Slice 1 migration.** One `migration.sql`: `ALTER TABLE … RENAME TO` for the
+  thirteen old-level tables, `ALTER TABLE … RENAME COLUMN` for 28 old-level columns
+  (26 exact `project_id` plus external dependency `predecessor_project_id` and
+  `successor_project_id`), `DROP INDEX`/`CREATE INDEX` and `DROP TRIGGER`/`CREATE TRIGGER`
+  for the 23 explicit indexes and 13 triggers whose names carry `project`, under their new
+  names, plus DROP VIEW/CREATE VIEW for the allocator view
+  `project_abbreviation_candidate` → `work_package_abbreviation_candidate` (the bodies of all 25 triggers
+  that name the old level follow SQLite's rename rewriting; task 1.3 checks explicit and
+  automatic indexes and every trigger name/body for old-level residuals, preserving new-sense
+  permission/scope literals). Historical inline FK/CHECK labels are the exact object+constraint-token set in fixtures/schema-exceptions.json (22 tokens across17 tables), plus one exact dated stored comment; these metadata tokens alone stay old. No whole-line or project_* pattern is allowed, and an old table/column reference under an allowed label still fails. SQLite ALTER does not rename these labels; rebuilding the tables solely for metadata names and writable_schema were rejected. Four additional blockage/parallel triggers retain their predicates/FK behavior but change active RAISE prose to work package mismatch. Actual invalid inserts, FK integrity and row preservation are checked. Counts come from the complete 110-migration schema at local
+  `b0d2df4eb608827a4933f0840b05300e06158d8a` (latest
+  `20261103110000_add_initial_access_offers`, observed 2026-11-10); earlier 9/19 counts remain
+  dated historical evidence rather than active expectations. The migration also includes a rebuild of `organization_audit` with the renamed CHECK
   vocabulary (the `widen_organization_audit_*` shape) and `UPDATE`s of its `subject_kind` and
   `action` values; a `CHECK (violations = 0)` guard table refuses while any work package lacks
-  an organization row. Stored JSON is not rewritten: `command_journal` and `plan_event` keep
-  their payloads (their `project_id` is a column), and the saved-plan input body stays
-  at schema ≤ 9 bytes (`saved_plan_body.bytes`, kind `input`) read through a new 9 → 10 upgrade step in the saved-plan reader (the
-  established reader-side chain; a stored body is not rewritten here, and since E33 is superseded by `wbs-step-catalogue` SC13 no migration touches one either; corrected 2026-10-24,
-  WP-5, to agree with E10). Task 1.3 proves by
-  replaying every journal kind through a migrated fixture that no payload names `projectId`;
-  if one does, the migration rewrites it with `json_set` and the test proves that instead.
+  an organization row. _Reconciled against current typed-dependency/incident callers in2026-11:_ stored commands now contain package identities. The SQL rewrite owns only command_journal.payload.forward, command_journal.inverse and plan_event.before/after command roots; it follows batch.steps and transition_incident_nodes.structural. It renames transition.projectId, typed dependency owner and predecessor/successor projectId fields (when present), transition receipt from/to dependency fields, and restore_subtree.rows[*].projectId. It separately renames preconditions.externalRevisions expected/from entry projectId fields. Legacy dependency endpoints without an explicit package stay absent. Recognized owned shapes and old/new-key collisions are validated before writes; malformed/unknown command shapes refuse the whole migration with the stored row identity. Null or non-command historical event roots require their own explicit current-writer classification, not recursive key guessing.
+
+  The rewrite preserves payload.authorization (including policy version1 and stable workPackageId requirements), project permission/role/scope literals, labels, user text, opaque references and revision-map tuple keys. It never recursively renames arbitrary JSON keys. Saved-plan input bodies remain their original schema1–10 bytes and hashes; the reader preserves legacy1–9→9→published10 meaning, then explicitly upgrades10→renamed11 without rewriting persisted bodies (E10; E33 is superseded by wbs-step-catalogue SC13).
+
+  Transport replay is a one-time namespace reset, not a frame migration. Old project:* event_log and event_sequencer rows remain byte-identical under their old keys, subject to normal retention. New work-package:* subscriptions start independently; no old sequence number is copied or translated and no old frame is relabeled. The gateway refuses the old prefix. The current client ignores obsolete full-subscription tracker keys and establishes a fresh anchored full read before new replay, including the old-seq0/new-seq0 collision and denied resume/refetch controls. plan_event durable user history remains separate and preserved. This reset is part of readiness, not proved by inaccessible old keys alone.
+
+  Organization activation inventories both exact stored namespaces against work_package_organization without enabling legacy replay. Existing explicit orphan cleanup covers project:<id> and work-package:<id> only when the corresponding live work_package row is absent. Live unmapped packages remain reconciliation failures; their histories are not orphan cleanup candidates. Unknown namespaces remain conflicts and are never pruned. Both live buffers retain complete raw rows and independent sequencer values. Optional pruning stays after ownership backfill and before reconciliation in the same transaction; any refusal rolls back every write, including provisional orphan deletions. The CLI still requires --apply for --prune-retained-streams, and durable plan_event history is outside transport cleanup.
+
+  Historical runtime identity-bearing representations are outside this SQL command rewrite. Persisted event evidence and host-job reading leaves validate the complete original tagged/legacy identity before extracting only consumed proof/display fields; they do not project unused owner fields. A retained resource-use terminal event requires its recorded release proof; corruption throws inside the existing owner, while invalid or mismatched incoming proof keeps modeled4xx. Immutable runtime declarations/fingerprints, version1 canonical runtime requests, digests, accepted envelopes and original receipts stay exact. Named persisted codecs map old projections to current internal names and compare current requests in the retained row's actual format; mixed/unknown shapes refuse. A changed current public/canonical wire shape gets an explicit next version with version1 decoding, never a reinterpretation/re-hash of version1. Manual resource-use fingerprints and runtime rb1 bases are positional and do not change solely because host property names change. Resource-use stored snapshots/original responses are decoded as their historical projections without consulting a current plan or changing revision/state/attribution. These changes are part of the coupled1.3–1.6 readiness boundary and must be proved before claiming replay/storage compatibility; they are not permanent lexical exemptions. The physical runtime schema capability check changes to the new table/column names while retaining original applied-migration hashes.
+
+  Runtime current canonical envelope, stored acceptance, public receipt and state each advance1→2 because each owns renamed scope. Ledger marker1, incoming operation-body1, authority/claim structures and positional rb1 remain unchanged. Read raw discriminated acceptance1|2; only current2 may enter insertion ports. Frozen1 decoders validate original scope/command/ledger/receipt correspondence and recanonicalize in original format before current semantic projection. Hash the ORIGINAL canonical string. Replay encodes the incoming semantic request explicitly in the retained format, compares exact bytes and returns the retained receipt1|2 unchanged. A projected legacy record is never a writable current record.
+
+  _Dash consumer frontier, reconciled2026-11-11:_ a fresh live Dash broad typecheck before private Navigator3 integration reports648 diagnostics across75 paths. Its published local scopeCodec and runtime snapshots1/2/3 retain projectId; importing the mutable current WBS RuntimeScope does not make those stored fields current wire. Current WBS endpoints/SDK names and scope/state DTOs require explicit boundary mapping. Before runtime repairs, distinguish own retained records from current internal observation views and strictly validated original1/current2 request, state and receipt representations. Original canonical strings, independent digests, original receipts, config/attribution keys and physical scope-key tuples must remain exact; no global rename, casts, fallback aliases, rehash or silent retag of versions1/2/3 is allowed. A fresh local writer version is required only if its own serialized shape actually changes. The source-grounded choice between frozen owned representation plus boundary maps and such a new version is reviewed before deeper runtime edits; RuntimeAuthority, verified principal/credential/source and existing admission stay unchanged. These are coupled1.3–1.6 readiness obligations, separate from private Navigator-owned PlanTasks3/record-progress work.
+
+  _Native authority clarification,2026-11-12:_ runtime acquisition, exact replay, receipt lookup and state all require current package.write permission. Retained membership plus package.read permits ordinary work-package GET but does not grant runtime reconciliation. Credential read scope is a separate transport limit: an otherwise authorized package writer can lookup with read scope, while acquisition requires credential write scope. Native tests preserve that distinction; historical receipts never create current permission.
+
+  _Accepted Dash R1–R5 boundary,2026-11-11:_ local RuntimeScope uses the public immutable RuntimeScope1 representation; pin1, snapshots1/2/3, preparation observation1, manifests/config/attribution and the ordered SQLite scope-key tuple stay byte-compatible. Compare all organization/owner/person fields; explicit complete maps separate local projectId from current WBS workPackageId. The public canonical1|2 parser validates original format/bytes before a named local view; new encoders/API requests map complete current scope and write canonical envelope2 with body1. Never regenerate a retained intent with a current encoder or rehash its original bytes. Raw receipts remain original1|2; only their validated scope meaning is projected for local correspondence.
+
+  Retained state uses full frozen state1 and current state2 grammars, selected by original tag; live readRuntimeState remains2-only. The complete historical scope, ledger/rb1, revision, work-item/external-ref, step, authority and ordinary/runtime-claim inventory is validated before projection, preserving published additive public fields while refusing known mixed owner/revision spellings. Artifact media/reference snapshot/original bytes-length-digest/fatal UTF8 precede the decoder. A separately named unversioned view may carry current scope/workPackageRevision; it is not wire evidence or a writable record. Recovery embedded types, codec and independent artifact reader change together: RecoveryExchangeValue.body.value stays the original fully validated raw state1|2 or raw receipt1|2, including allowed additions, so artifact-derived pair deep equality remains exact. No projected view enters that stored value, no old artifact reference is replaced, and no history supplies current authority.
+
+  Ordered proof leaves are local scope/request view; raw receipts/accessors; full state/recovery pair; fresh encoder/API maps; native old-to-current cold/deleted-reference replay. Genuine outgoing7b producer capture, malformed/mixed/unknown negatives, complete same-org/person different-owner comparison, raw body-value equality and current authorization refusals are mandatory. Existing actor/credential/source, grant, owner renewal and lifetime rules remain unchanged. These leaves do not authorize private Navigator files, a new snapshot4 without an actual own wire change, or broad readiness.
+
+  Resource runtime identity formats are separate: new explicitly tagged stored envelope2, strict untagged published reader for old admission/event/declaration strings. Old unlinked host jobs have no owner spelling discriminator. Current→retained comparison maps only owned use.projectId/workPackageId and optional host-job owner, retaining raw JSON property order and absent fields. No key sorting, deep-equality replacement, old-string rewriting or live planning lookup is introduced. Historical resource-use snapshots/responses project observed names/attribution without consulting current/deleted planning rows.
+
   `down.sql` exists because the lint and `migrate-down-cli.ts` require one, and it refuses
   (E38); the rollback of record is the snapshot (E14, E38). Lint: a `WAIVERS` entry for the
   folder with labels `ALTER TABLE ... RENAME COLUMN` and `DROP TABLE` (the audit rebuild) and
-  gate script `bin/assert-rename-window.sh` (E39). _Revised 2026-10-25 after the Codex review
+  gate script `bin/assert-rename-window.ts` (E39). _Revised 2026-10-25 after the Codex review
   (F1, F3): was a `down.sql` reversing every rename and a waiver for `RENAME COLUMN` only._ Rejected: expand/contract with views and `INSTEAD OF`
   triggers (`steps-schema-rename` D2): nine views and dozens of triggers alive for one
   release, for nobody (E8).
+
 - **E14. Stop-the-world window with the backup as rollback.** _Revised 2026-10-25 after the
   Codex review (F1, F2): was a gate passing when no prod release was recorded **or** a backup
   report named the live `DB_PATH` with an equal hash, a report the CLI did not produce, a
   rollback by file copy, a prod path through the ordinary swap tooling, and slices 2 and 3a
   under the compatible-rebuild exemption._ The windows of slices 1, 2 and 3a (and 3b, once
   `wbs-step-catalogue` defines it) are a documented exception to the additive rule (E36).
-  `bin/assert-rename-window.sh <state-dir> --backup-report=<file> --container=<name>` passes
-  only when all hold: `bin/assert-no-prod-release.sh <state-dir>` passes (prod is not in
+  `bin/assert-rename-window.ts <state-dir> --backup-report=<file> --snapshot-path=<file> --db-path=<file> --container=<name> --candidate-image=<image>` passes
+  only when all hold: the Bun host gate directly reads an existing readable state directory and finds no be/gw/fe release record (prod is not in
   scope until an activation change defines its window, E36), the named container is not
   running (the writer barrier, E36), and `assert-window-cli.ts` accepts the report against
   the live database (E37). The report is always required. Procedure, dev (`wbs-dev-src`,
-  `/data/wbs.db`, under the heavy lock, the organization-activation runbook's shape): pause
-  the poller; stop the container; run
+  `/data/wbs.db`, under the heavy lock, the organization-activation runbook's shape): establish
+  the authenticated immutable-snapshot read handoff; pause the poller; stop all live-store
+  owners; run
   `backup-db-cli.ts --report=<file> /data/pre-<slice>.db` from a one-off container on the
-  same volumes; run the gate; merge;
-  reset the host checkout to the merged commit; start the container (be-01 migrates at
-  boot); `/health` proves the commit; smoke `GET /api/work-packages`; resume the poller.
-  Rollback is E38's. Lint is E39's: every window migration carries an explicit waiver, and
+  same volumes; run the gate; merge; gate the exact final merged candidate SHA again if
+  it differs from the already-gated SHA; reset the host checkout to that candidate;
+  retain the complete baseline ledger and candidate/store attribution while the barrier
+  remains held; apply the exact candidate migrations through the explicitly admitted,
+  stopped one-off transition owned by permissions 6.4b/6.4e; validate the expected complete
+  post-ledger and current schema; only then start the current candidate for health and
+  authenticated read checks while grant/write exposure remains fenced. Retire old HTTP/WS
+  authorizers before that exposure, and resume the poller only after the supported handoff.
+  The compatible immutable-snapshot authenticated read handoff precedes stopping live-store
+  owners and remains through migration (permissions 6.4). Unknown, failed or interrupted
+  transition prevents startup and resumption. The backup verifier or raw path-based
+  migrate-cli is not transition admission. Normal startup is not the rename transition.
+  _Implementation reconciliation 2026-11-13:_ the former boot-migration step cannot cross
+  strict current-only inspection of old durable authority. This explicit stopped phase
+  preserves that refusal; its positive requires the actual transition owner and old/current
+  correspondence, not a new startup fallback. No one-off execution is qualified yet.
+  Rollback is E38's, subject to permissions 6.4f's exposure/retirement conditions. Lint is E39's: every window migration carries an explicit waiver, and
   none claims the compatible-rebuild exemption. Rejected: running a window migration under
   the blue/green swap (the outgoing colour would fail every query the instant the rename
   commits).
@@ -277,7 +302,14 @@ NULL → project(id)` through a table rebuild of `work_package` under the window
   restores the required `projectId` (E30)._ "Ordinary" means no kind column, no system flag
   and no protected row: every project, the back-filled "Migrated work packages" included, is
   renamed, emptied and deleted by the same rules, and an organization may hold no project at
-  all. `deleteProject` refuses `409 not_empty` naming the work package ids while any remain.
+  all. `deleteProject` refuses `409 not_empty` while any actual work package remains.
+  The raw offline store retains its complete child-ID administration fact. The authorized
+  public response carries only the current caller's readable child IDs, possibly empty,
+  with no hidden total; its decision and filtering share the same admitted write owner.
+  Empty deletion removes its direct project grants, audits each actual revoke and the project
+  deletion in the same owner, and enforces permissions CP14 even for a zero-grant cascade.
+  No current direct user built-in organization super-admin means `409 last_super_admin`
+  after rollback, with no project/grant/audit effects. This does not protect a last project.
   `createWorkPackage` and the import routes require `projectId`: absent or `null` answers
   `422 project_required`, malformed answers `422 invalid_body`, foreign or missing answers
   `404` (E44). Rejected: a `kind` column or a
@@ -288,14 +320,16 @@ NULL → project(id)` through a table rebuild of `work_package` under the window
   `POST /api/projects { name, workPackage?: { name } }` → 201 / 409 `name_taken` (with
   `workPackage`, the project and its first work package
   are written in one transaction, E30, so a refusal leaves neither); `GET /api/projects` (the
-  caller's organization, with work package counts); `GET /api/projects/:id` (its work package
-  entries); `PATCH /api/projects/:id {name}` → 200 / 409 `name_taken` / 404; `DELETE
+  caller's organization, with readable work package counts); `GET /api/projects/:id` (its
+  readable work package entries and their count, captured with current authority in one
+  coherent read snapshot); `PATCH /api/projects/:id {name}` → 200 / 409 `name_taken` / 404; `DELETE
 /api/projects/:id` → 204 / 409 `not_empty` / 404 (deleting an organization's only project
   is allowed, E16); `POST
 /api/work-packages/:id/move {projectId}` → 200 / 404 (either side, organization-scoped, so a
   foreign target is 404) / 409 `type_not_allowed_in_project { typeIds }` (E22, from slice
-  3a); the store-level `cross_organization` refusal stays unreachable through HTTP, and
-  `dependency_crosses_project` and step-code matching are deferred (E45). _Revised
+  3a); the store-level `cross_organization` refusal stays unreachable through HTTP. Actual
+  dependencies now exist, so this move slice enforces `409 dependency_crosses_project`
+  in both incident directions; step-code matching remains deferred (E45). _Revised
   2026-10-25 after the Codex review (F9): was also `409 cross_organization` at HTTP,
   `409 dependency_crosses_project` once dependencies exist, `409 step_code_not_in_project`
   and a re-key of per-step rows by code on every applied move._
@@ -321,13 +355,13 @@ NULL → project(id)` through a table rebuild of `work_package` under the window
   membership sees nothing" arrives with `wbs-permissions`). The combined create also writes
   the creator grants and their audit rows in its transaction (E41). mcp-01 derives the
   tools (`postApiProjects`, `postApiWorkPackagesByIdMove`, …). The work package read gains
-  `projectId`; the plan document gains `project: { id, name }` at version 13, informational on
+  `projectId`; the plan document gains `project: { id, name }` at versions15/16, informational on
   import: the import request names the target project (`422 project_required` when it names
   none, E30), never the file.
-- **E18. The setting catalogue (E9).** `@wbs/domain` `settings/catalogue.ts`: `SETTING_CATALOGUE`
-  entries `{ key, value (ArkType), definedAt: 'project', overridableAt: ReadonlySet<Level> }`
-  (plus `resolution` and `storage` since 2026-10-25, E43) for `timezone` (IANA zone; overridable at `work_package`), `pertWeights` (three positive
-  numbers; `work_package`), `calendarMarkers` (a set, E19; `work_package`),
+- **E18. The setting catalogue (E9).** `@wbs/domain` `settings/catalogue.ts`: `settingCatalogue`
+  entries keyed by setting name with `{ value (ArkType), definedAt: 'project', overridableAt: ReadonlySet<Level> }`
+  (plus `resolution` and `storage` since 2026-10-25, E43) for `timezone` (IANA zone; overridable at `work_package`), `pertWeights` (three nonnegative coefficients whose sum is finite and strictly positive,
+  using the existing `PertWeights` grammar; `work_package`), `calendarMarkers` (a set, E19; `work_package`),
   `allowedWorkItemTypes` (a set of directory type ids, empty meaning all; fixed at project;
   E22), `budgetFactor` (a positive number ≤ 1000, the bound of today's `budget_factor`
   CHECK; catalogue default 1; fixed at project, overridable nowhere; E6); the step set is a
@@ -352,7 +386,8 @@ NULL → project(id)` through a table rebuild of `work_package` under the window
 updated_at, created_by)` PK `(scope_kind, scope_id, key)`, `scope_kind` CHECK over the
   levels; a write of a key at a level the catalogue does not allow is refused at the boundary
   (`409 not_overridable_here`), and a value that fails the key's type is `422`. Resolution:
-  `resolveSetting(chain, key)` in core, `chain: ScopeChain`, walks from the chain's own level
+  The core reader captures setting rows under its admitted read owner; pure
+  `resolveSetting(chain, key, snapshot)` in `@wbs/domain`, `chain: ScopeChain`, walks from the chain's own level
   upward (work package → project → the project's space when it has one → organization →
   catalogue default; a space chain starts at the space, an organization chain at the
   organization, E42) and answers `{ value, provenance: { level, id } | { level: 'default' } }`
@@ -372,7 +407,7 @@ updated_at, created_by)` PK `(scope_kind, scope_id, key)`, `scope_kind` CHECK ov
   by `level` that ends at organization, space, project or work package (E42; was
   `{ organizationId, spaceId, projectId, workPackageId? }`, and before that `spaceIds`),
   defined by whichever change lands first (expected:
-  `wbs-permissions` slice 1); `resolveSetting(chain, key)` (nearest wins, provenance
+  `wbs-permissions` slice 1); `resolveSetting(chain, key, snapshot)` (nearest wins, provenance
   `{ level, id }`) and `effectiveRoleAt(chain)` (strongest wins) both take it, so the chain
   is built once per request and never twice with different rules. Rejected: nullable columns
   per level (E9 names that as the thing not to do); a settings JSON blob per row (no per-key
@@ -517,6 +552,38 @@ organization_id, position, …)`, back-filled by mapping each space's work packa
   days and counts, folded status) with the work package rows beneath; `in-progress` keeps its
   meaning over the space's projects' work packages; the `all` space is the caller's projects,
   in a space or not.
+  The grouped `SpaceRead` port resolves retained caller evidence, current grants, space
+  contents and actual readable package DTOs through one Source-owned committed read loan.
+  Named groups preserve the captured project membership order. `all` orders visible
+  projects by binary `(name, id)` and includes projects outside named spaces. Each group's
+  identity contains only actual `id`/`name`; position and readable package children belong
+  to the group, so package-only readers receive no project metadata. `project.read` admits
+  empty projects; a package-only reader sees a parent only with a readable child. Counts
+  derive from these admitted groups and children. Child ordering is binary `(name, id)`.
+  `writable` uses the same authority snapshot and is false for virtual `all`. Before durable
+  activation, legacy readers retain deployment-wide visibility and named-space legacy
+  ownership. Acquisition is lazy; Source close refuses new loans, while an already lent
+  observation finishes its captured snapshot and releases its physical connection.
+  `GET /api/spaces/:id` carries `projects: [{ project: { id, name }, position,
+workPackages: [...] }]`, required membership identity arrays and the readable
+  `space.projectCount`. Its obsolete flat `rows` member is forbidden. The browser renders
+  one project row, including empty projects, with arrange controls on that row and child
+  package links/figures beneath it. A later project catalogue read cannot offer a project
+  already present in the captured groups. Project figures come from the per-project
+  roll-up endpoint specified above, never a client fold across independent child chunks.
+  The Source roll-up purpose retains the full caller and selected project IDs before waiting.
+  It admits requested groups using that same committed space view, then captures every readable
+  child's scheduling inputs, installed cache selection and live row metadata on the existing
+  loan. Unknown, foreign, out-of-space or invisible project IDs refuse the complete query as
+  `not_found`. Required hidden dependency endpoints also refuse the complete query before private
+  capture. Local scheduling and the canonical tree presenter finish after the loan closes.
+  Empty admitted projects have `{ kind: 'empty' }`. One unavailable child makes the parent
+  `{ kind: 'unavailable' }` while child figures remain individually available. Any child schedule
+  error suppresses the parent date span; known effort, status and counts still fold. Otherwise
+  dates span the dated children and totals/counts add. Status uses the normal parent fold,
+  including unknown empty packages. Parent figures invent no single engine, revision or event
+  sequence. The bound Source installs the actual scheduling configuration; an unbound child
+  capture throws explicitly. This purpose does not admit optimizer work.
   Belonging: `space_person(space_id, person_id, organization_id, created_*)` and
   `space_team(space_id, service_team_id, organization_id, created_*)`, `POST`/`DELETE
 /api/spaces/:id/people/:personId` and `/teams/:teamId`, listed in the space read; no effect
@@ -566,12 +633,19 @@ organization_id, position, …)`, back-filled by mapping each space's work packa
   advances 18 → 19 and current cache identities change. Complete request bytes are not
   unchanged: `contractVersion`, connected `inputHash` and `questionHash` legitimately
   change; ordinary wire fields and numerical scheduling/quantization semantics do not.
+  The mechanical pass leaves only the golden corpus manifest and request/response JSON paths outside its map; no neighboring TypeScript helper is excluded. Unchanged Python tests consume the manifest and fixed filenames. This is not an immutable-byte claim for the corpus: explicit owned metadata updates and both consumer suites govern the next step. The current25-file corpus contains no project-named filename or projectId/projects/foreignProjectId key, so controlled future-shaped cases are distinguished from actual current witnesses.
+
   Corpus contract prefixes become `19+0.4.0`. Old contract-18 cache rows miss before
   current codec decoding, including plans whose input hash happens to remain equal.
 
   Connected host-shaped persisted/public formats get separate versions: stored stage DTO
   1 → 2, successful durable outcome DTO 2 → 3, boundary certificate DTO 1 → 2, and public
-  `wbs-connected-stage` boundary 1 → 2. New plan export 12 carries renamed nested
+  `wbs-connected-stage` boundary 1 → 2. Stored schedule cache DTO 4 → 5 fences renamed
+  `elsewhereHolder.workPackageId`; the result envelope and infeasible DTO remain version1
+  because their own fields have not changed. Local, connected-success and certificate
+  readers independently prove contract19 misses contract18 rows before decoding, with
+  matching input hashes, current generation and healthy current-key controls. Current-contract
+  stale DTOs retain their modeled corrupt/throw outcomes. New connected plan export14 carries renamed nested
   `question.stageBytes` and `boundary.canonical` contents as well as renamed top-level
   fields. Supported historical documents/saved evidence validate original bytes/hashes
   before read-time upgrades; stored body/header hashes and historical bytes are never rewritten.
@@ -677,8 +751,9 @@ wbs-work-packages` refused six of them, because a MODIFIED block cannot rename a
   fallback on deleting an empty default, and needed a new `wbs-permissions` matrix row._
   Neither the route, the audit action nor the matrix row exists in this change.
 - **E32. The settings catalogue and `resolveSetting`** (resolves WP-9; moved out of E9).
-  Settings are a small catalogue (key, value type, overridable-at levels) and one
-  `resolveSetting(scope, key)` in core; E18 gives the catalogue's entries and storage and
+  Settings use a small catalogue (key, value type, overridable-at levels) and pure
+  `resolveSetting(scope, key, snapshot)` in `@wbs/domain`, composed over a core-owned snapshot;
+  E18 gives the catalogue's entries and storage and
   the shared `ScopeChain` it resolves over.
 
 ### Decisions after the Codex review (2026-10-25)
@@ -696,19 +771,20 @@ by adopting the recommendation).
   application stopped, and the gate proves it rather than assuming it. On dev, under the
   heavy lock, the window pauses the poller: puni1's crontab line for `poll.sh` is saved and
   removed, so neither the checkout reset nor devsync's `docker restart wbs-dev-src` can start
-  a writer. Then it stops `wbs-dev-src`. `assert-rename-window.sh` refuses unless
-  `docker inspect -f '{{.State.Running}}' <container>` answers `false`, and the backup's
-  checkpoint refuses while another connection holds the file (E37). Prod is out of scope
-  until an activation change defines its own window. The gate refuses whenever
-  `bin/assert-no-prod-release.sh <state-dir>` refuses, so a recorded release, or a state
-  directory that cannot be read, blocks the window whatever the backup says. No window
-  migration ever runs under the blue/green swap.
+  a writer. Then it stops `wbs-dev-src`. `assert-rename-window.ts` refuses unless
+  full Docker inspection identifies exactly one nonrunning, nonpaused, nonrestarting exited
+  container; the backup checkpoint refuses a blocking reader/writer (E37), not an idle connection. Prod is out of scope
+  until an activation change defines its own window. The Bun gate reads release state directly;
+  it never calls Bash or inherits the historical skeleton override. Every be/gw/fe record,
+  missing state directory or unreadable directory blocks the window whatever the report says.
+  No window migration ever runs under the blue/green swap.
 - **E37. The backup report proves the source, the snapshot and the ledger** (F2).
   `backup-db-cli.ts --report=<file> <snapshot-path>` is a new mode; without the flag the CLI
   prints what it prints today, and the swap's `backup-db` step is unchanged. The new mode
   opens `DB_PATH` and runs `PRAGMA wal_checkpoint(TRUNCATE)`. It refuses unless the pragma
-  answers `busy = 0` and the `-wal` file is afterwards absent or empty, which proves that
-  the WAL content is in the main file and that no other connection is open. It hashes the
+  answers `busy = 0` and the `-wal` file is afterwards absent or empty. This proves
+  checkpoint completion, not the absence of idle connections or future writers; E36's
+  stopped application, paused poller and held heavy lock remain the process barrier. It hashes the
   main file, takes and verifies the `VACUUM INTO` snapshot (`snapshotDatabase`), and writes
   one JSON object atomically, never over an existing file, with the fields `version` (1),
   `sourcePath`, `sourceSha256`, `sourceBytes`, `snapshotPath`, `snapshotSha256`,
@@ -721,10 +797,73 @@ by adopting the recommendation).
   - the report is missing, unreadable or malformed (ArkType at the boundary; an unknown
     `version` counts as malformed);
   - `sourcePath` differs from `DB_PATH`;
-  - the `-wal` file is not empty;
+  - the source or snapshot `-wal` file is nonempty or nonregular;
   - the live main file's sha256 differs from `sourceSha256`;
   - the live ledger's name and hash set differs from `migrations`;
   - the snapshot is absent, or its sha256 differs from `snapshotSha256`.
+
+  The checkpoint owner settles and closes before the existing VACUUM INTO snapshot owner
+  starts. Source bytes/hash/WAL and the complete name/hash ledger are compared again after
+  snapshot completion; source and snapshot ledgers must both match. The verifier checks source
+  and snapshot WAL before opening the corresponding SQLite file and after readonly observations,
+  and never checkpoints either. Version1 source/snapshot wire paths must be absolute. Artifact
+  destinations must not overlap either SQLite namespace (main, -wal, -shm, -journal), including
+  existing parent aliases. Missing/unreadable source/snapshot acquisition names its report field
+  and preserves the native cause.
+  Source ledger observations use a specifically named window-only immutable readonly opener,
+  with empty/nonregular-WAL guards immediately before acquisition and after close. This lets
+  a WAL-header source with absent sidecars be read on readonly media; it never retries a normal
+  reader or acquires a creating/writable mode. Snapshot and ordinary/capture readers keep their
+  existing recovery behavior. SQLite immutable skips locking/change detection, so it asserts
+  E36's independently held process barrier and cannot establish that barrier or replace the
+  before/after file/WAL/ledger checks. URI paths use URL encoding, preserving ?, #, % and spaces.
+  See [SQLite immutable semantics](https://sqlite.org/uri.html#uriimmutable) and
+  [Bun readonly acquisition](https://bun.sh/docs/runtime/sqlite).
+
+  A narrow borrowed applied-identity reader supplies no owner or fabricated deployment identity;
+  reports reject absent/empty/malformed ledgers even though empty capture remains valid for
+  the older migration-capture protocol.
+
+  In report mode both requested destinations use exclusive publication. A private staging
+  directory on the destination filesystem isolates the unchanged snapshot helper's partial
+  file; only a successfully settled, verified snapshot is linked without replacement to its
+  requested path and its parent synced. Report staging is exclusive, synced, published without
+  replacement and parent-synced. An existing or competing destination is never overwritten.
+  A report failure retains the verified snapshot. The new wrapper never removes staging
+  directories/links or unlinks a report, on success or failure: a pathname can be rebound after
+  any identity observation, and ordinary Bun filesystem deletion cannot condition removal on
+  that observed inode. Descriptor owners still close each acquired descriptor once and preserve
+  paired operation/close failures. Publication is unknown before a final-link attempt until its
+  sync/close settles; failures never promise absence. A lower SnapshotCleanupUnknown propagates
+  unchanged, with its possibly live staging evidence.
+  The operation returns the unchanged report plus separate artifact metadata, and report-mode
+  CLI stderr prints that metadata even on success. Stage records describe observed created or
+  possibly retained locations (including an acquisition parent when no pathname was returned),
+  not current inode ownership or deletion authority. Successful snapshots remain usable.
+  Retained staging hard links do not copy DB blocks, but prevent reclamation after a final link
+  is deleted; an operator must reconcile and clean them only under exclusive namespace control.
+  The eight-field report/stdout and no-flag snapshot protocol remain unchanged. See
+  [window operations](../../../docs/runbook-work-package-windows.md).
+  No window is invoked after a nonzero backup command, even if an uncertain artifact remains.
+
+  The new gate is import-safe Bun, with required state directory, stopped container, candidate
+  image, DB_PATH, snapshot path and report arguments. It does not call Bash or inherit the historical skeleton
+  override. The named container's actual DB/report/snapshot mounts are pinned readonly into a
+  one-off candidate verifier; the source bind is not copied with --volumes-from. Resolve the
+  candidate image to an immutable ID, use /usr/local/bin/bun as entrypoint and
+  /app/apps/wbs/be-01 as workdir, and run src/assert-window-cli.ts without the app CMD.
+  Select the deepest segment-boundary mount covering each artifact, narrow to its directory
+  and deduplicate only identical source coverage. Conflicting overlap, unsupported/file-only
+  mounts and destinations equal/below/above protected candidate roots (/app, /usr, /bin, /sbin,
+  /lib, /lib64, /etc, /proc, /sys, /dev, /run) refuse. Unknown inspect state/mounts/images/tools
+  refuse; stopped state, selected mappings and release records are rechecked after verification.
+  Verified source/snapshot paths must equal the explicit arguments. Fake-Docker controls
+  prove argv and refusal flow, not a live host/mount/barrier certificate.
+  This point-in-time proof does not replace the enduring E36 process barrier.
+
+  SQLite's [checkpoint contract](https://sqlite.org/pragma.html#pragma_wal_checkpoint) does
+  not exclude idle connections; its [VACUUM contract](https://sqlite.org/lang_vacuum.html)
+  excludes a transaction on the connection performing VACUUM. No nested transaction is added.
 
   Tests run in task 1.2:
   - the pass case feeds the real CLI's output to the gate; no report is written by hand;
@@ -744,7 +883,11 @@ by adopting the recommendation).
   partial reversal would be a second rollback path that no rehearsal covers. Slice 3a's
   could not reverse the overrides it creates anyway. If a window migration ever reached the
   swap, its abort would hit that refusal and report loudly with the pinned manual command,
-  which is the intended failure. Rollback on dev runs in this order:
+  which is the intended failure. For a combined permissions transition, the following
+  old-code restore is allowed only under the supported permissions 6.4f recovery owner
+  before possible upgraded-writer exposure. Possible or unknown exposure/retirement does
+  not permit automatic old-role-authorizer restoration; retain recovery-required state.
+  Rollback on dev, when that recovery is admitted, runs in this order:
   1. Keep the poller paused and `wbs-dev-src` stopped, so the new code cannot restart and
      migrate again, and the old code cannot start against the new schema.
   2. Run `restore-db-cli.ts <snapshot>` from a one-off container. It moves `wbs.db`, `-wal`
@@ -766,17 +909,24 @@ by adopting the recommendation).
   `-- migration-lint: compatible-table-rebuild` marker says that the outgoing colour can
   still read the table. These migrations make no such claim, so none carries the marker;
   each keeps the migrator's `-- foreign-keys-off-rebuild` marker and has an explicit
-  `WAIVERS` entry whose gate is `bin/assert-rename-window.sh`. `ALTER TABLE … RENAME TO`,
+  `WAIVERS` entry whose gate is `bin/assert-rename-window.ts`. `ALTER TABLE … RENAME TO`,
   `DROP INDEX` and `DROP TRIGGER` are not on the lint's forbidden list.
 
-  | Slice | Folder                                                 | Forbidden statements                                                                                | Waiver labels                                 | `down.sql`                                                      |
-  | ----- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
-  | 1     | `<merge-date>100000_rename_project_to_work_package`    | 19 `RENAME COLUMN`; `DROP TABLE organization_audit` (CHECK rebuild)                                 | `ALTER TABLE ... RENAME COLUMN`, `DROP TABLE` | refuses (E38)                                                   |
-  | 2     | `<merge-date>100000_add_project`                       | `DROP TABLE work_package` (rebuild: `owner_id` out, `project_id NOT NULL` in)                       | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 2     | `<merge-date>100100_widen_organization_audit_projects` | `DROP TABLE organization_audit`, in the compatible rebuild form: it only widens a CHECK             | none; the exemption holds                     | refuses while a new-vocabulary row exists (the `widen_*` shape) |
-  | 3a    | `<merge-date>100000_add_setting_value`                 | `DROP TABLE work_package` (five columns out), `DROP TABLE calendar_marker` (re-scoped)              | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 3a    | `<merge-date>100100_space_holds_projects_people_teams` | `DROP TABLE project` (rebuild adding `space_id`, `space_position`), `DROP TABLE space_work_package` | `DROP TABLE`                                  | refuses (E38)                                                   |
-  | 3b    | `<merge-date>100000_lift_steps_to_project`             | blocked (E21); listed when `wbs-step-catalogue` lands                                               | —                                             | —                                                               |
+  | Slice | Folder                                             | Forbidden statements                                                                                | Waiver labels                                 | `down.sql`                                                      |
+  | ----- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------- |
+  | 1     | `20261110100000_rename_project_to_work_package`    | 28 `RENAME COLUMN`; `DROP TABLE organization_audit` (CHECK rebuild)                                 | `ALTER TABLE ... RENAME COLUMN`, `DROP TABLE` | refuses (E38)                                                   |
+  | 2     | `20261110110000_add_project`                       | `DROP TABLE work_package` (rebuild: `owner_id` out, `project_id NOT NULL` in)                       | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 2     | `20261110110100_widen_organization_audit_projects` | `DROP TABLE organization_audit`, in the compatible rebuild form: it only widens a CHECK             | none; the exemption holds                     | refuses while a new-vocabulary row exists (the `widen_*` shape) |
+  | 3a    | `20261110120000_add_setting_value`                 | `DROP TABLE work_package` (five columns out), `DROP TABLE calendar_marker` (re-scoped)              | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 3a    | `20261110120100_space_holds_projects_people_teams` | `DROP TABLE project` (rebuild adding `space_id`, `space_position`), `DROP TABLE space_work_package` | `DROP TABLE`                                  | refuses (E38)                                                   |
+  | 3b    | `<merge-date>100000_lift_steps_to_project`         | blocked (E21); listed when `wbs-step-catalogue` lands                                               | —                                             | —                                                               |
+
+  These exact task 1.2 fixture/waiver reservations create no semantic migration. At actual
+  materialization, recheck current applied ordering and the real merge date (E10); a required
+  stamp change updates the exact waiver/fixture and repeats its proofs, never a suffix wildcard.
+  Compatible audit widening has no waiver, and the step lift stays deferred. Full SQL-shape
+  fixtures preserve current complete DDL/constraints and planned rebuild/backfill/audit/index/
+  trigger operations; they prove lint classification, not migration execution or a live window.
 
   `migration-lint.test.ts` gains one fixture per folder, each with that migration's
   complete planned statement shape. Each fixture passes with its waiver and gate script
@@ -802,27 +952,114 @@ by adopting the recommendation).
     ownership row, and the test fixtures `testing/views.ts`, `testing/refusing-api.ts` and
     `e2e/spaces-stub.ts`.
 
+  Owner retirement also removes live `SavedPlanPrincipals.workPackageOwnerId` and its
+  SQLite/memory projections. No current permission comes from package owner/creator metadata.
+  Explicit preactivation saved-plan rename/delete remains usable only by the saved plan's
+  nonnull author, `saved_plan.created_by_id` (`createdById`), never the package's
+  `created_by`, a display name or retired document/canonical owner. A null saved-plan author
+  grants no legacy identity right. This supersedes the earlier saved-plans creator-or-owner
+  requirement/design A-8 for current ownerless packages without rewriting that historical
+  design or its recorded Proof history. Scoped touch keeps exactly current readable-package
+  admission and `package.write`, plus saved-plan authorship or effective
+  `package.manage_settings`, rechecked in the same writer; authorship bypasses neither write
+  permission nor current membership/credential restrictions. Authorized rename/delete remains
+  header-only, so corrupt stored bodies need not decode before maintenance. Legacy touch
+  retains explicit actor/context before queueing; the actual touch owner rereads the current
+  activation marker and `saved_plan.created_by_id` before changing the header. Only current
+  preactivation and that same nonnull author admit the act. Queued activation or author
+  changes refuse with no effects. A separate Resource principals read or another request
+  resolution does not substitute for these owner-time checks. Existing `snapshot_busy`
+  handling and the scoped path remain unchanged.
+
+  Existing current packages under explicit preactivation legacy admission retain ordinary
+  authenticated/write-scope edits only while unrestricted. Restricted packages refuse the
+  existing modeled forbidden outcome, even for their creator or former owner. No package
+  owner/creator or historical document field grants legacy ordinary edit authority. Scoped
+  paths retain current membership, credential caps and actual package permissions including
+  P5. Admitted creation/import remains separate and may create a restricted package; later
+  legacy ordinary edits still refuse. Reads/navigation and the separately specified saved-plan
+  author-only header maintenance rule stay unchanged. Expected legacy access does not replace
+  the actual owner's current activation decision. The domain predicate is
+  `canEditLegacyWorkPackage({ restricted })`; `LEGACY_EDIT_ADMISSION` replaces the
+  retired creator-named injection without changing scoped granted admissions.
+
+  Full memory sources model explicit activation as real source-owned state staged with their
+  other state, read inside the same creation/import/touch owner. A legacy organization flag
+  identifies the mapping destination, not preactivation authority. Caller booleans, environment
+  flags, legacy-organization presence and missing-state defaults cannot supply current mode;
+  missing modeled activation throws. Isolated old `inMemoryStores` fixture admission does not
+  establish full-source current-mode parity.
+
   Wherever a name is shown, `createdByName` replaces `ownerName`. It is the `users.username`
   behind `work_package.created_by`. The slice 2 rebuild copies the owner into a null
   `created_by` and makes the column `NOT NULL`, and a missing user row throws, as the
-  `ownerName` join does today. The hover card's row reads "created by". The plan document
-  carries no owner (no `owner` appears in its contracts), so versions 12 to 14 are
-  unaffected.
+  `ownerName` join does today. The hover card's row reads "created by". Actual published
+  documents13/14 embed the required `ownerId` through `documentWorkPackage`. Freeze their
+  complete owner-bearing schema closure independently of current live responses. Slice2 writes
+  ordinary15/connected16 without owner, with mandatory `workPackage.projectId` and informational
+  `project: { id, name }`. Every supported export mode, including explicit pre-activation
+  legacy and scoped isolated/shared/connected, captures the package, tree, parent and document
+  facts in one source-owned observation and requires their parent identities to agree. Legacy
+  capture validates actual mapped organization/parent ownership without inventing scoped
+  human authority. The durable pre_activation marker establishes this mode, including for
+  packages mapped to nonlegacy organizations; organization.legacy remains birth metadata,
+  never an additional legacy read-admission condition. A required purpose-specific `PlanExportReader` reaches the route and
+  `WorkItemService.exportWithin`; ordinary `stores.livePlans` remains optional. SQLite reuses
+  its configured snapshot reader; memory captures its actual detached committed state. Pure
+  serializers receive required project metadata; independent asynchronous exporter reads and
+  the route's later package/tree fallback retire. Scoped export checks actual `package.read`
+  on the target in that observation before topology/capture, using the current interim
+  organization/leaf grant chain. Complete shared/connected export additionally requires every
+  retained chain/component member readable by the same principal in that observation. This
+  conservative closed-success rule intentionally refuses some shared captures whose member
+  contributes no final holder label; it avoids inventing an emitted-fact filtering framework.
+  Any invisible required member returns the same opaque not_found without IDs, counts or
+  permission detail. Never trim evidence, rewrite retained stage bytes or reschedule a reduced
+  component. Legacy export and general read/scheduler behavior remain separate. Memory uses
+  its actual finite built-in role/grant state, not creator/member-only admission or a fake
+  global decision port; selected unsupported custom/group state and corrupt roles throw.
+  Current ownerless capture/input12 integration
+  precedes or co-lands with this all-mode capture. The importer explicitly retains13/14 when
+  current constants advance; only12/14/16 admit connected external endpoints at this slice.
+  Full exports carry the parent metadata; writable import projections need not supply read-only
+  response metadata. The outer import body's parent alone selects the destination (E44).
 
-  Saved plans: slice 2 takes `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 11, allocated here, and
-  slice 3a's version becomes 12. `CanonicalWorkPackage` loses `ownerId`. The reader's 10 → 11
-  step moves a stored `ownerId` into `retired: { ownerId }`. `diff-plans.ts` compares a
-  `retired` key only when both sides carry it and reports a difference under a new category,
-  `retired-field`. A key that only one side carries is no change: a body saved after the
-  removal never carries it, and no owner is invented for one. The `ownership` category stays,
-  because assignments, person teams, team services, work item teams and services use it.
+  Saved plans: slice2 writes current input12, and slice3a takes13. Freeze actual input11
+  grammar and semantic validation independently of current write types. Fresh12 removes
+  `ownerId` and requires nonempty captured `workPackage.projectId`; creator audit metadata
+  does not enter canonical authored facts. Original byte/hash/header/schedule-link validation
+  precedes a detached internal comparison view. Supported original1–11 have unrecorded parent
+  evidence; original12 has recorded parent evidence. No historical parent or creator is read
+  from live state, and an old body without parent evidence cannot be serialized as raw12.
+  Explicit historical10→11 rename decoding remains separate from this comparison projection.
+  Frozen owner-bearing document13/14 and input1–11 validation, original bytes/hashes and
+  recorded Proof history remain unchanged. Their owner is historical comparison evidence
+  only, never live authority or an owner-to-createdBy compatibility alias. Current fixture
+  authorization successors are explicit; original migration/codec fixtures stay exact.
+
+  The comparison view retains an actually captured old owner as `retired: { ownerId }`,
+  including recorded null, and compares it only when both sides carry it under
+  `retired-field`. One-sided retirement reports no owner change. Parent identities compare
+  only when both sides recorded them; differing recorded parents report `reparented` at
+  `workPackage.projectId`. Unrecorded-versus-recorded parent is provenance uncertainty,
+  not an inferred move or equality of original bytes. Each comparison side exposes required
+  recorded/unrecorded parent evidence separately from dependency provenance, even when the
+  planning diff is empty. Pre10 dependency-history uncertainty remains independent. All
+  other authored facts stay in the generic walk, including
+  assignments, person teams, team services, work item teams and services under `ownership`.
   Tests:
-  - a v10 body upgraded to 11 compares equal to its 11 re-save;
-  - two v10 bodies with different `ownerId` report `retired-field`;
-  - a v10 body and an 11 body of the same package report nothing.
+  - original11 and a fresh12 capture with unchanged authored facts compare without a
+    fabricated owner/parent change, preserving original identities and parent provenance;
+  - two pre-retirement bodies with different captured owners report `retired-field`;
+  - one-sided retirement reports no owner difference; two recorded different parents report
+    `reparented`, while an unrecorded parent is never fabricated from today's rows;
+  - original13/14 documents retain owner-bearing validation and bytes; new15/16 require
+    coherent captured parent metadata and contain no owner.
 
-  Negatives, each watched: dropping the `retired` move makes the two-owner case report
-  nothing; dropping the one-side rule makes the v10 and 11 case report a change.
+  Negatives, each watched: dropping retained owner evidence makes the two-owner case report
+  nothing; dropping the one-side rule invents an owner change; bypassing required current
+  parent or original integrity validation admits its named negative. No proof is inferred
+  from these planned tests.
 
 - **E41. Landing order is a graph; the combined create writes its grants and audit rows in
   one transaction** (F5). The graph is the "Dependency graph" section below. The combined
@@ -846,7 +1083,8 @@ by adopting the recommendation).
 
   Interim authority, from this slice 2 until `wbs-permissions` 3.4: project writes and
   `moveWorkPackage` need `organization.create_project` at the organization (today's admin);
-  create and import follow P16; every member reads projects through the backfilled
+  `moveWorkPackage` additionally needs current `package.write` on W, including an actual
+  reaching grant when W is restricted (E17). Create and import follow P16; every member reads projects through the backfilled
   organization-scope rows. Slice 2 writes the creator's `project-manager` grant, and 3.4 is
   where it is first consulted. Before projects exist, `wbs-permissions` 3.1 to 3.3 address a
   work package through `InterimPackageChain` (organization and work package ids only,
@@ -859,7 +1097,7 @@ by adopting the recommendation).
   - `{ level: 'project'; organizationId; spaceId: string | null; projectId }`;
   - `{ level: 'work_package'; organizationId; spaceId: string | null; projectId; workPackageId }`.
 
-  `wbs-permissions` P13 defines it. `resolveSetting(chain, key)` walks upward from the
+  `wbs-permissions` P13 defines it. `resolveSetting(chain, key, snapshot)` walks upward from the
   chain's own level and skips a null space. `GET /api/organization/settings` builds an
   organization chain and `GET /api/spaces/:id/settings` a space chain, so an empty
   organization and an empty space resolve without any project (their scenarios are in the
@@ -878,22 +1116,34 @@ by adopting the recommendation).
     `404 not_found`), and `calendarMarkers: null` deletes that level's own markers. Neither
     touches an inherited marker. The work package's existing marker routes keep writing the
     same rows, and no endpoint is added.
-  - Plan document 14 exports the union with provenance. Import writes only the markers whose
+  - Plan documents17/18 export the union with provenance. Import writes only the markers whose
     provenance is `work_package` into the new package, as with every other setting (E18).
   - Trusted state is never read as "no override": a stored `value_json` that fails its key's
     type, an unknown key in `setting_value`, or a scope row naming a missing entity throws,
     naming the row.
 - **E44. The import request is an envelope** (F8). `POST /api/work-packages/import` takes
   `{ projectId: string, document: unknown }`. The document classifier runs on `document`
-  only, and the document's own `project` (v13 and later) is informational. The create and
-  import routes share one boundary classifier, `classifyBodyFailure` beside
-  `project.routes.ts`:
+  only, and the document's own `project` (v15/16 and later) is informational. The create and
+  import routes share the parent boundary classifier, `classifyParentBodyFailure` in
+  `work-package-parent.ts`; generic PATCH/retry classification stays separate:
   - a structural failure whose only issue is a missing or `null` `projectId` answers
     `422 project_required`;
   - any other structural failure, a non-string or malformed id included, answers
     `422 invalid_body`;
   - a well-formed id that names no project of the caller's organization, foreign or
     nonexistent, answers `404 not_found` with the absent-id body.
+
+  Every current create/import API, including an explicitly legacy internal call, requires a
+  supplied nonempty parent ID. The actual queued owner revalidates admission and resolves
+  that parent in the current scoped organization or, before activation, in the actual legacy
+  organization whose bridge maps the package. Missing and foreign parents have the same
+  not-found outcome; missing/malformed trusted marker or legacy organization throws. A stale
+  legacy expectation cannot bypass activation. Explicit preactivation package/import
+  admission stays usable; activated unbound and preactivation delegation refusals stay as
+  before. No first, migrated, automatic or document-derived parent is selected. Internal and
+  memory callers seed real organization/project identities and pass the parent explicitly;
+  an organization with no project cannot create a package until an explicit parent exists.
+  This grants no legacy engagement-project CRUD and changes no scoped grant/credential rule.
 
   Proof: mutating the classifier so that the missing case falls through to `invalid_body`
   must fail the mounted HTTP test of that case (watched). This replaces task 3.3's earlier
@@ -903,16 +1153,45 @@ by adopting the recommendation).
   in-memory client against a mounted be-01). There it answers a tool error naming
   `project_required` and creates nothing.
 
-- **E45. The move: what slice 2 does and what is deferred** (F9). Slice 2 answers `200`, or
-  `404 not_found` with identical bodies when the work package is missing or unreadable, or
-  the target project is missing or belongs to another organization (the lookup is scoped to
-  the caller's organization, E17). It checks those in that order, then the permission (403,
-  under E41's interim rule), and from slice 3a `409 type_not_allowed_in_project`. The store
-  keeps its own `cross_organization` refusal (conformance `projects.move:cross-organization`)
-  and the trigger pair (E15); HTTP cannot reach either. Deferred and not implemented here:
-  `409 dependency_crosses_project` arrives with `feat/cross-project-dependencies`, together
-  with its test (a test behind a fixture flag proves no production path); step-code matching
-  and re-keying arrive with `wbs-step-catalogue` (E21).
+- **E45. The move: current boundary and deferred policies** (F9). After actual caller/context
+  admission, resolve organization-scoped W and its current package.read visibility first:
+  missing or unreadable W answers identical `404 not_found`. Next resolve the requested
+  destination by ID and actual organization: missing or foreign destination answers that
+  same404. Only then check current `organization.create_project`, followed by
+  `package.write` on W, using the unchanged resolved principal and credential intersection.
+  Permission refusal precedes dependency or other content details. Resolve W's actual
+  current parent/map inside this same owner; missing or malformed trusted state throws.
+  The store keeps `cross_organization` and the independent trigger pair (E15); this
+  internal refusal remains unreachable through the prior scoped HTTP lookup.
+
+  An authorized same-parent move answers200 with current revisions and performs no write
+  or audit. A real move increments W's own revision and each distinct source/destination
+  project's revision exactly once, with one retained instant; validate revisions/overflow
+  before mutation. Preserve package identity, creation metadata, direct grants, steps,
+  addresses and historical journal/saved/receipt bytes. Success is explicitly
+  `{ workPackageId, projectId, revision, sourceProject: { id, revision }, targetProject: { id, revision } }`;
+  these are committed revisions, unchanged for the authorized no-op. The real move appends
+  one `work_package_moved` audit with subject kind `project`, destination subjectId, and
+  flat detail `workPackageId`, `fromProjectId`, `toProjectId`, `workPackageRevision`,
+  `sourceProjectRevision`, `targetProjectRevision`. Actor/organization come from actual
+  resolved access; no names or credentials enter detail. The package/project updates,
+  validated reply and audit settle in one owner; failure rolls all back, preserving any
+  original/rollback failure pair rather than normalizing it into a modeled refusal.
+
+  Cross-work-package dependencies are now real current state: this slice checks every
+  incident typed relationship in both directions for a genuine move, projecting W's parent
+  to the destination while keeping each counterpart's actual parent. An edge whose endpoints
+  would differ refuses `409 dependency_crosses_project { dependencyIds }`; IDs are unique
+  and deterministic UTF-8/BINARY order, without remote names/endpoints. Local edges and an
+  edge whose counterpart is already in the destination do not block; authored held edges
+  still count, and unreadability of a counterpart does not drop an incident blocker after
+  W's visibility and both permissions passed. Missing/malformed counterpart parent or
+  ownership evidence throws. The old conditional dependency deferral is fulfilled; neither
+  the historical branch nor a fixture flag proves this move check. This is not a global ban
+  on dependency creation across projects. Step-code matching/re-keying remain with
+  `wbs-step-catalogue` (E21); settings/type allow-list policy starts only in its actual
+  persistence/resolution slice, including slice3a's `409 type_not_allowed_in_project`.
+
 - **E46. The kept space is a total order** (F10). For each pair of a project P and a space S
   in which any of P's work packages sits in `space_work_package`, the candidate position is
   the lowest `position` among P's packages in S; several packages of P in S make one
@@ -937,6 +1216,40 @@ by adopting the recommendation).
   create succeeds only when the project, the package, both creator grants and their audit
   rows commit together (E41); otherwise nothing is written. Where the owner was displayed,
   the creator is shown (`createdByName`, E40).
+
+- **E50. Ordinary browser evidence uses an explicit current-organization fixture cohort.**
+  The real cohort uses native registration/login (the issued body token is explicitly
+  bridged into the hardened access cookie), actual membership plus direct organization
+  grants, verified organization selection and an API-created explicit parent. This bridge
+  does not prove GUI cookie issuance. UI creation/import selects that captured parent after
+  navigation; raw helper writes carry it and the actual expected-organization header,
+  preserving declared protected dependency-client semantics. No first/default parent,
+  fake Project success, auth bypass or automatic re-login after refusal is permitted.
+
+  Compose the real GW cookie/origin/selection access checks and the same actual optimizer
+  launcher/runtime-version/spawner settings and `superviseBe` lifecycle as main, including
+  required HOSTNAME and solver socket/configuration. Required missing runtime dependencies
+  visibly refuse the affected cohort; an optimizer-free boot or checkbox alone is not its
+  optimizer proof. One exclusive fresh private run store retains its owner identity through
+  controlled restart with identical complete MCP/browser/solver settings; an arbitrary
+  existing path is not resume authority. The BE may listen for native bootstrap, but run
+  readiness follows actual account/grant/activation/store verification. Preserve primary
+  and cleanup failures; close actual resources once, and remove only owned nodes after
+  known settlement. Failed/unknown shutdown retains evidence, not recursive deletion.
+
+  Publish private cookie state then exclusive metadata last, bound to the actual run/store,
+  origin/endpoints and exact state path after login/selection/parent readback. Discovery
+  `--list` performs no login/state read/server startup; actual workers reject absent,
+  malformed/stale/mismatched state before mutation. Manual contexts explicitly inherit
+  required state/baseURL; destructive logout cases obtain independent native credentials
+  from empty jars before authenticated navigation and never revoke shared bootstrap state.
+  Keep explicit legacy quiet-load/refusal/layout and dedicated organization/dependency
+  profiles separate. Activated measure fixtures retain real organization discovery and
+  alter only their intended measure surface. Newly observed known-unavailable Project
+  discovery needs an owning state-boundary regression/correction, not warning suppression.
+  Keep declared budgets, workers1/retries0 and Performance120s with its1200-cell bound and
+  unchanged row/step/measurement denominator. This disposable fixture activation proves no
+  operational activation, installed runtime, whole-suite readiness or parent-task closure.
 
 ## Dependency graph
 
@@ -1009,24 +1322,29 @@ and `report` re-derives it on the slice 1 branch.
 
 Live callers of `/api/projects` outside `apps/wbs`: twilight-navigator (`receipt-to-commands.ts`
 JSDoc, `README.md`), the wbs-dev MCP client (tool names), puni-plan's `ui-review` capture
-script text; none in Dash, Burokrat or a puni-plan script.
+script text. This is a dated lexical survey, not a complete consumer frontier: current Dash claim/runtime/preparation SDK callers and retained artifact readers depend on renamed WBS contracts even where no literal route is present. Burokrat's Nx identifiers remain unrelated.
 
 ## Document and saved-plan bumps (b)
 
-- Version 11 is the budgets change's (#663, E10); its classifier branch is preserved.
-- Version 12 (slice 1): top-level `project` → `workPackage`, every nested `projectId` →
-  `workPackageId`; the classifier reads 1–12 and converts a ≤ 11 file's `project` on read as
-  it converts 7's zone or 10's resources; export writes 12 only; `unsupported_version` for
-  13+. Navigator reads 12 and keeps 7–11.
-- Version 13 (slice 2): adds `project: { id, name }` of the engagement, informational.
-- Version 14 (slice 3a): `workPackage.settings` carries each catalogue key as `{ value,
-provenance }`; import writes only the work package's own overrides and leaves inherited
-  values inherited.
-- Saved plans: `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 9 (budgets) → 10 (`CanonicalProject` →
-  `CanonicalWorkPackage`, keys renamed; a stored ≤ 9 body upgrades on read), → 11 at slice 2
-  (`ownerId` retired, E40), → 12 at slice 3a (resolved settings with provenance in the
-  input). _Revised 2026-10-25 after the Codex review (F4); was 11 at slice 3a._ `SCHEDULE_BODY_SCHEMA_VERSION` stays 1
-  (it keys dates by work item id; task 1.3 checks).
+- Published ordinary11 and connected12 are historical formats. Slice1 writes ordinary13
+  and connected14 with workPackage/workPackageId names. The classifier reads explicit1–14;
+  version15+ refuses before field validation. Only12 and14 permit external endpoints and
+  mappings. Published12 leaves validate projectId/display.projectName before explicit
+  projection; mixed spellings refuse. Read-only connected history remains discarded on
+  import. Resources and measures stay pinned to their original thresholds10 and11.
+- Frozen strict11/10 factories preserve the published response schemas without eager
+  contracts-boot compilation; Navigator7–11 uses frozen11. Its13/14 support remains task1.7.
+- Freeze the complete published owner-bearing13/14 closure. Slice2 writes ordinary15/connected16
+  with ownerless parent-bearing work packages and coherent captured engagement metadata,
+  informational on import. Retain explicit historical13/14 classification; connected formats
+  become12/14/16. Writable imports still use the outer required parent.
+- Reserve ordinary17/connected18 for slice3a settings provenance; import writes only own
+  overrides and preserves inherited values. Later allocations depend on actual shape.
+- Saved inputs: legacy base9 and published dependencyHistory body10 remain frozen; freeze
+  renamed input11 before slice2 writes12 (owner removed and captured parent required, E40)
+  and slice3a writes13 (resolved settings). Original body/header/link hashes validate before
+  internal comparison projection and stay unchanged. Old unrecorded parents are not raw12.
+- Saved schedules: the actual engine→body serializer emits plain1 with slices.boundBy:projectStart and elsewhereHolder.projectId, so this rename changes its serialized shape. Connected2 is already published and also contains old owner fields. Allocate current plain3 and connected4; freeze original1/2 readers/bytes/hashes, with separate1→3 and2→4 projections. Only owned boundBy/holder and connected-evidence names change; numerical timing, calendar projection, ordering and algorithm identity stay unchanged. Do not route connected2 through the plain3 decoder or reuse2 for a new plain format. This allocation is separate from input11, document13/14 and scheduler19.
 
 ## Slice 1 migration and deploy (c)
 
@@ -1049,7 +1367,9 @@ otherwise); reads of a work package carry `projectId`; the project read lists en
 E18–E22, E32. Slice 2 moves only ownership; slice 3a brings the catalogue, `setting_value`,
 `resolveSetting` over organization → space → project → work package, provenance on every
 settings read, the budget factor lifted to the project, the marker scope and the work item
-type allow-list; slice 3b is blocked on `wbs-step-catalogue` (E21, deferred 2026-10-25).
+type allow-list. The settled [`wbs-step-catalogue`](../wbs-step-catalogue/design.md) design
+replaces slice 3b and owns its separate migration and window; the original E21 deferral
+is historical.
 
 ## Spaces (e)
 
@@ -1063,14 +1383,15 @@ resolve (E18). Spaces stay flat.
   re-list tools (the wbs-dev MCP client, Navigator's documentation, puni-plan notes).
 - `project:<id>` subscriptions and the two event names; an old fe-01 tab reconnects to
   nothing and must reload.
-- Plan documents: an exported file is version 12; the running import still reads older files.
-- Saved plans read through the upgrade to 10; nothing is lost.
-- Navigator: `document.project.id` becomes `document.workPackage.id` at 12; the v7–v11
-  readers stay. Dash and Burokrat: nothing (their `projectId` is Nx's).
+- Plan documents: exports write ordinary13/connected14; imports still read explicit historical1–12.
+- Saved plans read through the explicit legacy10→current11 upgrade; nothing is lost.
+- Navigator: `document.project.id` becomes `document.workPackage.id` at13/14; frozen7–11
+  readers stay, with explicit12 and current13/14 support tracked by task1.7. Dash's current WBS SDK/DTO calls need explicit work-package boundary adapters; its published config, attribution and retained runtime-record keys/identities stay in their original format. Burokrat's Nx project identities remain unchanged.
 - The solver wire: nothing (E26).
 - fe-01: the remembered open work package is forgotten once.
-- `feat/cross-project-dependencies` rebases onto the new names; it is still at plan document
-  10 and renumbers past this change's versions when it lands (E10).
+- The integrated connected-dependency boundary uses the renamed work-package vocabulary.
+  Frozen connected version 12 remains readable; current connected exports use version 14.
+  The earlier E10 note about rebasing the branch at version 10 is historical.
 - Audit history reads `work_package` for old rows; the `restricted_project_recovery` action
   name changes.
 - Spaces' member routes break twice (slice 1, slice 3a); from slice 3a a project sits in at
@@ -1083,7 +1404,7 @@ resolve (E18). Spaces stay flat.
   `projectId`, so an agent lists projects first. A new organization starts with no project.
 - `work_package.owner_id` and the owner word go (slice 2); edit on a restricted work package
   comes from grants only (E25). `ownerId` leaves the work package read and `ownerName` the
-  list and space rows, replaced by `createdByName`; saved-plan input 11 retires `ownerId`
+  list and space rows, replaced by `createdByName`; saved-plan input12 retires `ownerId`
   (E40).
 
 ## Dev cleanup (g)
@@ -1130,6 +1451,175 @@ day.
   in `wbs-permissions` (P19, permission-matrix.md); the stale question saying they did not
   is removed.
 - E5's "the owner logins" in E27 means owners' `users.username`.
-- The dependency shape of `feat/cross-project-dependencies` was skimmed read-only (abbreviation
-  side table, stable endpoint identities, typed external rows); its rebase is that branch's
-  work.
+- The initial read-only dependency inspection (abbreviation side table, stable endpoint
+  identities and typed external rows) is historical. The current allocation and comparison
+  reconciliation below governs the integrated work-package rename.
+
+**Current document allocation and comparison reconciliation (2026-11-11).** Actual published constants already reserve ordinary11 and connected12; the earlier single12/13/14 plan is superseded. Rename uses ordinary13/connected14, and later changed shapes allocate above14. Stored input remains independent11 and schedules plain3/connected4.
+
+Saved-side comparison has a narrow pairwise adapter before generic all-field diffing. Pre10 synthetic local context is not a captured change; it remains unknown in summaries. Explicit v1/v2 stage decoding creates a comparison-only current meaning while originals stay immutable. Derived hash/format spelling is omitted ONLY for a corresponding cross-format pair; exact18→19 with identical solver suffix is the sole contract-prefix normalization. Every other known and unknown field remains compared. Algorithm changes and optional-field absence are meaningful, so arbitrary older schedules are not promised equal to current output. Rejected alternatives: reserializing/rehashing historical identities, suppressing entire connection/question objects, or weakening the generic diff coverage bound.
+
+### Navigator task1.7 allocation (accepted2026-11-11)
+
+This section records the completed slice1 allocation and its observed proof history. Its current13/14 decoder selection and15+ refusal describe that epoch; the task3.4 successor below governs slice2 consumers. Original captures, persisted artifacts and Proof observations are not rewritten or promoted to new-version evidence.
+
+Navigator preserves published7–11 projection bytes and task schemas1/2. Newly supported12–14 emit PlanTasks3, whose required document-level typedDependencies preserves each authored edge once in input order, including parent successors. Leaf tasks retain native estimates and legacy dependsOn, and omit per-task typedDependencies. Endpoints discriminate internal/local references from external workPackageId/workItemId/stepId identities and complete display labels. Frozen12 explicitly maps projectId/projectName to workPackageId/workPackageName after complete validation; current13 tags local endpoints internal and14 retains current names. No detached connected relationships become authored edges or receipt targets.
+
+The version table is6/7→1,8–11→2,12–14→3; Navigator input6 and15+ refuse. Reference schema1 and receipt schemas1/2 remain unchanged. Complete frozen12 derives only from immutable published declarations, including required connected history, old projectRevision/holder/scope/question names and boundary1; current13/14 reuse one selected requestSchema(public planDocument) through validateSchema. Historical factories are selected lazily. Original input bytes bind exportDigest before projection. History-only changes can preserve tasks but change referenceDigest, so an older bound receipt refuses. External-only work items refuse as receipt targets; a cross-owner ID collision denotes the local leaf only. Command batch id remains the selected work package and grants no external write or scheduling authority.
+
+Task1.7 strict-current ruling2026-11-11: public planDocumentResponse intentionally uses responseSchema and accepts nested undeclared keys (observed genuine14 positive plus injected unknown history key). Navigator instead lazily constructs and caches exactly one requestSchema(public planDocument) and uses public validateSchema for13/14. This supersedes the earlier no-additional-current-graph optimization: canonical declarations remain authoritative, existing HTTP tolerance stays intact, and no SchemaShape cast or handwritten descriptor walker is introduced. The selected strict graph has a measured memory/latency cost; historical reads and module boot must not construct it.
+
+Complete historical12 also uses lazy requestSchema(frozen12)+validateSchema: the raw ArkType factory accepted an array-valued estimate dictionary; the existing descriptor boundary refuses it as a non-object. This closes the newly admitted response boundary without changing frozen7–11 parser behavior or eager public boot.
+
+### Current document consumers (task3.4 successor)
+
+Slice2 consumers admit ordinary15/connected16 while preserving Navigator7–14 behavior and original persisted identities. Freeze13/14 strict reads against the public owner-bearing versioned declarations; they must not follow the mutable current `planDocument` union. Select and cache their `requestSchema` decoder separately from the current15/16 strict public declaration, using `validateSchema` in both branches. Frozen12 retains its complete selected historical decoder. Construct request graphs only on selection; preserve the existing boot-memory bound and HTTP response tolerance. Writable import grammar is not a full export decoder.
+
+Current15/16 require ownerless work-package metadata and the captured parent object. The consumer checks `workPackage.projectId === project.id` after complete version-specific validation. This is document consistency only: no live parent lookup, creator/role inference or permission grant follows. `workPackage.id` remains the plan and command-batch destination even though the document also has a root `project.id`. Historical13/14 retain required owner grammar and do not acquire fabricated parent metadata.
+
+The exact persisted pairs become6/7→PlanTasks1,8–11→PlanTasks2,12–16→PlanTasks3; Navigator input6 and17+ refuse. Parent metadata changes no authored task or dependency semantics, so task3 remains unchanged. Reference1 and receipt1/2 retain their meanings. Original export bytes bind `exportDigest`; tasks bind their canonical digest; receipt2 binds the complete reference and selected-reference admission still requires the exact accepted reference. Parent identity/name-only or detached-history-only changes may leave tasks equal while invalidating an earlier bound receipt. Receipt1 remains available to historical conversion and refused by selected-reference admission. External-only receipt targets refuse; cross-owner collisions denote only the local leaf. No engagement parent or external owner becomes a command destination.
+
+Task3.4 delivery requires the complete provider chain, not only Navigator header admission. Burokrat's strict reference and exact task-pair checks and Dash's receipt producer must consume the same upgraded contracts. After coordinating the active CLI write lease, compose the complete versioned provider/contracts changes with the PUNI CLI root, then qualify one newly built installed artifact outside its source checkout. Exercise current15/16 and retained12/13/14 through canonical `puni navigator`, `puni burokrat` and `puni dash` commands and their aliases. Source verification alone does not establish installed PUNI delivery. Current help/docs updates, including the work-package export route, belong to that composed CLI step. Preserve offline validation, installed asset/closure checks and no source fallback; do not allocate a new activation/package-manifest schema or rewrite historical trust artifacts.
+
+Ordinary TDD covers frozen owner versus current ownerless validation, missing/mismatched parents, connected history, strict unknown/mixed fields, future versions, exact pairing, raw-byte/reference identity and local destinations. Preserve historical fixture bytes and original proof text; label newly constructed controls honestly. New or changed checks need a separately reviewed finite R5 plan and observed first-own failures before adjacent new Proof credit. Lazy-memory, owning type/lint checks and installed composition verification remain required; this amendment records no execution or task closure.
+
+### Dash runtime identity bounded closing (2026-11-12)
+
+The five Dash local/receipt/state/current-API/native obligations above are supported by the accepted63-attempt record and current owning checks in verification-1.6-dash-runtime.json. This is a later comment/test/document epoch, preserving original proof/capture archives. It does not close the broader coupled rename, remaining CI consumers or task1.8.
+
+### Current people and service-team membership owners
+
+Under standing authorization, task4.6 exposes E31's existing POST/DELETE paths with
+bodyless/queryless requests and204 success. Adds are idempotent; absent removals answer404.
+Both use the existing space write admission and current organization.manage_spaces grant,
+not membership roles or the membership being created. Wrong-kind, foreign and absent
+members/spaces answer404 after current admission; virtual all mutations answer409.
+
+Space reads add required personIds and serviceTeamIds arrays. They are explicit empty
+arrays for an empty named space or virtual all and sort by binary identity. Names remain
+the directory's separate observation. A new SpaceStore.readContents captures the space
+header, project membership and both identity sets together. Memory copies one actual
+committed/staged graph; SQLite public Source reads use its existing committed read pool,
+while admitted loans read their own transaction. Required owner checks cover invocation,
+continuation and retained loan expiry. This prevents a revision from one membership
+epoch being paired with another epoch's lists.
+
+Membership creation/removal changes only actual membership rows and the space revision.
+No package revision, effective setting, schedule input, grant, journal, plan event or
+optimizer work changes. Native revision failure rolls back the membership as part of
+its existing writer transaction. Directory deletion/cascade parity and revision behavior,
+project-folded reads/UI and formal review remain in task4.6; neither the four mutation
+routes nor flat membership IDs alone complete the whole space scope. New safety checks
+need observed production-path omissions and adjacent Proof comments before closure.
+
+Current directory writers remove person/team memberships and advance affected space
+revisions in the same existing owner. SQLite captures linked space IDs before its root
+delete cascades those rows, then uses the shared exact-row-count revision update inside
+the same transaction. Memory removes links from its staged/committed graph and advances
+only spaces that actually held the root. No new schema migration or trigger is introduced;
+this behavior belongs to the current DirectoryStore writer, not arbitrary raw SQL.
+Memory team removal also preserves the existing consent and child-cascade contract:
+members and primary/secondary labels refuse without consent; confirmation clears those
+labels, advances their row revisions, removes the deleted team's capacity and owned
+service links, and retains unrelated constraints. Its usage carries the whole affected
+package trees and validated current step labels. Zero effective steps require zero value
+rows; the missing-values control therefore binds an actual step before removing its values.
+Raw WorkItemStore.patch revision behavior differs between the fixture adapters; the
+deletion check measures one additional revision from each actual pre-removal value.
+That separate broader Source parity gap is not resolved by this slice.
+
+### Combined project birth after the catalogue transition
+
+Current creation resolves steps from actual catalogue bindings and explicit package values.
+The retained first-package Step array remains validated legacy input; it cannot author a
+definition or override current defaults. The SQL writer therefore no longer inserts it
+into the retired step table. Historical producers and persisted codecs remain unchanged.
+
+The standalone Memory project twin carries real catalogue and type maps alongside its
+existing project/package state. Its existing queued synchronous owner captures the graph,
+writes both headers, materializes the complete reached union before grants finish, reads
+the current step reply and publishes values with the same graph. A failed materialization
+or later grant/audit write publishes nothing. Publishing preserves older packages' explicit
+values when defaults have changed. Compatibility step rows remain empty.
+
+The Source catalogue and project twin share the existing materialization implementation.
+Its narrower read/materialization scope requires actual organization, project, space,
+package, type, ownership and retirement-user maps. Catalogue mutations retain the full
+protected-fact context; no missing evidence is supplied as synthetic empty usage. The
+standalone twin does not add projects or directory to the current Memory Source contract.
+Move/delete catalogue consequences and the full SC17 contract remain separate work.
+
+Both project fixtures now use the real116/report/backup/private117/additive118/119 path.
+Research assertions author a current Research definition whose identity, unit and allowance
+differ from the legacy draft, then verify the reply and an independent committed read.
+An empty-catalogue case is additional coverage rather than a replacement for Research.
+The offline Dev/QA fixture preserves its two grants, three audits, authority decisions and
+rollback cases; its late step failure now targets the second actual explicit-value insert.
+The transaction-count observation excludes the two catalogue preparation transactions.
+Migration/acquisition/close uncertainty retains the fixture directory and prevents a later
+setup from forgetting it. This test custody supplies no operator transition authority.
+
+These are task3.2 integration details under the already settled catalogue model. They do
+not close its parent, the historical guarantees, the full product gate or required Astra
+source/proof review.
+
+### Warm project rollup investigation — 2026-11-21
+
+The ordinary unchanged30-package/300-row fixture still fails: warm935.9ms exceeds400ms.
+A private preload that reuses detached plan inputs on a matching physical SQLite
+connection/state reduces warm time to432.4ms; retaining an input fingerprint alongside
+those inputs reaches326.4ms once, with equal replies,20cold/0warm canonical presentations
+and unchanged120/400ms bounds. These are feasibility measurements,not an installed fix.
+Commands,terminal receipts,source pins and limitations live in
+[the V113 evidence](verification-rollup-epoch-investigation-20261121.json).
+
+The cache boundary must stay below fresh authority,membership,graph admission and resolved
+work-package/settings reads. Installed optimization selection and clock-sensitive liveness
+remain fresh on the same snapshot; live metadata remains freshly captured. Historical
+readers and connected capture keep their existing behavior initially. A configured capture
+read seam must still run. Fingerprints cover every independent row fact plus fresh package
+settings; revisions and event cursors cannot replace complete invalidation. Retained values
+are detached,bounded and cloned at both insertion and read. No loan capability enters them.
+
+The native owner must supply an opaque connection identity and validated snapshot evidence.
+SQLite documents [connection-local data_version](https://www.sqlite.org/pragma.html#pragma_data_version)
+and [own row-change counts](https://www.sqlite.org/c3ref/total_changes.html). Eleven installed
+runtime diagnostics cover stable reads,rival commits with unchanged revision,held snapshots,
+stamp-first reads,own writes/rollback/DDL,loan wrappers and TEMP state. They demonstrate a
+necessary additional boundary: readonly main connections can create TEMP views. Main
+data_version,main schema_version and total_changes can all remain equal while an
+unqualified read changes,and the TEMP shadow survives pool release/reuse. The three-part
+prototype stamp is therefore insufficient. Production evidence must account for TEMP schema
+and attachment changes or visibly decline this optional optimization. Native access stays
+inside db.ts; unsupported or malformed evidence must never become a fabricated cache hit.
+
+This investigation does not amend E48's fresh settings resolution or establish cache safety.
+Implementation,production-path negative proofs,current capture/space/Source/controller
+checks,types/lint,native performance,Astra review and exact-SHA host gates remain required.
+No task is completed by the private pass.
+
+### Current-input memo implementation — V114
+
+The bound local current reader now reuses detached row input only on matching registered
+readonly native-owner evidence. Identity stays inside db.ts and survives pool wrappers;
+main data_version,main/TEMP schema_version and total_changes participate. Attachments,
+unregistered owners and missing transactions explicitly decline optional reuse; malformed
+required native evidence throws. Fresh settings/ownership/parent validation,authority,
+membership,graph admission,clock-sensitive optimization selection and live metadata remain
+on the held snapshot. Historical readers omit memo,connected capture remains unchanged,
+and configured capture seams disable it.
+
+The cache retains at most32packages and8MiB of serialized input per weak native identity,
+with clones at insertion and read. This does not bound actual heap or transient capture
+allocation. Row fingerprints include every independent captured field and combine with
+fresh package/settings evidence. Local ask.input derives from those reads; rollup keys
+retain the selected optimization,metadata and child DTO alongside that evidence.
+
+[Commands,results,18finite negatives and limitations](verification-current-input-memo-20261121.json)
+record a production native warm pass at328.6ms under the unchanged400ms bound,
+65focused cases,seven-root types/lint and precise proof credit. The redundant newly added
+final lifetime assertion was removed; the existing post-resource guard protects publication
+and its omission observes five late native queries. This supersedes V113's production-still-
+failing finding for this local fixture only. Full Source/fact/history/current-settings,
+physical collision/TEMP-DML consumers,clock-only expiry,seam qualification,Astra and host
+gates remain. No parent task closes from this scoped result.

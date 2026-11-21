@@ -82,7 +82,7 @@ export interface MeasureDefinitionsOptions {
  *
  * Every write decides from the definitions it reads first, inside the batch's
  * unit of work, so the read and the write are one transaction; the store's
- * unique indexes are the backstop. Nothing is announced: no project row names
+ * unique indexes are the backstop. Nothing is announced: no work package row names
  * a definition yet, and the directory journals nothing, so a definition write
  * has no undo (design D11).
  */

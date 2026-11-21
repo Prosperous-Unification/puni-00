@@ -259,7 +259,7 @@ console.log(JSON.stringify(objects[resource]));
       namespaces: { app: 'wbs', backend: namespace },
       stateDir: root,
       overlay: root,
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 1,
       jobTimeoutSeconds: 1,
       drainTimeoutMs: 1000,

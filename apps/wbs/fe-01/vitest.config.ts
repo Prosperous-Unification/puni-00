@@ -62,9 +62,9 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/typed-dependency.ts',
       ),
-      '@wbs/domain/project-address': resolve(
+      '@wbs/domain/work-package-address': resolve(
         __dirname,
-        '../../../libs/wbs/domain/domain/src/project-address.ts',
+        '../../../libs/wbs/domain/domain/src/work-package-address.ts',
       ),
       '@wbs/domain/step-node': resolve(
         __dirname,
@@ -73,6 +73,10 @@ export default defineConfig({
       '@wbs/domain/step-reference': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/step-reference.ts',
+      ),
+      '@wbs/domain/step-fact': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/step-fact.ts',
       ),
       '@wbs/domain/workday': resolve(__dirname, '../../../libs/wbs/domain/domain/src/workday.ts'),
       '@wbs/domain/estimate': resolve(__dirname, '../../../libs/wbs/domain/domain/src/estimate.ts'),
@@ -113,7 +117,7 @@ export default defineConfig({
         __dirname,
         '../../../libs/wbs/domain/domain/src/derive-numbers.ts',
       ),
-      // The order every reader draws a project in (ADR 0023), and the sibling
+      // The order every reader draws a work package in (ADR 0023), and the sibling
       // grouping it shares with the numbering. The fake answers the server's
       // own numbers and row order through these rather than a second copy.
       '@wbs/domain/tree-order': resolve(
@@ -199,6 +203,9 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Unbounded workers exhausted the shared host: the same 4,270 assertions
+    // pass with four workers and their original deadlines (V137 verification).
+    maxWorkers: 4,
     globals: true,
     /**
      * The clock every test reads, pinned.

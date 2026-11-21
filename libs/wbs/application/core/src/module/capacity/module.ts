@@ -4,9 +4,8 @@ import type { CapacityStore } from '../../ports/capacity-store';
 import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { OrganizationLimitGauge } from '../../ports/organization-limits';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
 import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { CapacityService, type CapacityServiceOptions } from './capacity.resource';
 import { CAPACITY_LABEL } from './contract';
 
@@ -17,7 +16,7 @@ import { CAPACITY_LABEL } from './contract';
  * installation, so a host cannot name it — resolving it answers
  * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.capacity/capacityOptions` rather than against
- * an anonymous binding. The two stores are required as `projectStore` and
+ * an anonymous binding. The two stores are required as `workPackageStore` and
  * `capacityStore` because the host graph's `capacity` key is this module's
  * export.
  *
@@ -28,7 +27,7 @@ export const capacityModule = DiBag.createBuilder()
   .withServices({
     capacityOptions: DiBag.createProvider(
       ({
-        projectStore,
+        workPackageStore,
         capacityStore,
         resourceCapacityStore,
         organizationLimits,
@@ -36,7 +35,7 @@ export const capacityModule = DiBag.createBuilder()
         editAdmission,
         clock,
       }: {
-        projectStore: ProjectStore;
+        workPackageStore: CapacityServiceOptions['workPackages'];
         capacityStore: CapacityStore;
         resourceCapacityStore: ResourceCapacityStore;
         /** Null where the graph's stores carry no organization limits (public graph, legacy fixtures). */
@@ -45,7 +44,7 @@ export const capacityModule = DiBag.createBuilder()
         editAdmission: EditAdmission;
         clock: Clock;
       }): CapacityServiceOptions => ({
-        projects: projectStore,
+        workPackages: workPackageStore,
         capacity: capacityStore,
         resourceCapacity: resourceCapacityStore,
         // Proof: with this spread removed, every activated statement case of

@@ -36,7 +36,7 @@ it('renders CP14 through the actual typed command error bridge', () => {
     refusalSentence(
       new WbsRequestError({
         kind: 'refusal',
-        operation: 'postApiProjectsByIdCommands',
+        operation: 'postApiWorkPackagesByIdCommands',
         refusal: { error: 'last_super_admin', at: 0, kind: 'deletePerson' },
       }),
     ),

@@ -19,7 +19,7 @@ import { schedule, sliceKey } from './schedule';
  * engine can be asked that.
  */
 
-/** A Monday, so day zero is the project start itself and no roll is hiding. */
+/** A Monday, so day zero is the work package start itself and no roll is hiding. */
 const START = '2026-06-08';
 const DEV = 'step-dev';
 
@@ -117,12 +117,12 @@ describe('stored dates become the offsets the engine reads', () => {
   });
 });
 
-describe('a deadline that fell before the project began is unmeetable, not invalid', () => {
+describe('a deadline that fell before the work package began is unmeetable, not invalid', () => {
   it('reports the row late by every workday it stands on', () => {
     // 5.4's sentence, in the number. Three days of work from day zero occupies
     // workdays 0, 1 and 2, and the date it owed was before any of them — so it
     // is late by three, the whole span. Nothing threw and nothing was rejected:
-    // the project moved under a date the user typed, and that is legal.
+    // the work package moved under a date the user typed, and that is legal.
     const found = scheduledWith([item('a')], [slice('a', 3)], new Map([['a', '2026-06-01']]));
 
     expect(planned(found, 'a')).toMatchObject({ earliestFinish: 3, lateBy: 3 });

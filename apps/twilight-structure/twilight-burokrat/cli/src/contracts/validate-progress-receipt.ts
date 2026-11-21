@@ -39,7 +39,8 @@ export function validateProgressReceipt(
 /**
  * Checks already strictly decoded documents: existing plan/task consistency, complete
  * PlanRef equality, schema 2 reference digest equality and each receipt entry's leaf task ID
- * and step code membership. Schema 1 retains its historical PlanRef-only binding.
+ * and step code membership. PlanTasks3 external endpoints are never receipt targets.
+ * Schema 1 retains its historical PlanRef-only binding.
  * Preserves entry order and repetitions. Grants consistency only, without checking authorship,
  * evidence contents, freshness, approval, admission or current WBS authority.
  *
@@ -62,6 +63,8 @@ export function checkProgressReceiptConsistency(
   // `validate-progress-receipt refuses bound A against real blockedAt-only B` and
   // `receipt-to-commands refuses bound A against real blockedAt-only B` in
   // Navigator admit-progress.test.ts (2026-10-16). Matching v2 and legacy v1 remain accepted.
+  // Proof: F10 bypassed receipt-to-producer binding: changed-history mode=convert exited 0 instead of
+  // 1 (connected-progress.test.ts).
   if (receipt.schemaVersion === 2 && receipt.referenceDigest !== reference.referenceDigest) {
     throw new Error('progress receipt binds another reference digest');
   }
@@ -70,6 +73,8 @@ export function checkProgressReceiptConsistency(
   for (const [index, entry] of receipt.entries.entries()) {
     // Proof: removing membership accepted unknown and parent-only task IDs in the
     // production receipt CLI tests (progress-receipt.test.ts, 2026-10-15).
+    // Proof: F12 removed local membership: external-only receipt conversion exited 0 instead of 1,
+    // before the collision case (connected-progress.test.ts).
     if (!taskIds.has(entry.taskId)) {
       throw new Error(
         `receipt entry ${String(index)} names task ${entry.taskId}, absent from the plan`,

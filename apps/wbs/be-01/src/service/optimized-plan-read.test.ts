@@ -1,4 +1,6 @@
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import {
   WorkItemService as RefusingWorkItemService,
   type WorkItemServiceOptions,
@@ -13,11 +15,11 @@ import type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
 } from '../module/optimization/optimized-schedule-reader';
-import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
+import type { WorkItemStore, WorkPackagePatch, WorkPackageStore, WriteStamp } from '../repository';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
+import { createTestServices } from '../testing/harness';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**
@@ -42,32 +44,37 @@ import { optimizerWiring } from './optimizer-wiring';
 const OWNER = 'owner-account';
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let workItems: WorkItemStore;
 let serviceOptions: WorkItemServiceOptions;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects, workItems } = harness.stores);
+  const packageFixture = await createLegacyWorkPackageFixture(
+    OWNER,
+    'service-fixture-legacy',
+    PARENT_PROJECT_ID,
+  );
+  const harness = createTestServices(packageFixture.source);
+  ({ workPackages, workItems } = harness.stores);
   serviceOptions = {
     dependencyContext: createLocalDependencyContext(harness.stores),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,
     scheduler: harness.scheduler,
   };
-  const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
+  const workPackage = workPackageRow({ id: crypto.randomUUID(), projectId: PARENT_PROJECT_ID });
   stepId = crypto.randomUUID();
-  await projects.create(
-    project,
+  await workPackages.create(
+    workPackage,
     [
       {
         id: stepId,
-        projectId: project.id,
+        workPackageId: workPackage.id,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -77,7 +84,7 @@ beforeEach(async () => {
     ],
     WROTE,
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
 });
 
 /**
@@ -92,7 +99,7 @@ async function leaf(name: string): Promise<string> {
   await workItems.insert(
     {
       id,
-      projectId,
+      workPackageId,
       parentId: null,
       position: 10,
       name,
@@ -118,9 +125,9 @@ async function leaf(name: string): Promise<string> {
 }
 
 /** Moves the three settings 3b.1 added, through the repository patch 3b.2 built. */
-async function settings(patch: ProjectPatch): Promise<void> {
-  const moved = await projects.update(projectId, patch, WROTE);
-  if (moved === null) throw new Error('project vanished');
+async function settings(patch: WorkPackagePatch): Promise<void> {
+  const moved = await workPackages.update(workPackageId, patch, WROTE);
+  if (moved === null) throw new Error('work package vanished');
 }
 
 /**
@@ -217,22 +224,22 @@ function movedTo(input: ScheduleInput, start: number): Schedule {
 }
 
 describe('the plan read and the optimized cache', () => {
-  it('reports the published solver schedule when the project is on the optimized engine', async () => {
+  it('reports the published solver schedule when the work package is on the optimized engine', async () => {
     // Proof: `optimized ?? schedule(...)` reduced to `schedule(...)` and this
-    // failed on the start — the payload carried Fast's day 0 and `projectStart`
+    // failed on the start — the payload carried Fast's day 0 and `workPackageStart`
     // while a published solver row said day 3. Watched 2026-09-04.
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'optimized' });
     const seen = recordingReader(null);
     const probe = new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler });
-    await probe.tree(projectId);
+    await probe.tree(workPackageId);
     if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
 
     const served = recordingReader(movedTo(asked.input, 3));
     const service = new WorkItemService({ ...serviceOptions, scheduler: served.scheduler });
-    const tree = await service.tree(projectId);
-    if (tree === null) throw new Error('project vanished');
+    const tree = await service.tree(workPackageId);
+    if (tree === null) throw new Error('work package vanished');
     expect(tree.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
       [3, 'optimizer'],
     ]);
@@ -258,16 +265,16 @@ describe('the plan read and the optimized cache', () => {
 
   it('falls back to Fast when the cache has nothing to serve', async () => {
     // The one answer four different cache outcomes arrive as. Fast's own start
-    // is day 0 for a plan with one unconstrained leaf, and `projectStart` is
+    // is day 0 for a plan with one unconstrained leaf, and `workPackageStart` is
     // what put it there — a floor the optimizer never names.
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'optimized' });
     const seen = recordingReader(null);
     const service = new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler });
-    const tree = await service.tree(projectId);
-    if (tree === null) throw new Error('project vanished');
+    const tree = await service.tree(workPackageId);
+    if (tree === null) throw new Error('work package vanished');
     expect(tree.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
-      [0, 'projectStart'],
+      [0, 'workPackageStart'],
     ]);
     expect(seen.asks).toHaveLength(1);
     expect(tree.optimization).toMatchObject({
@@ -307,7 +314,7 @@ describe('the plan read and the optimized cache', () => {
     // datesOf -> addWorkdays -> Date#toISOString fail the whole plan read. The
     // write path still does not need a valid calendar in order to replace the
     // stored trio.
-    const stranded = await service.tree(projectId);
+    const stranded = await service.tree(workPackageId);
     if (stranded === null || 'kind' in stranded) throw new Error('expected a stored plan');
     expect(stranded.scheduleError).toBe('calendar_range');
     expect(
@@ -317,7 +324,7 @@ describe('the plan read and the optimized cache', () => {
         pessimistic: 3,
       }),
     ).toEqual({ ok: true, value: null });
-    expect(await service.tree(projectId)).not.toBeNull();
+    expect(await service.tree(workPackageId)).not.toBeNull();
   });
 
   it('reads disabled identity without serving a solver schedule', async () => {
@@ -325,39 +332,39 @@ describe('the plan read and the optimized cache', () => {
     await settings({ optimizationEnabled: false, scheduleEngine: 'optimized' });
     const seen = recordingReader(null);
     const service = new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler });
-    const tree = await service.tree(projectId);
-    if (tree === null) throw new Error('project vanished');
+    const tree = await service.tree(workPackageId);
+    if (tree === null) throw new Error('work package vanished');
     expect(seen.asks).toHaveLength(1);
     expect(seen.asks[0]?.enabled).toBe(false);
     expect(tree.optimization).toMatchObject({ enabled: false, displayed: 'fast' });
   });
 
-  it('warms absent variants while the enabled project keeps publishing Fast', async () => {
+  it('warms absent variants while the enabled work package keeps publishing Fast', async () => {
     // The optimizer toggle permits solver work; the engine chooses only what
     // this read publishes. Proof: restore the early `scheduleEngine !==
     // 'optimized'` return in `publishedOptimized` and the reader receives no
-    // ask, leaving an enabled Fast project cold until somebody changes engines.
+    // ask, leaving an enabled Fast work package cold until somebody changes engines.
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
     const seen = recordingReader(null);
     const service = new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler });
-    const first = await service.tree(projectId);
-    if (first === null) throw new Error('project vanished');
+    const first = await service.tree(workPackageId);
+    if (first === null) throw new Error('work package vanished');
     expect(seen.asks).toHaveLength(1);
     expect(first.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
-      [0, 'projectStart'],
+      [0, 'workPackageStart'],
     ]);
   });
 
   /**
    * The plan read's own half of slice 8b, and the reason the cue can say
-   * anything at all while the project is sitting on Fast.
+   * anything at all while the work package is sitting on Fast.
    */
   it('compares both ready variants with Fast while Fast is the schedule on screen', async () => {
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
     const seen = recordingReader(null);
-    await new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler }).tree(projectId);
+    await new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler }).tree(workPackageId);
     if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
 
@@ -368,20 +375,20 @@ describe('the plan read and the optimized cache', () => {
       time: movedTo(asked.input, 6),
     });
     const tree = await new WorkItemService({ ...serviceOptions, scheduler: served.scheduler }).tree(
-      projectId,
+      workPackageId,
     );
-    if (tree === null) throw new Error('project vanished');
+    if (tree === null) throw new Error('work package vanished');
     // Fast is still what the rows carry: the toggle permits the solver work and
     // the engine alone decides what is displayed.
     expect(tree.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
-      [0, 'projectStart'],
+      [0, 'workPackageStart'],
     ]);
     expect(tree.optimization).toMatchObject({ engine: 'fast', displayed: 'fast' });
     // Proof: with the `optimized === null ? … : comparedWithFast(…)` gate this
     // replaced put back — the shipped `comparison` was built only for a
     // displayed variant — this failed on `expect(received).toEqual(expected)`
     // dropping `- "pri": 5, - "time": 8` from the received object, and the case
-    // below failed the same way on `pri`. That is the state a project is in for
+    // below failed the same way on `pri`. That is the state a work package is in for
     // the whole of its first solve and after any switch back to Fast: nothing
     // to compare, and so nothing for the cue to say. Watched 2026-09-08.
     expect(tree.optimization?.finishDays).toEqual({ fast: 0, pri: 3, time: 6 });
@@ -392,7 +399,7 @@ describe('the plan read and the optimized cache', () => {
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
     const seen = recordingReader(null);
-    await new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler }).tree(projectId);
+    await new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler }).tree(workPackageId);
     if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
 
@@ -401,9 +408,9 @@ describe('the plan read and the optimized cache', () => {
       { time: { state: 'pending' } },
     );
     const tree = await new WorkItemService({ ...serviceOptions, scheduler: served.scheduler }).tree(
-      projectId,
+      workPackageId,
     );
-    if (tree === null) throw new Error('project vanished');
+    if (tree === null) throw new Error('work package vanished');
     // Absent rather than zero: a zero finish is a legal answer about a plan of
     // nothing, and a reader cannot tell the two apart.
     expect(tree.optimization?.finishDays).toEqual({ fast: 0, pri: 3 });
@@ -418,7 +425,7 @@ describe('the plan read and the optimized cache', () => {
       { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
     );
     const refusal = await new WorkItemService({ ...serviceOptions, scheduler: served.scheduler })
-      .tree(projectId)
+      .tree(workPackageId)
       .then(
         () => '(resolved without throwing)',
         (error: unknown) => String(error),
@@ -426,7 +433,7 @@ describe('the plan read and the optimized cache', () => {
     expect(refusal).toContain('optimized scheduler reported ready without a pri schedule');
   });
 
-  it('asks for the objective the project publishes, under the plan the pass is about to run', async () => {
+  it('asks for the objective the work package publishes, under the plan the pass is about to run', async () => {
     // The ask is the cache key's whole input: a `ScheduleInput` that named a
     // different plan than the one `schedule()` is handed one line below would
     // serve another plan's schedule under this plan's hash.
@@ -438,11 +445,11 @@ describe('the plan read and the optimized cache', () => {
     });
     const seen = recordingReader(null);
     const service = new WorkItemService({ ...serviceOptions, scheduler: seen.scheduler });
-    await service.tree(projectId);
+    await service.tree(workPackageId);
     if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
     const asked = seen.asks[0];
-    expect([asked.projectId, asked.objective]).toEqual([projectId, 'time']);
-    expect(await service.scheduleInput(projectId)).toEqual(asked.input);
+    expect([asked.workPackageId, asked.objective]).toEqual([workPackageId, 'time']);
+    expect(await service.scheduleInput(workPackageId)).toEqual(asked.input);
     expect(asked.input.rows.map((row) => row.id)).toEqual([id]);
     expect(asked.input.slices.map((each) => sliceKey(each.workItemId, each.stepId))).toEqual([
       sliceKey(id, stepId),
@@ -459,7 +466,7 @@ describe('the plan read and the optimized cache', () => {
     await leaf('Rewire');
     await settings({ optimizationEnabled: true, scheduleEngine: 'optimized' });
     const service = new RefusingWorkItemService(serviceOptions);
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree).toEqual({
       kind: 'engine_unavailable',
       error: 'engine_unavailable',

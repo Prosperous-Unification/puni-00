@@ -71,7 +71,7 @@ interface Agent {
   readonly organizationId: string;
   readonly clientId: string;
   readonly key: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly leafId: string;
 }
 interface Session extends Agent {
@@ -438,20 +438,20 @@ async function callTool(
 function cycleOf(session: Session): readonly [string, Record<string, unknown>][] {
   return [
     [
-      'postApiProjectsByIdCommands',
+      'postApiWorkPackagesByIdCommands',
       {
-        id: session.projectId,
+        id: session.workPackageId,
         commands: [
           { kind: 'claimWorkItem', workItemId: session.leafId, personId: session.personId },
         ],
       },
     ],
     ['postApiClaimsRenew', {}],
-    ['getApiProjectsByIdClaims', { id: session.projectId }],
+    ['getApiWorkPackagesByIdClaims', { id: session.workPackageId }],
     [
-      'postApiProjectsByIdCommands',
+      'postApiWorkPackagesByIdCommands',
       {
-        id: session.projectId,
+        id: session.workPackageId,
         commands: [
           { kind: 'releaseWorkItem', workItemId: session.leafId, personId: session.personId },
         ],
@@ -598,7 +598,7 @@ async function credentialFence(
   const started = performance.now();
   const paced = paceAgents(background, others, () => running);
   await Bun.sleep(3_000);
-  const read = ['getApiProjectsByIdClaims', { id: probe.projectId }] as const;
+  const read = ['getApiWorkPackagesByIdClaims', { id: probe.workPackageId }] as const;
   const burst = await Promise.all(
     Array.from({ length: 40 }, () => callTool(probeLedger, probe, read[0], read[1])),
   );
@@ -689,7 +689,7 @@ async function inFlightFence(
   const answers = await Promise.all(
     callers.flatMap((session) =>
       Array.from({ length: perCaller }, () =>
-        callTool(pushed, session, 'getApiProjectsByIdClaims', { id: session.projectId }),
+        callTool(pushed, session, 'getApiWorkPackagesByIdClaims', { id: session.workPackageId }),
       ),
     ),
   );
@@ -739,7 +739,7 @@ async function undelayedBurst(orgA: readonly Session[]): Promise<Record<string, 
       .slice(0, 20)
       .flatMap((session) =>
         Array.from({ length: 10 }, () =>
-          callTool(ledger, session, 'getApiProjectsByIdClaims', { id: session.projectId }),
+          callTool(ledger, session, 'getApiWorkPackagesByIdClaims', { id: session.workPackageId }),
         ),
       ),
   );

@@ -7,7 +7,7 @@ import ts from 'typescript';
 const coreRoot = fileURLToPath(new URL('../..', import.meta.url));
 const coreSource = `${coreRoot}src/`;
 const configPath = `${coreRoot}tsconfig.lib.json`;
-const portHome = 'ports/project-event.ts';
+const portHome = 'ports/work-package-event.ts';
 
 function underSrc(fileName: string): string {
   return fileName.startsWith(coreSource) ? fileName.slice(coreSource.length) : fileName;
@@ -119,12 +119,12 @@ function contractUses(paths: readonly string[]): ContractUse {
   const checker = program.getTypeChecker();
   const portFile = program.getSourceFile(`${coreSource}${portHome}`);
   // Proof: pointing `coreSource` at `src/runtime/` made this throw
-  // `the program holds no ports/project-event.ts` and failed the assertion, 0 pass and 1 fail; it cannot be
+  // `the program holds no ports/work-package-event.ts` and failed the assertion, 0 pass and 1 fail; it cannot be
   // deleted instead, because the narrowing below needs it (2026-09-22).
   if (portFile === undefined) throw new Error(`the program holds no ${portHome}`);
   const portModule = checker.getSymbolAtLocation(portFile);
   // Proof: replacing the port's contents with two statements and no export made this throw
-  // `ports/project-event.ts is not a module` and failed the assertion, 0 pass and 1 fail; `wbs-core:typecheck`
+  // `ports/work-package-event.ts is not a module` and failed the assertion, 0 pass and 1 fail; `wbs-core:typecheck`
   // fails on that mutation too, because every importer loses its contracts (2026-09-22).
   if (portModule === undefined) throw new Error(`${portHome} is not a module`);
   const portSymbols = new Set(
@@ -284,7 +284,7 @@ function contractUses(paths: readonly string[]): ContractUse {
   return [...new Set(reached)].sort();
 }
 
-describe('the neutral project-event port', () => {
+describe('the neutral work-package-event port', () => {
   it('rejects the checked event-contract import routes', async () => {
     // Proof: thirteen routes into the contracts each failed here with `wbs-core:typecheck` exit 0 — a
     // named import and an `import` type through service/broadcast.ts; a type-only namespace of it; a value

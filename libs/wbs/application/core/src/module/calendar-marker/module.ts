@@ -2,9 +2,7 @@ import { DiBag } from 'di-bag';
 
 import type { CalendarMarkerStore } from '../../ports/calendar-marker-store';
 import type { Clock } from '../../ports/clock';
-import type { EditAdmission } from '../../ports/edit-admission';
-import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Broadcaster } from '../../ports/work-package-event';
 import {
   CalendarMarkerService,
   type CalendarMarkerServiceOptions,
@@ -19,7 +17,7 @@ import { CALENDAR_MARKER_LABEL } from './contract';
  * `DI_BAG_UNKNOWN_SERVICE_KEY` — and a requirement the host forgot is
  * reported against `application.calendar-marker/calendarMarkerOptions` rather
  * than against an anonymous binding. The two stores are required as
- * `projectStore` and `calendarMarkerStore` because the host graph's
+ * `workPackageStore` and `calendarMarkerStore` because the host graph's
  * `calendarMarkers` key is this module's export. `broadcast` is registered
  * even when absent, as `undefined`, the way Saved plans registers its optional
  * quota: the resource then announces nothing, as it always has.
@@ -31,29 +29,26 @@ export const calendarMarkerModule = DiBag.createBuilder()
   .withServices({
     calendarMarkerOptions: DiBag.createProvider(
       ({
-        projectStore,
+        workPackageStore,
         accessDecisions,
         calendarMarkerStore,
         clock,
         broadcast,
-        recoveryAdmission,
       }: {
-        projectStore: ProjectStore;
+        workPackageStore: CalendarMarkerServiceOptions['workPackages'];
         accessDecisions: CalendarMarkerServiceOptions['accessDecisions'];
         calendarMarkerStore: CalendarMarkerStore;
         clock: Clock;
         broadcast: Broadcaster | undefined;
-        recoveryAdmission: EditAdmission | undefined;
         // Proof (2026-09-24): leaving `broadcast` out of the returned options left
         // `announces a created marker through the broadcaster installCalendarMarker wires` failing
         // (4 pass, 1 fail): the recording broadcaster received `[]`.
       }): CalendarMarkerServiceOptions => ({
-        projects: projectStore,
+        workPackages: workPackageStore,
         accessDecisions,
         markers: calendarMarkerStore,
         clock,
         broadcast,
-        recoveryAdmission,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

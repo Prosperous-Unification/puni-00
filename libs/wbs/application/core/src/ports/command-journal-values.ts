@@ -1,5 +1,5 @@
 /**
- * Whose undo stack: one per project, account and **acting person**.
+ * Whose undo stack: one per work package, account and **acting person**.
  *
  * `personId` is the agent person a machine or consent credential is pinned to
  * (`wbs-machine-credentials` A12, A20) and null for an account acting as
@@ -14,7 +14,7 @@
  * `actingPersonOf` in `@wbs/contracts` names the person.
  */
 export interface UndoStack {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly userId: string;
   readonly personId: string | null;
 }

@@ -1,5 +1,5 @@
 /**
- * How far into a predecessor a dependency reaches — the project's answer to
+ * How far into a predecessor a dependency reaches — the work package's answer to
  * "which of the predecessor's slices must finish before the successor starts".
  *
  * `whole-item` is the rule the tool shipped with and returned to on 2026-08-29:
@@ -11,7 +11,7 @@
  *
  * A two-member enum rather than a boolean, so the per-edge model the proposal
  * defers can add a third answer without every call site becoming a negation.
- * See `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+ * See `docs/adr/0010-a-dependencys-reach-is-a-work-packages-choice.md`.
  */
 export const DEPENDENCY_REACHES = ['whole-item', 'anchor-slice'] as const;
 export type DependencyReach = (typeof DEPENDENCY_REACHES)[number];

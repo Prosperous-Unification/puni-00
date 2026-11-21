@@ -5,6 +5,13 @@ import { prepareImport } from '../module/plan-import/prepare-import';
 import { planDocumentFixture } from '../testing/plan-document-fixture';
 
 const supportsAll = { supports: () => true };
+
+test('requires an explicit known import step interpretation', () => {
+  for (const interpretation of [undefined, null, 'unknown'])
+    expect(() => {
+      Reflect.apply(prepareImport, undefined, [planDocumentFixture(), supportsAll, interpretation]);
+    }).toThrow('import step interpretation');
+});
 type PlanFixture = ReturnType<typeof planDocumentFixture>;
 type Fault = (body: PlanFixture) => void;
 
@@ -15,7 +22,7 @@ function at<T>(values: readonly T[], index = 0): T {
 }
 
 test('prepares normalized names, indexes and leaf values', () => {
-  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  const prepared = prepareImport(planDocumentFixture(), supportsAll, 'document');
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) return;
   expect(prepared.value.settings.name).toBe('Portable plan');
@@ -69,7 +76,7 @@ test('prepares normalized names, indexes and leaf values', () => {
 
 const fieldFaults: readonly (readonly [string, Fault, string, string])[] = [
   [
-    'blank project name',
+    'blank work package name',
     (body) => {
       body.settings.name = '   ';
     },
@@ -77,7 +84,7 @@ const fieldFaults: readonly (readonly [string, Fault, string, string])[] = [
     'settings.name',
   ],
   [
-    'invalid project start',
+    'invalid work package start',
     (body) => {
       body.settings.startDate = '2026-02-31';
     },
@@ -288,7 +295,7 @@ const fieldFaults: readonly (readonly [string, Fault, string, string])[] = [
 test.each(fieldFaults)('%s refuses at the first stable path', (_name, fault, code, path) => {
   const body = planDocumentFixture();
   fault(body);
-  expect(prepareImport(body, supportsAll)).toMatchObject({ ok: false, code, path });
+  expect(prepareImport(body, supportsAll, 'document')).toMatchObject({ ok: false, code, path });
 });
 
 const leafValueFaults: readonly (readonly [string, Fault, string])[] = [
@@ -341,13 +348,17 @@ const leafValueFaults: readonly (readonly [string, Fault, string])[] = [
 test.each(leafValueFaults)('%s is refused as an invalid leaf value', (_name, fault, path) => {
   const body = planDocumentFixture();
   fault(body);
-  expect(prepareImport(body, supportsAll)).toMatchObject({ ok: false, code: 'invalid_body', path });
+  expect(prepareImport(body, supportsAll, 'document')).toMatchObject({
+    ok: false,
+    code: 'invalid_body',
+    path,
+  });
 });
 
 test('validates step positions, marker colors and not-before reasons', () => {
   const duplicateStepPosition = planDocumentFixture();
   at(duplicateStepPosition.steps, 1).position = at(duplicateStepPosition.steps).position;
-  expect(prepareImport(duplicateStepPosition, supportsAll)).toMatchObject({
+  expect(prepareImport(duplicateStepPosition, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'steps[1].position',
@@ -355,7 +366,7 @@ test('validates step positions, marker colors and not-before reasons', () => {
 
   const malformedMarkerDate = planDocumentFixture();
   at(malformedMarkerDate.calendarMarkers).date = '2026-02-31';
-  expect(prepareImport(malformedMarkerDate, supportsAll)).toMatchObject({
+  expect(prepareImport(malformedMarkerDate, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'calendarMarkers[0].date',
@@ -363,7 +374,7 @@ test('validates step positions, marker colors and not-before reasons', () => {
 
   const blankMarkerName = planDocumentFixture();
   at(blankMarkerName.calendarMarkers).name = '';
-  expect(prepareImport(blankMarkerName, supportsAll)).toMatchObject({
+  expect(prepareImport(blankMarkerName, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'calendarMarkers[0].name',
@@ -371,7 +382,7 @@ test('validates step positions, marker colors and not-before reasons', () => {
 
   const malformedColor = planDocumentFixture();
   at(malformedColor.calendarMarkers).color = '#bad';
-  expect(prepareImport(malformedColor, supportsAll)).toMatchObject({
+  expect(prepareImport(malformedColor, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'calendarMarkers[0].color',
@@ -379,7 +390,7 @@ test('validates step positions, marker colors and not-before reasons', () => {
 
   const orphanedReason = planDocumentFixture();
   at(orphanedReason.workItems).startNoEarlierThan = null;
-  expect(prepareImport(orphanedReason, supportsAll)).toMatchObject({
+  expect(prepareImport(orphanedReason, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'workItems[0].startNoEarlierThanReason',
@@ -387,7 +398,7 @@ test('validates step positions, marker colors and not-before reasons', () => {
 
   const overlongReason = planDocumentFixture();
   at(overlongReason.workItems).startNoEarlierThanReason = 'x'.repeat(201);
-  expect(prepareImport(overlongReason, supportsAll)).toMatchObject({
+  expect(prepareImport(overlongReason, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'workItems[0].startNoEarlierThanReason',
@@ -412,7 +423,7 @@ test('accepts forward references and out-of-order parents', () => {
   later.position = 30;
   later.externalRefs = [];
   body.workItems = [child, parent, later];
-  expect(prepareImport(body, supportsAll).ok).toBe(true);
+  expect(prepareImport(body, supportsAll, 'document').ok).toBe(true);
 });
 
 const graphFaults: readonly (readonly [string, Fault, string, string])[] = [
@@ -455,7 +466,7 @@ const graphFaults: readonly (readonly [string, Fault, string, string])[] = [
 test.each(graphFaults)('%s refuses before preparation', (_name, fault, code, path) => {
   const body = planDocumentFixture();
   fault(body);
-  expect(prepareImport(body, supportsAll)).toMatchObject({ ok: false, code, path });
+  expect(prepareImport(body, supportsAll, 'document')).toMatchObject({ ok: false, code, path });
 });
 
 test('fully declared parent cycle refuses before admission', () => {
@@ -467,7 +478,7 @@ test('fully declared parent cycle refuses before admission', () => {
   first.parentId = second.id;
   second.parentId = first.id;
   body.workItems.push(second);
-  expect(prepareImport(body, supportsAll)).toMatchObject({
+  expect(prepareImport(body, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'cycle',
     path: 'workItems[0].parentId',
@@ -484,7 +495,7 @@ test('complete dependency rules refuse ancestry and cycles independent of edge o
   child.externalRefs = [];
   child.dependsOn = [parent.id];
   ancestral.workItems.push(child);
-  expect(prepareImport(ancestral, supportsAll)).toMatchObject({
+  expect(prepareImport(ancestral, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'ancestor',
     path: 'workItems[1].dependsOn[0]',
@@ -499,7 +510,7 @@ test('complete dependency rules refuse ancestry and cycles independent of edge o
   first.dependsOn = [second.id];
   second.dependsOn = [first.id];
   cyclic.workItems.push(second);
-  expect(prepareImport(cyclic, supportsAll)).toMatchObject({
+  expect(prepareImport(cyclic, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'cycle',
     path: 'workItems[0].dependsOn[0]',
@@ -520,7 +531,7 @@ test('parent aggregate maps never become prepared facts', () => {
   parent.assignees = {};
   Reflect.set(parent, 'doesEveryStep', true);
   body.workItems.push(child);
-  const prepared = prepareImport(body, supportsAll);
+  const prepared = prepareImport(body, supportsAll, 'document');
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) return;
   expect(prepared.value.workItems[0]).toMatchObject({
@@ -536,9 +547,9 @@ test('parent aggregate maps never become prepared facts', () => {
 test('deadline before day zero is refused', () => {
   const body = planDocumentFixture();
   at(body.workItems).deadline = '2026-09-13';
-  expect(prepareImport(body, supportsAll)).toMatchObject({
+  expect(prepareImport(body, supportsAll, 'document')).toMatchObject({
     ok: false,
-    code: 'deadline_before_project_start',
+    code: 'deadline_before_work_package_start',
     path: 'workItems[0].deadline',
   });
 });
@@ -548,28 +559,28 @@ test('enabled unavailable optimizer refuses while a disabled preference is retai
   const enabled = planDocumentFixture();
   enabled.settings.optimizationEnabled = true;
   enabled.settings.scheduleEngine = 'optimized';
-  expect(prepareImport(enabled, unavailable)).toMatchObject({
+  expect(prepareImport(enabled, unavailable, 'document')).toMatchObject({
     ok: false,
     code: 'engine_unavailable',
     path: 'settings.scheduleEngine',
   });
   const disabled = planDocumentFixture();
   disabled.settings.scheduleEngine = 'optimized';
-  const prepared = prepareImport(disabled, unavailable);
+  const prepared = prepareImport(disabled, unavailable, 'document');
   expect(prepared.ok).toBe(true);
   if (prepared.ok) expect(prepared.value.settings.scheduleEngine).toBe('optimized');
 });
 
 /** Proof: see the allowance guard in `prepareImport`. */
 test('refuses a step allowance over 1000%, and carries a valid one to the prepared step', () => {
-  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  const prepared = prepareImport(planDocumentFixture(), supportsAll, 'document');
   if (!prepared.ok) throw new Error('fixture refused');
   expect(prepared.value.stepByFileId.get('step-2')?.allowancePercent).toBe(30);
 
   for (const allowancePercent of [1000.01, -1, 0.001]) {
     const refused = planDocumentFixture();
     at(refused.steps, 1).allowancePercent = allowancePercent;
-    expect(prepareImport(refused, supportsAll)).toMatchObject({
+    expect(prepareImport(refused, supportsAll, 'document')).toMatchObject({
       ok: false,
       code: 'invalid_body',
       path: 'steps[1].allowancePercent',
@@ -596,7 +607,7 @@ function twoConflictedRows(): PlanFixture {
 test('refuses rows carrying several types, naming every such row', () => {
   // Proof: the one-type row check skipped in prepareImport and this received
   // ok: true. Watched 2026-09-27.
-  expect(prepareImport(twoConflictedRows(), supportsAll)).toEqual({
+  expect(prepareImport(twoConflictedRows(), supportsAll, 'document')).toEqual({
     ok: false,
     code: 'work_item_takes_one_type',
     path: 'workItems[0].typeIds',
@@ -607,11 +618,11 @@ test('refuses rows carrying several types, naming every such row', () => {
 test('counts a repeated type id as one type', () => {
   const body = planDocumentFixture();
   at(body.workItems).typeIds = ['type-1', 'type-1'];
-  expect(prepareImport(body, supportsAll).ok).toBe(true);
+  expect(prepareImport(body, supportsAll, 'document').ok).toBe(true);
 });
 
 test('carries a version-3 file’s step codes to the prepared steps', () => {
-  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  const prepared = prepareImport(planDocumentFixture(), supportsAll, 'document');
   if (!prepared.ok) throw new Error('fixture refused');
   expect(prepared.value.steps.map(({ fileId, code }) => [fileId, code])).toEqual([
     ['step-1', 'impl'],
@@ -647,7 +658,7 @@ test('suggests codes in step order for an earlier-version file, exactly as for n
       code: null,
     },
   ];
-  const prepared = prepareImport(earlier, supportsAll);
+  const prepared = prepareImport(earlier, supportsAll, 'document');
   if (!prepared.ok) throw new Error(`earlier file refused`);
   expect(
     Object.fromEntries(prepared.value.steps.map(({ fileId, code }) => [fileId, code])),
@@ -663,7 +674,7 @@ test('refuses a version-3 step code that is malformed, reserved or a duplicate',
   for (const code of ['QA', '', '2qa', 'a'.repeat(33), 's1-qa', 's12', 'impl']) {
     const refused = planDocumentFixture();
     at(refused.steps, 1).code = code;
-    expect(prepareImport(refused, supportsAll)).toEqual({
+    expect(prepareImport(refused, supportsAll, 'document')).toEqual({
       ok: false,
       code: 'invalid_body',
       path: 'steps[1].code',
@@ -675,12 +686,12 @@ test('refuses a version-3 step code that is malformed, reserved or a duplicate',
 test('prepares whole minute trios with their step unit and refuses fractional minute imports', () => {
   const document = planDocumentFixture();
   document.steps = document.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
-  const prepared = prepareImport(document, supportsAll);
+  const prepared = prepareImport(document, supportsAll, 'document');
   if (!prepared.ok) throw new Error('whole minute document refused');
   expect(prepared.value.steps.every((step) => step.estimateUnit === 'minutes')).toBe(true);
   const row = at(document.workItems);
   Reflect.set(row.estimates, 'step-1', { optimistic: 1.5, realistic: 2, pessimistic: 3 });
-  expect(prepareImport(document, supportsAll)).toMatchObject({
+  expect(prepareImport(document, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_body',
     path: 'workItems[0].estimates.step-1',
@@ -692,7 +703,7 @@ test('prepares exact direct blockage identities and negative timestamps', () => 
   Reflect.set(document, 'stepBlockages', [
     { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
   ]);
-  const prepared = prepareImport(document, supportsAll);
+  const prepared = prepareImport(document, supportsAll, 'document');
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) return;
   expect(Reflect.get(prepared.value, 'stepBlockages')).toEqual([
@@ -733,7 +744,7 @@ for (const [name, facts, path] of [
   test(`refuses direct blockage ${name}`, () => {
     const document = planDocumentFixture();
     Reflect.set(document, 'stepBlockages', facts);
-    expect(prepareImport(document, supportsAll)).toEqual({
+    expect(prepareImport(document, supportsAll, 'document')).toEqual({
       ok: false,
       code: 'invalid_body',
       path,
@@ -759,7 +770,7 @@ test('refuses direct blockage on a parent', () => {
   Reflect.set(document, 'stepBlockages', [
     { workItemId: parent.id, stepId: 'step-1', blockedAt: 1 },
   ]);
-  expect(prepareImport(document, supportsAll)).toEqual({
+  expect(prepareImport(document, supportsAll, 'document')).toEqual({
     ok: false,
     code: 'invalid_body',
     path: 'stepBlockages[0].workItemId',
@@ -786,7 +797,7 @@ function withResources(): PlanFixture {
 }
 
 test('prepares resources by file id, their capacities and demands (wbs-resources)', () => {
-  const prepared = prepareImport(withResources(), supportsAll);
+  const prepared = prepareImport(withResources(), supportsAll, 'document');
   if (!prepared.ok) throw new Error(`refused at ${prepared.path}`);
   expect([...prepared.value.resourceByFileId.values()]).toEqual([
     { fileId: 'res-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
@@ -858,21 +869,21 @@ for (const [name, fault, expected] of [
   test(`refuses a version-10 file whose resources do not resolve: ${name}`, () => {
     const body = withResources();
     fault(body);
-    expect(prepareImport(body, supportsAll)).toEqual({ ok: false, ...expected });
+    expect(prepareImport(body, supportsAll, 'document')).toEqual({ ok: false, ...expected });
   });
 }
 
-function externalRelationship(id: string, projectId = 'remote') {
+function externalRelationship(id: string, workPackageId = 'remote') {
   return {
     id,
     type: 'FS' as const,
     predecessor: {
       kind: 'external' as const,
       scope: 'whole' as const,
-      projectId,
+      workPackageId,
       workItemId: 'prerequisite',
       display: {
-        projectName: 'Remote',
+        workPackageName: 'Remote',
         abbreviation: 'REM',
         workItemName: 'Prerequisite',
         address: 'REM.1',
@@ -895,7 +906,7 @@ for (const external of [false, true]) {
             successor: { scope: 'whole', workItem: 'row-1' },
           },
     ];
-    expect(prepareImport(document, supportsAll)).toMatchObject({
+    expect(prepareImport(document, supportsAll, 'document')).toMatchObject({
       ok: false,
       code: 'invalid_typed_dependency',
       path: 'typedDependencies[0].id',
@@ -914,7 +925,7 @@ test('refuses repeated authored ID across internal and external arms before spli
       successor: { scope: 'whole', workItem: 'row-1' },
     },
   ];
-  expect(prepareImport(document, supportsAll)).toMatchObject({
+  expect(prepareImport(document, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_typed_dependency',
     path: 'typedDependencies[1].id',
@@ -927,11 +938,11 @@ test('refuses semantic duplicates introduced by explicit destination mappings', 
     externalRelationship('first', 'source-a'),
     externalRelationship('second', 'source-b'),
   ];
-  document.externalMappings = ['source-a', 'source-b'].map((projectId) => ({
-    source: { scope: 'whole', projectId, workItemId: 'prerequisite' },
-    destination: { scope: 'whole', projectId: 'destination', workItemId: 'mapped' },
+  document.externalMappings = ['source-a', 'source-b'].map((workPackageId) => ({
+    source: { scope: 'whole', workPackageId, workItemId: 'prerequisite' },
+    destination: { scope: 'whole', workPackageId: 'destination', workItemId: 'mapped' },
   }));
-  expect(prepareImport(document, supportsAll)).toMatchObject({
+  expect(prepareImport(document, supportsAll, 'document')).toMatchObject({
     ok: false,
     code: 'invalid_typed_dependency',
     path: 'typedDependencies[1]',
@@ -945,11 +956,11 @@ test('preserves distinct mapped scopes and original source identities', () => {
     externalRelationship('first', 'source-a'),
     externalRelationship('second', 'source-b'),
   ];
-  const prepared = prepareImport(document, supportsAll);
+  const prepared = prepareImport(document, supportsAll, 'document');
   expect(prepared.ok).toBe(true);
   if (!prepared.ok) throw new Error('valid external preparation refused');
   expect(
-    prepared.value.externalDependencies.map(({ predecessor }) => predecessor.projectId),
+    prepared.value.externalDependencies.map(({ predecessor }) => predecessor.workPackageId),
   ).toEqual(['source-a', 'source-b']);
 });
 
@@ -957,8 +968,8 @@ test('final scoped tuple comparison detects collisions across declaration arms',
   const relationship = {
     path: 'typedDependencies[0]',
     type: 'FS' as const,
-    predecessor: { scope: 'whole' as const, projectId: 'destination', workItemId: 'mapped' },
-    successor: { scope: 'whole' as const, projectId: 'new-owner', workItemId: 'new-row' },
+    predecessor: { scope: 'whole' as const, workPackageId: 'destination', workItemId: 'mapped' },
+    successor: { scope: 'whole' as const, workPackageId: 'new-owner', workItemId: 'new-row' },
   };
   expect(
     findImportDependencyDuplicate([
@@ -970,13 +981,16 @@ test('final scoped tuple comparison detects collisions across declaration arms',
   expect(
     findImportDependencyDuplicate([
       relationship,
-      { ...relationship, successor: { ...relationship.successor, projectId: 'other-owner' } },
+      { ...relationship, successor: { ...relationship.successor, workPackageId: 'other-owner' } },
     ]),
   ).toBeNull();
   expect(
     findImportDependencyDuplicate([
       relationship,
-      { ...relationship, predecessor: { ...relationship.predecessor, projectId: 'other-project' } },
+      {
+        ...relationship,
+        predecessor: { ...relationship.predecessor, workPackageId: 'other-work-package' },
+      },
     ]),
   ).toBeNull();
 });
@@ -1062,7 +1076,7 @@ function withMeasures(): PlanFixture {
 
 test('prepares a version-11 file’s measures, its definitions’ names and units cleaned', () => {
   const body = withMeasures();
-  const prepared = prepareImport(body, supportsAll);
+  const prepared = prepareImport(body, supportsAll, 'document');
   if (!prepared.ok) throw new Error(`refused at ${prepared.path}`);
   expect({
     factor: prepared.value.settings.budgetFactor,
@@ -1366,6 +1380,6 @@ for (const [name, fault, expected] of MEASURE_FAULTS) {
   test(`refuses a version-11 file whose measures do not hold together: ${name}`, () => {
     const body = withMeasures();
     fault(body);
-    expect(prepareImport(body, supportsAll)).toEqual({ ok: false, ...expected });
+    expect(prepareImport(body, supportsAll, 'document')).toEqual({ ok: false, ...expected });
   });
 }

@@ -61,7 +61,7 @@ export interface DeliveredPlan {
  * no call on it ever throws a lifecycle refusal. Whether a publication may still
  * reach it is the feed's question, answered before it writes — see
  * `plan-feed.feature.ts`'s `isLive`. Its owner today is the table's mount; the
- * project runtime of OpenSpec task 10 takes it over.
+ * work package runtime of OpenSpec task 10 takes it over.
  */
 export interface DeliveredPlanStore extends Store<DeliveredPlan> {
   /** Folds one publication in. */
@@ -88,7 +88,8 @@ function nothingDelivered(): DeliveredPlan {
 }
 
 /**
- * Whether two step lists say the same thing, so an equal one can be discarded.
+ * Whether two step lists retain every identity, name, code, allowance and estimate
+ * unit, so discarding an equal snapshot preserves focused editors.
  *
  * Proof: with the allowance left out of the comparison, `a changed allowance
  * is a different step list` failed: an allowance-only refresh was discarded
@@ -103,6 +104,8 @@ export function sameSteps(a: readonly StepView[], b: readonly StepView[]): boole
         // Proof: dropping code retained the old snapshot during a code-only delivered-plan refresh (same-steps.test.ts, 2026-10-22).
         step.code === b[i]?.code &&
         step.name === b[i]?.name &&
+        // Proof: omission discarded unit-only snapshots in both comparator/store tests and left the actual package control in workdays (three failures).
+        step.estimateUnit === b[i]?.estimateUnit &&
         step.allowancePercent === b[i]?.allowancePercent,
     )
   );

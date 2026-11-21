@@ -49,6 +49,8 @@ export async function runAdmitProgress(
   }
   // Proof: replacing this guard with false admitted real v9 export A against selected B,
   // differing only in blockedAt, in admit-progress.test.ts (2026-10-16).
+  // Proof: F11 bypassed producer-to-selected binding: changed-history mode=selected exited 0 instead
+  // of 1 (connected-progress.test.ts).
   if (producer.referenceDigest !== accepted.referenceDigest) {
     throw new Error('producer reference differs from the selected accepted reference');
   }

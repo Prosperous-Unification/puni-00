@@ -21,8 +21,8 @@ import { delegationFor, mapUpstream } from '../testing/scim-fixture';
  */
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectA: string;
-let projectB: string;
+let workPackageA: string;
+let workPackageB: string;
 let ram: string;
 
 const DIRECTORY = '/api/directory/commands';
@@ -44,7 +44,7 @@ afterEach(() => {
 
 /**
  * Organization A with `ada` (member), `vic` (viewer), `sue` (admin), `tom`
- * (super-admin); B with `grace`. Projects A and B of A, each with one leaf
+ * (super-admin); B with `grace`. Work packages A and B of A, each with one leaf
  * (`w-a`, `w-b`), agents `agent-a` and `agent-b` bound to ada, and the
  * resource `host ram` of A.
  */
@@ -70,15 +70,15 @@ async function setUp(harness: OrganizationHarness): Promise<void> {
   harness.member('org-b', 'grace', 'admin', ['org-admin']);
   harness.bind('grace', 'org-b');
   harness.activate();
-  projectA = await create(harness, 'sue', 'A');
-  projectB = await create(harness, 'sue', 'B');
-  for (const [id, projectId] of [
-    ['w-a', projectA],
-    ['w-b', projectB],
+  workPackageA = await create(harness, 'sue', 'A');
+  workPackageB = await create(harness, 'sue', 'B');
+  for (const [id, workPackageId] of [
+    ['w-a', workPackageA],
+    ['w-b', workPackageB],
   ] as const)
     harness.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
-      [id, projectId, id],
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES (?, ?, NULL, 0, ?)',
+      [id, workPackageId, id],
     );
   for (const id of ['agent-a', 'agent-b'])
     addAgentPerson(harness.sqlite, id, 'org-a', harness.userId('ada'));
@@ -86,9 +86,9 @@ async function setUp(harness: OrganizationHarness): Promise<void> {
 }
 
 async function create(harness: OrganizationHarness, username: string, name: string) {
-  const answer = await harness.call(username, 'POST', '/api/projects', { name });
+  const answer = await harness.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
   if (
     h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
       ?.state === 'activated'
@@ -98,18 +98,18 @@ async function create(harness: OrganizationHarness, username: string, name: stri
       username,
       'package-manager',
       'work_package',
-      projectId,
+      workPackageId,
     );
-  return projectId;
+  return workPackageId;
 }
 
-function firstStepOf(projectId: string): string {
+function firstStepOf(workPackageId: string): string {
   const step = h.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1',
     )
-    .get(projectId);
-  if (step === null) throw new Error(`project ${projectId} has no first workflow step`);
+    .get(workPackageId);
+  if (step === null) throw new Error(`work package ${workPackageId} has no first workflow step`);
   return step.id;
 }
 
@@ -155,8 +155,8 @@ function journalEntries(harness: OrganizationHarness): number {
   );
 }
 
-async function directoryCapacityRead(username: string, projectId: string) {
-  const read = await h.call(username, 'GET', `/api/projects/${projectId}/resources`);
+async function directoryCapacityRead(username: string, workPackageId: string) {
+  const read = await h.call(username, 'GET', `/api/work-packages/${workPackageId}/resources`);
   if (read.status !== 200) throw new Error(`read refused: ${JSON.stringify(read)}`);
   return (read.body as { resources: { id: string; directoryCapacity?: number | null }[] }).resources
     .filter(({ id }) => id === ram)
@@ -164,23 +164,23 @@ async function directoryCapacityRead(username: string, projectId: string) {
 }
 
 describe('setDirectoryCapacity', () => {
-  it('states a directory capacity on either route and reads it from both projects', async () => {
+  it('states a directory capacity on either route and reads it from both work packages', async () => {
     expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).toMatchObject({
       status: 200,
     });
-    for (const projectId of [projectA, projectB])
-      expect(await directoryCapacityRead('vic', projectId)).toEqual([16]);
+    for (const workPackageId of [workPackageA, workPackageB])
+      expect(await directoryCapacityRead('vic', workPackageId)).toEqual([16]);
     expect(
-      await h.call('tom', 'POST', `/api/projects/${projectA}/commands`, {
+      await h.call('tom', 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [state(ram, null)],
       }),
     ).toMatchObject({ status: 200 });
-    expect(await directoryCapacityRead('ada', projectB)).toEqual([null]);
+    expect(await directoryCapacityRead('ada', workPackageB)).toEqual([null]);
     expect(stated(h, ram)).toBeNull();
   });
 
   it('refuses a member and a viewer on either route, writing nothing', async () => {
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       expect(await h.call('ada', 'POST', path, { commands: [state(ram, 16)] }), path).toMatchObject(
         {
           status: 403,
@@ -208,7 +208,7 @@ describe('setDirectoryCapacity', () => {
       personId: 'sue-agent',
       issuedBy: h.userId('sue'),
     });
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       const commands = { commands: [state(ram, 16)] };
       expect(await callForwarded(h, key, 'POST', path, commands), path).toMatchObject({
         status: 403,
@@ -240,7 +240,7 @@ describe('setDirectoryCapacity', () => {
 
   it('writes one audit row per change, never a journal entry', async () => {
     const before = journalEntries(h);
-    await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+    await h.call('sue', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [state(ram, 16)],
     });
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, null)] });
@@ -308,7 +308,7 @@ describe('a directory capacity over MCP', () => {
        VALUES (?, 'org-a', 'sue-agent', ?, 'mcp_consent', 'consent', 'family-1', 1, ?)`,
       [credentialId, h.userId('sue'), h.userId('sue')],
     );
-    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+    for (const path of [DIRECTORY, `/api/work-packages/${workPackageA}/commands`]) {
       const consent = await delegationFor(h, signing.privateKey, 'sue', 'org-a', 'sub-sue', {
         credentialId,
         personId: 'sue-agent',
@@ -323,21 +323,26 @@ describe('a directory capacity over MCP', () => {
 });
 
 describe('previewing and lowering a directory capacity', () => {
-  /** A leaf of each project demanding `units`, claimed by its agent through ada's session. */
+  /** A leaf of each work package demanding `units`, claimed by its agent through ada's session. */
   async function hold(units: readonly [number, number]): Promise<void> {
-    for (const [index, projectId] of [projectA, projectB].entries()) {
+    for (const [index, workPackageId] of [workPackageA, workPackageB].entries()) {
       const workItemId = index === 0 ? 'w-a' : 'w-b';
-      const answer: Answer = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
-        commands: [
-          { kind: 'setDemand', workItemId, resourceId: ram, units: units[index] },
-          {
-            kind: 'claimWorkItem',
-            workItemId,
-            personId: index === 0 ? 'agent-a' : 'agent-b',
-            steps: [firstStepOf(projectId)],
-          },
-        ],
-      });
+      const answer: Answer = await h.call(
+        'ada',
+        'POST',
+        `/api/work-packages/${workPackageId}/commands`,
+        {
+          commands: [
+            { kind: 'setDemand', workItemId, resourceId: ram, units: units[index] },
+            {
+              kind: 'claimWorkItem',
+              workItemId,
+              personId: index === 0 ? 'agent-a' : 'agent-b',
+              steps: [firstStepOf(workPackageId)],
+            },
+          ],
+        },
+      );
       if (answer.status !== 200)
         throw new Error(`the claim was refused: ${JSON.stringify(answer)}`);
     }
@@ -353,11 +358,11 @@ describe('previewing and lowering a directory capacity', () => {
         resourceId: ram,
         before: 16,
         after: 10,
-        projects: [
-          { projectId: projectA, name: 'A', units: 8 },
-          { projectId: projectB, name: 'B', units: 6 },
-        ].sort((left, right) => left.projectId.localeCompare(right.projectId)),
-        hiddenProjects: { count: 0, units: 0 },
+        workPackages: [
+          { workPackageId: workPackageA, name: 'A', units: 8 },
+          { workPackageId: workPackageB, name: 'B', units: 6 },
+        ].sort((left, right) => left.workPackageId.localeCompare(right.workPackageId)),
+        hiddenWorkPackages: { count: 0, units: 0 },
         free: -4,
         refusal: null,
       },
@@ -401,31 +406,36 @@ describe('previewing and lowering a directory capacity', () => {
 
   // Proof: with the holders left out of SQLite's `setDirectoryCapacity`
   // announce set, C's event log gained no `directory_changed` here; watched 2026-11-01.
-  it('announces directory_changed to a project that holds the resource only through a claim', async () => {
+  it('announces directory_changed to a work package that holds the resource only through a claim', async () => {
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
-    const projectC = await create(h, 'sue', 'C');
+    const workPackageC = await create(h, 'sue', 'C');
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
-      [projectC],
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-held', ?, NULL, 0, 'w-held')",
+      [workPackageC],
     );
-    const claimed: Answer = await h.call('ada', 'POST', `/api/projects/${projectC}/commands`, {
-      commands: [
-        {
-          kind: 'claimWorkItem',
-          workItemId: 'w-held',
-          personId: 'agent-a',
-          steps: [firstStepOf(projectC)],
-          resources: [{ resourceId: ram, units: 6 }],
-        },
-      ],
-    });
+    const claimed: Answer = await h.call(
+      'ada',
+      'POST',
+      `/api/work-packages/${workPackageC}/commands`,
+      {
+        commands: [
+          {
+            kind: 'claimWorkItem',
+            workItemId: 'w-held',
+            personId: 'agent-a',
+            steps: [firstStepOf(workPackageC)],
+            resources: [{ resourceId: ram, units: 6 }],
+          },
+        ],
+      },
+    );
     expect(claimed).toMatchObject({ status: 200 });
     const toldC = () =>
       h.sqlite
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all(`project:${projectC}`)
+        .all(`work-package:${workPackageC}`)
         .filter(
           ({ message }) => (JSON.parse(message) as { type: string }).type === 'directory_changed',
         ).length;
@@ -449,17 +459,17 @@ describe('previewing and lowering a directory capacity', () => {
       .all();
     expect(held).toEqual([{ units: 6 }, { units: 8 }]);
     h.sqlite.run(
-      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-c', ?, NULL, 1, 'w-c')",
-      [projectA],
+      "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-c', ?, NULL, 1, 'w-c')",
+      [workPackageA],
     );
-    const refused = await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+    const refused = await h.call('ada', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [
         { kind: 'setDemand', workItemId: 'w-c', resourceId: ram, units: 1 },
         {
           kind: 'claimWorkItem',
           workItemId: 'w-c',
           personId: 'agent-a',
-          steps: [firstStepOf(projectA)],
+          steps: [firstStepOf(workPackageA)],
         },
       ],
     });

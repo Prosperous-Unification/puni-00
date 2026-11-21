@@ -1,515 +1,214 @@
 import {
+  type AuthenticatedUser,
   createProject,
-  exportProject,
+  deleteProject,
   listProjects,
-  patchProject,
+  patchProjectSettings,
   readProject,
-  recordProjectOpen,
-  retryProjectOptimization,
+  readProjectSettings,
+  renameProject,
 } from '@wbs/contracts';
-import type { Permission } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
-import type { SolverObjectiveName } from '@wbs/domain';
-import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
-import type { DirectoryService } from '../module/directory/directory.resource';
-import type { admittedWrites } from '../module/plan-commands/admitted-write';
-import { installPlanDocument } from '../module/plan-document/check';
-import type { ProjectService } from '../module/project/project.resource';
-import type { WorkItemService } from '../module/work-item/work-item.resource';
-import type { ScopedPrincipal } from '../ports/access-decisions';
-import type { Clock } from '../ports/clock';
-import type { OptimizationInput } from '../ports/optimization-input';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { Project } from '../ports/project-store';
-import type { OptimizationVariantState } from '../ports/scheduler';
-import type { StepParallelStore } from '../ports/step-parallel-store';
-import { isPaged, type PageQueryInput, pageQueryOf } from '../service/list-query';
-import { pageProjects, projectKeyOf } from '../service/project-page';
+import type { ProjectCaller, ProjectWriteRefusal } from '../ports/project-administration';
+import type { ProjectResource } from '../service/project.resource';
+import type { ProjectSettingsOutcome } from '../service/project-settings';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
-export interface OptimizationRetry {
-  /** Awaits Retry admission after its shared writer turn commits; `scoped` rechecks the actor in that transaction. */
-  retry(ask: {
-    readonly projectId: string;
-    readonly objective: SolverObjectiveName;
-    readonly inputHash: string;
-    readonly input: ScheduleInput | OptimizationInput;
-    readonly scoped?: {
-      readonly organizationId: string;
-      readonly actorId: string;
-      readonly role: OrganizationRole;
-      readonly principal: Readonly<ScopedPrincipal>;
+function classifyProjectRequestFailure(failure: RequestFailure) {
+  return failure.code === 'invalid_body'
+    ? ({ ok: false, status: 422, body: { error: failure.code } } as const)
+    : ({ ok: false, status: 400, body: { error: failure.code } } as const);
+}
+function writeRefusal(refusal: ProjectWriteRefusal) {
+  if ('refusal' in refusal) return organizationRefusal(refusal);
+  if (refusal.error === 'insufficient_scope')
+    return { ok: false, status: 403, body: { error: refusal.error } } as const;
+  return {
+    ok: false,
+    status: 403,
+    body: { error: refusal.error, permission: refusal.permission },
+  } as const;
+}
+
+/**
+ * Five engagement-project endpoints over required current-authority ports.
+ * Initial resolution supplies retained context evidence; each port revalidates it in its owner.
+ * New project operations have no legacy success or body-derived actor/organization.
+ */
+export function projectRoutes(projects: ProjectResource, organizations: OrganizationAccess) {
+  const callerOf = async (principal: AuthenticatedUser) => {
+    principal = structuredClone(principal);
+    const resolved = await organizations.resolve(principal);
+    if (!resolved.ok) return resolved;
+    if (resolved.access.kind === 'legacy')
+      return { ok: false, refusal: 'no_active_organization' } as const;
+    const caller: ProjectCaller = { kind: 'human', principal, expectedAccess: resolved.access };
+    return { ok: true, caller } as const;
+  };
+  const settingsReply = (
+    outcome: ProjectSettingsOutcome,
+  ): HttpReply<typeof patchProjectSettings> => {
+    if (outcome.ok)
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          settings: { ...outcome.settings, calendarMarkers: [...outcome.settings.calendarMarkers] },
+        },
+      };
+    if ('refusal' in outcome) return organizationRefusal(outcome);
+    if (outcome.reason === 'forbidden')
+      return {
+        ok: false,
+        status: 403,
+        body: { error: outcome.reason, permission: outcome.permission },
+      };
+    if (outcome.reason === 'insufficient_scope')
+      return { ok: false, status: 403, body: { error: outcome.reason } };
+    if (outcome.reason === 'not_found')
+      return { ok: false, status: 404, body: { error: outcome.reason } };
+    if (outcome.reason === 'invalid_value')
+      return { ok: false, status: 422, body: { error: outcome.reason, key: outcome.key } };
+    return {
+      ok: false,
+      status: 409,
+      body: { error: outcome.reason, key: outcome.key, level: outcome.level },
     };
-  }): Promise<
-    | { readonly kind: 'forbidden'; readonly permission?: Permission }
-    | { readonly kind: 'not_found' }
-    | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
-    | {
-        readonly kind: 'not-retryable';
-        readonly state: OptimizationVariantState['state'] | 'boundary-infeasible';
-      }
-    | { readonly kind: 'already-running' }
-    | {
-        readonly kind: 'accepted';
-        readonly state: 'retrying';
-        readonly generation: number;
-        readonly inputHash: string;
-      }
-  >;
-}
-
-interface ExportedWorkItem {
-  number: string;
-  name: string;
-  dates: { startsOn: string; endsOn: string } | null;
-  schedule: { duration: number; critical: boolean } | null;
-}
-
-// Proof: bypassing escaping made the mounted Markdown export contain Build | ship
-// instead of the escaped Build \| ship cell.
-const markdownCell = (value: string): string =>
-  value.replaceAll('\\', '\\\\').replaceAll('|', '\\|').replaceAll(/\r?\n/g, '<br>');
-
-/** The human-readable projection of the same tree payload returned by JSON. */
-export function projectMarkdown(project: Project, workItems: readonly ExportedWorkItem[]): string {
-  const title = project.name.replaceAll(/\r?\n/g, ' ').trim();
-  const rows = workItems.map((item) =>
-    [
-      item.number,
-      item.name,
-      item.dates?.startsOn ?? '—',
-      item.dates?.endsOn ?? '—',
-      // An on-hold row takes no part in the schedule, so it has neither.
-      item.schedule === null ? '—' : String(item.schedule.duration),
-      item.schedule === null ? '—' : item.schedule.critical ? 'yes' : 'no',
-    ]
-      .map(markdownCell)
-      .join(' | '),
-  );
-  return [
-    `# ${title}`,
-    '',
-    '| WBS | Work item | Start | Finish | Duration | Critical |',
-    '| --- | --- | --- | --- | ---: | :---: |',
-    ...rows.map((row) => `| ${row} |`),
-    '',
-  ].join('\n');
-}
-
-/** Structural bodies retain 422; malformed JSON and other request parts use 400.
- * Proof: returning 400 for invalid_body made the mounted undeclared-create test receive 500 instead of 422. */
-function classifyBodyFailure(failure: RequestFailure) {
-  switch (failure.code) {
-    case 'invalid_body':
-      return { ok: false, status: 422, body: { error: 'invalid_body' } } as const;
-    case 'invalid_json':
-      return { ok: false, status: 400, body: { error: 'invalid_json' } } as const;
-    case 'invalid_params':
-      return { ok: false, status: 400, body: { error: 'invalid_params' } } as const;
-    case 'invalid_query':
-      return { ok: false, status: 400, body: { error: 'invalid_query' } } as const;
-  }
-}
-
-/** Invalid format wins over query extras, matching the legacy format check before any read.
- * Proof: omitting this classifier changed the mounted export-format test from unsupported_format to invalid_query. */
-function classifyExportFailure(failure: RequestFailure) {
-  if (failure.part === 'query') {
-    const format = failure.request.url.searchParams.getAll('format').at(-1);
-    return format !== 'json' && format !== 'markdown'
-      ? ({ ok: false, status: 400, body: { error: 'unsupported_format' } } as const)
-      : ({ ok: false, status: 400, body: { error: 'invalid_query' } } as const);
-  }
-  return failure.part === 'params'
-    ? ({ ok: false, status: 400, body: { error: 'invalid_params' } } as const)
-    : ({ ok: false, status: 400, body: { error: 'invalid_body' } } as const);
-}
-
-/**
- * The paged contract's query, `undefined` when any parameter is outside the
- * grammar or the cursor is not a project cursor (a typed 400 before any read).
- *
- * Proof, observed 2026-09-29: answering a foreign-shaped cursor as a walk from
- * the top made `refuses every value outside the grammar with 400` in
- * `project-list-paging.controller.db.test.ts` receive 200 for `{ v: 1, after }`.
- */
-function projectPageQueryOf(query: PageQueryInput, url: URL) {
-  const parsed = pageQueryOf(query, url);
-  if (parsed === null) return undefined;
-  const { cursor, ...rest } = parsed;
-  if (cursor === null) return { ...rest, after: null };
-  const after = projectKeyOf(cursor);
-  return after === null ? undefined : { ...rest, after };
-}
-
-/**
- * Project operations share wire declarations; ProjectService retains ownership
- * of access checks, semantic date/weight refusals and optimizer announcements.
- * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
- */
-export function projectRoutes(
-  projects: Pick<ProjectService, 'authorizeRetry' | 'listWithin' | 'openWithin' | 'readWithin'> & {
-    updateWithin: ReturnType<typeof admittedWrites>['updateProjectWithin'];
-    createWithin: ReturnType<typeof admittedWrites>['createProjectWithin'];
-  },
-  organizations: OrganizationAccess,
-  workItems: WorkItemService,
-  directory: DirectoryService,
-  calendarMarkers: CalendarMarkerService,
-  clock: Pick<Clock, 'now'>,
-  stepParallels: Pick<StepParallelStore, 'listByProject'>,
-  optimizer?: OptimizationRetry,
-) {
-  const { planDocuments } = installPlanDocument({
-    directory,
-    markers: calendarMarkers,
-    clock,
-    stepParallels,
-    resourceFacts: workItems,
-    measureFacts: workItems,
-  });
+  };
   return [
     bind(
       createProject,
       async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.createWithin(
-          body.name,
-          principal,
-          resolved.access,
-          body.abbreviation,
-        );
-        if (outcome.ok) return { ok: true, status: 200, body: outcome.value };
-        if ('refusal' in outcome) return organizationRefusal(outcome);
-        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
-        switch (outcome.reason) {
-          case 'forbidden':
-            return {
-              ok: false,
-              status: 403,
-              body: {
-                error: outcome.reason,
-                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
-              },
-            };
-          case 'invalid_abbreviation':
-            return { ok: false, status: 422, body: { error: outcome.reason } };
-          case 'abbreviation_taken':
-          case 'abbreviation_exhausted':
-            return { ok: false, status: 409, body: { error: outcome.reason } };
-        }
-      },
-      { classifyRequestFailure: classifyBodyFailure },
-    ),
-    bind(
-      listProjects,
-      async ({ principal, query, request }): Promise<HttpReply<typeof listProjects>> => {
-        const paged = isPaged(query) ? projectPageQueryOf(query, request.url) : null;
-        // Proof, observed 2026-09-29: answering 200 here made `refuses every
-        // value outside the grammar with 400` in
-        // `project-list-paging.controller.db.test.ts` receive 200 for `limit=0`.
-        if (paged === undefined)
-          return { ok: false, status: 400, body: { error: 'invalid_query' } };
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        // Confined to the organization before anything is ordered, cut or
-        // given a cursor: a page never counts a project the caller cannot read.
-        // Proof, observed 2026-09-29: listing with legacy access instead made
-        // `pages only the caller’s organization, newest update first` in
-        // `project-list-paging.controller.db.test.ts` answer org-b's projects.
-        const readable = await projects.listWithin(principal.id, resolved.access);
-        return {
-          ok: true,
-          status: 200,
-          body:
-            paged === null
-              ? { projects: readable, nextCursor: null }
-              : pageProjects(readable, paged),
-        };
-      },
-    ),
-    // Proof: returning null instead of EMPTY made the mounted reader-open test receive 500 instead of 204.
-    bind(
-      recordProjectOpen,
-      async ({ params, principal }): Promise<HttpReply<typeof recordProjectOpen>> => {
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        return (await projects.openWithin(params.id, principal.id, resolved.access))
-          ? { ok: true, status: 204, body: EMPTY }
-          : { ok: false, status: 404, body: { error: 'not_found' } };
-      },
-    ),
-    bind(
-      exportProject,
-      async ({ params, query, principal }): Promise<HttpReply<typeof exportProject>> => {
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        // Proof: reading through `projects.read` instead made `answers 404 alike
-        // for a foreign and an absent project, and changes nothing` in
-        // `project-organization.controller.db.test.ts` answer 200 with the
-        // foreign project's Markdown; watched 2026-09-27.
-        const captured = await workItems.exportWithin(params.id, resolved.access);
-        if (captured.kind === 'access_refused') return organizationRefusal(captured.refusal);
-        if (captured.kind === 'not_found')
-          return { ok: false, status: 404, body: { error: 'not_found' } };
-        if (captured.kind === 'engine_unavailable')
-          return {
-            ok: false,
-            status: 409,
-            body: { error: captured.error, engine: captured.engine },
-          };
-        if (captured.kind === 'shared' || captured.kind === 'connected') {
-          if (query.format === 'markdown')
-            return {
-              ok: true,
-              status: 200,
-              text: projectMarkdown(captured.project, captured.tree.workItems),
-            };
-          // Proof: independent project/catalog/marker rereads each failed mounted structured-export coherence.
-          const exported =
-            captured.kind === 'connected'
-              ? planDocuments.exportConnectedCaptured(
-                  captured.project,
-                  captured.tree,
-                  captured.observation,
-                )
-              : planDocuments.exportCaptured(captured.project, captured.tree, captured.document);
-          if (!exported.ok)
-            return {
-              ok: false,
-              status: 409,
-              body:
-                // Proof: wrong shared mapping failed mounted sparse409 (mutation-shared-mapping.txt, 2026-10-17).
-                exported.error === 'uncoded_steps'
-                  ? { error: exported.error, steps: exported.steps, command: exported.command }
-                  : { error: exported.error },
-            };
+        const caller = await callerOf(principal);
+        if (!caller.ok) return organizationRefusal(caller);
+        const created = await projects.create(caller.caller, body.name, body.workPackage);
+        if (created === 'name_taken') return { ok: false, status: 409, body: { error: created } };
+        if ('ok' in created) return writeRefusal(created);
+        if (created.kind === 'work_package_refused')
+          return { ok: false, status: 409, body: { error: created.reason } };
+        if (created.kind === 'created_with_work_package')
           return {
             ok: true,
-            status: 200,
-            body: exported.value,
-            headers: [['content-type', 'application/json; charset=utf-8']],
+            status: 201,
+            body: {
+              project: created.project,
+              workPackage: created.workPackage,
+              steps: created.steps.map((step) => ({ ...step })),
+            },
           };
-        }
-        const found = await projects.readWithin(params.id, resolved.access);
-        if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        // Proof: reading the tree unscoped made `fails the export and the
-        // optimizer retry closed over a crossing row` in
-        // `schedule-organization.controller.db.test.ts` export with 200.
-        const tree = await workItems.treeWithin(params.id, resolved.access);
-        if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        // Proof: removing this branch made both mounted unavailable export cases
-        // receive 500 instead of 409, before either could inspect media or body.
-        // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
-        if ('kind' in tree && tree.kind === 'access_refused')
-          return organizationRefusal(tree.refusal);
-        if ('kind' in tree)
-          return {
-            ok: false,
-            status: 409,
-            body: { error: tree.error, engine: tree.engine },
-          };
-        if (query.format === 'markdown')
-          return {
+        return { ok: true, status: 201, body: { project: created.project } };
+      },
+      { classifyRequestFailure: classifyProjectRequestFailure },
+    ),
+    bind(listProjects, async ({ principal }): Promise<HttpReply<typeof listProjects>> => {
+      const caller = await callerOf(principal);
+      if (!caller.ok) return organizationRefusal(caller);
+      const listed = await projects.list(caller.caller);
+      return listed.ok
+        ? {
             ok: true,
             status: 200,
-            // Proof: returning this as a JSON body made the mounted Markdown export receive 500 instead of 200.
-            text: projectMarkdown(found.project, tree.workItems),
-          };
-        const exported = await planDocuments.export(found.project, tree, resolved.access);
-        if (!exported.ok)
-          return {
-            ok: false,
-            status: 409,
-            body:
-              // Proof: wrong isolated mapping failed mounted sparse409 (mutation-isolated-mapping.txt, 2026-10-17).
-              exported.error === 'uncoded_steps'
-                ? { error: exported.error, steps: exported.steps, command: exported.command }
-                : { error: exported.error },
-          };
-        return {
-          ok: true,
-          status: 200,
-          body: exported.value,
-          headers: [['content-type', 'application/json; charset=utf-8']],
-        };
-      },
-      { classifyRequestFailure: classifyExportFailure },
-    ),
+            body: { projects: listed.value.map((project) => ({ ...project })) },
+          }
+        : organizationRefusal(listed);
+    }),
     bind(readProject, async ({ params, principal }): Promise<HttpReply<typeof readProject>> => {
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved);
-      const found = await projects.readWithin(params.id, resolved.access);
-      return found === null
+      const caller = await callerOf(principal);
+      if (!caller.ok) return organizationRefusal(caller);
+      const found = await projects.read(caller.caller, params.id);
+      if (!found.ok) {
+        // Proof: omitting this branch gave 500 instead of 403 in 'projects a package-only parent as an exact list shell and refuses full detail without project.read';
+        // canonical passed before/after (project.controller.db.test.ts, 2026-11-14). Typed HTTP projection only.
+        if ('error' in found)
+          return {
+            ok: false,
+            status: 403,
+            body: { error: found.error, permission: found.permission },
+          };
+        return organizationRefusal(found);
+      }
+      return found.value === null
         ? { ok: false, status: 404, body: { error: 'not_found' } }
-        : { ok: true, status: 200, body: found };
+        : {
+            ok: true,
+            status: 200,
+            body: {
+              project: {
+                ...found.value,
+                workPackages: found.value.workPackages.map(({ id, name }) => ({ id, name })),
+              },
+            },
+          };
     }),
     bind(
-      patchProject,
-      async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.updateWithin(params.id, principal, body, resolved.access);
-        if ('refusal' in outcome) return organizationRefusal(outcome);
-        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
-        if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
-        switch (outcome.reason) {
-          case 'not_found':
-            return { ok: false, status: 404, body: { error: outcome.reason } };
-          case 'forbidden':
-            return {
+      renameProject,
+      async ({ params, body, principal }): Promise<HttpReply<typeof renameProject>> => {
+        const caller = await callerOf(principal);
+        if (!caller.ok) return organizationRefusal(caller);
+        const renamed = await projects.rename(caller.caller, params.id, body.name);
+        if (renamed === 'name_taken') return { ok: false, status: 409, body: { error: renamed } };
+        if (renamed === 'not_found') return { ok: false, status: 404, body: { error: renamed } };
+        if ('ok' in renamed) return writeRefusal(renamed);
+        return { ok: true, status: 200, body: { project: renamed.project } };
+      },
+      { classifyRequestFailure: classifyProjectRequestFailure },
+    ),
+    bind(deleteProject, async ({ params, principal }): Promise<HttpReply<typeof deleteProject>> => {
+      const caller = await callerOf(principal);
+      if (!caller.ok) return organizationRefusal(caller);
+      const deleted = await projects.delete(caller.caller, params.id);
+      if (deleted === 'not_found') return { ok: false, status: 404, body: { error: deleted } };
+      if (deleted === 'last_super_admin')
+        return { ok: false, status: 409, body: { error: deleted } };
+      if ('ok' in deleted) return writeRefusal(deleted);
+      if (deleted.kind === 'not_empty')
+        return {
+          ok: false,
+          status: 409,
+          body: { error: deleted.kind, workPackageIds: [...deleted.workPackageIds] },
+        };
+      return { ok: true, status: 204, body: EMPTY };
+    }),
+    bind(
+      readProjectSettings,
+      async ({ params, principal }): Promise<HttpReply<typeof readProjectSettings>> => {
+        const projectId = params.id;
+        const caller = await callerOf(principal);
+        if (!caller.ok) return organizationRefusal(caller);
+        const observed = await projects.readSettings(caller.caller, projectId);
+        if (observed.ok)
+          return {
+            ok: true,
+            status: 200,
+            body: {
+              settings: {
+                ...observed.settings,
+                calendarMarkers: [...observed.settings.calendarMarkers],
+              },
+            },
+          };
+        if ('refusal' in observed) return organizationRefusal(observed);
+        return observed.reason === 'not_found'
+          ? { ok: false, status: 404, body: { error: 'not_found' } }
+          : {
               ok: false,
               status: 403,
-              body: {
-                error: outcome.reason,
-                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
-              },
+              body: { error: 'forbidden', permission: observed.permission },
             };
-          case 'bad_start_date':
-          case 'bad_pert_weights':
-          case 'invalid_abbreviation':
-          case 'bad_budget_factor':
-          case 'invalid_timezone':
-            return { ok: false, status: 422, body: { error: outcome.reason } };
-          // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
-          case 'optimizer_unavailable':
-          case 'abbreviation_taken':
-          case 'solution_taken':
-            return { ok: false, status: 409, body: { error: outcome.reason } };
-          case 'dependency_cycle':
-            return { ok: false, status: 409, body: { error: outcome.reason } };
-        }
       },
-      { classifyRequestFailure: classifyBodyFailure },
     ),
     bind(
-      retryProjectOptimization,
-      async ({ params, body, principal }): Promise<HttpReply<typeof retryProjectOptimization>> => {
-        const resolved = await organizations.resolve(principal);
-        if (!resolved.ok) return organizationRefusal(resolved);
-        const authorization = await projects.authorizeRetry(
-          params.id,
-          principal.id,
-          resolved.access,
-        );
-        // Proof: bypassing authorization made the mounted foreign Retry open a connected read before its 404.
-        if (!authorization.ok) {
-          return authorization.reason === 'not_found'
-            ? { ok: false, status: 404, body: { error: 'not_found' } }
-            : {
-                ok: false,
-                status: 403,
-                body: {
-                  error: 'forbidden',
-                  ...(authorization.permission === undefined
-                    ? {}
-                    : { permission: authorization.permission }),
-                },
-              };
-        }
-        // Proof: building input without this human scope made the crossing-row
-        // Retry case answer 409 instead of 500 and could reveal a foreign chain.
-        const captured = await workItems.optimizationInputWithin(params.id, resolved.access);
-        if (captured.kind === 'access_refused') return organizationRefusal(captured.refusal);
-        if (captured.kind === 'not_found')
-          return { ok: false, status: 404, body: { error: 'not_found' } };
-        // Proof: bypassing this refusal attempted Retry with no canonical input
-        // in the mounted engine/cycle/calendar-range cases. Injecting a live
-        // optimizer read before it kept the 409 but wrote generation and slots;
-        // the mounted full-state equality failed.
-        if (captured.kind === 'unavailable')
-          return {
-            ok: false,
-            status: 409,
-            body: {
-              code: 'schedule-input-unavailable',
-              reason: captured.reason,
-              projectId: captured.projectId,
-            },
-          };
-        // Proof: removing this branch made mounted missing-calendar Retry return 500 instead of its typed 409.
-        if (captured.kind === 'dependency_calendar_missing')
-          return {
-            ok: false,
-            status: 409,
-            body: {
-              code: 'schedule-input-unavailable',
-              reason: 'dependency_calendar_missing',
-              projectId: params.id,
-              projects: captured.projects,
-            },
-          };
-        // Proof: removing idle handling made mounted held-target Retry return 500 instead of 409.
-        if (captured.kind === 'idle' || optimizer === undefined) {
-          return {
-            ok: false,
-            status: 409,
-            body: { code: 'not-retryable', state: 'idle' },
-          };
-        }
-        const outcome = await optimizer.retry({
-          projectId: params.id,
-          ...body,
-          input: captured.input,
-          ...(resolved.access.kind === 'scoped'
-            ? {
-                scoped: {
-                  organizationId: resolved.access.scope.organizationId,
-                  actorId: principal.id,
-                  role: resolved.access.scope.role,
-                  principal: resolved.access.principal,
-                },
-              }
-            : {}),
-        });
-        switch (outcome.kind) {
-          case 'forbidden':
-            // Proof: omitting this permission failed mounted Retry after writer grant revocation, 2026-11-09.
-            // Proof: retry-route-permission fault failed 'writer grant revocation' (connected-retry.controller.db.test.ts); restored GREEN, 2026-11-09.
-            return {
-              ok: false,
-              status: 403,
-              body: {
-                error: 'forbidden',
-                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
-              },
-            };
-          case 'not_found':
-            return { ok: false, status: 404, body: { error: 'not_found' } };
-          case 'stale-input-hash':
-            return {
-              ok: false,
-              status: 409,
-              body: {
-                code: 'stale-input-hash',
-                currentInputHash: outcome.currentInputHash,
-              },
-            };
-          case 'not-retryable':
-            return {
-              ok: false,
-              status: 409,
-              body: { code: 'not-retryable', state: outcome.state },
-            };
-          case 'already-running':
-            return { ok: false, status: 409, body: { code: 'already-running' } };
-          case 'accepted':
-            return {
-              ok: true,
-              status: 202,
-              body: {
-                state: outcome.state,
-                generation: outcome.generation,
-                inputHash: outcome.inputHash,
-              },
-            };
-        }
+      patchProjectSettings,
+      async ({ params, principal, body }): Promise<HttpReply<typeof patchProjectSettings>> => {
+        const projectId = params.id;
+        const budgetFactor = body.budgetFactor;
+        const caller = await callerOf(principal);
+        if (!caller.ok) return organizationRefusal(caller);
+        return settingsReply(await projects.writeSettings(caller.caller, projectId, budgetFactor));
       },
-      { classifyRequestFailure: classifyBodyFailure },
+      { classifyRequestFailure: classifyProjectRequestFailure },
     ),
   ] as const;
 }

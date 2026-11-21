@@ -1,7 +1,6 @@
-import { expect, type Page, test } from '@playwright/test';
-
 import type { PlanOptimizationView, PlanRead } from '../src/lib/wbs-api';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
 import { countToolbarControls } from './toolbar-controls';
 
 /**
@@ -23,23 +22,23 @@ import { countToolbarControls } from './toolbar-controls';
 /**
  * What the toolbar row has to lay out at 1280 with the cue on it — every
  * control's width plus the gaps — measured in this file's own Chromium on a
- * project with one row and optimization on.
+ * work package with one row and optimization on.
  *
  * Pinned rather than derived from the bar it measures, which is
  * `plan-toolbar-controls`' lesson (R5): a budget read off its own subject is
- * decoration. `project-settings.spec.ts` pins the same row **without** the cue,
- * on a fresh project where the toggle is off and the pill is not drawn at all;
+ * decoration. `work-package-settings.spec.ts` pins the same row **without** the cue,
+ * on a fresh work package where the toggle is off and the pill is not drawn at all;
  * this is the figure with it.
  */
 // **Corrected from 1601 to 1604 on 2026-09-12.** `arrange-by-schedule` moved
 // the pin from 1566 to 1601 on 2026-09-11, charging 35px. Its 32px icon control
 // and the new child's 6px gap cost 38px in the sum this test measures. The same
 // Chromium measured 1603.875 with it and 1565.875 when that one control and gap
-// are subtracted, matching the cue-less measurement in `project-settings.spec.ts`.
+// are subtracted, matching the cue-less measurement in `work-package-settings.spec.ts`.
 // `rows` is still 2 below, so nothing wrapped further.
 //
 // **Re-pinned from 1604 to 1630 on 2026-10-13**, for the +27.41px the cue-less pin in
-// `project-settings.spec.ts` itemises (one-line Export / Import +45.41, square undo,
+// `work-package-settings.spec.ts` itemises (one-line Export / Import +45.41, square undo,
 // redo and keyboard buttons −18, the schedule group ±0). Measured 1629.890625; `rows`
 // is still 2.
 const LAID_OUT_WITH_THE_CUE_AT_1280 = 1630;
@@ -51,7 +50,7 @@ const LAID_OUT_WITH_THE_CUE_AT_1280 = 1630;
  */
 const CONTROLS_WITH_THE_CUE = 19;
 
-/** How far a measured edge may be from a pinned figure, in CSS px — `project-settings.spec.ts`'s. */
+/** How far a measured edge may be from a pinned figure, in CSS px — `work-package-settings.spec.ts`'s. */
 const NEARLY = 2;
 
 const SUGGESTING: PlanOptimizationView = {
@@ -69,7 +68,7 @@ const SUGGESTING: PlanOptimizationView = {
 };
 
 /**
- * A project with one row whose plan read carries {@link SUGGESTING}, and a
+ * A work package with one row whose plan read carries {@link SUGGESTING}, and a
  * handle that changes what the **next** read says.
  *
  * The handle is what makes a switch a switch: be-01's answer is intercepted, so
@@ -80,12 +79,12 @@ const SUGGESTING: PlanOptimizationView = {
 async function planWithACue(page: Page): Promise<{ serve: (next: PlanOptimizationView) => void }> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
 
   let optimization = SUGGESTING;
-  await page.route('**/api/projects/*/work-items', async (route) => {
+  await page.route('**/api/work-packages/*/work-items', async (route) => {
     const response = await route.fetch();
     const plan = (await response.json()) as PlanRead;
     await route.fulfill({
@@ -199,7 +198,7 @@ test.describe('the schedule cue, in a browser', () => {
   });
 
   test('adds no sideways scroll to a phone, open or closed', async ({ page }) => {
-    // The project is made at desktop width and the viewport narrowed after:
+    // The work package is made at desktop width and the viewport narrowed after:
     // below `md` the plan draws itself as cards and `Add work item` is not on
     // the toolbar row at all, so building the fixture at 390px waits two
     // minutes for a button that is somewhere else.
@@ -242,7 +241,7 @@ test.describe('the schedule cue, in a browser', () => {
     page,
   }) => {
     await planWithACue(page);
-    // A **fact**, not a tool hint: the words are about the project rather than
+    // A **fact**, not a tool hint: the words are about the work package rather than
     // about what the control does, so they open on arrival and behind no ring
     // (`tool-hints-wait` split the two; `hint.ts` holds both attributes).
     await pill(page).hover();
@@ -255,7 +254,7 @@ test.describe('the schedule cue, in a browser', () => {
     const card = cueCard(page);
     // Every schedule, its figures, its comparison and which one is active.
     await expect(card).toContainText('Fast · 10 days · active');
-    await expect(card).toContainText('Pri · 7 days · Earlier project deadline by 3 days');
+    await expect(card).toContainText('Pri · 7 days · Earlier work package deadline by 3 days');
     await expect(card).toContainText('Time · Optimizing…');
     // What the three algorithms are, which a three-letter name cannot say.
     await expect(card).toContainText('Fast places the plan in milliseconds');
@@ -321,7 +320,7 @@ test.describe('the schedule cue, in a browser', () => {
    *
    * Proof: `w-[11.5rem]` removed from `PILL`, so the box is the width of its
    * words again, and this failed on `the toolbar moved under a switch: Starts ·
-   * Expected: 1049.55 · Received: 1192.48` — the project's start-date control
+   * Expected: 1049.55 · Received: 1192.48` — the work package's start-date control
    * **143px** to the right of where it had been, because the pill shrank by
    * that much when its saving went and the row re-laid itself around it.
    * Watched 2026-09-08.
@@ -400,12 +399,12 @@ test.describe('the schedule cue, in a browser', () => {
   test('asks be-01 for the schedule the reader picked', async ({ page }) => {
     await planWithACue(page);
     await pill(page).click();
-    // The settings live on the project row, so the switch is a project PATCH
+    // The settings live on the work package row, so the switch is a work package PATCH
     // carrying the two schedule fields — not an optimization-scoped endpoint.
     const patched = page.waitForRequest(
       (request) =>
         request.method() === 'PATCH' &&
-        /\/api\/projects\/[^/]+$/.test(new URL(request.url()).pathname),
+        /\/api\/work-packages\/[^/]+$/.test(new URL(request.url()).pathname),
     );
     await page.getByRole('menuitem', { name: /^Pri/ }).click();
     const request = await patched;

@@ -19,8 +19,8 @@ import type { Channel } from '@/modules/channel';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { type DeliveredPlan, sameSteps } from '@/modules/plan-feed/delivered-plan-store';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
-import type { PlanRefusal, ProjectRuntime } from '@/modules/project/contract';
 import type { Store } from '@/modules/store';
+import type { PlanRefusal, WorkPackageRuntime } from '@/modules/work-package/contract';
 
 import { type CellCards } from './cell-card-store';
 import type { GeneralPanelProps } from './general-panel';
@@ -41,26 +41,26 @@ export interface WbsTableProps {
   /** False while its owning page shows Board; isolated Plan readers stay active. */
   planActive?: boolean;
   /**
-   * The selected project's runtime, opened and left by its owner above the
+   * The selected work package's runtime, opened and left by its owner above the
    * table — never the client, a port or the feed's refresh owner (rule K2).
    *
    * The table opens nothing and closes nothing: every service it writes
    * through and every store it selects from is this runtime's, and a new
    * runtime is a new reader.
    */
-  project: ProjectRuntime;
+  workPackage: WorkPackageRuntime;
   /** Page-owned archival import lifecycle; absent in isolated table tests. */
   planImport?: PlanImportControl;
   /** Page-owned production toast lifetime; absent in isolated table tests. */
   toastApi?: ToastStackApi;
   /**
-   * What this project is called, for the export's header and its filename.
+   * What this work package is called, for the export's header and its filename.
    *
    * Optional for the reason `subscribe` is: the table is driven by a fake in
    * tests and the picker that holds the name is not on screen there. Supplied
-   * in the app — see {@link UNNAMED_PROJECT} for what an export says without it.
+   * in the app — see {@link UNNAMED_WORK_PACKAGE} for what an export says without it.
    */
-  projectName?: string;
+  workPackageName?: string;
   /** Page-owned catalog observation and edit lifecycle. */
   generalSettings?: Omit<GeneralPanelProps, 'onDirtyChange' | 'onBusyChange'>;
   /**
@@ -68,8 +68,8 @@ export interface WbsTableProps {
    * **only** there, in the `cards` arm below.
    *
    * A `ReactNode` the page hands down rather than a component this file builds:
-   * the shelf needs the checkpoint routes and the project the picker has open,
-   * and both live in `ProjectPage`. Threading them here would give the table
+   * the shelf needs the checkpoint routes and the work package the picker has open,
+   * and both live in `WorkPackagePage`. Threading them here would give the table
    * two more props it never reads.
    *
    * Optional because the table is driven by a fake in tests and mounted on its
@@ -78,7 +78,7 @@ export interface WbsTableProps {
   savedPlansShelf?: ReactNode;
   /**
    * The signed-in account (`wbs-claim-display` 11.2), which a row's Claim
-   * names the bound person of ({@link claimantOf}). `ProjectPage` always passes
+   * names the bound person of ({@link claimantOf}). `WorkPackagePage` always passes
    * it; absent — a suite drawing the table for nobody — the menus offer no
    * claim item at all, which is the one state that is not a refusal.
    */
@@ -86,10 +86,10 @@ export interface WbsTableProps {
 }
 
 export interface SubscriptionHandlers {
-  /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
+  /** See `WorkPackageStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
-  /** See `ProjectStreamOptions.onClaims`. */
+  /** See `WorkPackageStreamOptions.onClaims`. */
   onClaims: () => void;
 }
 
@@ -110,7 +110,7 @@ export interface SubscriptionHandlers {
  *   the directory change announces itself and is not folded silently into a
  *   `tree_replaced`.
  * - `'tree-and-steps'` adds the steps because that is what the three step
- *   events change, as `ProjectEvent`'s own JSDoc says.
+ *   events change, as `WorkPackageEvent`'s own JSDoc says.
  *
  * `directory_changed` and the capacity events are deliberately **not** narrowed:
  * a removed team takes its assignments and labels out of the tree with it, so
@@ -133,7 +133,7 @@ export interface ChartRead {
   steps: StepView[];
   people: AssignedPersonView[];
   /**
-   * The work items in other projects this plan's slices wait for, named, in
+   * The work items in other work packages this plan's slices wait for, named, in
    * the same payload as the slices that point at them. Empty for a plan
    * no foreign person floor is displayed, where be-01 sends none.
    */
@@ -167,7 +167,7 @@ export interface ChartRead {
   /** The optimizer state returned with the schedule, when the runtime is wired. */
   optimization?: PlanOptimizationView;
   /**
-   * The project's IANA zone, which every instant on the plan is printed in
+   * The work package's IANA zone, which every instant on the plan is printed in
    * (`step-node-attempts` D3). `null` before a read lands and from a be-01
    * whose tree read predates the zone: the attempt list and the timezone
    * control are left out rather than shown in a zone nobody chose.
@@ -214,7 +214,7 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
 /**
  * No read has landed yet: no slices, no roles, nobody, and no generation.
  *
- * The reach is the column's own default, which is what a project has unless it
+ * The reach is the column's own default, which is what a work package has unless it
  * asks otherwise — and with no slices to draw there is no arrow for it to place
  * either way.
  */
@@ -225,7 +225,7 @@ export const NO_CHART_READ: ChartRead = {
   elsewhereHolders: [],
   resourceLabels: [],
   depReach: 'whole-item',
-  // The column defaults, which are what a project has unless it asks
+  // The column defaults, which are what a work package has unless it asks
   // otherwise — 1/4/1 and `ceil`, the same figures `libs/wbs/domain/domain`'s
   // `DEFAULT_ESTIMATE_RULE` carries. With no slices to draw, nothing has been
   // computed with them either way.
@@ -264,31 +264,31 @@ function emptyDirectory(): DirectoryRead {
  * of it is stale.
  *
  * **Selected, never set.** The plan feed writes every publication into the
- * project's delivered plan (`modules/plan-feed/delivered-plan-store.ts`), and
+ * work package's delivered plan (`modules/plan-feed/delivered-plan-store.ts`), and
  * every value below is derived from that one snapshot, so a render never sees
  * two publications at once and nothing here hands a setter to anybody. Each
  * derived value keeps its identity until the member it comes from changes,
  * which is what the table's memos were already relying on.
  *
- * A store rather than a query cache because this table has one project on
+ * A store rather than a query cache because this table has one work package on
  * screen and a socket telling it when to read again — see {@link usePlanRead}
  * for the reading itself.
  */
-export function usePlanReadState({ project }: { project: ProjectRuntime }) {
-  const projectId = project.projectId;
+export function usePlanReadState({ workPackage }: { workPackage: WorkPackageRuntime }) {
+  const workPackageId = workPackage.workPackageId;
   /**
-   * The project this render belongs to, readable by work that outlives the
+   * The work package this render belongs to, readable by work that outlives the
    * render which started it.
    *
    * Updated during render rather than in an effect: a click can land on the
-   * newly rendered project before effects run, and stale work must already
+   * newly rendered work package before effects run, and stale work must already
    * know it no longer owns this table by then.
    */
-  const activeProject = useRef(projectId);
+  const activeWorkPackage = useRef(workPackageId);
 
-  activeProject.current = projectId;
+  activeWorkPackage.current = workPackageId;
 
-  const delivered = useSyncExternalStore(project.plan.subscribe, project.plan.snapshot);
+  const delivered = useSyncExternalStore(workPackage.plan.subscribe, workPackage.plan.snapshot);
   const tree = delivered.tree;
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
@@ -296,12 +296,12 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
   // Proof: delivering undefined failed unavailable hold/step and both rename/clear mounted layouts (2026-10-23).
   const remoteBlockageLabels = tree === null ? undefined : tree.value.remoteBlockageLabels;
   const typedDependencies = useMemo(
-    () => (tree === null ? [] : dependencyViewsOf(tree.value, projectId)),
-    [tree, projectId],
+    () => (tree === null ? [] : dependencyViewsOf(tree.value, workPackageId)),
+    [tree, workPackageId],
   );
 
-  /** The project whose whole tree most recently completed a successful read. */
-  const treeReadProject = useRef<string | null>(null);
+  /** The work package whose whole tree most recently completed a successful read. */
+  const treeReadWorkPackage = useRef<string | null>(null);
 
   /**
    * Everything the chart is drawn from, as **one** read delivered it.
@@ -381,8 +381,8 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
   );
 
   // Selected, never set here: the gestures raise and lower it through `busyWrites`.
-  const busy = useSyncExternalStore(project.busy.subscribe, project.busy.snapshot);
-  const busyWrites: BusyWrites = project.busy;
+  const busy = useSyncExternalStore(workPackage.busy.subscribe, workPackage.busy.snapshot);
+  const busyWrites: BusyWrites = workPackage.busy;
 
   const connected = delivered.connected;
 
@@ -409,14 +409,14 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     [tree],
   );
 
-  /** The project's start date, or null while the plan is not on a calendar. */
+  /** The work package's start date, or null while the plan is not on a calendar. */
   const startDate = tree === null ? null : tree.value.startDate;
 
   /**
    * The global directory: every team and every person on this deployment, the
    * tag and service vocabularies, the work item types and the external systems.
    *
-   * Global rather than per project — Dany's ask — so it is loaded once beside
+   * Global rather than per work package — Dany's ask — so it is loaded once beside
    * the tree rather than filtered by anything. The services label the third
    * dimension's facet and its cell picker; a facet that offers ids instead of
    * names is a filter nobody can aim. The external systems are loaded with the
@@ -450,10 +450,10 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
   const priorityBands = useMemo(() => (tree === null ? [] : tree.value.priorityBands), [tree]);
 
   /**
-   * The calendar markers on this project — the list `GanttPanel` draws.
+   * The calendar markers on this work package — the list `GanttPanel` draws.
    *
    * **Its own member off its own read**, and not a member of `chartRead`, which
-   * is `ProjectApi.listCalendarMarkers`'s own argument turned around: a marker
+   * is `WorkPackageApi.listCalendarMarkers`'s own argument turned around: a marker
    * moves nothing in the schedule (task 4, axis-1), so folding it into the plan
    * would make every marker write a full tree reread and every tree reread
    * carry markers the table never looks at. The delivered plan keeps the same
@@ -467,15 +467,15 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
    */
   const claims = delivered.claims;
   return {
-    plan: project.plan,
+    plan: workPackage.plan,
     markers,
     claims,
-    activeProject,
+    activeWorkPackage,
     workItems,
     stepNodes,
     typedDependencies,
     remoteBlockageLabels,
-    treeReadProject,
+    treeReadWorkPackage,
     chartRead,
     steps,
     treeMayBeStale,
@@ -483,8 +483,8 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     treeFailureText,
     busy,
     busyWrites,
-    refusals: project.refusals,
-    commandsIssued: project.commandsIssued,
+    refusals: workPackage.refusals,
+    commandsIssued: workPackage.commandsIssued,
     connected,
     scheduleError,
     estimateMethod,
@@ -502,14 +502,14 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
 }
 
 /**
- * What the table does with the plan its project's runtime reads: the
+ * What the table does with the plan its work package's runtime reads: the
  * announcements it listens to, what a publication settles on screen, and the
  * undo stack's own sentences.
  *
  * It opens and closes nothing. The feed, the writer and the marker gestures are
- * the runtime's, built once when the project was opened, and every "is this
+ * the runtime's, built once when the work package was opened, and every "is this
  * reader still on screen" question is the runtime's
- * {@link ProjectRuntime.isCurrent}.
+ * {@link WorkPackageRuntime.isCurrent}.
  *
  * `refreshOrMarkStale` takes a scope rather than always reading everything,
  * because a step rename and a tree replacement are different amounts of work
@@ -517,11 +517,11 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
  */
 export function usePlanRead({
   setDrafts,
-  projectId,
-  project,
+  workPackageId,
+  workPackage,
   commands,
   plan,
-  treeReadProject,
+  treeReadWorkPackage,
   rowPlacements,
   cellCards,
   pushToast,
@@ -531,13 +531,13 @@ export function usePlanRead({
   commandsIssued,
 }: {
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  projectId: string;
+  workPackageId: string;
   /** The runtime the table is drawn from. */
-  project: ProjectRuntime;
-  /** This project's commands, bound to it. */
+  workPackage: WorkPackageRuntime;
+  /** This work package's commands, bound to it. */
   commands: PlanCommands;
   plan: Store<DeliveredPlan>;
-  treeReadProject: React.RefObject<string | null>;
+  treeReadWorkPackage: React.RefObject<string | null>;
   rowPlacements: React.RefObject<ReadonlyMap<string, string>>;
   cellCards: CellCards;
   pushToast: (toast: Toast) => void;
@@ -647,7 +647,7 @@ export function usePlanRead({
         // Proof: on 2026-09-24, this line deleted, `offers the reset only while there is a width
         // to reset` failed on `Unable to find an accessible element with the role "button" and
         // name "Reset layout"`.
-        treeReadProject.current = projectId;
+        treeReadWorkPackage.current = workPackageId;
         // The open hover card, settled against the rows that just arrived. The
         // previous placements are read into a local **before** the ref is replaced:
         // React may run the updater below after this call returns, and reading the
@@ -668,19 +668,19 @@ export function usePlanRead({
       // gone` failed on `expected [ '010' ] to deeply equal []`.
       if (next.steps !== previous.steps) settleAgainstSteps(next.steps);
     },
-    [cellCards, projectId, rowPlacements, settleAgainstSteps, treeReadProject],
+    [cellCards, workPackageId, rowPlacements, settleAgainstSteps, treeReadWorkPackage],
   );
   useSnapshotChanges(plan, settle);
 
   /**
    * Awaits this invalidation's covering outcome; failures remain in the owner
    * snapshot. The runtime this callback was built for rereads only while it is
-   * current, so a reread asked from a project this reader has left reads
+   * current, so a reread asked from a work package this reader has left reads
    * nothing.
    */
   const refreshOrMarkStale = useCallback(
     async (scope: PlanReadScope = 'all'): Promise<void> => {
-      await project.reread(
+      await workPackage.reread(
         scope === 'tree'
           ? ['tree']
           : scope === 'tree-and-steps'
@@ -688,7 +688,7 @@ export function usePlanRead({
             : ALL_RESOURCES,
       );
     },
-    [project],
+    [workPackage],
   );
 
   /**
@@ -708,17 +708,17 @@ export function usePlanRead({
     async (direction: 'undo' | 'redo') => {
       // The runtime this step was asked of, and not whoever is on screen when its
       // answer arrives. The toasts are the page's and outlive this table, so a
-      // project this reader has left must say nothing into them: the page would
-      // show it over the project that replaced it.
-      const isCurrent = project.isCurrent;
+      // work package this reader has left must say nothing into them: the page would
+      // show it over the work package that replaced it.
+      const isCurrent = workPackage.isCurrent;
       busyWrites.raise();
       try {
         let outcome;
         try {
           outcome = direction === 'undo' ? await commands.undo() : await commands.redo();
         } catch (thrown: unknown) {
-          // Proof: on 2026-09-25, removing this return put the left project's refusal
-          // over the next one in `says nothing in the next project when an undo asked
+          // Proof: on 2026-09-25, removing this return put the left work package's refusal
+          // over the next one in `says nothing in the next workPackage when an undo asked
           // of the last one is refused`: expected [ Array(1) ] to deeply equal [].
           if (!isCurrent()) return;
           // The same register as `run`: be-01's two *modeled* refusals are read
@@ -728,7 +728,7 @@ export function usePlanRead({
           return;
         }
         // Proof: on 2026-09-25, removing this return put `Undid: rename “Strip”` over
-        // the next project in `says nothing in the next project when an undo asked of
+        // the next work package in `says nothing in the next workPackage when an undo asked of
         // the last one succeeds`.
         if (!isCurrent()) return;
         if (outcome.ok) {
@@ -754,13 +754,18 @@ export function usePlanRead({
         await refreshOrMarkStale();
       } finally {
         // Lowered whoever is reading now: this busy state is the runtime's own,
-        // so a project this reader has left lowers only a busy nobody draws.
+        // so a work package this reader has left lowers only a busy nobody draws.
         busyWrites.lower();
       }
     },
-    [busyWrites, commands, project, pushToast, refreshOrMarkStale],
+    [busyWrites, commands, workPackage, pushToast, refreshOrMarkStale],
   );
-  return { refreshOrMarkStale, run: project.writer.run, stepStack, markers: project.markers };
+  return {
+    refreshOrMarkStale,
+    run: workPackage.writer.run,
+    stepStack,
+    markers: workPackage.markers,
+  };
 }
 
 /**

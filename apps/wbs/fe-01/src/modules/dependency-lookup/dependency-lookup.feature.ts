@@ -1,11 +1,11 @@
-import type { ProjectAddressApi } from '@/lib/wbs-api';
+import type { WorkPackageAddressApi } from '@/lib/wbs-api';
 
 import type {
   AddressCandidate,
   EndpointSearchReply,
   OpenedDependencyLookup,
-  ProjectDiscoveryReply,
   ReferenceResolutionReply,
+  WorkPackageDiscoveryReply,
 } from './contract';
 
 /**
@@ -16,9 +16,9 @@ export function openDependencyLookup({
   isCurrent,
   routes,
 }: {
-  projectId: string;
+  workPackageId: string;
   isCurrent: () => boolean;
-  routes: ProjectAddressApi;
+  routes: WorkPackageAddressApi;
 }): OpenedDependencyLookup {
   let closed = false;
   const isClosed = (): boolean => closed;
@@ -53,22 +53,24 @@ export function openDependencyLookup({
   });
   return {
     lookup: {
-      discoverProjects: (query, cursor, signal) =>
+      discoverWorkPackages: (query, cursor, signal) =>
         observe(
-          (abort) => routes.projects(buildPageQuery(query, cursor), abort).then(normalizeProjects),
+          (abort) =>
+            routes.workPackages(buildPageQuery(query, cursor), abort).then(normalizeWorkPackages),
           signal,
         ),
-      searchEndpoints: (projectId, query, cursor, signal) =>
+      searchEndpoints: (workPackageId, query, cursor, signal) =>
         observe(
           (abort) =>
             routes
-              .candidates(projectId, buildPageQuery(query, cursor), abort)
+              .candidates(workPackageId, buildPageQuery(query, cursor), abort)
               .then(normalizeCandidates),
           signal,
         ),
-      resolveReference: (projectId, reference, revision, signal) =>
+      resolveReference: (workPackageId, reference, revision, signal) =>
         observe(
-          (abort) => routes.resolve(projectId, reference, revision, abort).then(normalizeReference),
+          (abort) =>
+            routes.resolve(workPackageId, reference, revision, abort).then(normalizeReference),
           signal,
         ),
     },
@@ -81,9 +83,9 @@ export function openDependencyLookup({
   };
 }
 
-function normalizeProjects(
-  reply: Awaited<ReturnType<ProjectAddressApi['projects']>>,
-): ProjectDiscoveryReply {
+function normalizeWorkPackages(
+  reply: Awaited<ReturnType<WorkPackageAddressApi['workPackages']>>,
+): WorkPackageDiscoveryReply {
   if (reply.kind === 'failure')
     return reply.failure.code === 'cancelled' ? { kind: 'cancelled' } : reply;
   if (reply.kind === 'success') return { kind: 'success', body: reply.body };
@@ -91,7 +93,7 @@ function normalizeProjects(
   return observation;
 }
 function normalizeCandidates(
-  reply: Awaited<ReturnType<ProjectAddressApi['candidates']>>,
+  reply: Awaited<ReturnType<WorkPackageAddressApi['candidates']>>,
 ): EndpointSearchReply {
   if (reply.kind === 'failure')
     return reply.failure.code === 'cancelled' ? { kind: 'cancelled' } : reply;
@@ -104,7 +106,7 @@ function normalizeCandidates(
   return observation;
 }
 function normalizeReference(
-  reply: Awaited<ReturnType<ProjectAddressApi['resolve']>>,
+  reply: Awaited<ReturnType<WorkPackageAddressApi['resolve']>>,
 ): ReferenceResolutionReply {
   if (reply.kind === 'failure')
     return reply.failure.code === 'cancelled' ? { kind: 'cancelled' } : reply;
@@ -114,7 +116,7 @@ function normalizeReference(
 }
 
 type CandidateObservation = Extract<
-  Awaited<ReturnType<ProjectAddressApi['candidates']>>,
+  Awaited<ReturnType<WorkPackageAddressApi['candidates']>>,
   { kind: 'success' }
 >['body']['candidates'][number];
 function readCandidate(candidate: CandidateObservation): AddressCandidate {

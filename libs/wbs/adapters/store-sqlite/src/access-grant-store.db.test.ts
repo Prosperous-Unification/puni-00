@@ -70,15 +70,15 @@ function seed(): void {
     run(
       `INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('${organizationId}', '${userId}', '${role}', 1)`,
     );
-  for (const [projectId, organizationId] of [
+  for (const [workPackageId, organizationId] of [
     ['wp-a', 'org-a'],
     ['wp-b', 'org-b'],
   ]) {
     run(
-      `INSERT INTO project (id, name, owner_id, created_at) VALUES ('${projectId}', '${projectId}', 'ada', 1)`,
+      `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('${workPackageId}', '${workPackageId}', 'ada', 1)`,
     );
     run(
-      `INSERT INTO project_organization (resource_id, organization_id) VALUES ('${projectId}', '${organizationId}')`,
+      `INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('${workPackageId}', '${organizationId}')`,
     );
   }
   for (const [personId, organizationId, accountId] of [
@@ -250,7 +250,7 @@ describe('granting', () => {
     expect(grantCount()).toBe(1);
   });
 
-  it('refuses org-admin at a work package and project-manager there, and allows package-viewer at the organization', async () => {
+  it('refuses org-admin at a work package and work-package-manager there, and allows package-viewer at the organization', async () => {
     const cy: GrantSubject = { kind: 'user', userId: 'cy' };
     const wpA: GrantScope = { kind: 'work_package', workPackageId: 'wp-a' };
     expect(await grants.grant('org-a', draft(wpA, cy, 'org-admin'), createAdaAct())).toBe(

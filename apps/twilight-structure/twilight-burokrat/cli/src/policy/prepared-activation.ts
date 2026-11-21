@@ -14,7 +14,7 @@ import {
 } from './activation';
 import { checkPreparedActivation } from './prepared-self-check';
 import type { RelocationPlan } from './relocation-activation';
-import type { CommittedBunExecutionToolkit } from './toolkit';
+import { type CommittedBunExecutionToolkit, resolveToolkitModules } from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 export interface ExecutableRoles {
@@ -137,15 +137,10 @@ export async function assembleActivation(request: Request, context: Context): Pr
     mode: 0o444,
   });
   const closure = join(destination, 'trusted-node-modules');
-  copyTrustedModules(
-    closure,
-    join(toolkit.directory, 'trusted-node-modules'),
-    toolkit.trustedNodeModules,
-  );
+  copyTrustedModules(closure, resolveToolkitModules(toolkit), toolkit.trustedNodeModules);
   if (
     // Proof: prep-closure-identity; its recorded production-source fault failed `refuses copied closure drift before launching self-certification` and passed after restoration.
-    hashTrustedModules(closure) !==
-    hashTrustedModules(join(toolkit.directory, 'trusted-node-modules'))
+    hashTrustedModules(closure) !== hashTrustedModules(resolveToolkitModules(toolkit))
   )
     throw new Error('copied activation closure differs from selected toolkit');
   // Proof: prep-bootstrap-identity; its recorded production-source fault failed `refuses changed written bootstrap bytes before launching self-certification` and passed after restoration.

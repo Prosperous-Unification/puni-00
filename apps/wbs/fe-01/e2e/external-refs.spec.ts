@@ -1,6 +1,12 @@
-import { expect, type Page, test } from '@playwright/test';
+import {
+  applyWorkPackageCommands as applyWorkPackageCommandsShape,
+  type EndpointShape,
+  listExternalSystems as listExternalSystemsShape,
+} from '@wbs/contracts';
 
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 
 /**
  * The ref column, measured by a browser.
@@ -17,37 +23,51 @@ import { createProject } from './create-project';
  */
 
 /** One JSON POST through the page's own session, so the API sees a signed-in reader. */
-async function jsonPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+async function jsonPost<T>(
+  page: Page,
+  shape: EndpointShape,
+  path: string,
+  body: unknown,
+): Promise<T> {
   return page.evaluate(
-    async ({ at, value }) => {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { at, value } = fixtureInput;
+
       const response = await fetch(at, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.selected),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify(value),
       });
       if (!response.ok) throw new Error(`POST ${at} failed: ${String(response.status)}`);
       return response.json() as Promise<T>;
     },
-    { at: path, value: body },
+    {
+      requestHeaders: { selected: createOrdinaryHeaders(shape) },
+      fixtureInput: { at: path, value: body },
+    },
   );
 }
 
-/** One batch on a project, answering the id each command created (by index). */
+/** One batch on a work package, answering the id each command created (by index). */
 async function commands(
   page: Page,
-  projectId: string,
+  workPackageId: string,
   list: Record<string, unknown>[],
 ): Promise<(string | undefined)[]> {
   const answer = await jsonPost<{ results: { id?: string }[] }>(
     page,
-    `/api/projects/${projectId}/commands`,
+    applyWorkPackageCommandsShape,
+    `/api/work-packages/${workPackageId}/commands`,
     { commands: list },
   );
   return answer.results.map((each) => each.id);
 }
 
 interface Seed {
-  projectId: string;
+  workPackageId: string;
   /** The vocabulary as be-01 seeded it, by canonical name. */
   systemOf: Record<string, string>;
 }
@@ -66,16 +86,23 @@ interface Seed {
 async function seed(page: Page): Promise<Seed> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
 
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('wbs.project'))).not.toBeNull();
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('no project id after creating the plan');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .not.toBeNull();
+  const workPackageId = await page.evaluate(() => localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('no work package id after creating the plan');
 
-  const vocabulary = await page.evaluate(async () => {
-    const response = await fetch('/api/external-systems');
-    return response.json() as Promise<{ externalSystems: { id: string; name: string }[] }>;
-  });
+  const vocabulary = await page.evaluate(
+    async ({ requestHeaders }) => {
+      const response = await fetch('/api/external-systems', {
+        headers: requestHeaders.listExternalSystems,
+      });
+      return response.json() as Promise<{ externalSystems: { id: string; name: string }[] }>;
+    },
+    { requestHeaders: { listExternalSystems: createOrdinaryHeaders(listExternalSystemsShape) } },
+  );
   const systemOf = Object.fromEntries(
     vocabulary.externalSystems.map((system) => [system.name, system.id]),
   );
@@ -92,7 +119,7 @@ async function seed(page: Page): Promise<Seed> {
   // numbered `010` — and every assertion below would then be about the row it
   // names and the refs of the other one. Found in Chromium, not reasoned about:
   // the card never opened, because `010` was the row with no links.
-  const [first] = await commands(page, projectId, [
+  const [first] = await commands(page, workPackageId, [
     {
       kind: 'createWorkItem',
       ref: 'wired',
@@ -104,7 +131,7 @@ async function seed(page: Page): Promise<Seed> {
   ]);
   if (first === undefined) throw new Error('the first row was not created');
 
-  await commands(page, projectId, [
+  await commands(page, workPackageId, [
     {
       kind: 'patchWorkItem',
       workItemId: first,
@@ -137,14 +164,14 @@ async function seed(page: Page): Promise<Seed> {
     },
   ]);
   await page.reload();
-  // A linked project still starts from the data-independent baseline. Wait for
+  // A linked work package still starts from the data-independent baseline. Wait for
   // the whole tree to land, then use the same one-time Reset layout gesture a
   // reader uses to opt into the contextual target.
   await expect(page.getByLabel('Name of 010')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reset layout' })).toBeVisible();
   await page.getByRole('button', { name: 'Reset layout' }).click();
   await expect(page.getByLabel('Links for 010')).toBeVisible();
-  return { projectId, systemOf };
+  return { workPackageId, systemOf };
 }
 
 /** Opens the account menu, takes the palette asked for, and lets the paint land. */
@@ -261,7 +288,7 @@ test.describe('the ref column, in a browser', () => {
       nativeState: 'completed',
       observedAt,
     });
-    await page.route('**/api/projects/*/work-items/*/refs/*/delivery', async (route) => {
+    await page.route('**/api/work-packages/*/work-items/*/refs/*/delivery', async (route) => {
       deliveryReads += 1;
       await route.fulfill({
         json: {

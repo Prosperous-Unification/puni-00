@@ -99,7 +99,7 @@
       "file": "src/components/wbs/pointed-row-store.test.ts"
     },
     {
-      "file": "src/components/wbs/project-picker.test.ts"
+      "file": "src/components/wbs/work-package-picker.test.ts"
     },
     {
       "file": "src/components/wbs/resource-demand-words.test.ts"
@@ -131,7 +131,7 @@
     },
     {
       "file": "src/lib/saved-plan-compare.test.ts",
-      "reason": "Of saved-plans' three `src/lib` suites this is the only one the tier rule reads as DOM-free, and the other two are excluded by that rule rather than by taste: `saved-plan-save.test.ts` imports `@testing-library` and runs under jsdom for real, and `saved-plan-api.test.ts` is caught by `DOM_EVIDENCE`'s deliberately generous `\\bdocument\\b` \u2014 fourteen prose mentions of the *OpenAPI* document, no browser global at all. That is the safe direction to be wrong in, as the rule's own comment says, so it is left where the rule puts it rather than special-cased. The shelf's own suite moved to `src/modules/saved-plans/` and is judged there the same way."
+      "reason": "Of saved-plans' three `src/lib` suites this is the only one the tier rule reads as DOM-free, and the other two are excluded by that rule rather than by taste: `saved-plan-save.test.ts` imports `@testing-library` and runs under jsdom for real, and `saved-plan-api.test.ts` is caught by `DOM_EVIDENCE`'s deliberately generous `\\bdocument\\b` — fourteen prose mentions of the *OpenAPI* document, no browser global at all. That is the safe direction to be wrong in, as the rule's own comment says, so it is left where the rule puts it rather than special-cased. The shelf's own suite moved to `src/modules/saved-plans/` and is judged there the same way."
     },
     {
       "file": "src/lib/step-view.test.ts"
@@ -176,11 +176,8 @@
       "file": "src/modules/plan-writer/busy-store.model.test.ts"
     },
     {
-      "file": "src/modules/plan-writer/plan-writer.test.ts"
-    },
-    {
       "file": "src/modules/preferences/module.test.ts",
-      "reason": "Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed `names files that exist` on `src/modules/preferences/composition.test.ts: expected [Function] to not throw an error but 'Error: ENOENT: no such file or direct\u2026' was thrown`."
+      "reason": "Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed `names files that exist` on `src/modules/preferences/composition.test.ts: expected [Function] to not throw an error but 'Error: ENOENT: no such file or direct…' was thrown`."
     },
     {
       "file": "src/modules/preferences/preferences.feature.test.ts"
@@ -189,10 +186,10 @@
       "file": "src/modules/preferences/preferences.resource.test.ts"
     },
     {
-      "file": "src/modules/project/composition.test.ts"
+      "file": "src/modules/work-package/composition.test.ts"
     },
     {
-      "file": "src/modules/project/project-catalog.feature.test.ts"
+      "file": "src/modules/work-package/work-package-catalog.feature.test.ts"
     },
     {
       "file": "src/node-tier.test.ts",
@@ -212,10 +209,10 @@
       "file": "src/runtime/lifetime-slot.test.ts"
     },
     {
-      "file": "src/runtime/project-runtime.model.test.ts"
+      "file": "src/runtime/work-package-runtime.model.test.ts"
     },
     {
-      "file": "src/runtime/project-runtime.test.ts"
+      "file": "src/runtime/work-package-runtime.test.ts"
     },
     {
       "file": "src/runtime/retirement-join.test.ts"
@@ -233,7 +230,7 @@
       "file": "src/test-tiers.test.ts"
     },
     {
-      "file": "src/testing/fake-project-api.test.ts"
+      "file": "src/testing/fake-work-package-api.test.ts"
     },
     {
       "file": "src/testing/plan-fixture-command-results.test.ts"
@@ -244,6 +241,9 @@
     {
       "file": "src/testing/refusing-api.test.ts",
       "reason": "Proof: after the generated-client merge, leaving `wbs-api.test.ts` here and `refusing-api.test.ts` out failed test-tiers.test.ts with `+ src/lib/wbs-api.test.ts` and `- src/testing/refusing-api.test.ts`."
+    },
+    {
+      "file": "src/testing/step-values-boundary.test.ts"
     },
     {
       "file": "vitest-budget.test.ts"
@@ -277,6 +277,21 @@
     },
     {
       "file": "src/components/wbs/plan-refusal-measures.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-step-refusal.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-parent-refusal.test.ts"
+    },
+    {
+      "file": "src/components/organization/super-admin-refusal.test.ts"
+    },
+    {
+      "file": "ordinary-browser-frontend.test.ts"
+    },
+    {
+      "file": "src/components/wbs/plan-first-child-refusal.test.ts"
     }
   ]
 }

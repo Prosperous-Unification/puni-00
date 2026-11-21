@@ -1,0 +1,2177 @@
+{
+  "date": "2026-11-19",
+  "scope": "SC22 project manifest producer, stable type identities and atomic actual owned type-set revision invalidation. Burokrat consumer and parent task remain open.",
+  "qualification": "Root authored; Astra review unavailable at recorded account usage limit. No full original entity/PUNI/Bun completion, gate or deployment claim.",
+  "source": {
+    "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/source-pins.json",
+    "sha256": "e743b07c97b4007294216c001193162cea6cb1ddf00b4974168f50a0b46f22d4",
+    "bytes": 5208653,
+    "mode": 384
+  },
+  "first": {
+    "manifest4": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-first-live-v1/projectManifest/native.receipt.json",
+        "sha256": "be99a9a23912f4982176bb11744ecbac78769620c62a971527c43f253dc7d966",
+        "bytes": 1535,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-first-live-v1/projectManifest/native.log",
+        "sha256": "28e33249789c1bf0bb230d964378bc78e737f28a28b03dc868152a0f2cf966f9",
+        "bytes": 8699,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-first-live-v1/projectManifest/native.validation.json",
+        "sha256": "135689d9470d416172432c7a61c0eb88be3c7d7fe6047c69343956eb4e7d1f3d",
+        "bytes": 2023,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "typeSet1": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/manifestTypeRevision/native.receipt.json",
+        "sha256": "ebeb7af9c6c894449e95cc44f23d9a2c7b4c6149f0536865afd1dd9466ed032b",
+        "bytes": 1633,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/manifestTypeRevision/native.log",
+        "sha256": "71611f79af3539afdfbb15cf4e6128cd54ffe1522379fb21e908708d192c33dd",
+        "bytes": 2024,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/manifestTypeRevision/native.validation.json",
+        "sha256": "6486a51840f2fb1de48a6a5f7f405b2cdd3ce198b1fa23eee034e9a35e66ef98",
+        "bytes": 2080,
+        "mode": 384
+      },
+      "exitCode": 1
+    }
+  },
+  "firstObserved": "Manifest4 first owners reach missing-route404 after healthy setup/101assertions. Separate actual directory creation200+mapped-row premise leaves empty project revision2 instead of3;1fail25assertions.",
+  "controls": {
+    "manifest4": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-source-live-v1/projectManifest/native.receipt.json",
+        "sha256": "4e816b1e1d78202453510d4ea834a0594863819c71b9dbce22ca7022b22075c1",
+        "bytes": 1536,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-source-live-v1/projectManifest/native.log",
+        "sha256": "8af613e3f34ae71a8fe1e1094fad2a36b620a737f478abc96699048a5d94896d",
+        "bytes": 716,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-source-live-v1/projectManifest/native.validation.json",
+        "sha256": "8d708eeac7c967880977c90e0ce853ca51fc195818a511e11c27d905cb2455de",
+        "bytes": 2025,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "typeSet1": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/manifestTypeRevision/native.receipt.json",
+        "sha256": "9efd2c3ce1ce8c8a498ae8283f57f166e19d4f9c1a3a19b83fce8720b16b959e",
+        "bytes": 1618,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/manifestTypeRevision/native.log",
+        "sha256": "0fd9f1d4393e9161c3c171f2e57d28903d3b478dc0f0933b523f3e276cded459",
+        "bytes": 325,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/manifestTypeRevision/native.validation.json",
+        "sha256": "ce52cec05118bf8d021a8f6fd1c0f02b69da5897d9d2b584776bce48c51517a4",
+        "bytes": 2058,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "source21": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/manifestReadOwners/native.receipt.json",
+        "sha256": "4cec8410ed2d34913b20e945c2ce0c255c7f198391db4cf6234fbc33fe6cd1bd",
+        "bytes": 1530,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/manifestReadOwners/native.log",
+        "sha256": "3e37400bec058c0331be45e04f4339673aba67df93ef2eb64771abc84247d995",
+        "bytes": 1542,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/manifestReadOwners/native.validation.json",
+        "sha256": "887b8409bdfd8cd376719297a349f673e855b6c131a1f8313d5909f0bb4cce7d",
+        "bytes": 2026,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "full35": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/globalCatalogueHttp/native.receipt.json",
+        "sha256": "56c3de6836a36e01d7038589983e064c633c2be3007247c0b0b0bd4956d0d97e",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/globalCatalogueHttp/native.log",
+        "sha256": "97108bd2e384dfb80f17a3dabe77ad3b0f060bc2833a7cb3adf150044d5d0a9b",
+        "bytes": 5056,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-manifest-read-owners-live-v1/globalCatalogueHttp/native.validation.json",
+        "sha256": "e90c84e4c6275da103985ce227b4414f14f3d4afef468a2a8df904122e130a58",
+        "bytes": 2029,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "native2": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionAtomic/native.receipt.json",
+        "sha256": "ae231afa9d518712abfe352193a686f8d5cba0858a2a6a486a7baaa642128450",
+        "bytes": 1460,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionAtomic/native.log",
+        "sha256": "26f8f0350466fb98d2f4e61bf2674d9eee059276e714d8ff32c5ef05886c6b7f",
+        "bytes": 321,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionAtomic/native.validation.json",
+        "sha256": "c5f6ded55d2f7af5ef09bd1edf46fd248f4a6ea0a4af4f1cce434c7795a3a502",
+        "bytes": 2046,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "nativeHttp1": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionHttp/native.receipt.json",
+        "sha256": "e6da769128fb3df602cc04d643a33c126233525d56ad29215267dc099fd906f8",
+        "bytes": 1616,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionHttp/native.log",
+        "sha256": "dd17c1c6dff555381397f5ebd72bf2a2248bb838eb11459159cf756c38a337e8",
+        "bytes": 4749,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/typeRevisionHttp/native.validation.json",
+        "sha256": "7767c357f6b03b70729ff526126f432109b0ea251ebe03bc842d7c30d8b94356",
+        "bytes": 2041,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "backendTypes": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/backendTypes/native.receipt.json",
+        "sha256": "25ae7fa17a9eeeee6eb778bde7414220da96018e154616905fb11bf5ed155117",
+        "bytes": 1393,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/backendTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-manifest-type-revision-source-live-v2/backendTypes/native.validation.json",
+        "sha256": "96567dd653f79026053f4611d835bcb7d8bddd4e75d2aaf400f9d009d0afb34d",
+        "bytes": 2032,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "browser28": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-clients-live-v1/catalogueClientThreads/native.receipt.json",
+        "sha256": "bbc3a653376b063423e19da6aafe913b35d43e8c3d65011d9dd9dcbd4e1e51b1",
+        "bytes": 1482,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-clients-live-v1/catalogueClientThreads/native.log",
+        "sha256": "274be279aeae1cba275d9639b84cfe40a4855b9947f1bb81b06d08c6a4bbed06",
+        "bytes": 4750,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-clients-live-v1/catalogueClientThreads/native.validation.json",
+        "sha256": "b12ae81aef40cf420d91db631a05c19f9a15bec91b026babcc7e2de55004cbc8",
+        "bytes": 2050,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "mcp135": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/mcpCurrent/native.receipt.json",
+        "sha256": "48de648c8afa5847529f0c9e32967dbeecb8640bcdafdac9bf535e96daf11d9f",
+        "bytes": 1805,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/mcpCurrent/native.log",
+        "sha256": "0d0e110f37e90e0a4d2fbcedfba7d7ce9db5ef054d9af3f67b1f9040f9e6a265",
+        "bytes": 14835,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/mcpCurrent/native.validation.json",
+        "sha256": "b7a282ba79bd116493510aea93656afdcf304681e14eb571d23f4ac976354050",
+        "bytes": 2051,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "routes3": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/routeInventories/native.receipt.json",
+        "sha256": "db773187643003e6f1cc3c3aa97afd628773d3ee552e1460281fbf6dff18fe52",
+        "bytes": 1651,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/routeInventories/native.log",
+        "sha256": "7797daab30e04e4ce8239058514ddf515c073b90fc8042de0f21e95efee4eb47",
+        "bytes": 488,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-manifest-type-revision-first-live-v2/routeInventories/native.validation.json",
+        "sha256": "0526cfcb44e4df088794a602979a5d77f949610c21f3fddb6ad7417765199ee8",
+        "bytes": 2067,
+        "mode": 384
+      },
+      "exitCode": 0
+    }
+  },
+  "counts": {
+    "manifestCases": 4,
+    "manifestAssertions": 125,
+    "typeSetCases": 1,
+    "typeSetAssertions": 42,
+    "sourceCases": 21,
+    "sourceAssertions": 543,
+    "catalogueCasesAtOwnersEpoch": 35,
+    "catalogueAssertionsAtOwnersEpoch": 1848,
+    "nativeCases": 2,
+    "nativeAssertions": 67,
+    "nativeHttpCases": 1,
+    "nativeHttpAssertions": 59,
+    "browserCases": 28,
+    "mcpCases": 135,
+    "mcpAssertions": 948,
+    "mcpTools": 95,
+    "mcpFiltered": 1,
+    "creditedProofs": 20
+  },
+  "proofPlan": {
+    "path": "/tmp/puni-manifest-proof-plan-v2/plan.json",
+    "sha256": "e3eff4749bbe685fee285e3c40ae0c7550f88e4025eda52ca66b16d0d5702542",
+    "bytes": 46309,
+    "mode": 384
+  },
+  "proofEngine": {
+    "path": "/tmp/puni-manifest-proofs-engine-root-v2.ts",
+    "sha256": "155a23ce264d9437aaa45aaf67182b5737b7ae31d14e11bf0facf1cd9b03495b",
+    "bytes": 9663,
+    "mode": 384
+  },
+  "correctedMaxPlan": {
+    "path": "/tmp/puni-manifest-corrected-proof-plan-v1/plan.json",
+    "sha256": "dfb63e207468bb902b27265850cdce530b31dada921104a1afc90873062f324f",
+    "bytes": 2860,
+    "mode": 384
+  },
+  "correctedMaxEngine": {
+    "path": "/tmp/puni-manifest-max-corrected-engine-root-v1.ts",
+    "sha256": "c43d7a90283c2d4f83d8b14da7769b0ac2ea35dd0a4ab8a4da344f0ee124e5fe",
+    "bytes": 9683,
+    "mode": 384
+  },
+  "proofs": [
+    {
+      "id": "MANIFEST_TYPED",
+      "observed": "Using untyped resolution for every type omits actual research and typed-default codes;1fail29assertions.",
+      "credit": "Producer typed mapping only, not Burokrat per-type validation.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_typed-v1/plan.json",
+        "sha256": "6ecd0fedcbe9d3e8e9e000a60b1c95c6bedb240fe93700fa3247829ea92ac37d",
+        "bytes": 3596,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/baseline/native.receipt.json",
+          "sha256": "6ad60ce582d8c6853c1f5b4a6ed6a3d95a358ef029f608a2f261252e4cbb0bcc",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/baseline/native.log",
+          "sha256": "93b1eda050c610d5a9c5a8771dfaedff6b0509ac0802bb74af05ef2df92ee35d",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/baseline/native.validation.json",
+          "sha256": "dba3652b5d3bd7989b31783c7cf49c41f58e046283d984f153c6270419ba48e3",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/fault/native.receipt.json",
+          "sha256": "e34ab0f83d00eca10ed8eb145d2368cab0e57465f5ff8a14da1a2c60ca17ca19",
+          "bytes": 1564,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/fault/native.log",
+          "sha256": "eab029855cdc437561defb6c870a39f5d13b9ef7a57116fd28d58f485d2ed0e7",
+          "bytes": 3102,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/fault/native.validation.json",
+          "sha256": "cb6c0aa4550b4254a50c4d6bf09d63ff90c126afe81c4e998c17486cacd09b0e",
+          "bytes": 671,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_typed-v1/restored.json",
+        "sha256": "a35809c0c1a31b3d7405419dc763fcd90ac0f2db38d30feef50290d7999a7e29",
+        "bytes": 490,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/after/native.receipt.json",
+          "sha256": "83a701f8f86cd0a9095a70d65912d3e75fb8e867c1991b1f2b630942e674f1ab",
+          "bytes": 1563,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/after/native.log",
+          "sha256": "5e545249f32380fc0b6f4641985ab454eed3071de77eb0afd0d8c4cd5a85828c",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_typed-v1/after/native.validation.json",
+          "sha256": "835db9c00d162086eca721a813c50abdf2ef1968eddf231a466efffe345c4a72",
+          "bytes": 670,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_DEFAULT",
+      "observed": "Using the first owned type for untyped default includes research incorrectly;1fail29assertions.",
+      "credit": "Actual untyped default mapping.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_default-v1/plan.json",
+        "sha256": "2c97bd0e12efb02cb61226f8dbb2a4c108e6566a0051e73c9933c0efe978f4e9",
+        "bytes": 3605,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/baseline/native.receipt.json",
+          "sha256": "9c81e2bb4b7662e1f815add4d820cd620582257126a13c080a2707a048560f20",
+          "bytes": 1573,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/baseline/native.log",
+          "sha256": "988b6f899b0d658700d9dbb5fac7d07861bea24bca8ebf67a87058edf6a5fba8",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/baseline/native.validation.json",
+          "sha256": "8f92c0af023b1563092d2c3405ceeff7d81b21fa611818343b9bc40bae3b2cfb",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/fault/native.receipt.json",
+          "sha256": "67a9ab89322a7be3835eaf55defbf4f5b9993c6d0f4356862b5c5dd13560d74e",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/fault/native.log",
+          "sha256": "9a1966fbfc12baaef443772a8e9e62359a41f100b81389765c137ec290756c0b",
+          "bytes": 3131,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/fault/native.validation.json",
+          "sha256": "4c0b7faae675cac4b7ef75818ed33b514a4037cb87f4f6918efce7feaf790841",
+          "bytes": 675,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_default-v1/restored.json",
+        "sha256": "0db0012d6fc0d67f1289d546d002ebc02a3b1a1f8e2c5f09c81e90058c362a28",
+        "bytes": 492,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/after/native.receipt.json",
+          "sha256": "4e4c153ccb4dc958e03e2bcffa9f9b84ba8325c44842dbcc31b94ca0c3c03095",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/after/native.log",
+          "sha256": "20d14327561974fc40b74da4c93a1486354a4a440145ada4c308ac940b47e022",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_default-v1/after/native.validation.json",
+          "sha256": "1bb33f9ecc8d63d496812d9ad5ac6678db79efa5949927320602a58fca460931",
+          "bytes": 674,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_REVISION",
+      "observed": "Returning revision0 replaces actual project revision5;1fail29assertions.",
+      "credit": "Actual same-owner revision field, not every concurrent writer.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision-v1/plan.json",
+        "sha256": "832ad832b2e94b0af80efa25b126b64e579ec22943b59e1f6001c637072e2f1c",
+        "bytes": 3561,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/baseline/native.receipt.json",
+          "sha256": "6a52634d91abb0f9b2c1c1c54d5ab323c883082c0789f99e4043ff9357dd81c0",
+          "bytes": 1575,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/baseline/native.log",
+          "sha256": "2894d5185120e1f9f2817572b2abd76f46e9ca92e3e0d52bcd6f227619d41cdf",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/baseline/native.validation.json",
+          "sha256": "f515eb11939f5371c54c8905f6dea72a3ec4e415030c5bf6c3ce64bc9512660e",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/fault/native.receipt.json",
+          "sha256": "a2850dbeb1ab1eff027f048e5cdd632cbd03cccdb30c62f3a74bdda0a2e9f5ff",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/fault/native.log",
+          "sha256": "1e96f987eb2ec62398aca4f78ad50fce548f9df44b64c24411ffda754c27a8ea",
+          "bytes": 3125,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/fault/native.validation.json",
+          "sha256": "6a9241a0302a6cadd9848b5821b956b1c83c3cd727d0571d87137aec1212d010",
+          "bytes": 677,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision-v1/restored.json",
+        "sha256": "f984002fa0a2b7839d769f3c9c35a696bbb6912b5b03303b29b7602da3e6b4d7",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/after/native.receipt.json",
+          "sha256": "c54634c9788d7b797f54849d8acf3d4300cbcdb7dafe6d3ca36f1ed59bdb7df0",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/after/native.log",
+          "sha256": "2551fececafe4b9c8f8a96261fa83df613581bbb7e281c25fac51eeeba848e8c",
+          "bytes": 330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision-v1/after/native.validation.json",
+          "sha256": "7eeb3bb6b29406f3e247264e1755d76478a9b0ea91a05933f403bba577262d4c",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_REVISION_TYPE",
+      "observed": "Omitting the whole revision boundary admits stored text in both real SQLite Source and Memory factory rebound from complete genuine Source evidence;2fail45assertions.",
+      "credit": "Whole field guard on text only, not independent necessity of its redundant typeof term.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/plan.json",
+        "sha256": "5f2320c420d97b9d38cbd238aec617fbbe8fdba4a302936c84bd0ac2018c58b7",
+        "bytes": 3610,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/baseline/native.receipt.json",
+          "sha256": "130f397635ff1fd125db96cfd5df94595c29d5eba69110a39dd04461045d4cec",
+          "bytes": 1609,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/baseline/native.log",
+          "sha256": "e88bb082f846d5c5e1221a4cd3c2d19a27e69e8db8ca4087ca78d45af837c8cc",
+          "bytes": 403,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/baseline/native.validation.json",
+          "sha256": "83a0dc59098a65929eb541a73f7761f83a069de13f4f7058ad4298c54cf5ff75",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/fault/native.receipt.json",
+          "sha256": "194b83064fe903e808af9d0be4cff1b265a82d2b3fcc7491e27611e7ecb0f438",
+          "bytes": 1604,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/fault/native.log",
+          "sha256": "6f4d949187b740f8020951eb58a673ad6aa3eda1b2b58fcd4e25909f9bbd1c4d",
+          "bytes": 2096,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/fault/native.validation.json",
+          "sha256": "ebfe7ad154d624106c919e774feeb9140ede4d2744e151363cbcf922c2fd13c3",
+          "bytes": 687,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/restored.json",
+        "sha256": "801a8a09b3629490af0c36160352b93e4b88a7e1228d355be5ed1333134d2495",
+        "bytes": 498,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/after/native.receipt.json",
+          "sha256": "33f8773246d47537cb1dc294dadfa3a9fbc631d2b2ddb77db5370c2e0b5cdf28",
+          "bytes": 1603,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/after/native.log",
+          "sha256": "c8dc8264403ffd8f3b295cc1250db79d06710f4b9c0c7b2848543a37d382059c",
+          "bytes": 403,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_type-v1/after/native.validation.json",
+          "sha256": "fc79bb094b6206f8a3b02f2681627fdac6fc75e4cada26fffe506ead7abebba8",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_REVISION_INTEGER",
+      "observed": "Removing safe-integer admission admits persisted/factory1.5 revisions in both adapters;2fail45assertions.",
+      "credit": "Fractional first oracle; unsafe magnitude is normal reader coverage and separately proved at response boundary.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/plan.json",
+        "sha256": "09278791430457010b09baa569d2004e8428ab478afa6a61cdf9a34c86ad06bf",
+        "bytes": 3667,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/baseline/native.receipt.json",
+          "sha256": "cadd14841a575cfd4496f0ab5f6fa2ec37a1f3188267fc00fac16b7cfb097982",
+          "bytes": 1621,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/baseline/native.log",
+          "sha256": "f65bd96f24b78f08722ec35d5dc2bfead91f63e2084a0cfccbae0ad4782fb63d",
+          "bytes": 415,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/baseline/native.validation.json",
+          "sha256": "4ec5a070150493748386a8029caab40061f7bc3f849f25e04f218322e03b19ba",
+          "bytes": 698,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/fault/native.receipt.json",
+          "sha256": "12ea4417a7b42afa191889238402fcfc5401f4ee3fafc1f2f48fd7c2289dc00d",
+          "bytes": 1616,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/fault/native.log",
+          "sha256": "91d4c58bcf36f4bac1518d45261379da9e4cae95e84d7d630532f432bd25b1b9",
+          "bytes": 2108,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/fault/native.validation.json",
+          "sha256": "f5a447591cbf5bce92c3ac7cfc1036e53b32135fb33f5e7412971ee76d78766b",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/restored.json",
+        "sha256": "667c124e7a451aa429d767d2ee4a82bc0c108f8fb6afa62f8d49a1d3657f2cda",
+        "bytes": 501,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/after/native.receipt.json",
+          "sha256": "d4f04c5d299cf617b97410af7446e2cc01eb353ec4f1ead35afd7d3bf1253979",
+          "bytes": 1615,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/after/native.log",
+          "sha256": "56d9e95036dafa21c64f1220076807b223e5edb337cab326c91c4bd8a9b7f526",
+          "bytes": 415,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_integer-v1/after/native.validation.json",
+          "sha256": "5c18fa0312896c5ea1c286ca8e63cc11c5d6267193efd7a7d259498175d5d97e",
+          "bytes": 692,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_REVISION_NONNEGATIVE",
+      "observed": "Removing nonnegative admission admits stored/factory-1 revisions in both adapters;2fail45assertions.",
+      "credit": "Negative scalar at the shared reader boundary.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/plan.json",
+        "sha256": "25567f20e141166c9981a5423d14a0963d50ff05bda8bf1eb3a8c3c7b7886541",
+        "bytes": 3700,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/baseline/native.receipt.json",
+          "sha256": "41be68f2079303bc95d4158e9179d44b26feb669c6677db77afb92f2a9ba4d24",
+          "bytes": 1627,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/baseline/native.log",
+          "sha256": "7161eca72f688ea56e46a6538fd53e8b3b79e952bf2774cfc151428678053287",
+          "bytes": 411,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/baseline/native.validation.json",
+          "sha256": "9d16b5bf17be4befde73c830563a904f255d6e239b608c982a65f91e574d7ebc",
+          "bytes": 706,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/fault/native.receipt.json",
+          "sha256": "4926c9b83ee288bd9a089dcbc82dfba3550e9cb848ce3a2572d64979d63bdd90",
+          "bytes": 1622,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/fault/native.log",
+          "sha256": "b9b028af863b2af95d37a7d9abfd3fad4af4b2efb3f2e47fb1526824f479d83a",
+          "bytes": 2104,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/fault/native.validation.json",
+          "sha256": "6b1e0b275382b416729b7fcc5948255c7a7ad971a17e22373347909e73ef2328",
+          "bytes": 701,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/restored.json",
+        "sha256": "28f5fafd40ad3836c33af80cc612af79096723878aa4a6906137a0e73381f62f",
+        "bytes": 505,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/after/native.receipt.json",
+          "sha256": "8f0767a28d9b1635cbe27a6282268d60735a4b02baac125c57656b2de1c06f77",
+          "bytes": 1621,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/after/native.log",
+          "sha256": "200a6fa7c88635316a5bb7a57ef4a8aa294084a1212fda47e3244d899751c471",
+          "bytes": 411,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_revision_nonnegative-v1/after/native.validation.json",
+          "sha256": "eecb92e89fbc3bc6a07c9c37e3e00de86c3887ae69c95e721c401e196bcbec15",
+          "bytes": 700,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_MEMORY_TYPE",
+      "observed": "Removing owned root/map identity coherence admits the corrupted type identity from complete detached genuine Source evidence rebound through the production factory;1fail17assertions.",
+      "credit": "Memory production factory boundary only, not mutation of a live Source.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/plan.json",
+        "sha256": "ee8b078bbe92eefc6299f652803937db13bfd823cc968f13deadee59903d2b4b",
+        "bytes": 3554,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/baseline/native.receipt.json",
+          "sha256": "49e11a27a5197485a0a2325597f94400fea5db3d2499ae75509c7830e43c5501",
+          "bytes": 1596,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/baseline/native.log",
+          "sha256": "57eba810552b242ff804e6d573a5f92bbcaee6f2bcbe41872ac672ccb849f314",
+          "bytes": 337,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/baseline/native.validation.json",
+          "sha256": "80241e7ba1936d1b17e4ce559bd35a5e40db542032f322ad00067f3ae7ab1594",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/fault/native.receipt.json",
+          "sha256": "89f0dc9bf6b82613442a25c15da74711a678d467a040638fb922f40bbb50951c",
+          "bytes": 1591,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/fault/native.log",
+          "sha256": "d29294e7bd2d1b1e9dfa88a375067715614b35a975708ebc326997a023c777cc",
+          "bytes": 1047,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/fault/native.validation.json",
+          "sha256": "c798b2d83340aea74496dc29a4e5ab97b163371355fa99ef4bc8e6cc73ffb16e",
+          "bytes": 683,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/restored.json",
+        "sha256": "1223522264230c983b1a93e9f10e1ccb2c1b9e36f7f5ba342cc58694107b7f05",
+        "bytes": 481,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/after/native.receipt.json",
+          "sha256": "6293ba1fb69908cac4ab6f863d30ea180183e573348c0941c18565c11fbcf21e",
+          "bytes": 1590,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/after/native.log",
+          "sha256": "569c0998db0e8f4495aaf4ecd265a7aa73e2b23fb1d8dc2877356c293b908bd9",
+          "bytes": 337,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_memory_type-v1/after/native.validation.json",
+          "sha256": "1bce205b6505c6fba376486b3152429a22f9adf99ff471e171fe46227c1ce48e",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_SQL_TYPE",
+      "observed": "Removing actual type-header admission admits an owned mapping whose header is missing;1fail27assertions. Fixture restores FK enforcement before calling public read.",
+      "credit": "Actual persisted orphan and actual Source read only.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/plan.json",
+        "sha256": "e11ce48518577cab2e75b6c214f8ff953c226cd3ed45d09f99e8965cdd8bf855",
+        "bytes": 3559,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/baseline/native.receipt.json",
+          "sha256": "ffcdd0c679e108ec1b51ea7352550b63d5a86dac3a353d1e993f0c77a8fb4ade",
+          "bytes": 1595,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/baseline/native.log",
+          "sha256": "e4251ebaf3e35d53493fba734dfccc38ef617e68eee58436a69c78b90a1ad4be",
+          "bytes": 343,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/baseline/native.validation.json",
+          "sha256": "2fad6f0be26f40b307712a6290f797f7483e76b566c7b99f6d5a28168ea7da4b",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/fault/native.receipt.json",
+          "sha256": "f04436ef122bceab883657bcf65879b68f0b522665e46bb4b50a1471f24002f6",
+          "bytes": 1590,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/fault/native.log",
+          "sha256": "4d84822056cad31142f6d1e5fa329fc7c9415ac6ccee405c6a383033e38ab7e9",
+          "bytes": 1206,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/fault/native.validation.json",
+          "sha256": "d7df6e59093bdec4e1476df89ab1f00c21b97911f979e3a4f9e5a7989792236f",
+          "bytes": 677,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/restored.json",
+        "sha256": "1f97eece25da405c1aab7f11ea64d7863abb954a7114a0628fa63ca04dcf7f3d",
+        "bytes": 478,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/after/native.receipt.json",
+          "sha256": "dbb2ddde5c9e08a2ba56b84dd2c5983466f35d72ea08345a9c67c111d5be4fd2",
+          "bytes": 1589,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/after/native.log",
+          "sha256": "5ba9bf935ea67936be65ed2cb68394421272b6816f70715520241785c9a2d7ef",
+          "bytes": 343,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_sql_type-v1/after/native.validation.json",
+          "sha256": "d76dff4a03455978d5b66a26eae488ccb759e524deae7bc77ab9f7d3f412389c",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_LOAN",
+      "observed": "Removing both new readManifest assertion calls admits expired ordinary/repair loans in both real Sources;4fail96assertions.",
+      "credit": "Whole new-method loan dependency; entry versus post-await separately remains unproved.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_loan-v1/plan.json",
+        "sha256": "d58425e99ce38feb363c5d3b52484cda1cc5f6e9e2254d070c40dccfa982ceba",
+        "bytes": 4001,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/baseline/native.receipt.json",
+          "sha256": "ce8c5cba9cdb734474ed2956e154983b30e3edbf630f257183ec9a377ddecbc9",
+          "bytes": 1588,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/baseline/native.log",
+          "sha256": "e0a04f8fca6865714b416d63280862a5c9ef7a202f3b420a9ab3b394b15ed0a4",
+          "bytes": 480,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/baseline/native.validation.json",
+          "sha256": "dab69b70bd36e39059d3c2bf611ca2ab272520f2ede5a690554ade823f8681fd",
+          "bytes": 674,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/fault/native.receipt.json",
+          "sha256": "32ee2c897e6604ccd50a9b33111c4c79b8103462729018d6fd052661a8344e3c",
+          "bytes": 1583,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/fault/native.log",
+          "sha256": "d76b53b9ea6a090a9659d6a9a8b31337ed67957ecb0c9a3595b59a26b843a19e",
+          "bytes": 4161,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/fault/native.validation.json",
+          "sha256": "c3f7f16f3eeedfdd5d730a519520bf66fc483d6dc6efa3661591ec9d56b41b76",
+          "bytes": 669,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_loan-v1/restored.json",
+        "sha256": "d32e39220d2ef4467448b815a89ece5d63c9799363081f42901926c4e8c09b9c",
+        "bytes": 491,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/after/native.receipt.json",
+          "sha256": "0ef615bb6b8064b788b75e5fde93a39ed472da7e6bdc98697364dd7357c4eb47",
+          "bytes": 1582,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/after/native.log",
+          "sha256": "c6c66cc66698b0f7fb9aab1741945f20f0569db4a91553247a98e9e96a7a6be4",
+          "bytes": 480,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_loan-v1/after/native.validation.json",
+          "sha256": "86354756e149c3ea01767481b0527e1142e1df64e978649e20ea92266d879212",
+          "bytes": 668,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_PERMISSION",
+      "observed": "Bypassing shared project admission publishes actual manifest as200 instead of visible-shell403;1fail23assertions.",
+      "credit": "Actual package-only reader; no whole credential/context matrix claim.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_permission-v1/plan.json",
+        "sha256": "d134ea10760af6a3a56a15823f49b640a3fe4c104815094d5e44158abdaa216c",
+        "bytes": 6122,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/baseline/native.receipt.json",
+          "sha256": "3edd3cc2f8fecea069901dd2095993d4264cc100c4bba6a75f60b749279047ec",
+          "bytes": 1574,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/baseline/native.log",
+          "sha256": "41e830fcdcca635dd4ef14bb4bb16d7ca554cf9ee36c59c03d360ecec6791e94",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/baseline/native.validation.json",
+          "sha256": "1b6899d80b9c54c6309042d5386f6fe21d4cdcafdf853ca5b0c0584664876730",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/fault/native.receipt.json",
+          "sha256": "f63cb7c454662ef023c8675ce022d5faa25bcf0d7eb058b92c69928a89cf5256",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/fault/native.log",
+          "sha256": "5d6b08d59b8b177fb605a9b4b7283077dbd0cabf1e941307b1c85d1260c6032a",
+          "bytes": 1989,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/fault/native.validation.json",
+          "sha256": "da490b226212af6b2520ecb2fa58e47753152c0d65cd46e6a5728a48dfcbf146",
+          "bytes": 681,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_permission-v1/restored.json",
+        "sha256": "5383d99002edef47c241275f03deeb5e37021e9f6a692bd1bd8542602b719da5",
+        "bytes": 491,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/after/native.receipt.json",
+          "sha256": "b9a78ded478f5228aec86b3bc1a0e4f0954525199281b43f8011c02082db9d8f",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/after/native.log",
+          "sha256": "0152ae1431cddace81b3a01d492032844a826cb846a667d6672242f4ae8bcbb4",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_permission-v1/after/native.validation.json",
+          "sha256": "c74613c0f8070a56cfb1ed8e7b48ad67aa07532dc64ed19dce8a247b36bc508a",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_RESPONSE_NONNEGATIVE",
+      "observed": "Removing response lower bound makes real browser decoder accept revision-1 as success;1failed27skipped.",
+      "credit": "Actual response decoder lower bound.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/plan.json",
+        "sha256": "bec46b4132059a597bda0ca4f638ba34e10f1cee9cc3b2553f29efd1e58df2ab",
+        "bytes": 4969,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/baseline/native.receipt.json",
+          "sha256": "40c11476338768a2abaf1b1c46df5e7c0a85adfb1c24e1dd62fd37d0e835ae3a",
+          "bytes": 1582,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/baseline/native.log",
+          "sha256": "08134001697ac0cae8bf9703e478c744a5181aafaf82e565f070f48e0fa3ce8a",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/baseline/native.validation.json",
+          "sha256": "f896d4ea45bf46c71feb33076a56c6636950ac29af3684a48fce5cd1a7ddc643",
+          "bytes": 707,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/fault/native.receipt.json",
+          "sha256": "a6f24877a4a827051e594444ecd2e999eaac09b79e0aec2a3005019e9599f428",
+          "bytes": 1576,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/fault/native.log",
+          "sha256": "a0d2ee7408c2b7269ccfab5026e7d95596e516862442445a2676b650ceee4785",
+          "bytes": 5556,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/fault/native.validation.json",
+          "sha256": "9aadacc8e2fb8684f07af7c913931cd1bb47d01a9a916a036ffc101ebc189771",
+          "bytes": 701,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/restored.json",
+        "sha256": "ca0c5edaa18121d00d65f4e15d7ce5e54b148bbebf311a91ad77c88bc061ea6b",
+        "bytes": 497,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/after/native.receipt.json",
+          "sha256": "0e7c8b02cb3916720d752650e7aa8a3e6de5a21933ee260fdb217c831b892f37",
+          "bytes": 1576,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/after/native.log",
+          "sha256": "b1a8e7ff04963145b144a8784b42ee6fc965a002fea6a778277042e8f2b63184",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_nonnegative-v1/after/native.validation.json",
+          "sha256": "c208d70e6661f5d790ca76eb64705901ffdcc370d7b4daf95e02096c37fbc056",
+          "bytes": 701,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_RESPONSE_INTEGER",
+      "observed": "Removing response integrality makes real browser decoder accept1.5 as success;1failed27skipped.",
+      "credit": "Actual response decoder integer bound.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/plan.json",
+        "sha256": "b0f54c60fc3d3aa746e841061f430f0dc42a1adfd1f08000c86fd1583835c6c1",
+        "bytes": 4952,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/baseline/native.receipt.json",
+          "sha256": "4e7ec268fa6d49d2b9ad1bf41993eaa5bbbc47838fa3639f553cf78c21474d78",
+          "bytes": 1576,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/baseline/native.log",
+          "sha256": "b8ca25c7b432d46a17ef3f343d4ff4bf066e1c0bf1f81a0a5cb6eaab4df5e4e6",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/baseline/native.validation.json",
+          "sha256": "1a2b96ba957a737f42ff07b45e5e4aa345c7bff348520542cc764869c696b678",
+          "bytes": 699,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/fault/native.receipt.json",
+          "sha256": "21c73710d51c3b45780d3f0ab62aa2040c5387f12b3a6bc4cb65554180bcddca",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/fault/native.log",
+          "sha256": "6dad0cee19d81ba77d62a87da3304bbbc199094f8c3e2f2dc226aa15b31a12ba",
+          "bytes": 5558,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/fault/native.validation.json",
+          "sha256": "59ffe109b74d7942b4d82daf0554fd6cef20ac4a05fd52abf21075dd5f7e27ce",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/restored.json",
+        "sha256": "298b1f490bbd0d4e455c81508b7e9cfc229dea210f5b0c6b27ef824aea42ee06",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/after/native.receipt.json",
+          "sha256": "10be2c9773bdcab3ba554944ecf441b08169809e0c527a03069722a3880cdbc6",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/after/native.log",
+          "sha256": "bddace03c6f557bf36824270c9fb6a5efa3baa488b86d8462f07d032bd0e02d8",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_integer-v1/after/native.validation.json",
+          "sha256": "5a437eea852f51f4e63595adfe81b696e487579e5b0604ed5fe8ed2f15056426",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_RESPONSE_MAX",
+      "observed": "Corrected valid number.integer >=0 omission makes real browser decoder accept9007199254740992 as success;1failed27skipped.",
+      "credit": "Only the corrected counterfactual earns necessity credit. Earlier invalid ArkType syntax failed before collection and is retained without credit.",
+      "plan": {
+        "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/plan.json",
+        "sha256": "dbcdb4ab5f11823917a851ed93e55125af42bc0dbabd8e5a2b1906c6f73e6c06",
+        "bytes": 4959,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/baseline/native.receipt.json",
+          "sha256": "d5b9938da8bac1c5cb06fbb844b13f034b9e4b72693b62bed01ea8ff6cf4fe21",
+          "bytes": 1584,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/baseline/native.log",
+          "sha256": "a6bf6b5069bf3140e887eb2831466017b0a2a55f69780194bd4722b5a7031dd9",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/baseline/native.validation.json",
+          "sha256": "7acbce97be8497343f651db3bde9cc3b2d471a4fd11afad799013f9dc31d05af",
+          "bytes": 711,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/fault/native.receipt.json",
+          "sha256": "04038823a63dabd576547279dd25ba33563b21949cd79042ce368421afd464b1",
+          "bytes": 1578,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/fault/native.log",
+          "sha256": "45feeecf00756bac6c716d668322588bc2aeb3622e83ff8744f3d559e88fda17",
+          "bytes": 5554,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/fault/native.validation.json",
+          "sha256": "24a87721d2ef4683bdf39bdb922e9a4091fcb80d002513cb2730504e81136fa7",
+          "bytes": 705,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/restored.json",
+        "sha256": "14d1d91be3bc7e7e5a1b7783d666a16d9824b32ddcc37c732cef091b8e117db6",
+        "bytes": 499,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/after/native.receipt.json",
+          "sha256": "92e096ee5b22e17ff8bc83719d0d69211ab31ee268dca025487d105c9e33e5ca",
+          "bytes": 1578,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/after/native.log",
+          "sha256": "a1513b87472766d169cdc962c70cf66e22d195eaab375682cee2478aa085f9d9",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-corrected-proof-manifest_response_max-v1/after/native.validation.json",
+          "sha256": "e87aba604777356c2bb9b448da1ec6caab96bec563284ceab4afae0b335b49e7",
+          "bytes": 705,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_RESPONSE_VERSION",
+      "observed": "Widening version makes real browser decoder acceptversion2 as success;1failed27skipped.",
+      "credit": "Wire version1 response only, not retained workflow acceptance versions.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/plan.json",
+        "sha256": "23452aeddc9e3759d5ca392979f1e67c6277e281c3ccdd6cd1737ff6d6396596",
+        "bytes": 4969,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/baseline/native.receipt.json",
+          "sha256": "b742adfdc23a8b71fb28b399f25ba6a2f63049003b94ec3a1b99dea106b5056f",
+          "bytes": 1572,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/baseline/native.log",
+          "sha256": "b5e04de5514ebccbfe06326ad78118d082a6a5ca76919c83d6a13bd7627aef3c",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/baseline/native.validation.json",
+          "sha256": "cbca0af2cd8f7ad6bf5cb93f7a08ac5513e449da267747a78fffa824abbe0e94",
+          "bytes": 699,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/fault/native.receipt.json",
+          "sha256": "1efcd315b43fccd9cb70f99de706908b517abba4ca566b1be15e80bc34c2bde1",
+          "bytes": 1566,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/fault/native.log",
+          "sha256": "022a58920efe3038e59e754e0197432c40a4d929415d7062944f9540e81e4360",
+          "bytes": 5554,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/fault/native.validation.json",
+          "sha256": "8608527fce0800b33da22e79d1ef8b90f363f06ecf5fef241087ed94cc5e299c",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/restored.json",
+        "sha256": "d495d401d67101230d65e5c3474bca646f53fae82372086f7f40fae2344b0713",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/after/native.receipt.json",
+          "sha256": "1ce25d95bd5ce19f733a6abfe35753c6b999df1cdcc755266f9d9ca9a78382d6",
+          "bytes": 1566,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/after/native.log",
+          "sha256": "b929b24586e8e301d2cef9c3c785beb029031f6c9419902ef310d79e29e0ed5c",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_version-v1/after/native.validation.json",
+          "sha256": "794d27a0783dc4d3038fb1fda62283e043e2eec139da00a09ae3833e87bf4155",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "MANIFEST_RESPONSE_CODE",
+      "observed": "Removing default-code nonempty bound makes real browser decoder accept empty code as success;1failed27skipped.",
+      "credit": "Untyped default code field only; typed-code/other scalar fields not independently proved.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/plan.json",
+        "sha256": "20f6d58c739f9f7b9ab0f64ce9add2c5fec083fc92d7a15bc7a736cfd01058e6",
+        "bytes": 4935,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/baseline/native.receipt.json",
+          "sha256": "8c319830a0323388c7fc92021dbbed3b133b743b3504784dc32dfc2cbeaed58d",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/baseline/native.log",
+          "sha256": "7c2ccd5d774c8aa347387b604022ee38565bb4982093892430997e4ee11cc9ed",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/baseline/native.validation.json",
+          "sha256": "d0f0c5f0de72c4c3742ae045ab35e17121ca7dd3b6cf9b2eddce62a6078bfc1c",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/fault/native.receipt.json",
+          "sha256": "4bf7d2f67888157f4a07ea6616ef9a3e8a337daa6fbecd0b6ab35174cd3b5b71",
+          "bytes": 1555,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/fault/native.log",
+          "sha256": "e2442f11eee2386c61570d11661a193e4ea57e2e873345c1680a26041269d351",
+          "bytes": 5549,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/fault/native.validation.json",
+          "sha256": "afd6315784421874eec7ee7093f0db055c4d76610b8ba533dcaa425e3360dd58",
+          "bytes": 687,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/restored.json",
+        "sha256": "47e05a6e72a4031aa4e8fb35a49c62f0c5c4f9aaa101f69c998adc0ec656faf8",
+        "bytes": 490,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/after/native.receipt.json",
+          "sha256": "637a6674ee912ddb667f09e20e7cbb662efcc250ff09fe4c5202cc64951f6014",
+          "bytes": 1555,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/after/native.log",
+          "sha256": "6de4104db8270374c328da0cad7fb3e462641273afd5789f01bcfca673c752fa",
+          "bytes": 4398,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-manifest_response_code-v1/after/native.validation.json",
+          "sha256": "5be419d586044d82efa63ff6890239f168289069826f0cecc8f03e1165d07050",
+          "bytes": 687,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "TYPE_MAP_REVISIONS",
+      "observed": "Skipping actual type-map invalidation leaves first empty project revision2 instead of3 after successful real directory creation and actual mapping;1fail25assertions.",
+      "credit": "Type-set creation token, with normal foreign and idempotence coverage.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/plan.json",
+        "sha256": "e851f0ef4e6a98438529e201bb21667ae051221ba7ad1fba99ae638b1e073eaf",
+        "bytes": 5026,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/baseline/native.receipt.json",
+          "sha256": "dc86d3eb8eb38b052032411d2efeaafeebf31e1a458a31a2345047d95036df55",
+          "bytes": 1572,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/baseline/native.log",
+          "sha256": "ba850f94fc7b160eb806b1dca34e913917d85a0939f97ebd25044226e3e28b52",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/baseline/native.validation.json",
+          "sha256": "a563e1af73ac0bb5be042452d02280afb3b649621038b168abf3250acaf26428",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/fault/native.receipt.json",
+          "sha256": "5fa44496fd13b18dd3147f1d803ff8e2de94f10a63e6ab150c561d82e295bcb8",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/fault/native.log",
+          "sha256": "cb688f1061ac7eb3d32cb0ada3d5d8c232219f5c596ed41f678ae4ba8936cd9c",
+          "bytes": 2024,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/fault/native.validation.json",
+          "sha256": "99f7903dbedcdd4c6ff793afd70fa1c828dec32f5c1ff23b3c17ccef98ab0730",
+          "bytes": 679,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/restored.json",
+        "sha256": "09b877b1b0dc27a9a6b7bdb66d4cfd38837b8c025aee63549076b192173f363d",
+        "bytes": 475,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/after/native.receipt.json",
+          "sha256": "ff0ca4bd8c34fd815335e81950904c529b796cec3182fd370f41980693cdc86e",
+          "bytes": 1566,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/after/native.log",
+          "sha256": "2f6b072b065b01bc349efa7ea6a3fa9deba17d0550d619c2f816e1558b808495",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_revisions-v1/after/native.validation.json",
+          "sha256": "c5bbab2f1a2dec0a2123a5f46532e0b88ed084c5c7fbf33c2b6864a5c150c2cf",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "TYPE_REMOVE_REVISIONS",
+      "observed": "Skipping actual owned type removal invalidation leaves empty project revision3 instead of4 after successful creation/idempotence/removal;1fail37assertions.",
+      "credit": "Type-set removal token first oracle.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/plan.json",
+        "sha256": "4848d6bb2255d64bb00ec61914e372cb305a27a66a4ef9e2d37ecdc41bb2c33e",
+        "bytes": 8214,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/baseline/native.receipt.json",
+          "sha256": "b108f3d0704e5b507133bc0b3d48fe327007f09a5af1de6bffa9dcfd10b71453",
+          "bytes": 1578,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/baseline/native.log",
+          "sha256": "c3c1f331ae641ab7d1239d9a308ed4d68fb8a450da1e1ff2bb0eb9438b7dacce",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/baseline/native.validation.json",
+          "sha256": "e1843e4b4645f4506b748ba262014f9f8d31ca12d4006e85d1571f70162701db",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/fault/native.receipt.json",
+          "sha256": "3db7d4b78ed2874ab01baf62855bea36d44f37a7320a32fb0a0ebe99fd3a52e1",
+          "bytes": 1573,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/fault/native.log",
+          "sha256": "f55471f4c4cf0c769d9b97dc6d2e326d6e6e6bc2d1453f49ca8e3fec888e405d",
+          "bytes": 2088,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/fault/native.validation.json",
+          "sha256": "ca589285d401e17e946c160a59b229af39073b1578ac9fdd77a4353d249b2362",
+          "bytes": 685,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/restored.json",
+        "sha256": "edf00ce896a88460856e0307398a4f7b9e43ac637be6e86a6667b02dcbb18f08",
+        "bytes": 478,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/after/native.receipt.json",
+          "sha256": "1e57ae37a5d38715ee0522f6121f9fd9fdfc9a81b3eecbea2a61564e5fb96ae3",
+          "bytes": 1572,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/after/native.log",
+          "sha256": "0c89689c8500009b120af177466116de9bc0c33b38c0f3cb02430c00f0c2bf7c",
+          "bytes": 325,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_revisions-v1/after/native.validation.json",
+          "sha256": "1eae0e5fc70a9abb71a3ba7a86700bd2959103cf0b3240f07fae838b8283ffb5",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "TYPE_MAP_ATOMIC",
+      "observed": "Omitting local mapping transaction lets a caught second-project failure and unrelated outer commit retain mapped type plus project revision0to1;1fail28assertions.",
+      "credit": "Actual borrowed caller catches failure and commits unrelated tag; later normal cleanup/healthy retry is not fault credit.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/plan.json",
+        "sha256": "43ce0eca966061e838e6ffe808b0037482291ff655309b66c6a9c1e3d76fcaa0",
+        "bytes": 4969,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/baseline/native.receipt.json",
+          "sha256": "ddbc759f3cda6499b5081eb854a2e10b1ea2a2f55a841fe6996182f2becc33a4",
+          "bytes": 1507,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/baseline/native.log",
+          "sha256": "2bd03aacea0412c98e8bbb2624927ec7c550d8eb8b6381fe0c3ec5955ef1ebe1",
+          "bytes": 265,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/baseline/native.validation.json",
+          "sha256": "cc18ea2731ad18a32af57822fb01e884ad8d5f30d431b1b040c337bb00f5a7d8",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/fault/native.receipt.json",
+          "sha256": "3d1fb2d3d3020d5891ee7a23736ad3c1fb5803672c635899ec94800981fdf45e",
+          "bytes": 1502,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/fault/native.log",
+          "sha256": "10ca836006d013dc44c4967c90a2bf541ae9c75b7581b5578798320cdc928a64",
+          "bytes": 1312,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/fault/native.validation.json",
+          "sha256": "9c2d799c81ef2588f50701e14f866da819d87243ade6a7d3f17e75adb644d2a9",
+          "bytes": 673,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/restored.json",
+        "sha256": "0f0e107b1d5b01ca03e1c749e863f372c75316c1ab1d66d474e544631247ef4b",
+        "bytes": 472,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/after/native.receipt.json",
+          "sha256": "1927918f70d15dba28a1746a324abc7fb3aff2f7f676417caf99b0cd290707a5",
+          "bytes": 1501,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/after/native.log",
+          "sha256": "d36550f37485291959cf3bc07d1a378eda46422211fd8b1c40923390cf0390ac",
+          "bytes": 264,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_map_atomic-v1/after/native.validation.json",
+          "sha256": "d10054a6982009da0f294138612c1a18e23c8b94c8cc9bd0c0af425cde7bd38a",
+          "bytes": 672,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "TYPE_REMOVE_ATOMIC",
+      "observed": "Omitting local deletion transaction lets a caught second-project failure and unrelated outer commit lose the type and advance project revision1to2;1fail28assertions.",
+      "credit": "Actual borrowed partial-delete rollback dependency.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/plan.json",
+        "sha256": "cfff7f3be818d662c2c8cf7f0271db6e2be34e0cd0fd3dbee1b1ba2d9e6bf3b7",
+        "bytes": 8154,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/baseline/native.receipt.json",
+          "sha256": "d41c42b176e1565e91d6acca4d9a91fe8a697d522c699dc18b9e3becd0911772",
+          "bytes": 1516,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/baseline/native.log",
+          "sha256": "c9cd0f0bdf40dd348b09257a784c629220969f4065c320d42937745e1d6fe98c",
+          "bytes": 267,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/baseline/native.validation.json",
+          "sha256": "e07d5d112f874a0311c56162839a43deb1ab9a007061e1f5e6739eefe81b5ed6",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/fault/native.receipt.json",
+          "sha256": "24c2fa8ff749ec8b4b5f19adad70bb4724fe100f38e8babf83972f21e6986565",
+          "bytes": 1511,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/fault/native.log",
+          "sha256": "b3a1a2dd8514fd876c3d1f6103e37494e66000976064ea7d5cdbbf81127d6ddf",
+          "bytes": 1315,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/fault/native.validation.json",
+          "sha256": "4f95dd9e77829750aa607a6cc1c86f743923810b512862082defc6b6c7fba2e4",
+          "bytes": 679,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/restored.json",
+        "sha256": "823855bcef0cc419074150752b7c72c91854ee64c01bd56578fcf721f0596eb4",
+        "bytes": 475,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/after/native.receipt.json",
+          "sha256": "e3e63ae1e2d655648e4056d76eb1796a4208c2d5af9213d3eeee9c9f3dc58812",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/after/native.log",
+          "sha256": "de2fae7f1a3d62eb5e044f6b018f5e57c3b5000fdb1c05991d7bc39489fc78ff",
+          "bytes": 267,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_remove_atomic-v1/after/native.validation.json",
+          "sha256": "19bb24d62d95082dec735437e803a7fe2a35da87d11191a56f475360399d8d78",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "TYPE_UPDATE_GUARD",
+      "observed": "Omitting exact project UPDATE return admission makes the trigger-suppressed second update resolve; caught-map owner receives no Error;1fail25assertions.",
+      "credit": "First error expectation only, not later postcommit/cleanup or returned-identity mismatch separately.",
+      "plan": {
+        "path": "/tmp/puni-manifest-proof-type_update_guard-v1/plan.json",
+        "sha256": "ee937aa2bee2c87ca2b370cf87048486ab94fdc707116c605a30c1ef47c85958",
+        "bytes": 3533,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/baseline/native.receipt.json",
+          "sha256": "8c10747a92cac1957a95872c4b95b5156523cd9de2a31c84a9f7f52d3faa8332",
+          "bytes": 1511,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/baseline/native.log",
+          "sha256": "ee1b2fcaa2bbfb23a04849b8cad3a69b3f86a2d65d29ef4b7f50301dab95d711",
+          "bytes": 264,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/baseline/native.validation.json",
+          "sha256": "e8cbdba3ebad78799f0ff848e027ff53c9f6e4e650f9d6dcc11f20e7f133b2d5",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/fault/native.receipt.json",
+          "sha256": "6981ba8d9b1af32e3bf29051018b0d8f3a9d32f7f9e78e2d533f443e24e22d10",
+          "bytes": 1505,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/fault/native.log",
+          "sha256": "e89cb3bea16cb8c7a8f3020f90f8330376229f05eb13e9c5715d1720b0032c17",
+          "bytes": 968,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/fault/native.validation.json",
+          "sha256": "93d3ab172b627b42f1ee90c5c1748715a54f69611920377ae769ecb3fed92045",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-manifest-proof-type_update_guard-v1/restored.json",
+        "sha256": "8591094bcf60ce68a6e843156e1485beb9cae0d090035ae8f7232a7a79775f06",
+        "bytes": 483,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/after/native.receipt.json",
+          "sha256": "b3306fdcd96ad7a37c69d8b1e7c3e175e3570492285b8f3b8bbf12925d664e4f",
+          "bytes": 1505,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/after/native.log",
+          "sha256": "2a1982b58ea67dc26470e4cc911249b8acf67b9f936dbb2da8431723cf7af139",
+          "bytes": 264,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-manifest-proof-type_update_guard-v1/after/native.validation.json",
+          "sha256": "e8569effe383c9bea67861d04c6ae056544beca41984b7481a6472ca74b07df4",
+          "bytes": 676,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    }
+  ],
+  "implementation": "GET /api/projects/:id/step-manifest produces version1/project{id,revision}/untyped default code array/type-ID entries. Required readManifest captures actual current project chain/revision/current owned types/matching bindings on its Source owner. Project.read uses shared admitted project helper; package-only shell403 and hidden/foreign404 preserved. All organization-owned types enumerate by binary ID, including legitimate ID default, and codes retain SC18. Empty projects and zero-step mappings do not materialize packages. Actual type mapping/removal now advances every actual organization project revision atomically, with original retained write stamp; non-type mappings preserve revisions, idempotent name creation and refusal do not advance, and unowned legacy type removal retains legacy semantics.",
+  "compatibilityFailure": {
+    "check": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/directoryCompatibility/native.receipt.json",
+        "sha256": "7553eec9232e08eb244c3b10513fd818af4a642ec6c045d6003bd58aa7e91395",
+        "bytes": 1862,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/directoryCompatibility/native.log",
+        "sha256": "cefcef3108a009977320d7279582355373bff86e3141bb701d985c7b815cdb32",
+        "bytes": 233742,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-type-revision-atomic-owners-live-v2/directoryCompatibility/native.validation.json",
+        "sha256": "654bf0358f89755653d2f2807a7f4e88356ca51db02bfd542ff7baacd8e14b8b",
+        "bytes": 2061,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    "observed": "9pureDirectoryunitpass/167legacyfixturefail. Every167primaryfailure is required atomic117 admission during ordinary fixture migration; resource fixture additionally produces6undefined connection.close cleanup errors. These fail before changed mapping code. The migrate.ts guard hash is unchanged from V35. Runtime/resource compatibility remains RED and unverified, not waived.",
+    "migrationGuard": {
+      "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/migrate.ts",
+      "sha256": "9e7d0a47a17b3a6b6a1d2a2b019d8ac7281ee9ad03f395d1a26d8fadbe941a69",
+      "bytes": 11726,
+      "mode": 436
+    },
+    "requiredNext": "Update legacy runtime/resource fixtures to the actual atomic catalogue migration and current authored definition/binding/value model; do not relax migration admission or mutate legacy StepStore to simulate current global bindings."
+  },
+  "corrections": [
+    "Unexecuted type revision v1 test refined to compare idempotent domain revisions rather than forbidding required command journal observations.",
+    "Unexecuted native trigger DDL switched from unsupported parameters to escaped SQL literals before publication.",
+    "First proof v1 preparation hit exact-inverse ambiguity before any native run/source mutation; corrected typed expression uniquely includes codes property.",
+    "First response-Max omission used an invalid unpaired ArkType left bound and failed before test collection; original exactly restored, no necessity credit. Corrected lower-only syntax then yields actual unsafe-revision decoder failure and restored green."
+  ],
+  "unverified": [
+    "Offline Burokrat revision-naming binding format/per-type/default validation/manifest digest integration and retained acceptance compatibility remain required by task2.3.",
+    "New read arguments/contexts/collaborator-null/each forwarding guard and post-await/returned-identity branches, plus remaining global scalar/ownership guards, are not inferred from these bounded controls.",
+    "Standalone type-map stamp retention before queueing and broader actual type writer inventory still require their own targeted controls.",
+    "Memory scoped directory writes remain the explicitly unsupported pre-existing capability; current producer read owners cover both stores and actual directory write invariants are proved on SQLite, not fabricated Memory mapping.",
+    "The broader runtime/resource compatibility suite currently fails at legacy fixture migration setup; no full gate/format/lint/build/source-installed CLI qualification follows.",
+    "Astra follow-up and all full original UI/history/import/scheduler/migration/CLI/client-surface/integration/gate requirements remain open."
+  ],
+  "afterControls": {
+    "source": {
+      "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/source-pins.json",
+      "sha256": "f0f67201552c9d6e5e819bb351e8d162a324f4790841eaa83765445a5ba70dca",
+      "bytes": 5208923,
+      "mode": 384
+    },
+    "controls": [
+      {
+        "phase": "globalCatalogueHttp",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/globalCatalogueHttp/native.receipt.json",
+          "sha256": "326de6590f33adbca953f8d682b601441f758d6e09ab62f3380841cd25093fdb",
+          "bytes": 1498,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/globalCatalogueHttp/native.validation.json",
+          "sha256": "ccf9f6a1f3db1a6233eb292c9f230bda0232e3089863f9803fcecb69514e23a1",
+          "bytes": 2020,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/globalCatalogueHttp/native.log",
+          "sha256": "cfac01c1b8c4762dad5ebe642861b8e29b7a6ee1a251944eef67eef2c77e4d71",
+          "bytes": 9606,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "manifestReadOwners",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/manifestReadOwners/native.receipt.json",
+          "sha256": "d274286eaa75512daee2f2410ccb07e9900a0acccdefd386004d7b96ec962e95",
+          "bytes": 1524,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/manifestReadOwners/native.validation.json",
+          "sha256": "db9bfc79768f644f63150415960b96968f3636bdbdeabc0e11d1f43f8316d310",
+          "bytes": 2017,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/manifestReadOwners/native.log",
+          "sha256": "8c3813fa635faba104d0e787bc49fa41306ee3d6ca1d2d3671b6d4cc45b213a9",
+          "bytes": 1542,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "typeRevisionAtomic",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/typeRevisionAtomic/native.receipt.json",
+          "sha256": "502eae27c0d25ecfbdf026614b7ac54e878508968834a586ab2b40458c142a16",
+          "bytes": 1440,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/typeRevisionAtomic/native.validation.json",
+          "sha256": "d62643cde76600b6797528b618be1b372135a7524945275b24cb3678587bc45d",
+          "bytes": 2016,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/typeRevisionAtomic/native.log",
+          "sha256": "764cbe3724864610e5a2717df596c657d9a63f0d907220ee5b90affe28b88af1",
+          "bytes": 321,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "backendTypes",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/backendTypes/native.receipt.json",
+          "sha256": "8cc72e3b6f87dca1867f71bf9f01637d5770fd8cde73004cc690da20b4429572",
+          "bytes": 1369,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/backendTypes/native.validation.json",
+          "sha256": "1920030a6c544b7a1838b34a7c35b2c1b5e1ca1cd8c30898cd4babdfa52644b9",
+          "bytes": 1996,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/backendTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "catalogueClientThreads",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/catalogueClientThreads/native.receipt.json",
+          "sha256": "f46eacffea18045a33054e4ce7b9dec97525f8a76d738a4043f4f908776f77f3",
+          "bytes": 1468,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/catalogueClientThreads/native.validation.json",
+          "sha256": "6bcb52bf2fa7b91a3001d60b32f3e75f0ebf1cb6df235e35aeb42f3e27a3c032",
+          "bytes": 2029,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/catalogueClientThreads/native.log",
+          "sha256": "109f1f0cd4844942de4f4473f0379b1e4471c1733ea03c42aa7814e0874790c2",
+          "bytes": 4514,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "mcpCurrent",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/mcpCurrent/native.receipt.json",
+          "sha256": "13ca93baddce4157f49271a908be348d710f2306b1e8b5b184e2a5cddd2ce5dd",
+          "bytes": 1767,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/mcpCurrent/native.validation.json",
+          "sha256": "0813284344e0304c7d70052801593be1bf328345a1e0084f18564df71a151b18",
+          "bytes": 1994,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/mcpCurrent/native.log",
+          "sha256": "9edaecb91d5004b54c4129625beaf59b17bf582f43b17babc119259ca87aa650",
+          "bytes": 14840,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "clientTypes",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/clientTypes/native.receipt.json",
+          "sha256": "ee45dd85137cd8c054325c8b415cc2dd9e342d7136699c39fd8e99d85e118a5d",
+          "bytes": 1406,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/clientTypes/native.validation.json",
+          "sha256": "26e8a80d284516b058baf6e408644aaa781134773d2de09131d6e51652fa71c8",
+          "bytes": 1993,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/clientTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "allSpecs",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/allSpecs/native.receipt.json",
+          "sha256": "4060b157a398dbe1f05432dfa6df7f2f3c4a5d298f7083b6fe2274f0d0dae79b",
+          "bytes": 1330,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/allSpecs/native.validation.json",
+          "sha256": "a98155170ca417476485f14531c3a18a0b497f7d4b8995936e505d414036611c",
+          "bytes": 1989,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/allSpecs/native.log",
+          "sha256": "2a06bd3deffc92ece5247f9d41b0e1361675c25ed57b59a2492640c518043f4b",
+          "bytes": 337357,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "contractsBoot",
+        "receipt": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/contractsBoot/native.receipt.json",
+          "sha256": "00ea05482c69a646e7d0385760dc47c943ea2b30473683ec3b85ab66b8db770a",
+          "bytes": 1416,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/contractsBoot/native.validation.json",
+          "sha256": "8f02b7ca13b861bd0f4d0b435fe8e66f989df153e87232e2a1e6528b443edeb8",
+          "bytes": 2001,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-manifest-evidence-live-v1/contractsBoot/native.log",
+          "sha256": "75503e062c3a28f47c71b305e4a05ae3f0f2d5defeccc3c866e68cfdca7d6658",
+          "bytes": 419,
+          "mode": 384
+        }
+      }
+    ],
+    "observed": {
+      "globalCatalogueHttp": "36pass1907assertions",
+      "manifestReadOwners": "21pass543assertions",
+      "typeRevisionAtomic": "2pass67assertions",
+      "backendTypes": "exit0",
+      "catalogueClientThreads": "28pass",
+      "mcpCurrent": "135pass948assertions,1explicitnetworkfilter,95tools",
+      "clientTypes": "exit0",
+      "allSpecs": "exit0; full JSON retained",
+      "contractsBoot": "2pass7assertions;366MB/bound500MB"
+    },
+    "qualification": "All native owners settled/reaped/closed, exact six input inventories matched before and after. Documentation publication follows; broad runtime fixture compatibility remains RED and offline Burokrat remains unimplemented."
+  },
+  "followups": {
+    "negativeWriteRevisions": {
+      "record": "openspec/changes/wbs-step-catalogue/verification-catalogue-negative-revisions-20261119.json",
+      "observed": "The recorded negative-safe-integer write gap is fixed in both adapters after six real first regressions and four individually restored omission controls. Normal six-case write/rollback/retry owners pass161assertions. Full SC22 consumer and other qualifications remain open."
+    }
+  }
+}

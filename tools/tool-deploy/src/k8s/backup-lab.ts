@@ -492,7 +492,7 @@ async function main(): Promise<void> {
       namespaces: NAMESPACES,
       stateDir: state,
       overlay: join(ROOT, 'deploy/k8s/wbs/overlays/local'),
-      anonymousProjectsStatus: 200 as const,
+      anonymousWorkPackagesStatus: 200 as const,
       rolloutTimeoutSeconds: 180,
       jobTimeoutSeconds: 300,
       drainTimeoutMs: 5000,
@@ -550,7 +550,7 @@ async function main(): Promise<void> {
       '--',
       'bun',
       '-e',
-      `const r = await fetch('http://127.0.0.1:3100/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: '${KNOWN}' }) }); console.log(r.status)`,
+      `const r = await fetch('http://127.0.0.1:3100/api/work-packages', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'http://localhost:8080' }, body: JSON.stringify({ name: '${KNOWN}' }) }); console.log(r.status)`,
     ]);
     assert(inserted.trim() === '200', `known row ${KNOWN} written through the backend API`);
 

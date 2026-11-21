@@ -77,15 +77,15 @@ function previousSchedule(
     earliestFinish.set(id, start + durationOf(id));
   }
 
-  const projectFinish = Math.max(0, ...leafIds.map((id) => earliestFinish.get(id) ?? 0));
+  const workPackageFinish = Math.max(0, ...leafIds.map((id) => earliestFinish.get(id) ?? 0));
   const latestFinish = new Map<string, number>();
   const latestStart = new Map<string, number>();
   for (const id of [...order].reverse()) {
     const successors = successorsOf.get(id) ?? [];
     const finish =
       successors.length === 0
-        ? projectFinish
-        : Math.min(...successors.map((s) => latestStart.get(s) ?? projectFinish));
+        ? workPackageFinish
+        : Math.min(...successors.map((s) => latestStart.get(s) ?? workPackageFinish));
     latestFinish.set(id, finish);
     latestStart.set(id, finish - durationOf(id));
   }
@@ -308,7 +308,7 @@ const slicesFrom = (plan: GeneratedPlan): Slice[] =>
  * order the estimate rows arrived in.
  *
  * `shuffle` is the point of this function existing. Before this change nothing
- * ordered `EstimateRepository.listByProject`, so the order was SQLite's to
+ * ordered `EstimateRepository.listByWorkPackage`, so the order was SQLite's to
  * choose, and a total is a chain of floating-point additions whose result
  * depends on it. Handing the old engine a **differently ordered** sum is what
  * makes the identity claim a claim about the plan rather than about the loop
@@ -419,7 +419,7 @@ function expectSameSchedule(
   }
 }
 
-/** `Dev` and `QA`: the most steps any project in a released database can hold. */
+/** `Dev` and `QA`: the most steps any work package in a released database can hold. */
 const RELEASED_STEPS = 2;
 
 /**
@@ -431,7 +431,7 @@ const REACHES: readonly DependencyReach[] = ['whole-item', 'anchor-slice'];
 
 describe('the slice engine against the one it replaced', () => {
   it('answers what it answered for a two-step plan, however the old sum was ordered', () => {
-    // The change's central claim, at the size every project that already exists
+    // The change's central claim, at the size every work package that already exists
     // is: two steps, because `role-crud` and this change ship in the same
     // release train and nothing before them could write a third.
     //
@@ -476,7 +476,7 @@ describe('the slice engine against the one it replaced', () => {
   it('answers what it answered for a three-step plan summed in step order', () => {
     // Three steps are reachable the moment this release lands, and for three
     // addends the order is no longer free: association is not commutation. So
-    // the order is **defined** — `EstimateRepository.listByProject` orders by
+    // the order is **defined** — `EstimateRepository.listByWorkPackage` orders by
     // step position and the adapter slices in the same order — and this is that
     // definition held to: the same estimates, added up the way the repository
     // now hands them over, come out the same on both sides.

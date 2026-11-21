@@ -1,0 +1,711 @@
+{
+  "schema": "private-catalogue-reader-observed-v1",
+  "sourceBasis": {
+    "path": "/tmp/puni-step-catalogue-runtime-reader-owners-live-v1/source-pins.json",
+    "sha256": "05fc306de9e261f5b4e4d757f21b9dcd023e2b62b0de1e39778e1f4e3c56af33",
+    "bytes": 5159019,
+    "mode": 384
+  },
+  "testedReader": {
+    "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step.ts",
+    "sha256": "f6ea52310fcd832f3605fb656221ea24677528fc0636750b87275760c8015678",
+    "bytes": 36253,
+    "mode": 436
+  },
+  "review": {
+    "path": "/tmp/puni-step-catalogue-reader-effects-observed-astra-v1.md",
+    "sha256": "13a34bc1d63f3a0e2e200f2d327654924b2f0dcf504043997eb7c1647cbf8770",
+    "bytes": 4950,
+    "mode": 384
+  },
+  "ordinary": {
+    "log": {
+      "path": "/tmp/puni-step-catalogue-runtime-reader-owners-live-v1/owners/native.log",
+      "sha256": "b9060199e944b0e1385aadad6641193fc35bfd621268f2177b7308d94b157b98",
+      "bytes": 1591,
+      "mode": 384
+    },
+    "outcome": "11 pass,0 fail,95filtered,499expects; production sourcef6ea, exact95prefix retained"
+  },
+  "flights": [
+    {
+      "id": "B1",
+      "phases": [
+        {
+          "phase": "before",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/before/native.log",
+            "sha256": "a5f1bde74b63a690ff788846f5e1b5c2895fbf9e151f8ae615f8176469cf6a5f",
+            "bytes": 317,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values [845.87ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.21s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/before/native.receipt.json",
+            "sha256": "df7a92f640a19f4a01eb038f69f183a406357a3125e144234e0a3e2fe363a972",
+            "bytes": 1519,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/before/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:40:36.111Z",
+            "endedAt": "2026-11-18T00:40:39.350Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/before/native.log",
+              "sha256": "a5f1bde74b63a690ff788846f5e1b5c2895fbf9e151f8ae615f8176469cf6a5f",
+              "bytes": 317
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/before/native.validation.json",
+            "sha256": "13f09baa5f980e03e491a796a1d24c7c5bd43c7bf290011f6efc7da443113b0f",
+            "bytes": 2056,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "fault",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/fault/native.log",
+            "sha256": "fb992453da9ef997e8cb35a1609fa06f15783c4aa6ab5ddd2e4c829165f9c0bb",
+            "bytes": 1912,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n6587 |     expect(db.all(\"SELECT step_id FROM work_package_step WHERE work_package_id='w-one' ORDER BY step_id\")).toEqual([{ step_id: 'a-dev' }, { step_id: 'a-qa' }, { step_id: 'z-dev' }, { step_id: 'z-qa' }]);\n6588 |     expect(db.all('PRAGMA foreign_key_check')).toEqual([]);\n6589 |   });\n6590 |   const beforeRead = captureCatalogueProvenanceState(store.path);\n6591 |   const listed = await withinStoreRead(store.path, async (db) => new StepRepository(db, OPEN).listByWorkPackage('w-one'));\n6592 |   expect(listed).toEqual([\n                        ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n      \"allowancePercent\": 5,\n      \"code\": \"dev-one\",\n      \"estimateUnit\": \"workdays\",\n      \"id\": \"z-dev\",\n      \"name\": \"Develop One\",\n      \"position\": 10,\n      \"workPackageId\": \"w-one\",\n    },\n    {\n+     \"allowancePercent\": 5,\n+     \"code\": \"dev-two\",\n+     \"estimateUnit\": \"workdays\",\n+     \"id\": \"a-dev\",\n+     \"name\": \"Develop Two\",\n+     \"position\": 10,\n+     \"workPackageId\": \"w-one\",\n+   },\n+   {\n      \"allowancePercent\": 1,\n      \"code\": \"qa-one\",\n      \"estimateUnit\": \"minutes\",\n      \"id\": \"z-qa\",\n      \"name\": \"Test One\",\n+     \"position\": 20,\n+     \"workPackageId\": \"w-one\",\n+   },\n+   {\n+     \"allowancePercent\": 2,\n+     \"code\": \"qa-two\",\n+     \"estimateUnit\": \"minutes\",\n+     \"id\": \"a-qa\",\n+     \"name\": \"Test Two\",\n      \"position\": 20,\n      \"workPackageId\": \"w-one\",\n    },\n  ]\n\n- Expected  - 0\n+ Received  + 18\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:6592:18)\n(fail) catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values [758.74ms]\n\n 0 pass\n 105 filtered out\n 1 fail\n 35 expect() calls\nRan 1 test across 1 file. [3.10s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/fault/native.receipt.json",
+            "sha256": "bb20f7e2cd465caea7c95f4773fb63d9df36324a018fa0e480163de20e88b9fb",
+            "bytes": 1518,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:41:01.920Z",
+            "endedAt": "2026-11-18T00:41:05.052Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/fault/native.log",
+              "sha256": "fb992453da9ef997e8cb35a1609fa06f15783c4aa6ab5ddd2e4c829165f9c0bb",
+              "bytes": 1912
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/fault/native.validation.json",
+            "sha256": "7eeafd5b0c020410ac6bb0b4d6b262f16709aebfa6c1fb0cc6a3fea2f81abd18",
+            "bytes": 2054,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "after",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/after/native.log",
+            "sha256": "fa5e4179d640a7b3c951578bf4c6ff20904a42f899cd24db639178752447571e",
+            "bytes": 317,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values [804.10ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.18s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/after/native.receipt.json",
+            "sha256": "d7c2db10e021fcc30a49387cb4fad184dbb00d89ef30d1566101e969cb048cd1",
+            "bytes": 1517,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reader excludes sibling project bindings even when every widened candidate has explicit values$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:41:11.874Z",
+            "endedAt": "2026-11-18T00:41:15.087Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/after/native.log",
+              "sha256": "fa5e4179d640a7b3c951578bf4c6ff20904a42f899cd24db639178752447571e",
+              "bytes": 317
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/B1/after/native.validation.json",
+            "sha256": "5cf77a54e91ea35125f0cbd453ebe47b3530dde47c0db0b14ef816e3e819414d",
+            "bytes": 2053,
+            "mode": 384
+          }
+        }
+      ]
+    },
+    {
+      "id": "O1",
+      "phases": [
+        {
+          "phase": "before",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/before/native.log",
+            "sha256": "e07197fdb70f81bb17de7ef0b20d8dc0c85a221c1be8dddc70631783df66be1a",
+            "bytes": 331,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reads follow organization space and project binding union with controlling order independently of leaf types [848.37ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 38 expect() calls\nRan 1 test across 1 file. [3.23s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/before/native.receipt.json",
+            "sha256": "3b9d4615f2954761188de9864bc3f965a263afeca667dca4c1e7c36099faba32",
+            "bytes": 1533,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/before/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads follow organization space and project binding union with controlling order independently of leaf types$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:41:32.124Z",
+            "endedAt": "2026-11-18T00:41:35.388Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/before/native.log",
+              "sha256": "e07197fdb70f81bb17de7ef0b20d8dc0c85a221c1be8dddc70631783df66be1a",
+              "bytes": 331
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/before/native.validation.json",
+            "sha256": "fe5cd135ca41830c819051bdc808b3364b60fb0fbc613e87668c70e58fd2671e",
+            "bytes": 2068,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "fault",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/fault/native.log",
+            "sha256": "29a6a3c4499f080e7ec697941aa80f5440b6f9f12d326253bb9257487225d17c",
+            "bytes": 2185,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n6220 |   });\n6221 |   const beforeRead = captureCatalogueProvenanceState(store.path);\n6222 |   const listed = await withinStoreRead(store.path, async (db) =>\n6223 |     new StepRepository(db, OPEN).listByWorkPackage('w-one'),\n6224 |   );\n6225 |   expect(listed).toEqual([\n                        ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n-     \"allowancePercent\": 9,\n-     \"code\": \"aardvark\",\n+     \"allowancePercent\": 4,\n+     \"code\": \"project-only\",\n      \"estimateUnit\": \"minutes\",\n-     \"id\": \"org-before\",\n-     \"name\": \"Organization First\",\n-     \"position\": 30,\n-     \"workPackageId\": \"w-one\",\n-   },\n-   {\n-     \"allowancePercent\": 5,\n-     \"code\": \"dev-one\",\n-     \"estimateUnit\": \"workdays\",\n-     \"id\": \"z-dev\",\n-     \"name\": \"Develop One\",\n-     \"position\": 30,\n+     \"id\": \"typed-project\",\n+     \"name\": \"Typed Project\",\n+     \"position\": 1,\n      \"workPackageId\": \"w-one\",\n    },\n    {\n      \"allowancePercent\": 1,\n      \"code\": \"qa-one\",\n      \"estimateUnit\": \"minutes\",\n      \"id\": \"z-qa\",\n      \"name\": \"Test One\",\n      \"position\": 5,\n      \"workPackageId\": \"w-one\",\n    },\n    {\n-     \"allowancePercent\": 4,\n-     \"code\": \"project-only\",\n+     \"allowancePercent\": 5,\n+     \"code\": \"dev-one\",\n+     \"estimateUnit\": \"workdays\",\n+     \"id\": \"z-dev\",\n+     \"name\": \"Develop One\",\n+     \"position\": 10,\n+     \"workPackageId\": \"w-one\",\n+   },\n+   {\n+     \"allowancePercent\": 9,\n+     \"code\": \"aardvark\",\n      \"estimateUnit\": \"minutes\",\n-     \"id\": \"typed-project\",\n-     \"name\": \"Typed Project\",\n-     \"position\": 1,\n+     \"id\": \"org-before\",\n+     \"name\": \"Organization First\",\n+     \"position\": 30,\n      \"workPackageId\": \"w-one\",\n    },\n  ]\n\n- Expected  - 19\n+ Received  + 19\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:6225:18)\n(fail) catalogue package reads follow organization space and project binding union with controlling order independently of leaf types [846.63ms]\n\n 0 pass\n 105 filtered out\n 1 fail\n 37 expect() calls\nRan 1 test across 1 file. [3.21s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/fault/native.receipt.json",
+            "sha256": "68e1a803a56547f1ff00fb7b3cea9db9f7c78cd21c2b9896e4c8706e9c3d67b7",
+            "bytes": 1532,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads follow organization space and project binding union with controlling order independently of leaf types$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:42:12.453Z",
+            "endedAt": "2026-11-18T00:42:15.704Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/fault/native.log",
+              "sha256": "29a6a3c4499f080e7ec697941aa80f5440b6f9f12d326253bb9257487225d17c",
+              "bytes": 2185
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/fault/native.validation.json",
+            "sha256": "0d62987467466898a009f7f0e71bf6c5414c4f049852f1ce57f07c4e0f1f5e84",
+            "bytes": 2066,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "after",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/after/native.log",
+            "sha256": "62d93dd4c76c84bde5d6a6aad0b759b9a654cdd0c7fd65ec991f7e58674b60f1",
+            "bytes": 331,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reads follow organization space and project binding union with controlling order independently of leaf types [862.13ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 38 expect() calls\nRan 1 test across 1 file. [3.25s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/after/native.receipt.json",
+            "sha256": "0720a3c3385750d5a96aa9a8f05dbe8be1154e6a05d951127a395f1d482dc2b7",
+            "bytes": 1531,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads follow organization space and project binding union with controlling order independently of leaf types$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:42:24.666Z",
+            "endedAt": "2026-11-18T00:42:27.959Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/after/native.log",
+              "sha256": "62d93dd4c76c84bde5d6a6aad0b759b9a654cdd0c7fd65ec991f7e58674b60f1",
+              "bytes": 331
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/O1/after/native.validation.json",
+            "sha256": "5742f3766e0a14773e1e674e551c41d95da582367ee188a1385f333464e906f8",
+            "bytes": 2065,
+            "mode": 384
+          }
+        }
+      ]
+    },
+    {
+      "id": "M1",
+      "phases": [
+        {
+          "phase": "before",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/before/native.log",
+            "sha256": "f887123db41d510f848c4d140845b97f8a978c7a62c75b3ff47e20d30ea60ba2",
+            "bytes": 292,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reads refuse a selected missing explicit package row without mutation [787.59ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 38 expect() calls\nRan 1 test across 1 file. [3.26s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/before/native.receipt.json",
+            "sha256": "061b2aebba98bcec0463147fc5ee301671e082fe0c8cf7ab8f934ff4c8117c4c",
+            "bytes": 1494,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/before/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads refuse a selected missing explicit package row without mutation$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:43:04.992Z",
+            "endedAt": "2026-11-18T00:43:08.280Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/before/native.log",
+              "sha256": "f887123db41d510f848c4d140845b97f8a978c7a62c75b3ff47e20d30ea60ba2",
+              "bytes": 292
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/before/native.validation.json",
+            "sha256": "b3eff4561cb42b39209a6096b088229e989d259af7f6c2371be3866336fa8ae8",
+            "bytes": 2056,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "fault",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/fault/native.log",
+            "sha256": "5d6e210ebd05ef2de8e0cc2ddd98dd7a584ed61ddcf64280138c62a0f0a48975",
+            "bytes": 1016,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n6290 |   } catch (cause: unknown) {\n6291 |     outcome = { rejected: true, cause };\n6292 |   }\n6293 |   expect(outcome.rejected).toBe(true);\n6294 |   if (!outcome.rejected) throw new Error('Selected missing package step row was silently omitted');\n6295 |   expect(outcome.cause).toMatchObject({\n                               ^\nerror: expect(received).toMatchObject(expected)\n\n- {\n-   \"name\": \"WorkPackageStepMissing\",\n-   \"stepId\": \"z-dev\",\n-   \"workPackageId\": \"w-one\",\n- }\n+ [Error: catalogue step has an inconsistent explicit package row]\n\n- Expected  - 5\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:6295:25)\n(fail) catalogue package reads refuse a selected missing explicit package row without mutation [845.55ms]\n\n 0 pass\n 105 filtered out\n 1 fail\n 37 expect() calls\nRan 1 test across 1 file. [3.19s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/fault/native.receipt.json",
+            "sha256": "45562ee8ed58c27ed6f467b44db73277741092bc9b682b8a3ab862e5bbb59eba",
+            "bytes": 1493,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/fault/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads refuse a selected missing explicit package row without mutation$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:43:52.708Z",
+            "endedAt": "2026-11-18T00:43:55.932Z",
+            "exitCode": 1,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/fault/native.log",
+              "sha256": "5d6e210ebd05ef2de8e0cc2ddd98dd7a584ed61ddcf64280138c62a0f0a48975",
+              "bytes": 1016
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/fault/native.validation.json",
+            "sha256": "e7884198ef8fe28640e91424a1262dee4e6ba1c73fe5f8d19b8724c48f7ffad9",
+            "bytes": 2054,
+            "mode": 384
+          }
+        },
+        {
+          "phase": "after",
+          "log": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/after/native.log",
+            "sha256": "589c02461976ced4dcea2b9d5c6bfb87a77c7abeaf16e13459d563cae9a3e404",
+            "bytes": 292,
+            "mode": 384
+          },
+          "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts:\n(pass) catalogue package reads refuse a selected missing explicit package row without mutation [933.16ms]\n\n 1 pass\n 105 filtered out\n 0 fail\n 38 expect() calls\nRan 1 test across 1 file. [3.28s]\n",
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/after/native.receipt.json",
+            "sha256": "034432ef3010f206e33b7906d27096220fc3e8d0bc232e2c35d4b635779a1d57",
+            "bytes": 1492,
+            "mode": 384
+          },
+          "native": {
+            "schema": "activation-protected-native-v1",
+            "prefix": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/after/native",
+            "command": {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+                "--test-name-pattern",
+                "^catalogue package reads refuse a selected missing explicit package row without mutation$",
+                "--timeout=30000"
+              ],
+              "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+              "deadlineMs": 180000
+            },
+            "environment": {
+              "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+              "HOME": "/home/df",
+              "TMPDIR": "/tmp",
+              "TZ": "UTC",
+              "LANG": "C.UTF-8",
+              "LC_ALL": "C.UTF-8",
+              "NODE_ENV": "test",
+              "NO_COLOR": "1",
+              "NX_DAEMON": "false",
+              "NX_ISOLATE_PLUGINS": "false"
+            },
+            "startedAt": "2026-11-18T00:43:58.348Z",
+            "endedAt": "2026-11-18T00:44:01.666Z",
+            "exitCode": 0,
+            "signal": null,
+            "originalObserved": true,
+            "launched": true,
+            "primary": null,
+            "cleanup": [],
+            "ownerState": "stopped-and-reaped",
+            "descriptorState": "closed",
+            "output": {
+              "state": "acquired",
+              "stdoutFd": 5,
+              "stderrFd": 5,
+              "sameNumericFd": true
+            },
+            "transcript": {
+              "state": "owned",
+              "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/after/native.log",
+              "sha256": "589c02461976ced4dcea2b9d5c6bfb87a77c7abeaf16e13459d563cae9a3e404",
+              "bytes": 292
+            },
+            "settled": true
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-reader-effects-live-v1/M1/after/native.validation.json",
+            "sha256": "a1fed7a020db8f52e9bbf0c7473b300b968155fcf98e5fafb09065ac6e57547c",
+            "bytes": 2053,
+            "mode": 384
+          }
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "M1 classification only; later identity validation still rejects.",
+    "All fault post-read full-state assertions were unreached.",
+    "B1/O1 prove these specific sibling-scope and scope-rank effects, not every predicate/tiebreak.",
+    "Other new reader checks still need their own omission proofs; full catalogue/write/memory/capture/API/scheduler cutover remains open.",
+    "Earlier full95/2956,core109/655,domain239/878 passed atc119 before wrapper/import repairs and eleven tests. Final84cb selected4,strictlint,format,types passed; no full106 result yet."
+  ]
+}

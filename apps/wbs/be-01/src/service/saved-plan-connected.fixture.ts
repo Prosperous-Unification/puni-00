@@ -6,6 +6,7 @@ import { buildConnectedSolverRequest } from '@wbs/contracts/solver/build-connect
 import { encodeConnectedSuccess } from '@wbs/contracts/solver/connected-durable';
 import type { LivePlanRead, Scheduler } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { labelledRow } from '@wbs/core/testing/work-item-fixture';
 import { scheduleResolved, sliceKey } from '@wbs/domain';
 import { createLivePlanStore } from '@wbs/store-sqlite/chain-snapshot';
 import {
@@ -14,8 +15,11 @@ import {
 } from '@wbs/store-sqlite/connected-question-identity';
 import { openConnection, openDatabase, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { optimizedScheduleCache } from '@wbs/store-sqlite/schema';
+import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
+
+import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 
 interface CaptureFixtureOptions {
   readonly seed?: (client: ReturnType<typeof openDatabase>) => void;
@@ -36,7 +40,11 @@ interface CaptureFixtureOptions {
   };
 }
 
-/** Real migrated persistence fixture; the returned observation outlives every SQLite connection and file. */
+/**
+ * Real current catalogue and project bindings retain the original connected slices.
+ * Only a2 has a private parent, so Build does not join a1's Design/Test scope.
+ * The returned observation outlives every SQLite connection and file.
+ */
 export async function captureSavedConnectedFixture(
   mode: 'isolated' | 'shared',
   options: CaptureFixtureOptions = {},
@@ -45,12 +53,84 @@ export async function captureSavedConnectedFixture(
   try {
     const path = await openSpaceDatabase(folder);
     seedDependencyAuthority(path);
+    const source = openSqliteSource({
+      dbPath: path,
+      dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    });
+    let primary: { cause: unknown } | undefined;
+    try {
+      source.db.transaction((db) => {
+        db.run(
+          "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('saved-connected-a2','org-a','Beta project',1,'ada')",
+        );
+        db.run("UPDATE work_package SET project_id='saved-connected-a2' WHERE id='a2'");
+      });
+      const stamp = { at: 1, by: 'ada' };
+      for (const [id, name, position, projectId] of [
+        ['design', 'Design', 10, 'fixture-parent-org-a'],
+        ['test', 'Test', 20, 'fixture-parent-org-a'],
+        ['build', 'Build', 10, 'saved-connected-a2'],
+      ] as const) {
+        const defined = await source.stores.stepCatalogue.defineAndBindStep(
+          'org-a',
+          {
+            id,
+            code: id,
+            name,
+            position,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          {
+            bindingId: id + ':saved-connected',
+            scopeKind: 'project',
+            scopeId: projectId,
+            workItemTypeId: null,
+            position,
+          },
+          stamp,
+        );
+        // Proof: the real duplicate-code control failed when this check was omitted
+        // in an owned module copy (space-current-fixture-v137-proof-refusal).
+        if (!defined.ok) throw new Error('saved connected fixture step refused: ' + defined.reason);
+      }
+      for (const [id, workPackageId, position, name, hold] of [
+        ['a', 'a1', 10, 'Alpha work', null],
+        ['h', 'a1', 20, 'Held cause', 'on_hold'],
+        ['b', 'a2', 10, 'Beta work', null],
+      ] as const)
+        await source.stores.workItems.insert(
+          labelledRow({ id, workPackageId, position, name, hold, typeIds: [] }),
+          [],
+          stamp,
+        );
+    } catch (cause: unknown) {
+      primary = { cause };
+    }
+    try {
+      await source.close();
+    } catch (cleanup: unknown) {
+      // Proof: the paired-arbitrary control received null instead of both original
+      // undefined/null failures when this branch was omitted in an owned copy
+      // (space-current-fixture-v137-proof-paired).
+      if (primary !== undefined)
+        throw new AggregateError(
+          [primary.cause, cleanup],
+          'connected fixture seed and close failed',
+          {
+            cause: cleanup,
+          },
+        );
+      // Proof: swallowing the injected post-close Error made close-only resolve
+      // in an owned copy (space-current-fixture-v137-proof-close).
+      throw cleanup;
+    }
+    // Proof: omitting this rethrow replaced the original undefined with a later
+    // SQLite error in an owned copy (space-current-fixture-v137-proof-operation).
+    if (primary !== undefined) throw primary.cause;
     const client = openDatabase(path);
     try {
       client.run("UPDATE organization_activation SET state='activated', activated_at=1");
-      client.run(
-        "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
-      );
       client.run(
         "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('saved-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
       );
@@ -59,22 +139,16 @@ export async function captureSavedConnectedFixture(
         'org-a',
       ]);
       client.run(
-        "UPDATE project SET estimate_rounding='exact',start_date='2026-10-05' WHERE id='a1'",
+        "UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-05' WHERE id='a1'",
       );
       client.run(
-        "UPDATE project SET estimate_rounding='exact',start_date='2026-10-06' WHERE id='a2'",
-      );
-      client.run(
-        "INSERT INTO work_item(id,project_id,position,name,hold) VALUES('a','a1',10,'Alpha work',null),('h','a1',20,'Held cause','on_hold'),('b','a2',10,'Beta work',null)",
-      );
-      client.run(
-        "INSERT INTO step(id,project_id,name,code,position) VALUES('design','a1','Design','design',10),('test','a1','Test','test',20),('build','a2','Build','build',10)",
+        "UPDATE work_package SET estimate_rounding='exact',start_date='2026-10-06' WHERE id='a2'",
       );
       client.run(
         "INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES('a','design',0.5,0.5,0.5),('a','test',1,1,1),('b','build',0.75,0.75,0.75)",
       );
       client.run(
-        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES('ab','org-a','a1','a2','a','b','node','node','design','build','FS'),('ba','org-a','a2','a1','b','a','node','node','build','test','FS'),('hb','org-a','a1','a2','h','b','whole','node',null,'build','FS')",
+        "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,predecessor_step_id,successor_step_id,type) VALUES('ab','org-a','a1','a2','a','b','node','node','design','build','FS'),('ba','org-a','a2','a1','b','a','node','node','build','test','FS'),('hb','org-a','a1','a2','h','b','whole','node',null,'build','FS')",
       );
       options.seed?.(client);
     } finally {
@@ -89,7 +163,7 @@ export async function captureSavedConnectedFixture(
       }).read('a1', {
         principal: { id: 'ada' },
         kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
       });
       if (observed.kind !== 'connected')
         throw new Error(`expected connected fixture, received ${observed.kind}`);
@@ -118,9 +192,9 @@ export function captureMixedFixture(
       client.run("DELETE FROM external_dependency WHERE id IN ('ba','hb')");
       client.run("UPDATE external_dependency SET type='SS' WHERE id='ab'");
       client.run(
-        "UPDATE project SET optimization_enabled=1,schedule_objective='time' WHERE id IN ('a1','a2')",
+        "UPDATE work_package SET optimization_enabled=1,schedule_objective='time' WHERE id IN ('a1','a2')",
       );
-      client.run("UPDATE project SET schedule_engine='optimized' WHERE id='a1'");
+      client.run("UPDATE work_package SET schedule_engine='optimized' WHERE id='a1'");
       client.run("INSERT INTO person(id,name) VALUES('person','Person')");
       client.run(
         "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('person','org-a','Person')",
@@ -142,13 +216,13 @@ export function captureMixedFixture(
         "INSERT INTO work_item_team(work_item_id,team_id) VALUES('a','team'),('b','team')",
       );
       client.run(
-        "INSERT INTO project_team_capacity(project_id,service_team_id,size) VALUES('a1','team',1),('a2','team',1)",
+        "INSERT INTO work_package_team_capacity(work_package_id,service_team_id,size) VALUES('a1','team',1),('a2','team',1)",
       );
       client.run(
         "INSERT INTO work_item_resource_demand(work_item_id,resource_id,units) VALUES('a','resource',1),('b','resource',1)",
       );
       client.run(
-        "INSERT INTO project_resource_capacity(project_id,resource_id,units) VALUES('a1','resource',1),('a2','resource',1)",
+        "INSERT INTO work_package_resource_capacity(work_package_id,resource_id,units) VALUES('a1','resource',1),('a2','resource',1)",
       );
     },
     scheduler: {
@@ -164,12 +238,12 @@ export function captureMixedFixture(
         ),
     },
     prepare: async (path, read) => {
-      for (const projectId of ['a1', 'a2']) {
+      for (const workPackageId of ['a1', 'a2']) {
         const captured = await read();
         if (captured.projection.placement.kind !== 'scheduled')
           throw new Error('scheduled fixture expected');
         const stage = captured.projection.placement.stages.find(
-          (selection) => selection.stage.projectId === projectId,
+          (selection) => selection.stage.workPackageId === workPackageId,
         )?.stage;
         if (stage === undefined) throw new Error('fixture stage expected');
         const publisher = openConnection(path);
@@ -185,7 +259,7 @@ export function captureMixedFixture(
             const offsets = Object.fromEntries(
               request.slices.map((slice) => [
                 slice.key,
-                projectId === 'a1'
+                workPackageId === 'a1'
                   ? (slice.key === sliceKey('a', 'design') ? (floor ? 4 : 0) : floor ? 4.5 : 0.5) *
                     48
                   : 8 * 48,
@@ -218,7 +292,7 @@ export function captureMixedFixture(
                 wireVersion: 5,
                 scope: {
                   kind: 'connected-stage',
-                  projectId,
+                  projectId: request.scope.projectId,
                   inputHash: question.inputHash,
                   questionHash: question.questionHash,
                 },

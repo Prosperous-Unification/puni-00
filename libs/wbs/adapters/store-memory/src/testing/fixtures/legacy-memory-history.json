@@ -1,0 +1,19 @@
+{
+  "schema": "puni-genuine-memory-history-fixtures-v1",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "producer": "legacy-memory-history-producer.ts.txt",
+  "producerSha256": "fc7cd47f0a037afe548b7a366ebdaf00a92eca069614acff6f2ba562067cfb3f",
+  "cases": {
+    "rename": {
+      "file": "legacy-laundering-rename.json.gz",
+      "sha256": "5b0a73d1a506e377b948eb0737f46e35dd9ea0eb4d82c748cfd4bc949912e358",
+      "gzipSha256": "9d0ee75dc3eefb746ec6c900b037d857bc553862e9afb8b20cc8bb544141a670"
+    },
+    "progress": {
+      "file": "legacy-laundering-progress.json.gz",
+      "sha256": "b226fbce15001d643f6c066f858100c08c850508c5225286aa71c11064b8beac",
+      "gzipSha256": "8ef6a1ec354a32fcfef4cfbee71eed73c66c5e55f1ca2da70ef72971e07fa805"
+    }
+  },
+  "qualification": "Actual unchanged pre-catalogue Memory Source with explicit old organization mapping, complete required metadata, genuine journals and recorded PlanEvents. Source fixture metadata setup is explicit; this is not a SQLite producer, migration admission or proof of current replay."
+}

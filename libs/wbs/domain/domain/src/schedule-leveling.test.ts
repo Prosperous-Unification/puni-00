@@ -101,7 +101,7 @@ describe('leveling — a person does one thing at a time', () => {
     // `held` cannot start before day 3 and has no slack; `free` can start at
     // once and has three days of it. Least-slack-first would put `held` in the
     // queue first, leave `kat` idle for three days and push `free` out to 5→7,
-    // finishing the project two days later than it needs to. Soonest-first is
+    // finishing the work package two days later than it needs to. Soonest-first is
     // the outer rule for exactly that reason — and `held` is `010` to `free`'s
     // `020`, so no other part of the priority would put `free` first either.
     const rows = [item('held'), item('free')];
@@ -115,7 +115,7 @@ describe('leveling — a person does one thing at a time', () => {
 
   it('gives the queue to the slice with less slack when both can start at once', () => {
     // Same earliest start, so the tie is broken on float: `a` is the longer of
-    // the two and therefore the one the project is waiting on.
+    // the two and therefore the one the work package is waiting on.
     const rows = [item('short'), item('long')];
     const slices = [slice('short', DEV, 1, 'kat'), slice('long', DEV, 4, 'kat')];
 
@@ -201,7 +201,7 @@ describe('leveling — a person does one thing at a time', () => {
     const found = schedule(rows, [], slices);
 
     expect(planned(found, 'a', DEV)).toMatchObject({
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
       personId: 'kat',
       resourcePredecessorId: null,
     });
@@ -303,7 +303,7 @@ describe('leveling — the plan the previous algorithm got wrong', () => {
 describe('leveling — slack and critical through people', () => {
   it('counts the person behind a slice as a reason it cannot slip', () => {
     // `b` has a day of slack against the dependency graph alone. It has none
-    // once `kat` is counted: slipping it slips `c`, and `c` ends the project.
+    // once `kat` is counted: slipping it slips `c`, and `c` ends the work package.
     const rows = [item('a'), item('b'), item('c')];
     const slices = [slice('a', DEV, 2, null), slice('b', DEV, 2, 'kat'), slice('c', DEV, 3, 'kat')];
 
@@ -450,7 +450,7 @@ describe('leveling — slack against a person, in thirds of a day', () => {
   /** A PERT third: the durations real plans are full of, and integers are not. */
   const THIRD = 4 / 3;
 
-  it('reports a queue that ends the project as critical, exactly', () => {
+  it('reports a queue that ends the work package as critical, exactly', () => {
     // `kat` does `a` and then `b`, and that queue is the longest path there is.
     // Both slices are therefore critical and have no slack.
     //
@@ -478,7 +478,7 @@ describe('leveling — slack against a person, in thirds of a day', () => {
   it('leaves a slice beside that queue with the slack it has, and no red', () => {
     // What the tight-path rule promises is that a slice which **cannot move**
     // reports exactly zero. `c` can move, and its slack is a subtraction from a
-    // project finish that is itself a third of a day — so it is asserted to the
+    // work package finish that is itself a third of a day — so it is asserted to the
     // day rather than to the bit, which is all anybody reads off a slack column.
     const rows = [item('a'), item('b'), item('c')];
     const slices = [

@@ -3,13 +3,14 @@ import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { seedLegacyPackageParent } from '../../testing/legacy-package-source-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
@@ -26,10 +27,11 @@ const F = 'account-f';
 const TWO_DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
 async function seeded() {
-  const { source } = openMemorySourceFixture();
+  const fixture = openMemorySourceFixture();
+  const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
@@ -42,19 +44,41 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Levelling', F));
-  const projectId = created.project.id;
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: F,
+  });
+  for (const [index, name] of ['Dev', 'QA'].entries()) {
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      'fixture-legacy-org',
+      {
+        id: 'resource-step-' + String(index),
+        code: name.toLowerCase(),
+        name,
+        position: (index + 1) * 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'resource-binding-' + String(index),
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: (index + 1) * 10,
+      },
       { at: 1, by: F },
     );
+    if (!defined.ok) throw new Error('resource fixture step refused: ' + defined.reason);
   }
-  const steps = (await source.stores.projects.stepsOf(projectId)).map(({ id }) => id);
+  const created = expectCreated(await graph.workPackages.create('Levelling', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+  expect(created.steps.map((step) => step.id)).toEqual(['resource-step-0', 'resource-step-1']);
+  const steps = (await source.stores.workPackages.stepsOf(workPackageId)).map(({ id }) => id);
   for (const row of [
-    workItemRow({ id: '080', projectId, parentId: null, position: 1 }),
-    workItemRow({ id: '080.25', projectId, parentId: '080', position: 1 }),
-    workItemRow({ id: '090', projectId, parentId: null, position: 2 }),
+    workItemRow({ id: '080', workPackageId, parentId: null, position: 1 }),
+    workItemRow({ id: '080.25', workPackageId, parentId: '080', position: 1 }),
+    workItemRow({ id: '090', workPackageId, parentId: null, position: 2 }),
   ])
     await source.stores.workItems.insert(row, [], { at: 1, by: F });
   await source.stores.directory.addPerson(
@@ -88,7 +112,7 @@ async function seeded() {
   if (staging === undefined) throw new Error('staging minted no id');
   // Both leaves carry two days on both steps, so each runs four days alone.
   const estimated = await runner.run(
-    projectId,
+    workPackageId,
     F,
     ['080.25', '090'].flatMap((workItemId) =>
       steps.map((stepId) => ({ kind: 'setEstimate' as const, workItemId, stepId, days: TWO_DAYS })),
@@ -96,25 +120,25 @@ async function seeded() {
   );
   if (!estimated.ok) throw new Error(`estimates were refused: ${JSON.stringify(estimated)}`);
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };
   const input = async () => {
-    const read = await graph.workItems.scheduleInput(projectId);
+    const read = await graph.workItems.scheduleInput(workPackageId);
     if (read === null) throw new Error('the schedule input was unavailable');
     return read;
   };
-  return { source, runner, projectId, steps, staging, tree, input };
+  return { source, runner, workPackageId, steps, staging, tree, input };
 }
 
 describe('the live plan read levels resource demands', () => {
   it('serialises two leaves on the one staging environment and names it', async () => {
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, staging, tree, input } = await seeded();
     try {
       const alone = await tree();
       expect(alone.slices.every(({ boundBy }) => boundBy !== 'capacity')).toBe(true);
-      const applied = await runner.run(projectId, F, [
+      const applied = await runner.run(workPackageId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
@@ -160,11 +184,11 @@ describe('the live plan read levels resource demands', () => {
   });
 
   it('constrains nothing while the capacity is unstated', async () => {
-    const { source, runner, projectId, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, staging, tree, input } = await seeded();
     try {
       const before = await tree();
       const key = canonicalScheduleInput(await input());
-      await runner.run(projectId, F, [
+      await runner.run(workPackageId, F, [
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
       ]);
@@ -179,18 +203,18 @@ describe('the live plan read levels resource demands', () => {
     // Design R5's falsifier: a schedule reads plan data only, never a claim or
     // an occupancy, so claiming a demanding leaf leaves the cache key and every
     // date where they were.
-    const { source, runner, projectId, steps, staging, tree, input } = await seeded();
+    const { source, runner, workPackageId, steps, staging, tree, input } = await seeded();
     try {
       const firstStep = steps.at(0);
-      if (firstStep === undefined) throw new Error('seeded project has no first step');
-      await runner.run(projectId, F, [
+      if (firstStep === undefined) throw new Error('seeded work package has no first step');
+      await runner.run(workPackageId, F, [
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '080.25', resourceId: staging, units: 1 },
         { kind: 'setDemand', workItemId: '090', resourceId: staging, units: 1 },
       ]);
       const before = await tree();
       const key = canonicalScheduleInput(await input());
-      const claimed = await runner.run(projectId, F, [
+      const claimed = await runner.run(workPackageId, F, [
         {
           kind: 'claimWorkItem',
           workItemId: '090',
@@ -200,7 +224,7 @@ describe('the live plan read levels resource demands', () => {
         },
       ]);
       expect(claimed).toMatchObject({ ok: true, results: [{ index: 0, alreadyHeld: false }] });
-      expect(await source.stores.claims.listByProject(projectId)).not.toEqual([]);
+      expect(await source.stores.claims.listByWorkPackage(workPackageId)).not.toEqual([]);
       expect(canonicalScheduleInput(await input())).toBe(key);
       const after = await tree();
       expect(after.slices).toEqual(before.slices);

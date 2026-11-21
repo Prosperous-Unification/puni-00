@@ -1,0 +1,1505 @@
+{
+  "schema": "puni-genuine-memory-history-verification-v1",
+  "recordedAt": "2026-11-21T03:13:47.524Z",
+  "goalStatus": "active",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v96.json",
+    "sha256": "a98fa51780fcbb305af1f945ce0effc1d8fa0918f58dbac9032be85b8e6d9eff",
+    "bytes": 14569,
+    "mode": 384
+  },
+  "previousState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/genuine-replay-cutover-final-state-v1.json",
+    "sha256": "3cbc9772f156ee8c04baaaebe482bc3efe6c2ea6d6a700acfc5b21fc45eb3567",
+    "bytes": 176505,
+    "mode": 384
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "e6ea9d5c6edbb716f15f369dd2aec755376e7ad5bc27b9d6ee9c73661fae70d1",
+      "bytes": 96383,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",
+      "sha256": "97d3549f84b57e7cd364389b0d6e88547f3e721ba7fc272fdd2cc8a3aaa0e1f8",
+      "bytes": 11892,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/historical-memory-replay.test.ts",
+      "sha256": "569a3047f57b51649a1ef51d8aa72df652f612989919aa49b910c0ffc4a974d1",
+      "bytes": 19872,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+      "sha256": "96a68acf7dec62c07baaf9bf3515b58b490218deea13b1a167441785f44dee5b",
+      "bytes": 105501,
+      "mode": 436
+    }
+  ],
+  "assets": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-history.json",
+      "sha256": "7618e7958b90ec035a48f44a574f54935d9809a527fbdf7a14707f2ae0639fb9",
+      "bytes": 1071,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-history-producer.ts.txt",
+      "sha256": "fc7cd47f0a037afe548b7a366ebdaf00a92eca069614acff6f2ba562067cfb3f",
+      "bytes": 7084,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-rename.json.gz",
+      "sha256": "9d0ee75dc3eefb746ec6c900b037d857bc553862e9afb8b20cc8bb544141a670",
+      "bytes": 3031,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-progress.json.gz",
+      "sha256": "8ef6a1ec354a32fcfef4cfbee71eed73c66c5e55f1ca2da70ef72971e07fa805",
+      "bytes": 3007,
+      "mode": 436
+    }
+  ],
+  "packaging": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-history-packaging-v1.json",
+    "sha256": "556e8e840e7d9f98068e6b7449e092bf35a7a15e34c9d23c5c9c82623d0704be",
+    "bytes": 1608,
+    "mode": 384
+  },
+  "genuineOriginals": [
+    {
+      "path": "/tmp/puni-legacy-producer-v1/memory-history-v5/laundering-rename.json",
+      "sha256": "5b0a73d1a506e377b948eb0737f46e35dd9ea0eb4d82c748cfd4bc949912e358",
+      "bytes": 40028,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-legacy-producer-v1/memory-history-v5/laundering-progress.json",
+      "sha256": "b226fbce15001d643f6c066f858100c08c850508c5225286aa71c11064b8beac",
+      "bytes": 40666,
+      "mode": 384
+    }
+  ],
+  "actualPredecessor": {
+    "head": "c8018843e6ff6827f7d97b67ff986cc717656578",
+    "trackedDiff": [],
+    "lock": {
+      "path": "/tmp/puni-legacy-producer-v1/tree/bun.lock",
+      "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "bytes": 543082,
+      "mode": 436
+    },
+    "producer": {
+      "path": "/tmp/puni-legacy-producer-v1/produce-memory-history-v5.ts",
+      "sha256": "fc7cd47f0a037afe548b7a366ebdaf00a92eca069614acff6f2ba562067cfb3f",
+      "bytes": 7084,
+      "mode": 384
+    },
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v5.receipt.json",
+      "sha256": "153b84cf85cb14540ae4323c7d74f6a3133a57b676ff39007d08fe7be2a8532c",
+      "bytes": 1420,
+      "mode": 384
+    },
+    "qualification": "Additional V5 actual scoped/coded Memory producer; original V3 bare-project captures remain unchanged. No generic uncoded migration or SQLite admission certificate."
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v36.json",
+    "sha256": "172fa7fc16d739d5d7b9b08736bfee04f9720fa392778fb1f135424782a0e84a",
+    "bytes": 1874088,
+    "mode": 384
+  },
+  "memoryInventory": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-adapter-inventory-v2.json",
+    "sha256": "80e9a97d56dfdf9e61895e4254e4e108a2cf75c1b73322edffdc0227d5809c92",
+    "bytes": 12873,
+    "mode": 384
+  },
+  "checks": [
+    {
+      "name": "memory-genuine-producer-v4",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v4.receipt.json",
+        "sha256": "f5b80868bbb80911e0f705401abcea413652368e5c9df5aa167b4b2f26d98a1c",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v4.log",
+        "sha256": "822fcf4280bf7c38a82f2623d8610932bb103d8d6ad269d4db88ed81e49a24f9",
+        "bytes": 84,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-genuine-producer-v4-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v4-v2.receipt.json",
+        "sha256": "a9185fe9e2fcc0c8ed5f27359212c7fe9afab06cf2d4d4211aac144a45dbb8e5",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v4-v2.log",
+        "sha256": "3766a3cede5f36c169bcccbf6f24c0ef53b0983f2ce3178375722893ea319c2a",
+        "bytes": 1521,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-genuine-producer-v5",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v5.receipt.json",
+        "sha256": "153b84cf85cb14540ae4323c7d74f6a3133a57b676ff39007d08fe7be2a8532c",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-genuine-producer-v5.log",
+        "sha256": "08631d24b57e499556d8323e28fba6113e6f5ea446794eefa5aa801607ae8bc5",
+        "bytes": 390,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-restore-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-red-v1.receipt.json",
+        "sha256": "a6a1265073f2181d0f578078428b9e92bd226bd411e117f05545cbfe44b851e1",
+        "bytes": 1354,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-red-v1.log",
+        "sha256": "957c47c7a595c14bf217c08c6b5b7efaa918be3415fa2bfedb8f925e2fb4addd",
+        "bytes": 2244,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-restore-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-green-v1.receipt.json",
+        "sha256": "f4bb3d4df8f165c78afd43907dcf8a46daadad500f1f5c32bb46fc518d210450",
+        "bytes": 1357,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-green-v1.log",
+        "sha256": "87252deedb0466d4607224eb37d3e4252e23366286a9c6089a7afbff72ab1e49",
+        "bytes": 371,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-restore-contracts-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v1.receipt.json",
+        "sha256": "4c04eaeadfa92f3fe525711cbf2e9074b64be55c93165dfa2dd10f6c1e6bcbcd",
+        "bytes": 1366,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v1.log",
+        "sha256": "cecf2bc5c7ff707814e7ae8b52f4768915af5e07f0757fb1fc63b6a15eaae5f2",
+        "bytes": 3530,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-restore-contracts-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v2.receipt.json",
+        "sha256": "6e2b1cc81ba4d10d6f7c542b82740f9491848636ccd7f767b1031bfc7f85bc87",
+        "bytes": 1366,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v2.log",
+        "sha256": "423950a060e0f621892b6442caf00f54a14f6ea2dc86ac9db03e6a31db1fed1d",
+        "bytes": 2341,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-core-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-core-green-v1.receipt.json",
+        "sha256": "a7865d51dfa22c38199f87d659c48f23fa15e405afd458a3baac0b0ee1b6afdf",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-core-green-v1.log",
+        "sha256": "7696b2336ddecf9f673232a3f7eef5bb83bf04c5e518a96b567753b6f66ed5ff",
+        "bytes": 21074,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-format-write-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-format-write-v1.receipt.json",
+        "sha256": "092aa0924cb042ec4cc72b6ec1b4d7914bd71f683e22126c1582a4a7a7836365",
+        "bytes": 1671,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-format-write-v1.log",
+        "sha256": "0d7d0456cdbf485d214f6871bc82bf277038cb10bbd30133c242fef9013512c6",
+        "bytes": 371,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-v1.receipt.json",
+        "sha256": "5048a435e8332c089d2a84fc60a0a8b37942dc2b5e3714d8f8d9d09c775310a5",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-v1.log",
+        "sha256": "50387cd9a8f091e54bb128ef2ee3c0c0e77182e8faf10e3fe5d82aa2bbfb5ed3",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-v1.receipt.json",
+        "sha256": "d150b19b6dd60a27dfaa6c245349ce4f820bc70fd47c921846ec02e51e9f5b4b",
+        "bytes": 1581,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-v1.log",
+        "sha256": "54fc576a4331ff9c39ed619e3679b6727244f9260c66e4a3ab5813564f782e6b",
+        "bytes": 1662,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-lint-fix-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-fix-v1.receipt.json",
+        "sha256": "ee8a8a4df50a1222251fcdf223420c05e0d482802bfcf2405539646a2f614b66",
+        "bytes": 1601,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-fix-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-format-write-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-format-write-v2.receipt.json",
+        "sha256": "f0313dd437fa64827f89cf49a1aa4675297be742e8f736a57a08a34c8c23693d",
+        "bytes": 1583,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-format-write-v2.log",
+        "sha256": "be307829fe6d796d313c8a381b37a4207fccb2b954172656e2357a6010f83193",
+        "bytes": 312,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-v2.receipt.json",
+        "sha256": "780f64b558204afad97fe30667f84568f40c2af12cf510dacf80a860483c139b",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-lint-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-v2.receipt.json",
+        "sha256": "254488bddcb258db5c68cb91232bf3ad8bdfde17fdcdcc2b30ae53fd4c1ac2aa",
+        "bytes": 1578,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-restore-contracts-v3",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v3.receipt.json",
+        "sha256": "1511cdd34e73879ec2e9bea70abae070e9a2eba91eb62e29921baa76df806473",
+        "bytes": 1366,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-restore-contracts-v3.log",
+        "sha256": "63e141aa895c035a200ebdf69b424124afbf50fc6175ff4aa9dfb162a5cee187",
+        "bytes": 2930,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-fault-target-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-target-v1.receipt.json",
+        "sha256": "18e08dd1c0874ac0c52698abc6ab61d9b3fac356d4eff2c1de6107ad1f958aaa",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-target-v1.log",
+        "sha256": "c364faedc428ccdb1c51484f4e217ec9a37dbf21e2d8825fbdef6dbdb7ae4e82",
+        "bytes": 1728,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-scope-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-scope-v1.receipt.json",
+        "sha256": "fefc7da28d55687be182384a928b0db83de0c11cffec331079928c3315d28da2",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-scope-v1.log",
+        "sha256": "1bc5e5b28962732898e53317730fb28af5e237f4e0e86ab7423b29fd26201ea2",
+        "bytes": 3263,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-occupied-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-occupied-v1.receipt.json",
+        "sha256": "f91ff61a7496da924560a39b31acd1fa53c0ea5978d4ae0e37ba0c19cbc51bc8",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-occupied-v1.log",
+        "sha256": "883f23012580ba749fdbb2608b3aea6ef072bcf73ab1ad301614693bfda04964",
+        "bytes": 1662,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-entries-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entries-v1.receipt.json",
+        "sha256": "f7df9a2a892398113e120b5ceac54b57ad92f35094b25d84d3b4f1049924b8ac",
+        "bytes": 1499,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entries-v1.log",
+        "sha256": "6ba83ac96c3e2443158dedf31fd0a555b0e7f5eaeb9ae00d5bc253d2f49b7cb6",
+        "bytes": 4033,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-events-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-events-v1.receipt.json",
+        "sha256": "f6f48c6df5cf8990719dc5181f81bd86785777b7627e860aae3110c649882d21",
+        "bytes": 1425,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-events-v1.log",
+        "sha256": "8e419c4d5f3d426aa6da1d50226fa59c006b64e765f3ee0928aba784c4972f95",
+        "bytes": 954,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-retention-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-retention-v1.receipt.json",
+        "sha256": "3a3970b570d09da79928532f055b13255fff75a4917f78425ff3934136ef2fd5",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-retention-v1.log",
+        "sha256": "922eacbb002590820d0b7c8a70afbf44aa2a6b0bd2755e5cc70ee9429aad88a0",
+        "bytes": 1077,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-closure-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-closure-v1.receipt.json",
+        "sha256": "4a3a52384db72658e27a567c621e172604019563efd7b1d3508be848f1ef86a3",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-closure-v1.log",
+        "sha256": "9dc36507dd4673392f9821af016773d116d4c5b034b28adc1df1728e426180ea",
+        "bytes": 1646,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-stage-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-stage-v1.receipt.json",
+        "sha256": "e1924e9b45e6b080143357405056e989050c29cae8bd96c6b4246ed3735d5d93",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-stage-v1.log",
+        "sha256": "c5abdb6a05e3c1aca3158834a36e374d938e67579ffe8fcc4baadc500dbb19b6",
+        "bytes": 9520,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-late-dependency-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-late-dependency-v1.receipt.json",
+        "sha256": "f213f6ffd5efa371f4df75d0db34175114e3eb24c69e55523598afee2962e0ce",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-late-dependency-v1.log",
+        "sha256": "a3524a11422af11f2cddaef6742402cc1823249e3b9e418ea32d74fa00bb2835",
+        "bytes": 941,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-snapshot-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-snapshot-v1.receipt.json",
+        "sha256": "2416ef7689a1f86b1bd040888c0a1c4aaa65aa086127d27a69d8a85049fcfc91",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-snapshot-v1.log",
+        "sha256": "9021a893f0a836c275a1765f3c0187b20736e6d07f70fa7e80af4b9c0968db57",
+        "bytes": 2248,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-schema-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-schema-v1.receipt.json",
+        "sha256": "96c67c7bec62ccff9ea28a12d075f0bba0c3b2552fad2ab5fd8ba34b29e055a8",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-schema-v1.log",
+        "sha256": "4b51831f716a8cd0c805e1ab5df84343e30426d45d90dbb0b6a09be77a618349",
+        "bytes": 37487,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-joins-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-joins-v1.receipt.json",
+        "sha256": "5a4141fb3392228f31a5b558871558ab4cc988de616f0c77c78060149e9a2835",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-joins-v1.log",
+        "sha256": "7aba5bf2fc6e551bacaed1c4884deb3551b67ca23bec7b28e187bfe66f8fdfb4",
+        "bytes": 37658,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-missing-phase-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-missing-phase-v1.receipt.json",
+        "sha256": "fa033e18a20e6818e12c7bc5928ab6a5186453ecce034f8f83e95ddefae4fb77",
+        "bytes": 1444,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-missing-phase-v1.log",
+        "sha256": "542be701c8358634a12492666be7f7d56ec5e31745a7e07dffb94f842bd96f36",
+        "bytes": 1097,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-compressed-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-compressed-v1.receipt.json",
+        "sha256": "58b6a01c409481cfd82367f4e45e64cb7ed7f0c8a398687a973b76ff914211fc",
+        "bytes": 1432,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-compressed-v1.log",
+        "sha256": "879f959bda97ee413a16ab8e374e803c51f1adda0ae13e3ecf377a1ce68f1064",
+        "bytes": 1564,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-original-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-original-v1.receipt.json",
+        "sha256": "323a16392b93a7329db322a9121c07709526c207d66c26ca0886b46d6bd6bb0f",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-original-v1.log",
+        "sha256": "aa7ad4ee076d2eee489f76ecbb8b839a6ecbc7bf007919a68fde33e57ec7ab3e",
+        "bytes": 1573,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-producer-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-producer-v1.receipt.json",
+        "sha256": "3f9378cf1e4a5712dc807b5ae597b7467ba621239f5a0b7557ef8e1fa68e3fbf",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-producer-v1.log",
+        "sha256": "5e434ffde2ca0edab9ac8bc840c6ba28c267650b97c707637c220325d3a02d4e",
+        "bytes": 1653,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-profile-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-profile-v1.receipt.json",
+        "sha256": "e786727250379a4a7378192ecf63cd849d18aac5f36c883ee0550596e6b2ddbe",
+        "bytes": 1426,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-profile-v1.log",
+        "sha256": "a71ef6db405b6bf7fcf5e8516cef3447156b8e34908bd8f1c08620b666160054",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-final-format-write-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-final-format-write-v1.receipt.json",
+        "sha256": "e81c44cc27569f9c28f7eddf11703372babd00165f108fbdc21ac39180540490",
+        "bytes": 1513,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-final-format-write-v1.log",
+        "sha256": "fb5b6fc96ffb55abbda8704d313ab28aff3095a5897071e3dd95870a7d2e57bd",
+        "bytes": 233,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-types-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-final-v1.receipt.json",
+        "sha256": "e821e465cbacf2920a8f4adcddbe2b16101210be94a0a4dced83c899271157e1",
+        "bytes": 1340,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-lint-final-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-final-v1.receipt.json",
+        "sha256": "0a7b01d57c2ee48f70398a47635156b743aa7ca20f35182c4131fe7ebe86bc28",
+        "bytes": 1590,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-final-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-audit-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-audit-v1.receipt.json",
+        "sha256": "afd9779fe11e459f093d0e3ba5dad583ab91e510a5f96b440571293bc2b7939e",
+        "bytes": 1269,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-audit-v1.log",
+        "sha256": "7e29dd28d6a1e006743980efb0cf36ac752de52e9f7a3e21680534d3797a9199",
+        "bytes": 275,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-full-adapter-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-adapter-v1.receipt.json",
+        "sha256": "053e36df436535fc941137a52eff05f72f6df79ee8abb9c47245a70481319b8c",
+        "bytes": 5111,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-adapter-v1.log",
+        "sha256": "3e1867a59744fa065fb4f2567b0b94ec6d4396a2109e5f8ea2791aa84ac19484",
+        "bytes": 89613,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-full-core-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-core-v1.receipt.json",
+        "sha256": "2e8563d79d9348255f6c0e60c3a33eb364a1dfec06415b0bbeb63b6bf280c5df",
+        "bytes": 1314,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-core-v1.log",
+        "sha256": "32a6207626359bfa0244ffa4fc4fef8277f7aa9764bf5aa043143c0870e3d93b",
+        "bytes": 232913,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-cross-package-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-cross-package-v1.receipt.json",
+        "sha256": "6022510aa5f717db5cbc8047300b821a741fc59b967d8ca760f309b6e73b0f79",
+        "bytes": 1409,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-cross-package-v1.log",
+        "sha256": "3e40b35e7af53301fafb33270cf0a6c1b6261574fa9c9659f18dccaf3807d34d",
+        "bytes": 528,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-fault-entry-seed-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entry-seed-v1.receipt.json",
+        "sha256": "38af39cbc64644f6629adf5578d22c2ad6a0ce0011b52eb47c71bf0d24672885",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entry-seed-v1.log",
+        "sha256": "c0faafd220a5f58da2947349b77ef503e052878a70a44e02ce05b444381f6f29",
+        "bytes": 955,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-fault-event-seed-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-event-seed-v1.receipt.json",
+        "sha256": "8e9b2c01426ae7420d9277a4090d769c9b122902b5dc7ccdf62cf1ed58edd7b0",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-event-seed-v1.log",
+        "sha256": "f856262a09cc1f0fc97062c632a187588201b5b24e02b66acb5a398b39b5d718",
+        "bytes": 955,
+        "mode": 384
+      },
+      "exitCode": 1
+    },
+    {
+      "name": "memory-history-final-format-write-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-final-format-write-v2.receipt.json",
+        "sha256": "1aaf6f89d02fae0f0526afc1b488134275c411f6d5eef12b38c9407205289018",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-final-format-write-v2.log",
+        "sha256": "0c533f7e5ed539b60d193c334cb11762f095cc19968916bab139d2e01e224111",
+        "bytes": 136,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-types-final-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-final-v2.receipt.json",
+        "sha256": "fd424275e4ccebe4532c40921b4481db53b1cf617bf05119f1b2e858a9542776",
+        "bytes": 1340,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-types-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-lint-final-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-final-v2.receipt.json",
+        "sha256": "ff297345b92f6fbaee069b3d023b39f5bd657b2219ef4e9aad28a96fd8c87100",
+        "bytes": 1590,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-lint-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-audit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-audit-v2.receipt.json",
+        "sha256": "dd25c2020ae95bc2d2fcf62712682a5baef03917e3b986a907e10c23ffed15c2",
+        "bytes": 1269,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-audit-v2.log",
+        "sha256": "b92da216f206a87104023b0e83dfaf9fac73581d2cffa17c4e31a922a680de2f",
+        "bytes": 275,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    {
+      "name": "memory-history-full-adapter-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-adapter-v2.receipt.json",
+        "sha256": "e027619fadbc91d3c988b46d401455111a184bb77cdcbdf4e2ba9b2fdcbd13f4",
+        "bytes": 5111,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-full-adapter-v2.log",
+        "sha256": "2d12556c3630f953b4a31d9f1daaea65160383cef5999b95d450009195ca98b4",
+        "bytes": 89923,
+        "mode": 384
+      },
+      "exitCode": 0
+    }
+  ],
+  "verification": {
+    "memory": {
+      "pass": 793,
+      "fail": 0,
+      "tests": 793,
+      "files": 50,
+      "assertions": 23774
+    },
+    "previousMemory": {
+      "pass": 763,
+      "fail": 0,
+      "tests": 763,
+      "files": 49,
+      "assertions": 23040
+    },
+    "core": {
+      "pass": 2124,
+      "fail": 0,
+      "tests": 2124,
+      "files": 171,
+      "assertions": 12801
+    },
+    "previousCore": {
+      "pass": 2122,
+      "fail": 2,
+      "tests": 2124,
+      "files": 171,
+      "assertions": 12964
+    },
+    "selectedCore": {
+      "pass": 177,
+      "fail": 0,
+      "tests": 177,
+      "files": 2,
+      "assertions": 593
+    },
+    "newHistoryCases": 30,
+    "newGenuineMemoryProfiles": 2,
+    "compilerEntries": 300,
+    "lintFiles": 4,
+    "sourceAuditFiles": 6088,
+    "qualification": "Full core runtime bytes stay exact after its run except observed Proof comments. Final additional adapter tests check actual cross-package collisions/unrelated preservation; complete Memory and compiler/lint/audit were rerun."
+  },
+  "historicalOwner": {
+    "archiveSchema": 5,
+    "currentMetadata": "Actual account/organization/engagement/catalogue/package values and lawful leaf facts authored then checked against genuine capture.",
+    "history": "Only explicit project→workPackage headers normalize; original sequences, undone flags and opaque body values remain exact.",
+    "currentReplay": [
+      "actual move undo",
+      "peer progress",
+      "preceding rename/progress undo",
+      "preceding redo",
+      "stale move redo"
+    ],
+    "finalRecordedCheckpoints": "Both runner and borrowed current owners refuse the genuine old before-final-redo snapshot without fact/event changes.",
+    "scope": "Existing actual Source fixture coordinator/stage; no overridden store method, new ordinary parent point or invented PlanEvent.",
+    "newMethod": "MemorySourceFixture.restoreCommandHistory",
+    "productionSourcePortUnchanged": true
+  },
+  "proofs": {
+    "main": {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-faults-v1.state.json",
+        "sha256": "c7cd552e5bdaae5c255f083dbc9190f338893ce34cfc246bf0aec89bac797f07",
+        "bytes": 21139,
+        "mode": 384
+      },
+      "total": 17,
+      "active": null,
+      "restored": true,
+      "faults": [
+        {
+          "name": "target",
+          "classification": "target package/organization admission",
+          "expectedFailures": 2,
+          "failed": [
+            "(fail) current historical journal restore refuses missing-package without changing any persisted state [22.25ms]",
+            "(fail) current historical journal restore refuses missing-organization without changing any persisted state [3.31ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-target-v1.receipt.json",
+            "sha256": "18e08dd1c0874ac0c52698abc6ab61d9b3fac356d4eff2c1de6107ad1f958aaa",
+            "bytes": 1419,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-target-v1.log",
+            "sha256": "c364faedc428ccdb1c51484f4e217ec9a37dbf21e2d8825fbdef6dbdb7ae4e82",
+            "bytes": 1728,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-target-v1.validation.json",
+            "sha256": "76019874fd4bc0825062b91bee053abd79bf79c7a41c852bc1fb4013eec0ef4a",
+            "bytes": 493,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "scope",
+          "classification": "recorded row scope/account admission",
+          "expectedFailures": 4,
+          "failed": [
+            "(fail) current historical journal restore refuses foreign-entry without changing any persisted state [22.67ms]",
+            "(fail) current historical journal restore refuses foreign-event without changing any persisted state [3.28ms]",
+            "(fail) current historical journal restore refuses unknown-entry-actor without changing any persisted state [2.82ms]",
+            "(fail) current historical journal restore refuses unknown-event-actor without changing any persisted state [2.79ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-scope-v1.receipt.json",
+            "sha256": "fefc7da28d55687be182384a928b0db83de0c11cffec331079928c3315d28da2",
+            "bytes": 1428,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-scope-v1.log",
+            "sha256": "1bc5e5b28962732898e53317730fb28af5e237f4e0e86ab7423b29fd26201ea2",
+            "bytes": 3263,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-scope-v1.validation.json",
+            "sha256": "613a533b218ccf93029dc137829103e8434093195a32bee5cab16e4b43f835a4",
+            "bytes": 491,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "occupied",
+          "classification": "existing actual current history protection",
+          "expectedFailures": 2,
+          "failed": [
+            "(fail) historical restore preserves existing current journal and events [58.04ms]",
+            "(fail) historical restore preserves existing current history-only events [9.79ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-occupied-v1.receipt.json",
+            "sha256": "f91ff61a7496da924560a39b31acd1fa53c0ea5978d4ae0e37ba0c19cbc51bc8",
+            "bytes": 1433,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-occupied-v1.log",
+            "sha256": "883f23012580ba749fdbb2608b3aea6ef072bcf73ab1ad301614693bfda04964",
+            "bytes": 1662,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-occupied-v1.validation.json",
+            "sha256": "e990fd17f6bc12a9c4675c6f38bdc25393ebf304b2d1c157bdc84aaaa35f4328",
+            "bytes": 497,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "entries",
+          "classification": "entry identity/sequence admission",
+          "expectedFailures": 5,
+          "failed": [
+            "(fail) current historical journal restore refuses duplicate-entry without changing any persisted state [44.26ms]",
+            "(fail) current historical journal restore refuses duplicate-sequence without changing any persisted state [3.69ms]",
+            "(fail) current historical journal restore refuses zero-sequence without changing any persisted state [3.02ms]",
+            "(fail) current historical journal restore refuses fractional-sequence without changing any persisted state [3.17ms]",
+            "(fail) current historical journal restore refuses unsafe-sequence without changing any persisted state [2.94ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entries-v1.receipt.json",
+            "sha256": "f7df9a2a892398113e120b5ceac54b57ad92f35094b25d84d3b4f1049924b8ac",
+            "bytes": 1499,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entries-v1.log",
+            "sha256": "6ba83ac96c3e2443158dedf31fd0a555b0e7f5eaeb9ae00d5bc253d2f49b7cb6",
+            "bytes": 4033,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entries-v1.validation.json",
+            "sha256": "f9916caadab10cde884321dccb2fbd9c53ddafb4b59b55139813c61aab6e257c",
+            "bytes": 495,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "events",
+          "classification": "recorded event identity admission",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) current historical journal restore refuses duplicate-event without changing any persisted state [35.76ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-events-v1.receipt.json",
+            "sha256": "f6f48c6df5cf8990719dc5181f81bd86785777b7627e860aae3110c649882d21",
+            "bytes": 1425,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-events-v1.log",
+            "sha256": "8e419c4d5f3d426aa6da1d50226fa59c006b64e765f3ee0928aba784c4972f95",
+            "bytes": 954,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-events-v1.validation.json",
+            "sha256": "b56c6c92f08ee7df1c03ac0f671544c848442512bb85efb7a0ac1dd5c267f075",
+            "bytes": 492,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "retention",
+          "classification": "actual queued checkpoint retention",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) historical restore retains the complete caller checkpoint before queued admission [21.00ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-retention-v1.receipt.json",
+            "sha256": "3a3970b570d09da79928532f055b13255fff75a4917f78425ff3934136ef2fd5",
+            "bytes": 1439,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-retention-v1.log",
+            "sha256": "922eacbb002590820d0b7c8a70afbf44aa2a6b0bd2755e5cc70ee9429aad88a0",
+            "bytes": 1077,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-retention-v1.validation.json",
+            "sha256": "3a5f30594e42f855ee2b6e8b586bddbb6ea3108748ebce6124be9812c7cd9ab9",
+            "bytes": 499,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "closure",
+          "classification": "shared Source lifetime dependency, not redundant individual layers",
+          "expectedFailures": 2,
+          "failed": [
+            "(fail) historical restore refuses closed Source ownership [34.06ms]",
+            "(fail) historical restore refuses queued-before-close Source ownership [3.61ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-closure-v1.receipt.json",
+            "sha256": "4a3a52384db72658e27a567c621e172604019563efd7b1d3508be848f1ef86a3",
+            "bytes": 1431,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-closure-v1.log",
+            "sha256": "9dc36507dd4673392f9821af016773d116d4c5b034b28adc1df1728e426180ea",
+            "bytes": 1646,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-closure-v1.validation.json",
+            "sha256": "1d87a03f7775040964e49275286192c9774f109a0f617fd5b791898055a4c1d2",
+            "bytes": 495,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "stage",
+          "classification": "method-local stage atomicity under actual late write fault",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) historical journal late failure rolls back entries, events and all unrelated state [43.39ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-stage-v1.receipt.json",
+            "sha256": "e1924e9b45e6b080143357405056e989050c29cae8bd96c6b4246ed3735d5d93",
+            "bytes": 1424,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-stage-v1.log",
+            "sha256": "c5abdb6a05e3c1aca3158834a36e374d938e67579ffe8fcc4baadc500dbb19b6",
+            "bytes": 9520,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-stage-v1.validation.json",
+            "sha256": "3a5e34a671ddbcc39f78de74e5bcf8eeb67a67462cc816ca876a1ba47baaaedf",
+            "bytes": 491,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "late-dependency",
+          "classification": "actual late journal write dependency",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) historical journal late failure rolls back entries, events and all unrelated state [33.20ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-late-dependency-v1.receipt.json",
+            "sha256": "f213f6ffd5efa371f4df75d0db34175114e3eb24c69e55523598afee2962e0ce",
+            "bytes": 1443,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-late-dependency-v1.log",
+            "sha256": "a3524a11422af11f2cddaef6742402cc1823249e3b9e418ea32d74fa00bb2835",
+            "bytes": 941,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-late-dependency-v1.validation.json",
+            "sha256": "ee3dec78b2b8c7cf8bef81ea9417ab23d839574dc64fd07a0b27910c477f816f",
+            "bytes": 510,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "snapshot",
+          "classification": "actual current replay snapshot admission",
+          "expectedFailures": 2,
+          "failed": [
+            "(fail) genuine Memory rename history refuses laundering after current prior undo and redo [59.00ms]",
+            "(fail) genuine Memory progress history refuses laundering after current prior undo and redo [20.61ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-snapshot-v1.receipt.json",
+            "sha256": "2416ef7689a1f86b1bd040888c0a1c4aaa65aa086127d27a69d8a85049fcfc91",
+            "bytes": 1443,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-snapshot-v1.log",
+            "sha256": "9021a893f0a836c275a1765f3c0187b20736e6d07f70fa7e80af4b9c0968db57",
+            "bytes": 2248,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-snapshot-v1.validation.json",
+            "sha256": "34f9583b26e04c706fabf74d9184956012ebc926d2750dcb95cad546df996165",
+            "bytes": 497,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "schema",
+          "classification": "recorded schema dispatch",
+          "expectedFailures": 1,
+          "failed": ["(fail) actual Memory history codec refuses unsupported schema [10.07ms]"],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-schema-v1.receipt.json",
+            "sha256": "96c67c7bec62ccff9ea28a12d075f0bba0c3b2552fad2ab5fd8ba34b29e055a8",
+            "bytes": 1428,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-schema-v1.log",
+            "sha256": "4b51831f716a8cd0c805e1ab5df84343e30426d45d90dbb0b6a09be77a618349",
+            "bytes": 37487,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-schema-v1.validation.json",
+            "sha256": "9bece2b0343cc792f6fc83d60deeaeadc1449c984b789c96cd0201e4a092895e",
+            "bytes": 494,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "joins",
+          "classification": "unsupported joined state admission",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) actual Memory history codec refuses unrecorded joined labels [7.92ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-joins-v1.receipt.json",
+            "sha256": "5a4141fb3392228f31a5b558871558ab4cc988de616f0c77c78060149e9a2835",
+            "bytes": 1432,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-joins-v1.log",
+            "sha256": "7aba5bf2fc6e551bacaed1c4884deb3551b67ca23bec7b28e187bfe66f8fdfb4",
+            "bytes": 37658,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-joins-v1.validation.json",
+            "sha256": "9243945461c8cf3248a4c2140d5b328db4df452b14702e685cff352b64ad33b1",
+            "bytes": 492,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "missing-phase",
+          "classification": "diagnostic-only missing checkpoint context; later destructuring still throws",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) actual Memory history opener refuses a missing checkpoint with its source context [12.62ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-missing-phase-v1.receipt.json",
+            "sha256": "fa033e18a20e6818e12c7bc5928ab6a5186453ecce034f8f83e95ddefae4fb77",
+            "bytes": 1444,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-missing-phase-v1.log",
+            "sha256": "542be701c8358634a12492666be7f7d56ec5e31745a7e07dffb94f842bd96f36",
+            "bytes": 1097,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-missing-phase-v1.validation.json",
+            "sha256": "1a0aaca0013bd0cf87eb83038fb766c38a8a26a8bf2750377579f4d202364b3a",
+            "bytes": 507,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "compressed",
+          "classification": "compressed dependency before current metadata authoring",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) genuine Memory rename history refuses laundering after current prior undo and redo [11.86ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-compressed-v1.receipt.json",
+            "sha256": "58b6a01c409481cfd82367f4e45e64cb7ed7f0c8a398687a973b76ff914211fc",
+            "bytes": 1432,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-compressed-v1.log",
+            "sha256": "879f959bda97ee413a16ab8e374e803c51f1adda0ae13e3ecf377a1ce68f1064",
+            "bytes": 1564,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-compressed-v1.validation.json",
+            "sha256": "353135702e21ba2c85f870eb3d027a0070ab7c37dd76a0067e6c03f5c1f973a6",
+            "bytes": 501,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "original",
+          "classification": "original archive digest dependency",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) genuine Memory rename history refuses laundering after current prior undo and redo [8.64ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-original-v1.receipt.json",
+            "sha256": "323a16392b93a7329db322a9121c07709526c207d66c26ca0886b46d6bd6bb0f",
+            "bytes": 1428,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-original-v1.log",
+            "sha256": "aa7ad4ee076d2eee489f76ecbb8b839a6ecbc7bf007919a68fde33e57ec7ab3e",
+            "bytes": 1573,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-original-v1.validation.json",
+            "sha256": "f6c92358453f45941b70f3f1f338c9ea33931810f24e030b6c05f4dcb44d4b86",
+            "bytes": 497,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "producer",
+          "classification": "frozen actual predecessor producer dependency",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) genuine Memory rename history refuses laundering after current prior undo and redo [11.85ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-producer-v1.receipt.json",
+            "sha256": "3f9378cf1e4a5712dc807b5ae597b7467ba621239f5a0b7557ef8e1fa68e3fbf",
+            "bytes": 1428,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-producer-v1.log",
+            "sha256": "5e434ffde2ca0edab9ac8bc840c6ba28c267650b97c707637c220325d3a02d4e",
+            "bytes": 1653,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-producer-v1.validation.json",
+            "sha256": "b71bbe6c2589e030a24fa002bacbe383ad8802e7708a16b271f54ada5621e805",
+            "bytes": 497,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "name": "profile",
+          "classification": "genuine archive profile selection dependency",
+          "expectedFailures": 1,
+          "failed": [
+            "(fail) genuine Memory rename history refuses laundering after current prior undo and redo [11.73ms]"
+          ],
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-profile-v1.receipt.json",
+            "sha256": "e786727250379a4a7378192ecf63cd849d18aac5f36c883ee0550596e6b2ddbe",
+            "bytes": 1426,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-profile-v1.log",
+            "sha256": "a71ef6db405b6bf7fcf5e8516cef3447156b8e34908bd8f1c08620b666160054",
+            "bytes": 1447,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-profile-v1.validation.json",
+            "sha256": "ae16b2e8a4f60b0b111806af5dfc6ea5da9f901c30515a271543f4188416668a",
+            "bytes": 495,
+            "mode": 384
+          },
+          "restored": true
+        }
+      ]
+    },
+    "existingIds": {
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-id-seeds-v1.state.json",
+        "sha256": "a9894250283de2b3be0e939c1b506ffff58cf224e88f77706dddb0f308024d71",
+        "bytes": 2208,
+        "mode": 384
+      },
+      "baseline": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-history-id-seeds-v1.original.ts.txt",
+        "sha256": "9ee95dccb2894701c9875a7441a4eac89803b60bd5504c1168eb557175421d79",
+        "bytes": 96109,
+        "mode": 384
+      },
+      "total": 2,
+      "active": null,
+      "restored": true,
+      "faults": [
+        {
+          "kind": "entry",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entry-seed-v1.receipt.json",
+            "sha256": "38af39cbc64644f6629adf5578d22c2ad6a0ce0011b52eb47c71bf0d24672885",
+            "bytes": 1430,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entry-seed-v1.log",
+            "sha256": "c0faafd220a5f58da2947349b77ef503e052878a70a44e02ce05b444381f6f29",
+            "bytes": 955,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-entry-seed-v1.validation.json",
+            "sha256": "57c0231333a7ff103f4bb6a565f2fb88d5983f511dd124046875aaae0c08b592",
+            "bytes": 500,
+            "mode": 384
+          },
+          "restored": true
+        },
+        {
+          "kind": "event",
+          "receipt": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-event-seed-v1.receipt.json",
+            "sha256": "8e9b2c01426ae7420d9277a4090d769c9b122902b5dc7ccdf62cf1ed58edd7b0",
+            "bytes": 1430,
+            "mode": 384
+          },
+          "log": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-event-seed-v1.log",
+            "sha256": "f856262a09cc1f0fc97062c632a187588201b5b24e02b66acb5a398b39b5d718",
+            "bytes": 955,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-combined-proposal-v1/control/memory-history-fault-event-seed-v1.validation.json",
+            "sha256": "bfe5ce619140058fb8a45496fadcae63aba060ed96571cbf24feed862acf0beb",
+            "bytes": 500,
+            "mode": 384
+          },
+          "restored": true
+        }
+      ]
+    },
+    "total": 19,
+    "noMutantsInstalled": true,
+    "qualification": "Missing-phase omission is diagnostic-only; later destructuring still rejects. Snapshot omission admits stale replay in both actual Memory cases. Other admission/ownership/stage/archive/dependency faults fail their intended consumers; final state differs from mutation baselines only by adjacent observed Proof comments."
+  },
+  "limitations": [
+    "Only bounded fixture task1.6.2b.1 closes; original15 historical guarantees remain open as an aggregate.",
+    "Independent SQL late/prelude guards, generic code reconciliation/history translation, full Source authority/epoch/lifetime/all13fact matrices and formal requested Astra review remain required.",
+    "Prior current SQLite historical cohort36/0/811 is V96 evidence; not repeated for this Memory-only fixture change.",
+    "No complete API/MCP/UI/browser/product/build/secrets/migration/installed/exactSHAhost gate in this slice.",
+    "Astra unavailable until recorded2026-11-22 10:09AM timezone unspecified; no retry/substitute/new agent.",
+    "No public commit/push/PR/merge/deploy/install/activation; protected archive, original six inventories and shared dependencies preserved."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

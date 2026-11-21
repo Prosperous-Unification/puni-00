@@ -17,7 +17,7 @@ import { Modal, ModalContent, ModalHeader, ModalTitle, ModalTrigger } from '@/co
  *
  * Two exemptions, and each is a fault this was written after meeting:
  *
- * - **A control that opens a surface of its own.** `ProjectSettingsModal`'s
+ * - **A control that opens a surface of its own.** `WorkPackageSettingsModal`'s
  *   trigger is on this sheet, and closing the sheet unmounts the modal it was
  *   about to open. Radix marks such a trigger `aria-haspopup="dialog"`, which
  *   is the question asked here.
@@ -162,7 +162,7 @@ export function PlanToolbarSheet({
     <Modal open={active && open} onOpenChange={setOpen}>
       {/*
         The trigger belongs to the modal rather than sitting beside it, for
-        `ProjectSettingsModal`'s reason: Radix restores the focus to its trigger
+        `WorkPackageSettingsModal`'s reason: Radix restores the focus to its trigger
         on close, and to nothing at all without one.
       */}
       <ModalTrigger asChild>
@@ -187,7 +187,7 @@ export function PlanToolbarSheet({
         // collected there.
         //
         // Found by a browser at 390×844, 2026-08-09: `POST
-        // /api/projects/…/work-items` simply absent from the network log after
+        // /api/work-packages/…/work-items` simply absent from the network log after
         // a click that closed the sheet.
         onClick={(event) => {
           const control = closingControlIn(event.target, event.currentTarget);

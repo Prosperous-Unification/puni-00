@@ -32,6 +32,16 @@ export async function executeCommand(command: Command, context: Context): Promis
       return 0;
     }
     case 'dash': {
+      // Proof: backend-probe-fault-typed-dispatch-v123 skipped this route and
+      // failed the actual anonymous-backend success case; restoration passed.
+      if (command.request.command === 'dev-probe') {
+        const origin = command.request.origin;
+        const write = context.stdout;
+        const { probeBackend } = await import('./development/probe');
+        await probeBackend(origin);
+        write('[dev-deploy] ' + 'be (auth routes mounted)'.padEnd(28) + ' ok\n');
+        return 0;
+      }
       if (command.request.command === 'browser' || command.request.command === 'performance') {
         const request = { ...command.request };
         const retained = {
@@ -47,9 +57,13 @@ export async function executeCommand(command: Command, context: Context): Promis
       }
       if (command.request.command === 'dev-env') {
         const request = { ...command.request };
-        const retained = { ...context, installation: { ...context.installation },
+        const retained = {
+          ...context,
+          installation: { ...context.installation },
           environment: { ...context.environment },
-          ...(context.developmentIO === undefined ? {} : { developmentIO: { ...context.developmentIO } }),
+          ...(context.developmentIO === undefined
+            ? {}
+            : { developmentIO: { ...context.developmentIO } }),
         };
         const { runInstalledForge } = await import('./packaging/forge');
         return await runInstalledForge(request, retained);

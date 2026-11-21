@@ -1,0 +1,62 @@
+[
+  {
+    "name": "payload forward",
+    "column": "payload",
+    "json": "{\"label\":\"old\",\"authorization\":null,\"forward\":{\"do\":\"patch\",\"workItemId\":\"row\",\"patch\":{\"notes\":\"kept\"}},\"forward\":{\"do\":\"restore_subtree\",\"rows\":[{\"id\":\"row\",\"projectId\":\"hidden\"}]}}"
+  },
+  {
+    "name": "batch steps",
+    "column": "inverse",
+    "json": "{\"do\":\"batch\",\"steps\":[],\"steps\":[{\"do\":\"restore_subtree\",\"rows\":[{\"id\":\"row\",\"projectId\":\"hidden\"}]}]}"
+  },
+  {
+    "name": "restore rows",
+    "column": "inverse",
+    "json": "{\"do\":\"restore_subtree\",\"rows\":[],\"rows\":[{\"id\":\"row\",\"projectId\":\"hidden\"}]}"
+  },
+  {
+    "name": "incident structural",
+    "column": "inverse",
+    "json": "{\"do\":\"transition_incident_nodes\",\"projectId\":\"owner\",\"fromWorkItemId\":\"left\",\"toWorkItemId\":\"right\",\"receipts\":[],\"structural\":{\"do\":\"patch\",\"workItemId\":\"row\",\"patch\":{\"notes\":\"kept\"}},\"structural\":{\"do\":\"restore_subtree\",\"rows\":[{\"id\":\"row\",\"projectId\":\"hidden\"}]}}"
+  },
+  {
+    "name": "incident receipts",
+    "column": "inverse",
+    "json": "{\"do\":\"transition_incident_nodes\",\"projectId\":\"owner\",\"fromWorkItemId\":\"left\",\"toWorkItemId\":\"right\",\"structural\":{\"do\":\"patch\",\"workItemId\":\"row\",\"patch\":{\"notes\":\"kept\"}},\"receipts\":[],\"receipts\":[{\"from\":{\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"createdAt\":null,\"createdBy\":null},\"to\":{\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"createdAt\":1,\"createdBy\":\"actor\"}}]}"
+  },
+  {
+    "name": "typed dependency",
+    "column": "inverse",
+    "json": "{\"do\":\"add_typed_dependency\",\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"dependency\":{\"id\":\"link\",\"projectId\":\"other\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"}}"
+  },
+  {
+    "name": "typed update from",
+    "column": "inverse",
+    "json": "{\"do\":\"update_typed_dependency\",\"from\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"to\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"from\":{\"id\":\"link\",\"projectId\":\"other\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"}}"
+  },
+  {
+    "name": "typed update to",
+    "column": "inverse",
+    "json": "{\"do\":\"update_typed_dependency\",\"from\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"to\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"to\":{\"id\":\"link\",\"projectId\":\"other\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"}}"
+  },
+  {
+    "name": "receipt dependency",
+    "column": "inverse",
+    "json": "{\"do\":\"transition_incident_nodes\",\"projectId\":\"owner\",\"fromWorkItemId\":\"left\",\"toWorkItemId\":\"right\",\"structural\":{\"do\":\"patch\",\"workItemId\":\"row\",\"patch\":{\"notes\":\"kept\"}},\"receipts\":[{\"from\":{\"createdAt\":null,\"createdBy\":null,\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"}},\"to\":{\"dependency\":{\"id\":\"link\",\"projectId\":\"owner\",\"predecessor\":{\"scope\":\"whole\",\"workItemId\":\"left\"},\"successor\":{\"scope\":\"whole\",\"projectId\":\"owner\",\"workItemId\":\"right\"},\"type\":\"FS\"},\"createdAt\":1,\"createdBy\":\"actor\"}}]}"
+  },
+  {
+    "name": "external revisions",
+    "column": "preconditions",
+    "json": "{\"expected\":{},\"from\":{},\"externalRevisions\":{\"expected\":[],\"from\":[]},\"externalRevisions\":{\"expected\":[{\"projectId\":\"owner\",\"workItemId\":\"row\",\"revision\":1}],\"from\":[]}}"
+  },
+  {
+    "name": "external expected",
+    "column": "preconditions",
+    "json": "{\"expected\":{},\"from\":{},\"externalRevisions\":{\"expected\":[],\"from\":[],\"expected\":[{\"projectId\":\"owner\",\"workItemId\":\"row\",\"revision\":1}]}}"
+  },
+  {
+    "name": "external from",
+    "column": "preconditions",
+    "json": "{\"expected\":{},\"from\":{},\"externalRevisions\":{\"expected\":[],\"from\":[],\"from\":[{\"projectId\":\"owner\",\"workItemId\":\"row\",\"revision\":1}]}}"
+  }
+]

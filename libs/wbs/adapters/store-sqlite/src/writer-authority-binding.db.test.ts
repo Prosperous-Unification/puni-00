@@ -43,7 +43,7 @@ test('borrowed authority sees staged writer state and expires after settlement',
   await source.uow.run((scope) => {
     retained = scope.stores.externalDependencyAuthoring;
     expect(permitsExternalDependencies(retained)).toBe(false);
-    source.db.run('DELETE FROM cross_project_dependency_activation');
+    source.db.run('DELETE FROM cross_work_package_dependency_activation');
     expect(() => permitsExternalDependencies(retained)).toThrow(
       'invalid dependency activation marker',
     );
@@ -75,7 +75,7 @@ test('borrowed authorities remain bound to their source when another writer is a
   const first = fixture().source;
   const second = fixture().source;
   await first.uow.run(async (firstScope) => {
-    first.db.run('DELETE FROM cross_project_dependency_activation');
+    first.db.run('DELETE FROM cross_work_package_dependency_activation');
     await second.uow.run((secondScope) => {
       expect(permitsExternalDependencies(secondScope.stores.externalDependencyAuthoring)).toBe(
         false,
@@ -92,17 +92,17 @@ test('borrowed authorities remain bound to their source when another writer is a
 for (const [fault, statement, message] of [
   [
     'missing ledger',
-    "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'",
+    "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_work_package_dependency_activation'",
     'missing dependency activation migration',
   ],
   [
     'malformed authority',
-    "UPDATE cross_project_dependency_activation SET state='ENABLED'",
+    "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
     'enabled dependency authority has no exact receipt',
   ],
   [
     'missing receipt schema',
-    'DROP TABLE cross_project_dependency_activation_receipt',
+    'DROP TABLE cross_work_package_dependency_activation_receipt',
     'invalid dependency activation schema',
   ],
 ] as const)

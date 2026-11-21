@@ -99,7 +99,7 @@ describe('decideBudget', () => {
     });
   });
 
-  it('answers an unowned project against the seeded four', () => {
+  it('answers an unowned work package against the seeded four', () => {
     expect(decideBudget(null, 'tokens', { cap: 1, holdPerAttempt: null })).toMatchObject({
       ok: true,
     });
@@ -174,7 +174,7 @@ describe('readBudgets', () => {
     expect(read.get('P')?.get('tokens')).toMatchObject({ held: 300, remaining: 100 });
   });
 
-  it('derives a budget from the pessimistic points times the project factor, and lets a stated one override it', () => {
+  it('derives a budget from the pessimistic points times the work package factor, and lets a stated one override it', () => {
     const trio = (workItemId: string, pessimistic: number): StoredMeasureEstimate => ({
       workItemId,
       stepId: 'dev',
@@ -399,7 +399,7 @@ describe('readBudgets', () => {
 
   it('throws on a budget in a key no definition holds', () => {
     expect(() => readingsOf({ budgets: [budget({ key: 'story_points' })] })).toThrow(
-      'no definition of its project holds',
+      'no definition of its work package holds',
     );
   });
 });

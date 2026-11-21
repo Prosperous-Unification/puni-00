@@ -43,7 +43,7 @@ describe('compute provider reference refusal words', () => {
       asked: 32,
     };
     expect(batchRefusalSentence(body as unknown as BatchRefusal, 'h2puni ram')).toBe(
-      'Organization limit: h2puni ram would declare 80 of 64 units across your projects (48 stated by your other projects, 32 asked here). Nothing was changed.',
+      'Organization limit: h2puni ram would declare 80 of 64 units across your work packages (48 stated by your other work packages, 32 asked here). Nothing was changed.',
     );
   });
 });

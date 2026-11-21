@@ -60,6 +60,128 @@ describe('reachedSliceOf', () => {
   });
 });
 
+describe('mixed per-leaf descendant steps', () => {
+  const groups = new Map<string, readonly GraphSlice[]>([
+    [
+      'story',
+      [
+        { stepId: 'dev', days: 2 },
+        { stepId: 'qa', days: 1 },
+      ],
+    ],
+    ['spike', [{ stepId: 'research', days: 3 }]],
+    ['zero', [{ stepId: null, days: null }]],
+    [
+      'qa-first',
+      [
+        { stepId: 'qa', days: 2 },
+        { stepId: 'dev', days: 1 },
+      ],
+    ],
+    ['target-zero', [{ stepId: null, days: null }]],
+  ]);
+  const families = new Map([
+    ['P', ['story', 'spike', 'zero']],
+    ['Q', ['qa-first', 'target-zero']],
+  ]);
+  const matching: TypedDependency = {
+    id: 'matching',
+    type: 'FS',
+    predecessor: { scope: 'descendant-step', workItemId: 'P', stepId: 'qa' },
+    successor: { scope: 'descendant-step', workItemId: 'Q', stepId: 'qa' },
+  };
+  const readSlices = (id: string) => {
+    const own = groups.get(id);
+    if (own === undefined) throw new Error('mixed leaf slices are absent: ' + id);
+    return own;
+  };
+  const readLeaves = (id: string) => {
+    const own = families.get(id);
+    if (own !== undefined) return own;
+    if (groups.has(id)) return [id];
+    throw new Error('mixed parent is absent: ' + id);
+  };
+  const graph = (dependencies: readonly TypedDependency[]) =>
+    resolveStepNodeGraph([...groups.keys()], readSlices, [], 'whole-item', {
+      dependencies,
+      leavesUnder: readLeaves,
+    });
+
+  it('connects only matching descendants with their own indices and retains zero-step boundaries', () => {
+    const captured = graph([matching]);
+    expect(wire(captured.edges.filter((edge) => edge.provenance === 'authored'))).toEqual([
+      'story1→qa-first0',
+    ]);
+    expect(captured.nodes.filter((node) => node.kind === 'boundary')).toEqual([
+      { kind: 'boundary', workItemId: 'zero', at: 0 },
+      { kind: 'boundary', workItemId: 'target-zero', at: 0 },
+    ]);
+    expect(wire(captured.edges.filter((edge) => edge.provenance === 'workflow'))).toEqual([
+      'story0→story1',
+      'qa-first0→qa-first1',
+    ]);
+    expect(
+      captured.nodes.some(
+        (node) =>
+          node.kind === 'step' && node.ref.workItemId === 'spike' && node.ref.stepId === 'qa',
+      ),
+    ).toBe(false);
+  });
+
+  for (const side of ['predecessor', 'successor'] as const)
+    it('names the exact no-match descendant selector at ' + side, () => {
+      let caught: unknown;
+      try {
+        graph([
+          {
+            ...matching,
+            [side]: { ...matching[side], scope: 'descendant-step', stepId: 'missing' },
+          },
+        ]);
+      } catch (cause: unknown) {
+        caught = cause;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught).toMatchObject({
+        reason: 'no_descendant_resolves_step',
+        relationshipId: 'matching',
+        side,
+        workItemId: side === 'predecessor' ? 'P' : 'Q',
+        stepId: 'missing',
+      });
+    });
+
+  it('keeps a cycle through matching descendants visible despite unmatched and boundary leaves', () => {
+    const captured = graph([
+      matching,
+      {
+        id: 'back',
+        type: 'FS',
+        predecessor: { scope: 'node', workItemId: 'qa-first', stepId: 'dev' },
+        successor: { scope: 'node', workItemId: 'story', stepId: 'dev' },
+      },
+    ]);
+    const cycle = findStepNodeCycle(captured);
+    expect(cycle?.kind).toBe('cycle');
+    expect(new Set(cycle?.relationshipIds)).toEqual(new Set(['matching', 'back']));
+  });
+
+  it('propagates missing descendant slice evidence rather than treating it as a nonmatch', () => {
+    expect(() =>
+      resolveStepNodeGraph(
+        ['story'],
+        (id) => {
+          if (id === 'zero') throw new Error('injected unreadable descendant');
+          return readSlices(id);
+        },
+        [],
+        'whole-item',
+        { dependencies: [matching], leavesUnder: readLeaves },
+      ),
+    ).toThrow('injected unreadable descendant');
+  });
+});
+
 describe('resolveStepNodeGraph', () => {
   it('selects the whole leaf boundary named by each relationship type', () => {
     const dependencies: TypedDependency[] = (['FS', 'SS', 'FF'] as const).map((type) => ({
@@ -222,7 +344,7 @@ describe('resolveStepNodeGraph', () => {
 describe('authored typed dependencies', () => {
   /**
    * Parent `P` over leaves `P1` and `P2`, and leaves `A`, `B`, each with Dev
-   * then QA. `S` is a stepless project's lone boundary node.
+   * then QA. `S` is a stepless work package's lone boundary node.
    */
   const devQa: readonly GraphSlice[] = [
     { days: 2, stepId: 'dev' },
@@ -330,7 +452,7 @@ describe('authored typed dependencies', () => {
     expect(wire(edges)).toEqual(['A1→B0', 'A1→B0']);
   });
 
-  it('resolves a stepless project’s whole endpoint to the work-item boundary', () => {
+  it('resolves a stepless work package’s whole endpoint to the work-item boundary', () => {
     const boundary: readonly GraphSlice[] = [{ days: null, stepId: null }];
     const edges = resolveStepNodeGraph(['A', 'B'], () => boundary, [], 'whole-item', {
       dependencies: [fs('r1', whole('A'), whole('B'))],

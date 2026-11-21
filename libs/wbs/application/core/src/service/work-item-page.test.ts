@@ -19,7 +19,7 @@ function workItem(
 ): TreeWorkItem {
   return {
     id,
-    projectId: 'p',
+    workPackageId: 'p',
     parentId,
     position: 0,
     name: id,
@@ -74,7 +74,7 @@ function sliceOf(workItemId: string): TreeSlice {
     workItemId,
     stepId: null,
     personId: null,
-    boundBy: 'projectStart',
+    boundBy: 'workPackageStart',
     resourcePredecessorId: null,
     capacityPredecessorIds: [],
     capacityTeamId: null,
@@ -146,7 +146,7 @@ describe('pageWorkItems', () => {
         'name',
         'number',
         'parentId',
-        'projectId',
+        'workPackageId',
         'revision',
         'status',
         'updatedAt',
@@ -262,6 +262,6 @@ describe('workItemPageQueryOf', () => {
 test('depthIn throws for an id its tree does not hold', () => {
   expect(depthIn(new Map([['a', 1]]), 'a')).toBe(1);
   expect(() => depthIn(new Map([['a', 1]]), 'gone')).toThrow(
-    'work item "gone" has no depth in its project\'s tree',
+    'work item "gone" has no depth in its work package\'s tree',
   );
 });

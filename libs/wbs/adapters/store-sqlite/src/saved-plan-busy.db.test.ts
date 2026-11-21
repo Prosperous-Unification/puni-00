@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { WriteStamp } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from './capacity';
@@ -14,14 +14,15 @@ import { openConnection } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { savedPlan, workItem } from './schema';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { nodeDigest } from './testing/node-digest';
 import { HOLDER_CASE_BUDGET_MS, WriteLockHolder } from './testing/write-lock-holder';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -36,7 +37,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -60,24 +61,25 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-busy-svc-'));
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'fixture-project',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -140,7 +142,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
 
       await holder.go();
       const attempt = await service().save({
-        projectId: 'p1',
+        workPackageId: 'p1',
         name: 'once more',
         createdBy: 'Ada Lovelace',
         createdById: null,

@@ -18,7 +18,7 @@ export interface ImportWithAiHelpProps {
    * The public MCP URL, once a live sign-in, write and refresh through it is recorded.
    *
    * Absent until then, and absence is rendered: the help says the address is not published
-   * rather than offering one nobody has connected to (`guide-ai-project-imports`, "Public
+   * rather than offering one nobody has connected to (`guide-ai-work-package-imports`, "Public
    * authentication has not been proved").
    */
   verifiedMcpUrl?: string;
@@ -112,7 +112,7 @@ export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
           type="button"
           // A row of the Export / Import menu it lives in, not a button in a column.
           className={MENU_ITEM}
-          data-hint="Connect an AI client to WBS and import an existing project through it"
+          data-hint="Connect an AI client to WBS and import an existing plan through it"
         >
           Import with AI
         </Button>
@@ -130,7 +130,7 @@ export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
         <ModalHeader>
           <ModalTitle>Import with AI</ModalTitle>
           <ModalDescription>
-            Bring an existing project into a new WBS project through an AI client connected to WBS
+            Bring an existing plan into a new WBS work package through an AI client connected to WBS
             over MCP. It is a one-time copy, not a synchronization.
           </ModalDescription>
         </ModalHeader>
@@ -149,7 +149,7 @@ export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
           <li>Copy the import prompt, fill in its brackets, and review the mapping it previews.</li>
           <li>
             Approve the destination organization and the write, then check the reconciliation it
-            reports against the new project.
+            reports against the new work package.
           </li>
         </ol>
         <section aria-labelledby="import-with-ai-connection" className="flex flex-col gap-1">

@@ -46,6 +46,33 @@ Every first-party operation exposed by current client instructions, generated he
 - **WHEN** the packaged artifact runs from a path containing spaces with no source checkout, Bash or Node on PATH
 - **THEN** its help, completion and representative file/state operations succeed with Bun and their declared utilities, and a missing required utility refuses visibly
 
+### Requirement: Backend deployment probes execute through PUNI
+
+The installed `puni dash dev-probe be ORIGIN` operation and its `d` alias SHALL
+request the anonymous `/api/auth/me` endpoint using Bun, without a checkout, shell,
+Node, curl, credentials or redirect following. Each request SHALL have a15-second
+bound. Success SHALL require HTTP200, an explicit null user, boolean onboarding
+and organizations features, and onboarding enabled whenever organizations is enabled.
+Malformed JSON, transport failure and other response shapes SHALL fail visibly.
+
+#### Scenario: Both namespace spellings verify the actual anonymous application response
+
+- **WHEN** the source or installed root receives a valid anonymous backend response
+- **THEN** both spellings print the existing backend-mounted success label and exit0
+- **AND** no authorization or cookie header is sent
+
+#### Scenario: A proxy or authenticated response cannot pass the deployment probe
+
+- **WHEN** the endpoint redirects, replies with another status, names a signed-in user,
+  omits features or supplies invalid feature types or dependencies
+- **THEN** the operation fails without following a redirect or printing a success label
+
+#### Scenario: Deployment refuses an unavailable selected backend probe before effects
+
+- **WHEN** manual deployment has no absolute usable selected PUNI entrypoint, or that installation cannot parse the backend-probe operation
+- **THEN** a protected Bun adapter refuses before Git/SSH deployment work begins
+- **AND** a successful silent preflight performs no backend HTTP request; the later health check uses the embedded operation
+
 ### Requirement: MCP helpers preserve installed invocation and startup obligations
 
 The MCP token command SHALL use the same protected startup as the installed entrypoint, load only its required execution modules and retain the existing 10-second helper budget. Pool import SHALL generate an installed `puni dash mcp token` invocation, using canonical `dash` even when import used `d`, preserving argument boundaries and existing secret handling.
@@ -431,6 +458,13 @@ The `install-puni` grammar SHALL be exposed by composed PUNI Dash help/request p
 - **THEN** the modeled78 diagnostic is returned without a selection; digest rejection creates no destination, and destination reuse preserves the previously delivered entrypoint bytes
 - **AND** these ordinary controls receive no R5 necessity credit until the actual local checks are separately removed or their production dependencies broken and observed
 
+#### Scenario: Required long PAX paths retain unique effective archive identity
+
+- **WHEN** a current PUNI gzip tar contains canonical regular-file local PAX paths that cannot fit a UTF8 USTAR name of100 bytes or any slash-separated prefix/name pair of155/100 bytes
+- **THEN** the overridden physical header names are lossy placeholders and may repeat each other or one ordinary member header in either order; the effective paths and Bun-decoded payload membership remain exact and unique
+- **AND** representable short or split-prefix PAX paths do not gain this exception, ordinary physical identities remain unique even with a long-path placeholder between them, and UTF8 byte widths rather than JavaScript character counts decide representability
+- **AND** critical package metadata/main aliases, effective duplicate names, file/descendant collisions, noncanonical paths and unsupported member or metadata forms continue to refuse before installation or selection consumption
+
 ### Requirement: Development ports execute as a closed PUNI Dash operation
 
 PUNI SHALL expose `dash dev-ports <resolve|check|release> --repository DIRECTORY [--apps-dir DIRECTORY] [TIER:PORT ...]`, including the existing `d` alias, through its typed root grammar. Standalone legacy Dash SHALL remain unchanged. The operation SHALL use the explicit repository and captured caller/environment authority, never infer a client checkout from its installed artifact directory or require installation/Git verification for a local port query. Production SHALL run in Bun without invoking an owned shell script or arbitrary command operand.
@@ -553,7 +587,6 @@ Package-default conversion SHALL co-land dev-image/Compose startup with protecte
 - **WHEN** the image/Compose startup is configured for the converted package default
 - **THEN** both operator installation inputs are mandatory and the complete reviewed installation is mounted read-only with its mapped entrypoint explicitly selected
 
-
 ### Requirement: Forge retains an independently selected complete PUNI installation
 
 The explicit local install purpose SHALL retain its current schema1 stdout unchanged and, only after successful owned install, delivered-main probe and archive/package verification, write canonical puni-selection.json inside its fresh destination. The closed record SHALL name schemaVersion1, the canonical absolute installationDirectory, relative retained archive path and SHA256, and the relative delivered entrypoint. It SHALL be JSON with two-space indentation and one LF, written without replacing an existing file. Producing a digest beside these bytes SHALL NOT itself authenticate them.
@@ -588,7 +621,6 @@ Current Forge up SHALL require an absolute --puni-selection record and independe
 - **WHEN** current PUNI startup is qualified
 - **THEN** the historical source-cold-v1 decoder and its captured bytes remain unchanged; a distinct current source profile/producer and actual mounted runtime observations are required before current certification or shell retirement
 
-
 ### Requirement: Installed Forge supervision has a shipped closed runtime
 
 The PUNI-only typed operation SHALL be `puni dash|d dev-env supervise --repository DIRECTORY --termination-log PATH`. Both placements SHALL be explicit absolute paths. Legacy standalone Dash SHALL retain its original grammar. The executable SHALL report terminal completion only after the supervisor owner settles; reusable main SHALL return Completion without exiting its caller.
@@ -613,7 +645,6 @@ The separate source compiler API SHALL remain internal, SHALL own its actual sou
 - **THEN** the mandatory execution observation refuses a fresh development acquisition, with missing/unreadable/malformed required state throwing and changed captured state requiring reload
 - **AND** the source compiler records its compiler/bootstrap/input/configuration/package observations separately from installed operation and never serves as its fallback
 
-
 ### Requirement: Producer admits only the closed retained Forge asset loader
 
 The captured producer SHALL preserve generic macro, alias and opaque-load refusal. Its only Forge runtime exception SHALL authenticate the exact producer-owned loader source at its exact captured path, identify exactly one emitted ImportKeyword call in that source's AST and exempt only that node. The captured role graph SHALL establish that only the fixed puni.mjs root role reaches the loader; package mode or pathname alone SHALL NOT grant the exception. Source mismatch, additional opaque calls, aliases and other role reachability SHALL refuse before any Bun role build.
@@ -635,10 +666,16 @@ The producer SHALL record the audited source and emitted digests, canonical path
 - **THEN** only the retained data-URL snapshot can execute; mismatched retained bytes refuse before new module side effects
 - **AND** the actual packed supervisor still reaches its real owned native outcome through the shipped core after checkout removal
 
-
 ### Requirement: Explicit current test-level tool source
 
-PUNI0.4.0 SHALL require a new selected-source toolkit3, required testLevelIdentity and matching top-level sourceSelection in the package profile, installed selection record2 and test-level asset descriptor. Source selection SHALL be the closed committed{revision,tree} or working{base,identity} union. Existing sourceRevision SHALL equal revision or base respectively and SHALL be only a compatibility/display reference for working input. Historical0.2.1/profile0.3.0/toolkit1/2 and record1 byte contracts SHALL remain separately readable without relabelling old bytes.
+PUNI0.4.0 SHALL require a new selected-source toolkit3, required testLevelIdentity and matching top-level sourceSelection in the package profile, installed selection record2 and test-level asset descriptor. Source selection SHALL be the closed committed{revision,tree} or working{base,identity} union. Existing sourceRevision SHALL equal revision or base respectively and SHALL be only a compatibility/display reference for working input. Historical0.2.1/profile0.3.0/toolkit1/2 and record1 byte contracts SHALL remain separately readable without relabelling old bytes. Toolkit3 SHALL use the canonical `node_modules` dependency directory; toolkit1/2 SHALL retain their historical dependency location.
+
+#### Scenario: Current dependency placement preserves runtime resolution
+
+- **WHEN** a current toolkit3 package is produced, installed or used for source composition
+- **THEN** its complete authenticated dependency closure occupies `toolkit/node_modules`, preserving sibling transitive imports after native path resolution
+- **AND** current test-level assets, ordinary runtime, preparation input selection and placement checks use that same version-selected location; a missing or unreadable current closure refuses without trying the historical path
+- **AND** historical toolkit1/2 continues to verify its original `trusted-node-modules` layout and bytes, while independently versioned activation output layouts retain their own contract
 
 #### Scenario: Working source cannot claim committed tool provenance
 

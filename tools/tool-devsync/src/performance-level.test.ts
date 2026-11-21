@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
+import { createLaunch } from '@shared/bun-startup';
 import { dlopen, ptr } from 'bun:ffi';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { SaxesParser } from 'saxes';
@@ -74,16 +75,25 @@ const declaration = {
   cases: [performanceCase],
 };
 
-interface ScratchService {command:string;cwd:string;url:string;env:Record<string,string>;bunArguments:readonly ['--eval',string]}
-function healthyScratchDescriptors():ScratchService[] {
+interface ScratchService {
+  command: string;
+  cwd: string;
+  url: string;
+  env: Record<string, string>;
+  bunArguments: readonly ['--eval', string];
+}
+function healthyScratchDescriptors(): ScratchService[] {
   return (['be-01', 'gw-01', 'fe-01'] as const).map((app, index) => {
     const port = [3100, 3200, 4200][index] + TEST_SHIFT;
     return {
       command:
         'bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response(\'ready\')}})"',
-      bunArguments:['--eval',"Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"],
+      bunArguments: [
+        '--eval',
+        "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})",
+      ],
       cwd: `apps/wbs/${app}`,
-      url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : '/health'}`,
+      url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : app === 'be-01' ? '/_ordinary/ready' : '/health'}`,
       env: { PORT: String(port) },
     };
   });
@@ -148,6 +158,11 @@ async function runPerformanceLevel(
   if (root.includes('/performance-execution-') && !Object.hasOwn(environment, 'E2E_PORT_SHIFT'))
     environment['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
   if (fault !== undefined) environment['PUNI_PROCESS_FAULT'] = fault;
+  const verdictMarker = join(supervisorRoot, 'verdict-injected.json');
+  if (fault?.startsWith('verdict-') === true)
+    environment['PUNI_VERDICT_FAULT_MARKER'] = verdictMarker;
+  if (fault === 'selection-mutate')
+    environment['PUNI_SELECTION_SPAWN_TRACE'] = join(root, '..', 'observed-spawns.jsonl');
   const preloadArguments =
     fault === undefined
       ? []
@@ -167,6 +182,10 @@ async function runPerformanceLevel(
     supervisors.add(supervisor);
     try {
       const { exitCode, stderr } = await awaitPerformanceSupervisor(supervisor, 145_000);
+      if (fault?.startsWith('verdict-') === true) {
+        const injected: unknown = JSON.parse(await readFile(verdictMarker, 'utf8'));
+        expect(injected).toHaveProperty('fault', fault);
+      }
       if (exitCode !== 0)
         throw new Error(stderr.trim() || `Performance supervisor exited ${String(exitCode)}`);
     } finally {
@@ -291,7 +310,7 @@ async function committedPerformanceFixture(
             : '';
   const observedConfig =
     fault === 'observe-env'
-      ? `writeFileSync(${JSON.stringify(observedEnvironment)} + (process.argv.includes('--list') ? '.discovery' : '.execution'), JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT}));\n`
+      ? `writeFileSync(${JSON.stringify(observedEnvironment)} + (process.argv.includes('--list') ? '.discovery' : '.execution'), JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT,E2E_TEST_DATABASE:process.env.E2E_TEST_DATABASE,runtime:process.execPath}));\n`
       : '';
   const configSource = `import { writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs';\nimport { execFileSync } from 'node:child_process';\nimport { defineConfig } from '@playwright/test';\n${discoveryFault}${reporterFault}${observedConfig}export default defineConfig({ testDir: './e2e-performance', testMatch: /.*\\.perf\\.spec\\.ts/, grep: process.env['PLAYWRIGHT_GREP'], projects: [{ name: 'chromium' }], workers: 1, retries: 0, timeout: ${value === 'hang' ? '0' : '30000'} });\n`;
   await writeFile(join(root, configPath), configSource);
@@ -335,7 +354,7 @@ async function committedPerformanceFixture(
         `await Bun.write(${JSON.stringify(orphanMarkers[1])}, String(sleeper.pid));\n` +
         `process.exit(0);\n`
       : fault === 'observe-env'
-        ? `await Bun.write(${JSON.stringify(observedEnvironment)} + '.setup', JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT}));\n`
+        ? `await Bun.write(${JSON.stringify(observedEnvironment)} + '.setup', JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT,E2E_TEST_DATABASE:process.env.E2E_TEST_DATABASE,runtime:process.execPath}));\n`
         : '// Synthetic committed setup boundary.\n';
   await writeFile(join(root, 'tools/dev/setup.ts'), setupSource);
   const descriptorFaults = {
@@ -1044,14 +1063,21 @@ describe('Performance level target production boundary', () => {
     process.env['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
     const service = (app: string, port: number) => ({
       command: `bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
-      bunArguments:['--eval',"Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"] as const,
+      bunArguments: [
+        '--eval',
+        "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})",
+      ] as const,
       cwd: `apps/wbs/${app}`,
-      url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : '/health'}`,
+      url: `http://localhost:${String(port)}${app === 'fe-01' ? '' : app === 'be-01' ? '/_ordinary/ready' : '/health'}`,
       env: { PORT: String(port) },
     });
     const descriptors = [
       service('be-01', 3100 + TEST_SHIFT),
-      { ...service('gw-01', 3200 + TEST_SHIFT), command: 'bun --eval "process.exit(23)"', bunArguments:['--eval','process.exit(23)'] as const },
+      {
+        ...service('gw-01', 3200 + TEST_SHIFT),
+        command: 'bun --eval "process.exit(23)"',
+        bunArguments: ['--eval', 'process.exit(23)'] as const,
+      },
       service('fe-01', 4200 + TEST_SHIFT),
     ];
     try {
@@ -1072,7 +1098,10 @@ describe('Performance level target production boundary', () => {
     descriptors[0] = {
       ...descriptors[0],
       command: `bun --eval "const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
-      bunArguments:['--eval',"const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"],
+      bunArguments: [
+        '--eval',
+        "const {existsSync}=require('node:fs'); if(!existsSync('../../../tmp')) process.exit(27); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})",
+      ],
     };
     await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors);
     expect(await Bun.file(join(fixture.root, currentPath)).exists()).toBe(true);
@@ -1258,26 +1287,83 @@ describe('Performance level target production boundary', () => {
     const fixture = await committedPerformanceFixture(180, 'observe-env');
     const descriptors = healthyScratchDescriptors().map((descriptor, index) => {
       const marker = `${fixture.observedEnvironment}.service-${String(index)}`;
-      const script = `await Bun.write(${JSON.stringify(marker)}, JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT})); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response("ready")}});`;
+      const script = `await Bun.write(${JSON.stringify(marker)}, JSON.stringify({CI:process.env.CI,E2E_PORT_SHIFT:process.env.E2E_PORT_SHIFT,E2E_TEST_DATABASE:process.env.E2E_TEST_DATABASE,runtime:process.execPath})); Bun.serve({port:Number(process.env.PORT),fetch(){return new Response("ready")}});`;
       return {
         ...descriptor,
         command: `bun --eval '${script}'`,
-        bunArguments:['--eval',script] as const,
-        env: { ...descriptor.env, CI: '0', E2E_PORT_SHIFT: '9999' },
+        bunArguments: ['--eval', script] as const,
+        env: {
+          ...descriptor.env,
+          CI: '0',
+          E2E_PORT_SHIFT: '9999',
+          E2E_TEST_DATABASE: '/tmp/foreign-performance.db',
+        },
       };
     });
     await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors, 'selection-mutate');
-    const expected = { CI: '1', E2E_PORT_SHIFT: String(TEST_SHIFT) };
-    for (const phase of [
-      'setup',
+    interface LaunchObservation {
+      argv: string[];
+      cwd: string | null;
+      environment: {
+        CI: string | null;
+        E2E_PORT_SHIFT: string | null;
+        E2E_TEST_DATABASE: string | null;
+      };
+    }
+    const allLaunches: LaunchObservation[] = (
+      await readFile(join(fixture.root, '..', 'observed-spawns.jsonl'), 'utf8')
+    )
+      .trim()
+      .split('\n')
+      // Test-only boundary: this invocation's pinned preload exclusively writes the private trace.
+      .map((line) => JSON.parse(line) as LaunchObservation);
+    expect(allLaunches).toHaveLength(9);
+    const isJudge = (launch: LaunchObservation) =>
+      launch.argv.includes('candidate-identity') || launch.argv.includes('check');
+    const judges = allLaunches.filter(isJudge);
+    expect(judges).toHaveLength(3);
+    const validator = join(
+      import.meta.dir,
+      '../../../apps/twilight-structure/twilight-burokrat/cli/src/cli.ts',
+    );
+    const protectedLaunch = createLaunch(process.execPath, validator);
+    for (const judge of judges) {
+      expect(judge.argv.slice(0, protectedLaunch.length)).toEqual([...protectedLaunch]);
+      expect(judge.environment).toEqual({
+        CI: null,
+        E2E_PORT_SHIFT: null,
+        E2E_TEST_DATABASE: null,
+      });
+    }
+    const launches = allLaunches.filter((launch) => !isJudge(launch));
+    expect(launches).toHaveLength(6);
+    expect(launches.map((launch) => launch.argv[0])).toEqual(
+      Array.from({ length: 6 }, () => process.execPath),
+    );
+    const selection = { CI: '1', E2E_PORT_SHIFT: String(TEST_SHIFT) };
+    expect(JSON.parse(await readFile(fixture.observedEnvironment + '.setup', 'utf8'))).toEqual({
+      ...selection,
+      runtime: process.execPath,
+    });
+    expect(launches[0].environment).toEqual({ ...selection, E2E_TEST_DATABASE: null });
+    const database = launches[1].environment.E2E_TEST_DATABASE;
+    expect(database).toMatch(
+      /^\/tmp\/puni-performance-[^/]+\/candidate\/tmp\/e2e-performance-[0-9a-f-]+\.db$/,
+    );
+    expect(database).not.toBe('/tmp/foreign-performance.db');
+    for (const [index, phase] of [
       'service-0',
       'service-1',
       'service-2',
       'discovery',
       'execution',
-    ]) {
-      expect(JSON.parse(await readFile(`${fixture.observedEnvironment}.${phase}`, 'utf8'))).toEqual(
-        expected,
+    ].entries()) {
+      expect(launches[index + 1].environment).toEqual({
+        ...selection,
+        E2E_TEST_DATABASE: database,
+      });
+      expect(JSON.parse(await readFile(fixture.observedEnvironment + '.' + phase, 'utf8'))).toEqual(
+        { ...selection, E2E_TEST_DATABASE: database, runtime: process.execPath },
       );
     }
     const bundle = await currentBundle(fixture.root);
@@ -1287,8 +1373,8 @@ describe('Performance level target production boundary', () => {
     const manifest = JSON.parse(await readFile(join(bundle, 'manifest.json'), 'utf8')) as {
       selection: { selectionEnvironment: unknown };
     };
-    expect(evidence.selection.selectionEnvironment).toEqual(expected);
-    expect(manifest.selection.selectionEnvironment).toEqual(expected);
+    expect(evidence.selection.selectionEnvironment).toEqual(selection);
+    expect(manifest.selection.selectionEnvironment).toEqual(selection);
   }, 60_000);
 
   it('emits an honest failing JUnit for an evaluated threshold breach', async () => {

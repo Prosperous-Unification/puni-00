@@ -28,8 +28,8 @@ beforeEach(() => {
   );
   for (const id of ['p', 'q']) {
     sqlite.run(
-      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-        ` VALUES ('${id}', 'Project ${id}', 'u', 0, 'pert', NULL, 0, 1)`,
+      'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+        ` VALUES ('${id}', 'Work package ${id}', 'u', 0, 'pert', NULL, 0, 1)`,
     );
   }
 });
@@ -40,35 +40,43 @@ afterEach(() => {
 });
 
 /** A step as an older release writes it: no `code` in the column list. */
-function oldWriterStep(id: string, projectId: string, name: string, position: number): void {
+function oldWriterStep(id: string, workPackageId: string, name: string, position: number): void {
   sqlite.run(
-    `INSERT INTO step (id, project_id, name, position) VALUES ('${id}', '${projectId}', '${name}', ${String(position)})`,
+    `INSERT INTO step (id, work_package_id, name, position) VALUES ('${id}', '${workPackageId}', '${name}', ${String(position)})`,
   );
 }
 
-function codedStep(id: string, projectId: string, name: string, position: number, code: string) {
+function codedStep(
+  id: string,
+  workPackageId: string,
+  name: string,
+  position: number,
+  code: string,
+) {
   sqlite.run(
-    `INSERT INTO step (id, project_id, name, position, code) VALUES ('${id}', '${projectId}', '${name}', ${String(position)}, '${code}')`,
+    `INSERT INTO step (id, work_package_id, name, position, code) VALUES ('${id}', '${workPackageId}', '${name}', ${String(position)}, '${code}')`,
   );
 }
 
 function codes(): { id: string; code: string | null; updatedAt: number | null }[] {
   return sqlite
     .query<{ id: string; code: string | null; updatedAt: number | null }, []>(
-      'SELECT id, code, updated_at AS updatedAt FROM step ORDER BY project_id, position',
+      'SELECT id, code, updated_at AS updatedAt FROM step ORDER BY work_package_id, position',
     )
     .all();
 }
 
 function revisions(): Record<string, number> {
   const rows = sqlite
-    .query<{ id: string; revision: number }, []>('SELECT id, revision FROM project ORDER BY id')
+    .query<{ id: string; revision: number }, []>(
+      'SELECT id, revision FROM work_package ORDER BY id',
+    )
     .all();
   return Object.fromEntries(rows.map((row) => [row.id, row.revision]));
 }
 
 describe('backfillStepCodes', () => {
-  it('codes every uncoded step in step order, against the codes its project already holds', () => {
+  it('codes every uncoded step in step order, against the codes its work package already holds', () => {
     codedStep('p-review', 'p', 'Peer review', 10, 'review');
     oldWriterStep('p-review-2', 'p', 'Review!', 20);
     oldWriterStep('p-qa', 'p', 'QA', 30);
@@ -81,11 +89,11 @@ describe('backfillStepCodes', () => {
     const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
 
     expect(coded).toEqual([
-      { projectId: 'p', stepId: 'p-review-2', code: 'review-2' },
-      { projectId: 'p', stepId: 'p-qa', code: 'qa' },
-      { projectId: 'q', stepId: 'q-build', code: 'build' },
-      { projectId: 'q', stepId: 'q-analysis', code: 'analysis' },
-      { projectId: 'q', stepId: 'q-analysis-2', code: 'analysis-2' },
+      { workPackageId: 'p', stepId: 'p-review-2', code: 'review-2' },
+      { workPackageId: 'p', stepId: 'p-qa', code: 'qa' },
+      { workPackageId: 'q', stepId: 'q-build', code: 'build' },
+      { workPackageId: 'q', stepId: 'q-analysis', code: 'analysis' },
+      { workPackageId: 'q', stepId: 'q-analysis-2', code: 'analysis-2' },
     ]);
     expect(codes()).toEqual([
       { id: 'p-review', code: 'review', updatedAt: null },
@@ -97,7 +105,7 @@ describe('backfillStepCodes', () => {
     ]);
   });
 
-  it('announces each coded step in its project’s durable log, with the code', () => {
+  it('announces each coded step in its work package’s durable log, with the code', () => {
     oldWriterStep('p-dev', 'p', 'Dev', 10);
 
     backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
@@ -110,12 +118,12 @@ describe('backfillStepCodes', () => {
       .map((row) => ({ ...row, message: JSON.parse(row.message) as unknown }));
     expect(logged).toEqual([
       {
-        subscription: 'project:p',
+        subscription: 'work-package:p',
         message: {
           type: 'step_renamed',
           step: {
             id: 'p-dev',
-            projectId: 'p',
+            workPackageId: 'p',
             name: 'Dev',
             position: 10,
             code: 'dev',
@@ -128,7 +136,7 @@ describe('backfillStepCodes', () => {
     ]);
   });
 
-  it('moves the revision of each project it coded a step in, once, and no other', () => {
+  it('moves the revision of each work package it coded a step in, once, and no other', () => {
     oldWriterStep('p-dev', 'p', 'Dev', 10);
     oldWriterStep('p-qa', 'p', 'QA', 20);
     codedStep('q-dev', 'q', 'Dev', 10, 'dev');

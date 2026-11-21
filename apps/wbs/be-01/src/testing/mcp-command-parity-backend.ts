@@ -47,29 +47,31 @@ harness.bind('ada', 'org-a');
 harness.activate();
 const endpoints = [];
 for (const name of ['Predecessor', 'Successor']) {
-  requireOk(await harness.call('ada', 'POST', '/api/projects', { name }));
-  const project = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM project WHERE name=?')
+  requireOk(await harness.call('ada', 'POST', '/api/work-packages', { name }));
+  const workPackage = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
     .get(name);
-  if (project === null) throw new Error('fixture project missing');
+  if (workPackage === null) throw new Error('fixture work package missing');
   requireOk(
-    await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
+    await harness.call('ada', 'POST', `/api/work-packages/${workPackage.id}/commands`, {
       commands: [{ kind: 'createWorkItem', name }],
     }),
   );
   const row = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id=?')
-    .get(project.id);
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
+    .get(workPackage.id);
   if (row === null) throw new Error('fixture row missing');
   harness.sqlite
     .query(
-      "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+      "UPDATE work_package SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
     )
-    .run(project.id);
+    .run(workPackage.id);
   harness.sqlite.query("UPDATE work_item SET readiness='ready' WHERE id=?").run(row.id);
   const steps = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id=? ORDER BY position')
-    .all(project.id);
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
+    )
+    .all(workPackage.id);
   for (const step of steps)
     harness.sqlite
       .query(
@@ -77,7 +79,7 @@ for (const name of ['Predecessor', 'Successor']) {
       )
       .run(row.id, step.id);
   endpoints.push({
-    projectId: project.id,
+    workPackageId: workPackage.id,
     workItemId: row.id,
     scope: 'whole' as const,
     steps: steps.map(({ id }) => id),
@@ -114,7 +116,7 @@ requireOk(
   await harness.callWith(
     grant.grant,
     'GET',
-    `/api/projects/${successor.projectId}/work-items`,
+    `/api/work-packages/${successor.workPackageId}/work-items`,
     undefined,
     {
       [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
@@ -150,15 +152,15 @@ const backend = Bun.serve({
             credential.id,
             'package-viewer',
             'work_package',
-            predecessor.projectId,
+            predecessor.workPackageId,
           );
-          harness.sqlite.run('UPDATE project SET owner_id=?, restricted=1 WHERE id=?', [
+          harness.sqlite.run('UPDATE work_package SET owner_id=?, restricted=1 WHERE id=?', [
             harness.userId('owner'),
-            predecessor.projectId,
+            predecessor.workPackageId,
           ]);
-          harness.sqlite.run('UPDATE project SET owner_id=? WHERE id=?', [
+          harness.sqlite.run('UPDATE work_package SET owner_id=? WHERE id=?', [
             harness.userId('owner'),
-            successor.projectId,
+            successor.workPackageId,
           ]);
           break;
         }
@@ -169,7 +171,7 @@ const backend = Bun.serve({
             credential.id,
             'package-contributor',
             'work_package',
-            predecessor.projectId,
+            predecessor.workPackageId,
           );
           break;
         case 'hold': {
@@ -221,9 +223,11 @@ const backend = Bun.serve({
                 credential.id,
                 'package-viewer',
                 'work_package',
-                successor.projectId,
+                successor.workPackageId,
               );
-              separate.run('UPDATE project SET restricted=1 WHERE id=?', [successor.projectId]);
+              separate.run('UPDATE work_package SET restricted=1 WHERE id=?', [
+                successor.workPackageId,
+              ]);
             }
           } finally {
             separate.close();
@@ -245,12 +249,17 @@ const backend = Bun.serve({
       }
       return Response.json({ prepared: true });
     }
-    if (path === '/_parity/project-settings') {
+    if (path === '/_parity/work-package-settings') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
         return new Response(null, { status: 403 });
       if (request.method !== 'POST') return new Response(null, { status: 405 });
-      const { projectId, patch } = (await request.json()) as { projectId: string; patch: unknown };
-      return Response.json(await harness.call('ada', 'PATCH', `/api/projects/${projectId}`, patch));
+      const { workPackageId, patch } = (await request.json()) as {
+        workPackageId: string;
+        patch: unknown;
+      };
+      return Response.json(
+        await harness.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, patch),
+      );
     }
     if (path === '/_parity/optimization') {
       if (request.headers.get('authorization') !== `Bearer ${controlToken}`)
@@ -258,10 +267,12 @@ const backend = Bun.serve({
       if (request.method !== 'POST') return new Response(null, { status: 405 });
       // Model persisted required-engine settings even when this process lacks the adapter.
       harness.sqlite
-        .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
-        .run(successor.projectId);
+        .query(
+          "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?",
+        )
+        .run(successor.workPackageId);
       if (process.env['MCP_PARITY_OPTIMIZER'] === 'installed') {
-        harness.triggerOptimization(successor.projectId);
+        harness.triggerOptimization(successor.workPackageId);
         await harness.drainOptimization();
       }
       return Response.json({ prepared: true });
@@ -278,12 +289,12 @@ const backend = Bun.serve({
         relationship: sqlite.query('SELECT * FROM external_dependency').get(),
         journal: sqlite
           .query(
-            'SELECT preconditions,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+            'SELECT preconditions,payload FROM command_journal WHERE work_package_id=? ORDER BY seq DESC LIMIT 1',
           )
-          .get(successor.projectId),
+          .get(successor.workPackageId),
         staged: sqlite
           .query(
-            "SELECT id,project_id AS projectId,revision FROM work_item WHERE name='Staged successor'",
+            "SELECT id,work_package_id AS workPackageId,revision FROM work_item WHERE name='Staged successor'",
           )
           .get(),
         localRelationships: sqlite.query('SELECT * FROM typed_dependency').all(),

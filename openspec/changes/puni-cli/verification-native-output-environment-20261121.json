@@ -1,0 +1,641 @@
+{
+  "schema": "native-output-environment-verification-v112",
+  "recordedAt": "2026-11-21T12:52:09.393Z",
+  "goalStatus": "active",
+  "intent": {
+    "problem": "Restricted Unix-socket output failures were incorrectly treated as CLI/fixture defects, with two refusal tests vulnerable to an earlier unrelated error.",
+    "outcome": "Restore original test probes, qualify unchanged CLI/Compose tests outside restriction and bind intended guard-omission failures to exact private production-source copies.",
+    "nonGoals": "No runtime IO rewrite, ownership relaxation, signed/history changes, complete installed clients/inventory, host gate or goal closure."
+  },
+  "verification": {
+    "cliParserProperNative": {
+      "pass": 82,
+      "fail": 0,
+      "assertions": 207,
+      "tests": 82,
+      "files": 1,
+      "seconds": 1.49
+    },
+    "savedOriginalProbesProperNative": {
+      "pass": 102,
+      "fail": 0,
+      "assertions": 218,
+      "tests": 102,
+      "files": 2,
+      "seconds": 11.83
+    },
+    "currentCombinedProperNative": {
+      "pass": 244,
+      "fail": 0,
+      "assertions": 585,
+      "tests": 244,
+      "files": 4,
+      "seconds": 13.53
+    },
+    "compilerRoots": 3,
+    "lintOwners": 3,
+    "guardFaults": 2,
+    "restrictedFalseGreens": 2,
+    "properOmissionFailures": 2,
+    "restrictedObservedEarlierFailures": 2,
+    "restoredOriginalWorkspaceProbe": true,
+    "runtimeIoChanges": false,
+    "inventoryCapture": {
+      "consumers": 767,
+      "compose": 3,
+      "unresolved": 547
+    },
+    "sourceFiles": 6139,
+    "curatedPins": 692,
+    "rollupPerformance": {
+      "pass": 0,
+      "fail": 1,
+      "assertions": 11,
+      "tests": 1,
+      "files": 1,
+      "seconds": 23.83,
+      "workPackages": 30,
+      "rowsPerPackage": 300,
+      "chunk": 20,
+      "spaceMs": 16.8,
+      "coldMs": 1243,
+      "warmMs": 985.3,
+      "spaceLimitMs": 120,
+      "warmLimitMs": 400,
+      "canonicalPresentations": {
+        "cold": 20,
+        "warm": 0
+      },
+      "status": "failed"
+    }
+  },
+  "checks": [
+    {
+      "name": "pipe-output-matrix-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-pipe-output-matrix-v112.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-matrix-v112.receipt.json",
+        "sha256": "84829e81019771b53b9b1fe06aa1321126a73caed77efa999ade45b695a99bfb",
+        "bytes": 1261,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-matrix-v112.log",
+        "sha256": "45db07386f44bfe4b50a679403db213e3396be98cf061bdd48b66f72e4e5ddac",
+        "bytes": 5271,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-binary-matrix-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-pipe-output-binary-matrix-v112.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-binary-matrix-v112.receipt.json",
+        "sha256": "0dd6839a60257a29eec19692ae902c8878c9183257a02c463bd52168fc72ba72",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-binary-matrix-v112.log",
+        "sha256": "f7df66ccd58841c32338347a27a092d9307cc0c620a6d8b816d98cbdd5800e21",
+        "bytes": 4362,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-cli-unrestricted-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "test", "./apps/puni/cli/src/cli-parser.test.ts", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-cli-unrestricted-v112.receipt.json",
+        "sha256": "edae7bcf559741f11409ef7b7d998c17eb6c5a7dbf004f4ee4d2c2e570830643",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-cli-unrestricted-v112.log",
+        "sha256": "817600f0034750c1522024a6eaf4b60587b3d2cc80b087be88892bbe22856d77",
+        "bytes": 9032,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-original-probes-unrestricted-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/compose-parser-baseline-v111/consumers.test.ts",
+          "/tmp/puni-combined-proposal-v1/control/compose-parser-baseline-v111/workspace.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-original-probes-unrestricted-v112.receipt.json",
+        "sha256": "e1809e4aa1c2b0b9af368116ee59ef44a3fa7733efbf974ce5a3aa401b32701b",
+        "bytes": 1498,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-original-probes-unrestricted-v112.log",
+        "sha256": "de16b242787552b3027c025b2e7f79695a40836aa6c5f1dea53153e8537be932",
+        "bytes": 10834,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-final-cohort-unrestricted-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "./tools/tool-devsync/src/scripts/inventory.test.ts",
+          "./tools/tool-devsync/src/scripts/workspace.test.ts",
+          "./apps/puni/cli/src/cli-parser.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-final-cohort-unrestricted-v112.receipt.json",
+        "sha256": "216a6979afcd553d81cfd717df1a969f7ae66441ab3050e2df045ca4a587d437",
+        "bytes": 1530,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-final-cohort-unrestricted-v112.log",
+        "sha256": "0a8deb061bcaf73e17df622f109cedb1ab51e03d85c4915c958c4b6947624228",
+        "bytes": 25008,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-syscalls-v112-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-pipe-output-trace-v112-v2.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-syscalls-v112-v2.receipt.json",
+        "sha256": "993d78f94e01622fc68bfdf85fc2104b5e7b1bcdd3b5553a313ea030b1d906d7",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-syscalls-v112-v2.log",
+        "sha256": "d9882d4471d3bd124619d751bb5fd65ba95305e33e0e0dcf7c898ea88fd8c83b",
+        "bytes": 639,
+        "mode": 384
+      }
+    },
+    {
+      "name": "native-output-format-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "tools/tool-devsync/src/scripts/consumers.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.ts",
+          "docs/findings/checks-that-cannot-fail.md",
+          "openspec/changes/puni-cli/verify.md",
+          "openspec/changes/bun-scripts/verify.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-format-v112.receipt.json",
+        "sha256": "0cb891b18fcd8d35b04056bf22d85bbd226dae99dac22c043aaab4a34e3e73fa",
+        "bytes": 1595,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-format-v112.log",
+        "sha256": "821568cf1f02fb85c09af29ff5bc65505a348e52257885cd62709cb87fe96c7b",
+        "bytes": 339,
+        "mode": 384
+      }
+    },
+    {
+      "name": "native-output-types-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-native-output-types-v112.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-types-v112.receipt.json",
+        "sha256": "1d8b526d3a049b1268850fda492dca2211b17da63caae313c567143697d1fff3",
+        "bytes": 1331,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-types-v112.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "native-output-lint-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "tools/tool-devsync/src/scripts/consumers.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-lint-v112.receipt.json",
+        "sha256": "d04c4254326e714aca30fadaef7fb79f2f0ff5ec6736a5770f7fc5e7079a2abe",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-lint-v112.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "native-output-doc-format-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "docs/findings/checks-that-cannot-fail.md",
+          "openspec/changes/puni-cli/verify.md",
+          "openspec/changes/bun-scripts/verify.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-doc-format-v112.receipt.json",
+        "sha256": "2ccbcf2b108d69d5d4265abff705f2353d3c34c516f491f40a4284df998d2989",
+        "bytes": 1434,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-doc-format-v112.log",
+        "sha256": "7938f367d3c4391d6d78d223921d72599a9333b09af53c84c115aaf13451b7f1",
+        "bytes": 169,
+        "mode": 384
+      }
+    },
+    {
+      "name": "native-output-source-audit-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-native-output-audit-v112.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-source-audit-v112.receipt.json",
+        "sha256": "c4de28f470fcd65df4cc3a108c0ddafb7b5b3d32d37ab8b1fd4ccefc42a5cd41",
+        "bytes": 1276,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/native-output-source-audit-v112.log",
+        "sha256": "b24b08e2f261ed9859ebaee68954d3c6772f2ade7aadc1087edb6ed214b6d0b4",
+        "bytes": 86,
+        "mode": 384
+      }
+    }
+  ],
+  "guardChecks": [
+    {
+      "name": "pipe-output-status-fault-restricted-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-status-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary status",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-restricted-v112.receipt.json",
+        "sha256": "5d48258ca4fed168de145d78e3d5b428d0b2d263575df87aa98cb70124eeecaf",
+        "bytes": 1461,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-restricted-v112.log",
+        "sha256": "add04cac04071c9f28383b85c249a7974795ba81dc7916fde7fb03d0ea1e19f0",
+        "bytes": 276,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-status-fault-unrestricted-v112",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-status-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary status",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-unrestricted-v112.receipt.json",
+        "sha256": "baf498fa9bb3233f8dcf12c541d2b98c79f9a284a63a77092db5e5608a94fac7",
+        "bytes": 1466,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-unrestricted-v112.log",
+        "sha256": "2178ba266c4a38842f7a3ba9140f1331fd497f568ac9fa2c8a249c719087d132",
+        "bytes": 1568,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-status-fault-restricted-observe-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-status-observe-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary status",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-restricted-observe-v112.receipt.json",
+        "sha256": "e623be48201f9c673778f3457ae067ca206b5ef0870cb589e90e75b9df59dddc",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-status-fault-restricted-observe-v112.log",
+        "sha256": "d0fa0646519420f67c697d45e81274140a8b32d28e13eade479e6e6c155530b0",
+        "bytes": 566,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-warning-fault-restricted-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-warning-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary warning",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-restricted-v112.receipt.json",
+        "sha256": "adbb83f28cdddc7f5b0cf881ebbb108feb378e96054f394b5c936afde4d57db9",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-restricted-v112.log",
+        "sha256": "13eb9965652d72db62e6bab0d451468dd7bd3d71c3b1fc7f8e01f58e907683e8",
+        "bytes": 278,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-warning-fault-unrestricted-v112",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-warning-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary warning",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-unrestricted-v112.receipt.json",
+        "sha256": "b9221cf4083d937282a3ccf09f04d166a0cfbf1b4100bb1999db36eba31b7e64",
+        "bytes": 1470,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-unrestricted-v112.log",
+        "sha256": "17cb314c98ee6f5a0ce1cdae6e0bce823a1092aa2423be9543568f311c372085",
+        "bytes": 1571,
+        "mode": 384
+      }
+    },
+    {
+      "name": "pipe-output-warning-fault-restricted-observe-v112",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/pipe-output-guard-warning-observe-v112/workspace.test.ts",
+          "--test-name-pattern",
+          "controlled Git boundary warning",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-restricted-observe-v112.receipt.json",
+        "sha256": "93a57f5f92016988bf7e86f153c60c21c42df80d50a34859ce09dcf48df9efdf",
+        "bytes": 1489,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-warning-fault-restricted-observe-v112.log",
+        "sha256": "1286aaa38bb9f69f3a94fa521a543bda7fc9e7335838eb2acbb22236816d3f70",
+        "bytes": 568,
+        "mode": 384
+      }
+    }
+  ],
+  "guardEvidence": {
+    "path": "/tmp/puni-combined-proposal-v1/control/native-output-guard-evidence-v112.json",
+    "sha256": "ce0822357363876d3d04c8e651c914fb1ac6ac998dea203d485fc4d7d318d683",
+    "bytes": 9263,
+    "mode": 384
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/native-output-source-audit-v112.json",
+    "sha256": "8d96783e1cb08771a4695746848e3b9cf0134052343c9e7aa35c1f4b8d2438be",
+    "bytes": 1706066,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-environment-before-v112.json",
+    "sha256": "527fd33b03bd0dc7868a2a5326de6ca524280f0fcac3a8f91fb353a5af89fef0",
+    "bytes": 464445,
+    "mode": 384
+  },
+  "performanceCheck": {
+    "name": "rollup-performance-unrestricted-v112",
+    "exitCode": 1,
+    "command": {
+      "argv": [
+        "bun",
+        "test",
+        "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+        "--timeout",
+        "120000"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 180000
+    },
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/rollup-performance-unrestricted-v112.receipt.json",
+      "sha256": "a51dd07461849944e50ee70b5463ed37f2eda9f0d06e10b674d2da84d23a46de",
+      "bytes": 1367,
+      "mode": 384
+    },
+    "transcript": {
+      "path": "/tmp/puni-combined-proposal-v1/control/rollup-performance-unrestricted-v112.log",
+      "sha256": "003429947cce516fa6a1430f94ed2856c668daaab36d99fca16df34c76955fe3",
+      "bytes": 978,
+      "mode": 384
+    }
+  },
+  "diagnostics": {
+    "matrices": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-matrix-v112.json",
+        "sha256": "4d8fe83e51f6f08e2ed992e0ee465651bd6501ae709393737defd87cadd45566",
+        "bytes": 5919,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-binary-matrix-v112.json",
+        "sha256": "54c43f3cb9d2f7926f7ab5af4030a4d0acf9304f6f29ff80f5009213cbaf5b59",
+        "bytes": 5003,
+        "mode": 384
+      }
+    ],
+    "deniedTrace": {
+      "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-syscalls-v112-v2.json",
+      "sha256": "66a7d264a0209d906cd89c3693d85c86634fefcfe1f29362b297cd82c06c2868",
+      "bytes": 668,
+      "mode": 384
+    },
+    "excludedTrace": {
+      "name": "pipe-output-syscalls-v112",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "/tmp/puni-pipe-output-trace-v112.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-syscalls-v112.receipt.json",
+        "sha256": "7c13a90b38968e3317657d34c0a1e77362141c6a2e753d82e2b7ebec8a7a274f",
+        "bytes": 1263,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/pipe-output-syscalls-v112.log",
+        "sha256": "6b3d1a9d8a6336374cc81801b71e80397885602001d303d2742803979e2a99c3",
+        "bytes": 963,
+        "mode": 384
+      },
+      "reason": "The first strace output reused its runner log pathname; exclude it as syscall evidence. The corrected successor retains denied ptrace setup separately."
+    }
+  },
+  "supersededInterpretations": {
+    "v111CliParser69pass13fail": "Environment-specific observations, superseded by unchanged proper-native82/0 and combined244/0. No CLI runtime defect or IO workaround follows.",
+    "v111ProbeDescriptorWorkarounds": "Unnecessary for the proper native environment and reverted; saved original probes102/0 and current cohort244/0 preserve all assertions."
+  },
+  "qualification": [
+    "Restricted ten-case matrices observe tiny stdout witnesses through Unix-socket child pipes. Process-stream/FileSink writes fail, while Bun.write and descriptor writes succeed; these are narrow diagnostics, not new output API/cancellation guarantees. Proper native CLI82/0 proves the earlier13 failures do not require a runtime change.",
+    "Approved unrestricted local execution is an explicit environment premise. Existing current source/arguments/runtime remain intact. Native receipts bind commands, actual outcomes, original-process observation, stopped/reaped custody and closed descriptors. No network/trust bypass is added to a product or installed caller.",
+    "Two exact copied production-source omissions separately remove Git nonzero-status or stderr-warning admission. Both restricted cases falsely pass on earlier rev-parse EPERM; diagnostic successors print that original exception. The same mutants fail required-rejection assertions outside restriction. Those earlier green outcomes cannot qualify either guard.",
+    "Faults live only in immutable private capsules outside the task workspace/delivery inputs. Source recovery and final comment-free lexical equality bind the active unchanged combined guard; no active safety check is removed. Current original workspace probe bytes equal V110. Compose test coverage remains; the test-only writeSync workarounds and their witness comment are reverted.",
+    "The first trace collided with its runner log and is excluded. The corrected trace reports ptrace denial before observing any application syscall. No specific denied syscall or Bun implementation cause is inferred from it.",
+    "Fresh proper-native combined244/0 includes current inventory/workspace and PUNI parser/process cases. It does not prove actual installed artifacts, all native callers, complete package output/cancellation, four Nx clients, exhaustive script classification or Docker/remote/operator closure. Source-only metadata is not installed delivery.",
+    "The unchanged real rollup fixture independently fails outside restriction: warm985.3ms exceeds400ms. Space16.8ms passes120ms, cold1243ms is printed only, canonical20cold/0warm and preceding equality/leaf/scan assertions reach the timing bound. Workload30x300,chunk20,authority and120/400ms limits remain unchanged. No discarded optimization is revived.",
+    "All6139 prior TS paths remain;two test probes restore their original IO and one existing production guard gains a current Proof comment. Other runtime bytes/modes, generated MCP99 document and protected archive remain exact. Source curation691→692 adds the existing workspace reader; no new source file, dependency or product behavior is introduced.",
+    "All nine original requirements,all13 fact families/all15 historical guarantees,WBS/settings/catalogue/API/UI/document closure,genuine performance and scheduler identity fixes,PUNI/Bun full inventory and installed clients,formal Astra review,full builds/secrets/migrations/exact-SHA clean h2/h4 gates and authorized delivery remain. Astra unavailable until recorded2026-11-22 10:09AM,timezone unspecified;no retry/substitute/new agent.",
+    "No public commit/push/PR/merge/deploy,host gate,activation,dependency install,protected PAX or historical identity rewrite occurred. Original restricted failures and V111 proof/source epochs remain preserved and scoped to their actual observations."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

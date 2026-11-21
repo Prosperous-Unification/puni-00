@@ -10,7 +10,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
  * exists in the SQLite build be-01 runs on.
  */
 let h: OrganizationHarness;
-let projectId: string;
+let workPackageId: string;
 let leaf: string;
 let other: string;
 
@@ -22,10 +22,10 @@ beforeEach(async () => {
   h.grantPermissions('org-a', 'mem', ['organization.create_project']);
   h.bind('mem', 'org-a');
   h.activate();
-  const created = await h.call('mem', 'POST', '/api/projects', { name: 'Claims' });
+  const created = await h.call('mem', 'POST', '/api/work-packages', { name: 'Claims' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  const rows = await h.call('mem', 'POST', `/api/projects/${projectId}/commands`, {
+  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const rows = await h.call('mem', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'createWorkItem', parentId: null, name: 'Leaf' },
       { kind: 'createWorkItem', parentId: null, name: 'Other' },
@@ -39,9 +39,9 @@ beforeEach(async () => {
   // remains valid under workflow prerequisites.
   h.sqlite
     .query(
-      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT w.id,s.id,'in_progress',1 FROM work_item w JOIN step s ON s.project_id=w.project_id WHERE w.project_id=?",
+      "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) SELECT w.id,s.id,'in_progress',1 FROM work_item w JOIN step s ON s.work_package_id=w.work_package_id WHERE w.work_package_id=?",
     )
-    .run(projectId);
+    .run(workPackageId);
   h.sqlite.run('INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, ?, ?)', [
     'claire',
     'root-claire',
@@ -62,11 +62,11 @@ describe('the claim history read over a real batch', () => {
   it('lists a claim made beside setProgress in one batch', async () => {
     const step = h.sqlite
       .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE project_id = ? ORDER BY position LIMIT 1',
+        'SELECT id FROM step WHERE work_package_id = ? ORDER BY position LIMIT 1',
       )
-      .get(projectId)?.id;
-    if (step === undefined) throw new Error('the project has no step');
-    const batch = await h.call('mem', 'POST', `/api/projects/${projectId}/commands`, {
+      .get(workPackageId)?.id;
+    if (step === undefined) throw new Error('the work package has no step');
+    const batch = await h.call('mem', 'POST', `/api/work-packages/${workPackageId}/commands`, {
       commands: [
         { kind: 'claimWorkItem', workItemId: leaf, personId: 'claire', runId: 'run-1' },
         { kind: 'setProgress', workItemId: other, stepId: step, state: 'in_progress' },
@@ -75,13 +75,13 @@ describe('the claim history read over a real batch', () => {
     expect(batch.status).toBe(200);
     const stored = h.sqlite
       .query<{ id: string; kind: string }, [string]>(
-        "SELECT id, kind FROM plan_event WHERE project_id = ? AND kind IN ('claim', 'batch') ORDER BY created_at DESC, id DESC",
+        "SELECT id, kind FROM plan_event WHERE work_package_id = ? AND kind IN ('claim', 'batch') ORDER BY created_at DESC, id DESC",
       )
-      .all(projectId);
+      .all(workPackageId);
     // The claim is recorded inside the batch's one event, not as a `claim`;
     // the older batch is the setup's two `createWorkItem`s, which claim nothing.
     expect(stored.map(({ kind }) => kind)).toEqual(['batch', 'batch']);
-    const read = await h.call('mem', 'GET', `/api/projects/${projectId}/claim-history`);
+    const read = await h.call('mem', 'GET', `/api/work-packages/${workPackageId}/claim-history`);
     expect(read.status).toBe(200);
     const events = (
       read.body as {

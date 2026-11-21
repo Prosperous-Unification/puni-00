@@ -70,6 +70,17 @@ function stored(plan: Schedule): StoredSchedule {
 }
 
 describe('what a stored schedule keeps', () => {
+  it('writes renamed schedule cache DTO5', () => {
+    expect(encodeSchedule(realPlan()).dtoVersion).toBe(5);
+  });
+
+  it('refuses outgoing schedule cache DTO4', () => {
+    const payload = stored(realPlan());
+    expect(() => decodeSchedule({ ...payload, dtoVersion: 4 })).toThrow(
+      'unknown dtoVersion 4; this release reads 5',
+    );
+  });
+
   it('reloads a real plan whole, maps and projections included', () => {
     const plan = realPlan();
 
@@ -98,11 +109,11 @@ describe('what a stored schedule keeps', () => {
       new Map(),
       [],
       undefined,
-      new Map([['ana', [{ start: 0, end: 3, projectId: 'platform', workItemId: 'x1' }]]]),
+      new Map([['ana', [{ start: 0, end: 3, workPackageId: 'platform', workItemId: 'x1' }]]]),
     );
     expect(plan.waitingElsewhere).toBe(1);
     expect(plan.slices.get(sliceKey('a', DEV))?.elsewhereHolder).toEqual({
-      projectId: 'platform',
+      workPackageId: 'platform',
       workItemId: 'x1',
     });
     expect(throughJson(plan)).toEqual(plan);

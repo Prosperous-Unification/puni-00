@@ -8,7 +8,7 @@ import {
   createConnectedOptimizationTree,
   createFractionalConnectedOptimizationTree,
 } from '../testing/connected-optimization-view.fixture';
-import { projectConnectedTree } from './connected-tree';
+import { workPackageConnectedTree } from './connected-tree';
 
 const key = (id: string) => sliceKey(id, 'build');
 
@@ -24,11 +24,15 @@ test('fractional fixture prepares the actual empty integer window and retains it
   });
   expect(tree.workItems[0]?.schedule).toMatchObject({ earliestStart: 0.2, earliestFinish: 1.2 });
   expect(tree.workItems[0]?.deadline).toBeNull();
-  expect(tree.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'A')).toMatchObject({
+  expect(
+    tree.optimization?.scope?.fixed.find((fixed) => fixed.workPackageId === 'A'),
+  ).toMatchObject({
     start: 0,
     finish: 0.2,
   });
-  expect(tree.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'C')).toMatchObject({
+  expect(
+    tree.optimization?.scope?.fixed.find((fixed) => fixed.workPackageId === 'C'),
+  ).toMatchObject({
     start: 1.2,
     finish: 2.2,
   });
@@ -46,7 +50,7 @@ test.each(['idle', 'pending', 'failed'] as const)(
     const serialized: unknown = JSON.parse(JSON.stringify(tree));
     const decoded = await clientFromShapes([getWorkItems], () =>
       Promise.resolve({ kind: 'json', status: 200, body: serialized }),
-    )['getApiProjectsByIdWork-items']({ params: { id: 'B' } });
+    )['getApiWorkPackagesByIdWork-items']({ params: { id: 'B' } });
     expect(decoded).toMatchObject({ kind: 'success', body: tree });
   },
 );
@@ -54,7 +58,7 @@ test.each(['idle', 'pending', 'failed'] as const)(
 test('mixed fixture exposes captured C=8 independently of its final common-axis C=6', () => {
   const a = createConnectedOptimizationTree('ready', 'A');
   const c = createConnectedOptimizationTree('ready', 'C');
-  expect(a.optimization?.scope?.fixed.find((fixed) => fixed.projectId === 'C')).toMatchObject({
+  expect(a.optimization?.scope?.fixed.find((fixed) => fixed.workPackageId === 'C')).toMatchObject({
     start: 8,
     finish: 9,
   });
@@ -63,11 +67,11 @@ test('mixed fixture exposes captured C=8 independently of its final common-axis 
   expect(c.startDate).toBe('2026-10-07');
 });
 
-test('projects retained scope and target-only comparisons through the real connected tree producer', () => {
+test('presents retained scope and target-only comparisons through the real connected tree producer', () => {
   const observation = captured();
-  const a = projectConnectedTree(observation, 'A');
-  const b = projectConnectedTree(observation, 'B');
-  const c = projectConnectedTree(observation, 'C');
+  const a = workPackageConnectedTree(observation, 'A');
+  const b = workPackageConnectedTree(observation, 'B');
+  const c = workPackageConnectedTree(observation, 'C');
   expect(a.optimizationView).toMatchObject({
     enabled: true,
     engine: 'optimized',
@@ -76,7 +80,7 @@ test('projects retained scope and target-only comparisons through the real conne
     generation: null,
     scope: {
       kind: 'connected-stage',
-      projectId: 'A',
+      workPackageId: 'A',
       mode: 'isolated',
       quantum: 48,
       wireVersion: 5,
@@ -86,10 +90,10 @@ test('projects retained scope and target-only comparisons through the real conne
   });
   expect(b.optimizationView).toMatchObject({ displayed: 'fast', finishDays: { fast: 5, time: 3 } });
   expect(c.optimizationView).toMatchObject({ displayed: 'time', finishDays: { fast: 7, time: 5 } });
-  expect(a.optimizationView?.scope.fixed.find((slice) => slice.projectId === 'C')).toEqual({
-    projectId: 'C',
-    projectName: 'C',
-    projectAbbreviation: 'PC',
+  expect(a.optimizationView?.scope.fixed.find((slice) => slice.workPackageId === 'C')).toEqual({
+    workPackageId: 'C',
+    workPackageName: 'C',
+    workPackageAbbreviation: 'PC',
     workItemId: 'c',
     workItemName: 'c',
     stepId: 'build',
@@ -112,7 +116,7 @@ test.each(['pending', 'boundary-infeasible'] as const)(
   '%s retains dates and supplies no fabricated candidate comparison',
   (state) => {
     const observation = captured(state);
-    const tree = projectConnectedTree(observation, 'A');
+    const tree = workPackageConnectedTree(observation, 'A');
     expect(tree.optimizationView).toMatchObject({
       displayed: 'fast',
       variants: { time: { state } },
@@ -125,17 +129,17 @@ test.each(['pending', 'boundary-infeasible'] as const)(
   },
 );
 
-test.each(['project', 'row', 'step'] as const)(
+test.each(['work_package', 'row', 'step'] as const)(
   'refuses missing captured foreign %s labels through the tree producer',
   (fault) => {
     const observation = captured();
-    const metadata = new Map(observation.metadataByProject);
+    const metadata = new Map(observation.metadataByWorkPackage);
     const c = metadata.get('C');
     if (c === undefined) throw new Error('missing metadata');
     const changed = structuredClone(c);
     const label =
-      fault === 'project'
-        ? changed.project
+      fault === 'work_package'
+        ? changed.workPackage
         : fault === 'row'
           ? changed.workItems.at(0)
           : changed.steps.at(0);
@@ -143,13 +147,13 @@ test.each(['project', 'row', 'step'] as const)(
     Reflect.set(label, 'name', null);
     metadata.set('C', changed);
     expect(() =>
-      projectConnectedTree({ ...observation, metadataByProject: metadata }, 'A'),
+      workPackageConnectedTree({ ...observation, metadataByWorkPackage: metadata }, 'A'),
     ).toThrow();
   },
 );
 
 test('quantisation floor compares the published baseline without fabricating an improved finish', () => {
-  const tree = projectConnectedTree(captured('floor'), 'A');
+  const tree = workPackageConnectedTree(captured('floor'), 'A');
   expect(tree.optimizationView).toMatchObject({
     displayed: 'time',
     variants: { time: { state: 'ready', proof: 'quantisation-floor' } },
@@ -170,7 +174,7 @@ test('disabled and idle members have no generated optimization identity', () => 
       placement: {
         ...placement,
         stages: placement.stages.map((selection) =>
-          selection.stage.projectId === 'A'
+          selection.stage.workPackageId === 'A'
             ? {
                 ...selection,
                 optimization: null,
@@ -182,27 +186,27 @@ test('disabled and idle members have no generated optimization identity', () => 
       },
     },
   };
-  expect(projectConnectedTree(disabled, 'A').optimizationView).toBeNull();
+  expect(workPackageConnectedTree(disabled, 'A').optimizationView).toBeNull();
   const idle = {
     ...observation,
     projection: {
       ...observation.projection,
       placement: {
         ...placement,
-        stages: placement.stages.filter((selection) => selection.stage.projectId !== 'A'),
-        idleProjects: ['A'],
+        stages: placement.stages.filter((selection) => selection.stage.workPackageId !== 'A'),
+        idleWorkPackages: ['A'],
       },
     },
   };
-  expect(projectConnectedTree(idle, 'A').optimizationView).toBeNull();
+  expect(workPackageConnectedTree(idle, 'A').optimizationView).toBeNull();
   const missing = {
     ...idle,
     projection: {
       ...idle.projection,
-      placement: { ...idle.projection.placement, idleProjects: [] },
+      placement: { ...idle.projection.placement, idleWorkPackages: [] },
     },
   };
-  expect(() => projectConnectedTree(missing, 'A')).toThrow(
+  expect(() => workPackageConnectedTree(missing, 'A')).toThrow(
     'missing connected optimization stage A',
   );
 });
@@ -216,38 +220,38 @@ test('unavailable placement has no optimization view and preserves inspectable r
       placement: { kind: 'unavailable' as const, reason: 'calendar_range' as const },
     },
   };
-  const tree = projectConnectedTree(unavailable, 'A');
+  const tree = workPackageConnectedTree(unavailable, 'A');
   expect(tree.optimizationView).toBeNull();
   expect(tree.dependencies).toHaveLength(1);
 });
 
 test('refuses absent captured labels and returns detached variant evidence', () => {
   const observation = captured('boundary-infeasible');
-  const view = projectConnectedTree(observation, 'A').optimizationView;
+  const view = workPackageConnectedTree(observation, 'A').optimizationView;
   if (view === null) throw new Error('missing optimization view');
   Reflect.set(view.variants.time, 'state', 'pending');
-  expect(projectConnectedTree(observation, 'A').optimizationView?.variants.time.state).toBe(
+  expect(workPackageConnectedTree(observation, 'A').optimizationView?.variants.time.state).toBe(
     'boundary-infeasible',
   );
-  const c = observation.metadataByProject.get('C');
+  const c = observation.metadataByWorkPackage.get('C');
   if (c === undefined) throw new Error('missing metadata');
-  Reflect.deleteProperty(c.project, 'name');
-  expect(() => projectConnectedTree(observation, 'A')).toThrow(
-    'missing connected optimization project name C',
+  Reflect.deleteProperty(c.workPackage, 'name');
+  expect(() => workPackageConnectedTree(observation, 'A')).toThrow(
+    'missing connected optimization work package name C',
   );
 });
 
 test.each(['ready', 'pending', 'boundary-infeasible', 'floor'] as const)(
   'public connected %s projection survives strict response and generated client decoding',
   async (state) => {
-    const projection = projectConnectedTree(captured(state), 'A');
+    const projection = workPackageConnectedTree(captured(state), 'A');
     const tree = createConnectedOptimizationTree(state);
     if (projection.optimizationView === null) throw new Error('missing projected fixture');
     expect(tree.optimization).toEqual(projection.optimizationView);
     expect((await validateSchema(getWorkItems.responses[0].schema, tree)).issues).toBeUndefined();
     const decodeTree = (body: unknown) =>
       clientFromShapes([getWorkItems], () => Promise.resolve({ kind: 'json', status: 200, body }))[
-        'getApiProjectsByIdWork-items'
+        'getApiWorkPackagesByIdWork-items'
       ]({ params: { id: 'A' } });
     expect(await decodeTree(tree)).toMatchObject({
       kind: 'success',
@@ -347,7 +351,7 @@ test.each(['ready', 'pending', 'boundary-infeasible', 'floor'] as const)(
 );
 
 const questionFaults = {
-  projectId: 'other',
+  workPackageId: 'other',
   objective: 'pri',
   inputHash: 'other',
   contractVersion: 'other',
@@ -359,7 +363,7 @@ const questionFaults = {
 for (const [field, altered] of Object.entries(questionFaults)) {
   test(`connected terminal rejects semantic question mismatch: ${field}`, async () => {
     const tree = {
-      ...presentConnectedTree(projectConnectedTree(captured('boundary-infeasible'), 'A')),
+      ...presentConnectedTree(workPackageConnectedTree(captured('boundary-infeasible'), 'A')),
       undoable: false,
       redoable: false,
     };
@@ -388,7 +392,7 @@ for (const [field, altered] of Object.entries(questionFaults)) {
     };
     const decoded = await clientFromShapes([getWorkItems], () =>
       Promise.resolve({ kind: 'json', status: 200, body: invalid }),
-    )['getApiProjectsByIdWork-items']({ params: { id: 'A' } });
+    )['getApiWorkPackagesByIdWork-items']({ params: { id: 'A' } });
     expect(decoded).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response' } });
     const checked = await validateSchema(getWorkItems.responses[0].schema, invalid);
     expect(checked.issues).toBeDefined();
@@ -404,7 +408,7 @@ for (const [field, altered] of Object.entries(questionFaults)) {
 
 test('connected nonselected terminal objective and unrelated question hash are valid', async () => {
   const tree = {
-    ...presentConnectedTree(projectConnectedTree(captured('boundary-infeasible'), 'A')),
+    ...presentConnectedTree(workPackageConnectedTree(captured('boundary-infeasible'), 'A')),
     undoable: false,
     redoable: false,
   };
@@ -415,7 +419,7 @@ test('connected nonselected terminal objective and unrelated question hash are v
   expect(
     await clientFromShapes([getWorkItems], () =>
       Promise.resolve({ kind: 'json', status: 200, body: valid }),
-    )['getApiProjectsByIdWork-items']({ params: { id: 'A' } }),
+    )['getApiWorkPackagesByIdWork-items']({ params: { id: 'A' } }),
   ).toMatchObject({ kind: 'success' });
 });
 
@@ -429,7 +433,7 @@ for (const fault of [
   test(`connected comparisons reject semantic mismatch: ${fault}`, async () => {
     const tree = {
       ...presentConnectedTree(
-        projectConnectedTree(captured(fault.startsWith('ready') ? 'ready' : 'pending'), 'A'),
+        workPackageConnectedTree(captured(fault.startsWith('ready') ? 'ready' : 'pending'), 'A'),
       ),
       undoable: false,
       redoable: false,
@@ -463,7 +467,7 @@ for (const fault of [
     expect(
       await clientFromShapes([getWorkItems], () =>
         Promise.resolve({ kind: 'json', status: 200, body }),
-      )['getApiProjectsByIdWork-items']({ params: { id: 'A' } }),
+      )['getApiWorkPackagesByIdWork-items']({ params: { id: 'A' } }),
     ).toMatchObject({ kind: 'failure', failure: { code: 'invalid_response' } });
     expect((await validateSchema(getWorkItems.responses[0].schema, body)).issues).toBeDefined();
   });

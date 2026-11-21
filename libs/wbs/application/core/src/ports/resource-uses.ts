@@ -142,7 +142,7 @@ export function retainResourceUseActor(actor: ResourceUseActor): ResourceUseActo
     // Proof: store-authentication-deep-retention.
     // The recorded fault broke `retains manual resource register queued nested authentication before the writer`; restored GREEN.
     // Proof: store-authority-minimal-projection.
-    // The recorded fault broke `projects actual resource grant authority without binding or secret-shaped extras`; restored GREEN.
+    // The recorded fault broke `workPackages actual resource grant authority without binding or secret-shaped extras`; restored GREEN.
     principal: retainSecurityPrincipal(actor.principal),
     fingerprint: actor.fingerprint,
     personId: actor.personId,
@@ -154,7 +154,6 @@ export function retainResourceUseActor(actor: ResourceUseActor): ResourceUseActo
             scope: {
               organizationId: access.scope.organizationId,
               userId: access.scope.userId,
-              role: access.scope.role,
               cap: structuredClone(access.scope.cap),
               ...(access.scope.delegated === undefined
                 ? {}
@@ -184,25 +183,25 @@ export interface ResourceUsePage {
 /** Durable reported uses, outside plan undo and capacity. Each write rechecks access and commits projection and history together. */
 export interface ResourceUses {
   register(
-    projectId: string,
+    workPackageId: string,
     actor: ResourceUseActor,
     draft: ResourceUseRegistration,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>>;
   append(
-    projectId: string,
+    workPackageId: string,
     useId: string,
     actor: ResourceUseActor,
     draft: ResourceUseEventDraft,
     at: number,
   ): Promise<ResourceUseAnswer<ResourceUse>>;
   list(
-    projectId: string,
+    workPackageId: string,
     actor: ResourceUseActor,
     page: ResourceUsePage,
   ): Promise<ResourceUseAnswer<{ uses: ResourceUse[]; nextCursor: string | null }>>;
   history(
-    projectId: string,
+    workPackageId: string,
     useId: string,
     actor: ResourceUseActor,
     page: ResourceUsePage,

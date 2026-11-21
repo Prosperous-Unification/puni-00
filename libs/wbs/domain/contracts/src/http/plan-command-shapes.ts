@@ -6,7 +6,7 @@ import { requestSchema } from './schema-shape';
 /**
  * Structural wire commands, before the backend parser supplies defaults or checks
  * dates, numeric bounds, names and references. Directory batches intentionally
- * accept this same union so project_required retains the original command index.
+ * accept this same union so work_package_required retains the original command index.
  */
 const command = type.or(
   ...Object.values(commandDefinitions).map((definition) => definition.schema),

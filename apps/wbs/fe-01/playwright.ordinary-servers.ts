@@ -30,7 +30,7 @@ export function parseOrdinaryPortShift(asked: string | undefined, requireShift =
 export function ordinaryServerDescriptors(
   repoRoot: string,
   portShift: number,
-  isCi: boolean,
+  _isCi: boolean,
   runDatabase: string,
 ) {
   const bePort = 3100 + portShift;
@@ -43,34 +43,50 @@ export function ordinaryServerDescriptors(
     cwd: join(repoRoot, 'apps', 'wbs', app),
     url,
     env,
-    reuseExistingServer: !isCi,
+    reuseExistingServer: false,
     timeout: 120_000,
     stdout: 'pipe' as const,
     stderr: 'pipe' as const,
   });
   return [
-    server('be-01', 'bun src/main.ts', `${beUrl}/health`, {
+    server('be-01', 'bun src/testing/ordinary-browser-server.ts', `${beUrl}/_ordinary/ready`, {
+      E2E_CURRENT_COHORT: 'current',
+      NODE_ENV: 'development',
+      AUTH_MODE: 'local',
+      BROWSER_SESSION_AUTHORITY: 'enabled',
       APP_ORIGIN: `http://localhost:${String(fePort)}`,
       PORT: String(bePort),
       GW_URL: gwUrl,
       DB_PATH: runDatabase,
       HOSTNAME: 'e2e000000000',
-      MIGRATE_ON_STARTUP: 'true',
+      LOG_LEVEL: 'error',
+      JWT_SIGNING_KEY_CURRENT: 'test-jwt-signing-key-at-least-32-chars',
+      INTERNAL_AUTH_SECRET: 'ordinary-internal-secret-0123456789abcdef',
+      ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+      ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+      ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
+      MCP_BE_INTERNAL_SECRET: 'mcp-secret-0123456789abcdefghijklmn',
+      WBS_MACHINE_GRANT_SIGNING_KEY_CURRENT: 'grant-key-g-0123456789abcdefghijklmn',
+      WBS_MCP_AUTHORIZATION_SERVER: 'https://wbs.example/mcp/oauth',
+      SOLVER_BUDGET_MS: '60000',
+      SOLVER_SEARCH_WORKERS: '2',
+      SOLVER_MEMORY_LIMIT_MB: '512',
     }),
-    server('gw-01', 'bun src/main.ts', `${gwUrl}/health`, {
+    server('gw-01', 'bun src/testing/ordinary-browser-gateway.ts', `${gwUrl}/health`, {
+      E2E_CURRENT_COHORT: 'current',
+      AUTH_MODE: 'oidc',
+      APP_ORIGIN: `http://localhost:${String(fePort)}`,
       PORT: String(gwPort),
       BE_URL: beUrl,
+      LOG_LEVEL: 'error',
+      JWT_SIGNING_KEY_CURRENT: 'test-jwt-signing-key-at-least-32-chars',
+      INTERNAL_AUTH_SECRET: 'ordinary-internal-secret-0123456789abcdef',
     }),
-    server(
-      'fe-01',
-      'bunx vite build --minify=false && bunx vite preview',
-      `http://localhost:${String(fePort)}`,
-      {
-        PORT: String(fePort),
-        VITE_BE_URL: beUrl,
-        VITE_GW_URL: gwUrl,
-        VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
-      },
-    ),
+    server('fe-01', 'bun ordinary-browser-frontend.ts', `http://localhost:${String(fePort)}`, {
+      PORT: String(fePort),
+      VITE_BE_URL: beUrl,
+      VITE_GW_URL: gwUrl,
+      VITE_WS_URL: `ws://localhost:${String(gwPort)}/ws`,
+    }),
   ];
 }

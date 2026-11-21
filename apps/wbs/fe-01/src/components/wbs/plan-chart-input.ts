@@ -141,7 +141,7 @@ export function elsewhereHoldersOf(
   holders: readonly ElsewhereHolderView[],
 ): Map<string, ElsewhereHolderView> {
   return new Map(
-    holders.map((holder) => [elsewhereHolderKey(holder.projectId, holder.workItemId), holder]),
+    holders.map((holder) => [elsewhereHolderKey(holder.workPackageId, holder.workItemId), holder]),
   );
 }
 
@@ -416,7 +416,7 @@ export function usePlanChartInput({
  * at, or null when there is no such workday to name.
  *
  * Null in two cases and both are modeled absences rather than missing answers:
- * nobody has set a date on the row, or the project is not on a calendar at all
+ * nobody has set a date on the row, or the work package is not on a calendar at all
  * — and a plan with no start date has an axis of offsets that a date could not
  * be placed on. The chart draws no not-before flag in either case, which is
  * what the row's own Start column says too.
@@ -473,7 +473,7 @@ export function usePlanSchedule({ scheduleError }: { scheduleError: PlanRead['sc
    * day offsets from day zero until then.
    *
    * One function for both figures and both renderers, because the fallback is
-   * the interesting half: `dates` is null both while the project has no start
+   * the interesting half: `dates` is null both while the work package has no start
    * date and while the schedule could not be computed at all, and a second copy
    * of that sentence in the card renderer is one edit away from disagreeing
    * with the columns.

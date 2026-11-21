@@ -9,10 +9,11 @@ import { equalRecords } from './record-codecs';
 import type { ArtifactRef, ExecutionCommandId } from './records';
 import type { RunStore, ScopedAttemptGuard, StoreReply } from './run-store';
 import { equalRuntimeScopes, intentCodec, readRuntimeRequest } from './runtime-codecs';
+import { mapLocalScope } from './runtime-codecs';
 import { readRuntimeHistory } from './runtime-history';
 import { verifyRuntimeReceipt } from './runtime-receipt';
 import type { RuntimeIntent } from './runtime-records';
-import { readRuntimeStateArtifact } from './runtime-state';
+import { readRuntimeStateObservation } from './runtime-state';
 import { ArtifactRefCodec, ExecutionCommandIdCodec } from './value-codecs';
 import { verifyArtifacts } from './verify-artifacts';
 import { decodeWriteCompletion, projectWriteReceipt, WriteCompletionCodec } from './write-codecs';
@@ -56,7 +57,7 @@ export async function readWriteObservation(
     throw new Error('write request kind differs');
   const { kind: _kind, ...target } = claim.action;
   const expected = { claimId: binding.projection.claimId, ...target };
-  const state = await readRuntimeStateArtifact(artifacts, evidence);
+  const state = await readRuntimeStateObservation(artifacts, evidence);
   const work = state.facts.workItems.filter((entry) => entry.id === original.workItemId);
   const steps = state.facts.steps.filter((entry) => entry.id === original.stepId);
   const inventory = state.claims.filter((entry) => entry.claim.id === binding.projection.claimId);
@@ -64,8 +65,11 @@ export async function readWriteObservation(
   const { kind: _authorityKind, ...authority } = state.authority;
   // Proof: T2 actual-state-association removed this guard; twelve actual-state negatives lost their expected wrapper rejection. This proves the byte-verification boundary, not receipt authenticity.
   if (
-    !equalRuntimeScopes(state.scope, original.scope) ||
-    !equalRuntimeScopes(state.scope, request.scope) ||
+    // Proof: dash-write-state-local-maps: omitting the grouped state comparison against both local request scopes.
+    // 'verified write stage rejects actual state owner scope before calling trusted publication' failed; exact restoration passed.
+    // The two mutually masking comparisons count once; other person/claim checks stay valid.
+    !equalRuntimeScopes(mapLocalScope(state.scope), original.scope) ||
+    !equalRuntimeScopes(mapLocalScope(state.scope), request.scope) ||
     state.ledgerId !== original.ledgerId ||
     state.ledgerId !== request.operation.expectedLedgerId ||
     state.basis !== request.operation.expectedBasis ||
@@ -93,7 +97,7 @@ export async function readWriteObservation(
   return parseOrThrow(TargetObservationCodec, {
     version: 1,
     evidence,
-    scope: state.scope,
+    scope: mapLocalScope(state.scope),
     ledgerId: state.ledgerId,
     basis: state.basis,
     workItemId: original.workItemId,

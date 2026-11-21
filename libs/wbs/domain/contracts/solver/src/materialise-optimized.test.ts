@@ -181,7 +181,7 @@ describe('materialiseOptimized', () => {
    * 0.51 workdays and lands below `A/one`'s finish — so `schedule()` refused it
    * for its own reason and the case passed with this file's guard deleted
    * (measured, run 40 chunk 1: mutation M2 was green against it). Pinned on the
-   * first slice instead, 24.5 units is 0.51 workdays against a `projectStart`
+   * first slice instead, 24.5 units is 0.51 workdays against a `workPackageStart`
    * floor of 0, which is a legal `'optimizer'` start — nothing but the guard
    * refuses it, and what it is refused for is being half a unit off the axis
    * every other start in the model sits on.
@@ -197,7 +197,7 @@ describe('materialiseOptimized', () => {
   });
 
   /**
-   * A negative offset is below `projectStart` on every plan, so `schedule()`
+   * A negative offset is below `workPackageStart` on every plan, so `schedule()`
    * would refuse it too — this case pins WHICH refusal answers, because the two
    * say different things to whoever reads the log. Asserting the class alone
    * would pass with the guard deleted.
@@ -267,9 +267,18 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
         notBefore,
         poolSizes,
         reach,
-        [],
+        each.typed ?? [],
       );
-      const fast = schedule(each.rows, each.edges, each.slices, notBefore, poolSizes, reach);
+      const fast = schedule(
+        each.rows,
+        each.edges,
+        each.slices,
+        notBefore,
+        poolSizes,
+        reach,
+        undefined,
+        each.typed ?? [],
+      );
       const placed = materialiseOptimized(
         each.rows,
         each.edges,
@@ -277,7 +286,7 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
         notBefore,
         poolSizes,
         reach,
-        [],
+        each.typed ?? [],
         offsets,
       );
 

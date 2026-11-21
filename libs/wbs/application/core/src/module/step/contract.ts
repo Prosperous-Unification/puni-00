@@ -3,7 +3,7 @@ import type { StepService, StepServiceOptions } from './step.resource';
 /**
  * What a host must supply to install {@link stepModule}.
  *
- * Exactly {@link StepServiceOptions}, unchanged by the move: the project and
+ * Exactly {@link StepServiceOptions}, unchanged by the move: the work package and
  * step stores of the one scope being installed over, the broadcaster, the
  * clock and the dependency graph guard. `servicesOver` supplies the stores of each admitted scope, so one
  * installation never outlives the scope it was built over.
@@ -12,7 +12,7 @@ import type { StepService, StepServiceOptions } from './step.resource';
  * imports the domain library, repository ports and no other resource. Task 6.1
  * moved `cleanName` and the assumed-assignee rules to `@wbs/domain`; remaining
  * `service/` support: `dependency-graph.ts`. Delivery's side is not closed either:
- * `http/step.routes.ts` still accepts `StepService` directly, the direct
+ * `http/package-step-values.routes.ts` still names public `StepService` methods, the direct
  * resource dependency of delivery (K2) the map lists under its composition
  * hazards. Tracked under task 7.4 of
  * `openspec/changes/adopt-di-composition/tasks.md`.

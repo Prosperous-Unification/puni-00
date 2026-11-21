@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { assertDependencyRollbackAdmitted } from './cross-project-dependency-rollback';
+import { assertDependencyRollbackAdmitted } from './cross-work-package-dependency-rollback';
 import { openDatabase } from './db';
 
 const FOREIGN_KEYS_OFF_MARKER = '-- foreign-keys-off-rebuild';
@@ -63,12 +63,13 @@ export function migrationsToRollback(
 }
 
 /**
- * The numeric prefix drizzle's migrator reads a folder's `created_at` from —
- * `parseInt(folder.split('_')[0])` in `readMigrationFiles`.
+ * Numeric folder prefix used by {@link duplicateMigrationStamps}.
  *
- * Throws on a folder whose prefix is not a number. That folder would be recorded
- * with `created_at = NaN`, every comparison against it would be false, and
- * {@link migrationsToRollback} would silently place it before everything.
+ * The installed Drizzle migrator converts the fourteen-digit date/time prefix
+ * to UTC epoch milliseconds for its ledger; this helper compares the numeric
+ * folder identities rather than returning those ledger timestamps.
+ *
+ * @throws {Error} when the numeric prefix is not an integer.
  */
 function stampOf(name: string): number {
   const stamp = Number(name.split('_')[0]);

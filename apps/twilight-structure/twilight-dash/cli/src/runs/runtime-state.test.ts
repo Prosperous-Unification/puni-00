@@ -123,7 +123,7 @@ for (const fault of [
           ? '{'
           : JSON.stringify({
               ...setup.state,
-              ...(fault === 'schema' ? { schemaVersion: 2 } : {}),
+              ...(fault === 'schema' ? { schemaVersion: 3 } : {}),
               ledgerId: 'ledger-marker',
             }),
       );

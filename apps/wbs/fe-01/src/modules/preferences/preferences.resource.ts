@@ -218,7 +218,7 @@ export function createPreferences(
           const stored = storage.read(key);
           // Proof: treating the empty string as absent failed the unchecked-key
           // case on `expected { status: 'absent' } to deeply equal { status:
-          // 'held', value: '' }` and the project-page case on `expected '' to
+          // 'held', value: '' }` and the work-package-page case on `expected '' to
           // be null`. Observed 2026-09-20.
           return stored === null ? { status: 'absent' } : { status: 'held', value: stored };
         },

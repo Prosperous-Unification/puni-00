@@ -204,12 +204,12 @@ it('refuses rollback after activation or while a live use remains', async () => 
       Math.floor(Date.now() / 1000) + 120,
       Math.floor(Date.now() / 1000),
     );
-    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_project_solution')).toThrow();
+    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_work_package_solution')).toThrow();
     connection.db.run(sql`DELETE FROM delegation_use`);
     connection.db.run(
       sql`UPDATE organization_activation SET state = 'activated', activated_at = 5`,
     );
-    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_project_solution')).toThrow();
+    expect(() => rollbackTo(path, FOLDER, '20260928010000_add_work_package_solution')).toThrow();
   } finally {
     connection.close();
   }
@@ -242,9 +242,9 @@ it('allows pre-activation rollback once every use has expired', () => {
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_project_dependency_activation',
+    '20261022212000_add_cross_work_package_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_project_abbreviations',
+    '20261022210000_add_work_package_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -274,7 +274,7 @@ it('allows pre-activation rollback once every use has expired', () => {
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',
     '20261001010000_add_browser_credential_revocations',
-    '20260929180000_add_project_rank',
+    '20260929180000_add_work_package_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
     '20260928040000_add_email_challenge',

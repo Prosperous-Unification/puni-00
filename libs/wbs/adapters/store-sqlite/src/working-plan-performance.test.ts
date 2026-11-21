@@ -14,7 +14,7 @@ import {
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import {
   createPlanCommandRunner,
   type PlanCommandsSource,
@@ -23,17 +23,18 @@ import { createLocalDependencyContext } from '@wbs/core/service/dependency-conte
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, it } from 'bun:test';
 import type { Logger } from 'drizzle-orm';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'working-plan-performance-owner';
-const PROJECT = 'working-plan-performance-project';
+const WORK_PACKAGE = 'working-plan-performance-work-package';
 const STEP = 'working-plan-performance-step';
 const STAMP: WriteStamp = { at: 1, by: OWNER };
 const ROWS = 200;
@@ -120,36 +121,36 @@ function countStoreCalls(
   return {
     ...stores,
     workItems: countedPort(stores.workItems, {
-      listByProject: count('workItems'),
+      listByWorkPackage: count('workItems'),
       listByIds: targeted,
       listPlacements: placement,
     }),
     estimates: countedPort(stores.estimates, {
-      listByProject: count('estimates'),
+      listByWorkPackage: count('estimates'),
       listByWorkItems: targeted,
       listPlacements: placement,
     }),
     actuals: countedPort(stores.actuals, {
-      listByProject: count('actuals'),
+      listByWorkPackage: count('actuals'),
       listByWorkItems: targeted,
       listPlacements: placement,
     }),
     progress: countedPort(stores.progress, {
-      listByProject: count('progress'),
+      listByWorkPackage: count('progress'),
       listByWorkItems: targeted,
       listPlacements: placement,
     }),
     measures: countedPort(stores.measures, {
-      listByProject: count('measures'),
+      listByWorkPackage: count('measures'),
       listByWorkItems: targeted,
       listPlacements: placement,
     }),
     dependencies: countedPort(stores.dependencies, {
-      listByProject: count('dependencies'),
+      listByWorkPackage: count('dependencies'),
       listByWorkItems: targeted,
     }),
     directory: countedPort(stores.directory, {
-      assignmentsInProject: assignment,
+      assignmentsInWorkPackage: assignment,
       assignmentsFor: assignment,
       assignmentsOf: assignment,
     }),
@@ -202,6 +203,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-performance-'));
   const dbPath = join(directory, 'source.db');
   runMigrations(dbPath, MIGRATIONS);
+  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
   const counts = emptyCounts();
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
@@ -212,12 +214,12 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
     STAMP,
   );
-  await source.stores.projects.create(
-    projectRow({ id: PROJECT, ownerId: OWNER, name }),
+  await source.stores.workPackages.create(
+    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project', name }),
     [
       {
         id: STEP,
-        projectId: PROJECT,
+        workPackageId: WORK_PACKAGE,
         name: 'Step',
         position: 10,
         code: 'step',
@@ -241,7 +243,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   for (let index = 0; index < ROWS; index += 1) {
     const id = rowId(index);
     await source.stores.workItems.insert(
-      workItemRow({ id, projectId: PROJECT, name: `Row ${String(index)}` }),
+      workItemRow({ id, workPackageId: WORK_PACKAGE, name: `Row ${String(index)}` }),
       [],
       STAMP,
     );
@@ -269,7 +271,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock,
       broadcast,
       scheduler: fastScheduler,
@@ -339,20 +341,20 @@ function mixedCommands(): PlanCommand[] {
 
 function expectBoundedFullReads(counts: ReadCounts): void {
   for (const [collection, reads] of Object.entries(counts.full)) {
-    // Proof: delegating WorkingPlan value listByProject reads to the SQLite
+    // Proof: delegating WorkingPlan value listByWorkPackage reads to the SQLite
     // source made this report 201 estimate full reads for 200 commands.
-    expect(reads, `${collection} full-project reads`).toBeLessThanOrEqual(1);
+    expect(reads, `${collection} full-work-package reads`).toBeLessThanOrEqual(1);
   }
 }
 
 async function authoredState(fixture: PerformanceFixture): Promise<string> {
   const stores = fixture.source.stores;
   const [estimates, actuals, progress, measures, assignments] = await Promise.all([
-    stores.estimates.listByProject(PROJECT),
-    stores.actuals.listByProject(PROJECT),
-    stores.progress.listByProject(PROJECT),
-    stores.measures.listByProject(PROJECT),
-    stores.directory.assignmentsInProject(PROJECT),
+    stores.estimates.listByWorkPackage(WORK_PACKAGE),
+    stores.actuals.listByWorkPackage(WORK_PACKAGE),
+    stores.progress.listByWorkPackage(WORK_PACKAGE),
+    stores.measures.listByWorkPackage(WORK_PACKAGE),
+    stores.directory.assignmentsInWorkPackage(WORK_PACKAGE),
   ]);
   return JSON.stringify([
     estimates,
@@ -644,7 +646,7 @@ async function runPerformanceCertification(
 it('bounds retained reads for 200 estimates and undo restores every distinct original', async () => {
   const fixture = await performanceFixture('Homogeneous correctness');
   try {
-    const outcome = await fixture.runner('cached').run(PROJECT, OWNER, homogeneousCommands());
+    const outcome = await fixture.runner('cached').run(WORK_PACKAGE, OWNER, homogeneousCommands());
     expect(outcome).toMatchObject({ ok: true });
     expectBoundedFullReads(fixture.counts);
     expect(fixture.counts.targeted).toBeGreaterThan(0);
@@ -653,7 +655,7 @@ it('bounds retained reads for 200 estimates and undo restores every distinct ori
     expect(fixture.counts.sqlWrites).toBeGreaterThan(0);
     process.stdout.write(`homogeneous counts ${JSON.stringify(fixture.counts)}\n`);
 
-    const changed = await fixture.source.stores.estimates.listByProject(PROJECT);
+    const changed = await fixture.source.stores.estimates.listByWorkPackage(WORK_PACKAGE);
     expect(changed).toEqual(
       Array.from({ length: ROWS }, (_, index) => ({
         workItemId: rowId(index),
@@ -661,8 +663,8 @@ it('bounds retained reads for 200 estimates and undo restores every distinct ori
         ...changedDays(index),
       })),
     );
-    expect(await fixture.runner('cached').undo(PROJECT, OWNER)).toMatchObject({ ok: true });
-    const restored = await fixture.source.stores.estimates.listByProject(PROJECT);
+    expect(await fixture.runner('cached').undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
+    const restored = await fixture.source.stores.estimates.listByWorkPackage(WORK_PACKAGE);
     expect(restored).toEqual(
       Array.from({ length: ROWS }, (_, index) => ({
         workItemId: rowId(index),
@@ -678,7 +680,7 @@ it('bounds retained reads for 200 estimates and undo restores every distinct ori
 it('keeps repeated existing-person assignments inside the plan-only full-read bound', async () => {
   const fixture = await performanceFixture('Mixed correctness');
   try {
-    const outcome = await fixture.runner('cached').run(PROJECT, OWNER, mixedCommands());
+    const outcome = await fixture.runner('cached').run(WORK_PACKAGE, OWNER, mixedCommands());
     expect(outcome).toMatchObject({ ok: true });
     // Proof: routing successful DirectoryStore.assign calls through the global
     // reload barrier made 40 assignments produce 41 full work-item reads.
@@ -696,7 +698,7 @@ it('can run the real SQLite command runner over uncached admitted stores', async
   const fixture = await performanceFixture('Uncached runner seam');
   try {
     resetCounts(fixture.counts);
-    const outcome = await fixture.runner('uncached').run(PROJECT, OWNER, [
+    const outcome = await fixture.runner('uncached').run(WORK_PACKAGE, OWNER, [
       {
         kind: 'setEstimate',
         workItemId: rowId(0),
@@ -759,10 +761,12 @@ it('keeps cached medians within ten percent on homogeneous and mixed paired work
       try {
         const baseline = await authoredState(fixture);
         for (const mode of ['uncached', 'cached'] as const) {
-          expect(await fixture.runner(mode).run(PROJECT, OWNER, commands[workload])).toMatchObject({
+          expect(
+            await fixture.runner(mode).run(WORK_PACKAGE, OWNER, commands[workload]),
+          ).toMatchObject({
             ok: true,
           });
-          expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+          expect(await fixture.runner(mode).undo(WORK_PACKAGE, OWNER)).toMatchObject({ ok: true });
           expect(await authoredState(fixture)).toBe(baseline);
         }
 
@@ -773,7 +777,7 @@ it('keeps cached medians within ten percent on homogeneous and mixed paired work
             expect(await authoredState(fixture)).toBe(baseline);
             resetCounts(fixture.counts);
             const { outcome, spent } = await timeSample(clock, () =>
-              fixture.runner(mode).run(PROJECT, OWNER, commands[workload]),
+              fixture.runner(mode).run(WORK_PACKAGE, OWNER, commands[workload]),
             );
             expect(outcome).toMatchObject({ ok: true });
             // The deterministic half of the comparison: every timed sample did
@@ -788,7 +792,9 @@ it('keeps cached medians within ten percent on homogeneous and mixed paired work
               expect(fixture.counts.full.workItems).toBeGreaterThan(1);
             }
             report[mode].samples.push(spent);
-            expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+            expect(await fixture.runner(mode).undo(WORK_PACKAGE, OWNER)).toMatchObject({
+              ok: true,
+            });
             expect(await authoredState(fixture)).toBe(baseline);
           }
         }

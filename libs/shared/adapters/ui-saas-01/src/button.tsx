@@ -142,7 +142,7 @@ export type ButtonSize = NonNullable<VariantProps<typeof buttonClasses>['size']>
  *
  * Hyphenated `data-*` props pass without being declared here, since TypeScript
  * does not check a JSX attribute whose name is not an identifier; that is how
- * WBS's tool hints and project facts (`data-hint`, `data-fact-lead`) ride on a
+ * WBS's tool hints and work-package facts (`data-hint`, `data-fact-lead`) ride on a
  * kit button without the kit knowing about either.
  */
 export interface ButtonProps

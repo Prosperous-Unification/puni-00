@@ -346,7 +346,7 @@ export function EstimatePresentation({
           isLeaf={!row.original.rolledUp}
           stepName={step.name}
           estimateUnit={step.estimateUnit}
-          projectId={live.current.projectId}
+          workPackageId={live.current.workPackageId}
           stepNode={readStepNode(row.original, step.id)}
           onAddDependency={() => {
             live.current.openStepDependency(row.original.id, step.id);

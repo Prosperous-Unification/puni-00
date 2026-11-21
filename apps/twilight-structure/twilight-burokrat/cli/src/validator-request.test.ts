@@ -8,8 +8,106 @@ function envelope(request: unknown): object {
 }
 
 describe('installed validator JSON request boundary', () => {
-  it('covers all fifty validator variants from the independently composed installed grammar', () => {
-    expect(requests).toHaveLength(50);
+  it('keeps the original version1 workflow step-list transport compatible', () => {
+    const request = {
+      command: 'validate workflow-binding',
+      file: 'workflow.json',
+      steps: ['build'],
+    };
+    expect(decodeRequest(JSON.stringify(envelope(request))) as unknown).toStrictEqual(
+      envelope({
+        command: 'validate workflow-binding',
+        file: 'workflow.json',
+        catalogue: { kind: 'steps', steps: ['build'] },
+      }),
+    );
+  });
+
+  for (const request of [
+    {
+      command: 'validate workflow-binding',
+      file: 'workflow.json',
+      steps: ['build'],
+      injected: 'secret',
+    },
+    { command: 'validate workflow-binding', steps: ['build'] },
+    { command: 'other', file: 'workflow.json', steps: ['build'] },
+  ])
+    it('refuses malformed legacy workflow transport ' + JSON.stringify(request), () => {
+      expect(() => decodeRequest(JSON.stringify(envelope(request)))).toThrow(
+        'invalid installed validator request',
+      );
+    });
+  for (const catalogue of [
+    { kind: 'steps', steps: ['build', 'verify'] },
+    { kind: 'manifest', file: 'manifest.json' },
+  ]) {
+    it('round trips the explicit workflow applicability source ' + catalogue.kind, () => {
+      const request = { command: 'validate workflow-binding', file: 'workflow.json', catalogue };
+      expect(decodeRequest(JSON.stringify(envelope(request))) as unknown).toStrictEqual(
+        envelope(request),
+      );
+    });
+  }
+
+  for (const catalogue of [
+    {},
+    { kind: 'other', file: 'manifest.json' },
+    { kind: 'other', steps: ['build'] },
+    { kind: 'manifest' },
+    { kind: 'manifest', file: '' },
+    { kind: 'manifest', file: '--steps' },
+    { kind: 'manifest', file: 'manifest.json', steps: ['build'] },
+    { kind: 'steps' },
+    { kind: 'steps', steps: [] },
+    { kind: 'steps', steps: ['build', 'build'] },
+    { kind: 'steps', steps: ['two words'] },
+    { kind: 'steps', steps: ['build', 3] },
+    { kind: 'steps', steps: ['build'], file: 'manifest.json' },
+  ]) {
+    it('refuses malformed workflow applicability ' + JSON.stringify(catalogue), () => {
+      expect(() =>
+        decodeRequest(
+          JSON.stringify(
+            envelope({
+              command: 'validate workflow-binding',
+              file: 'workflow.json',
+              catalogue,
+            }),
+          ),
+        ),
+      ).toThrow('invalid installed validator request');
+    });
+  }
+
+  it('refuses a flag-shaped workflow file in the installed transport', () => {
+    expect(() =>
+      decodeRequest(
+        JSON.stringify(
+          envelope({
+            command: 'validate workflow-binding',
+            file: '--manifest',
+            catalogue: { kind: 'manifest', file: 'manifest.json' },
+          }),
+        ),
+      ),
+    ).toThrow('invalid installed validator request');
+  });
+
+  it('requires the workflow applicability source and workflow file', () => {
+    for (const request of [
+      { command: 'validate workflow-binding', file: 'workflow.json' },
+      {
+        command: 'validate workflow-binding',
+        catalogue: { kind: 'manifest', file: 'manifest.json' },
+      },
+    ])
+      expect(() => decodeRequest(JSON.stringify(envelope(request)))).toThrow(
+        'invalid installed validator request',
+      );
+  });
+  it('covers all fifty-one validator variants from the independently composed installed grammar', () => {
+    expect(requests).toHaveLength(51);
   });
 
   for (const request of requests) {

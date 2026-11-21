@@ -17,7 +17,7 @@ import { PersonLoadSummary, usePeopleLoad } from '@/components/people/people-loa
 import type { Roster } from '@/components/presence/presence-panel';
 import { SpacePage } from '@/components/spaces/space-page';
 import { SpacesPage } from '@/components/spaces/spaces-page';
-import { ProjectPage } from '@/components/wbs/project-page';
+import { WorkPackagePage } from '@/components/wbs/work-package-page';
 import { OrganizationResourcesProvider } from '@/runtime/organization-resources';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
@@ -25,7 +25,7 @@ import type { SessionRuntime } from '@/runtime/session-runtime';
  * What the signed-in region is given by the gate above it.
  *
  * These are the session's, not any page's: its runtime — the directory, the
- * project catalog and the project owner, and nothing else of it — the presence
+ * work package catalog and the work package owner, and nothing else of it — the presence
  * slot that needs the account's own username, and the account menu that signs
  * out. No credential and no client: the session holds those. They reach the pages as **router
  * context** rather than as props threaded through routes, because a route
@@ -46,25 +46,25 @@ interface RouteContext extends SignedInRegion {
 const rootRoute = createRootRouteWithContext<RouteContext>()({ component: Outlet });
 
 /**
- * The project, at `/`.
+ * The work package, at `/`.
  *
- * The header is **this page's**, not the root's. `ProjectPage` holds the
+ * The header is **this page's**, not the root's. `WorkPackagePage` holds the
  * picker's list, its selection and the rename in progress, and a bar drawn once
  * above both routes would have to reach back in here for all three. What the
  * two pages share — the account, the presence slot, the navigation — arrives
  * through the context instead.
  */
-const projectRoute = createRoute({
+const workPackageRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: function ProjectRoute() {
-    const { session, presence, account, nav } = projectRoute.useRouteContext();
+  component: function WorkPackageRoute() {
+    const { session, presence, account, nav } = workPackageRoute.useRouteContext();
     return (
-      <ProjectPage
+      <WorkPackagePage
         // Proof: on 2026-09-24, handing the page an owner of its own (r1) failed `opens the
-        // selected project through the signed-in session’s own project owner`: expected 'empty'
-        // to be 'p1', the session's owner never opened the project.
-        projects={session.projects}
+        // selected work package through the signed-in session’s own work package owner`: expected 'empty'
+        // to be 'p1', the session's owner never opened the work package.
+        workPackages={session.workPackages}
         catalog={session.catalog}
         presence={presence}
         account={account}
@@ -96,7 +96,7 @@ const DirectoryPage = lazy(async () => ({
   default: (await import('@/components/directory/directory-page')).DirectoryPage,
 }));
 
-/** The directory, at `/directory`. No project controls: see {@link DirectoryPage}. */
+/** The directory, at `/directory`. No work package controls: see {@link DirectoryPage}. */
 const directoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/directory',
@@ -152,7 +152,7 @@ const spacesRoute = createRoute({
   },
 });
 
-/** One space, at `/spaces/$spaceId`; `all` is the virtual All projects. */
+/** One space, at `/spaces/$spaceId`; `all` is the virtual All work packages. */
 const spaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/$spaceId',
@@ -168,7 +168,7 @@ const PersonLoadPage = lazy(async () => ({
 }));
 
 /**
- * One person's bookings across projects, at `/people/:personId/load`, over the
+ * One person's bookings across work packages, at `/people/:personId/load`, over the
  * eight weeks from the Monday of the viewer's current week. Its own chunk for
  * {@link DirectoryPage}'s reason: a page most sessions never open.
  */
@@ -187,8 +187,28 @@ const personLoadRoute = createRoute({
   },
 });
 
+const ProjectSettingsPage = lazy(async () => ({
+  default: (await import('@/components/projects/project-settings-page')).ProjectSettingsPage,
+}));
+
+/** Reads the actual project owner before showing settings, including projects without a work package. */
+const projectSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/projects/$projectId/settings',
+  component: function ProjectSettingsRoute() {
+    const { account, nav } = projectSettingsRoute.useRouteContext();
+    const { projectId } = projectSettingsRoute.useParams();
+    return (
+      <Suspense fallback={<p>Loading project settings…</p>}>
+        <ProjectSettingsPage key={projectId} projectId={projectId} nav={nav} account={account} />
+      </Suspense>
+    );
+  },
+});
+
 const routeTree = rootRoute.addChildren([
-  projectRoute,
+  projectSettingsRoute,
+  workPackageRoute,
   directoryRoute,
   organizationRoute,
   spacesRoute,
@@ -207,7 +227,10 @@ const routeTree = rootRoute.addChildren([
  * is what makes a reload land on the page it was reloaded from.
  */
 export function createAppRouter(context: RouteContext, history?: RouterHistory) {
-  return createRouter({ routeTree, context, history });
+  // Route render faults belong to AppFaultBoundary's sanitized disclosure; the router's global debug fallback would intercept them.
+  // Proof: restoring the router debug catch hid four precise owner faults and bypassed
+  // AppFaultBoundary sanitization; all five cases failed in scoped-step-settings.test.tsx.
+  return createRouter({ routeTree, context, history, disableGlobalCatchBoundary: true });
 }
 
 declare module '@tanstack/react-router' {

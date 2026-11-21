@@ -26,8 +26,8 @@ import {
 const SECRET = 'x'.repeat(32);
 let world: ScimWorld;
 let token: { id: string; token: string };
-let aProject: string;
-let bProject: string;
+let aWorkPackage: string;
+let bWorkPackage: string;
 
 beforeEach(async () => {
   world = await openScimWorld();
@@ -38,18 +38,18 @@ beforeEach(async () => {
   h.member('org-b', 'carol', 'member', ['project-contributor', 'org-viewer']);
   h.bind('carol', 'org-a');
   mapUpstream(h, 'carol', 'sub-carol');
-  aProject = await project('carol', 'A plan');
-  bProject = await project('bob', 'B plan');
+  aWorkPackage = await workPackage('carol', 'A plan');
+  bWorkPackage = await workPackage('bob', 'B plan');
 });
 
 afterEach(() => {
   world.h.close();
 });
 
-async function project(username: string, name: string): Promise<string> {
-  const answer = await world.h.call(username, 'POST', '/api/projects', { name });
+async function workPackage(username: string, name: string): Promise<string> {
+  const answer = await world.h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** Provisions `userName` in org-a and binds it to `username`, as an SSO activation would. */
@@ -80,28 +80,28 @@ const snapshot = () => ({
   audits: world.h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all(),
 });
 
-/** Every way carol reaches a project: browser, gateway lease and MCP delegation, per organization. */
+/** Every way carol reaches a work package: browser, gateway lease and MCP delegation, per organization. */
 async function carolAccess() {
   const { h, keys } = world;
   const gateway = await h.app.handle(
-    new Request(`http://localhost/internal/gateway/projects/${aProject}/browser-access`, {
+    new Request(`http://localhost/internal/gateway/work-packages/${aWorkPackage}/browser-access`, {
       method: 'POST',
       headers: { 'x-internal-auth': SECRET, cookie: `__Host-wbs_access=${h.token('carol')}` },
     }),
   );
-  const mcp = async (organizationId: string, projectId: string) =>
+  const mcp = async (organizationId: string, workPackageId: string) =>
     (
       await h.callWith(
         await delegationFor(h, keys.privateKey, 'carol', organizationId, 'sub-carol'),
         'GET',
-        `/api/projects/${projectId}`,
+        `/api/work-packages/${workPackageId}`,
       )
     ).status;
   return {
-    browserA: (await h.call('carol', 'GET', '/api/projects')).status,
+    browserA: (await h.call('carol', 'GET', '/api/work-packages')).status,
     gatewayA: gateway.status,
-    mcpA: await mcp('org-a', aProject),
-    mcpB: await mcp('org-b', bProject),
+    mcpA: await mcp('org-a', aWorkPackage),
+    mcpB: await mcp('org-b', bWorkPackage),
   };
 }
 
@@ -164,7 +164,7 @@ describe('SCIM deprovisioning', () => {
       subject_id: id,
     });
     expect(await carolAccess()).toEqual({ browserA: 403, gatewayA: 403, mcpA: 403, mcpB: 200 });
-    expect(await h.call('carol', 'GET', '/api/projects')).toEqual({
+    expect(await h.call('carol', 'GET', '/api/work-packages')).toEqual({
       status: 403,
       body: { error: 'not_a_member' },
     });
@@ -345,7 +345,7 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
       return { status: response.status, body: await response.text() };
     };
     const created = await h.app.handle(
-      new Request('http://localhost/api/projects', {
+      new Request('http://localhost/api/work-packages', {
         method: 'POST',
         headers: {
           cookie,
@@ -357,9 +357,10 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
       }),
     );
     expect(created.status).toBe(200);
-    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
-    const gatewayPath = `/internal/gateway/projects/${projectId}/browser-access`;
-    expect((await browser('/api/projects', 'GET')).status).toBe(200);
+    const workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage
+      .id;
+    const gatewayPath = `/internal/gateway/work-packages/${workPackageId}/browser-access`;
+    expect((await browser('/api/work-packages', 'GET')).status).toBe(200);
     expect((await browser(gatewayPath, 'POST', { 'x-internal-auth': SECRET })).status).toBe(204);
     const provisioned = await scim(
       h,
@@ -387,7 +388,7 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
     ).toBe(200);
 
     const notMember = JSON.stringify({ error: 'not_a_member' });
-    expect(await browser('/api/projects', 'GET')).toEqual({ status: 403, body: notMember });
+    expect(await browser('/api/work-packages', 'GET')).toEqual({ status: 403, body: notMember });
     expect(await browser(gatewayPath, 'POST', { 'x-internal-auth': SECRET })).toEqual({
       status: 403,
       body: notMember,

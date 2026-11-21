@@ -1,0 +1,1111 @@
+{
+  "recordedAt": "2026-11-19T07:25:30.310Z",
+  "scope": "NineactualSource reorder lifetime/retention/input families inbothadapters plusactualSQLite secondUPDATEzero-row nativefault owner; seven bounded necessity effects.",
+  "sourceEpoch": {
+    "path": "/tmp/puni-catalogue-reorder-native-first-live-v1/source-pins.json",
+    "sha256": "b87c80ce24e565de3a7e548cdb88537f23e2d30ed4b44825ad700952ade67139",
+    "bytes": 5204986,
+    "mode": 384
+  },
+  "applications": [
+    {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/application.json",
+      "sha256": "3e173a5afce47a0e77aba4f444e04d7950b8cd2802d5e1113fad00dbcc01531e",
+      "bytes": 5092,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-catalogue-reorder-input-owner-live-v1/application.json",
+      "sha256": "b4b472ee68acc5e72375094b1381b74322a1b94b498fc961a7e86d35b114c50c",
+      "bytes": 3563,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-catalogue-reorder-native-first-live-v1/application.json",
+      "sha256": "73eef273102add623650cf7e433b04b7b1cf2e100ac7a5901f60c35c991f4522",
+      "bytes": 3617,
+      "mode": 384
+    }
+  ],
+  "initial18": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/reorderLifetime/native.receipt.json",
+      "sha256": "62bac2618c2b2efe5d4625b932e63d637d0072d350e60ae4721a306fa500e63b",
+      "bytes": 1522,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/reorderLifetime/native.validation.json",
+      "sha256": "f3ec8c8670323799b5d6ec2b420d118036ebf9e2c3b4bbfcf607ee4017c9c60c",
+      "bytes": 2005,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/reorderLifetime/native.log",
+      "sha256": "ad3a309b0103f6b3399fbc8d8b1a2844f8de3f59f4a2d0fddbaf276e3581113f",
+      "bytes": 1524,
+      "mode": 384
+    },
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+        "--timeout=30000"
+      ],
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:queued-scope [922.47ms]\n(pass) catalogue reorder sqlite reorder-life:queued-ids [1199.38ms]\n(pass) catalogue reorder sqlite reorder-life:queued-stamp [1133.45ms]\n(pass) catalogue reorder sqlite reorder-life:ordinary-expiry [1125.67ms]\n(pass) catalogue reorder sqlite reorder-life:repair-expiry [1492.37ms]\n(pass) catalogue reorder sqlite reorder-life:source-closed [1141.73ms]\n(pass) catalogue reorder sqlite reorder-life:queued-close [885.45ms]\n(pass) catalogue reorder sqlite reorder-life:detached-success [1418.22ms]\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [822.54ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:queued-scope [16.51ms]\n(pass) catalogue reorder memory reorder-life:queued-ids [6.80ms]\n(pass) catalogue reorder memory reorder-life:queued-stamp [7.62ms]\n(pass) catalogue reorder memory reorder-life:ordinary-expiry [6.86ms]\n(pass) catalogue reorder memory reorder-life:repair-expiry [6.63ms]\n(pass) catalogue reorder memory reorder-life:source-closed [5.01ms]\n(pass) catalogue reorder memory reorder-life:queued-close [4.78ms]\n(pass) catalogue reorder memory reorder-life:detached-success [6.03ms]\n(pass) catalogue reorder memory reorder-life:malformed-boundary [7.04ms]\n\n 18 pass\n 0 fail\n 537 expect() calls\nRan 18 tests across 2 files. [16.66s]\n"
+  },
+  "libraryTypes": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/types/native.receipt.json",
+      "sha256": "8d43eab3e2a2cd0906db36db1436e033f509db0927d7e52098f6d0363042e36d",
+      "bytes": 1518,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/types/native.validation.json",
+      "sha256": "01bc1314a4575a495fa2c1349e387a8cd8fbd4c7e98e27a805868f534541c77b",
+      "bytes": 1972,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-live-v1/types/native.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "mode": 384
+    },
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "node_modules/@typescript/native/bin/tsc",
+        "--build",
+        "--force",
+        "libs/wbs/domain/domain/tsconfig.json",
+        "libs/wbs/application/core/tsconfig.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.json",
+        "libs/wbs/adapters/store-memory/tsconfig.json"
+      ],
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "transcript": ""
+  },
+  "nativeFirst": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-reorder-native-first-live-v1/reorderNativeFault/native.receipt.json",
+      "sha256": "35c112be725db72377c7e424559f41bb6a1041be8decc684a97a0b215d00606f",
+      "bytes": 1545,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-reorder-native-first-live-v1/reorderNativeFault/native.validation.json",
+      "sha256": "e8167fac8b2a007e8e8bc56ba84a80babaaaaf97bba40ff94d04f3e3b66088e2",
+      "bytes": 2025,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-reorder-native-first-live-v1/reorderNativeFault/native.log",
+      "sha256": "91844d7e54cbde9539634491bbfad768ffaf171448ff3e7b58efbb5b6e3c5edc",
+      "bytes": 272,
+      "mode": 384
+    },
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "--no-env-file",
+        "--config=/dev/null",
+        "test",
+        "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+        "--timeout=30000",
+        "--test-name-pattern",
+        "^catalogue reorder sqlite reorder-life:native-zero-update$"
+      ],
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "deadlineMs": 180000
+    },
+    "exitCode": 0,
+    "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:native-zero-update [772.65ms]\n\n 1 pass\n 9 filtered out\n 0 fail\n 34 expect() calls\nRan 1 test across 1 file. [3.49s]\n"
+  },
+  "proofs": [
+    {
+      "id": "REORDER_MEMORY_RETAIN",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1",
+      "observed": "All3actualqueued cases fail: mutatedscope wronglyrefusesstale_order, mutatedIDswronglyreturns no affectedIDs, mutatedstampstores actualproject.updatedAt1017instead117. Fault61assertions. Exactrestoreand same3aftercasespass.",
+      "credit": "The public MemorySource clone beforequeue; borrowedcloneand admissionremain. First return/output/auditoracle only, not everylaterstateassertion.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/plan.json",
+        "sha256": "e0f1f33e61728fa48ea2dcfd389808d0a071667646b2e53df6b32d2b58bec3e3",
+        "bytes": 3914,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/restored.json",
+        "sha256": "befd475d8311e3da2ca431c234fb4ff39861d5bb9531e94de0625cd4d29f0b96",
+        "bytes": 492,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/baseline/native.receipt.json",
+          "sha256": "f36266ff1d1ec9389a7e166205d77e89d88c21903e1eb24c38fb00ed73e228a3",
+          "bytes": 1566,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/baseline/native.validation.json",
+          "sha256": "6226ae6177b6ab76e9f4adb9c73f049f6e34506ac744fbea115162930b57aae3",
+          "bytes": 726,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/baseline/native.log",
+          "sha256": "b06a4028c5e4a40e5f06ef5af9dcc434474d46d66bcc5b8de74e611feeed1399",
+          "bytes": 396,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:queued-scope [69.07ms]\n(pass) catalogue reorder memory reorder-life:queued-ids [12.92ms]\n(pass) catalogue reorder memory reorder-life:queued-stamp [8.39ms]\n\n 3 pass\n 6 filtered out\n 0 fail\n 69 expect() calls\nRan 3 tests across 1 file. [4.84s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/fault/native.receipt.json",
+          "sha256": "2fc641a590334a0bbe710396ed0eea075cc2b1e57aa8e081628b820ce52233b0",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/fault/native.validation.json",
+          "sha256": "33cb89d4744df0c0cf068160e579c0f0d0eac9a0184fa4bab79a4bcc28b7bd69",
+          "bytes": 721,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/fault/native.log",
+          "sha256": "5d86ebcbf3ce30a8a568b10a6cb7d7bf9381480a8988a30838731a7bb238c780",
+          "bytes": 3657,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n122 |   if (!settled.ok) throw settled.cause;\n123 |   expect(held.value).toBe('actual holding writer released');\n124 |   if (field === 'scope') expect(scope.scopeId).toBe(seed.siblingProjectId);\n125 |   if (field === 'ids') expect(next).toEqual(['reorder-life-a', 'reorder-life-b']);\n126 |   if (field === 'stamp') expect(stamp.at).toBe(at + 900);\n127 |   expect(settled.value).toEqual({\n                              ^\nerror: expect(received).toEqual(expected)\n\n  {\n-   \"ok\": true,\n-   \"projectIds\": [\n-     \"catalogue-project\",\n-   ],\n-   \"workPackageIds\": [\n-     \"catalogue-empty-package\",\n-   ],\n+   \"ok\": false,\n+   \"reason\": \"stale_order\",\n  }\n\n- Expected  - 7\n+ Received  + 2\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:127:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:queued-scope [35.95ms]\n122 |   if (!settled.ok) throw settled.cause;\n123 |   expect(held.value).toBe('actual holding writer released');\n124 |   if (field === 'scope') expect(scope.scopeId).toBe(seed.siblingProjectId);\n125 |   if (field === 'ids') expect(next).toEqual(['reorder-life-a', 'reorder-life-b']);\n126 |   if (field === 'stamp') expect(stamp.at).toBe(at + 900);\n127 |   expect(settled.value).toEqual({\n                              ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"ok\": true,\n-   \"projectIds\": [\n-     \"catalogue-project\",\n-   ],\n-   \"workPackageIds\": [\n-     \"catalogue-empty-package\",\n-   ],\n+   \"projectIds\": [],\n+   \"workPackageIds\": [],\n  }\n\n- Expected  - 6\n+ Received  + 2\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:127:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:queued-ids [5.74ms]\n127 |   expect(settled.value).toEqual({\n128 |     ok: true,\n129 |     workPackageIds: [seed.workPackageId],\n130 |     projectIds: [seed.projectId],\n131 |   });\n132 |   expect(readAudit(seed.projectId)).toEqual({\n                                          ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"revision\": 4,\n-   \"updatedAt\": 117,\n+   \"updatedAt\": 1017,\n  }\n\n- Expected  - 1\n+ Received  + 1\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:132:37)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:queued-stamp [6.38ms]\n\n 0 pass\n 6 filtered out\n 3 fail\n 61 expect() calls\nRan 3 tests across 1 file. [2.67s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/after/native.receipt.json",
+          "sha256": "192914fcae16f24f3177f83cd30d7f54de881e9b2bab0b34847e3758d75cc48f",
+          "bytes": 1560,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/after/native.validation.json",
+          "sha256": "ea7a38f01e1606434d05304525acef849fe90a8460f063eef85e44e460b143d2",
+          "bytes": 720,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_memory_retain-v1/after/native.log",
+          "sha256": "9589a98dee6154bdbc640c011607eabf9384ab75ee73c30b0a268c96510e7d5b",
+          "bytes": 395,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:queued-scope [36.16ms]\n(pass) catalogue reorder memory reorder-life:queued-ids [6.65ms]\n(pass) catalogue reorder memory reorder-life:queued-stamp [6.31ms]\n\n 3 pass\n 6 filtered out\n 0 fail\n 69 expect() calls\nRan 3 tests across 1 file. [2.69s]\n"
+      }
+    },
+    {
+      "id": "REORDER_SQLITE_RETAIN",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1",
+      "observed": "All3actualqueued cases failwith samewrongscope/emptytargets/audittimestamp1017instead117. Fault88assertions. Exactrestoreand same3aftercasespass.",
+      "credit": "Public SQLiteSource clone beforeitsactualUoWqueues; no broaderreceiver/detachment/lifecycleclaim.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/plan.json",
+        "sha256": "440b95fa4bfe01ac702d8d4b7bebf340be860a1c8ad53663337c56fe5e68db83",
+        "bytes": 3842,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/restored.json",
+        "sha256": "7f4fcc4bdbd291a783fc2d817ad2135313d3fd3f6ab93c0627186448046d14e2",
+        "bytes": 505,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/baseline/native.receipt.json",
+          "sha256": "47a1548c7d771dbca927f3f3490bf14fe1755d58078621afdc933822728f97ec",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/baseline/native.validation.json",
+          "sha256": "0c5736253dc9d86ac00c5ffd5ce062c03093c8cd255cc4354c9321ae14cc6d7a",
+          "bytes": 726,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/baseline/native.log",
+          "sha256": "0fe47fb7373cff488a08fe635d35b8d3b93f0b16367fb2a60af17707a3910d96",
+          "bytes": 404,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:queued-scope [1094.31ms]\n(pass) catalogue reorder sqlite reorder-life:queued-ids [772.67ms]\n(pass) catalogue reorder sqlite reorder-life:queued-stamp [717.49ms]\n\n 3 pass\n 6 filtered out\n 0 fail\n 96 expect() calls\nRan 3 tests across 1 file. [6.80s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/fault/native.receipt.json",
+          "sha256": "83639ad66849d96ec383c0f721a1e861b571bd6d158256020121364ab03f49d4",
+          "bytes": 1564,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/fault/native.validation.json",
+          "sha256": "2e9927525ab69fc12aedf70a4bbcef81aa448c881e9235cd99b26f88ab14dc1a",
+          "bytes": 721,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/fault/native.log",
+          "sha256": "8bac3ecf8d1badcdc4934c27fd6ad2006a3f161c317e7d5637686e4e1290fe3b",
+          "bytes": 3674,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n122 |   if (!settled.ok) throw settled.cause;\n123 |   expect(held.value).toBe('actual holding writer released');\n124 |   if (field === 'scope') expect(scope.scopeId).toBe(seed.siblingProjectId);\n125 |   if (field === 'ids') expect(next).toEqual(['reorder-life-a', 'reorder-life-b']);\n126 |   if (field === 'stamp') expect(stamp.at).toBe(at + 900);\n127 |   expect(settled.value).toEqual({\n                              ^\nerror: expect(received).toEqual(expected)\n\n  {\n-   \"ok\": true,\n-   \"projectIds\": [\n-     \"catalogue-project\",\n-   ],\n-   \"workPackageIds\": [\n-     \"catalogue-empty-package\",\n-   ],\n+   \"ok\": false,\n+   \"reason\": \"stale_order\",\n  }\n\n- Expected  - 7\n+ Received  + 2\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:127:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:17:13)\n(fail) catalogue reorder sqlite reorder-life:queued-scope [764.22ms]\n122 |   if (!settled.ok) throw settled.cause;\n123 |   expect(held.value).toBe('actual holding writer released');\n124 |   if (field === 'scope') expect(scope.scopeId).toBe(seed.siblingProjectId);\n125 |   if (field === 'ids') expect(next).toEqual(['reorder-life-a', 'reorder-life-b']);\n126 |   if (field === 'stamp') expect(stamp.at).toBe(at + 900);\n127 |   expect(settled.value).toEqual({\n                              ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"ok\": true,\n-   \"projectIds\": [\n-     \"catalogue-project\",\n-   ],\n-   \"workPackageIds\": [\n-     \"catalogue-empty-package\",\n-   ],\n+   \"projectIds\": [],\n+   \"workPackageIds\": [],\n  }\n\n- Expected  - 6\n+ Received  + 2\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:127:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:17:13)\n(fail) catalogue reorder sqlite reorder-life:queued-ids [637.91ms]\n127 |   expect(settled.value).toEqual({\n128 |     ok: true,\n129 |     workPackageIds: [seed.workPackageId],\n130 |     projectIds: [seed.projectId],\n131 |   });\n132 |   expect(readAudit(seed.projectId)).toEqual({\n                                          ^\nerror: expect(received).toEqual(expected)\n\n  {\n    \"revision\": 3,\n-   \"updatedAt\": 117,\n+   \"updatedAt\": 1017,\n  }\n\n- Expected  - 1\n+ Received  + 1\n\n      at queuedRetention (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:132:37)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:17:13)\n(fail) catalogue reorder sqlite reorder-life:queued-stamp [783.41ms]\n\n 0 pass\n 6 filtered out\n 3 fail\n 88 expect() calls\nRan 3 tests across 1 file. [4.99s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/after/native.receipt.json",
+          "sha256": "afe7aea24d483f12e2e758409b78d7abaa55311f5bc53f7a94ab5d37a7870bbd",
+          "bytes": 1563,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/after/native.validation.json",
+          "sha256": "6925288dd08033461a9d937ce2d16ed9b28d58693895cf58990d7d52d9f0e58b",
+          "bytes": 720,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_sqlite_retain-v1/after/native.log",
+          "sha256": "01d04f2aede3579d46b34f8e813c92f50f5435eb03c36bf9daf75fb09fdb35fb",
+          "bytes": 403,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:queued-(scope|ids|stamp)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:queued-scope [735.24ms]\n(pass) catalogue reorder sqlite reorder-life:queued-ids [638.54ms]\n(pass) catalogue reorder sqlite reorder-life:queued-stamp [796.40ms]\n\n 3 pass\n 6 filtered out\n 0 fail\n 96 expect() calls\nRan 3 tests across 1 file. [4.91s]\n"
+      }
+    },
+    {
+      "id": "REORDER_LOAN_GUARD",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1",
+      "observed": "Neutralizing both newmethodcalls to existing assertOpen dependency lets actualMemoryordinaryandrepair expiredloansresolve. Both rejectbooleanoracles failtrueinsteadfalse,38assertions. Exactrestoreand same2aftercasespass.",
+      "credit": "Whole newmethodloan admission dependency. Doesnot separatelyprovenecessityofentryversuspostawait, SQLitelowergate, freshloan/laterstate tailsorallmethods.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/plan.json",
+        "sha256": "a905d2dfc3587c378faca8f68db77ce30dcf9288a70ae5e8cb3da146b4e24c37",
+        "bytes": 4422,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/restored.json",
+        "sha256": "dae7b9bffea969feadc474429ae40d9771585f15f2a534c91589da98e5d78a85",
+        "bytes": 514,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/baseline/native.receipt.json",
+          "sha256": "24242cd6d73a4ea5c07c698773336a50c6c19c8a5ae00216e0f71c040d065b91",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/baseline/native.validation.json",
+          "sha256": "6f7ca9c1987fdaeea89b965da9cade11b02dee999f06d23e2055bd1f3867ee5f",
+          "bytes": 720,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/baseline/native.log",
+          "sha256": "dd93d1c8689fa2d423a1604ad047542d949ce0d3083298271f22e39459dadd37",
+          "bytes": 335,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(ordinary-expiry|repair-expiry)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:ordinary-expiry [33.83ms]\n(pass) catalogue reorder memory reorder-life:repair-expiry [13.24ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 56 expect() calls\nRan 2 tests across 1 file. [4.36s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/fault/native.receipt.json",
+          "sha256": "9e5ded5417eac7a3ffad1c11c808adf0dfb58c25ee44eaf0117b8a4a63ef2c73",
+          "bytes": 1562,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/fault/native.validation.json",
+          "sha256": "c76e8a2eee5ddf07722df30619b0b82e61c3ca7359504ad7e1a1da2a9111aeae",
+          "bytes": 715,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/fault/native.log",
+          "sha256": "963387020efbea04a916e6460f2b624a5dc426da44cd9d812dfb147486fad971",
+          "bytes": 2248,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(ordinary-expiry|repair-expiry)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n71 |   };\n72 | }\n73 | \n74 | async function expectReorderClosed(call: () => Promise<StepBindingsReordered>) {\n75 |   const observed = await observeReorder(call);\n76 |   expect(observed.ok).toBe(false);\n                           ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at expectReorderClosed (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:76:23)\n      at async expiredLoan (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:191:9)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:ordinary-expiry [36.11ms]\n71 |   };\n72 | }\n73 | \n74 | async function expectReorderClosed(call: () => Promise<StepBindingsReordered>) {\n75 |   const observed = await observeReorder(call);\n76 |   expect(observed.ok).toBe(false);\n                           ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at expectReorderClosed (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:76:23)\n      at async expiredLoan (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:191:9)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:repair-expiry [5.87ms]\n\n 0 pass\n 7 filtered out\n 2 fail\n 38 expect() calls\nRan 2 tests across 1 file. [2.66s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/after/native.receipt.json",
+          "sha256": "021a5f10aa743a8de1ae389aefe580a16569e2bef6b76e4836546034e1e3bf41",
+          "bytes": 1561,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/after/native.validation.json",
+          "sha256": "52cc93a4aa66848198a39a158614059a2faba483416e08a7e4f8aa3990bfeafd",
+          "bytes": 714,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_loan_guard-v1/after/native.log",
+          "sha256": "b29afb506020ae291fe40c3ed93693c23e6e4b005ee45dec8ba6d1d67b8da13a",
+          "bytes": 334,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(ordinary-expiry|repair-expiry)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:ordinary-expiry [35.87ms]\n(pass) catalogue reorder memory reorder-life:repair-expiry [7.10ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 56 expect() calls\nRan 2 tests across 1 file. [2.62s]\n"
+      }
+    },
+    {
+      "id": "REORDER_SOURCE_CLOSED",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1",
+      "observed": "Neutralizing actualsharedMemorySourceclosedadmission lets closedpublicreorderand queuedbeforeclose reorderresolve. Two casesfailatreturnedoktrueinsteadfalse,38assertions. Everyacquiredwriter/queued/closepromise settled. Exactrestoreand same2aftercasespass.",
+      "credit": "Whole shared logical-close dependency, noteachredundantpublic/UoW/borrowedlayer or SQLitephysicalretirement.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/plan.json",
+        "sha256": "11b0f88aaba2e975cf03c84158adb61c14a7c7442e058dcb50f1feb59c291419",
+        "bytes": 3822,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/restored.json",
+        "sha256": "048c9373bdecc084f6b7b069cf7c520e5f196c199841ebaf1d3d1d99136a4437",
+        "bytes": 492,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/baseline/native.receipt.json",
+          "sha256": "387f22c64fa31a0a1a8341b567da2f729f135b43e0d558dcc342438f4c0f2750",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/baseline/native.validation.json",
+          "sha256": "4222ed145f87f9f42aa91303786f7bdd588d050f31fde982c640b9d34845467d",
+          "bytes": 726,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/baseline/native.log",
+          "sha256": "42fe7be7036927012cf861001604de60b27b239057ae574d2b9014b747eb996b",
+          "bytes": 331,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(source-closed|queued-close)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:source-closed [55.15ms]\n(pass) catalogue reorder memory reorder-life:queued-close [8.01ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 45 expect() calls\nRan 2 tests across 1 file. [4.36s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/fault/native.receipt.json",
+          "sha256": "4e6414c80a684441473de7b49a9fcbb743bdeb847867c6ef0b13c331d881cccd",
+          "bytes": 1565,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/fault/native.validation.json",
+          "sha256": "a0cc25c4dd2187a4cfa835f10daf649621d087c4162ec114432e221219542536",
+          "bytes": 721,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/fault/native.log",
+          "sha256": "7801eac57d0f0825d986b506703c0341b817efe21346566132db4c66ff9f5ea9",
+          "bytes": 2205,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(source-closed|queued-close)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n71 |   };\n72 | }\n73 | \n74 | async function expectReorderClosed(call: () => Promise<StepBindingsReordered>) {\n75 |   const observed = await observeReorder(call);\n76 |   expect(observed.ok).toBe(false);\n                           ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at expectReorderClosed (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:76:23)\n      at async sourceClosed (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:238:9)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:source-closed [35.76ms]\n345 |   }\n346 |   if (settled.ok) expect(settled.value).toBe('held reorder writer rolled back');\n347 |   else expect(String(settled.cause)).toMatch(/closed/);\n348 |   expect(queued).toBeDefined();\n349 |   if (queued === undefined) throw Error('actual queued reorder was not acquired');\n350 |   expect(queued.ok).toBe(false);\n                          ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at queuedClose (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:350:21)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:queued-close [6.88ms]\n\n 0 pass\n 7 filtered out\n 2 fail\n 38 expect() calls\nRan 2 tests across 1 file. [2.65s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/after/native.receipt.json",
+          "sha256": "08b2ccbaf7cd85ee877fc15507626590d6ffc8204d4db4e888aa85dd23f6304e",
+          "bytes": 1564,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/after/native.validation.json",
+          "sha256": "6b27d481757d088c8296ae21b9a13d366bc21178e6501e3a43c21d807d1f723e",
+          "bytes": 720,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_source_closed-v1/after/native.log",
+          "sha256": "b569169172d13b4569c24169b90cd6abda207b8a665337feb8473e653bc73d8e",
+          "bytes": 331,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder memory reorder-life:(source-closed|queued-close)$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:source-closed [35.81ms]\n(pass) catalogue reorder memory reorder-life:queued-close [6.24ms]\n\n 2 pass\n 7 filtered out\n 0 fail\n 45 expect() calls\nRan 2 tests across 1 file. [2.87s]\n"
+      }
+    },
+    {
+      "id": "REORDER_IDS_ARRAY",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1",
+      "observed": "Removing onlyarrayadmission lets directmalformed-boundarycallsresolve inbothadapters. Both expectedobserved.okfalsebutreceivedtrue;69assertions. Exactrestoreand same2aftercasespass.",
+      "credit": "Arrayadmission at actualpublicport. Orderednegativeowner includes nonarraystringto distinguish itfrom incidental TypeErroronundefined. Faultoutput prints genericresolvedflag, notinput/replyspecimen; exactstringfirstcase is inferredfrom orderedowner/controlflow, not separatelylogged.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/plan.json",
+        "sha256": "a80155bdeefd7117d358a09cd3e2ed8e53de6dd00003724b98606fc099bc09b0",
+        "bytes": 3965,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/restored.json",
+        "sha256": "e9002894c1f26c9dc2bcb28309ac5756eced04cf5b03c72db87b557d3d3cfdc1",
+        "bytes": 513,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/baseline/native.receipt.json",
+          "sha256": "4786975fb46da190a78dcba43982e2e4acc7586e467a759934ecc5825576e352",
+          "bytes": 1651,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/baseline/native.validation.json",
+          "sha256": "1d87299366a4423820847da05d1d7deaa60f3071ee20391bd23fc61568e6b340",
+          "bytes": 718,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/baseline/native.log",
+          "sha256": "4f206a5a43423ece8c35f43d9dea1017e967dfc6267a397fc6e9e95471ffb1d2",
+          "bytes": 429,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [953.33ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:malformed-boundary [17.79ms]\n\n 2 pass\n 16 filtered out\n 0 fail\n 91 expect() calls\nRan 2 tests across 2 files. [5.83s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/fault/native.receipt.json",
+          "sha256": "4b70a65441930ebb9502a874f6f0d8541a4adcaa9b2955d51cd73db173c52f84",
+          "bytes": 1646,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/fault/native.validation.json",
+          "sha256": "80d3b26e0da7bb2286b34b40e1365f2102320005469039782dfdb6078fd1a866",
+          "bytes": 713,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/fault/native.log",
+          "sha256": "e039dc7e053112c9776ca4992203c83b444d83fba162536e14976939d7eda81c",
+          "bytes": 2090,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n293 |     ],\n294 |   ]) {\n295 |     const observed = await observeReorder(() =>\n296 |       Reflect.apply(port.reorderBindings, port, [organization, address, ids, stamp]),\n297 |     );\n298 |     expect(observed.ok).toBe(false);\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at malformedBoundary (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:298:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:17:13)\n(fail) catalogue reorder sqlite reorder-life:malformed-boundary [765.43ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n293 |     ],\n294 |   ]) {\n295 |     const observed = await observeReorder(() =>\n296 |       Reflect.apply(port.reorderBindings, port, [organization, address, ids, stamp]),\n297 |     );\n298 |     expect(observed.ok).toBe(false);\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at malformedBoundary (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:298:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:malformed-boundary [16.19ms]\n\n 0 pass\n 16 filtered out\n 2 fail\n 69 expect() calls\nRan 2 tests across 2 files. [3.56s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/after/native.receipt.json",
+          "sha256": "c31dccd2d2023d99b6b25260a5e7984eafb97b9eaf464397325c0b06d7cb33d0",
+          "bytes": 1645,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/after/native.validation.json",
+          "sha256": "f1d5c10c19bc86a70ed3698fbb88472a7a35de6d6275fc9677a66cced70623c6",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_array-v1/after/native.log",
+          "sha256": "f005721c8c4a1fb38298f2bd389d344674ce5b5d0a362da07da401829614f194",
+          "bytes": 429,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [932.08ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:malformed-boundary [16.01ms]\n\n 2 pass\n 16 filtered out\n 0 fail\n 91 expect() calls\nRan 2 tests across 2 files. [3.74s]\n"
+      }
+    },
+    {
+      "id": "REORDER_IDS_VALUES",
+      "root": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1",
+      "observed": "Removing onlyperIDvalidation lets directmalformed-boundarycallsresolve inbothadapters. Both rejectflagoraclesfailtrueinsteadfalse;75assertions. Exactrestoreand same2aftercasespass.",
+      "credit": "PerIDadmission inactualpublicports. Numericarray[3]is thefirstaffectedcasefromorderedowner/controlflow; exactinputnotlogged. Otherinvalidscalars/scope/stampchecks andlatertails notcredited.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/plan.json",
+        "sha256": "6562e3002ec9ad3af381004bb82734330ed55d78efc04c0022b7a14488be9145",
+        "bytes": 3905,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/restored.json",
+        "sha256": "cf4470ab0f638fa3e829a414a3c68f06a8f0a221d1dd0f0ed039dacdcb049e32",
+        "bytes": 514,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/baseline/native.receipt.json",
+          "sha256": "578d3387302d0b5294c89a3cccccc63d08c283f4f8eb33977194e023daed2db0",
+          "bytes": 1653,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/baseline/native.validation.json",
+          "sha256": "0f6338100452f5c657151d3d4edf52dfb4b18c6f6f0c9f9fcb360341e02e5391",
+          "bytes": 720,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/baseline/native.log",
+          "sha256": "c8dde6a7d84af50f3bf6ea15b069896bd8d8795e109a80fb1045a6bf0fc6a150",
+          "bytes": 429,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [940.52ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:malformed-boundary [17.14ms]\n\n 2 pass\n 16 filtered out\n 0 fail\n 91 expect() calls\nRan 2 tests across 2 files. [5.72s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/fault/native.receipt.json",
+          "sha256": "7c5dd4d28136e91235ad86e7812d45b4edd83a1cec9b4e76705bbf93c0f0ba95",
+          "bytes": 1648,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/fault/native.validation.json",
+          "sha256": "27e39fafe06c9bde42513431d790677c838152f76e1e53d6d539290ecd485bee",
+          "bytes": 715,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/fault/native.log",
+          "sha256": "9e52fa18a140b3c84a72e34b7c403f00f261e0f177abd5953f8b480a61068d0a",
+          "bytes": 2090,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n293 |     ],\n294 |   ]) {\n295 |     const observed = await observeReorder(() =>\n296 |       Reflect.apply(port.reorderBindings, port, [organization, address, ids, stamp]),\n297 |     );\n298 |     expect(observed.ok).toBe(false);\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at malformedBoundary (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:298:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:17:13)\n(fail) catalogue reorder sqlite reorder-life:malformed-boundary [888.25ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n293 |     ],\n294 |   ]) {\n295 |     const observed = await observeReorder(() =>\n296 |       Reflect.apply(port.reorderBindings, port, [organization, address, ids, stamp]),\n297 |     );\n298 |     expect(observed.ok).toBe(false);\n                              ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at malformedBoundary (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:298:25)\n      at async runCatalogueReorderLifetimeCase (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/catalogue-reorder-lifetime.ts:385:11)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:40:13)\n(fail) catalogue reorder memory reorder-life:malformed-boundary [16.14ms]\n\n 0 pass\n 16 filtered out\n 2 fail\n 75 expect() calls\nRan 2 tests across 2 files. [3.70s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/after/native.receipt.json",
+          "sha256": "c00878bf0bde69bc2d0a6b8d3a2822350abd88415bdb7e47e02a809e8649b4ed",
+          "bytes": 1647,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/after/native.validation.json",
+          "sha256": "3bbd44fae1a25851ee5f07ee3e1becdddec1625208b9a2b1062aea40abfee566",
+          "bytes": 714,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-proof-reorder_ids_values-v1/after/native.log",
+          "sha256": "6038f8575438940775cb793f3f04de3445dd81d80dce22eb75b2c83ebca5f55a",
+          "bytes": 429,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder (memory|sqlite) reorder-life:malformed-boundary$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [722.50ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:malformed-boundary [16.63ms]\n\n 2 pass\n 16 filtered out\n 0 fail\n 91 expect() calls\nRan 2 tests across 2 files. [3.54s]\n"
+      }
+    },
+    {
+      "id": "REORDER_ZERO_UPDATE",
+      "root": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1",
+      "observed": "ActualSQLiteBEFOREUPDATEtriggerignores secondrankUPDATEafterfirstchanged. Normalowner34assertions passespublicrollback, borrowedcaughtrefusalwithunrelatedoutercommit, triggerremovalandhealthyreorder. Removing onlyaffectedrowcheckmakesthefirstpublicpromiseresolveinsteadofreject(27assertions). Exactrestoreand same1aftercasepasses34assertions.",
+      "credit": "Zero-rowpreciseUPDATEguard atfirstpublicrejectionoracle. No independentreturnedidentity-mismatchproof; borrowed/cleanup/latertails arenormalcoverage, notnecessitycreditoncefirstassertionstops.",
+      "plan": {
+        "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/plan.json",
+        "sha256": "069ce5d952821602fb498af02d3479c08b91e18f26f5633c8eafa3c235946848",
+        "bytes": 4144,
+        "mode": 384
+      },
+      "restoration": {
+        "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/restored.json",
+        "sha256": "03b0c5f4c0f39b52e7dd75c0396b363e5a57f9b15b19f2a3707bfcbf32fc6b31",
+        "bytes": 496,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/baseline/native.receipt.json",
+          "sha256": "ee340de308ba5f9a9e44c2c8409fc7e19a6e3a2566c578e3874b46bbca034dce",
+          "bytes": 1555,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/baseline/native.validation.json",
+          "sha256": "96c29a88350d7e167b7c4e43079e82c27cfb274d7fd6ff5912c0020fdb5c33cf",
+          "bytes": 718,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/baseline/native.log",
+          "sha256": "713a73fdffcc577972a7cad63d8564cd9449b7c66bcd29fa3c1ab70b5dc8e31a",
+          "bytes": 272,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:native-zero-update$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:native-zero-update [799.35ms]\n\n 1 pass\n 9 filtered out\n 0 fail\n 34 expect() calls\nRan 1 test across 1 file. [3.63s]\n"
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/fault/native.receipt.json",
+          "sha256": "c8c886f5f6a9245140d0c302345947ea76211a94ed9c4dd5f714adc0bc6da460",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/fault/native.validation.json",
+          "sha256": "aeb6e0b6531d3c2ad2b9ffa00a517e40fc0f4a9039568b252559cac4e3f5e42b",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/fault/native.log",
+          "sha256": "20670ac2d5f7def9e02f30f4109b9770d968362066249432e1f847f4cc26c311",
+          "bytes": 805,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:native-zero-update$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 1,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n92 |         seed.organizationId,\n93 |         scope,\n94 |         ['reorder-native-b', 'reorder-native-a'],\n95 |         seed.stamp,\n96 |       ),\n97 |     ).rejects.toThrow('catalogue reorder binding disappeared');\n                   ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:97:15)\n(fail) catalogue reorder sqlite reorder-life:native-zero-update [767.06ms]\n\n 0 pass\n 9 filtered out\n 1 fail\n 27 expect() calls\nRan 1 test across 1 file. [3.55s]\n"
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/after/native.receipt.json",
+          "sha256": "926fe10a7702075641b3ac454b741fe325d82314edbe88a974eb13025ef7881c",
+          "bytes": 1549,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/after/native.validation.json",
+          "sha256": "e13abe7514fba4598fff7a501de7a940b110b68fd9716a72f51ba26d1b70879c",
+          "bytes": 712,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-native-proof-reorder_zero_update-v1/after/native.log",
+          "sha256": "a09cf8d48f7b2e9063af71fde73b777c34f9c49aa21436861b38371a9693ae4d",
+          "bytes": 272,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000",
+            "--test-name-pattern",
+            "^catalogue reorder sqlite reorder-life:native-zero-update$"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "exitCode": 0,
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:native-zero-update [807.72ms]\n\n 1 pass\n 9 filtered out\n 0 fail\n 34 expect() calls\nRan 1 test across 1 file. [3.53s]\n"
+      }
+    }
+  ],
+  "qualification": "Seven independent omission effects passed their baseline, failed at the recorded first oracle, and passed after exact restoration. The complete 19-case lifetime suite and four library type roots then passed at the recorded successor epoch. Preserve each proof’s limits: combined loan admission does not certify entry versus post-await separately, shared Source closure does not certify each redundant layer, malformed-call logs omit the precise specimen, and the SQLite fault proves zero returned rows rather than an independently mismatched returned identity. Root-authored changes still require Astra review. Remaining UI, project reads, history/import/scheduler/SC17, migration rollout, complete CLI/client-script closure, combined integration and full gates remain open.",
+  "stagingIncident": "InitialnativeownerpreparerBunspawnedPrettierwithpipeprogressoutputfailedEPERMbeforesealing. Dependentmissingconfig/runnercommandsalsofailedandchangednothing. ActualdirectBunformatterthenpassed; separateexactpreimage/candidate seal,publisherandnativefirstsucceeded. Failedstagingartifactsretained; noescalationorapprovalbypass.",
+  "priorQualification": "All7boundedfaults have actual0/1/0controls with exactrestoration and strictnativecustody. Fullsixinventorieschecked before/afterpublicationandnativechecks; eachmutantinstalledonlyafterallpinnedactorswereknownterminal. Initial18casespass537assertions/fourlibrarytyperoots0beforelaternonarraystring/nativeowner additions. Laterselectedaftercontrols coverthenewstring andnativeowner; whole19suitemustbererunafterthiscomments/evidencepacketbeforeclaimingitscount. Do notinferseparateentry/postawait, identitymismatch, unexpectedSQLiteerror/rollbackcleanupfailure orallglobalchecks fromtheseeffects. Rootauthored; allpendingAstrareviewsremainunavailableataccountlimit. No fullUI/settings/projectreads/history/import/scheduler/13fact/migrationrollout/CLIclosure/combinedSHA/gate/releaseclaim.",
+  "successorVerification": {
+    "recordedAt": "2026-11-19T07:27:31.404Z",
+    "sourceEpoch": {
+      "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/source-pins.json",
+      "sha256": "88cf5991c95368363804ee5ec9dd1f9aaa83cb39bb9f9b7eaf3c5f1ce0bc9947",
+      "bytes": 5205256,
+      "mode": 384
+    },
+    "afterControls": {
+      "reorderLifetime": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/reorderLifetime/native.receipt.json",
+          "sha256": "a193517803a830794415272f3849fa6db32c867c57679a21ff1b06afbfd6f858",
+          "bytes": 1540,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/reorderLifetime/native.validation.json",
+          "sha256": "c3e54ad322192fab9e105f0ddcaea7383dc8e2ce61cba7d537c10e762ebeea74",
+          "bytes": 2032,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/reorderLifetime/native.log",
+          "sha256": "6fba90c2a0681859de428ae0bd8d094956f4b640afa04e3ffe9eda24286d4a9d",
+          "bytes": 1598,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "--no-env-file",
+            "--config=/dev/null",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "transcript": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts:\n(pass) catalogue reorder sqlite reorder-life:queued-scope [892.37ms]\n(pass) catalogue reorder sqlite reorder-life:queued-ids [1233.49ms]\n(pass) catalogue reorder sqlite reorder-life:queued-stamp [895.12ms]\n(pass) catalogue reorder sqlite reorder-life:ordinary-expiry [1218.09ms]\n(pass) catalogue reorder sqlite reorder-life:repair-expiry [1082.38ms]\n(pass) catalogue reorder sqlite reorder-life:source-closed [1214.72ms]\n(pass) catalogue reorder sqlite reorder-life:queued-close [979.55ms]\n(pass) catalogue reorder sqlite reorder-life:detached-success [1503.15ms]\n(pass) catalogue reorder sqlite reorder-life:malformed-boundary [841.38ms]\n(pass) catalogue reorder sqlite reorder-life:native-zero-update [808.33ms]\n\nlibs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts:\n(pass) catalogue reorder memory reorder-life:queued-scope [14.84ms]\n(pass) catalogue reorder memory reorder-life:queued-ids [6.72ms]\n(pass) catalogue reorder memory reorder-life:queued-stamp [7.05ms]\n(pass) catalogue reorder memory reorder-life:ordinary-expiry [6.79ms]\n(pass) catalogue reorder memory reorder-life:repair-expiry [7.05ms]\n(pass) catalogue reorder memory reorder-life:source-closed [5.46ms]\n(pass) catalogue reorder memory reorder-life:queued-close [5.28ms]\n(pass) catalogue reorder memory reorder-life:detached-success [5.96ms]\n(pass) catalogue reorder memory reorder-life:malformed-boundary [8.43ms]\n\n 19 pass\n 0 fail\n 577 expect() calls\nRan 19 tests across 2 files. [16.97s]\n"
+      },
+      "types": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/types/native.receipt.json",
+          "sha256": "0e46d749c07fa97db1ba9b9858bdc95606ab7ad2f87a38d2bd61a7b0f314c8bc",
+          "bytes": 1536,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/types/native.validation.json",
+          "sha256": "b4abe36b8a751a01663f2220b407ba449ebc8e001e1de4415b20a4c549f03a00",
+          "bytes": 1999,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-reorder-lifetime-evidence-live-v1/types/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/domain/domain/tsconfig.json",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+          "deadlineMs": 180000
+        },
+        "transcript": ""
+      }
+    },
+    "observed": "All 19 actual Memory/SQLite reorder lifetime and native-fault cases pass, with 577 assertions. This includes the added non-array string and the real SQLite second-UPDATE suppression owner. All four library TypeScript roots pass. Source publication after these controls changes documentation only."
+  }
+}

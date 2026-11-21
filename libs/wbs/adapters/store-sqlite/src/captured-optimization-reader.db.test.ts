@@ -61,7 +61,7 @@ function database(): { readonly db: Drizzle; readonly cleanup: () => void } {
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
        VALUES ('p-1', 'Captured plan', 'u-1', 0, 0, 1)`,
     );
   } finally {
@@ -92,7 +92,7 @@ function store(
 ): void {
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       inputHash: scheduleInputHash(values.input ?? INPUT),
       objective: values.objective,
       contractVersion: CONTRACT,
@@ -121,7 +121,7 @@ function encodedPlan(plan: Schedule = PLAN): string {
 }
 
 const ask = (input: ScheduleInput = INPUT) => ({
-  projectId: 'p-1',
+  workPackageId: 'p-1',
   objective: 'pri' as const,
   input,
   enabled: false,
@@ -225,7 +225,7 @@ describe('capturedOptimizationReaderOf', () => {
       fixture.db
         .insert(solverSlot)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'pri',
@@ -243,7 +243,7 @@ describe('capturedOptimizationReaderOf', () => {
       fixture.db
         .insert(solverQueue)
         .values({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation,
           objective: 'time',
@@ -306,7 +306,7 @@ describe('capturedOptimizationReaderOf', () => {
       });
       fixture.db
         .delete(optimizedScheduleCache)
-        .where(eq(optimizedScheduleCache.projectId, 'p-1'))
+        .where(eq(optimizedScheduleCache.workPackageId, 'p-1'))
         .run();
       store(fixture.db, generation, {
         objective: 'pri',

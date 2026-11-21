@@ -28,6 +28,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 /** Stubs the page's requests, answering every panel not under test with an empty list. */
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
+    'GET /api/organization/steps': [() => answer(200, { definitions: [], bindings: [] })],
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
     'GET /api/organization/provisioning-tokens': [() => answer(200, { tokens: [] })],
     'GET /api/organization/session-policy': [() => answer(200, { policy: null })],
@@ -189,7 +190,7 @@ describe('organization page', () => {
     expect(await screen.findByRole('heading', { name: 'Shared people' })).toBeDefined();
     expect(
       await screen.findByText(
-        'Sharing people across projects is not available in this release yet.',
+        'Sharing people across work packages is not available in this release yet.',
       ),
     ).toBeDefined();
   });
@@ -257,7 +258,9 @@ describe('organization page drawing', () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: 'Remove sam' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Release acme.test' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     await screen.findByRole('button', { name: 'Confirm: share people' });
     const controls = [...document.querySelectorAll('main button, main input, main select')];
     expect(controls.length).toBeGreaterThan(12);
@@ -346,7 +349,7 @@ describe('organization invitations', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send invitation' }));
     expect(await screen.findByText('Invitation sent to ada@acme.test.')).toBeDefined();
-    expect(await screen.findByText('Project viewer', { selector: 'span' })).toBeDefined();
+    expect(await screen.findByText('Work package viewer', { selector: 'span' })).toBeDefined();
     expect(sent.find((request) => request.route.startsWith('POST'))?.body).toEqual({
       email: 'ada@acme.test',
       initialRoleId: 'project-viewer',

@@ -15,13 +15,11 @@ import { bootBe01, type BootOptions, type RunningBe } from '../boot';
 import type { DelegationKeys } from '../config';
 import type { OidcRouteOptions } from '../controller/oidc-options';
 import { openDatabase } from '../repository/db';
-import { runMigrations } from '../repository/migrate';
 import type { DnsTransport } from '../runtime/authoritative-dns/resolver';
 import type { EmailDeliveryConfig } from '../runtime/email-delivery-config';
 import { TEST_JWT_KEY } from './auth-fixture';
+import { migrateOrganizationCatalogueFixture } from './organization-catalogue-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** The trusted origin every request from {@link BootedBrowserProcess} carries. */
 export const BOOTED_ORIGIN = 'http://localhost';
@@ -64,7 +62,7 @@ export class BootedBrowserProcess {
   ): Promise<BootedBrowserProcess> {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-booted-browser-'));
     const dbPath = join(dir, 'test.db');
-    runMigrations(dbPath, FOLDER);
+    migrateOrganizationCatalogueFixture(dbPath);
     let composed: { app: ReturnType<typeof buildApp>; options: AppOptions } | undefined;
     const running = await bootBe01(
       {

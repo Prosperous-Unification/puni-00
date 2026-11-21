@@ -1,6 +1,5 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * The palette, measured by a browser.
@@ -24,7 +23,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   for (const number of ['010', '020']) {
     await addRow.click();

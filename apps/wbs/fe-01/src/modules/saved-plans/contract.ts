@@ -27,37 +27,37 @@ export type SavedPlanListState =
 /**
  * The saved plans' private repository port: the checkpoint routes of be-01, the
  * question whether this node has them at all, and the broadcast that says a
- * project's shelf moved.
+ * work package's shelf moved.
  *
- * Handed to this module by the project composition root and never to delivery,
+ * Handed to this module by the work package composition root and never to delivery,
  * which sees {@link SavedPlans} instead (rule K2).
  */
 export interface SavedPlanRoutes {
   /** Whether this node serves the saved-plan routes; a document that cannot be read rejects. */
   readonly available: () => Promise<boolean>;
-  readonly list: (projectId: string) => Promise<SavedPlanListReply>;
-  readonly save: (projectId: string, name?: string) => Promise<SavedPlanSaveReply>;
+  readonly list: (workPackageId: string) => Promise<SavedPlanListReply>;
+  readonly save: (workPackageId: string, name?: string) => Promise<SavedPlanSaveReply>;
   readonly rename: (savedPlanId: string, name: string) => Promise<SavedPlanRenameReply>;
   readonly remove: (savedPlanId: string) => Promise<SavedPlanRemoveReply>;
   readonly compare: (
-    projectId: string,
+    workPackageId: string,
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
   ) => Promise<SavedPlanCompareReply>;
   /**
-   * Calls `onChange` on every broadcast about the project, until unsubscribed, with the event's
-   * type when the frame names one (`subscribeToProject`'s `changed`) and `null` or nothing when
+   * Calls `onChange` on every broadcast about the work package, until unsubscribed, with the event's
+   * type when the frame names one (`subscribeToWorkPackage`'s `changed`) and `null` or nothing when
    * it does not — including once when the stream comes back after a drop, since what was
    * published in the gap is lost.
    */
   readonly subscribe: (
-    projectId: string,
+    workPackageId: string,
     onChange: (changed?: string | null) => void,
   ) => { unsubscribe(): void };
 }
 
 /**
- * One selected project's saved plans, for as long as its project runtime is the
+ * One selected work package's saved plans, for as long as its work package runtime is the
  * one published — a feature-service (rule K2).
  *
  * The shelf is read once when the runtime is opened, again on every broadcast
@@ -88,7 +88,7 @@ export interface SavedPlans {
    */
   readonly save: (name?: string) => Promise<SavedPlanSaveReply>;
   readonly rename: (savedPlanId: string, name: string) => Promise<SavedPlanRenameReply>;
-  /** Deletes one saved plan, as its creator or the project's owner. */
+  /** Deletes one saved plan, as its creator or the work package's owner. */
   readonly remove: (savedPlanId: string) => Promise<SavedPlanRemoveReply>;
   readonly compare: (
     left: SavedPlanSideRef,
@@ -99,24 +99,24 @@ export interface SavedPlans {
 /** The broadcast `saved-plan.controller.ts` publishes on save, rename and delete (TASK-255). */
 export const SAVED_PLANS_CHANGED = 'saved_plans_changed';
 
-/** What a project runtime opens its saved plans with: the project, and its own liveness. */
+/** What a work package runtime opens its saved plans with: the work package, and its own liveness. */
 export interface SavedPlansReader {
-  readonly projectId: string;
-  /** The project runtime's `isCurrent`, asked synchronously whenever anything happens. */
+  readonly workPackageId: string;
+  /** The work package runtime's `isCurrent`, asked synchronously whenever anything happens. */
   readonly isCurrent: () => boolean;
 }
 
-/** One project's saved plans, and the one way their shelf's watch is given back. */
+/** One work package's saved plans, and the one way their shelf's watch is given back. */
 export interface OpenedSavedPlans {
   readonly savedPlans: SavedPlans;
   /** Stops the shelf's watch and unsubscribes its stream; throws what the stream threw. */
   readonly close: () => void;
 }
 
-/** A saved-plan request asked of a project runtime that has already been withdrawn. */
+/** A saved-plan request asked of a work package runtime that has already been withdrawn. */
 export class SavedPlansWithdrawnError extends Error {
   constructor() {
-    super('project_withdrawn');
+    super('work_package_withdrawn');
     this.name = 'SavedPlansWithdrawnError';
   }
 }

@@ -17,7 +17,7 @@ import type { Logger } from 'drizzle-orm';
 import * as bunSqlite from 'drizzle-orm/bun-sqlite';
 
 import { isSnapshotCleanupUnknown, snapshotDatabase, verifySnapshotBounded } from './backup';
-import { activateDependencies } from './cross-project-dependency-activation';
+import { activateDependencies } from './cross-work-package-dependency-activation';
 import * as connections from './db';
 import {
   type Connection,

@@ -18,7 +18,7 @@ export interface BudgetExhausted {
 }
 
 /**
- * Whether `attempt` may start under the project's budgets (design D69), as
+ * Whether `attempt` may start under the work package's budgets (design D69), as
  * {@link readBudgets} reads them with and without it: the first strict budget
  * of the attempt's work item and its ancestors, nearest first and then by key,
  * that has nothing left (`remaining <= 0`), or that this attempt's hold would

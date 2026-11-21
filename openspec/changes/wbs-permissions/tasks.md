@@ -129,7 +129,7 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       and claim controller tests green on backfilled grants, P7's narrowing visible as
       named refusals; negatives: skip each `authorize` call against its named test;
       watched.
-- [ ] 2.4 Complete 2.4a then 2.4b; keep this parent unchecked until both are proven.
+- [x] 2.4 Complete 2.4a then 2.4b; both are proven in the current-grant checkpoints.
       **2.4a:** rewire the store-side `super_admin` reads (domains, SSO, session policy,
       provisioning, trusted issuers, shared-people restore) to `organization.manage_security`
       in the same transaction, including SSO connection proof and shared-restore approval
@@ -151,10 +151,13 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       `mayAdministerMembership`, `mayInvite`,
       `mayEditProjectWithin`, `isClaimAdmin`, `organizationRoleOf`,
       `roleMaySwitchCapacityMode` and the fixtures' `role:` helper — test: the security
-      controller tests green on grants; `git grep` for each deleted helper answers
-      nothing; `OrganizationScope.role` leaves the type; negative: skip the `authorize`
+      controller tests green on grants; the production declaration/call inventory has no
+      retired helper (negative/Proof string references are intentional); `OrganizationScope.role`
+      leaves the type; negative: skip the `authorize`
       call in `session-policy.ts` and a `project-contributor` sets the session policy;
       watched.
+      Closed by the 2.4a and bounded 2.4b receipts through final role-evidence retirement
+      in verify.md; explicit display/legacy mapping and UI7.1/7.2, #731 and rollout6.4 stay separate.
 - [x] 2.5 After 4.1's current-vocabulary audit foundation: membership routes,
       `changeMemberRole` removed, `listMembers` answers effective
       role and grant count, `removeMember` deletes grants and group memberships in the
@@ -293,6 +296,13 @@ then adds an adjacent `Proof:` comment naming the injected fault and the observe
       predicate and a route grant is deleted; watched.
 
 - [ ] 6.4 Required initial-access deployment boundary: before the offer-selection migration reaches a shared live store, quiesce outgoing invitation acceptance and onboarding mutations before migration, and retire/drain outgoing authorization readers (including existing gateway/WebSocket sessions) before upgraded writers expose new grant semantics, or refuse activation. Prove an old writer cannot consume an offer/create unaudited membership authority and an old reader cannot continue authorizing by legacy roles during the swap. Preserve read availability and rollback contracts. The additive old-writer insert trigger preserves offer intent only; it does not satisfy this boundary (ADR0081). Coordinate the deploy/Bun CLI slice; task2.5 does not claim live cutover.
+
+- [ ] 6.4a Source-transition refusal: implement the closed immutable Git-inventory policy and required admission at each exported target operation before preflight/state/preparation/reset. Deliver and exercise a pinned installed Bun entrypoint before poller marker initialization, already-proven return and incomplete-sync backward reset. Actual scratch-repository tests cover current/target/recovery identities, each protected migration alone, changed/malformed SQL, target deletion, missing/unreadable evidence, separate exported runtime root and supported pre-transition recovery. Observe RED, implement, GREEN; qualify only nonredundant owning boundary omissions separately. No positive cutover permit or parent completion.
+- [ ] 6.4b Direct migration/startup refusal: audit production migrator and store-opening callers; prevent pending SQL and upgraded writer boot without transition provenance, including already-applied migrations and disabled startup migration. Establish isolated bootstrap explicitly; no environment/path/empty-ledger bypass. Prove actual no-effect boundaries.
+- [ ] 6.4c Unsupported adapter refusal: preserve migration-v1 discovery; add separate DB-free initial-access discovery if required. Cover actual Compose/Kubernetes/direct schema-job/manual entrypaths before reader stop, migration, routing or boot. Missing discovery and unsupported lanes refuse; code capability is not live exclusion.
+- [ ] 6.4d Prepare a compatible bridge from exact outgoing build/schema/read/participant/routing/store/capacity evidence. Close and join mutations while preserving authenticated reads; establish immutable snapshot read handoff before live-store stop. Test browser/MCP/export corpus, hidden writes and authority/expiry invariants. No live success implementation without that preparation.
+- [ ] 6.4e Wire the supported deploy owner under its lock: close/join, snapshot reads, exact live-store stop, capture/migrate, healthy candidate read handoff, outgoing HTTP/WS authorizer retirement, durable possible-exposure record, upgraded writers and bound completion. Prove read continuity, cohort changes, unknown retirement and crashes. Other lanes remain refused.
+- [ ] 6.4f Rehearse the preselected recovery paths separately: ordinary reversible additions use exact capture/down/full-baseline-ledger comparison with nonrepresentable-history refusal; an explicitly reviewed snapshot-only entity window uses its verified pre-window snapshot, bound store family, pinned pre-window schema/full ledger and exact compatible code. Preserve authenticated reads and live-store writer exclusion within the prepared deadline. Failed additive down must not select snapshot restoration as fallback. Possible or unknown upgraded-writer exposure, unknown participant ownership/retirement or failed validation must not automatically restart legacy authority. Retain explicit recovery-required state and its manual completion command. Complete independent review and supported-lane rehearsal before checking parent 6.4; record activation separately.
 
 ## 7. fe-01
 

@@ -16,7 +16,7 @@ const sliceOf = (over: Partial<Slice> = {}): Slice => ({
 });
 
 describe('buildSolverSlices', () => {
-  it('projects one wire slice per canonical slice, in the order given', () => {
+  it('work packages one wire slice per canonical slice, in the order given', () => {
     const built = buildSolverSlices(
       [sliceOf({ workItemId: 'A' }), sliceOf({ workItemId: 'B' })],
       none,

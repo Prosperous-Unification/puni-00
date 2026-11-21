@@ -24,7 +24,7 @@ export interface StepNodeReadings {
   /** Each attempt's executor by the same rule, by attempt number. */
   executorNames: ReadonlyMap<number, string | null>;
   /**
-   * The project's IANA zone the attempts are printed in
+   * The work package's IANA zone the attempts are printed in
    * (`step-node-attempts` D3). `null` from a be-01 whose tree read predates
    * the zone: the card then leaves its attempt list and actions out rather
    * than print instants in a zone nobody chose ({@link AttemptsSection}).

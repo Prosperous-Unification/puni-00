@@ -1,17 +1,26 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type JSHandle, type Page } from '@playwright/test';
 import {
-  addStep,
   applyDirectoryCommands,
-  applyProjectCommands,
+  applyWorkPackageCommands,
+  ClientConfigurationError,
   clientFromShapes,
+  type ClientTransport,
   createProject,
+  createWorkPackage,
+  DEPENDENCY_SEMANTICS,
+  type EndpointShape,
+  fetchTransport,
   getWorkItems,
-  listProjects,
+  type HttpHeaders,
   listTags,
+  listWorkPackages,
   type PlanCommandWire,
-  readProject,
-  type TransportReply,
+  readWorkPackage,
+  requiresDependencyClient,
 } from '@wbs/contracts';
+
+import { bindFixtureSteps, type FixtureStep } from './catalogue-fixture';
+import { assertOrdinaryAccount, readOrdinaryFixture } from './ordinary-context';
 
 const CHUNK_SIZE = 200;
 
@@ -33,13 +42,15 @@ export interface PlanRecipeRow {
 
 export interface PlanRecipe {
   name: string;
+  steps?: readonly FixtureStep[];
   rows: readonly PlanRecipeRow[];
   tags?: readonly { ref: string; name: string }[];
 }
 
 export interface SeededPlan {
   projectId: string;
-  projectName: string;
+  workPackageId: string;
+  workPackageName: string;
   rowIds: Readonly<Record<string, string>>;
   stepIds: Readonly<Record<string, string>>;
   tagIds: Readonly<Record<string, string>>;
@@ -49,10 +60,6 @@ function fixtureName(name: string, identity: PlanFixtureIdentity): string {
   return `${name} [${identity.run}/w${String(identity.worker)}/${identity.test}]`;
 }
 
-function escaped(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 interface NormalizedRecipeRow extends Omit<PlanRecipeRow, 'afterRef'> {
   afterRef: string | null;
 }
@@ -60,10 +67,10 @@ interface NormalizedRecipeRow extends Omit<PlanRecipeRow, 'afterRef'> {
 function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[] {
   const rowRefs = new Set<string>();
   for (const row of recipe.rows) {
-    // Proof: deleting this refusal made the duplicate-recipe-ref browser case observe a project POST.
+    // Proof: deleting this refusal made the duplicate-recipe-ref browser case observe a work package POST.
     if (rowRefs.has(row.ref)) throw new Error(`duplicate recipe row ref: ${row.ref}`);
     // Proof: removing this refusal made `an unavailable predecessor fails before a write request`
-    // observe one project POST before the later unresolved-ref refusal.
+    // observe one work package POST before the later unresolved-ref refusal.
     if (row.afterRef !== undefined && !rowRefs.has(row.afterRef))
       throw new Error(`recipe row ${row.ref} follows unavailable ref: ${row.afterRef}`);
     rowRefs.add(row.ref);
@@ -71,14 +78,14 @@ function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[]
   const tagRefs = new Set<string>();
   for (const tag of recipe.tags ?? []) {
     // Proof: removing this refusal made `a duplicate tag ref fails before a write request`
-    // observe one project POST before directory identity verification refused.
+    // observe one work package POST before directory identity verification refused.
     if (tagRefs.has(tag.ref)) throw new Error(`duplicate recipe tag ref: ${tag.ref}`);
     tagRefs.add(tag.ref);
   }
   for (const row of recipe.rows) {
     for (const tagRef of row.tagRefs ?? []) {
       // Proof: removing this refusal made `an unknown row tag ref fails before a write request`
-      // observe one project POST before the later missing-id refusal.
+      // observe one work package POST before the later missing-id refusal.
       if (!tagRefs.has(tagRef)) throw new Error(`unknown recipe tag ref: ${tagRef}`);
     }
   }
@@ -104,38 +111,254 @@ function calculateExpectedRowRefs(rows: readonly PlanRecipeRow[]): readonly stri
   return orderedRefs;
 }
 
-function pageTransport(page: Page) {
-  return async (
-    shape: { method: string; path: string },
-    input: { params: Record<string, string | undefined>; body: unknown },
-  ): Promise<TransportReply> => {
-    const path = shape.path
-      .split('/')
-      .map((segment) =>
-        segment.startsWith(':')
-          ? encodeURIComponent(input.params[segment.slice(1)] ?? '')
-          : segment,
-      )
-      .join('/');
-    return page.evaluate(
-      async ({ method, path, body }) => {
-        const response = await fetch(path, {
-          method,
-          headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-          body: body === undefined ? undefined : JSON.stringify(body),
-        });
-        const headers = [...response.headers.entries()];
-        if (response.status === 204) return { kind: 'empty' as const, status: 204, headers };
-        return {
-          kind: 'json' as const,
-          status: response.status,
-          headers,
-          body: JSON.parse(await response.text()) as unknown,
-        };
-      },
-      { method: shape.method, path, body: input.body },
-    );
+/** Pins the current fixture organization while preserving supplied headers and exact operation claims. */
+function prepareOrdinaryHeaders(
+  shape: EndpointShape,
+  organizationId: string,
+  supplied?: HttpHeaders,
+): [string, string][] {
+  let headers: Headers;
+  try {
+    headers = new Headers(supplied);
+  } catch (cause) {
+    throw new ClientConfigurationError('Cannot encode ordinary fixture headers', { cause });
+  }
+  const expected = headers.get('X-WBS-Expected-Organization');
+  if (expected !== null && expected !== organizationId)
+    throw new ClientConfigurationError('Ordinary request conflicts with its captured organization');
+  headers.set('X-WBS-Expected-Organization', organizationId);
+  if (requiresDependencyClient(shape))
+    headers.set('X-WBS-Dependency-Semantics', DEPENDENCY_SEMANTICS);
+  return [...headers.entries()];
+}
+
+/** Captures the actual run's organization and descriptor-specific headers before entering page.evaluate. */
+export function createOrdinaryHeaders(
+  shape: EndpointShape,
+  supplied?: HttpHeaders,
+): [string, string][] {
+  return prepareOrdinaryHeaders(shape, readOrdinaryFixture().organizationId, supplied);
+}
+
+/** One browser-realm response, reader and latest read promise owned by one host response. */
+export interface PageResponseState {
+  response: Response;
+  reader: ReadableStreamDefaultReader<Uint8Array> | null;
+  reading: Promise<PageResponseRead> | null;
+}
+
+type PageResponseRead =
+  { kind: 'chunk'; done: boolean; bytes: number[] } | { kind: 'failed'; cause: unknown };
+
+/**
+ * Hands status to the public client before touching body bytes; its discard cancels the actual browser body.
+ * All ownership is local to this request. A zero-watermark stream does not pull before the SDK reads it.
+ */
+export async function retainPageResponse(owned: JSHandle<PageResponseState>): Promise<Response> {
+  let pendingRead: Promise<PageResponseRead> | undefined;
+  let cancelled = false;
+  /** Reads callback-mutated cancellation afresh at each awaited protocol boundary. */
+  const isCancelled = (): boolean => cancelled;
+  let releasing:
+    | Promise<{
+        causes: unknown[];
+        readFailureIncluded: boolean;
+        pendingReadFailureIncluded: boolean;
+      }>
+    | undefined;
+
+  const release = (discard: boolean) =>
+    (releasing ??= (async () => {
+      const joining = pendingRead;
+      let causes: unknown[] = [];
+      let readFailureIncluded = false;
+      let pendingReadFailureIncluded = false;
+      try {
+        const cleaned = await owned.evaluate(async (state, discard) => {
+          const reading = state.reading;
+          let cancelFailure: { cause: unknown } | null = null;
+          if (discard) {
+            try {
+              if (state.reader !== null) await state.reader.cancel();
+              else if (state.response.body !== null) await state.response.body.cancel();
+            } catch (cause) {
+              cancelFailure = { cause };
+            }
+          }
+          const read = reading === null ? null : await reading;
+          const causes: unknown[] = [];
+          if (read?.kind === 'failed') causes.push(read.cause);
+          // An errored reader's cancel rejects with the same stored read reason; retain that rejection once.
+          if (
+            cancelFailure !== null &&
+            !(read?.kind === 'failed' && Object.is(read.cause, cancelFailure.cause))
+          )
+            causes.push(cancelFailure.cause);
+          if (state.reader !== null) {
+            try {
+              state.reader.releaseLock();
+            } catch (cause) {
+              causes.push(cause);
+            }
+            state.reader = null;
+          }
+          return { causes, readFailureIncluded: read?.kind === 'failed' };
+        }, discard);
+        causes = cleaned.causes;
+        readFailureIncluded = cleaned.readFailureIncluded;
+      } catch (cause) {
+        causes.push(cause);
+      }
+      if (joining !== undefined) {
+        try {
+          await joining;
+        } catch (cause) {
+          pendingReadFailureIncluded = true;
+          causes.push(cause);
+        }
+      }
+      try {
+        await owned.dispose();
+      } catch (cause) {
+        causes.push(cause);
+      }
+      return { causes, readFailureIncluded, pendingReadFailureIncluded };
+    })());
+
+  const refuse = (causes: unknown[]): void => {
+    if (causes.length === 1) throw causes[0];
+    if (causes.length > 1)
+      throw new AggregateError(causes, 'Page response operation and cleanup failed', {
+        cause: causes[0],
+      });
   };
+  let metadata: { status: number; headers: [string, string][]; hasBody: boolean };
+  try {
+    metadata = await owned.evaluate(({ response }) => ({
+      status: response.status,
+      headers: [...response.headers.entries()],
+      hasBody: response.body !== null,
+    }));
+  } catch (primary) {
+    const cleanup = await release(true);
+    refuse([primary, ...cleanup.causes]);
+    throw primary;
+  }
+  if (!metadata.hasBody || metadata.status === 0 || [204, 205, 304].includes(metadata.status)) {
+    const cleanup = await release(metadata.hasBody);
+    refuse(cleanup.causes);
+    if (metadata.status === 0) return Response.error();
+    return new Response(null, { status: metadata.status, headers: metadata.headers });
+  }
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        if (isCancelled()) return;
+        const reading = owned.evaluate((state): Promise<PageResponseRead> => {
+          if (state.reader === null) {
+            if (state.response.body === null)
+              return Promise.resolve({ kind: 'chunk', done: true, bytes: [] });
+            state.reader = state.response.body.getReader();
+          }
+          state.reading = state.reader.read().then(
+            (chunk): PageResponseRead => ({
+              kind: 'chunk',
+              done: chunk.done,
+              bytes: chunk.done ? [] : [...chunk.value],
+            }),
+            (cause: unknown): PageResponseRead => ({ kind: 'failed', cause }),
+          );
+          return state.reading;
+        });
+        pendingRead = reading;
+        let read: PageResponseRead;
+        try {
+          read = await reading;
+        } catch (primary) {
+          if (isCancelled()) return;
+          const cleanup = await release(true);
+          if (isCancelled()) return;
+          refuse(
+            cleanup.pendingReadFailureIncluded ? cleanup.causes : [primary, ...cleanup.causes],
+          );
+          throw primary;
+        }
+        if (isCancelled()) return;
+        if (read.kind === 'failed') {
+          const cleanup = await release(true);
+          if (isCancelled()) return;
+          refuse(cleanup.readFailureIncluded ? cleanup.causes : [read.cause, ...cleanup.causes]);
+          throw read.cause;
+        }
+        if (read.done) {
+          const cleanup = await release(false);
+          if (isCancelled()) return;
+          refuse(cleanup.causes);
+          controller.close();
+        } else controller.enqueue(new Uint8Array(read.bytes));
+      },
+      async cancel() {
+        cancelled = true;
+        const cleanup = await release(true);
+        refuse(cleanup.causes);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  try {
+    return new Response(stream, { status: metadata.status, headers: metadata.headers });
+  } catch (primary) {
+    cancelled = true;
+    const cleanup = await release(true);
+    refuse([primary, ...cleanup.causes]);
+    throw primary;
+  }
+}
+
+/**
+ * Encodes actual requests canonically and retains their browser response until SDK consumption or discard.
+ * Client pre/post-await cancellation is preserved; this bridge does not forward a network AbortSignal.
+ */
+export function pageTransport(page: Page, organizationId: string): ClientTransport {
+  const fixture = readOrdinaryFixture();
+  if (organizationId !== fixture.organizationId)
+    throw new ClientConfigurationError(
+      'Ordinary transport organization differs from its current run',
+    );
+  const send = fetchTransport(
+    fixture.appOrigin,
+    async (url, init) => {
+      if (
+        new URL(url).origin !== fixture.appOrigin ||
+        new URL(page.url()).origin !== fixture.appOrigin
+      )
+        throw new ClientConfigurationError('Ordinary transport refuses a foreign origin');
+      const body = init.body;
+      if (body !== undefined && typeof body !== 'string')
+        throw new ClientConfigurationError('Canonical ordinary request body is not encoded JSON');
+      const owned = await page.evaluateHandle(
+        async ({ url, method, headers, body, redirect }): Promise<PageResponseState> => ({
+          response: await fetch(url, { method, headers, body, redirect }),
+          reader: null,
+          reading: null,
+        }),
+        {
+          url,
+          method: init.method,
+          headers: [...new Headers(init.headers).entries()],
+          body,
+          redirect: init.redirect,
+        },
+      );
+      return retainPageResponse(owned);
+    },
+    DEPENDENCY_SEMANTICS,
+  );
+  return (shape, input) =>
+    send(shape, {
+      ...input,
+      headers: prepareOrdinaryHeaders(shape, organizationId, input.headers),
+    });
 }
 
 export function fixtureSuccess<T extends { kind: string; status?: number }>(
@@ -146,20 +369,20 @@ export function fixtureSuccess<T extends { kind: string; status?: number }>(
   return reply as Extract<T, { kind: 'success' }>;
 }
 
-/** Generated-shape client carried through the browser's authenticated same-origin fetch. */
+/** Generated-shape client pins the current ordinary organization through authenticated same-origin fetch. */
 export function fixtureClient(page: Page) {
   return clientFromShapes(
     [
+      createWorkPackage,
       createProject,
-      readProject,
-      addStep,
-      applyProjectCommands,
+      readWorkPackage,
+      applyWorkPackageCommands,
       applyDirectoryCommands,
       getWorkItems,
-      listProjects,
+      listWorkPackages,
       listTags,
     ] as const,
-    pageTransport(page),
+    pageTransport(page, readOrdinaryFixture().organizationId),
   );
 }
 
@@ -217,17 +440,35 @@ export async function seedPlan(
 ): Promise<SeededPlan> {
   const recipeRows = normalizeRecipeRows(recipe);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  await assertOrdinaryAccount(page);
   const client = fixtureClient(page);
-  const projectName = fixtureName(recipe.name, identity);
+  const workPackageName = fixtureName(recipe.name, identity);
+  let projectId = readOrdinaryFixture().projectId;
+  if (recipe.steps !== undefined) {
+    const project = fixtureSuccess(
+      'postApiProjects',
+      await client.postApiProjects({ body: { name: workPackageName } }),
+    ).body.project;
+    projectId = project.id;
+    const ordinary = readOrdinaryFixture();
+    await bindFixtureSteps(
+      page.request,
+      ordinary.appOrigin,
+      ordinary.organizationId,
+      projectId,
+      recipe.steps,
+    );
+  }
   const created = fixtureSuccess(
-    'postApiProjects',
-    await client.postApiProjects({ body: { name: projectName } }),
+    'postApiWorkPackages',
+    await client.postApiWorkPackages({
+      body: { projectId, name: workPackageName },
+    }),
   ).body;
-  const projectId = created.project.id;
+  const workPackageId = created.workPackage.id;
   const read = fixtureSuccess(
-    'getApiProjectsById',
-    await client.getApiProjectsById({ params: { id: projectId } }),
+    'getApiWorkPackagesById',
+    await client.getApiWorkPackagesById({ params: { id: workPackageId } }),
   ).body;
   const stepIdByName = new Map(read.steps.map((step) => [step.name, step.id]));
   const stepIds = Object.fromEntries(stepIdByName);
@@ -257,7 +498,7 @@ export async function seedPlan(
   for (const tag of tags) {
     const tagId = tagIds[tag.ref];
     // Proof: removing this directory comparison made the swapped-successful-tag-ids
-    // case resolve and start its project commands instead of refusing here.
+    // case resolve and start its work package commands instead of refusing here.
     expect(storedTagById.get(tagId)?.name, `stored tag identity for ${tag.ref}`).toBe(tag.name);
   }
 
@@ -287,11 +528,14 @@ export async function seedPlan(
       };
     });
     const answer = fixtureSuccess(
-      'postApiProjectsByIdCommands',
-      await client.postApiProjectsByIdCommands({ params: { id: projectId }, body: { commands } }),
+      'postApiWorkPackagesByIdCommands',
+      await client.postApiWorkPackagesByIdCommands({
+        params: { id: workPackageId },
+        body: { commands },
+      }),
     );
     for (const [ref, id] of Object.entries(
-      assertCommandResults('postApiProjectsByIdCommands', commands, answer.body.results),
+      assertCommandResults('postApiWorkPackagesByIdCommands', commands, answer.body.results),
     ))
       rowIdByRef.set(ref, id);
   }
@@ -320,15 +564,18 @@ export async function seedPlan(
   for (let start = 0; start < authored.length; start += CHUNK_SIZE) {
     const commands = authored.slice(start, start + CHUNK_SIZE);
     const answer = fixtureSuccess(
-      'postApiProjectsByIdCommands',
-      await client.postApiProjectsByIdCommands({ params: { id: projectId }, body: { commands } }),
+      'postApiWorkPackagesByIdCommands',
+      await client.postApiWorkPackagesByIdCommands({
+        params: { id: workPackageId },
+        body: { commands },
+      }),
     );
-    assertCommandResults('postApiProjectsByIdCommands', commands, answer.body.results);
+    assertCommandResults('postApiWorkPackagesByIdCommands', commands, answer.body.results);
   }
 
   const tree = fixtureSuccess(
-    'getApiProjectsByIdWork-items',
-    await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
+    'getApiWorkPackagesByIdWork-items',
+    await client['getApiWorkPackagesByIdWork-items']({ params: { id: workPackageId } }),
   ).body;
   // Proof: replacing this original-recipe placement calculation with recipe array
   // order made the explicit sibling case expect [a,b,c] from the stored [a,c,b].
@@ -350,19 +597,29 @@ export async function seedPlan(
       (expected.tagRefs ?? []).map((ref) => tagIds[ref]).sort(),
     );
   }
-  return { projectId, projectName, rowIds, stepIds, tagIds };
+  return { projectId, workPackageId, workPackageName, rowIds, stepIds, tagIds };
 }
 
-/** Opens a seeded plan through the real picker-facing selected-project state. */
-export async function openSeededPlan(page: Page, seeded: SeededPlan): Promise<void> {
+/** Opens a seeded plan through the real picker-facing selected-work-package state. */
+export async function openSeededPlan(
+  page: Page,
+  seeded: Pick<SeededPlan, 'workPackageId' | 'workPackageName'>,
+): Promise<void> {
   await page.goto('/');
-  const picker = page.getByRole('combobox', { name: 'Project' });
+  const picker = page.getByRole('combobox', { name: 'Work package' });
   await picker.click();
-  await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
-  await picker.fill(seeded.projectName);
-  await page.getByRole('option', { name: new RegExp(`^${escaped(seeded.projectName)}`) }).click();
-  await expect(picker).toHaveValue(seeded.projectName);
+  await expect(page.getByRole('listbox', { name: 'Work packages' })).toBeVisible();
+  await picker.fill(seeded.workPackageName);
+  const optionId = await page.evaluate(
+    (id) => CSS.escape('work-package-option-' + id),
+    seeded.workPackageId,
+  );
+  await page
+    .getByRole('listbox', { name: 'Work packages' })
+    .locator('#' + optionId)
+    .click();
+  await expect(picker).toHaveValue(seeded.workPackageName);
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('wbs.project')))
-    .toBe(seeded.projectId);
+    .poll(() => page.evaluate(() => localStorage.getItem('wbs.workPackage')))
+    .toBe(seeded.workPackageId);
 }

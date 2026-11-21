@@ -1,0 +1,793 @@
+{
+  "schema": "space-member-ui-verification-v108",
+  "goalStatus": "active",
+  "classification": "progress",
+  "intent": {
+    "problem": "Named-space people and team belonging had current endpoints and coherent reads but no management UI.",
+    "outcome": "Show scoped directory names, bodyless add/remove and authoritative membership rereads with explicit observed states and retired-owner protection.",
+    "nonGoals": "No access grants, capacity or scheduling changes; this does not finish the full entity/catalogue/CLI/release goal.",
+    "assumptions": [
+      "Named active organization owns membership panels; virtual all has none; legacy context explains selection.",
+      "Both person and agent directory identities may belong.",
+      "A missing current directory label represents concurrent membership change; withhold the affected section and offer refresh.",
+      "A read/editor must fence the shared client before a late refusal can withdraw its successor."
+    ]
+  },
+  "verification": {
+    "ui": {
+      "pass": 83,
+      "fail": 0,
+      "files": 5,
+      "newMembershipCases": 14
+    },
+    "browser": {
+      "pass": 4,
+      "fail": 0,
+      "widths": [375, 1280],
+      "themes": ["light", "dark"],
+      "api": "fixture boundary; actual Vite frontend",
+      "ordinaryFullStackGate": false
+    },
+    "frontendCompilerRoots": 8,
+    "browserCompilerRoots": 5,
+    "lintOwners": 4,
+    "faults": 10,
+    "sourceFiles": 6136,
+    "priorScopedSourceFiles": 6106,
+    "additionalExistingFiles": 27,
+    "curatedPins": 674
+  },
+  "checks": [
+    {
+      "name": "space-members-ui-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-members-ui-red-v1.receipt.json",
+        "sha256": "85129177299b11fa468bd8c4aa8d0066aa5e615d0bd64a956f7726bd51c5f7ed",
+        "bytes": 1629,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-members-ui-red-v1.log",
+        "sha256": "96a6f3e01d39c126c9f26c5d491012cb75c63fed7303f298fb10764b854e9957",
+        "bytes": 174539,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-members-ui-navigation-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-members-ui-navigation-red-v1.receipt.json",
+        "sha256": "6a853cca4c9f07bfb0c5b6acae4db13d50ba2860b63ab4c7f76cc06202442b08",
+        "bytes": 1649,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-members-ui-navigation-red-v1.log",
+        "sha256": "cfbcf2a7b07a135f60b2e0172b9a12e64fa6661415c13f073cb86beeba38d5c9",
+        "bytes": 3798,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-final-regression-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "src/components/spaces/space-page.test.tsx",
+          "src/components/spaces/spaces-page.test.tsx",
+          "src/components/projects/scoped-step-settings.test.tsx",
+          "src/app-router.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-regression-v2.receipt.json",
+        "sha256": "b2e0a0e4dabc27381144aaa9e19e59ee34490028d9284d1153b26605ec3123c8",
+        "bytes": 1850,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-regression-v2.log",
+        "sha256": "8255fb49c41ddc4fadc59455c76443555a000853303f259347b6b4acdb3632a9",
+        "bytes": 6976,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-final-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-space-members-frontend-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-types-v2.receipt.json",
+        "sha256": "fac4d6b526f8f3b61ba6d7fd88d6131a1c7003d89a08435e3049303495923e89",
+        "bytes": 1350,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-browser-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-space-member-browser-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-browser-types-v2.receipt.json",
+        "sha256": "ab7b7ed05a9c611384c7cdf85cf83797b1163fa75b437297271395f86fb079c0",
+        "bytes": 1352,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-browser-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-final-lint-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/fe-01/src/components/spaces/space-members.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-members.test.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-page.tsx",
+          "apps/wbs/fe-01/e2e/space-members.spec.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-lint-v3.receipt.json",
+        "sha256": "ba098c6bf3440aa1f59c5d0504159514260423d845049ec64859d1a9e5773f18",
+        "bytes": 1511,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-lint-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-final-format-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/fe-01/src/components/spaces/space-members.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-members.test.tsx",
+          "apps/wbs/fe-01/src/components/spaces/space-page.tsx",
+          "apps/wbs/fe-01/e2e/space-members.spec.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-format-v3.receipt.json",
+        "sha256": "9aecd5a2853f10dbc205f652b7ed839cbe1567ea39cddf74b0edf8a3774b5481",
+        "bytes": 1539,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-final-format-v3.log",
+        "sha256": "a1c268eaa63deba5f1b2e2f1aad804c4556420cc0040a9d0dbd6f3e1813066cf",
+        "bytes": 265,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-doc-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "openspec/changes/wbs-work-packages/verify.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-doc-format-v1.receipt.json",
+        "sha256": "d6d2a077ada0abf9dfc3118eeb95641c0c492435a5862472a9a7e19decfcdedb",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-doc-format-v1.log",
+        "sha256": "ead07787174e8940b9c4ccaf4af8c31b1fef6e647f590de12b5df4ca8a687f21",
+        "bytes": 132,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-source-audit-v108-final",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-space-member-ui-audit-v108-final.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-source-audit-v108-final.receipt.json",
+        "sha256": "45aa43fac709fbf4fb937591163aead1f98b4e5bb3333a36700bf4027d394630",
+        "bytes": 1300,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-source-audit-v108-final.log",
+        "sha256": "0a70d8e0778cda331a034006b48a26adf739704f722eef04fa44c2c2d8276bd5",
+        "bytes": 84,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-chromium-final-v8",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-space-member-browser-run-v8.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-chromium-final-v8.receipt.json",
+        "sha256": "15c61af639586ad38117b3ef66ff69e5239d36000b90b2b44d11feea445feecb",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-chromium-final-v8.log",
+        "sha256": "c41d07218568c96072225927043ef773e920bc9163af23d5b1eb92e82213953f",
+        "bytes": 721,
+        "mode": 384
+      }
+    }
+  ],
+  "faultChecks": [
+    {
+      "name": "space-member-ui-fault-directory-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "ignores a superseded directory refusal"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-directory-owner-v1.receipt.json",
+        "sha256": "0b9a6d6614ca213c55b3651af1077e976def0a6fb319162a4e79c4aa84489efb",
+        "bytes": 1721,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-directory-owner-v1.log",
+        "sha256": "81c60cdbaa908e070d1e1f3174ba4a16dda3fd4264bc9426afd69a61811f1a27",
+        "bytes": 3542,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-write-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "fences a held write and its draft"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-write-owner-v1.receipt.json",
+        "sha256": "aaa83365377d9f1f30341c232ffe0a9d87c8b3ec296cdd9c50b96252e0164cb7",
+        "bytes": 1708,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-write-owner-v1.log",
+        "sha256": "16c46af06b72b54dac371733a9e345f50cd27cc9f18ce51e618951c4c4ea009a",
+        "bytes": 3601,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-navigation-owner-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "retires the old membership editor"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-navigation-owner-v1.receipt.json",
+        "sha256": "0e7e18c9e649a800ebeb687e56d6b58e690ef16875bf0d842545efd493677575",
+        "bytes": 1718,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-navigation-owner-v1.log",
+        "sha256": "04c3185316baaafbc957be1bb12c481fda2442242cf6a0bc725ddc086b816f97",
+        "bytes": 2810,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-directory-identity-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "rejects duplicate directory identities"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-directory-identity-v1.receipt.json",
+        "sha256": "bf290521231573d320cb35628af36b46d63b05c402b5159d5ac31230fa03b950",
+        "bytes": 1728,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-directory-identity-v1.log",
+        "sha256": "9fabfc4d2d107bad62b7a6475620271009ec939b423227c0f5cbf020d0dacbac",
+        "bytes": 17165,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-changed-members-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "withholds changed membership"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-changed-members-v1.receipt.json",
+        "sha256": "cc55527e062a55de31903d2d1d144f72d09e0280cd97cc473231fd2f8dd289f8",
+        "bytes": 1711,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-changed-members-v1.log",
+        "sha256": "8c04a79ce742c9facd90fd893125034b45c90f3cc12d76ea7fb9e6acdd57d763",
+        "bytes": 8561,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-viewer-controls-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "shows members to a viewer"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-viewer-controls-v1.receipt.json",
+        "sha256": "2328d3b914d04f54be9e6ce8dae3a41cc55705ea460aad1b9468ba46b9449d6b",
+        "bytes": 1708,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-viewer-controls-v1.log",
+        "sha256": "90ad58adef339f81e3886902c534207a641b5d4c9fa995e2e0779a52fca42ce2",
+        "bytes": 3306,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-virtual-space-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "does not invent belonging for virtual all"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-virtual-space-v1.receipt.json",
+        "sha256": "63d8281f9ba04fe11c355c7faaaf3b543647c077fc7282efdc8659b33a744d08",
+        "bytes": 1720,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-virtual-space-v1.log",
+        "sha256": "7fd046f98399c8bd79f6668113e748bd3b97788e58fca8b6fb294b3f7960844f",
+        "bytes": 4167,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-organization-context-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "does not invent belonging for virtual all"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-organization-context-v1.receipt.json",
+        "sha256": "56b8ef2a89434709daec82f373b6896fdddd509a24446086ae0145723aff47ce",
+        "bytes": 1735,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-organization-context-v1.log",
+        "sha256": "8c8589b596822765086fca5c0447d3da12fe2436b9601e88dc3c31c92e4cf848",
+        "bytes": 17189,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-fault-write-admission-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/bin:/usr/bin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "/tmp/puni-space-groups-vitest-v1.ts",
+          "--configLoader",
+          "bundle",
+          "src/components/spaces/space-members.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=10000",
+          "-t",
+          "admits only one write"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-write-admission-v1.receipt.json",
+        "sha256": "7da5671b30446c031c554937909e6ad6df748bf085749317651cd0bd489aba05",
+        "bytes": 1705,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-fault-write-admission-v1.log",
+        "sha256": "814e43f539327dc8606cbc562dc12a509f50bff998ba3900d78d3155a62516cb",
+        "bytes": 10086,
+        "mode": 384
+      }
+    },
+    {
+      "name": "space-member-ui-height-fault-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "/tmp/puni-space-member-browser-run-v6.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-height-fault-v1.receipt.json",
+        "sha256": "f0e918baa0b28b81568910fbe13d8b58d0f5d1bb586d2f1a896fa77dfacaf692",
+        "bytes": 1281,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-height-fault-v1.log",
+        "sha256": "a22695385b7387346c518374b1ab52c3f8bcec23fa54c02af9c8ab2112ca72dc",
+        "bytes": 2136,
+        "mode": 384
+      }
+    }
+  ],
+  "proofArchive": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-faults-v1/proofs.json",
+    "sha256": "e328f7aecda881ab063164230d8db01d443e97de2f8d0bf19a1c7a9ce18c681d",
+    "bytes": 23988,
+    "mode": 436
+  },
+  "touchProof": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-member-height-proof-v1.json",
+    "sha256": "4f75331abf4ccc654d26a87532455044e5de63b2642d1d01460a744fe46f8ca9",
+    "bytes": 374,
+    "mode": 436
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/space-member-ui-source-audit-v108-final.json",
+    "sha256": "995904cfa680a40d00294f8680e403895f782f9c06b12ad61bfe9029188f5276",
+    "bytes": 1707338,
+    "mode": 384
+  },
+  "browserBridge": {
+    "canonical": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/space-members.spec.ts",
+      "sha256": "e45dfbf2c38b6f2373c66b6416b5a5cd5670beaef36bd0b8c703935675e47284",
+      "bytes": 5579,
+      "mode": 436
+    },
+    "executed": {
+      "path": "/tmp/puni-space-member-browser-v1/membership.spec.ts",
+      "sha256": "66fea4f69c3b7d9d5ee2e957e9fbec4b22969eaa871d46d91dda414b70db6255",
+      "bytes": 5692,
+      "mode": 436
+    },
+    "onlyChanges": "Two import bindings select the base installed runner and absolute production fixture import. Ordinary full-stack metadata is not supplied or certified.",
+    "config": {
+      "path": "/tmp/puni-space-members-playwright-v8.mts",
+      "sha256": "1a14a47c15fe7ef0172c73558a53a7920fea86b2e2848f382d3fa9fcb1d7fa10",
+      "bytes": 531,
+      "mode": 436
+    },
+    "ownerProgram": {
+      "path": "/tmp/puni-space-member-browser-run-v8.ts",
+      "sha256": "8819fffe84d652450d39c1653e8e09c8880edc93c2cee358d41e3e169a089c78",
+      "bytes": 1563,
+      "mode": 436
+    },
+    "report": {
+      "path": "/tmp/puni-space-member-browser-v1/report-v8.json",
+      "sha256": "26b9c98ce5cf58a08ed87308f934afa3f88d8e7df1f0a3f4a169c3f52af8f80a",
+      "bytes": 5974,
+      "mode": 436
+    },
+    "captures": [
+      {
+        "path": "/tmp/puni-space-member-browser-v1/output-v8/membership-space-members-at-1280px-dark/membership.png",
+        "sha256": "67d852b11b48a8c7182c7cd21f00fe14ffe08968f5a003dce20cf49267343d22",
+        "bytes": 61597,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-space-member-browser-v1/output-v8/membership-space-members-at-1280px-light/membership.png",
+        "sha256": "312dc75a489cc7f5326ff111e6a307d27defb16ae8947810b742265200e4851d",
+        "bytes": 60718,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-space-member-browser-v1/output-v8/membership-space-members-at-375px-dark/membership.png",
+        "sha256": "c77fc54eaf4150f1701d5b509cca34ee14043dd4004e9e27c5b7cb5da4aef37e",
+        "bytes": 52730,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-space-member-browser-v1/output-v8/membership-space-members-at-375px-light/membership.png",
+        "sha256": "b49afadb81ef541382e61c62b9af2c0e9049fca3490b91f40a71c38f42ef2400",
+        "bytes": 51345,
+        "mode": 436
+      }
+    ]
+  },
+  "qualifications": [
+    "All ten faults restore their exact captured bytes/modes. Final source adds Proof/JSDoc comments, formatting and private verb-object function/test-helper renames; fresh final UI/browser/types/lint checks cover that state. The complete API/UI guard matrix and Astra review remain open.",
+    "Earlier browser attempts separately record sandbox listen denial, direct Bun Playwright loading failure, legacy onboarding fixture and ambiguous locator. No retry is configured in the passing browser run.",
+    "Two initial inventory checks correctly refused the unexpected broader roots and the not-yet-declared owned spec update. The final expanded scan validates 27 additional existing files against the saved Git tree. Prior full-mode evidence and retired-consumer coverage are not invented.",
+    "No backend/domain/Memory/full Source/build/secrets/migration/exact-SHA host gate or public delivery ran in this slice. No install, protected archive edit, new agent or Astra retry.",
+    "Tasks4.6/4.6.4/4.6.5 remain open. Warm400ms performance, frozen scheduler identity/document history, all13 facts/all15 history guarantees and complete PUNI/Bun client surface remain required.",
+    "Astra remains unavailable until recorded2026-11-22 10:09AM, timezone unspecified."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

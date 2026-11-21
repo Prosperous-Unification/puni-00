@@ -1,8 +1,8 @@
 /**
  * The three bounds on saved plans, and the two decisions taken against them.
  *
- * Spec: "A body over **8 MiB**, a project already holding **100** saved plans,
- * or a project whose saved plans already total **64 MiB** SHALL cause the save
+ * Spec: "A body over **8 MiB**, a work package already holding **100** saved plans,
+ * or a work package whose saved plans already total **64 MiB** SHALL cause the save
  * to be refused before any header or body is written, with a typed outcome
  * naming which limit was reached. Those three numbers SHALL be configuration,
  * changeable without a migration." So they are values on an object a caller may
@@ -10,7 +10,7 @@
  *
  * **Two decisions, not one, because they run in different places.** The
  * per-body byte check depends on nothing in the database and runs before
- * `BEGIN IMMEDIATE`; the count and total depend on what the project already
+ * `BEGIN IMMEDIATE`; the count and total depend on what the work package already
  * holds and MUST be read inside that transaction. Outside it, two saves at 99
  * of 100 both pass and both commit, and the bound is broken while "refused
  * before any row is written" stays technically true (design.md, "Write order").
@@ -22,7 +22,7 @@
  */
 
 /** The bound reached, when one was. Each names a limit a caller can act on. */
-export type SavedPlanLimit = 'body_bytes' | 'plan_count' | 'project_bytes';
+export type SavedPlanLimit = 'body_bytes' | 'plan_count' | 'work_package_bytes';
 
 /**
  * A refusal, naming the limit, what was asked for and what the limit is.
@@ -43,10 +43,10 @@ export interface SavedPlanQuotaRefusal {
 export interface SavedPlanQuota {
   /** Most bytes in any ONE body. Applies to each side separately, not to their sum. */
   readonly mostBytesPerBody: number;
-  /** Most saved plans one project may hold at once. */
-  readonly mostPlansPerProject: number;
-  /** Most bytes one project's saved bodies may total. */
-  readonly mostBytesPerProject: number;
+  /** Most saved plans one work package may hold at once. */
+  readonly mostPlansPerWorkPackage: number;
+  /** Most bytes one work package's saved bodies may total. */
+  readonly mostBytesPerWorkPackage: number;
 }
 
 /**
@@ -58,8 +58,8 @@ export interface SavedPlanQuota {
  */
 export const DEFAULT_SAVED_PLAN_QUOTA: SavedPlanQuota = {
   mostBytesPerBody: 8 * 1024 * 1024,
-  mostPlansPerProject: 100,
-  mostBytesPerProject: 64 * 1024 * 1024,
+  mostPlansPerWorkPackage: 100,
+  mostBytesPerWorkPackage: 64 * 1024 * 1024,
 };
 
 /**
@@ -88,30 +88,30 @@ export function bodyBytesRefusal(
   return null;
 }
 
-/** What a project already holds, as read inside the write transaction. */
+/** What a work package already holds, as read inside the write transaction. */
 export interface SavedPlanHolding {
-  /** How many saved plans the project holds now. */
+  /** How many saved plans the work package holds now. */
   readonly plans: number;
   /** The total byte length of every body it holds now, both kinds. */
   readonly bytes: number;
 }
 
 /**
- * The in-transaction check: would this save put the project over either bound?
+ * The in-transaction check: would this save put the work package over either bound?
  *
  * **The comparison is against the state after the save, not before it.** The
- * count limit is "a project already holding 100 saved plans is refused
+ * count limit is "a work package already holding 100 saved plans is refused
  * another", so 100 held refuses and 99 held admits the hundredth; the byte
- * limit is on the total the project would then hold, so the incoming bytes are
+ * limit is on the total the work package would then hold, so the incoming bytes are
  * added before comparing. A check written against the current total alone
- * admits one body of any size onto a project one byte under the limit.
+ * admits one body of any size onto a work package one byte under the limit.
  *
  * `incomingBytes` is the sum of the bodies this save is about to write —
  * already known to pass {@link bodyBytesRefusal}, which is a different
- * question: one 8 MiB body is legal, and the ninth one on a project is not.
+ * question: one 8 MiB body is legal, and the ninth one on a work package is not.
  *
  * The count is checked before the total for {@link bodyBytesRefusal}'s reason:
- * a project at both bounds is refused naming the one it will still be at after
+ * a work package at both bounds is refused naming the one it will still be at after
  * deleting a single plan.
  */
 export function holdingRefusal(
@@ -119,12 +119,16 @@ export function holdingRefusal(
   incomingBytes: number,
   quota: SavedPlanQuota = DEFAULT_SAVED_PLAN_QUOTA,
 ): SavedPlanQuotaRefusal | null {
-  if (holding.plans + 1 > quota.mostPlansPerProject) {
-    return { limit: 'plan_count', asked: holding.plans + 1, allowed: quota.mostPlansPerProject };
+  if (holding.plans + 1 > quota.mostPlansPerWorkPackage) {
+    return {
+      limit: 'plan_count',
+      asked: holding.plans + 1,
+      allowed: quota.mostPlansPerWorkPackage,
+    };
   }
   const total = holding.bytes + incomingBytes;
-  if (total > quota.mostBytesPerProject) {
-    return { limit: 'project_bytes', asked: total, allowed: quota.mostBytesPerProject };
+  if (total > quota.mostBytesPerWorkPackage) {
+    return { limit: 'work_package_bytes', asked: total, allowed: quota.mostBytesPerWorkPackage };
   }
   return null;
 }

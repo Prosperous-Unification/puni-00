@@ -1,0 +1,749 @@
+{
+  "scope": "Authorized delivery-blocker repairs; original broad goal remains paused and incomplete.",
+  "sourcePurpose": "Mounted save admits package.write and captures required connected evidence on one actual read observation; local scheduling/serialization/write occur after read release, and writer authority is independently rechecked.",
+  "oneLoan": {
+    "finalSources": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-package-observation.ts",
+        "sha256": "648a6de50c44054fbc8a777188047a17c95616c63b839cc9035d0b358ea01812",
+        "bytes": 6667,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-observation.ts",
+        "sha256": "56fbe36d370cb0853eb56522d42ff522335fbf98b231025a26ae381d4eaf55de",
+        "bytes": 50752,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+        "sha256": "953a23daa38a440db9a0c4360bd5e874aabf2acb986e38fcd174d2e70eea1ced",
+        "bytes": 41051,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/save-plan.ts",
+        "sha256": "045a8b89af32254fb048e7d06f9952598206a7157193789ae5ef0e5c8a27079c",
+        "bytes": 4719,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plan-write-error.ts",
+        "sha256": "24f13af9a1c76af1041804187cb24b0125c3b166098fcd582fb6bd1d9098830c",
+        "bytes": 298,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/saved-plan.routes.ts",
+        "sha256": "be3e5c986e171364aaa3e1bf26c9f13c700eebded3b766b9cfafe3892e7d2065",
+        "bytes": 25288,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+        "sha256": "912d94d32bf259585923852c68a1b6aa0af468e5cab2b28853f2e90fdb80dad2",
+        "bytes": 18295,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+        "sha256": "4981b95adf9e2968499ecfb12465b22a80702584bb56f284ff56043e3f0a2728",
+        "bytes": 165490,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+        "sha256": "35d548eac78cc80bab843cd2d07127f284121e23bb6008f577b476ebfb765c81",
+        "bytes": 48976,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts",
+        "sha256": "ff7ba9216ca16151b57a7fe5e2867a63cb6ad2854131d5a10dad81d9eff7e3ef",
+        "bytes": 104203,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/work-package-fixture.ts",
+        "sha256": "ccb1ccdc9b5082d2bd1309e27df2df6104712a45a79c4f204f584ddd0a786040",
+        "bytes": 3945,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/history.routes.test.ts",
+        "sha256": "ddbb733ebdaa24c961727edbb9846fbc1ca2d90676c4ee66849931afaadae9aa",
+        "bytes": 8587,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/solution.routes.test.ts",
+        "sha256": "52ba5986db35f6ec7006f3daa75d9eb5bae80d1aa42edcd413efc54a1c2fa579",
+        "bytes": 10350,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/work-package.routes.test.ts",
+        "sha256": "4acfc76536cb8569b7e1ed41c8a063ff41fe5730fda3246140d5b7295f7c1583",
+        "bytes": 15421,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/service/saved-plan.service.db.test.ts",
+        "sha256": "bf5e70793bb4933cf65f7edb87d6a2f90966c5a8954b1e5b25f07dae56fc7a59",
+        "bytes": 21784,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/command-permission.controller.db.test.ts",
+        "sha256": "5015561c2cb76fd8794c60f285b217ec5ab72bdbfcc9f03ea994336e0f8fc4c1",
+        "bytes": 138383,
+        "mode": 436
+      }
+    ],
+    "proofs": [
+      {
+        "name": "write-admission",
+        "sourceBeforeCommentsSha256": "eae120719d588fa05e5232165239eb2988dabc9521c124a8210eed7bfc4df399",
+        "restoredMode": 436,
+        "fault": {
+          "phase": "saved-plan-one-loan-fault-write-admission-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+              "--test-name-pattern",
+              "saved-plan observation requires package.write"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 1,
+          "receiptSha256": "653b7074516dc49db52bbc742b03cc0a0c12fa504059b3ebd69b0153a7d16615",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-fault-write-admission-v132.log",
+            "sha256": "d3c88e7e8d2c1556ee02699e7d1c7ed342fa9fcb5230a7a710677e23834a3bfd",
+            "bytes": 2050
+          }
+        },
+        "restored": {
+          "phase": "saved-plan-one-loan-restore-write-admission-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+              "--test-name-pattern",
+              "saved-plan observation requires package.write"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 0,
+          "receiptSha256": "65e352bf0c1aa85e4070e7877c4c66c671b4118d73ef0224d1f1d35c03ff4034",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-restore-write-admission-v132.log",
+            "sha256": "484bf14f93e628b81cbc5818613461106427aafd15e38135198eb232c55eec23",
+            "bytes": 304
+          }
+        }
+      },
+      {
+        "name": "extra-observation",
+        "sourceBeforeCommentsSha256": "eae120719d588fa05e5232165239eb2988dabc9521c124a8210eed7bfc4df399",
+        "restoredMode": 436,
+        "fault": {
+          "phase": "saved-plan-one-loan-fault-extra-observation-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts",
+              "--test-name-pattern",
+              "mounted (isolated|shared) connected save refuses (absent|unreadable|contradictory) foreign capture evidence atomically"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 1,
+          "receiptSha256": "8dd851eea8384b3ee4b9da4a0c36ba74fc55e65c2ae0f91a7371371018245616",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-fault-extra-observation-v132.log",
+            "sha256": "57e840a8dabfd4c39a4947a0558d2585eb3b73857db2951fd99bbf0c5921519d",
+            "bytes": 13636
+          }
+        },
+        "restored": {
+          "phase": "saved-plan-one-loan-restore-extra-observation-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts",
+              "--test-name-pattern",
+              "mounted (isolated|shared) connected save refuses (absent|unreadable|contradictory) foreign capture evidence atomically"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 0,
+          "receiptSha256": "6391263bda493c6b6bb098851b2327bbb0f2599696cd0e3155d91afec32d6869",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-restore-extra-observation-v132.log",
+            "sha256": "9a9a71d9782a1eea4edc7b99e57e216effb9611624b919be7da70855ea6012e1",
+            "bytes": 10385
+          }
+        }
+      },
+      {
+        "name": "expiry",
+        "sourceBeforeCommentsSha256": "eae120719d588fa05e5232165239eb2988dabc9521c124a8210eed7bfc4df399",
+        "restoredMode": 436,
+        "fault": {
+          "phase": "saved-plan-one-loan-fault-expiry-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+              "--test-name-pattern",
+              "expires the real saved-plan connected scheduler callback"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 1,
+          "receiptSha256": "f9acd96fbc80964b5c01203a89b0286d596fa738fb50562bd7c9d120ce69adb5",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-fault-expiry-v132.log",
+            "sha256": "8390439cbc63a5ac15f8d48621190add802216d1c11a55825128659f351d7cbc",
+            "bytes": 1048
+          }
+        },
+        "restored": {
+          "phase": "saved-plan-one-loan-restore-expiry-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+              "--test-name-pattern",
+              "expires the real saved-plan connected scheduler callback"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 0,
+          "receiptSha256": "ff32671f1646edd8bbfffb842d464600e30ced1daee999c64fb11f69c4e8ffcb",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-restore-expiry-v132.log",
+            "sha256": "17ee7769d55cddca65b24d850ab9b4f959edc7d659ef180bdceee0460499c9de",
+            "bytes": 297
+          }
+        }
+      },
+      {
+        "name": "clock-classification",
+        "sourceBeforeCommentsSha256": "6c55163359b72cc752124c1323ea64e73b3a86e6b900fd3ad8292828216e699c",
+        "restoredMode": 436,
+        "fault": {
+          "phase": "saved-plan-one-loan-fault-clock-classification-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+              "--test-name-pattern",
+              "observed save preserves clock failure classification"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 1,
+          "receiptSha256": "cb845c1f3f7429cb787331352fd5ea86c094820a8e905a2db73151ce3af76ebb",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-fault-clock-classification-v132.log",
+            "sha256": "a6331f8344b435ab8cbab3ed4e9683d94b3cb0a56a4e133d52cbca0f683bf197",
+            "bytes": 1466
+          }
+        },
+        "restored": {
+          "phase": "saved-plan-one-loan-restore-clock-classification-v132",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "--timeout",
+              "30000",
+              "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+              "--test-name-pattern",
+              "observed save preserves clock failure classification"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 45000
+          },
+          "exitCode": 0,
+          "receiptSha256": "35c46a7d256a23a20305495b47b31cffed18ae54a0a55d332bcd70e97021b7be",
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-restore-clock-classification-v132.log",
+            "sha256": "d1f364e7cdaf67eb2ebd674a2b7c948e107582d3c48ff78c2666517456548763",
+            "bytes": 298
+          }
+        }
+      }
+    ],
+    "limits": [
+      "Expiry fault establishes diagnostic ordering; the later pool-release guard still blocks SQL.",
+      "Extra-observation fault is one combined extra-read witness across six original negative controller cases.",
+      "Clock fault establishes the clock-error classification boundary only.",
+      "Independent writer controls passed separately; no writer fault was injected in this four-fault window."
+    ],
+    "finalChecks": [
+      {
+        "phase": "saved-plan-one-loan-final-core-v138",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "--timeout",
+            "30000",
+            "libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+            "libs/wbs/application/core/src/http/history.routes.test.ts",
+            "libs/wbs/application/core/src/http/solution.routes.test.ts",
+            "libs/wbs/application/core/src/http/work-package.routes.test.ts",
+            "libs/wbs/application/core/src/use-cases/admission.test.ts",
+            "libs/wbs/application/core/src/compose.test.ts",
+            "libs/wbs/application/core/src/module/saved-plans/module.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        },
+        "exitCode": 0,
+        "receiptSha256": "9a668af67aa162a8ce9f605b1fd5aa9d4affe44bc095f8e76800c4bfa2e9c3fb",
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-final-core-v138.log",
+          "sha256": "f1c1780fcf0db5a1290dbded3a1ff0c4f3cda9dc89cecf88e236e51068464c1f",
+          "bytes": 10155
+        }
+      },
+      {
+        "phase": "saved-plan-one-loan-final-purpose-v138",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "--timeout",
+            "30000",
+            "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+            "--test-name-pattern",
+            "saved-plan observation|expires the real saved-plan connected scheduler callback"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        },
+        "exitCode": 0,
+        "receiptSha256": "ca281057f6e7b07d7b6a6c33f1a01f1b5fb1d05846450beb914abbb0353499f3",
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-final-purpose-v138.log",
+          "sha256": "4d8d5f3db2c1a82627ae3a59d3a340374e7c6bc4e90680659540de5cf10f27f2",
+          "bytes": 764
+        }
+      },
+      {
+        "phase": "saved-plan-one-loan-final-backend-v138",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "--timeout",
+            "30000",
+            "apps/wbs/be-01/src/controller/saved-plan-connected.controller.db.test.ts",
+            "apps/wbs/be-01/src/service/saved-plan.service.db.test.ts",
+            "apps/wbs/be-01/src/http/elysia/saved-plan-connected-lifecycle.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        },
+        "exitCode": 0,
+        "receiptSha256": "443fdbb5ff06f273710f4545f7deff2d276519705c2d93553f39a4719e61cf05",
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-final-backend-v138.log",
+          "sha256": "ab12badbdefee95590d530cbdedf76f9ad5c60f1231fc5b29618c6163c19d90f",
+          "bytes": 54717
+        }
+      },
+      {
+        "phase": "saved-plan-one-loan-types-final-v138",
+        "command": {
+          "argv": ["/home/df/.bun/bin/bun", "/tmp/puni-saved-plan-types-final-v138.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        },
+        "exitCode": 0,
+        "receiptSha256": "ca7cc4e86905177ed1ec117840fc884b10fc1e08eba7f9fcc084c645c62f7a49",
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-one-loan-types-final-v138.log",
+          "sha256": "a7fa2e77a91fc5c3fac4ad67948b02f34abcc966a9d53b85cd692662f6caada0",
+          "bytes": 254
+        }
+      }
+    ]
+  },
+  "fixtureChecks": [
+    {
+      "phase": "space-current-fixture-v137-final-owner-tests",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/testing/space-database.db.test.ts",
+          "apps/wbs/be-01/src/service/saved-plan-connected.test.ts",
+          "apps/wbs/be-01/src/service/saved-plan-connected-writer.db.test.ts",
+          "apps/wbs/be-01/src/http/elysia/saved-plan-connected-lifecycle.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receiptSha256": "8faef8b08eb976cf56381235bd286d2b1ff54827036331436ce314d2c19fec99",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/space-current-fixture-v137-final-owner-tests.log",
+        "sha256": "6baabeabbbd651f86f9804648c8c3c421f53676f0e4c076f4f56f8cb1543e1dd",
+        "bytes": 3874
+      }
+    },
+    {
+      "phase": "sqlite-current-fixture-v133-restored-tests",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/import-dependencies.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/import-performance.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-item.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/testing/current-project-fixture.test.ts",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "2f25afe042ac10710c56e4d5734f355a64726f3f4a589778bb6020669596402c",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-current-fixture-v133-restored-tests.log",
+        "sha256": "d0e3b0375d6beb0ebfd551869590d2e34bf4f57bacc1579a0aee84da86d3c1b1",
+        "bytes": 6180
+      }
+    },
+    {
+      "phase": "backend-types-green3-v138",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "--noEmit",
+          "-p",
+          "apps/wbs/be-01/tsconfig.spec.json",
+          "--pretty",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 1800000
+      },
+      "exitCode": 0,
+      "receiptSha256": "a1e9f858164fd0c40d736e348fe7cb5344143bbc9349ccb091b9f5a48d529344",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-types-green3-v138.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "phase": "backend-types-boundaries-green3-v138",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/app.routes.test.ts",
+          "apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts",
+          "apps/wbs/be-01/src/http/elysia/plan-document-boundary.test.ts",
+          "--test-name-pattern",
+          "policy|covers every mounted organization mutation|mounted",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "2f8ca3258607caa9f37f24ee0b9d0f1b2fb55bf997d66ca944ee802abf557a20",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-types-boundaries-green3-v138.log",
+        "sha256": "50e82880d7b873a965bf4d4a6fd4005a39caedce8dae2e17d378a28f750d687e",
+        "bytes": 2264
+      }
+    },
+    {
+      "phase": "backend-types-schedule-green-v138",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+          "apps/wbs/be-01/src/service/saved-plan-schedule.db.test.ts",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "5b7adbb173da388fa9c42f0037fc233a0b5576c3fed0f242ffb39093cc25860c",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-types-schedule-green-v138.log",
+        "sha256": "ef0d72635eee87ea8df142b7ed3df7966593badf84679332eba7b2c3948e31fc",
+        "bytes": 1134
+      }
+    },
+    {
+      "phase": "backend-types-retired-step-green-v138",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+          "--test-name-pattern",
+          "runs a work package reach change as one unit of work and rejects retired step deletion before admission",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "8eaa1094c43b0fea5eb51c7c7c3069fe365817daeca5e574d02bebdb320a429a",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-types-retired-step-green-v138.log",
+        "sha256": "652c99a981a67ddf454e078d93d93c1d9e3f908b87dea9a39d8ebfdc9d80b541",
+        "bytes": 350
+      }
+    }
+  ],
+  "conformance": {
+    "phase": "conformance-regression-v134",
+    "command": {
+      "argv": [
+        "bun",
+        "test",
+        "--preload",
+        "./tools/test/scratch/preload.ts",
+        "libs/wbs/adapters/store-memory/src/testing/catalogue-reorder-lifetime.test.ts",
+        "libs/wbs/adapters/store-memory/src/testing/catalogue-revisions.test.ts",
+        "libs/wbs/adapters/store-memory/src/testing/current-unit.test.ts",
+        "libs/wbs/adapters/store-memory/src/testing/sparse-current-readers.test.ts",
+        "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/catalogue-reorder-lifetime.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/catalogue-revisions.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/current-unit.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/sparse-current-readers.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+        "--timeout=60000"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 660000
+    },
+    "exitCode": 0,
+    "receiptSha256": "707dda4249749bf7ad38a2d5ef3e78c5c7409eb1463b8cc9ca9dbf1489f18f51",
+    "transcript": {
+      "state": "owned",
+      "path": "/tmp/puni-combined-proposal-v1/control/conformance-regression-v134.log",
+      "sha256": "570293fb69a3c6ead7cfb424c7f4ba0ccafb4ca4ba2f5d982e94b14527c58bc5",
+      "bytes": 21584
+    }
+  },
+  "frontendNode": {
+    "baseline": {
+      "phase": "frontend-node-tier-current-v140",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 1,
+      "receiptSha256": "3c03241aeeb7ac39342e86172282d4342f89266a44de25c7b96437f2d06f31f7",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-tier-current-v140.log",
+        "sha256": "0116e2a1f850ce7c263c1b01ea624197a234728273e7c03cf0bbd43f958378f5",
+        "bytes": 15220
+      }
+    },
+    "isolatedPrivateControl": {
+      "phase": "frontend-node-private-control-v140",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts",
+          "playwright-config.test.ts",
+          "--testNamePattern",
+          "refuses private context before worker beforeAll and body effects"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "02e98796b51e73b6f45049c2d4906727bfbdf183c20d04a539850617e09119c0",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-private-control-v140.log",
+        "sha256": "a1c81b8b3834f1f366e50de3f6d1a69f728024cc6b15f7154708960f0d260c76",
+        "bytes": 1062
+      }
+    },
+    "current": {
+      "phase": "frontend-node-tier-repaired-v140",
+      "command": {
+        "argv": [
+          "/usr/bin/env",
+          "PATH=/home/df/.volta/tools/image/node/24.20.0/bin:/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "exitCode": 0,
+      "receiptSha256": "bd465e30afeea1135033b4e41405e6779c8b61707d3dd53fc86a6d7e74af9aba",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-tier-repaired-v140.log",
+        "sha256": "5638d1e5d27fd3e0f7386717747f0994b6a552a59de76f6da5080fa37b82223f",
+        "bytes": 10218
+      }
+    },
+    "summary": "95 owners /1191 assertions-bearing tests pass. Local target expectation includes existing AGENT=0/CLAUDECODE=0. Six ordinary-worker wrapper tests now allow their existing 10-second native and25-second outer owners to settle within a30-second Vitest bound; native deadlines, effects, refusal and ownership assertions remain unchanged.",
+    "observedNativePrivate": {
+      "directory": "/tmp/wbs-ordinary-worker-XSiT5D",
+      "receiptSha256": "fc6096a362419dc6738e5154f288d099887958802208d8ab89fd108eaa9bde75",
+      "elapsedMs": 6538,
+      "originalExit": 1,
+      "originalSignal": null,
+      "settled": true
+    }
+  },
+  "catalogueLint": {
+    "check": {
+      "phase": "catalogue-lint-final-v130",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "./tools/test/scratch/preload.ts",
+          "tools/tool-git-hooks/src/hooks/migration-lint.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "receiptSha256": "6ede1f17c91980967d25d4f4b4b0ba8dcecbcc7d7df3d59d05d0a4985f2e932a",
+      "transcript": {
+        "state": "owned",
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-lint-final-v130.log",
+        "sha256": "08fd55961972628dfa92b7ad3834dc842a29c30ebe4d82d05e468667f535ddd1",
+        "bytes": 6670
+      }
+    },
+    "userDecision": "just do the migration this time, i'll review the SC14 thing vs AGENTS.md later",
+    "limit": "Exact SC14 maintenance-window lint exception only; no live migration or general additive-policy change."
+  },
+  "remaining": [
+    "The actual full permission owner has376pass/30fail across406tests; remaining cases retain obsolete Step SQL/mutations or current import/project setup assumptions. No full backend runtime pass is claimed.",
+    "Remaining historical HTTP/Vite producer setup owners need authentic complete source closure and their original assertions.",
+    "Actual current PUNI provisioning/admission, normal hooks, commit/push and current-main integration are not done.",
+    "Formal Astra review remains unavailable until its recorded retry time; no substitute review is credited.",
+    "Full product runtime/build/CI, exact-SHA clean h2/h4 gate and merge remain outstanding."
+  ],
+  "operations": {
+    "publicCommit": false,
+    "push": false,
+    "merge": false,
+    "liveMigration": false,
+    "broadGoalComplete": false
+  },
+  "permissionDiagnostic": {
+    "phase": "saved-plan-permission-owner-diagnostic-v138",
+    "passed": 376,
+    "failed": 30,
+    "total": 406,
+    "command": {
+      "argv": [
+        "/home/df/.bun/bin/bun",
+        "test",
+        "--timeout",
+        "30000",
+        "apps/wbs/be-01/src/controller/command-permission.controller.db.test.ts"
+      ],
+      "cwd": "/tmp/puni-combined-proposal-v1/tree",
+      "deadlineMs": 660000
+    },
+    "receiptSha256": "6d3c7cb7977166418f8ab97dfe2bd065c3624b2080f2a2668006b2b600091f53",
+    "transcript": {
+      "state": "owned",
+      "path": "/tmp/puni-combined-proposal-v1/control/saved-plan-permission-owner-diagnostic-v138.log",
+      "sha256": "6d8d88eb06c4b24c73c757abda5daeeb3c1a6abdd5afc61a858e4f95a3ea2db4",
+      "bytes": 81375
+    },
+    "classification": "Known current fixture failures, no complete permission pass"
+  }
+}

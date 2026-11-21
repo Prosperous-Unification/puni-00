@@ -4,7 +4,7 @@ import type {
   SqliteLateWritePoint,
   SqliteLateWriteSeam,
 } from '../late-write-seam';
-import type { StoredSavedPlan } from '../saved-plan';
+import type { StoredSavedPlanBytes } from '../saved-plan';
 import { SavedPlanRepository } from '../saved-plan';
 import { armSavedPlanWriteFault, type SavedPlanWriteFault } from '../saved-plan-write-fault';
 import type { OpenSqliteSourceOptions, SqliteSource } from '../source';
@@ -119,7 +119,7 @@ export function openSqliteSourceWithNonAtomicSavedPlanFault(
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
   beforeRestart?: () => void,
-  observeBoundary: (stored: StoredSavedPlan | undefined) => void = () => undefined,
+  observeBoundary: (stored: StoredSavedPlanBytes | undefined) => void = () => undefined,
 ): SqliteSource {
   let didRestartSplit = false;
   return openSqliteSourceWithSavedPlanFault(
@@ -148,11 +148,11 @@ export function openSqliteSourceWithNonAtomicSavedPlanFault(
   );
 }
 
-function expectedLateTargetPartial(): StoredSavedPlan {
+function expectedLateTargetPartial(): StoredSavedPlanBytes {
   return {
     header: {
       id: 'late-target',
-      projectId: 'project-a',
+      workPackageId: 'work-package-a',
       name: 'Late target',
       createdBy: 'Quota Writer',
       createdById: 'owner-b',
@@ -203,7 +203,7 @@ export function openSqliteSourceWithMissingSavedPlanInput(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
-  observeBoundary?: (stored: StoredSavedPlan) => void,
+  observeBoundary?: (stored: StoredSavedPlanBytes) => void,
 ): SqliteSource {
   return openSqliteSourceWithSavedPlanFault(options, control, reachProof, {
     kind: 'omit-input',

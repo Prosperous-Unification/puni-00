@@ -1,0 +1,482 @@
+{
+  "scope": "Final current116-chain catalogue reporter and strict merge-rules preflight; no catalogue apply admission.",
+  "source": {
+    "basis": {
+      "path": "/tmp/puni-step-catalogue-quality-successor-v5/index.json",
+      "sha256": "94f8ecf21f67e31b1685b315effff30ca78c8cb677a73727124b431b28ee317e",
+      "bytes": 17544,
+      "mode": 384
+    },
+    "publication": {
+      "path": "/tmp/puni-step-catalogue-publication-v1/publication.json",
+      "sha256": "175748699283afc5d346bc9231a2bc605ef469da7dd20c6444cdb7f57015452c",
+      "bytes": 1193,
+      "mode": 384
+    },
+    "rows": [
+      {
+        "path": "libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts",
+        "sha256": "e5bc4c11fe162f78746ed36d719c62ad997f5d57597678e8c936d7ad725ecf3b",
+        "bytes": 11301,
+        "mode": 436
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/step-catalogue-report-capture.ts",
+        "sha256": "a5eb7d05f581faed8760eb4a68d69464930fb5a829606ec65f5fb222cdbc52c1",
+        "bytes": 15109,
+        "mode": 436
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.ts",
+        "sha256": "06d71bd506b8fe09ba631c88c777ddc555bae3f96c3df0b1ffb0db5e8d35dd80",
+        "bytes": 11375,
+        "mode": 436
+      },
+      {
+        "path": "libs/wbs/domain/domain/src/index.ts",
+        "sha256": "f1d7a14efe3f6fd657168f73233a5cabb29e85a2726fd54ce604c187a9707829",
+        "bytes": 11852,
+        "mode": 436
+      },
+      {
+        "path": "openspec/changes/wbs-step-catalogue/design.md",
+        "sha256": "075942b827197380559ef17e574ecbdac57c7b1c32eb5adc7511b99b457925f3",
+        "bytes": 23915,
+        "mode": 436
+      },
+      {
+        "path": "openspec/changes/wbs-step-catalogue/tasks.md",
+        "sha256": "cd2fb2a74628bf5e2eafc878656da6e75f2ce143f250e89fbf0681cf19f4c6aa",
+        "bytes": 7915,
+        "mode": 436
+      },
+      {
+        "path": "libs/wbs/domain/domain/src/step-catalogue/classify-shared-step-codes.ts",
+        "sha256": "b87b94b0f09e55702043783afe716648c315f512d499728411eb67a955b7b37e",
+        "bytes": 4485,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/be-01/drizzle/20261115120000_add_step_migration_report/migration.sql",
+        "sha256": "aed5faf489f5309267d185518e5d8c1bef80bec5c54e29ef023cafa35c547c9c",
+        "bytes": 284,
+        "mode": 436
+      },
+      {
+        "path": "apps/wbs/be-01/drizzle/20261115120000_add_step_migration_report/down.sql",
+        "sha256": "09a031f9a46dc24a9e351f8f8905b40d12357965a165dc8a2eb1048a9547e459",
+        "bytes": 34,
+        "mode": 436
+      },
+      {
+        "path": "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+        "sha256": "8d23cac52e8a535dd6e72085d68555e953c7f3dc0bd8872b90ca7e716d2e13a3",
+        "bytes": 74991,
+        "mode": 436
+      }
+    ],
+    "bridge": "Actual full-layout587+10 tested cohort is byte-identical to applied597. Final patch/inverse reconstructed from final formatted rows; historical patch/prefix claims are ancestry."
+  },
+  "checks": [
+    {
+      "phase": "graph",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/nx/dist/bin/nx.js",
+          "graph",
+          "--file=/tmp/puni-step-catalogue-current-tree-v5/checks/graph/project-graph.json",
+          "--open=false",
+          "--watch=false"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+        "deadlineMs": 120000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/graph/native.log",
+        "sha256": "0783192cba5d525905490d9bed943e8ef8c8bd94867a5acf8239e0ce616562ba",
+        "bytes": 159,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/graph/native.receipt.json",
+        "sha256": "06718cd5ab8f1eda44e29b58b330668930ea89e462fd8850bf4c5b10d5bffa56",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/graph/native.validation.json",
+        "sha256": "aff365cffb901a4bc8c2eb5d5a9fe1c110b792bb03c7db9c1e730bb4267eff86",
+        "bytes": 1054,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "lint6",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/eslint/bin/eslint.js",
+          "--no-cache",
+          "--max-warnings=0",
+          "--format=json",
+          "libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.ts",
+          "libs/wbs/domain/domain/src/index.ts",
+          "libs/wbs/domain/domain/src/step-catalogue/classify-shared-step-codes.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/lint6/native.log",
+        "sha256": "99453f3fd303399e3c5e283e3b0e2a162fe77e17e332fc4b6331c261c51fea1d",
+        "bytes": 2685,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/lint6/native.receipt.json",
+        "sha256": "ebc133d804af866325862ea5c548a7f49cc48bccb9d5c6168ed60bd3a3aade64",
+        "bytes": 1780,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/lint6/native.validation.json",
+        "sha256": "2275ac90591e34569e3ea42e70c83daa479ad8c9ce447e04335b72ee009eb177",
+        "bytes": 1054,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "format8",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "libs/wbs/domain/domain/src/step-catalogue/classify-step-migration.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report-capture.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.ts",
+          "libs/wbs/domain/domain/src/index.ts",
+          "openspec/changes/wbs-step-catalogue/design.md",
+          "openspec/changes/wbs-step-catalogue/tasks.md",
+          "libs/wbs/domain/domain/src/step-catalogue/classify-shared-step-codes.ts",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+        "deadlineMs": 120000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/format8/native.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/format8/native.receipt.json",
+        "sha256": "650f4e2e10d6a7247dfde2274c784c22f2d3f21a7c150c7874166674d0d79146",
+        "bytes": 1844,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/format8/native.validation.json",
+        "sha256": "389d14a12277a16f326ea1a213d94c416eb0839b8d529af3e236460a07901c35",
+        "bytes": 1056,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "types7",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "./node_modules/@typescript/native/bin/tsc",
+          "--build",
+          "--force",
+          "apps/wbs/be-01/tsconfig.json",
+          "apps/wbs/fe-01/tsconfig.json",
+          "apps/wbs/gw-01/tsconfig.json",
+          "apps/wbs/mcp-01/tsconfig.json",
+          "libs/wbs/application/conformance/tsconfig.json",
+          "libs/wbs/adapters/store-memory/tsconfig.json",
+          "libs/wbs/adapters/store-sqlite/tsconfig.json"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+        "deadlineMs": 240000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/types7/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/types7/native.receipt.json",
+        "sha256": "50b551362400be6a2045e6c705e837ba818fb37331e1383ef7df4a5ea41d1a65",
+        "bytes": 1640,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/types7/native.validation.json",
+        "sha256": "fc4d1614f279b833bbfbbaf886163f02d24de5b0eaf5c0d83a5a87b208333fb0",
+        "bytes": 1055,
+        "mode": 384
+      }
+    },
+    {
+      "phase": "full75",
+      "command": {
+        "argv": [
+          "/home/df/.bun/bin/bun",
+          "test",
+          "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+        "deadlineMs": 180000
+      },
+      "exitCode": 0,
+      "raw": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/full75/native.log",
+        "sha256": "cfe100bac8e24ce079add25cc0299a20a7dfae03338bb067cc6940133f6fb5a2",
+        "bytes": 8048,
+        "mode": 384
+      },
+      "receipt": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/full75/native.receipt.json",
+        "sha256": "2a081c9de02161587046e38a3d655e45c0a4f6e26650e0b42b1452d4d8b9fad1",
+        "bytes": 1357,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/checks/full75/native.validation.json",
+        "sha256": "84c385f1df59dd8c508804bc754cfe898010413f3bbe524670e5aae0a21cfc8c",
+        "bytes": 1055,
+        "mode": 384
+      }
+    }
+  ],
+  "counts": {
+    "reporter": {
+      "pass": 75,
+      "fail": 0,
+      "expects": 1691
+    },
+    "eslint": {
+      "files": 6,
+      "errors": 0,
+      "warnings": 0
+    },
+    "format": {
+      "files": 8,
+      "sqlExcluded": 2
+    },
+    "types": {
+      "roots": 7
+    }
+  },
+  "proof": {
+    "observations": [
+      {
+        "phase": "before",
+        "exitCode": 0,
+        "sha256": "16c212c9cd8a5cf5d1635c9bedad04040197ecd5bbe50f0f5e581eea02d44fec",
+        "bytes": 281,
+        "pass": 1,
+        "fail": 0,
+        "filtered": 74,
+        "expects": 16
+      },
+      {
+        "phase": "fault",
+        "exitCode": 1,
+        "sha256": "03dad38dde1e26875b794f5f64495d1537b4975b54d2746302434759c18054e1",
+        "bytes": 844,
+        "pass": 0,
+        "fail": 1,
+        "filtered": 74,
+        "expects": 13
+      },
+      {
+        "phase": "after",
+        "exitCode": 0,
+        "sha256": "fe3f3cc5f1c238081dd8231a19458407ad66147307e8acc3edd109ea2734f63d",
+        "bytes": 281,
+        "pass": 1,
+        "fail": 0,
+        "filtered": 74,
+        "expects": 16
+      }
+    ],
+    "effect": {
+      "id": "current-P10",
+      "before": {
+        "path": "/tmp/puni-step-catalogue-current-tree-v5/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-report.ts",
+        "sha256": "06d71bd506b8fe09ba631c88c777ddc555bae3f96c3df0b1ffb0db5e8d35dd80",
+        "bytes": 11375,
+        "mode": 436
+      },
+      "fault": {
+        "path": "/tmp/puni-step-rules-current-p10-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-report.ts",
+        "sha256": "8d569c4966ba3169618558ff42b5355fe9d2a60ebbfdccd48d7d4693775a985f",
+        "bytes": 11346,
+        "mode": 436
+      },
+      "needle": "if (rule.code !== issue?.suggestedCode)",
+      "replacement": "if (false)",
+      "sourceInverseByteExact": true,
+      "selector": "refuses an uncoded different confirmation before changing any stored state",
+      "expected": "Exactly one owning case should fail at rejected=false versus true; setup/collection/TypeError must not count. Other74 filtered. No canonical mutation or per-case source restoration claim."
+    },
+    "actualFault": "First rejection flag false versus true in the intended owning case. Diagnostic and state-equality tails were not reached in the fault.",
+    "qualification": "Immutable private replica and unchanged before/after controls; no canonical mutation/restoration. Whole confirmation gate only; absent-issue admission is not independently proved.",
+    "review": {
+      "path": "/tmp/puni-step-rules-current-p10-astra-v1.md",
+      "sha256": "9b5b176db9ddb3f5c5bc2be46b12f7037d70582ee50bf432214ab2bd9174a334",
+      "bytes": 3301,
+      "mode": 384
+    },
+    "raw": [
+      {
+        "path": "/tmp/puni-step-rules-current-p10-v1/before/native.log",
+        "sha256": "16c212c9cd8a5cf5d1635c9bedad04040197ecd5bbe50f0f5e581eea02d44fec",
+        "bytes": 281,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-step-rules-current-p10-v1/fault/native.log",
+        "sha256": "03dad38dde1e26875b794f5f64495d1537b4975b54d2746302434759c18054e1",
+        "bytes": 844,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-step-rules-current-p10-v1/after/native.log",
+        "sha256": "fe3f3cc5f1c238081dd8231a19458407ad66147307e8acc3edd109ea2734f63d",
+        "bytes": 281,
+        "mode": 384
+      }
+    ],
+    "native": [
+      {
+        "phase": "before",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+            "--test-name-pattern",
+            "refuses an uncoded different confirmation before changing any stored state",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+          "deadlineMs": 120000
+        },
+        "exitCode": 0,
+        "raw": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/before/native.log",
+          "sha256": "16c212c9cd8a5cf5d1635c9bedad04040197ecd5bbe50f0f5e581eea02d44fec",
+          "bytes": 281,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/before/native.receipt.json",
+          "sha256": "1cc52aafb4e72e0afc40e322e19f538f7220e43a34c9b997f562c3cb6a7bfebd",
+          "bytes": 1445,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/before/native.validation.json",
+          "sha256": "b18b6a48c46578fa80bbca0b31c3584b9136e63cf8e8ff93b0c8a29c24dd8305",
+          "bytes": 1043,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "fault",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+            "--test-name-pattern",
+            "refuses an uncoded different confirmation before changing any stored state",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-rules-current-p10-v1/tree",
+          "deadlineMs": 120000
+        },
+        "exitCode": 1,
+        "raw": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/fault/native.log",
+          "sha256": "03dad38dde1e26875b794f5f64495d1537b4975b54d2746302434759c18054e1",
+          "bytes": 844,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/fault/native.receipt.json",
+          "sha256": "3c3e02dbb255318ed1fd2de72c3228572e7235b8b21f67b9f277dfb50f97c45e",
+          "bytes": 1438,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/fault/native.validation.json",
+          "sha256": "121d89ff9a0ac982ac41162ef3a9f668167e97a53e0cd5b4a694ad8f34c24f49",
+          "bytes": 1042,
+          "mode": 384
+        }
+      },
+      {
+        "phase": "after",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+            "--test-name-pattern",
+            "refuses an uncoded different confirmation before changing any stored state",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-step-catalogue-current-tree-v5/tree",
+          "deadlineMs": 120000
+        },
+        "exitCode": 0,
+        "raw": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/after/native.log",
+          "sha256": "fe3f3cc5f1c238081dd8231a19458407ad66147307e8acc3edd109ea2734f63d",
+          "bytes": 281,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/after/native.receipt.json",
+          "sha256": "c94bee48408965e4ff91689fd19e81c140d9f410c57c664f73b4904e04bda2e5",
+          "bytes": 1443,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-step-rules-current-p10-v1/after/native.validation.json",
+          "sha256": "e8afa3b2c05e2e74596dc86be2a545ed1adbdde59ca42c3fa1dd231d764479c2",
+          "bytes": 1042,
+          "mode": 384
+        }
+      }
+    ]
+  },
+  "review": {
+    "path": "/tmp/puni-step-catalogue-quality-successor-astra-v5.md",
+    "sha256": "ac20ba82c508eaf14b3240c1c6ff1b6d6a4ab70f82116033057b15e6289418af",
+    "bytes": 3335,
+    "mode": 384
+  },
+  "limits": [
+    "Report/preflight batch only: OpenSpec task1.1 remains unchecked because CLI apply is absent.",
+    "No production/operator database, activation window, migration117, history translation, catalogue port/API/UI or full entity-scope claim.",
+    "Current P10 observes only the whole different-confirmation rejection gate, not absent-issue admission independently. Fault diagnostic/state-equality tails were not reached.",
+    "Full repository build/gate, migration lint, all guard omissions and remaining scope have not been completed by these checks."
+  ]
+}

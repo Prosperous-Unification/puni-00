@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { servicesOver } from '@wbs/core/compose';
-import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
-import { projectConnectedTree } from '@wbs/core/service/connected-tree';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
+import { workPackageConnectedTree } from '@wbs/core/service/connected-tree';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -16,7 +16,6 @@ import { sql } from 'drizzle-orm';
 import { createLivePlanStore } from './chain-snapshot';
 import { captureConnectedQuestion } from './connected-question-identity';
 import { openConnection, openDatabase, openReadOnlyConnection } from './db';
-import { ProjectRepository } from './project';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { optimizedScheduleCache } from './schema';
 import { openSqliteSource } from './source';
@@ -24,6 +23,7 @@ import { seedDependencyAuthority } from './testing/dependency-activation';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { openSpaceDatabase } from './testing/space-database';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 let folder: string;
 let path: string;
@@ -50,12 +50,14 @@ beforeEach(async () => {
   );
   for (const id of ['a1', 'a2']) {
     write(
-      `INSERT INTO work_item (id,project_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
+      `INSERT INTO work_item (id,work_package_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
     );
-    write(`INSERT INTO step (id,project_id,name,position) VALUES ('${id}-s','${id}','Build',10)`);
+    write(
+      `INSERT INTO step (id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
+    );
   }
   write(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
 });
 afterEach(() => {
@@ -84,7 +86,7 @@ test('actual isolated live route captures remote readiness without a calendar', 
   if (observed.kind !== 'connected') throw new Error('expected connected live route');
   expect(observed.projection.placement.kind).toBe('dependency_calendar_missing');
   expect(observed.readiness.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
-  expect([...observed.metadataByProject.keys()]).toEqual(['a1', 'a2']);
+  expect([...observed.metadataByWorkPackage.keys()]).toEqual(['a1', 'a2']);
   write(
     "INSERT INTO step_progress (work_item_id,step_id,state,stated_at) VALUES ('a2','a2-s','done',1)",
   );
@@ -98,15 +100,15 @@ test('connected export captures required detached document evidence without a ca
   const observed = await reader().readExport('a1', access);
   expect(observed.kind).toBe('connected');
   if (observed.kind !== 'connected') throw new Error('expected connected export');
-  expect(observed.projectId).toBe('a1');
+  expect(observed.workPackageId).toBe('a1');
   expect(observed.document.markers).toEqual([]);
   expect(observed.document.stepParallels).toEqual([]);
   expect(observed.projection.placement.kind).toBe('dependency_calendar_missing');
-  write("UPDATE project SET name = 'Next' WHERE id = 'a2'");
-  expect(observed.metadataByProject.get('a2')?.project.name).not.toBe('Next');
+  write("UPDATE work_package SET name = 'Next' WHERE id = 'a2'");
+  expect(observed.metadataByWorkPackage.get('a2')?.workPackage.name).not.toBe('Next');
   const next = await reader().readExport('a1', access);
   if (next.kind !== 'connected') throw new Error('expected connected export');
-  expect(next.metadataByProject.get('a2')?.project.name).toBe('Next');
+  expect(next.metadataByWorkPackage.get('a2')?.workPackage.name).toBe('Next');
 });
 
 test('remote hold changes the connected proxy reading in the next observation', async () => {
@@ -126,8 +128,8 @@ test.each(['isolated', 'shared'] as const)(
     write(
       `UPDATE organization SET shared_people=${mode === 'shared' ? '1' : '0'} WHERE id='org-a'`,
     );
-    write("INSERT INTO work_item (id,project_id,position,name) VALUES ('a3','a3',10,'a3')");
-    write("INSERT INTO step (id,project_id,name,position) VALUES ('a3-s','a3','Build',10)");
+    write("INSERT INTO work_item (id,work_package_id,position,name) VALUES ('a3','a3',10,'a3')");
+    write("INSERT INTO step (id,work_package_id,name,position) VALUES ('a3-s','a3','Build',10)");
     write("INSERT INTO person (id,name) VALUES ('p','P')");
     write(
       "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
@@ -142,8 +144,8 @@ test.each(['isolated', 'shared'] as const)(
       openConnection: () => openReadOnlyConnection(path),
       schedulerOf: () => fastScheduler,
       captureRead: {
-        afterFirstRead: ({ projectId }) => {
-          captured.push(projectId);
+        afterFirstRead: ({ workPackageId }) => {
+          captured.push(workPackageId);
           return Promise.resolve();
         },
       },
@@ -151,7 +153,7 @@ test.each(['isolated', 'shared'] as const)(
     expect(observed.kind).toBe(mode === 'shared' ? 'shared' : 'isolated-connected');
     if (observed.kind !== 'shared' && observed.kind !== 'isolated-connected')
       throw new Error('expected shared');
-    expect(observed.entries.map((entry) => entry.projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(observed.entries.map((entry) => entry.workPackageId)).toEqual(['a1', 'a2', 'a3', 'a4']);
     const first = observed.entries.at(0);
     const second = observed.entries.at(1);
     if (first === undefined || second === undefined) throw new Error('expected members');
@@ -161,8 +163,8 @@ test.each(['isolated', 'shared'] as const)(
     expect(second.basis).toBeNull();
     if (first.plan.kind !== 'connected' || second.plan.kind !== 'connected')
       throw new Error('expected connected');
-    expect(projectConnectedTree(first.plan, 'a1').metadata.project.id).toBe('a1');
-    expect(projectConnectedTree(second.plan, 'a2').metadata.project.id).toBe('a2');
+    expect(workPackageConnectedTree(first.plan, 'a1').metadata.workPackage.id).toBe('a1');
+    expect(workPackageConnectedTree(second.plan, 'a2').metadata.workPackage.id).toBe('a2');
     expect(first.plan.projection.placement.kind).toBe('dependency_calendar_missing');
     expect(captured.filter((id) => id === 'a1')).toHaveLength(1);
     expect(captured.filter((id) => id === 'a2')).toHaveLength(1);
@@ -170,10 +172,9 @@ test.each(['isolated', 'shared'] as const)(
     if (mode === 'shared') expect(observed.entries[2]?.plan).toBe(first.plan);
     else {
       expect(observed.entries[2]?.plan.kind).toBe('local');
-      expect(first.plan.projection.capture.projects.map(({ projectId }) => projectId)).toEqual([
-        'a1',
-        'a2',
-      ]);
+      expect(
+        first.plan.projection.capture.workPackages.map(({ workPackageId }) => workPackageId),
+      ).toEqual(['a1', 'a2']);
     }
     expect(observed.entries[3]?.plan.kind).toBe(mode === 'shared' ? 'shared' : 'local');
   },
@@ -181,8 +182,8 @@ test.each(['isolated', 'shared'] as const)(
 
 test('a shared person peer selects the same external component from either target', async () => {
   write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-  write("INSERT INTO work_item (id,project_id,position,name) VALUES ('a3','a3',10,'a3')");
-  write("INSERT INTO step (id,project_id,name,position) VALUES ('a3-s','a3','Build',10)");
+  write("INSERT INTO work_item (id,work_package_id,position,name) VALUES ('a3','a3',10,'a3')");
+  write("INSERT INTO step (id,work_package_id,name,position) VALUES ('a3-s','a3','Build',10)");
   write("INSERT INTO person (id,name) VALUES ('p','P')");
   write(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
@@ -193,7 +194,7 @@ test('a shared person peer selects the same external component from either targe
   const direct = await reader().read('a1', access);
   expect(direct.kind).toBe('connected');
   if (direct.kind !== 'connected') throw new Error('connected expected');
-  expect(direct.projection.capture.projects.map((member) => member.projectId)).toEqual([
+  expect(direct.projection.capture.workPackages.map((member) => member.workPackageId)).toEqual([
     'a1',
     'a2',
     'a3',
@@ -201,7 +202,7 @@ test('a shared person peer selects the same external component from either targe
   const peer = await reader().read('a3', access);
   expect(peer.kind).toBe('connected');
   if (peer.kind !== 'connected') throw new Error('connected expected');
-  expect(peer.projection.capture.projects.map((member) => member.projectId)).toEqual([
+  expect(peer.projection.capture.workPackages.map((member) => member.workPackageId)).toEqual([
     'a1',
     'a2',
     'a3',
@@ -214,9 +215,11 @@ test('alternating person and external bridges select one component from every ra
   write("DELETE FROM external_dependency WHERE id = 'edge'");
   for (const id of ['a3', 'a4']) {
     write(
-      `INSERT INTO work_item (id,project_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
+      `INSERT INTO work_item (id,work_package_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
     );
-    write(`INSERT INTO step (id,project_id,name,position) VALUES ('${id}-s','${id}','Build',10)`);
+    write(
+      `INSERT INTO step (id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
+    );
   }
   for (const personId of ['p', 'q']) {
     write(`INSERT INTO person (id,name) VALUES ('${personId}','${personId}')`);
@@ -234,13 +237,13 @@ test('alternating person and external bridges select one component from every ra
       `INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${id}','${id}-s','${personId}')`,
     );
   write(
-    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('bridge','org-a','a3','a2','a3','a2','whole','whole','FS')",
+    "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('bridge','org-a','a3','a2','a3','a2','whole','whole','FS')",
   );
   for (const id of ['a1', 'a2', 'a3', 'a4']) {
     const observed = await reader().read(id, access);
     expect(observed.kind).toBe('connected');
     if (observed.kind !== 'connected') throw new Error(`connected expected for ${id}`);
-    expect(observed.projection.capture.projects.map((member) => member.projectId)).toEqual([
+    expect(observed.projection.capture.workPackages.map((member) => member.workPackageId)).toEqual([
       'a1',
       'a2',
       'a3',
@@ -261,7 +264,7 @@ test('remote SS attempt evidence crosses actual SQLite live capture', async () =
   const after = await reader().read('a1', access);
   if (after.kind !== 'connected') throw new Error('expected connected');
   expect(after.readiness.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(true);
-  expect(after.metadataByProject.get('a2')?.attempts).toHaveLength(1);
+  expect(after.metadataByWorkPackage.get('a2')?.attempts).toHaveLength(1);
 });
 
 test('unconnected isolated routing query count is independent of local edges', async () => {
@@ -286,11 +289,11 @@ test('unconnected isolated routing query count is independent of local edges', a
     const number = String(at);
     const predecessor = String(at - 1);
     write(
-      `INSERT INTO work_item (id,project_id,position,name) VALUES ('local-${number}','a1',${String(at + 20)},'local-${number}')`,
+      `INSERT INTO work_item (id,work_package_id,position,name) VALUES ('local-${number}','a1',${String(at + 20)},'local-${number}')`,
     );
     if (at > 0)
       write(
-        `INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('local-edge-${number}','a1','local-${predecessor}','local-${number}','whole','whole','FS')`,
+        `INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('local-edge-${number}','a1','local-${predecessor}','local-${number}','whole','whole','FS')`,
       );
   }
   const with19LocalRelationships = await count();
@@ -358,7 +361,7 @@ test('borrowed service claim sees staged remote completion and collects its norm
     await source.uow.run(async (scope) => {
       const graph = servicesOver(scope.stores, {
         dependencyContext: createLocalDependencyContext(scope.stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock: testClock,
         broadcast: recordingBroadcaster(),
         scheduler: fastScheduler,
@@ -385,7 +388,7 @@ test('borrowed service claim sees staged remote completion and collects its norm
       expect(accepted.result).toMatchObject({ ok: true, value: { alreadyHeld: false } });
       expect(accepted.dirty).toBe(true);
       expect(accepted.recordings).toHaveLength(1);
-      expect(await scope.stores.claims.listByProject('a1')).toHaveLength(1);
+      expect(await scope.stores.claims.listByWorkPackage('a1')).toHaveLength(1);
       return { commit: false, value: undefined };
     });
   } finally {
@@ -395,7 +398,7 @@ test('borrowed service claim sees staged remote completion and collects its norm
 
 test('foreign holder labels remain captured after closure and subsequent live renames', async () => {
   write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
-  write("UPDATE project SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
+  write("UPDATE work_package SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
   write("UPDATE external_dependency SET type='SS' WHERE id='edge'");
   write("INSERT INTO person(id,name) VALUES ('holder-person','Root holder')");
   write(
@@ -422,13 +425,13 @@ test('foreign holder labels remain captured after closure and subsequent live re
   });
   const captured = await source.read('a1', access);
   if (captured.kind !== 'connected') throw new Error('expected captured component');
-  const first = projectConnectedTree(captured, 'a1');
+  const first = workPackageConnectedTree(captured, 'a1');
   expect(first.elsewhereHolders).toHaveLength(1);
   sealed = true;
-  write("UPDATE project SET name='New live project' WHERE id='a2'");
+  write("UPDATE work_package SET name='New live work_package' WHERE id='a2'");
   write("UPDATE work_item SET name='New live row',frozen_number='999' WHERE id='a2'");
   write("UPDATE person_organization SET name='New live person' WHERE resource_id='holder-person'");
-  const retained = projectConnectedTree(captured, 'a1');
+  const retained = workPackageConnectedTree(captured, 'a1');
   expect(retained.elsewhereHolders).toEqual(first.elsewhereHolders);
   expect(retained.reads.people.find((person) => person.id === 'holder-person')?.name).toBe(
     'Local holder',
@@ -444,15 +447,17 @@ test.each(['isolated', 'shared'] as const)(
     );
     for (const id of ['a3', 'a4']) {
       write(
-        `INSERT INTO work_item(id,project_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
+        `INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
       );
-      write(`INSERT INTO step(id,project_id,name,position) VALUES ('${id}-s','${id}','Build',10)`);
+      write(
+        `INSERT INTO step(id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
+      );
     }
     write(
-      "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('second','org-a','a4','a3','a4','a3','whole','whole','FS')",
+      "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('second','org-a','a4','a3','a4','a3','whole','whole','FS')",
     );
     write(
-      "UPDATE project SET start_date='2026-10-19',estimate_method='realistic',estimate_rounding='exact'",
+      "UPDATE work_package SET start_date='2026-10-19',estimate_method='realistic',estimate_rounding='exact'",
     );
     for (const id of ['a1', 'a2', 'a3', 'a4'])
       write(
@@ -470,8 +475,8 @@ test.each(['isolated', 'shared'] as const)(
           },
         }),
       captureRead: {
-        afterFirstRead: ({ projectId }) => {
-          captured.push(projectId);
+        afterFirstRead: ({ workPackageId }) => {
+          captured.push(workPackageId);
           return Promise.resolve();
         },
       },
@@ -485,7 +490,12 @@ test.each(['isolated', 'shared'] as const)(
     }).readAggregate('ada', access);
     if (observed.kind !== 'shared' && observed.kind !== 'isolated-connected')
       throw new Error('expected shared');
-    expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(observed.entries.map(({ workPackageId }) => workPackageId)).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+    ]);
     expect(scheduled).toBe(2);
     expect(queries.filter((query) => query.includes('from "step_node_attempt"'))).toHaveLength(4);
     expect(captured.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
@@ -493,18 +503,20 @@ test.each(['isolated', 'shared'] as const)(
       ['a1', 'a2'],
       ['a3', 'a4'],
     ]) {
-      const successor = observed.entries.find(({ projectId }) => projectId === successorId);
-      const predecessor = observed.entries.find(({ projectId }) => projectId === predecessorId);
+      const successor = observed.entries.find(({ workPackageId }) => workPackageId === successorId);
+      const predecessor = observed.entries.find(
+        ({ workPackageId }) => workPackageId === predecessorId,
+      );
       if (successor?.plan.kind !== 'connected' || predecessor?.plan.kind !== 'connected')
         throw new Error('expected connected');
       expect(successor.plan).toBe(predecessor.plan);
-      const target = projectConnectedTree(successor.plan, successorId);
-      const upstream = projectConnectedTree(predecessor.plan, predecessorId);
+      const target = workPackageConnectedTree(successor.plan, successorId);
+      const upstream = workPackageConnectedTree(predecessor.plan, predecessorId);
       expect(target.placement.kind).toBe('scheduled');
       expect(upstream.placement.kind).toBe('scheduled');
       const direct = await reader().read(successorId, access);
       if (direct.kind !== 'connected') throw new Error('expected connected');
-      expect(target.placement).toEqual(projectConnectedTree(direct, successorId).placement);
+      expect(target.placement).toEqual(workPackageConnectedTree(direct, successorId).placement);
     }
   },
 );
@@ -515,7 +527,7 @@ test.each(['isolated', 'shared'] as const)(
     write(
       `UPDATE organization SET shared_people=${mode === 'shared' ? '1' : '0'} WHERE id='org-a'`,
     );
-    write("UPDATE project SET start_date='2026-10-19'");
+    write("UPDATE work_package SET start_date='2026-10-19'");
     let edited = false;
     const store = createLivePlanStore({
       kind: 'owned',
@@ -525,7 +537,7 @@ test.each(['isolated', 'shared'] as const)(
         afterFirstRead: () => {
           if (edited) return Promise.resolve();
           edited = true;
-          write("UPDATE project SET start_date='2026-10-26',name='Next remote' WHERE id='a2'");
+          write("UPDATE work_package SET start_date='2026-10-26',name='Next remote' WHERE id='a2'");
           write("UPDATE work_item SET name='Next row' WHERE id='a2'");
           write("UPDATE external_dependency SET type='SS' WHERE id='edge'");
           return Promise.resolve();
@@ -543,21 +555,21 @@ test.each(['isolated', 'shared'] as const)(
     const newRead = next.entries.at(0)?.plan;
     if (oldRead?.kind !== 'connected' || newRead?.kind !== 'connected')
       throw new Error('expected connected');
-    const oldTree = projectConnectedTree(oldRead, 'a1');
-    const newTree = projectConnectedTree(newRead, 'a1');
-    expect(oldRead.metadataByProject.get('a2')?.project.name).toBe('a2');
-    expect(newRead.metadataByProject.get('a2')?.project.name).toBe('Next remote');
-    expect(oldRead.metadataByProject.get('a2')?.workItems[0]?.name).toBe('a2');
-    expect(newRead.metadataByProject.get('a2')?.workItems[0]?.name).toBe('Next row');
+    const oldTree = workPackageConnectedTree(oldRead, 'a1');
+    const newTree = workPackageConnectedTree(newRead, 'a1');
+    expect(oldRead.metadataByWorkPackage.get('a2')?.workPackage.name).toBe('a2');
+    expect(newRead.metadataByWorkPackage.get('a2')?.workPackage.name).toBe('Next remote');
+    expect(oldRead.metadataByWorkPackage.get('a2')?.workItems[0]?.name).toBe('a2');
+    expect(newRead.metadataByWorkPackage.get('a2')?.workItems[0]?.name).toBe('Next row');
     expect(oldTree.dependencies[0]?.type).toBe('FS');
     expect(newTree.dependencies[0]?.type).toBe('SS');
     expect(
-      oldRead.projection.capture.projects.find(({ projectId }) => projectId === 'a2')?.reads.project
-        .startDate,
+      oldRead.projection.capture.workPackages.find(({ workPackageId }) => workPackageId === 'a2')
+        ?.reads.workPackage.startDate,
     ).toBe('2026-10-19');
     expect(
-      newRead.projection.capture.projects.find(({ projectId }) => projectId === 'a2')?.reads.project
-        .startDate,
+      newRead.projection.capture.workPackages.find(({ workPackageId }) => workPackageId === 'a2')
+        ?.reads.workPackage.startDate,
     ).toBe('2026-10-26');
   },
 );
@@ -575,7 +587,7 @@ test.each(['isolated', 'shared'] as const)(
     try {
       connection.db.run(
         sql.raw(
-          "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('staged','org-a','a2','a1','a2','a1','whole','whole','FS')",
+          "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('staged','org-a','a2','a1','a2','a1','whole','whole','FS')",
         ),
       );
       const store = createLivePlanStore({
@@ -590,7 +602,9 @@ test.each(['isolated', 'shared'] as const)(
       expect(observed.entries.at(0)?.plan.kind).toBe('connected');
       const plan = observed.entries.at(0)?.plan;
       if (plan?.kind !== 'connected') throw new Error('expected connected');
-      expect(projectConnectedTree(plan, 'a1').dependencies.map(({ id }) => id)).toEqual(['staged']);
+      expect(workPackageConnectedTree(plan, 'a1').dependencies.map(({ id }) => id)).toEqual([
+        'staged',
+      ]);
       expect(() => connection.db.run(sql.raw('BEGIN IMMEDIATE'))).toThrow(
         'Failed query: BEGIN IMMEDIATE',
       );
@@ -619,8 +633,10 @@ test.each(['calendar', 'optimized'] as const)(
   async (reason) => {
     write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     if (reason === 'optimized') {
-      write("UPDATE project SET start_date='2026-10-19'");
-      write("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a2'");
+      write("UPDATE work_package SET start_date='2026-10-19'");
+      write(
+        "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a2'",
+      );
     }
     function snapshotSolverState() {
       const client = openDatabase(path);
@@ -653,8 +669,10 @@ test.each(['calendar', 'optimized'] as const)(
 for (const mode of ['isolated', 'shared'] as const) {
   test(`${mode} private connected capture returns detached stage without admission`, async () => {
     if (mode === 'shared') write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
-    write("UPDATE project SET start_date='2026-10-05',estimate_rounding='exact'");
-    write("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
+    write("UPDATE work_package SET start_date='2026-10-05',estimate_rounding='exact'");
+    write(
+      "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
+    );
     for (const id of ['a1', 'a2'])
       write(
         `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',1,1,1)`,
@@ -683,7 +701,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       { ...source.stores, livePlans: plans },
       {
         dependencyContext: createLocalDependencyContext(source.stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock: testClock,
         broadcast: recordingBroadcaster(),
         scheduler: fastScheduler,
@@ -702,17 +720,17 @@ for (const mode of ['isolated', 'shared'] as const) {
       expect(background).toEqual(captured);
       const retained = await plans.read('a1', access);
       if (retained.kind !== 'connected') throw Error('expected connected');
-      const projected = projectConnectedTree(retained, 'a1');
+      const projected = workPackageConnectedTree(retained, 'a1');
       expect(projected.optimization?.stage).toEqual(captured.input.stage);
       expect(projected.optimization?.optimization?.variants.time.state).toBe('idle');
       await plans.readAggregate('ada', access);
       expect(solverState()).toEqual(before);
-      write("UPDATE project SET optimization_enabled=0 WHERE id='a1'");
+      write("UPDATE work_package SET optimization_enabled=0 WHERE id='a1'");
       expect(captured.enabled).toBe(true);
       const next = await graph.workItems.optimizationCapture('a1');
       expect(next.kind === 'scheduled' && next.enabled).toBe(false);
       expect(canonicalConnectedStageInput(captured.input.stage)).toBeTruthy();
-      write("UPDATE project SET start_date=NULL WHERE id='a1'");
+      write("UPDATE work_package SET start_date=NULL WHERE id='a1'");
       expect((await graph.workItems.optimizationCapture('a1')).kind).toBe(
         'dependency_calendar_missing',
       );
@@ -732,9 +750,9 @@ for (const mode of ['isolated', 'shared'] as const) {
   for (const ownership of ['owned', 'borrowed'] as const) {
     test(`${ownership} ${mode} real selection excludes a rival publication until next observation`, async () => {
       if (mode === 'shared') write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
-      write("UPDATE project SET start_date='2026-10-05',estimate_rounding='exact'");
+      write("UPDATE work_package SET start_date='2026-10-05',estimate_rounding='exact'");
       write(
-        "UPDATE project SET schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a1'",
+        "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1,schedule_objective='time' WHERE id='a1'",
       );
       for (const id of ['a1', 'a2'])
         write(
@@ -751,7 +769,7 @@ for (const mode of ['isolated', 'shared'] as const) {
       if (initial.kind !== 'connected' || initial.projection.placement.kind !== 'scheduled')
         throw Error('expected stage');
       const stage = initial.projection.placement.stages.find(
-        (selection) => selection.stage.projectId === 'a1',
+        (selection) => selection.stage.workPackageId === 'a1',
       )?.stage;
       if (stage === undefined) throw Error('expected a1 stage');
       const question = captureConnectedQuestion(stage, 'time', installed);
@@ -799,7 +817,7 @@ for (const mode of ['isolated', 'shared'] as const) {
         if (held.kind !== 'connected' || held.projection.placement.kind !== 'scheduled')
           throw Error('expected selection');
         const target = held.projection.placement.stages.find(
-          (selection) => selection.stage.projectId === 'a1',
+          (selection) => selection.stage.workPackageId === 'a1',
         );
         expect(published).toBe(true);
         expect(target?.optimization?.variants.time.state).toBe('idle');
@@ -813,8 +831,9 @@ for (const mode of ['isolated', 'shared'] as const) {
         if (next.kind !== 'connected' || next.projection.placement.kind !== 'scheduled')
           throw Error('expected next');
         expect(
-          next.projection.placement.stages.find((selection) => selection.stage.projectId === 'a1')
-            ?.optimization?.variants.time.state,
+          next.projection.placement.stages.find(
+            (selection) => selection.stage.workPackageId === 'a1',
+          )?.optimization?.variants.time.state,
         ).toBe('failed');
         expect(canonicalConnectedStageInput(stage)).toBe(detached);
       } finally {
@@ -827,7 +846,7 @@ for (const mode of ['isolated', 'shared'] as const) {
 
 test('connected export holds labels settings marker and sparse facts in one SQLite observation', async () => {
   write(
-    "INSERT INTO calendar_marker(id,project_id,date,name,created_at) VALUES('marker','a1','2026-10-22','Old marker',1)",
+    "INSERT INTO calendar_marker(id,work_package_id,date,name,created_at) VALUES('marker','a1','2026-10-22','Old marker',1)",
   );
   let edited = false;
   const plans = createLivePlanStore({
@@ -838,8 +857,8 @@ test('connected export holds labels settings marker and sparse facts in one SQLi
       afterFirstRead: () => {
         if (!edited) {
           edited = true;
-          write("UPDATE project SET name='Next remote' WHERE id='a2'");
-          write("UPDATE project SET estimate_rounding='exact' WHERE id='a1'");
+          write("UPDATE work_package SET name='Next remote' WHERE id='a2'");
+          write("UPDATE work_package SET estimate_rounding='exact' WHERE id='a1'");
           write("UPDATE calendar_marker SET name='Next marker' WHERE id='marker'");
           write(
             "INSERT INTO step_parallel(work_item_id,step_id,max_parallel) VALUES('a1','a1-s',2)",
@@ -851,14 +870,14 @@ test('connected export holds labels settings marker and sparse facts in one SQLi
   });
   const before = await plans.readExport('a1', access);
   if (before.kind !== 'connected') throw new Error('expected connected export');
-  expect(before.metadataByProject.get('a2')?.project.name).not.toBe('Next remote');
-  expect(before.metadataByProject.get('a1')?.project.estimateRounding).toBe('ceil');
+  expect(before.metadataByWorkPackage.get('a2')?.workPackage.name).not.toBe('Next remote');
+  expect(before.metadataByWorkPackage.get('a1')?.workPackage.estimateRounding).toBe('ceil');
   expect(before.document.markers.map((marker) => marker.name)).toEqual(['Old marker']);
   expect(before.document.stepParallels).toEqual([]);
   const after = await plans.readExport('a1', access);
   if (after.kind !== 'connected') throw new Error('expected connected export');
-  expect(after.metadataByProject.get('a2')?.project.name).toBe('Next remote');
-  expect(after.metadataByProject.get('a1')?.project.estimateRounding).toBe('exact');
+  expect(after.metadataByWorkPackage.get('a2')?.workPackage.name).toBe('Next remote');
+  expect(after.metadataByWorkPackage.get('a1')?.workPackage.estimateRounding).toBe('exact');
   expect(after.document.markers.map((marker) => marker.name)).toEqual(['Next marker']);
   expect(after.document.stepParallels).toEqual([
     { workItemId: 'a1', stepId: 'a1-s', maxParallel: 2 },
@@ -872,12 +891,12 @@ test.each(['isolated', 'shared'] as const)(
       `UPDATE organization SET shared_people=${mode === 'shared' ? '1' : '0'} WHERE id='org-a'`,
     );
     write(
-      "UPDATE project SET start_date='2026-10-05',estimate_method='realistic',estimate_rounding='exact'",
+      "UPDATE work_package SET start_date='2026-10-05',estimate_method='realistic',estimate_rounding='exact'",
     );
     write(
-      "INSERT INTO work_item(id,project_id,position,name,readiness) VALUES('a3','a3',10,'a3','ready')",
+      "INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES('a3','a3',10,'a3','ready')",
     );
-    write("INSERT INTO step(id,project_id,name,position) VALUES('a3-s','a3','Build',10)");
+    write("INSERT INTO step(id,work_package_id,name,position) VALUES('a3-s','a3','Build',10)");
     write("INSERT INTO person(id,name) VALUES('p','Root P')");
     write(
       "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('p','org-a','Local P')",
@@ -888,19 +907,23 @@ test.each(['isolated', 'shared'] as const)(
       );
       write(`INSERT INTO assignment(work_item_id,step_id,person_id) VALUES('${id}','${id}-s','p')`);
     }
-    if (mode === 'isolated') write("DELETE FROM project_rank WHERE project_id='a3'");
+    if (mode === 'isolated') write("DELETE FROM work_package_rank WHERE work_package_id='a3'");
     const observed = await reader().readAggregate('ada', access);
     if (observed.kind !== 'shared' && observed.kind !== 'isolated-connected')
       throw new Error('captured aggregate required');
-    expect(observed.entries.map(({ projectId }) => projectId)).toEqual(['a1', 'a2', 'a3', 'a4']);
-    const component = observed.entries.find(({ projectId }) => projectId === 'a1')?.plan;
-    const third = observed.entries.find(({ projectId }) => projectId === 'a3')?.plan;
+    expect(observed.entries.map(({ workPackageId }) => workPackageId)).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+    ]);
+    const component = observed.entries.find(({ workPackageId }) => workPackageId === 'a1')?.plan;
+    const third = observed.entries.find(({ workPackageId }) => workPackageId === 'a3')?.plan;
     if (component?.kind !== 'connected') throw new Error('component required');
     if (mode === 'isolated') {
-      expect(component.projection.capture.projects.map(({ projectId }) => projectId)).toEqual([
-        'a1',
-        'a2',
-      ]);
+      expect(
+        component.projection.capture.workPackages.map(({ workPackageId }) => workPackageId),
+      ).toEqual(['a1', 'a2']);
       if (
         third?.kind !== 'local' ||
         third.chain.kind !== 'scheduled' ||
@@ -913,19 +936,17 @@ test.each(['isolated', 'shared'] as const)(
       expect(third.chain.reads.people).toContainEqual(person);
     } else {
       expect(third).toBe(component);
-      expect(component.projection.capture.projects.map(({ projectId }) => projectId)).toEqual([
-        'a1',
-        'a2',
-        'a3',
-      ]);
+      expect(
+        component.projection.capture.workPackages.map(({ workPackageId }) => workPackageId),
+      ).toEqual(['a1', 'a2', 'a3']);
       expect(component.projection.placement.kind).toBe('scheduled');
       if (component.projection.placement.kind !== 'scheduled')
         throw new Error('placement required');
-      const thirdTree = projectConnectedTree(component, 'a3');
+      const thirdTree = workPackageConnectedTree(component, 'a3');
       expect(thirdTree.placement.kind).toBe('scheduled');
-      // Shared capacity consumes both earlier project bookings before the unrelated member.
+      // Shared capacity consumes both earlier work package bookings before the unrelated member.
       expect(
-        component.projection.placement.byProject.get('a3')?.slices.get(sliceKey('a3', 'a3-s'))
+        component.projection.placement.byWorkPackage.get('a3')?.slices.get(sliceKey('a3', 'a3-s'))
           ?.earliestStart,
       ).toBe(2);
     }
@@ -937,33 +958,38 @@ test.each(['absent address', 'unreadable rows', 'missing metadata'] as const)(
   async (fault) => {
     // These original methods are called with the exact captured repository receiver below.
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    const listRows = WorkItemRepository.prototype.listByProject;
+    const listRows = WorkItemRepository.prototype.listByWorkPackage;
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    const findProject = ProjectRepository.prototype.findInOrganization;
+    const findWorkPackage = WorkPackageRepository.prototype.findInOrganization;
     let reached = 0;
-    const rows = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        if (fault === 'unreadable rows' && projectId === 'a2') {
+    const rows = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        if (fault === 'unreadable rows' && workPackageId === 'a2') {
           reached += 1;
           throw new Error('injected unreadable aggregate rows');
         }
-        return listRows.call(this, projectId);
+        return listRows.call(this, workPackageId);
       },
     );
-    const projects = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
-      async function (this: ProjectRepository, projectId, organizationId) {
-        const project = await findProject.call(this, projectId, organizationId);
-        if (fault === 'missing metadata' && projectId === 'a2') {
-          reached += 1;
-          expect(project?.id).toBe('a2');
-          return null;
-        }
-        return project;
-      },
-    );
+    const workPackages = spyOn(
+      WorkPackageRepository.prototype,
+      'findInOrganization',
+    ).mockImplementation(async function (
+      this: WorkPackageRepository,
+      workPackageId,
+      organizationId,
+    ) {
+      const workPackage = await findWorkPackage.call(this, workPackageId, organizationId);
+      if (fault === 'missing metadata' && workPackageId === 'a2') {
+        reached += 1;
+        expect(workPackage?.id).toBe('a2');
+        return null;
+      }
+      return workPackage;
+    });
     try {
       if (fault === 'absent address')
-        write("DELETE FROM project_abbreviation WHERE project_id='a2'");
+        write("DELETE FROM work_package_abbreviation WHERE work_package_id='a2'");
 
       const refusal = await failureOf(reader().readAggregate('ada', access));
       if (fault === 'unreadable rows') {
@@ -972,11 +998,11 @@ test.each(['absent address', 'unreadable rows', 'missing metadata'] as const)(
       }
       if (fault === 'missing metadata') expect(reached).toBe(1);
       if (fault === 'missing metadata')
-        expect(refusal.message).toContain('connected capture names an unreadable project');
+        expect(refusal.message).toContain('connected capture names an unreadable work package');
       if (fault === 'absent address') expect(refusal.message).toContain('abbreviation is missing');
     } finally {
       rows.mockRestore();
-      projects.mockRestore();
+      workPackages.mockRestore();
     }
   },
 );
@@ -999,7 +1025,9 @@ test.each(['membership', 'activation'] as const)(
 );
 
 test('pre-consumer ownership and foreign endpoint SQL refusals preserve every table', () => {
-  write("INSERT INTO work_item(id,project_id,position,name) VALUES('b1','b1',10,'Foreign row')");
+  write(
+    "INSERT INTO work_item(id,work_package_id,position,name) VALUES('b1','b1',10,'Foreign row')",
+  );
   const connection = openDatabase(path);
   try {
     const tables = connection
@@ -1014,12 +1042,12 @@ test('pre-consumer ownership and foreign endpoint SQL refusals preserve every ta
       }));
     const before = snapshot();
     expect(() => {
-      write("UPDATE project_organization SET organization_id='org-b' WHERE resource_id='a2'");
+      write("UPDATE work_package_organization SET organization_id='org-b' WHERE resource_id='a2'");
     }).toThrow('organization ownership is immutable');
     expect(snapshot()).toEqual(before);
     expect(() => {
       write(
-        "UPDATE external_dependency SET predecessor_project_id='b1',predecessor_work_item_id='b1' WHERE id='edge'",
+        "UPDATE external_dependency SET predecessor_work_package_id='b1',predecessor_work_item_id='b1' WHERE id='edge'",
       );
     }).toThrow('FOREIGN KEY constraint failed');
     expect(snapshot()).toEqual(before);

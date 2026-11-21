@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * The capacity mode route (`share-people-across-projects`, slice 8) over
+ * The capacity mode route (`share-people-across-work-packages`, slice 8) over
  * be-01's production composition and real SQLite. Organization A holds a
  * super-admin (`sam`), an admin (`ada`), a member (`mel`) and a viewer
  * (`vic`); Platform ranks above Billing, and both give Ana two days.
@@ -20,19 +20,19 @@ let billing: string;
 const MODE = '/api/organization';
 
 async function create(name: string): Promise<string> {
-  const answer = await h.call('ada', 'POST', '/api/projects', { name });
+  const answer = await h.call('ada', 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
-  h.grant('org-a', 'ada', 'package-manager', 'work_package', projectId);
-  return projectId;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
+  h.grant('org-a', 'ada', 'package-manager', 'work_package', workPackageId);
+  return workPackageId;
 }
 
-async function plan(projectId: string): Promise<void> {
-  await h.call('ada', 'PATCH', `/api/projects/${projectId}`, { startDate: '2026-10-05' });
-  const read = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+async function plan(workPackageId: string): Promise<void> {
+  await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { startDate: '2026-10-05' });
+  const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
   const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
-  if (stepId === undefined) throw new Error('the project started with no step');
-  const applied = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+  if (stepId === undefined) throw new Error('the work package started with no step');
+  const applied = await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [
       { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Work' },
       {
@@ -49,7 +49,7 @@ async function plan(projectId: string): Promise<void> {
 
 /** Where Billing's work for Ana starts. */
 async function billingStart(): Promise<number | undefined> {
-  const answer = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+  const answer = await h.call('ada', 'GET', `/api/work-packages/${billing}/work-items`);
   const slices = (
     answer.body as {
       slices: { personId: string | null; earliestStart: number; earliestFinish: number }[];
@@ -65,12 +65,13 @@ function switches(): unknown[] {
     .all();
 }
 
-function toldAboutTheMode(projectId: string): number {
+function toldAboutTheMode(workPackageId: string): number {
   return h.sqlite
     .query<{ message: string }, [string]>('SELECT message FROM event_log WHERE subscription = ?')
-    .all(`project:${projectId}`)
-    .map((row) => JSON.parse(row.message) as { type: string; causeProjectId?: string | null })
-    .filter((event) => event.type === 'elsewhere_changed' && event.causeProjectId === null).length;
+    .all(`work-package:${workPackageId}`)
+    .map((row) => JSON.parse(row.message) as { type: string; causeWorkPackageId?: string | null })
+    .filter((event) => event.type === 'elsewhere_changed' && event.causeWorkPackageId === null)
+    .length;
 }
 
 /** The production composition, with `modes` as the release's supported capacity modes. */
@@ -210,7 +211,7 @@ describe('the capacity mode', () => {
     expect([toldAboutTheMode(platform), toldAboutTheMode(billing)]).toEqual([0, 0]);
   });
 
-  it('tells every project when the organization switches, and nothing for no switch', async () => {
+  it('tells every work package when the organization switches, and nothing for no switch', async () => {
     await open(SHARED_RELEASE);
     await h.call('sam', 'PATCH', MODE, { sharedPeople: false });
     expect([toldAboutTheMode(platform), toldAboutTheMode(billing)]).toEqual([0, 0]);

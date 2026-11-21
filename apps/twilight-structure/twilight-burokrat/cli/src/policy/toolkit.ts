@@ -5,8 +5,8 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { RelocationRefusal } from './relocation-refusal';
+import { isSameToolkitSource, ToolkitSourceSelection } from './source-selection';
 import { hashTrustedModules } from './trusted-modules';
-import { ToolkitSourceSelection,isSameToolkitSource } from './source-selection';
 
 const Sha256 = /^[0-9a-f]{64}$/;
 /** Proof: optional fields and widened value types fail the named toolkit descriptor requirement/value tests. */
@@ -36,7 +36,14 @@ const bunRoles = type({
 const ToolkitDescriptor = type({ ...descriptorFields, schemaVersion: '1', roles: legacyRoles })
   .onUndeclaredKey('reject')
   .or(type({ ...descriptorFields, schemaVersion: '2', roles: bunRoles }).onUndeclaredKey('reject'))
-  .or(type({...descriptorFields,schemaVersion:'3',sourceSelection:ToolkitSourceSelection,roles:bunRoles}).onUndeclaredKey('reject'));
+  .or(
+    type({
+      ...descriptorFields,
+      schemaVersion: '3',
+      sourceSelection: ToolkitSourceSelection,
+      roles: bunRoles,
+    }).onUndeclaredKey('reject'),
+  );
 
 interface ToolkitFields {
   readonly directory: string;
@@ -60,22 +67,38 @@ export interface BunToolkit extends ToolkitFields {
 
 /** New execution metadata retains the full source kind and identity instead of inferring it from a reference commit. */
 export interface SelectedBunToolkit extends ToolkitFields {
-  readonly schemaVersion:3;
+  readonly schemaVersion: 3;
   /** Reference commit only: the actual revision for committed source or actual base for working source. */
-  readonly sourceRevision:string;
-  readonly sourceSelection:ToolkitSourceSelection;
-  readonly roleBytes:Readonly<Record<keyof typeof bunRoles.infer,Uint8Array>>;
+  readonly sourceRevision: string;
+  readonly sourceSelection: ToolkitSourceSelection;
+  readonly roleBytes: Readonly<Record<keyof typeof bunRoles.infer, Uint8Array>>;
 }
-export type CommittedSelectedBunToolkit=SelectedBunToolkit&{readonly sourceSelection:Extract<ToolkitSourceSelection,{kind:'committed'}>};
-export type BunExecutionToolkit=BunToolkit|SelectedBunToolkit;
-export type CommittedBunExecutionToolkit=BunToolkit|CommittedSelectedBunToolkit;
-
+export type CommittedSelectedBunToolkit = SelectedBunToolkit & {
+  readonly sourceSelection: Extract<ToolkitSourceSelection, { kind: 'committed' }>;
+};
+export type BunExecutionToolkit = BunToolkit | SelectedBunToolkit;
+export type CommittedBunExecutionToolkit = BunToolkit | CommittedSelectedBunToolkit;
 
 /** Compatibility name retained for existing legacy producers until their coordinated switch. */
 export type Toolkit = LegacyToolkit;
 
 /** Verified original bytes, independent from the runtime allowed to execute them. */
 export type VerifiedToolkit = LegacyToolkit | BunToolkit | SelectedBunToolkit;
+
+/**
+ * Select the authenticated format's only dependency location. Current packages use the
+ * canonical directory name so Bun resolves sibling dependencies after physical resolution.
+ * Historical formats retain their original layout; callers must not probe an alternate path.
+ */
+export function resolveToolkitModules(
+  toolkit: Pick<VerifiedToolkit, 'directory' | 'schemaVersion'>,
+): string {
+  // Proof: canonical-layout-fault-current-route-v118 forced the historical path and broke both current positives; historical-route forced the canonical path and broke original schema1/2 byte-verification positives. Each restored control passed.
+  return join(
+    toolkit.directory,
+    toolkit.schemaVersion === 3 ? 'node_modules' : 'trusted-node-modules',
+  );
+}
 
 /**
  * Verify the descriptor's closed versioned roles and runtime closure using the original bytes.
@@ -98,10 +121,17 @@ export function verifyToolkit(directory: string): VerifiedToolkit {
     ToolkitDescriptor,
     JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(descriptorBytes)) as unknown,
   );
-  if(descriptor.schemaVersion===3){
-    const reference=descriptor.sourceSelection.kind==='committed'?descriptor.sourceSelection.revision:descriptor.sourceSelection.base;
+  if (descriptor.schemaVersion === 3) {
+    const reference =
+      descriptor.sourceSelection.kind === 'committed'
+        ? descriptor.sourceSelection.revision
+        : descriptor.sourceSelection.base;
     // Proof: disabling agreement makes the committed required/closed owner accept a different reference revision.
-    if(descriptor.sourceRevision!==reference)throw new RelocationRefusal('R19','toolkit source reference differs from its source selection');
+    if (descriptor.sourceRevision !== reference)
+      throw new RelocationRefusal(
+        'R19',
+        'toolkit source reference differs from its source selection',
+      );
   }
   const common = {
     'snapshotter.ts': readRole(canonical, 'snapshotter.ts', descriptor.roles['snapshotter.ts']),
@@ -126,18 +156,26 @@ export function verifyToolkit(directory: string): VerifiedToolkit {
             'launcher.sh': readRole(canonical, 'launcher.sh', descriptor.roles['launcher.sh']),
           },
         }
-      : descriptor.schemaVersion===2 ? {
-          schemaVersion: 2 as const,
-          roleBytes: {
-            ...common,
-            'launcher.mjs': readRole(canonical, 'launcher.mjs', descriptor.roles['launcher.mjs']),
-          },
-        } : {
-          schemaVersion:3 as const,
-          sourceSelection:descriptor.sourceSelection,
-          roleBytes:{...common,'launcher.mjs':readRole(canonical,'launcher.mjs',descriptor.roles['launcher.mjs'])},
-        };
-  const closure = join(canonical, 'trusted-node-modules');
+      : descriptor.schemaVersion === 2
+        ? {
+            schemaVersion: 2 as const,
+            roleBytes: {
+              ...common,
+              'launcher.mjs': readRole(canonical, 'launcher.mjs', descriptor.roles['launcher.mjs']),
+            },
+          }
+        : {
+            schemaVersion: 3 as const,
+            sourceSelection: descriptor.sourceSelection,
+            roleBytes: {
+              ...common,
+              'launcher.mjs': readRole(canonical, 'launcher.mjs', descriptor.roles['launcher.mjs']),
+            },
+          };
+  const closure = resolveToolkitModules({
+    directory: canonical,
+    schemaVersion: descriptor.schemaVersion,
+  });
   const closureIdentity = hashTrustedModules(closure);
   // Proof: forcing this refusal false copied an altered `typescript/package.json` out of the
   // toolkit into the consumer's archive as the validator's runtime; `SHA256SUMS` lists no file
@@ -232,18 +270,23 @@ export function readBunToolkit(directory: string): BunToolkit {
 }
 
 /** Require the independently selected complete identity for the new runtime profile, after original-byte verification. */
-export function readSelectedBunToolkit(directory:string,expected:ToolkitSourceSelection):SelectedBunToolkit{
-  const toolkit=verifyToolkit(directory);
-  if(toolkit.schemaVersion!==3)throw new RelocationRefusal('R19','selected Bun execution requires toolkit schema 3');
+export function readSelectedBunToolkit(
+  directory: string,
+  expected: ToolkitSourceSelection,
+): SelectedBunToolkit {
+  const toolkit = verifyToolkit(directory);
+  if (toolkit.schemaVersion !== 3)
+    throw new RelocationRefusal('R19', 'selected Bun execution requires toolkit schema 3');
   assertRuntime(toolkit);
   // Proof: disabling this comparison makes the committed identity owner accept a different selected tree.
-  if(!isSameToolkitSource(toolkit.sourceSelection,expected))throw new RelocationRefusal('R19','toolkit source selection differs from selected source');
+  if (!isSameToolkitSource(toolkit.sourceSelection, expected))
+    throw new RelocationRefusal('R19', 'toolkit source selection differs from selected source');
   return toolkit;
 }
 
-function isCommittedToolkit(toolkit:BunExecutionToolkit):toolkit is CommittedBunExecutionToolkit{
+function isCommittedToolkit(toolkit: BunExecutionToolkit): toolkit is CommittedBunExecutionToolkit {
   // Proof: returning true makes the working identity owner admit working source through the committed reader.
-  return toolkit.schemaVersion===2||toolkit.sourceSelection.kind==='committed';
+  return toolkit.schemaVersion === 2 || toolkit.sourceSelection.kind === 'committed';
 }
 
 /**
@@ -251,10 +294,12 @@ function isCommittedToolkit(toolkit:BunExecutionToolkit):toolkit is CommittedBun
  * committed selection for new toolkit3. Release/gate/deploy callers must use this boundary;
  * a working source's valid display/base reference cannot supply committed admission.
  */
-export function readCommittedBunToolkit(directory:string):CommittedBunExecutionToolkit{
-  const toolkit=verifyToolkit(directory);
-  if(toolkit.schemaVersion===1)throw new RelocationRefusal('R19','committed Bun execution requires toolkit schema 2 or 3');
-  if(!isCommittedToolkit(toolkit))throw new RelocationRefusal('R19','Bun execution requires committed source selection');
+export function readCommittedBunToolkit(directory: string): CommittedBunExecutionToolkit {
+  const toolkit = verifyToolkit(directory);
+  if (toolkit.schemaVersion === 1)
+    throw new RelocationRefusal('R19', 'committed Bun execution requires toolkit schema 2 or 3');
+  if (!isCommittedToolkit(toolkit))
+    throw new RelocationRefusal('R19', 'Bun execution requires committed source selection');
   assertRuntime(toolkit);
   return toolkit;
 }

@@ -30,7 +30,7 @@ import { describe, expect, it } from 'bun:test';
  *
  * Proof, and it is not a hypothetical: on its **first** run this found two
  * unstamped updates nobody had noticed — `revision.ts`'s `bumpWorkItems` and
- * `bumpProject`, which write a `revision` column and so move a row that
+ * `bumpWorkPackage`, which write a `revision` column and so move a row that
  * survives. Both are stamped now. Then `...auditOnUpdate(stamp)` was deleted
  * from `estimate.ts`'s `moveAll` and this failed on `+ ["estimate.ts: update of
  * estimate"]`, green again with it restored. Watched 2026-09-01.
@@ -55,7 +55,7 @@ const FOLDER = import.meta.dir;
 //
 // `optimizationGeneration` is the sixth, added 2026-09-04 with slice 3's first
 // production write. It is `event_sequencer`'s reason exactly: a counter row, one
-// per `(project, contract version)`, holding the generation the solver is on.
+// per `(workPackage, contract version)`, holding the generation the solver is on.
 // There is no acting user to put in `created_by` — `SCHEDULER_CONTRACT_VERSION`
 // bumping on deploy is what writes it — and `auditColumns()` is not on the table,
 // so `auditOnCreate(stamp)` could not be spread into that write even if a stamp
@@ -91,10 +91,10 @@ const FOLDER = import.meta.dir;
 // id)` and nothing reads that column as "when somebody did this". The other
 // three audit columns would each name a fact no rule reads. There is
 // deliberately **no per-marker role** — the change's spec says so in as many
-// words, and every mutation is gated by the project's own write permission — so
+// words, and every mutation is gated by the work package's own write permission — so
 // a `created_by` would record an author whom no later decision consults, and a
 // `updated_by` an editor of a row whose whole content a rename or a recolour
-// replaces. `project_id` already answers whose marker it is.
+// replaces. `work_package_id` already answers whose marker it is.
 const EXEMPT = new Set([
   'eventLog',
   'commandJournal',
@@ -120,14 +120,14 @@ const EXEMPT = new Set([
   'calendarMarker',
   // Ownership mappings, not authored rows: the root each maps carries the
   // creation audit, and the bridge triggers write the same tables without one.
-  'projectOrganization',
+  'workPackageOrganization',
   'savedPlanOrganization',
-  // A project's solution link, part of its settings: the project row's own
+  // A work package's solution link, part of its settings: the work package row's own
   // audit columns and revision move with every write of it.
-  'projectSolution',
-  // Address metadata shares the parent project's audit/revision transaction.
+  'workPackageSolution',
+  // Address metadata shares the parent work package's audit/revision transaction.
   // Proof: injecting auditColumns() into its schema failed the exemption guard (2026-10-22).
-  'projectAbbreviation',
+  'workPackageAbbreviation',
   // An audit record is its own authorship: `actor_id` and `created_at` are
   // the act it records, not audit columns about the row.
   'organizationAudit',
@@ -182,11 +182,11 @@ const EXEMPT = new Set([
  * stamping it again on restore would replace who drew the relationship and when
  * with whoever ran the restore — a lossy restore. `space-rollback.ts` does the
  * same for spaces and their members (`#space-rollback`), and
- * `project-rank-rollback.ts` for project ranks (`#project-rank-rollback`). Only
+ * `work-package-rank-rollback.ts` for work package ranks (`#work-package-rank-rollback`). Only
  * inserts are excused; the `it` below keeps the list to files that exist.
  */
 const RESTORES = new Set([
-  'project-rank-rollback.ts',
+  'work-package-rank-rollback.ts',
   'space-rollback.ts',
   'typed-dependency-rollback.ts',
 ]);
@@ -306,7 +306,7 @@ describe('every write fills the audit columns', () => {
       .filter((write) => write.kind === 'insert')
       .filter((write) => !RESTORES.has(write.file))
       .filter((write) => !write.statement.includes('auditOnCreate('))
-      // `users` and `project` date themselves, so their inserts carry the
+      // `users` and `workPackage` date themselves, so their inserts carry the
       // variant that leaves their own `created_at` alone.
       .filter((write) => !write.statement.includes('auditOnCreateBesidesCreatedAt('))
       // A host operator's row: dated, with no WBS user to name as its author.

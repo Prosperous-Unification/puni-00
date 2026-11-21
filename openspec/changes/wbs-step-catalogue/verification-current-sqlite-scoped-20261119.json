@@ -1,0 +1,1417 @@
+{
+  "recordedAt": "2026-11-19T16:07:34.929Z",
+  "goalStatus": "active",
+  "scope": "Actual two-organization Source fixture birth, project catalogue ownership and directory account membership",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "4d7620eb15c56618c7fab67b2d3855f4aa510664065639a6602b6d94f64cf13e",
+      "bytes": 355462,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "c2c852df5a33be7bff5662a51a522921e766f591d94d0fb14845f68e07b39650",
+      "bytes": 323012,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+      "sha256": "264bc0e375ea269e0d0d2210520fe0e9ed54851076502289485f538ad98cb626",
+      "bytes": 4232,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/organization-limits.ts",
+      "sha256": "ad82eb7a050c3b5dee9c4ce9fa9b5dc64e92f609983a894c91c63e1aef37fdcd",
+      "bytes": 9596,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-sqlite-scoped-fixtures-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-first-red-v1.receipt.json",
+        "sha256": "d05505eb6ab8b733b3b09d2779a0bb3998506c324cfe0aac3db4f083806b2f58",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-first-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:57:01.801Z",
+        "endedAt": "2026-11-19T15:57:11.770Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-first-red-v1.log",
+          "sha256": "800650474831b6126ab41055f518b472731512ae5bbaa93072ae3be6904cfc75",
+          "bytes": 9864
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-first-red-v1.log",
+        "sha256": "800650474831b6126ab41055f518b472731512ae5bbaa93072ae3be6904cfc75",
+        "bytes": 9864,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-after-v1.receipt.json",
+        "sha256": "44389c60c4c549842bd6b61009780389a2c9434d1c7af4308ab84e054f302c37",
+        "bytes": 1428,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-after-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T15:58:51.875Z",
+        "endedAt": "2026-11-19T15:59:01.757Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-after-v1.log",
+          "sha256": "894820a84789da71e22f24cc5f8bc665e1f73cb20eb6671866557a11eb97fa4d",
+          "bytes": 1609
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-after-v1.log",
+        "sha256": "894820a84789da71e22f24cc5f8bc665e1f73cb20eb6671866557a11eb97fa4d",
+        "bytes": 1609,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effects-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effects-root-v1.receipt.json",
+        "sha256": "48032c72306ff6e2475ce3fcf65db0884886a0cf315af05898f64732b96d6a6d",
+        "bytes": 1322,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effects-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-sqlite-scoped-fixture-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:34.404Z",
+        "endedAt": "2026-11-19T16:01:03.643Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effects-root-v1.log",
+          "sha256": "a5e2b856218687334d5215ed8a80d685e2650d9ed42d86ef8182742c431fa38e",
+          "bytes": 5334
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effects-root-v1.log",
+        "sha256": "a5e2b856218687334d5215ed8a80d685e2650d9ed42d86ef8182742c431fa38e",
+        "bytes": 5334,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-step-pair-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-step-pair-root-v1.receipt.json",
+        "sha256": "cbc1dbe17cf5cedf48998997a40de46429c42865cf2912f9d56de3e359a1073f",
+        "bytes": 1318,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-step-pair-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-source-step-pair-effect-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:03:10.404Z",
+        "endedAt": "2026-11-19T16:03:14.125Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-step-pair-root-v1.log",
+          "sha256": "1419305c60f49bbf49df0ad09ce4ae9f733d4e2403a5971b496c84f509003b79",
+          "bytes": 53
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-step-pair-root-v1.log",
+        "sha256": "1419305c60f49bbf49df0ad09ce4ae9f733d4e2403a5971b496c84f509003b79",
+        "bytes": 53,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-missing-step-pair-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-missing-step-pair-v1.receipt.json",
+        "sha256": "f198b5b2592d0103a9363e95f327a5bb33e24c8cf9a4e28c5f51801f34c240c4",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-missing-step-pair-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:03:10.441Z",
+        "endedAt": "2026-11-19T16:03:14.122Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-missing-step-pair-v1.log",
+          "sha256": "16907a085b1632dab956c8cd13f435200f858c48124eccd47cc8f3e3b1567c01",
+          "bytes": 1438
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-missing-step-pair-v1.log",
+        "sha256": "16907a085b1632dab956c8cd13f435200f858c48124eccd47cc8f3e3b1567c01",
+        "bytes": 1438,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-format-write-v1.receipt.json",
+        "sha256": "497dcdeae9594f83c32350423c765aa15a05ee94bf44c9359141ecd1de5db79a",
+        "bytes": 1636,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-format-write-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+            "libs/wbs/application/conformance/src/stores/organization-limits.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:01:40.653Z",
+        "endedAt": "2026-11-19T16:01:41.823Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-format-write-v1.log",
+          "sha256": "12313c96f9f976009623e2d85bcef0d27a45af2b7318a09e5bb74021a59a0eda",
+          "bytes": 308
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-format-write-v1.log",
+        "sha256": "12313c96f9f976009623e2d85bcef0d27a45af2b7318a09e5bb74021a59a0eda",
+        "bytes": 308,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-lint-fix-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-lint-fix-v1.receipt.json",
+        "sha256": "f03477bde3975c0fa1afd5183815489e64401c40288cf0bab4d2e9e30ce4069e",
+        "bytes": 1621,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-lint-fix-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+            "libs/wbs/application/conformance/src/stores/organization-limits.ts",
+            "--fix"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:01:57.026Z",
+        "endedAt": "2026-11-19T16:02:04.166Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-lint-fix-v1.log",
+          "sha256": "659e25d92929d08e3ee5a47f861fa39966bc0fd51e95230ee9bf3861945bb83c",
+          "bytes": 251
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-lint-fix-v1.log",
+        "sha256": "659e25d92929d08e3ee5a47f861fa39966bc0fd51e95230ee9bf3861945bb83c",
+        "bytes": 251,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-final-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-types-v1.receipt.json",
+        "sha256": "e7c63bcb9038b81dd734fab875aba123cb706a2a4d77cfbc1bc0581f1169c04f",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:02:38.685Z",
+        "endedAt": "2026-11-19T16:02:51.222Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-lint-v1.receipt.json",
+        "sha256": "050c699e3c900e358f213cd43f1d4843edee109b9456f59012ba54a4ee312204",
+        "bytes": 1608,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+            "libs/wbs/application/conformance/src/stores/organization-limits.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:02:38.685Z",
+        "endedAt": "2026-11-19T16:02:49.700Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-final-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-format-v1.receipt.json",
+        "sha256": "cbc7b821f1a812e13470d74a88ae70b2154658968b72361680638d795b1d2cc5",
+        "bytes": 1635,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+            "libs/wbs/application/conformance/src/stores/organization-limits.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:03:30.670Z",
+        "endedAt": "2026-11-19T16:03:32.004Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-broad-memory-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-memory-v1.receipt.json",
+        "sha256": "2068f9e479cbdacb2e7d93171bc365dd12244e7380993a5c1d2cd03d03749d7d",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-memory-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:03:30.682Z",
+        "endedAt": "2026-11-19T16:03:36.167Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-memory-v1.log",
+          "sha256": "a9aa0eff1eb4155d61d3e5cbfa8e54988d087d66d27f0081a49fa6050730c4f4",
+          "bytes": 24004
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-memory-v1.log",
+        "sha256": "a9aa0eff1eb4155d61d3e5cbfa8e54988d087d66d27f0081a49fa6050730c4f4",
+        "bytes": 24004,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixtures-broad-sqlite-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-sqlite-v1.receipt.json",
+        "sha256": "ee99e57dd1a6858fc10da7af7a3d12b781b9560eb15ac78d94dfe0931287f59b",
+        "bytes": 1437,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-sqlite-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "^(?!.*terminal certification).*$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:03:30.669Z",
+        "endedAt": "2026-11-19T16:06:58.109Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-sqlite-v1.log",
+          "sha256": "c4955ca7855f9ea36698fbcffefcd9425581a4039c9fa42be7991b86a28d9a2b",
+          "bytes": 15568
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixtures-broad-sqlite-v1.log",
+        "sha256": "c4955ca7855f9ea36698fbcffefcd9425581a4039c9fa42be7991b86a28d9a2b",
+        "bytes": 15568,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-definition-owner-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1.receipt.json",
+        "sha256": "4ed3db441651e487270b03742c3c6a03fb8da01dbafac793621c1356a4e3b445",
+        "bytes": 1554,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:34.452Z",
+        "endedAt": "2026-11-19T16:00:38.529Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1.log",
+          "sha256": "7ac6b19b96ab48aaa0a82933cd2e9dcc646b3a7701d22330f3bf50d34eeeb2ff",
+          "bytes": 1468
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1.log",
+        "sha256": "7ac6b19b96ab48aaa0a82933cd2e9dcc646b3a7701d22330f3bf50d34eeeb2ff",
+        "bytes": 1468,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-package-read-owner-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1.receipt.json",
+        "sha256": "7c16bf6548070c2cec57c8dd202988ca44e08442bc16f6658c4579ac8efa39f7",
+        "bytes": 1558,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:38.530Z",
+        "endedAt": "2026-11-19T16:00:42.586Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1.log",
+          "sha256": "b759517f9f9380dd584b4a5f85f0a885f18ee24700b29e294e465572c7a89374",
+          "bytes": 1426
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1.log",
+        "sha256": "b759517f9f9380dd584b4a5f85f0a885f18ee24700b29e294e465572c7a89374",
+        "bytes": 1426,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-held-ownership-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1.receipt.json",
+        "sha256": "8d71a18fb4b3c134c88b95613c4110aa6db2c442a966df02df9d268039b11cb2",
+        "bytes": 1550,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:42.588Z",
+        "endedAt": "2026-11-19T16:00:46.757Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1.log",
+          "sha256": "451c5785b6e4f8502ca5b399f71ccf3c3d4efa9a805716613edd6c827bd25b42",
+          "bytes": 1509
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1.log",
+        "sha256": "451c5785b6e4f8502ca5b399f71ccf3c3d4efa9a805716613edd6c827bd25b42",
+        "bytes": 1509,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-scoped-creation-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1.receipt.json",
+        "sha256": "6d58138944d527635ffab6b30bde8890c537dfb470ebd64c2fd0cd9c3d0c5118",
+        "bytes": 1552,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:46.759Z",
+        "endedAt": "2026-11-19T16:00:50.779Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1.log",
+          "sha256": "28914b32a1f0c5d91af5f13f8f6d3df98a49f53955f072cd08f0e6e03d4ceaf0",
+          "bytes": 1424
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1.log",
+        "sha256": "28914b32a1f0c5d91af5f13f8f6d3df98a49f53955f072cd08f0e6e03d4ceaf0",
+        "bytes": 1424,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-activation-marker-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1.receipt.json",
+        "sha256": "6730f0517bfeb3ff18a798c6e6295f9c153dfce7ac0c9ffeb98c701dd4388459",
+        "bytes": 1556,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:50.782Z",
+        "endedAt": "2026-11-19T16:00:54.791Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1.log",
+          "sha256": "437c20bbbfc7addeeb6f36a4a7466e060da76b98a4af7c49ca830f3d0075d13e",
+          "bytes": 1626
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1.log",
+        "sha256": "437c20bbbfc7addeeb6f36a4a7466e060da76b98a4af7c49ca830f3d0075d13e",
+        "bytes": 1626,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-binding-memberships-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1.receipt.json",
+        "sha256": "27364a79ad822fe912887489477ab0b4dc1baf4d274d5e3473665d32ba30d50f",
+        "bytes": 1526,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture directory.patchPerson:",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:54.794Z",
+        "endedAt": "2026-11-19T16:00:59.596Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1.log",
+          "sha256": "242c1470816fe3d3d31547e95352fef4f2dc4def8d42bb2a38635f77b859ad7b",
+          "bytes": 2798
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1.log",
+        "sha256": "242c1470816fe3d3d31547e95352fef4f2dc4def8d42bb2a38635f77b859ad7b",
+        "bytes": 2798,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1.receipt.json",
+        "sha256": "0280afd3444160885b0763cfab2a7abe470eb6ec6093240bf889aa2acac3a9f8",
+        "bytes": 1541,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current organization fixture claims.occupancy:organization-scope",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:00:59.599Z",
+        "endedAt": "2026-11-19T16:01:03.634Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1.log",
+          "sha256": "366722e163aaaf7cd58ea7474c953603129ba1e2621de9e5bc07056a62608fcb",
+          "bytes": 2087
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1.log",
+        "sha256": "366722e163aaaf7cd58ea7474c953603129ba1e2621de9e5bc07056a62608fcb",
+        "bytes": 2087,
+        "mode": 384
+      }
+    }
+  ],
+  "firstRed": {
+    "passed": 3,
+    "failed": 7,
+    "assertions": 312
+  },
+  "firstAfter": {
+    "passed": 10,
+    "failed": 0,
+    "assertions": 357,
+    "qualification": "Before physical activation marker assertion and explicit at lookup; final broader controls supersede this epoch."
+  },
+  "final": {
+    "sqlite": {
+      "passed": 123,
+      "failed": 0,
+      "assertions": 10624,
+      "qualification": "Complete current Source file except one aggregate certificate; no new aggregate or complete adapter/product result."
+    },
+    "memory": {
+      "passed": 113,
+      "failed": 0,
+      "assertions": 12062,
+      "qualification": "Complete Memory Source conformance file."
+    },
+    "compiler": "Both adapter roots in one serial --build --force invocation pass",
+    "lint": "Four changed code files pass",
+    "format": "Four changed code files pass"
+  },
+  "changes": [
+    "Legacy fixtures retain the bridge and original creation path. Activated fixtures create two real organizations and parents, persist and verify the local marker, then use actual scoped package creation with member/creator grants.",
+    "Current catalogue authoring and package reads use each project/package actual organization; shared-project fixtures still use the first owner. Memory supplies its unchanged same-owner pair.",
+    "Limits keep already-created organization/package ownership while still creating people/resources/caps through the shared helper. Existing Memory ownership seeding remains its default mode.",
+    "Shared occupancy no longer duplicates immutable attribution. Its first resource has explicit ownership; the stage remains unowned as the canonical contract requires.",
+    "Account and owned-person fixtures choose their legacy organization before person creation and seed the required actual memberships, preserving stranger refusal."
+  ],
+  "effects": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effects-v1.json",
+      "sha256": "7db415b19d7af6e3b26522319ba413e1079e58faa9e257f70ad914ab7d325105",
+      "bytes": 6236,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "name": "definition-owner",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+        "canonicalSha256": "d39b6384a44678b692af96cb9cab2d86f769a104d9d26bfa8051dedaee995525",
+        "candidateSha256": "546ffd7ee82ba4afe8c3788ad6d96bfc50f5775f95b550e7b25002b8e4edc097",
+        "restoredSha256": "d39b6384a44678b692af96cb9cab2d86f769a104d9d26bfa8051dedaee995525",
+        "matcher": "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-definition-owner-v1.log"
+      },
+      {
+        "name": "package-read-owner",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/source-catalogue-fixture.ts",
+        "canonicalSha256": "d39b6384a44678b692af96cb9cab2d86f769a104d9d26bfa8051dedaee995525",
+        "candidateSha256": "90a2cbaf31cff42f9d05f390e11ea348a5b6d897d846b2de3c7579193ad87834",
+        "restoredSha256": "d39b6384a44678b692af96cb9cab2d86f769a104d9d26bfa8051dedaee995525",
+        "matcher": "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-package-read-owner-v1.log"
+      },
+      {
+        "name": "held-ownership",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/organization-limits.ts",
+        "canonicalSha256": "0040d44e60f5da76e6c480bcc33569bb4092e265a437f973d7db1477d9918db8",
+        "candidateSha256": "e29531132528143e94aa27f5024b1503a33896c0b29c5f81126bbf0cf7c971a8",
+        "restoredSha256": "0040d44e60f5da76e6c480bcc33569bb4092e265a437f973d7db1477d9918db8",
+        "matcher": "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-held-ownership-v1.log"
+      },
+      {
+        "name": "scoped-creation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "canonicalSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "candidateSha256": "bfb56fb7151d75a4a7f8bac01137b8caba021a8b11fb5f1f306ba0f2294b44e0",
+        "restoredSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "matcher": "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-scoped-creation-v1.log"
+      },
+      {
+        "name": "activation-marker",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "canonicalSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "candidateSha256": "d2fd2e77b8ef4d1d737bb9e545c67399c244924ce9d8d11e1085cddbc66253c4",
+        "restoredSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "matcher": "certifies current organization fixture organizationLimits.readAgentPersonCap:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-activation-marker-v1.log"
+      },
+      {
+        "name": "binding-memberships",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "canonicalSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "candidateSha256": "e39944c4b1c12fe5e5baed29ed5bb861c758cb89dc34566a910395f3e2dacd05",
+        "restoredSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "matcher": "certifies current organization fixture directory.patchPerson:",
+        "expectedFailedTests": 2,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-binding-memberships-v1.log"
+      },
+      {
+        "name": "shared-sibling-owner",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+        "canonicalSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "candidateSha256": "aebd7651ac9b760e6f2f01e6afc1f4799d12db5d6cdb0fa9a14c541b25273d36",
+        "restoredSha256": "e3cf05c217bee8c014125d3f3c0fa4dc41a3bafacd597120a152143c69b41d8b",
+        "matcher": "certifies current organization fixture claims.occupancy:organization-scope",
+        "expectedFailedTests": 1,
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-shared-sibling-owner-v1.log"
+      }
+    ],
+    "missingPair": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-sqlite-scoped-fixture-effect-missing-step-pair-v1.evidence.json",
+      "sha256": "895f33a2f2ad2f3e7b4f7ea75164e512333b0bea7cf49338a86975bdfb9bc0ba",
+      "bytes": 609,
+      "mode": 384
+    },
+    "qualification": "Eight bounded effects restored exact bytes. Seven break actual authoring/read ownership, held ownership, scoped creation, physical marker, membership group or sibling ownership. The eighth shifts a real tuple lookup past its inventory and reaches the named guard. The membership effect covers both cases as a group, not independent member necessity. No host/operator activation or broad production-guard proof follows."
+  },
+  "initialQualityFailure": "Shared helper had an indexed tuple access whose undefined guard lint treated as unreachable. Using at(index) preserves non-negative iterator behavior and represents possible absence explicitly; actual out-of-range lookup is now observed to fail with the named diagnostic. Final lint/types pass.",
+  "remainingKnownDiagnostics": [
+    "claims.observeWorkPackage:legacy-observation",
+    "directory.removePerson:claims-in-use",
+    "directory.removePerson:delegated-claims",
+    "directory.removeResource:in-use-cascade"
+  ],
+  "pending": [
+    "These four names come from the earlier failed221case aggregate and remain a work list; no new aggregate failure count is inferred. Actual claim/directory code still queries retired step storage.",
+    "Inspect claim observation ordering and directory assumed-assignee usage before replacing legacy reads; preserve per-leaf catalogue semantics rather than treating the package union as every leaf inventory.",
+    "Healthy aggregate timing and policy-based test allowance remain; source120000 allowance unchanged.",
+    "Full original entities/settings/spaces/SC13/SC17/SC22/SC25/API/UI/scheduler/PUNI/client Bun/installed/Astra/host gates/release remain open."
+  ],
+  "reviews": "Fresh list_agents still observes account usage-limit errors until Nov22,2026 10:09AM, timezone unspecified. No retry/spawn bypass; Astra review remains pending."
+}

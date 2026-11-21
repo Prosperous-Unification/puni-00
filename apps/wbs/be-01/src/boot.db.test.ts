@@ -1,3 +1,5 @@
+import { refusingPlanExports } from './testing/plan-export-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,7 +27,9 @@ import { allocateGeneration, readGeneration } from './repository/optimization-ge
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
-import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
+import { seedLegacyProject } from './testing/project-fixture';
+import { refusingProjects } from './testing/project-fixture';
+import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -90,23 +94,23 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
     );
     seed.run(
-      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
+      "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES ('a1', 'org-a', 10, 1, 'ada'), ('a2', 'org-a', 20, 1, 'ada')",
     );
-    for (const projectId of ['a1', 'a2']) {
+    for (const workPackageId of ['a1', 'a2']) {
       seed.run(
-        `UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${projectId}'`,
+        `UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = '${workPackageId}'`,
       );
       seed.run(
-        `INSERT INTO work_item (id, project_id, position, name) VALUES ('${projectId}', '${projectId}', 10, '${projectId}')`,
+        `INSERT INTO work_item (id, work_package_id, position, name) VALUES ('${workPackageId}', '${workPackageId}', 10, '${workPackageId}')`,
       );
       seed.run(
-        `INSERT INTO step (id, project_id, name, position) VALUES ('${projectId}-step', '${projectId}', '${projectId}-step', 10)`,
+        `INSERT INTO step (id, work_package_id, name, position) VALUES ('${workPackageId}-step', '${workPackageId}', '${workPackageId}-step', 10)`,
       );
       seed.run(
-        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${projectId}', '${projectId}-step', 1, 1, 1)`,
+        `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', '${workPackageId}-step', 1, 1, 1)`,
       );
       seed.run(
-        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${projectId}', '${projectId}-step', 'ana')`,
+        `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${workPackageId}', '${workPackageId}-step', 'ana')`,
       );
     }
   } finally {
@@ -137,7 +141,9 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       makeApp: (options) => {
         const app = buildApp({
           ...options,
-          projectAddressSearch: refusingProjectAddressSearch,
+          projects: refusingProjects,
+          planExports: refusingPlanExports,
+          workPackageAddressSearch: refusingWorkPackageAddressSearch,
         });
         app.stop = () => Promise.resolve(app);
         mounted = app;
@@ -150,7 +156,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
   );
   if (mounted === undefined) throw new Error('boot did not compose an app');
   const answer = await mounted.handle(
-    new Request('http://localhost/api/projects/a1/commands', {
+    new Request('http://localhost/api/work-packages/a1/commands', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -173,17 +179,17 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all('project:a2')
+        .all('work-package:a2')
         .map(({ message }) => JSON.parse(message) as unknown),
-    ).toEqual([{ type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' }]);
+    ).toEqual([{ type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' }]);
   } finally {
     commandReadback.close();
   }
   const rank = await mounted.handle(
-    new Request('http://localhost/api/organization/projects/a2/rank', {
+    new Request('http://localhost/api/organization/work-packages/a2/rank', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ afterProjectId: null }),
+      body: JSON.stringify({ afterWorkPackageId: null }),
     }),
   );
   expect(rank.status).toBe(200);
@@ -194,23 +200,23 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
         .query<{ message: string }, [string]>(
           'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
         )
-        .all('project:a2')
+        .all('work-package:a2')
         .map(({ message }) => JSON.parse(message) as unknown),
     ).toEqual([
-      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
-      { type: 'elsewhere_changed', projectId: 'a2', causeProjectId: 'a1' },
+      { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
+      { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
     ]);
     const upstreamEvents = readback
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all('project:a1')
+      .all('work-package:a1')
       .map(({ message }) => JSON.parse(message) as unknown);
     expect(upstreamEvents).toHaveLength(2);
     expect(upstreamEvents.at(-1)).toEqual({
       type: 'elsewhere_changed',
-      projectId: 'a1',
-      causeProjectId: 'a2',
+      workPackageId: 'a1',
+      causeWorkPackageId: 'a2',
     });
   } finally {
     readback.close();
@@ -428,7 +434,7 @@ describe('bootBe01', () => {
     expect(
       (
         await mounted.handle(
-          new Request('http://localhost/api/projects', {
+          new Request('http://localhost/api/work-packages', {
             headers: { authorization: `Bearer ${signed}` },
           }),
         )
@@ -448,6 +454,7 @@ describe('bootBe01', () => {
     const dir = tempDir('wbs-optimizer-reconcile-');
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     const raw = openDatabase(dbPath);
     try {
       raw.run(
@@ -455,9 +462,9 @@ describe('bootBe01', () => {
          VALUES ('u-1', 'owner', 'hash', 1)`,
       );
       raw.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at,
                               optimization_enabled, schedule_engine, schedule_objective)
-         VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+         VALUES ('p-1', 'Plan', 'http-fixture-parent', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
       );
     } finally {
       raw.close();
@@ -469,7 +476,7 @@ describe('bootBe01', () => {
     try {
       state.run(
         `UPDATE optimization_generation SET admission_state = 'draining'
-         WHERE project_id = 'p-1' AND contract_version = '${contractVersion}'`,
+         WHERE work_package_id = 'p-1' AND contract_version = '${contractVersion}'`,
       );
     } finally {
       state.close();
@@ -540,10 +547,13 @@ describe('bootBe01', () => {
       await Bun.sleep(10);
     }
     expect(health?.status).toBe(200);
-    const created = expectCreated(await running.services.projects.create('Optimizer', 'local-dev'));
+    seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
+    const created = expectCreated(
+      await running.services.workPackages.create('Optimizer', PROJECT_ID, 'local-dev'),
+    );
 
     expect(
-      await running.services.projects.update(created.project.id, 'local-dev', {
+      await running.services.workPackages.update(created.workPackage.id, 'local-dev', {
         optimizationEnabled: true,
       }),
     ).toHaveProperty('ok', true);
@@ -573,14 +583,16 @@ describe('bootBe01', () => {
     }
     expect(health?.status).toBe(200);
 
+    seedLegacyProject(join(dir, 'test.db'), 'http-fixture-legacy', PROJECT_ID);
     const created = expectCreated(
-      await running.services.projects.create('Local plan', 'local-dev'),
+      await running.services.workPackages.create('Local plan', PROJECT_ID, 'local-dev'),
     );
 
-    expect(created.project.ownerId).toBe('local-dev');
+    expect(created.workPackage.projectId).toBe(PROJECT_ID);
+    expect(Object.hasOwn(created.workPackage, 'ownerId')).toBe(false);
   });
 
-  it('refuses the project and directory lists after activation until a session binds an organization', async () => {
+  it('refuses the work package and directory lists after activation until a session binds an organization', async () => {
     const dir = tempDir('wbs-organization-boot-');
     const dbPath = join(dir, 'test.db');
     let productionAccess: Parameters<typeof buildApp>[0]['organizations'] | undefined;
@@ -609,10 +621,10 @@ describe('bootBe01', () => {
         },
       },
     );
-    const projects = `http://127.0.0.1:${String(running.port)}/api/projects`;
+    const workPackages = `http://127.0.0.1:${String(running.port)}/api/work-packages`;
     let listed: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      listed = await fetch(projects);
+      listed = await fetch(workPackages);
       if (listed.status === 200) break;
       await Bun.sleep(10);
     }
@@ -645,7 +657,7 @@ describe('bootBe01', () => {
       }),
     ).toEqual({ ok: false, refusal: 'no_active_organization' });
 
-    for (const path of ['/api/projects', '/api/tags', '/api/people']) {
+    for (const path of ['/api/work-packages', '/api/tags', '/api/people']) {
       const refused = await fetch(`http://127.0.0.1:${String(running.port)}${path}`);
 
       expect({ path, status: refused.status, body: (await refused.json()) as unknown }).toEqual({
@@ -824,7 +836,7 @@ describe('bootBe01', () => {
       };
       const dependencies = createDependencyContext(
         scope.stores,
-        { projectId: null, actorId: 'ada', access, admission: NO_ADMISSION },
+        { workPackageId: null, actorId: 'ada', access, admission: NO_ADMISSION },
         () => undefined,
         { kind: 'raw' },
       );
@@ -1048,16 +1060,19 @@ describe('bootBe01', () => {
     const dir = tempDir('wbs-backfill-boot-');
     const dbPath = join(dir, 'test.db');
     runMigrations(dbPath, FOLDER);
+    seedLegacyProject(dbPath, 'http-fixture-legacy', PROJECT_ID);
     const seed = openDatabase(dbPath);
     try {
       seed.run(
         "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
       );
       seed.run(
-        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
-          " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
+        'INSERT INTO work_package (id, name, project_id, created_by, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Shed', 'http-fixture-parent', 'u', 0, 'pert', NULL, 0, 1)",
       );
-      seed.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+      seed.run(
+        "INSERT INTO step (id, work_package_id, name, position) VALUES ('s', 'p', 'Dev', 10)",
+      );
     } finally {
       seed.close();
     }
@@ -1647,27 +1662,28 @@ describe('bootBe01', () => {
       username: 'local-dev',
       scopes: ['read', 'write'],
     });
-    const created = await fetch(`http://127.0.0.1:${String(be.port)}/api/projects`, {
+    const created = await fetch(`http://127.0.0.1:${String(be.port)}/api/work-packages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: 'http://localhost' },
       body: JSON.stringify({ name: 'Resumed' }),
     });
-    const projectId = ((await created.json()) as { project: { id: string } }).project.id;
+    const workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage
+      .id;
 
     const res = await fetch(`http://127.0.0.1:${String(be.port)}/internal/resume`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-internal-auth': 's'.repeat(32) },
       body: JSON.stringify({
-        resume_points: { [`project:${projectId}`]: 4, 'project:unknown': 4 },
+        resume_points: { [`work-package:${workPackageId}`]: 4, 'work-package:unknown': 4 },
         trace_id: 't-1',
       }),
     });
 
     expect(res.status).toBe(200);
     expect((await res.json()) as unknown).toEqual({
-      [`project:${projectId}`]: { status: 'denied', reason: 'out_of_range' },
-      // The wired access check: a project nobody can read is never replayed.
-      'project:unknown': { status: 'denied', reason: 'forbidden' },
+      [`work-package:${workPackageId}`]: { status: 'denied', reason: 'out_of_range' },
+      // The wired access check: a work package nobody can read is never replayed.
+      'work-package:unknown': { status: 'denied', reason: 'forbidden' },
     });
   });
 });
@@ -1721,9 +1737,9 @@ describe('a native session under a verifier outage', () => {
     return { port: be.port, token: registered.value.token };
   }
 
-  for (const route of ['/api/auth/me', '/api/projects', '/api/people']) {
+  for (const route of ['/api/auth/me', '/api/work-packages', '/api/people']) {
     // Proof: with first-party principals still asking the upstream verifier
-    // in `organizationCredentialEvidence`, `/api/projects` and `/api/people`
+    // in `organizationCredentialEvidence`, `/api/work-packages` and `/api/people`
     // answered 500 for both carriers; watched 2026-10-24.
     it(`answers ${route} 200 by cookie and by Bearer with password login on`, async () => {
       const { port, token } = await bootWithOutage(true);

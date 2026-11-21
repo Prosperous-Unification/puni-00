@@ -6,8 +6,8 @@ import type {
   RefreshFailure,
   RefreshResource,
 } from '@/lib/plan-refresh';
-import type { ProjectStream } from '@/lib/project-stream';
 import type { CalendarMarkerView, PlanRead, StepView } from '@/lib/wbs-api';
+import type { WorkPackageStream } from '@/lib/work-package-stream';
 import type { Store } from '@/modules/store';
 
 /**
@@ -72,10 +72,10 @@ export interface PlanFeedRefusal {
  * prop.
  */
 export interface PlanFeedStreamHandlers {
-  /** See `ProjectStreamOptions.onChange`: what the frame said changed, or `null`. */
+  /** See `WorkPackageStreamOptions.onChange`: what the frame said changed, or `null`. */
   onChange: (changed?: string | null, seq?: number) => void;
   onConnectionChange: (connected: boolean) => void;
-  /** See `ProjectStreamOptions.onClaims`: a transient claims announcement, opted into here. */
+  /** See `WorkPackageStreamOptions.onClaims`: a transient claims announcement, opted into here. */
   onClaims: () => void;
 }
 
@@ -83,14 +83,14 @@ export interface PlanFeedStreamHandlers {
  * What the reading needs from whoever built it.
  *
  * `isLive` is the whole of what this resource knows about lifetimes: whether
- * anybody is still listening. **Who** that is — which project, which API,
+ * anybody is still listening. **Who** that is — which work package, which API,
  * whether the screen has been torn down — is the feature's knowledge, and it
  * answers this one question on the resource's behalf.
  */
 export interface PlanReadingPorts {
   readonly openOwner: () => PlanRefresh;
   readonly openStream:
-    ((handlers: PlanFeedStreamHandlers, baseline: number) => ProjectStream) | null;
+    ((handlers: PlanFeedStreamHandlers, baseline: number) => WorkPackageStream) | null;
   readonly isLive: () => boolean;
   readonly deliver: (delivery: PlanFeedDelivery) => void;
   readonly reportFailures: (failures: readonly RefreshFailure[]) => void;
@@ -98,7 +98,7 @@ export interface PlanReadingPorts {
 }
 
 /**
- * One project's refresh, its stream and its generations.
+ * One work package's refresh, its stream and its generations.
  *
  * The **resource**-service: the quirks and invariants of one resource — the
  * plan as this browser holds it — its staleness, its refresh and its stream
@@ -125,15 +125,15 @@ export interface PlanReading extends Store<PlanRefreshSnapshot> {
  *
  * Every member is a function for {@link PlanWriterHost}'s reason: all of them
  * are read at the moment something happens, not at the moment the feed is
- * built. A reader can leave for another project between a read starting and its
+ * built. A reader can leave for another work package between a read starting and its
  * answer arriving, and the feed is still alive when it does.
  */
 export interface PlanFeedHost {
   readonly openOwner: () => PlanRefresh;
   readonly openStream:
-    ((handlers: PlanFeedStreamHandlers, baseline: number) => ProjectStream) | null;
+    ((handlers: PlanFeedStreamHandlers, baseline: number) => WorkPackageStream) | null;
   /**
-   * Whether this feed still owns the screen: the same project and the same API
+   * Whether this feed still owns the screen: the same work package and the same API
    * it was opened for.
    *
    * Separate from the feed being closed, and both are needed. A render can

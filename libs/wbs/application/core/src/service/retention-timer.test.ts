@@ -41,7 +41,7 @@ const rethrow = (err: unknown): never => {
 
 async function seed(count: number) {
   const log = inMemoryEventLog();
-  for (let n = 0; n < count; n++) await log.record('project:a', { n });
+  for (let n = 0; n < count; n++) await log.record('work-package:a', { n });
   return log;
 }
 
@@ -52,7 +52,7 @@ const DAY_MS = 24 * 60 * 60_000;
 function event(id: string, daysAgo: number): PlanEvent {
   return {
     id,
-    projectId: 'p',
+    workPackageId: 'p',
     userId: 'u',
     kind: 'estimate',
     label: `estimate ${id}`,
@@ -93,10 +93,10 @@ describe('RetentionTimer', () => {
     await timer.stop();
 
     expect(swept).toEqual([3]);
-    expect(await log.oldestSeq('project:a')).toBe(3);
+    expect(await log.oldestSeq('work-package:a')).toBe(3);
     // The sequence does not move backwards when rows go, so a client resuming
     // after a prune is refused rather than told it is up to date.
-    expect(await log.latestSeq('project:a')).toBe(4);
+    expect(await log.latestSeq('work-package:a')).toBe(4);
   });
 
   it('keeps sweeping after one sweep fails', async () => {

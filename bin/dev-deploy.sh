@@ -19,6 +19,10 @@
 # its checkout, and the watchers already running there do the rest.
 set -euo pipefail
 
+# Proof: backend-caller-fault-deployment-admission-v124b reaches controlled SSH
+# with missing selection; restored caller refuses before its Git/SSH work.
+"$(dirname "${BASH_SOURCE[0]}")/dev-be-probe.ts" --preflight
+
 SHA=$(git rev-parse HEAD)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
@@ -145,7 +149,9 @@ check 404 https://dev.wbs.bulletpoints.club/ws 'gw (answered, not 502)'
 # for a route it could not match. This asserts a body only be-01 emits: the
 # auth controller's own JSON for a request with no token. It proves the
 # application layer is mounted, not merely that a process accepted a socket.
-if ! "$(dirname "${BASH_SOURCE[0]}")/dev-be-probe.sh" https://dev.wbs.bulletpoints.club; then
+# Proof: backend-caller-fault-deployment-health-v124b reports healthy after the
+# selected status37 when this check is skipped; restored caller reports failure.
+if ! "$(dirname "${BASH_SOURCE[0]}")/dev-be-probe.ts" https://dev.wbs.bulletpoints.club; then
   fail=1
 fi
 

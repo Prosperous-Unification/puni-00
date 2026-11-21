@@ -23,7 +23,7 @@ export function validateRealBoundaries(input: ScheduleInput, plan: Schedule): vo
   validateResolvedRealBoundaries(resolveScheduleInput(input), plan);
 }
 
-/** Check the supplied graph's strict real FS/SS/FF inequalities after placement, without re-resolving project reach. */
+/** Check the supplied graph's strict real FS/SS/FF inequalities after placement, without re-resolving work package reach. */
 export function validateResolvedRealBoundaries(input: ResolvedScheduleInput, plan: Schedule): void {
   validateResolvedGraph(input);
   const index = indexTree(input.rows);

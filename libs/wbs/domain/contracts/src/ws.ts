@@ -69,7 +69,7 @@ const ResumeFrame = type({
  *
  * Sent **last**, after the replayed frames themselves: an acknowledgement that
  * arrived first would let a client advance its sequence past frames it has not
- * been handed. An empty map is a real answer — see `project-stream.ts`, which
+ * been handed. An empty map is a real answer — see `work-package-stream.ts`, which
  * refetches rather than reading silence as "you missed nothing".
  */
 const ResumeAckFrame = type({
@@ -82,9 +82,9 @@ const ResumeAckFrame = type({
  *
  * `out_of_range` is a range be-01 no longer holds — retention pruned it.
  * `unavailable` is be-01 not answering at all, so **nothing** is known about
- * the range. `forbidden` is a name that is not a project the socket's
+ * the range. `forbidden` is a name that is not a work package the socket's
  * principal may read now, including one that does not exist. The client's only
- * honest move for any of them is to read the whole project again.
+ * honest move for any of them is to read the whole work package again.
  */
 // Proof: dropping `forbidden` here failed `are control frames the parser
 // accepts` with `reason must be "out_of_range" or "unavailable"` (2026-10-11).
@@ -97,7 +97,7 @@ const ResumeDeniedFrame = type({
 const PingFrame = type({ type: "'ping'" });
 const PongFrame = type({ type: "'pong'" });
 
-/** Who is on this connection's project, by username. */
+/** Who is on this connection's work package, by username. */
 const PresenceFrame = type({
   type: "'presence'",
   users: 'string[]',
@@ -127,7 +127,7 @@ const WhoFrame = type({ type: "'who'" });
  * `subscription` is present on `unknown_subscription` and
  * `subscription_revoked` and absent on the others, because those are the only
  * refusals about a name the client sent. `subscription_revoked` means a held
- * project subscription lost access and the socket no longer receives it.
+ * work package subscription lost access and the socket no longer receives it.
  */
 const ErrorFrame = type({
   type: "'error'",

@@ -4,7 +4,7 @@ import type { SolverPreflight } from './solver-preflight';
 import { SOLVER_HORIZON_UNITS_MAX, type SolverElsewhere } from './wire-types';
 
 /**
- * Project workdays become conservative fixed intervals: round starts down and
+ * Work package workdays become conservative fixed intervals: round starts down and
  * ends up, clip at zero, omit expired bookings, and union rounded overlaps.
  * Adjacency stays a hand-off. The caller retains the original holder-bearing
  * bookings for materialisation and publication diagnostics. The scaled copy

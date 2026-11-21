@@ -119,7 +119,11 @@ describe('compute providers panel states', () => {
   });
 
   it('renders no panel when the read answers forbidden', async () => {
-    const sent = stub({ [LIST]: [() => answer(403, { error: 'forbidden' })] });
+    const sent = stub({
+      [LIST]: [
+        () => answer(403, { error: 'forbidden', permission: 'organization.manage_directory' }),
+      ],
+    });
     mount();
     await waitFor(() => {
       expect(routesOf(sent)).toContain(LIST);
@@ -258,7 +262,15 @@ describe('compute providers panel writes', () => {
     async (error, status, text) => {
       const sent = stub({
         [LIST]: [listing()],
-        [REGISTER]: [() => answer(status, { error })],
+        [REGISTER]: [
+          () =>
+            answer(
+              status,
+              error === 'forbidden'
+                ? { error, permission: 'organization.manage_directory' }
+                : { error },
+            ),
+        ],
       });
       mount();
       const dialog = await openRegister();

@@ -1,0 +1,2657 @@
+{
+  "recordedAt": "2026-11-19T16:38:34.947Z",
+  "goalStatus": "active",
+  "scope": "Current SQLite directory usage/refusal/cascade labels and retained point-fact admission",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+      "sha256": "1741039b741c76cedf9e7b1bf0a84f7696ec2a4cba7c15206d1be7b934342817",
+      "bytes": 119862,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+      "sha256": "d7b02ed03c9c6da5d0a8ea2faf69f1b9951ee44485a94f39aa6f314f474e32ba",
+      "bytes": 17471,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "5caaf54b52797683fe522312af455a5e77f68eed90ba0e9a1ab3ac4d0564889c",
+      "bytes": 355945,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/design.md",
+      "sha256": "34c74511eb3a72f2cbb67f09694e8c1cbda309689cd5bb217d03aa3c36954221",
+      "bytes": 47927,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md",
+      "sha256": "5894aee6588c1139bf3f48e12d340f9414d523d0317345016068e24e02aebabd",
+      "bytes": 34663,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "bdad73ebe92917963c23b9981f7066e40c4a4380513b8e23b77741756b3b919a",
+      "bytes": 13040,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-directory-catalogue-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-first-red-v1.receipt.json",
+        "sha256": "2c42536033a157d2c593b9e6026122fb6f3baa547abceb17adac1c3ecb0de2ee",
+        "bytes": 1499,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-first-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "current directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:15:36.615Z",
+        "endedAt": "2026-11-19T16:15:45.287Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-first-red-v1.log",
+          "sha256": "a6b4303196e196b3a7df64d5c178f56d8ac7faccb4aeb30c8a03bfb53c29c927",
+          "bytes": 18628
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-first-red-v1.log",
+        "sha256": "a6b4303196e196b3a7df64d5c178f56d8ac7faccb4aeb30c8a03bfb53c29c927",
+        "bytes": 18628,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-facts-first-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-facts-first-red-v1.receipt.json",
+        "sha256": "30f40502afc1140830e3e3c83120f92b772b8d055c19007ab5f33ac62d3effef",
+        "bytes": 1450,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-facts-first-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained|work item is absent",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:17:53.731Z",
+        "endedAt": "2026-11-19T16:17:58.546Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-facts-first-red-v1.log",
+          "sha256": "45dd170d8661cbda25d8e07539e54848aa5c7f5355975284663e6db15c7df31e",
+          "bytes": 4552
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-facts-first-red-v1.log",
+        "sha256": "45dd170d8661cbda25d8e07539e54848aa5c7f5355975284663e6db15c7df31e",
+        "bytes": 4552,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-after-v1.receipt.json",
+        "sha256": "1b8ca09bf3b1394f090dd52ac5e02af858e7e400b51a22a2ffaf68a9fbac5664",
+        "bytes": 1490,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-after-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "current directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:18:38.768Z",
+        "endedAt": "2026-11-19T16:18:49.722Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-after-v1.log",
+          "sha256": "a084f974b4c7bfcfa09cf06897df0747d7232612e2319d32386729ed9301bd9e",
+          "bytes": 1459
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-after-v1.log",
+        "sha256": "a084f974b4c7bfcfa09cf06897df0747d7232612e2319d32386729ed9301bd9e",
+        "bytes": 1459,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-baseline-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v1.receipt.json",
+        "sha256": "655c2bb13559973e0473005b3d01718f766638dc8643f060683fcd7dfb818b20",
+        "bytes": 1496,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "current directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:20:38.764Z",
+        "endedAt": "2026-11-19T16:20:50.922Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v1.log",
+          "sha256": "e293327339eff628866bb5c33745628e110098d89415ab3d3d49ab9cc61ead4f",
+          "bytes": 3946
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v1.log",
+        "sha256": "e293327339eff628866bb5c33745628e110098d89415ab3d3d49ab9cc61ead4f",
+        "bytes": 3946,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-baseline-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v2.receipt.json",
+        "sha256": "075d9467d91293463b551cc6d4464b3aba0644610b3b4ed2e72d1472d70ae432",
+        "bytes": 1496,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "current directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:21:17.263Z",
+        "endedAt": "2026-11-19T16:21:29.718Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v2.log",
+          "sha256": "698d272027725bc884bf186b90145c9ef8276732be480f729e69fd07456947d9",
+          "bytes": 1740
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-baseline-v2.log",
+        "sha256": "698d272027725bc884bf186b90145c9ef8276732be480f729e69fd07456947d9",
+        "bytes": 1740,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-format-write-v1.receipt.json",
+        "sha256": "c52983739ed4208262917acca3450747a37057067268ae8586f82cb15c645cf2",
+        "bytes": 1547,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-format-write-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-sqlite/src/directory.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:22:23.796Z",
+        "endedAt": "2026-11-19T16:22:24.719Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-format-write-v1.log",
+          "sha256": "ff52884b5c6b3ad69b5c4875e5ccf2ef9597f7ce5007f9494a76a847ea56913e",
+          "bytes": 218
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-format-write-v1.log",
+        "sha256": "ff52884b5c6b3ad69b5c4875e5ccf2ef9597f7ce5007f9494a76a847ea56913e",
+        "bytes": 218,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-lint-fix-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-lint-fix-v1.receipt.json",
+        "sha256": "5e88d4f8963bcbdf2828fafa1355fa398409a4975defe404845118751268d2e9",
+        "bytes": 1530,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-lint-fix-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/directory.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "--fix"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:22:37.929Z",
+        "endedAt": "2026-11-19T16:22:45.575Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-lint-fix-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-lint-fix-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-types-v1.receipt.json",
+        "sha256": "7264af194342d46f2141bb5a1815de4b4eb4cae603abac811dc33f320f93a318",
+        "bytes": 1375,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:24:57.534Z",
+        "endedAt": "2026-11-19T16:25:06.025Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-formatted-baseline-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-formatted-baseline-v1.receipt.json",
+        "sha256": "f4fdd2272e9784c332f092ce17596218b845e5a363958e6c4b74feff6d85dd0d",
+        "bytes": 1516,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-formatted-baseline-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "current directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:24:57.537Z",
+        "endedAt": "2026-11-19T16:25:12.459Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-formatted-baseline-v1.log",
+          "sha256": "f4a03b1c3918c29d46b6675c02a1d8a7cd29121ca37d8f26e78a6af3504e6be9",
+          "bytes": 1741
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-formatted-baseline-v1.log",
+        "sha256": "f4a03b1c3918c29d46b6675c02a1d8a7cd29121ca37d8f26e78a6af3504e6be9",
+        "bytes": 1741,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effects-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v1.receipt.json",
+        "sha256": "58b610b3533c87becc24986d78983e7ce89c0592e479ff3b7c213fc855d55cfc",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-directory-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:25:26.930Z",
+        "endedAt": "2026-11-19T16:25:39.553Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v1.log",
+          "sha256": "015cce72ffff01a238ffb28da53049a66b8480c6bd3cad391069475064a03330",
+          "bytes": 1319
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v1.log",
+        "sha256": "015cce72ffff01a238ffb28da53049a66b8480c6bd3cad391069475064a03330",
+        "bytes": 1319,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-dedup-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v1.receipt.json",
+        "sha256": "e94b6e1be3db64fdfc2a2c60b730e01960c6a705bff39fad7dc456a06d0bd0ac",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "current directory usage names shared|current directory resource refusal and cascade",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:25:26.967Z",
+        "endedAt": "2026-11-19T16:25:31.115Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v1.log",
+          "sha256": "2548fe6bd41753fda432dc7bea7ffe7cef0524ebbb4db19da22d201a3b3e70fb",
+          "bytes": 2965
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v1.log",
+        "sha256": "2548fe6bd41753fda432dc7bea7ffe7cef0524ebbb4db19da22d201a3b3e70fb",
+        "bytes": 2965,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-scope-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v1.receipt.json",
+        "sha256": "a6c3e856a89c51216211a9f2ebf3a22257dd2627d2846e4cf98c445a8a4f3de7",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "current directory usage names shared|current directory resource refusal and cascade",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:25:31.116Z",
+        "endedAt": "2026-11-19T16:25:35.321Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v1.log",
+          "sha256": "13fe15e8a9e65c056af7355084380cf6bced8956697ba0a907dbeb7369cd2fa6",
+          "bytes": 3157
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v1.log",
+        "sha256": "13fe15e8a9e65c056af7355084380cf6bced8956697ba0a907dbeb7369cd2fa6",
+        "bytes": 3157,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-validation-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v1.receipt.json",
+        "sha256": "5d04b729b88eb518402b6dbeea07d5590d2ee6968e8f186b747393ab9d484591",
+        "bytes": 1486,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:25:35.323Z",
+        "endedAt": "2026-11-19T16:25:39.550Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v1.log",
+          "sha256": "5afb519c80d098a63806032539d7374bd95f654519cd57e9dcb4cea4925cca4b",
+          "bytes": 2181
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v1.log",
+        "sha256": "5afb519c80d098a63806032539d7374bd95f654519cd57e9dcb4cea4925cca4b",
+        "bytes": 2181,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effects-root-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v2.receipt.json",
+        "sha256": "1f9122c01505a9c1109a4facd17810a1eac7317f1eb299a0e99de329012c95ae",
+        "bytes": 1285,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v2",
+        "command": {
+          "argv": ["bun", "/tmp/puni-current-directory-effects-v2.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:26:43.859Z",
+        "endedAt": "2026-11-19T16:27:56.729Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v2.log",
+          "sha256": "00c8de7cf361479566c24e25ac575ce46cecfdb03ebc3f72fb4e965821295e74",
+          "bytes": 944
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-root-v2.log",
+        "sha256": "00c8de7cf361479566c24e25ac575ce46cecfdb03ebc3f72fb4e965821295e74",
+        "bytes": 944,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-proof-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-proof-format-v1.receipt.json",
+        "sha256": "2611436ff8a2d952f2abf04a8033dff42f9dcfc3511042196ea203ac5f34e72f",
+        "bytes": 1547,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-proof-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-sqlite/src/directory.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:29:55.146Z",
+        "endedAt": "2026-11-19T16:29:56.083Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-proof-format-v1.log",
+          "sha256": "e22a716fe3f4e26733456e3edd0c86a1bf0edf695a81369a79f1a5342b417191",
+          "bytes": 254
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-proof-format-v1.log",
+        "sha256": "e22a716fe3f4e26733456e3edd0c86a1bf0edf695a81369a79f1a5342b417191",
+        "bytes": 254,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-lint-v1.receipt.json",
+        "sha256": "2c7c1ec0c06d9a2dea4a915215fc8ca27a8cb40c10bb09c68c708096cd63b7f3",
+        "bytes": 1519,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/directory.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:30:51.132Z",
+        "endedAt": "2026-11-19T16:30:57.952Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-final-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-format-v1.receipt.json",
+        "sha256": "956f87eea138929aebd45e1c04faa810fb140befe4e3173945b27e97bcc89f1a",
+        "bytes": 1546,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/adapters/store-sqlite/src/directory.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:30:51.132Z",
+        "endedAt": "2026-11-19T16:30:52.187Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-catalogue-broad-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-broad-v1.receipt.json",
+        "sha256": "6764c51592c29f1969a79e72dc473aa8ff22a11725698b58478a320a16f027e3",
+        "bytes": 1577,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-broad-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "libs/wbs/application/core/src/service/directory-usage.test.ts",
+            "-t",
+            "^(?!.*terminal certification).*$",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:30:51.126Z",
+        "endedAt": "2026-11-19T16:34:26.673Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-broad-v1.log",
+          "sha256": "ac4d7d2883fc15e4ae1023d03abbcd80be11d1ea25373cbe9f2f35708fd72eaa",
+          "bytes": 17633
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-catalogue-broad-v1.log",
+        "sha256": "ac4d7d2883fc15e4ae1023d03abbcd80be11d1ea25373cbe9f2f35708fd72eaa",
+        "bytes": 17633,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-dedup-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2.receipt.json",
+        "sha256": "e8ad8ff0171269465e728dee3e1a52d112417c45e456dc200d319db6b528adfb",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "current directory usage names shared|current directory resource refusal and cascade",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:26:43.898Z",
+        "endedAt": "2026-11-19T16:26:48.413Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2.log",
+          "sha256": "35d98ce32e09a74bd14f400427b67731e97ddf3c8817b034fc66fdf5402a798a",
+          "bytes": 2965
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2.log",
+        "sha256": "35d98ce32e09a74bd14f400427b67731e97ddf3c8817b034fc66fdf5402a798a",
+        "bytes": 2965,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-scope-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2.receipt.json",
+        "sha256": "e1c20d82ccac2b579dc5fc908057ebe1952a4e93640526f90e53cb14ce471e9b",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "current directory usage names shared|current directory resource refusal and cascade",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:26:48.415Z",
+        "endedAt": "2026-11-19T16:26:52.727Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2.log",
+          "sha256": "c46a2228346377844eb8f1aa68b73b9789a2eb853ebe39c8e4f400d238cebefd",
+          "bytes": 3157
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2.log",
+        "sha256": "c46a2228346377844eb8f1aa68b73b9789a2eb853ebe39c8e4f400d238cebefd",
+        "bytes": 3157,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-label-validation-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2.receipt.json",
+        "sha256": "6b133bca08fec2a4fae8b28d89e8956b19e2422ecf77ee4bcffa334b8b0be342",
+        "bytes": 1486,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:26:52.728Z",
+        "endedAt": "2026-11-19T16:26:57.220Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2.log",
+          "sha256": "cb0ae326cd8f53bfbfdbed7a6e23a8fb740b24df52c843456660c1d2e19cebc5",
+          "bytes": 2181
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2.log",
+        "sha256": "cb0ae326cd8f53bfbfdbed7a6e23a8fb740b24df52c843456660c1d2e19cebc5",
+        "bytes": 2181,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-assignment-validation-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2.receipt.json",
+        "sha256": "3afca280b1b122a8af9a64f93ca7bd637e982d05ad9061d50ce80f52b65ee23b",
+        "bytes": 1482,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained assignment",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:26:57.221Z",
+        "endedAt": "2026-11-19T16:27:00.943Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2.log",
+          "sha256": "0bca4970be1b5f986396a568c970dd473cd406d73c2bf4ef24abc03e21898699",
+          "bytes": 1220
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2.log",
+        "sha256": "0bca4970be1b5f986396a568c970dd473cd406d73c2bf4ef24abc03e21898699",
+        "bytes": 1220,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-claim-validation-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2.receipt.json",
+        "sha256": "dbdc8cb85805ba82715d6dc98210be74bd521dde33df759a0e43906517efaff6",
+        "bytes": 1467,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained claim",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:00.944Z",
+        "endedAt": "2026-11-19T16:27:04.700Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2.log",
+          "sha256": "18bad6002d7904f870d710d1f8d8a4db3e6eaadd860000fd0fdef18704d1b755",
+          "bytes": 1215
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2.log",
+        "sha256": "18bad6002d7904f870d710d1f8d8a4db3e6eaadd860000fd0fdef18704d1b755",
+        "bytes": 1215,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-claim-row-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2.receipt.json",
+        "sha256": "5b08a68dd6ac05942766110e25c8ab023608b59ae8475ce2792dc12786c86817",
+        "bytes": 1459,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "claim whose work item is absent",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:04.701Z",
+        "endedAt": "2026-11-19T16:27:08.481Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2.log",
+          "sha256": "ac4fcfe5cbb8d74825025e63d9c7fdaedcd1ff1ba19ee0cb982424af2564c001",
+          "bytes": 1197
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2.log",
+        "sha256": "ac4fcfe5cbb8d74825025e63d9c7fdaedcd1ff1ba19ee0cb982424af2564c001",
+        "bytes": 1197,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-duplicate-preservation-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2.receipt.json",
+        "sha256": "45ccae7aff8f9e97cee8ba4ab221f60a6629514c5d0a53a9866f3b8ad1b50870",
+        "bytes": 1488,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "duplicate retained claim addresses",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:08.482Z",
+        "endedAt": "2026-11-19T16:27:12.356Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2.log",
+          "sha256": "f3b5d4fc79ad1350f12dae1046667e3a7aabe42ecf164021d18d0089786b8f32",
+          "bytes": 1285
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2.log",
+        "sha256": "f3b5d4fc79ad1350f12dae1046667e3a7aabe42ecf164021d18d0089786b8f32",
+        "bytes": 1285,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-values-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2.receipt.json",
+        "sha256": "64242a20876025d345f13aebdd628e1797423ae2b17afd31651a4016c5c9bc8e",
+        "bytes": 1503,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "missing explicit|requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:12.357Z",
+        "endedAt": "2026-11-19T16:27:18.479Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2.log",
+          "sha256": "d7a9b0d24a32e189d1fd5c2c9e092b5dd99524844370574dee6f23f06dcf9d74",
+          "bytes": 4816
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2.log",
+        "sha256": "d7a9b0d24a32e189d1fd5c2c9e092b5dd99524844370574dee6f23f06dcf9d74",
+        "bytes": 4816,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-parent-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2.receipt.json",
+        "sha256": "b88f9368a35d810dd6ec65cf99ba9c95e9d72759a61a0f9c24d4c8133ea04eea",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "absent package parent",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:18.479Z",
+        "endedAt": "2026-11-19T16:27:22.146Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2.log",
+          "sha256": "8abff802d6df0cb8556031cb90e2c8e3043035af464ae0ced840e667811d6f69",
+          "bytes": 1342
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2.log",
+        "sha256": "8abff802d6df0cb8556031cb90e2c8e3043035af464ae0ced840e667811d6f69",
+        "bytes": 1342,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-row-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2.receipt.json",
+        "sha256": "1c2bd04d47e6a9eb9724213ff69ce927ce55084f9c2c2f4c829b9d43c546bb04",
+        "bytes": 1467,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "claim whose work item is absent",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:22.147Z",
+        "endedAt": "2026-11-19T16:27:25.893Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2.log",
+          "sha256": "d99f682d20bb6efe5bea968be0f72d61a23d07f54121e7b7ed6aff67c102b2ac",
+          "bytes": 1332
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2.log",
+        "sha256": "d99f682d20bb6efe5bea968be0f72d61a23d07f54121e7b7ed6aff67c102b2ac",
+        "bytes": 1332,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-constraint-restoration-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2.receipt.json",
+        "sha256": "dcdbc09877cdc4e5a179d52e06d513cfb9c5d97e6d1ef3b5953f9de1f59667f1",
+        "bytes": 1569,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "missing explicit|absent package parent|claim whose work item is absent|requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:25.894Z",
+        "endedAt": "2026-11-19T16:27:33.132Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2.log",
+          "sha256": "dcb498b574a8a841194d543e31f0c58a902b0456715b098a7e2c2428205e7a39",
+          "bytes": 7055
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2.log",
+        "sha256": "dcb498b574a8a841194d543e31f0c58a902b0456715b098a7e2c2428205e7a39",
+        "bytes": 7055,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-binding-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2.receipt.json",
+        "sha256": "d03f9a127cc1b14900ff6413f1bd44e9cba28fb720cceab89481b642e6c86097",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:33.132Z",
+        "endedAt": "2026-11-19T16:27:37.594Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2.log",
+          "sha256": "41dde54fff9c34eb7a316f3b74dcc93c8c90d7eb8237808602f5cdea9990603f",
+          "bytes": 2028
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2.log",
+        "sha256": "41dde54fff9c34eb7a316f3b74dcc93c8c90d7eb8237808602f5cdea9990603f",
+        "bytes": 2028,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-duplicate-injection-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2.receipt.json",
+        "sha256": "d241cb112f0221440d46699f355a110073b337e420f8919377006091534d1ee2",
+        "bytes": 1482,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "duplicate retained claim addresses",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:37.595Z",
+        "endedAt": "2026-11-19T16:27:41.308Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2.log",
+          "sha256": "47e00a8424472b3ddc3f2c5ddfa32a7daf2bd3d9eebb705b7824bcd03727665f",
+          "bytes": 1216
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2.log",
+        "sha256": "47e00a8424472b3ddc3f2c5ddfa32a7daf2bd3d9eebb705b7824bcd03727665f",
+        "bytes": 1216,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-assignment-only-setup-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2.receipt.json",
+        "sha256": "8e104fc11cb4860fbe8a8a5d47ac56a62d3c7006102c34d1d650a276eee87d66",
+        "bytes": 1482,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained assignment",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:41.309Z",
+        "endedAt": "2026-11-19T16:27:44.841Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2.log",
+          "sha256": "5ced46b10477448350c422bdf1f96fb4c1e0e1e2e47bb567c29b4e40c5343203",
+          "bytes": 1262
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2.log",
+        "sha256": "5ced46b10477448350c422bdf1f96fb4c1e0e1e2e47bb567c29b4e40c5343203",
+        "bytes": 1262,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-claim-only-setup-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2.receipt.json",
+        "sha256": "2288689b41b6181c87613a5f4ca9b18fe236cdcc7cf62b211f5bc3eae4e970b9",
+        "bytes": 1467,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "unresolved retained claim",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:44.842Z",
+        "endedAt": "2026-11-19T16:27:48.315Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2.log",
+          "sha256": "5bde8aee55a2801e270029e55919a730eb88a769cb651decc99e221d5947567e",
+          "bytes": 1252
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2.log",
+        "sha256": "5bde8aee55a2801e270029e55919a730eb88a769cb651decc99e221d5947567e",
+        "bytes": 1252,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-no-points-assignment-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2.receipt.json",
+        "sha256": "504f3834fb01ca5a98f8b6000bc96c0af067b38ac9e83168ea60447526d5bdb6",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:48.316Z",
+        "endedAt": "2026-11-19T16:27:52.483Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2.log",
+          "sha256": "b17fb161a6e7f3a3248d48d43a2ea5b05e7a4aae3fcf55990b5846af10760245",
+          "bytes": 2629
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2.log",
+        "sha256": "b17fb161a6e7f3a3248d48d43a2ea5b05e7a4aae3fcf55990b5846af10760245",
+        "bytes": 2629,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-directory-effect-no-points-claim-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2.receipt.json",
+        "sha256": "f7384027c2465e81870cd27e509ff621200d70f297bbe5c552e1ac626ecf3cc8",
+        "bytes": 1484,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+            "-t",
+            "requires explicit values without point facts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T16:27:52.483Z",
+        "endedAt": "2026-11-19T16:27:56.726Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2.log",
+          "sha256": "8870c81f6bd3d6c185db12c332179dd2f0fc6d2547f619d41e2d557bc39c5e5d",
+          "bytes": 2431
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2.log",
+        "sha256": "8870c81f6bd3d6c185db12c332179dd2f0fc6d2547f619d41e2d557bc39c5e5d",
+        "bytes": 2431,
+        "mode": 384
+      }
+    }
+  ],
+  "firstRed": {
+    "passed": 0,
+    "failed": 8,
+    "assertions": 290,
+    "qualification": "Three canonical directory cases plus first five actual current catalogue cases fail against retired step queries."
+  },
+  "factsFirstRed": {
+    "passed": 0,
+    "failed": 3,
+    "assertions": 126,
+    "qualification": "Additional actual invalid fact regressions also fail against the old reader; new guard necessity is separately established by final controlled omissions."
+  },
+  "firstAfter": {
+    "passed": 11,
+    "failed": 0,
+    "assertions": 473,
+    "qualification": "Earlier test epoch before separate no-point and duplicate guards."
+  },
+  "formattedBaseline": {
+    "passed": 14,
+    "failed": 0,
+    "assertions": 609
+  },
+  "final": {
+    "passed": 141,
+    "failed": 0,
+    "assertions": 11241,
+    "fileCount": 3,
+    "filtered": 1,
+    "qualification": "Complete current SQLite Source file except aggregate, eleven new actual Source directory cases and four core directory service cases. No new complete aggregate/adapter/product/host result.",
+    "compiler": "SQLite adapter root --build --force passes",
+    "lint": "Three changed code files pass",
+    "format": "Three changed code files pass"
+  },
+  "changes": [
+    "Directory usage obtains id/name labels from validated current package catalogue reads, deduplicating shared definitions across packages. Unbound retained values and unrelated foreign definitions do not become labels.",
+    "Actual assignments and point claims are checked per leaf by the existing fact projector on the same supplied read/writer. Grouping preserves duplicate detection; nullable subtree claims still require an actual row.",
+    "Actual Source regressions preserve sole/mixed assumed-assignee effects, refusal state, confirmed removals, other assignments, resource demands/capacities and strict missing values/ancestry behavior. Fast preview keeps its existing semantics; removal uses its actual writer.",
+    "Three canonical current directory removal cases now have direct offered-case owners.",
+    "OpenSpec task1.6.1 and delta/design clarify required same-observation per-leaf claim ordering. That follow-up is not implemented by the directory change."
+  ],
+  "finiteEffects": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-v2.json",
+      "sha256": "9480358ffd21267e5cc0a116254c85dc0d65725ec7512e5786eae3fd871ad56b",
+      "bytes": 15845,
+      "mode": 384
+    },
+    "observations": [
+      {
+        "name": "label-dedup",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "4d2330e8e924f7047fe7348c9365d229107aed485e6d3efc0f9c8706e8d4ce5f",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "current directory usage names shared|current directory resource refusal and cascade",
+        "expectedFailedTests": 2,
+        "marker": "Shared current step",
+        "scope": "Both actual positive label arrays contain a duplicate shared definition.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-dedup-v2.log"
+      },
+      {
+        "name": "label-scope",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "89258dec4496b248ba2f2c0fdb8194e0043624ecc16888121f72b4902384bf7a",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "current directory usage names shared|current directory resource refusal and cascade",
+        "expectedFailedTests": 2,
+        "marker": "Foreign current step",
+        "scope": "Both actual positive label arrays expose existing foreign/retained definitions.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-scope-v2.log"
+      },
+      {
+        "name": "label-validation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "5906a0ea111da8567ac0d0098dc662bc58f87f4f0eb65de9c3e482880cc0f78d",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "requires explicit values without point facts",
+        "expectedFailedTests": 2,
+        "marker": "Received value: null",
+        "scope": "Separate refusal/cascade owners have no point facts; raw join bypasses missing explicit values admission and each action resolves.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-label-validation-v2.log"
+      },
+      {
+        "name": "assignment-validation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "4dc54a180f285668b8b5a9b52c51d37967e62a7015e83e153b21868514f56259",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "unresolved retained assignment",
+        "expectedFailedTests": 1,
+        "marker": "Received value: null",
+        "scope": "Actual unresolved assignment read resolves; first public read oracle fails before removal tail.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-validation-v2.log"
+      },
+      {
+        "name": "claim-validation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "22c8bb17d6f095baf79271ad10dc3a3039d15c3daa27799ebd41d84fa58559fd",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "unresolved retained claim",
+        "expectedFailedTests": 1,
+        "marker": "Received value: null",
+        "scope": "Actual unresolved point claim read resolves; first public read oracle fails before removal tail.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-validation-v2.log"
+      },
+      {
+        "name": "claim-row",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "cbebc5f64b8e842df3651423923f3db9fb130aae57579dba3c47dbfc7719fbf1",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "claim whose work item is absent",
+        "expectedFailedTests": 1,
+        "marker": "Received value: null",
+        "scope": "Actual orphan claim is skipped; first public read resolves. No independent assignment orphan proof.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-row-v2.log"
+      },
+      {
+        "name": "duplicate-preservation",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/directory.ts",
+        "canonicalSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "candidateSha256": "76ebf59a256c3da4edce40a5ed76bb6c9d710450a7da1c47ac590e356a8049af",
+        "restoredSha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "matcher": "duplicate retained claim addresses",
+        "expectedFailedTests": 1,
+        "marker": "Received value: null",
+        "scope": "Silently deduplicating the two actual retained claim rows hides corruption from the existing projector.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-preservation-v2.log"
+      },
+      {
+        "name": "values-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "65dd5c7baf8639573c6593dfd263e7655f0738fd8bd1dcb68c9bfa7ada847bfe",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "missing explicit|requires explicit values without point facts",
+        "expectedFailedTests": 4,
+        "marker": null,
+        "scope": "Prerequisite only: omitted actual value deletion fails four physical absence prerequisites before production read.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-values-injection-v2.log"
+      },
+      {
+        "name": "parent-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "4c44d87a38dec03db3c3b5a4dd93622ca1ca219871313d4827fc74956a6fd180",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "absent package parent",
+        "expectedFailedTests": 1,
+        "marker": null,
+        "scope": "Prerequisite only: omitted actual parent deletion fails its physical absence prerequisite.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-parent-injection-v2.log"
+      },
+      {
+        "name": "row-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "31b1a1c1928c6632c204bdd5a3a85193399d94191cf29b51a527090e4fd20f1c",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "claim whose work item is absent",
+        "expectedFailedTests": 1,
+        "marker": null,
+        "scope": "Prerequisite only: omitted actual work-item deletion fails its physical absence prerequisite.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-row-injection-v2.log"
+      },
+      {
+        "name": "constraint-restoration",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "66cf34986d7ba5d15f257e2db1a6f90b62d0e65a3b9ba9b371e6d57c1f8a26b2",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "missing explicit|absent package parent|claim whose work item is absent|requires explicit values without point facts",
+        "expectedFailedTests": 6,
+        "marker": null,
+        "scope": "Prerequisite only: omitted FK restoration fails all six actual PRAGMA prerequisites before any invalid read.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-constraint-restoration-v2.log"
+      },
+      {
+        "name": "binding-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "974cbe0da36fb975f539b8b6f8ab7a40d84a17ca871ae4655ddd67dea0e21eba",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "unresolved retained",
+        "expectedFailedTests": 2,
+        "marker": null,
+        "scope": "Prerequisite only: omitted actual binding deletion fails both physical binding absence prerequisites.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-binding-injection-v2.log"
+      },
+      {
+        "name": "duplicate-injection",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "6be96bd10c62c619c005b2cf20bfab188dd559f4bf43c17048946faf7f2d7e1a",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "duplicate retained claim addresses",
+        "expectedFailedTests": 1,
+        "marker": null,
+        "scope": "Prerequisite only: omitted duplicate INSERT leaves one actual claim and fails complete row prerequisite.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-duplicate-injection-v2.log"
+      },
+      {
+        "name": "assignment-only-setup",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "b8527e27cda7e3dc90ddd9317a04a180f47dd786d1f42fdb42da5143621ca3c5",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "unresolved retained assignment",
+        "expectedFailedTests": 1,
+        "marker": null,
+        "scope": "Prerequisite only: omitted claim removal fails family isolation prerequisite.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-assignment-only-setup-v2.log"
+      },
+      {
+        "name": "claim-only-setup",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "697d7d96e4d6ecca7dea4b31c4f2d2cf0f1dcb9be5592502a186e5abafc29019",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "unresolved retained claim",
+        "expectedFailedTests": 1,
+        "marker": null,
+        "scope": "Prerequisite only: omitted assignment removal fails family isolation prerequisite.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-claim-only-setup-v2.log"
+      },
+      {
+        "name": "no-points-assignment",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "dcb617fb20188781956fcd959dfa5a17adf8caaa60e2802313a04ab3a3d97b67",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "requires explicit values without point facts",
+        "expectedFailedTests": 2,
+        "marker": null,
+        "scope": "Prerequisite only: omitted assignment removal fails both no-point premises.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-assignment-v2.log"
+      },
+      {
+        "name": "no-points-claim",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/directory-catalogue-usage.db.test.ts",
+        "canonicalSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "candidateSha256": "bc93c533030f5905e2a457b2939561ff9126e4cceaebe16d73d6083b0591646c",
+        "restoredSha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "matcher": "requires explicit values without point facts",
+        "expectedFailedTests": 2,
+        "marker": null,
+        "scope": "Prerequisite only: omitted claim removal fails both no-point premises.",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/current-directory-effect-no-points-claim-v2.log"
+      }
+    ],
+    "canonicalCopies": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-v2-production.canonical.ts",
+        "sha256": "660e0305caf87ddd90e838f987ff20895a8df0e501b800685c06d0ea7010548e",
+        "bytes": 118763,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-directory-effects-v2-test.canonical.ts",
+        "sha256": "83e483319887ed55d4d145317414bc9db8d979173aca32f84b27c37a5ba99156",
+        "bytes": 16466,
+        "mode": 384
+      }
+    ],
+    "qualification": "Seven production boundary/label effects and ten physical prerequisite controls; each native child settles/reaps before exact restoration. Both separate resource no-point refusal/cascade owners reject raw unvalidated projection. Other negative loops stop at their first public read; later removal tails get no independent necessity credit. Prerequisite omissions earn no production guard credit. No all13-family, every-conjunct, request-authorization, lifetime or host activation proof is claimed."
+  },
+  "rejectedRuns": [
+    {
+      "name": "current-directory-catalogue-baseline-v1",
+      "actual": "13pass1fail604",
+      "reason": "Duplicate setup queried nonexistent sqlite_master.id. Changed to name; guard tail was not reached in that run."
+    },
+    {
+      "name": "current-directory-effects-root-v1",
+      "actual": "Owned runner exits1 after actual expected label-validation2fail",
+      "reason": "Runner expected Received: null while Bun prints Received value: null. It rejected the mismatch and restored source. v2 qualifies all17 actual controls with the observed diagnostic; no product code change followed from that parser correction."
+    },
+    {
+      "name": "current-directory-catalogue-evidence-check-v1",
+      "actual": "Formatter exit1 on verification JSON only",
+      "reason": "Source-pin reconciliation reserialized JSON after formatting. Format again before final check; current-directory-final-state-v1 is a superseded intermediate, and final state must follow the successful check."
+    }
+  ],
+  "remainingKnownDiagnostics": ["claims.observeWorkPackage:legacy-observation"],
+  "pending": [
+    "This one name is a work item from the earlier failed221case aggregate, not a new aggregate failure count. Claim observation still reads retired step storage.",
+    "Implement required actual per-leaf claim order and fact/snapshot/access/lifetime checks across both Sources and core claim display; no global package-union fallback. Migrate obsolete claim fixtures rather than fabricating order metadata.",
+    "Directory legacy write/error classification through writingStep and full source writer/read/permission/lifetime closure remain part of the full original audit.",
+    "Healthy full aggregate timing/policy allowance, remaining entities/API/UI/history/scheduler/SC17/SC22/SC25, PUNI/client Bun/installed coverage, unavailable Astra review and exact committed host gates/release remain open."
+  ]
+}

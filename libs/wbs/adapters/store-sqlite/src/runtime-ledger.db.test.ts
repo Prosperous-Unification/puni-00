@@ -41,10 +41,38 @@ afterEach(async () => {
 async function audit() {
   return source.stores.runtimeCommands.inspectLedger();
 }
-function applied() {
-  return source.db.all(
-    sql`SELECT name,hash FROM __drizzle_migrations WHERE name=${runtimeMigration}`,
-  );
+function readInstallation() {
+  return {
+    schema: source.db.all('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name'),
+    migrations: source.db.all('SELECT * FROM __drizzle_migrations ORDER BY id'),
+    ledger: source.db.all('SELECT * FROM runtime_ledger ORDER BY id'),
+    authority: source.db.all('SELECT * FROM runtime_authority ORDER BY rowid'),
+    bindings: source.db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
+    receipts: source.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
+  };
+}
+
+/** Isolates the immutable historical down artifact; never crosses the rename migration. */
+function expectRuntimeDownRefusal() {
+  const before = readInstallation();
+  const native = openDatabase(dbPath);
+  try {
+    expect(() => {
+      native.transaction(() => {
+        for (const statement of readFileSync(
+          join(migrations, runtimeMigration, 'down.sql'),
+          'utf8',
+        ).split('--> statement-breakpoint'))
+          native.run(statement);
+      })();
+    }).toThrow('runtime history');
+  } finally {
+    native.close();
+  }
+  expect(readInstallation()).toEqual(before);
+  expect(
+    source.db.all("SELECT name FROM sqlite_master WHERE name='runtime_history_down_guard'"),
+  ).toEqual([]);
 }
 
 describe('runtime ledger lifecycle', () => {
@@ -83,13 +111,13 @@ describe('runtime ledger lifecycle', () => {
       if (ledger === null) throw new Error('old branch ledger missing');
       // Raw retained-history fixture, not a claim of application admission.
       const retained = runtimeAcceptanceFixture(ledger.ledger_id);
-      branch.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
+      branch.run("INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)");
       branch.run(
-        "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt',?)",
+        "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt',?)",
         [JSON.stringify(RUNTIME_CLAIM)],
       );
       branch.run(
-        "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command',?)",
+        "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command',?)",
         [JSON.stringify(retained)],
       );
       branch.run(
@@ -153,19 +181,41 @@ describe('runtime ledger lifecycle', () => {
       runtimeAcceptanceFixture(initial.ledgerId),
     );
   });
-  it('allows unused rollback/reinstallation with a new ledger ID', async () => {
-    const initial = await audit();
-    await source.close();
-    expect(rollbackTo(dbPath, migrations, previousMigration)).toContain(runtimeMigration);
-    runMigrations(dbPath, migrations);
-    source = openSqliteSource({
-      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-      dbPath,
-    });
-    expect((await audit()).ledgerId).not.toBe(initial.ledgerId);
+  it('allows actual unused historical-prefix rollback and reinstall with a new ledger ID', () => {
+    const historicalMigrations = join(directory, 'historical-migrations');
+    const historicalPath = join(directory, 'historical.db');
+    for (const name of readdirSync(migrations).filter((name) => name <= runtimeMigration)) {
+      cpSync(join(migrations, name), join(historicalMigrations, name), { recursive: true });
+    }
+    runMigrations(historicalPath, historicalMigrations);
+    const markerOf = () => {
+      const native = openDatabase(historicalPath);
+      try {
+        const marker = native
+          .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
+          .get();
+        if (marker === null) throw new Error('historical installation marker missing');
+        return marker.ledger_id;
+      } finally {
+        native.close();
+      }
+    };
+    const initial = markerOf();
+    expect(rollbackTo(historicalPath, historicalMigrations, previousMigration)).toContain(
+      runtimeMigration,
+    );
+    runMigrations(historicalPath, historicalMigrations);
+    expect(markerOf()).not.toBe(initial);
+  });
+  it('refuses current rename rollback before any runtime or ledger effects', () => {
+    const before = readInstallation();
+    expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow(
+      'work-package rename rollback requires restoring the verified window snapshot',
+    );
+    expect(readInstallation()).toEqual(before);
   });
   for (const history of ['authority', 'binding', 'receipt'] as const) {
-    it(`refuses rollback permanently with retained ${history} and preserves migration name/hash`, async () => {
+    it(`isolated historical down refuses retained ${history} and preserves complete installation`, async () => {
       const initial = await audit();
       if (history === 'authority')
         await source.stores.runtimeCommands.compareAuthority(RUNTIME_SCOPE, null, 'owner');
@@ -175,9 +225,7 @@ describe('runtime ledger lifecycle', () => {
         await source.stores.runtimeCommands.insertAcceptance(
           runtimeAcceptanceFixture(initial.ledgerId),
         );
-      const before = applied();
-      expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
-      expect(applied()).toEqual(before);
+      expectRuntimeDownRefusal();
       expect((await audit()).ledgerId).toBe(initial.ledgerId);
     });
   }
@@ -304,7 +352,7 @@ describe('runtime installation integrity', () => {
   it('refuses a weakened required schema even when rows and counts are empty', async () => {
     source.db.run('DROP TABLE runtime_claim_binding');
     source.db.run(
-      'CREATE TABLE runtime_claim_binding(organization_id TEXT,project_id TEXT,person_id TEXT,claim_id TEXT,store_id TEXT,attempt_id TEXT,binding TEXT)',
+      'CREATE TABLE runtime_claim_binding(organization_id TEXT,work_package_id TEXT,person_id TEXT,claim_id TEXT,store_id TEXT,attempt_id TEXT,binding TEXT)',
     );
     await assertRuntimeRejection(audit(), 'runtime schema');
   });
@@ -349,7 +397,7 @@ describe('runtime persisted record boundaries', () => {
   for (const path of [
     '$.commandId',
     '$.scope.organizationId',
-    '$.scope.projectId',
+    '$.scope.workPackageId',
     '$.scope.personId',
     '$.receipt.ledgerId',
   ] as const) {
@@ -369,7 +417,7 @@ describe('runtime persisted record boundaries', () => {
   it('rejects unsafe persisted generation with otherwise valid schema and counts', async () => {
     source.db.run('PRAGMA ignore_check_constraints=ON');
     source.db.run(
-      "INSERT INTO runtime_authority VALUES ('org','project','person','owner',9007199254740992)",
+      "INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',9007199254740992)",
     );
     source.db.run('UPDATE runtime_ledger SET authority_count=1');
     source.db.run('PRAGMA ignore_check_constraints=OFF');
@@ -397,18 +445,18 @@ describe('runtime persisted record boundaries', () => {
     expect(source.db.all('SELECT * FROM runtime_claim_binding')).toEqual([]);
     expect(await audit()).toMatchObject({ bindingCount: 0 });
   });
-  it('preserves retained records after ordinary claim release and project/person deletion', async () => {
+  it('preserves retained records after ordinary claim release and work-package/person deletion', async () => {
     source.db.run(
       "INSERT INTO users(id,username,password_hash,created_at) VALUES ('actor','actor','x',1)",
     );
     source.db.run(
-      "INSERT INTO project(id,name,owner_id,revision,created_at) VALUES ('project','Plan','actor',0,1)",
+      "INSERT INTO work_package(id,name,owner_id,revision,created_at) VALUES ('work_package','Plan','actor',0,1)",
     );
     source.db.run(
-      "INSERT INTO step(id,project_id,name,position) VALUES ('step','project','Step',1)",
+      "INSERT INTO step(id,work_package_id,name,position) VALUES ('step','work_package','Step',1)",
     );
     source.db.run(
-      "INSERT INTO work_item(id,project_id,name,position,revision) VALUES ('work','project','Work',1,0)",
+      "INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES ('work','work_package','Work',1,0)",
     );
     source.db.run("INSERT INTO person(id,name) VALUES ('person','Person')");
     source.db.run(
@@ -423,12 +471,12 @@ describe('runtime persisted record boundaries', () => {
     source.db.run("DELETE FROM person WHERE id='person'");
     source.db.run("DELETE FROM work_item WHERE id='work'");
     source.db.run("DELETE FROM step WHERE id='step'");
-    source.db.run("DELETE FROM project WHERE id='project'");
+    source.db.run("DELETE FROM work_package WHERE id='work_package'");
     expect(await store.readBinding(RUNTIME_SCOPE, 'claim')).toEqual(RUNTIME_CLAIM);
     expect(await store.readAcceptance(RUNTIME_SCOPE, 'command')).toEqual(
       runtimeAcceptanceFixture(ledgerId),
     );
-    expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
+    expectRuntimeDownRefusal();
   });
 });
 
@@ -438,47 +486,47 @@ describe('runtime SQL safety constraints', () => {
       expect(() =>
         source.db.run(
           sql.raw(
-            `INSERT INTO runtime_authority VALUES ('org','project','person','owner',${generation})`,
+            `INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',${generation})`,
           ),
         ),
       ).toThrow();
-    for (const column of ['organization_id', 'project_id', 'person_id', 'owner_id']) {
+    for (const column of ['organization_id', 'work_package_id', 'person_id', 'owner_id']) {
       const values = {
         organization_id: 'org',
-        project_id: 'project',
+        work_package_id: 'work_package',
         person_id: 'person',
         owner_id: 'owner',
       };
       Reflect.set(values, column, '');
       expect(() =>
         source.db.run(
-          sql`INSERT INTO runtime_authority VALUES (${values.organization_id},${values.project_id},${values.person_id},${values.owner_id},1)`,
+          sql`INSERT INTO runtime_authority VALUES (${values.organization_id},${values.work_package_id},${values.person_id},${values.owner_id},1)`,
         ),
       ).toThrow();
     }
   });
   it('enforces binding claim and runtime attempt uniqueness directly in SQLite', () => {
     source.db.run(
-      "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt','{}')",
+      "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt','{}')",
     );
     expect(() =>
       source.db.run(
-        "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','different','{}')",
+        "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','different','{}')",
       ),
     ).toThrow();
     expect(() =>
       source.db.run(
-        "INSERT INTO runtime_claim_binding VALUES ('org','project','person','different','store','attempt','{}')",
+        "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','different','store','attempt','{}')",
       ),
     ).toThrow();
   });
   it('enforces scoped command identity directly in SQLite', () => {
     source.db.run(
-      "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command','{}')",
+      "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command','{}')",
     );
     expect(() =>
       source.db.run(
-        "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command','{}')",
+        "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command','{}')",
       ),
     ).toThrow();
   });
@@ -494,7 +542,7 @@ describe('runtime SQL safety constraints', () => {
   it('rejects malformed JSON and empty binding/receipt lookup fields', () => {
     for (const column of [
       'organization_id',
-      'project_id',
+      'work_package_id',
       'person_id',
       'claim_id',
       'store_id',
@@ -503,7 +551,7 @@ describe('runtime SQL safety constraints', () => {
     ]) {
       const values = {
         organization_id: 'org',
-        project_id: 'project',
+        work_package_id: 'work_package',
         person_id: 'person',
         claim_id: 'claim',
         store_id: 'store',
@@ -513,14 +561,20 @@ describe('runtime SQL safety constraints', () => {
       Reflect.set(values, column, '');
       expect(() =>
         source.db.run(
-          sql`INSERT INTO runtime_claim_binding VALUES (${values.organization_id},${values.project_id},${values.person_id},${values.claim_id},${values.store_id},${values.attempt_id},${values.binding})`,
+          sql`INSERT INTO runtime_claim_binding VALUES (${values.organization_id},${values.work_package_id},${values.person_id},${values.claim_id},${values.store_id},${values.attempt_id},${values.binding})`,
         ),
       ).toThrow();
     }
-    for (const column of ['organization_id', 'project_id', 'person_id', 'command_id', 'accepted']) {
+    for (const column of [
+      'organization_id',
+      'work_package_id',
+      'person_id',
+      'command_id',
+      'accepted',
+    ]) {
       const values = {
         organization_id: 'org',
-        project_id: 'project',
+        work_package_id: 'work_package',
         person_id: 'person',
         command_id: 'command',
         accepted: '{}',
@@ -528,30 +582,32 @@ describe('runtime SQL safety constraints', () => {
       Reflect.set(values, column, '');
       expect(() =>
         source.db.run(
-          sql`INSERT INTO runtime_command_receipt VALUES (${values.organization_id},${values.project_id},${values.person_id},${values.command_id},${values.accepted})`,
+          sql`INSERT INTO runtime_command_receipt VALUES (${values.organization_id},${values.work_package_id},${values.person_id},${values.command_id},${values.accepted})`,
         ),
       ).toThrow();
     }
   });
   for (const table of ['runtime_authority', 'runtime_claim_binding', 'runtime_command_receipt']) {
     it(`blocks direct deletion of permanent ${table} history`, () => {
-      source.db.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
       source.db.run(
-        "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt','{}')",
+        "INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)",
       );
       source.db.run(
-        "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command','{}')",
+        "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt','{}')",
+      );
+      source.db.run(
+        "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command','{}')",
       );
       expect(() => source.db.run(sql.raw(`DELETE FROM ${table}`))).toThrow('');
     });
   }
   it('blocks mutation of bindings and receipts while allowing exact generation advancement', () => {
-    source.db.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
+    source.db.run("INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)");
     source.db.run(
-      "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt','{}')",
+      "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt','{}')",
     );
     source.db.run(
-      "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command','{}')",
+      "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command','{}')",
     );
     expect(() => source.db.run("UPDATE runtime_claim_binding SET binding='{}'")).toThrow();
     expect(() => source.db.run("UPDATE runtime_command_receipt SET accepted='{}'")).toThrow();
@@ -576,33 +632,33 @@ describe('runtime SQL safety constraints', () => {
 
 describe('runtime row scope and rollback guard isolation', () => {
   it('rejects a malformed retained authority scope even when its grant and counts are valid', async () => {
-    source.db.run("INSERT INTO runtime_authority VALUES (x'0102','project','person','owner',1)");
+    source.db.run(
+      "INSERT INTO runtime_authority VALUES (x'0102','work_package','person','owner',1)",
+    );
     source.db.run('UPDATE runtime_ledger SET authority_count=1');
     await assertRuntimeRejection(audit());
   });
   for (const table of ['runtime_authority', 'runtime_claim_binding', 'runtime_command_receipt']) {
-    it(`refuses down for actual ${table} rows even when trusted counters were incorrectly zeroed`, () => {
+    it(`isolated historical down refuses for actual ${table} rows even when trusted counters were incorrectly zeroed`, () => {
       if (table === 'runtime_authority')
-        source.db.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
+        source.db.run(
+          "INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)",
+        );
       if (table === 'runtime_claim_binding')
         source.db.run(
-          "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt','{}')",
+          "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt','{}')",
         );
       if (table === 'runtime_command_receipt')
         source.db.run(
-          "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command','{}')",
+          "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command','{}')",
         );
-      const before = applied();
-      expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
-      expect(applied()).toEqual(before);
+      expectRuntimeDownRefusal();
     });
   }
   for (const column of ['authority_count', 'binding_count', 'receipt_count']) {
-    it(`refuses down for retained ${column} even when all record tables were emptied`, () => {
+    it(`isolated historical down refuses for retained ${column} even when all record tables were emptied`, () => {
       source.db.run(sql.raw(`UPDATE runtime_ledger SET ${column}=1`));
-      const before = applied();
-      expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
-      expect(applied()).toEqual(before);
+      expectRuntimeDownRefusal();
     });
   }
 });
@@ -635,7 +691,7 @@ describe('runtime singleton and literal integrity', () => {
 
 describe('runtime down marker guard isolation', () => {
   for (const invalid of ['id=2', 'schema_version=2', "ledger_id=''", "ledger_id=x'0102'"]) {
-    it(`refuses down with malformed marker ${invalid} before dropping schema`, () => {
+    it(`isolated historical down refuses malformed marker ${invalid} before dropping schema`, () => {
       const trigger = source.db.get<{ sql: string } | undefined>(
         "SELECT sql FROM sqlite_master WHERE name='runtime_ledger_monotonic'",
       );
@@ -645,12 +701,10 @@ describe('runtime down marker guard isolation', () => {
       source.db.run(sql.raw(`UPDATE runtime_ledger SET ${invalid}`));
       source.db.run('PRAGMA ignore_check_constraints=OFF');
       source.db.run(sql.raw(trigger.sql));
-      const before = applied();
-      expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
-      expect(applied()).toEqual(before);
+      expectRuntimeDownRefusal();
     });
   }
-  it('refuses down with no marker or duplicate markers', () => {
+  it('isolated historical down refuses no marker or duplicate markers', () => {
     const trigger = source.db.get<{ sql: string } | undefined>(
       "SELECT sql FROM sqlite_master WHERE name='runtime_ledger_no_delete'",
     );
@@ -658,32 +712,32 @@ describe('runtime down marker guard isolation', () => {
     source.db.run('DROP TRIGGER runtime_ledger_no_delete');
     source.db.run('DELETE FROM runtime_ledger');
     source.db.run(sql.raw(trigger.sql));
-    expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
+    expectRuntimeDownRefusal();
     source.db.run('PRAGMA ignore_check_constraints=ON');
     source.db.run("INSERT INTO runtime_ledger VALUES (1,1,'one',0,0,0),(2,1,'two',0,0,0)");
     source.db.run('PRAGMA ignore_check_constraints=OFF');
-    expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow('runtime history');
+    expectRuntimeDownRefusal();
   });
 });
 
 describe('runtime storage bytes and independent trigger clauses', () => {
   it('names non-text retained binding bytes rather than parsing them as a record', async () => {
     source.db.run(
-      "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt',CAST('{}' AS BLOB))",
+      "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt',CAST('{}' AS BLOB))",
     );
     source.db.run('UPDATE runtime_ledger SET binding_count=1');
     await assertRuntimeRejection(audit(), 'invalid runtime binding bytes');
   });
   it('names non-text retained acceptance bytes rather than parsing them as a record', async () => {
     source.db.run(
-      "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command',CAST('{}' AS BLOB))",
+      "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command',CAST('{}' AS BLOB))",
     );
     source.db.run('UPDATE runtime_ledger SET receipt_count=1');
     await assertRuntimeRejection(audit(), 'invalid runtime acceptance bytes');
   });
   it('blocks every authority scope move independently of valid generation advancement', () => {
-    source.db.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
-    for (const column of ['organization_id', 'project_id', 'person_id'])
+    source.db.run("INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)");
+    for (const column of ['organization_id', 'work_package_id', 'person_id'])
       expect(() =>
         source.db.run(sql.raw(`UPDATE runtime_authority SET ${column}='other',generation=2`)),
       ).toThrow();

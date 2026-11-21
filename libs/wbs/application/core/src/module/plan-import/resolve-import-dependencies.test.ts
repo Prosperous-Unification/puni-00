@@ -16,10 +16,10 @@ function preparedFixture() {
   const external = {
     kind: 'external' as const,
     scope: 'whole' as const,
-    projectId: 'original-project',
+    workPackageId: 'original-work-package',
     workItemId: 'original-row',
     display: {
-      projectName: 'Old name',
+      workPackageName: 'Old name',
       abbreviation: 'OLD',
       workItemName: 'Old row name',
       address: 'OLD.99',
@@ -50,7 +50,7 @@ function preparedFixture() {
       successor: { kind: 'internal', scope: 'whole', workItem: 'row-2' },
     },
   ];
-  const prepared = prepareImport(document, fastScheduler);
+  const prepared = prepareImport(document, fastScheduler, 'document');
   if (!prepared.ok) throw new Error(`fixture refused: ${prepared.path}/${String(prepared.detail)}`);
   return prepared.value;
 }
@@ -68,7 +68,7 @@ function resolve(prepared = preparedFixture()) {
   let next = 0;
   return resolveImportDependencies(
     prepared,
-    'allocated-project',
+    'allocated-work-package',
     rows,
     steps,
     () => `fresh-${String(++next)}`,
@@ -92,23 +92,23 @@ describe('import relationship allocation', () => {
       'fresh-2',
       'fresh-3',
     ]);
-    expect(located.map(({ relationship }) => relationship.projectId)).toEqual([
-      'allocated-project',
-      'allocated-project',
-      'allocated-project',
+    expect(located.map(({ relationship }) => relationship.workPackageId)).toEqual([
+      'allocated-work-package',
+      'allocated-work-package',
+      'allocated-work-package',
     ]);
     expect(located.at(1)?.relationship).toEqual({
       id: 'fresh-2',
-      projectId: 'allocated-project',
+      workPackageId: 'allocated-work-package',
       predecessor: {
         scope: 'node',
-        projectId: 'allocated-project',
+        workPackageId: 'allocated-work-package',
         workItemId: 'allocated-row-1',
         stepId: 'allocated-step-1',
       },
       successor: {
         scope: 'node',
-        projectId: 'allocated-project',
+        workPackageId: 'allocated-work-package',
         workItemId: 'allocated-row-2',
         stepId: 'allocated-step-2',
       },
@@ -148,12 +148,12 @@ describe('import relationship allocation', () => {
     expect(resolve(prepared).at(1)?.relationship).toMatchObject({
       predecessor: {
         scope: 'whole',
-        projectId: 'allocated-project',
+        workPackageId: 'allocated-work-package',
         workItemId: 'allocated-row-1',
       },
       successor: {
         scope: 'descendant-step',
-        projectId: 'allocated-project',
+        workPackageId: 'allocated-work-package',
         workItemId: 'allocated-row-2',
         stepId: 'allocated-step-2',
       },
@@ -161,11 +161,16 @@ describe('import relationship allocation', () => {
   });
 
   it.each<ScopedDependencyEndpoint>([
-    { scope: 'whole', projectId: 'chosen-project', workItemId: 'chosen-row' },
-    { scope: 'node', projectId: 'chosen-project', workItemId: 'chosen-row', stepId: 'chosen-step' },
+    { scope: 'whole', workPackageId: 'chosen-work-package', workItemId: 'chosen-row' },
+    {
+      scope: 'node',
+      workPackageId: 'chosen-work-package',
+      workItemId: 'chosen-row',
+      stepId: 'chosen-step',
+    },
     {
       scope: 'descendant-step',
-      projectId: 'chosen-project',
+      workPackageId: 'chosen-work-package',
       workItemId: 'chosen-row',
       stepId: 'chosen-step',
     },
@@ -178,7 +183,7 @@ describe('import relationship allocation', () => {
     expect(allocated?.predecessor).toEqual(destination);
     expect(allocated?.successor).toEqual({
       scope: 'whole',
-      projectId: 'allocated-project',
+      workPackageId: 'allocated-work-package',
       workItemId: 'allocated-row-2',
     });
   });
@@ -187,12 +192,12 @@ describe('import relationship allocation', () => {
     const allocated = resolve();
     expect(allocated.at(0)?.relationship.predecessor).toEqual({
       scope: 'whole',
-      projectId: 'original-project',
+      workPackageId: 'original-work-package',
       workItemId: 'original-row',
     });
     expect(allocated.at(2)?.relationship.predecessor).toEqual({
       scope: 'node',
-      projectId: 'original-project',
+      workPackageId: 'original-work-package',
       workItemId: 'original-row',
       stepId: 'original-step',
     });
@@ -204,7 +209,7 @@ describe('import relationship allocation', () => {
     if (external === undefined) throw new Error('fixture lost its external relationship');
     external.destination = {
       scope: 'node',
-      projectId: 'allocated-project',
+      workPackageId: 'allocated-work-package',
       workItemId: 'allocated-row-1',
       stepId: 'allocated-step-1',
     };
@@ -227,10 +232,10 @@ describe('import relationship allocation', () => {
   it('throws when a trusted row or step allocation disappears', () => {
     const prepared = preparedFixture();
     expect(() =>
-      resolveImportDependencies(prepared, 'allocated-project', new Map(), steps, () => 'id'),
+      resolveImportDependencies(prepared, 'allocated-work-package', new Map(), steps, () => 'id'),
     ).toThrow('prepared typed dependency work item mapping disappeared');
     expect(() =>
-      resolveImportDependencies(prepared, 'allocated-project', rows, new Map(), () => 'id'),
+      resolveImportDependencies(prepared, 'allocated-work-package', rows, new Map(), () => 'id'),
     ).toThrow('prepared typed dependency step mapping disappeared');
   });
 });

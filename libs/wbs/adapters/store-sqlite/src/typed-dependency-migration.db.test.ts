@@ -44,11 +44,11 @@ function seed(sqlite: Database): void {
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
   );
   sqlite.run(
-    "INSERT INTO project (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+    "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
   );
-  sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s','p','Dev','dev')");
+  sqlite.run("INSERT INTO step (id, work_package_id, name, code) VALUES ('s','p','Dev','dev')");
   sqlite.run(
-    "INSERT INTO work_item (id, project_id, position, name, revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
+    "INSERT INTO work_item (id, work_package_id, position, name, revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
   );
 }
 
@@ -62,7 +62,7 @@ function insert(
   type = 'FS',
 ): void {
   sqlite.run(
-    'INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, successor_step_id, type) VALUES (?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, successor_step_id, type) VALUES (?,?,?,?,?,?,?,?,?)',
     [id, 'p', 'a', predecessorScope, predecessorStep, 'b', successorScope, successorStep, type],
   );
 }
@@ -76,7 +76,7 @@ describe(TYPED, () => {
         .map((column) => column.name);
       expect(columns).toEqual([
         'id',
-        'project_id',
+        'work_package_id',
         'predecessor_work_item_id',
         'predecessor_scope',
         'predecessor_step_id',
@@ -94,7 +94,7 @@ describe(TYPED, () => {
         .map((index) => index.name);
       for (const name of [
         'typed_dependency_endpoints',
-        'typed_dependency_project',
+        'typed_dependency_work_package',
         'typed_dependency_by_successor',
         'typed_dependency_by_predecessor_step',
         'typed_dependency_by_successor_step',
@@ -171,7 +171,7 @@ describe(TYPED, () => {
       seed(sqlite);
       expect(() => {
         sqlite.run(
-          "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES (NULL,'p','a','whole','b','whole','FS')",
+          "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES (NULL,'p','a','whole','b','whole','FS')",
         );
       }).toThrow('NOT NULL constraint failed: typed_dependency.id');
     });
@@ -186,7 +186,7 @@ describe(TYPED, () => {
       }).toThrow('UNIQUE constraint failed');
       insert(sqlite, 'node', 'node', 's');
       sqlite.run(
-        "INSERT INTO dependency (id,project_id,predecessor_id,successor_id) VALUES ('old','p','a','b')",
+        "INSERT INTO dependency (id,work_package_id,predecessor_id,successor_id) VALUES ('old','p','a','b')",
       );
       expect(sqlite.query<{ id: string }, []>('SELECT id FROM dependency').all()).toEqual([
         { id: 'old' },

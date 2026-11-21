@@ -9,13 +9,14 @@ import type {
   WriteReceipt,
 } from '../runtime-command-values';
 import { defineEndpointShape, type EndpointShape } from './endpoint-shape';
+import { authorityReceipt1, commandReceipt1, runtimeReceipt1 } from './runtime-receipt1-shapes';
 import { requestSchema, responseSchema, type SchemaShape } from './schema-shape';
-import { applyProjectCommands } from './work-item-shapes';
+import { applyWorkPackageCommands } from './work-item-shapes';
 
 const identity = type('string > 0');
 const count = type('0 <= number.integer <= 9007199254740991');
 const generation = type('0 < number.integer <= 9007199254740991');
-const scope = type({ organizationId: identity, projectId: identity, personId: identity });
+const scope = type({ organizationId: identity, workPackageId: identity, personId: identity });
 const authority = type({ ownerId: identity, generation });
 const execution = type({
   storeId: identity,
@@ -75,8 +76,9 @@ const common = {
   personId: identity,
   expectedLedgerId: identity,
 } as const;
+// Proof: runtime-http-current-discriminator allowed current owner fields under receipt1; 'HTTP refuses runtime1 grant response relabeled around current owner fields' failed and restored GREEN.
 const receiptFields = {
-  schemaVersion: '1',
+  schemaVersion: '2',
   ledgerId: identity,
   scope,
   commandId: identity,
@@ -112,20 +114,22 @@ const receiptResponse: SchemaShape<RuntimeReceipt> = enforceAppliedOrder(
     type({
       ...receiptFields,
       acceptance: authorityAcceptance.or(claimAcceptance).or(writeAcceptance),
-    }),
+    }).or(runtimeReceipt1),
   ),
 );
 // Proof: P6-06 replaced this response schema with unknown; the shared client
 // accepted wrong versions, missing authority and unsafe generations.
 const authorityResponse: SchemaShape<AuthorityReceipt> = responseSchema(
-  type({ ...receiptFields, acceptance: authorityAcceptance }),
+  type({ ...receiptFields, acceptance: authorityAcceptance }).or(authorityReceipt1),
 );
 const commandResponse: SchemaShape<ClaimReceipt | WriteReceipt> = enforceAppliedOrder(
   responseSchema(
-    type({ ...receiptFields, acceptance: claimAcceptance }).or({
-      ...receiptFields,
-      acceptance: writeAcceptance,
-    }),
+    type({ ...receiptFields, acceptance: claimAcceptance })
+      .or({
+        ...receiptFields,
+        acceptance: writeAcceptance,
+      })
+      .or(commandReceipt1),
   ),
 );
 const liveClaim = type({
@@ -137,13 +141,16 @@ const liveClaim = type({
   parentClaimId: identity.or('null'),
   accountId: identity,
 });
-const state = type({
-  schemaVersion: '1',
+// Proof: runtime-http-current-state-discriminator allowed renamed current state fields under version1; 'HTTP refuses current state owner fields under outgoing version1' failed and restored GREEN.
+// Proof: dash-live-current-only-state: admitting legacy state1 in the live current-state schema.
+// 'current live state endpoint refuses genuine historical state1 independently of retained reader' failed; exact restoration passed.
+export const runtimeState2 = type({
+  schemaVersion: '2',
   ledgerId: identity,
   scope,
   basis,
   facts: {
-    projectRevision: count,
+    workPackageRevision: count,
     workItems: type({
       id: identity,
       parentId: identity.or('null'),
@@ -166,9 +173,9 @@ const state = type({
     .or({ kind: '"runtime"', claim: liveClaim, binding: claim })
     .array(),
 });
-const stateResponse: SchemaShape<RuntimeState> = responseSchema(state);
+const stateResponse: SchemaShape<RuntimeState> = responseSchema(runtimeState2);
 const refusals = [
-  ...applyProjectCommands.refusals,
+  ...applyWorkPackageCommands.refusals,
   {
     status: 403,
     schema: responseSchema(
@@ -215,7 +222,7 @@ const writePolicies = [
 /** Discovery can omit the pin; every retained intent must supply its already durable pin. */
 export const readRuntimeState = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/runtime-state',
+  path: '/api/work-packages/:id/runtime-state',
   operationId: 'readRuntimeState',
   policies: readPolicies,
   params,
@@ -227,7 +234,7 @@ export const readRuntimeState = defineEndpointShape({
 /** Acquires the receiver generation through an explicit pinned compare-and-swap. */
 export const acquireRuntimeAuthority = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/runtime-authority',
+  path: '/api/work-packages/:id/runtime-authority',
   operationId: 'acquireRuntimeAuthority',
   policies: writePolicies,
   params,
@@ -243,7 +250,7 @@ export const acquireRuntimeAuthority = defineEndpointShape({
 /** Atomically accepts one exact claim or restricted claimed command batch and its immutable receipt. */
 export const applyRuntimeCommands = defineEndpointShape({
   method: 'POST',
-  path: '/api/projects/:id/runtime-commands',
+  path: '/api/work-packages/:id/runtime-commands',
   operationId: 'applyRuntimeCommands',
   policies: writePolicies,
   params,
@@ -255,7 +262,7 @@ export const applyRuntimeCommands = defineEndpointShape({
 /** Absence is only absence at this read; recovery must first fence delayed old dispatch. */
 export const lookupRuntimeReceipt = defineEndpointShape({
   method: 'GET',
-  path: '/api/projects/:id/runtime-commands/:commandId',
+  path: '/api/work-packages/:id/runtime-commands/:commandId',
   operationId: 'lookupRuntimeReceipt',
   policies: readPolicies,
   params: requestSchema(type({ id: identity, commandId: identity })),

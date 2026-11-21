@@ -1,0 +1,2146 @@
+{
+  "recordedAt": "2026-11-19T19:28:32.876Z",
+  "goalStatus": "active",
+  "scope": "Actual global catalogue identities and project-bound current fixtures, current first-child service boundary/peer retention regressions, and corrected whole-core follow-up. No new production behavior; first-child writer gains Proof documentation/format only.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "sha256": "3fec17a8902b7f6e7986c659521f6b1f318497bc3780e2366b03402ec5d1fb26",
+      "bytes": 134543,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+      "sha256": "c802cf02d5bb515eaa7202e38cb281a72b8c87f18441e036a13aedfa8d595a7d",
+      "bytes": 40129,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+      "sha256": "1de99c7c6375f8bba2d21b0cfec0262e32f17f12edc3a853aa6808ca81a88682",
+      "bytes": 29967,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+      "sha256": "7129444031299b8ad7e9982a6cd1603606e63c41c7c0b80790e64f822b37eb96",
+      "bytes": 36218,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/startable.test.ts",
+      "sha256": "f33eb14c69962ad3e176e17420cd983445cb0113df84d4658ec8081c242f8393",
+      "bytes": 21720,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/bound-package-fixture.ts",
+      "sha256": "1a8e151e7355750d62b5546ff802903438fc577fd2ea440a1e4f6beb5a222de0",
+      "bytes": 2575,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/first-child.ts",
+      "sha256": "fb2884bf1e7fc559945d6eadb49f0029a00b4e646cc7cdfafaf9b3f070f417b3",
+      "bytes": 12902,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "c70b9c0ef0a211484a7e72898bd867c49094089855642cdb83d99184e1aec8bb",
+      "bytes": 16120,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-work-item-fixture-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-red-v1.receipt.json",
+        "sha256": "64ece567ad54c7495bc56feb68941bcfb3da97ada217d757124b7922f2481055",
+        "bytes": 1358,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:05:03.741Z",
+        "endedAt": "2026-11-19T19:05:07.197Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-red-v1.log",
+          "sha256": "95db114ba15273cf31d92b249f506a74ffbb22a85f155fb44e468564247963e9",
+          "bytes": 75106
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-red-v1.log",
+        "sha256": "95db114ba15273cf31d92b249f506a74ffbb22a85f155fb44e468564247963e9",
+        "bytes": 75106,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-work-item-fixture-main-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-main-v1.receipt.json",
+        "sha256": "0f019db07e7951680363547ca44096b1b8de326e6ed7e61319fa4165d6d0397f",
+        "bytes": 1360,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-main-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:05:30.314Z",
+        "endedAt": "2026-11-19T19:05:33.913Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-main-v1.log",
+          "sha256": "ed36d0b1233b2c48752f907df831fc593715c67421cc8e6ed187fcf1a0236733",
+          "bytes": 28625
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-main-v1.log",
+        "sha256": "ed36d0b1233b2c48752f907df831fc593715c67421cc8e6ed187fcf1a0236733",
+        "bytes": 28625,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-work-item-calls-rewrite-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-calls-rewrite-v1.receipt.json",
+        "sha256": "1044431c0b5e32249faa58c475dafd3fd62d58c4281aae7c7efacd3453bff931",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-calls-rewrite-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-work-item-fixture-calls-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:07:24.614Z",
+        "endedAt": "2026-11-19T19:07:24.837Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-calls-rewrite-v1.log",
+          "sha256": "00db4d1253156232f97e22fd4e8250813e864c960dd38f37617309fa2a7c0067",
+          "bytes": 20
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-calls-rewrite-v1.log",
+        "sha256": "00db4d1253156232f97e22fd4e8250813e864c960dd38f37617309fa2a7c0067",
+        "bytes": 20,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-work-item-fixture-secondary-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-secondary-v1.receipt.json",
+        "sha256": "613d7a402f4c8e7906935547ca8e5ac81cef69bef713361754526205bb1ddd40",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-secondary-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:07:44.279Z",
+        "endedAt": "2026-11-19T19:07:47.957Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-secondary-v1.log",
+          "sha256": "d89e38156fa8e66d35c5528b563068fb860bbc1b62b9107bf6ae75d3bf765d64",
+          "bytes": 20204
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-secondary-v1.log",
+        "sha256": "d89e38156fa8e66d35c5528b563068fb860bbc1b62b9107bf6ae75d3bf765d64",
+        "bytes": 20204,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-work-item-current-boundaries-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-current-boundaries-v1.receipt.json",
+        "sha256": "15923df9750ff9c3910333859bd9000e79d62b876a4a1d0ca1c9c98a72369239",
+        "bytes": 1456,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-current-boundaries-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "--test-name-pattern",
+            "atomic first-child capability|typed parent work",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:17:37.253Z",
+        "endedAt": "2026-11-19T19:17:39.880Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-current-boundaries-v1.log",
+          "sha256": "dd6c1a91802fc7ee7eecc442916fc3945a02aa10be094cf317a84ccfeb52c6d3",
+          "bytes": 452
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-current-boundaries-v1.log",
+        "sha256": "dd6c1a91802fc7ee7eecc442916fc3945a02aa10be094cf317a84ccfeb52c6d3",
+        "bytes": 452,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-work-item-fixture-lint-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-lint-format-v1.receipt.json",
+        "sha256": "6a5400c51a999e2086e2d4e561e983144474e55c45eb0752fa63b7cf4bdf65c4",
+        "bytes": 1387,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-lint-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:10:44.885Z",
+        "endedAt": "2026-11-19T19:10:49.264Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-lint-format-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-work-item-fixture-lint-format-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-command-fixtures-red-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-red-v1.receipt.json",
+        "sha256": "a213029d9e28dfc3d3249bbb59635ded034a63a0831159d12fbb38aebe428b99",
+        "bytes": 1611,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-red-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:11:40.723Z",
+        "endedAt": "2026-11-19T19:11:43.871Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-red-v1.log",
+          "sha256": "7dbe2295ab49859929e3ee19760e0d397c90cf72034918151cb9470529453802",
+          "bytes": 67207
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-red-v1.log",
+        "sha256": "7dbe2295ab49859929e3ee19760e0d397c90cf72034918151cb9470529453802",
+        "bytes": 67207,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-command-fixtures-adopt-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-adopt-v1.receipt.json",
+        "sha256": "c885ef60dbf5dd0071da9df99d276c0205bca07d8cfcecd34979002b4da9267e",
+        "bytes": 1281,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-adopt-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-command-fixtures-adopt-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:12:43.263Z",
+        "endedAt": "2026-11-19T19:12:43.504Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-adopt-v1.log",
+          "sha256": "326a4efa0253080e37edc67cc937ab1a07ee104e9330668cc1fed701277a857c",
+          "bytes": 22
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-adopt-v1.log",
+        "sha256": "326a4efa0253080e37edc67cc937ab1a07ee104e9330668cc1fed701277a857c",
+        "bytes": 22,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-command-fixtures-first-green-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-first-green-v1.receipt.json",
+        "sha256": "88a7dcf914adc0940041e87c484488f3f2cf9f1db04251f026dd7d38e33daa24",
+        "bytes": 1627,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-first-green-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:13:01.636Z",
+        "endedAt": "2026-11-19T19:13:06.185Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-first-green-v1.log",
+          "sha256": "86e91e43d56d7d5530217b5992bc01e960bf5c36327f288f0f8ea35b6fe7a849",
+          "bytes": 16399
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-first-green-v1.log",
+        "sha256": "86e91e43d56d7d5530217b5992bc01e960bf5c36327f288f0f8ea35b6fe7a849",
+        "bytes": 16399,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-command-fixtures-green-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v2.receipt.json",
+        "sha256": "3601e435b049ecd4d39ff0745c636aba65fa15d1bb2d50c623b443e9b5956e7a",
+        "bytes": 1615,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:14:25.431Z",
+        "endedAt": "2026-11-19T19:14:29.454Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v2.log",
+          "sha256": "0f300f71f3e75fb286cc70692508b352b06da9f70c65a6f5e7bec81dcb124721",
+          "bytes": 11962
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v2.log",
+        "sha256": "0f300f71f3e75fb286cc70692508b352b06da9f70c65a6f5e7bec81dcb124721",
+        "bytes": 11962,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-command-fixtures-green-v3",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3.receipt.json",
+        "sha256": "b28caa52826feccf6fb86710f284654ea4dface77e992e9586a58046dd5db239",
+        "bytes": 1615,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:16:16.567Z",
+        "endedAt": "2026-11-19T19:16:20.547Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3.log",
+          "sha256": "09625426e4c28ff9cc59a6a9adc04c66fbd2e8acf85a1055866f3173a671dc1c",
+          "bytes": 11152
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3.log",
+        "sha256": "09625426e4c28ff9cc59a6a9adc04c66fbd2e8acf85a1055866f3173a671dc1c",
+        "bytes": 11152,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-lint-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-format-v1.receipt.json",
+        "sha256": "b69f668c049c2036da8b1dd368a74e7795b7d7ac6b2e69a9264dff334f90d757",
+        "bytes": 1789,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "libs/wbs/application/core/src/testing/bound-package-fixture.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:19:23.187Z",
+        "endedAt": "2026-11-19T19:19:30.932Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-format-v1.log",
+          "sha256": "3868c541ac2d2174547eb6709dc9eb4e9396e0202d7c63bebc27dd39b9a6104d",
+          "bytes": 475
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-format-v1.log",
+        "sha256": "3868c541ac2d2174547eb6709dc9eb4e9396e0202d7c63bebc27dd39b9a6104d",
+        "bytes": 475,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-prettier-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-prettier-v1.receipt.json",
+        "sha256": "9ad219080c5a0655aef8d60dfe3dfb0f31b7e56b05e0d35eee85a3d806cc511e",
+        "bytes": 1790,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-prettier-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "libs/wbs/application/core/src/testing/bound-package-fixture.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:19:48.645Z",
+        "endedAt": "2026-11-19T19:19:49.320Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-prettier-v1.log",
+          "sha256": "d82c15951d04d646977f8f48994c0484a03c5a1bddac97ea76b4553eab853972",
+          "bytes": 475
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-prettier-v1.log",
+        "sha256": "d82c15951d04d646977f8f48994c0484a03c5a1bddac97ea76b4553eab853972",
+        "bytes": 475,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-format-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-v2.receipt.json",
+        "sha256": "b5fb5e996959786c1362ee9d3829b1f1ffc341fc03a60c3a7cc8976888e4d9e2",
+        "bytes": 1381,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:20:17.353Z",
+        "endedAt": "2026-11-19T19:20:17.791Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-v2.log",
+          "sha256": "310adb49f307aba0c5ec4cd5a5cb256d982d2c85226af3baa43bae42ac734ccf",
+          "bytes": 92
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-v2.log",
+        "sha256": "310adb49f307aba0c5ec4cd5a5cb256d982d2c85226af3baa43bae42ac734ccf",
+        "bytes": 92,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-effects-root-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-effects-root-v1.receipt.json",
+        "sha256": "61f59ca0a567fbfc2887197d602ceb0b4f82d1a5852dcad7a5a3bac03bfb4d0e",
+        "bytes": 1294,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-effects-root-v1",
+        "command": {
+          "argv": ["bun", "/tmp/puni-package-command-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:21:26.130Z",
+        "endedAt": "2026-11-19T19:21:36.676Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-effects-root-v1.log",
+          "sha256": "4e408ce4252d39605fbaa0820f57e8eaba3a6a0c131c3c2ac3bc70ef2ed2f668",
+          "bytes": 14
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-effects-root-v1.log",
+        "sha256": "4e408ce4252d39605fbaa0820f57e8eaba3a6a0c131c3c2ac3bc70ef2ed2f668",
+        "bytes": 14,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-format-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-final-v1.receipt.json",
+        "sha256": "7621bde8ad8648248cb8a81764f10f21a70b954bdb353f41112a5a4b38cd49e9",
+        "bytes": 1911,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "libs/wbs/application/core/src/testing/bound-package-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/first-child.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:22:31.076Z",
+        "endedAt": "2026-11-19T19:22:31.835Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-final-v1.log",
+          "sha256": "cf12d02db2b5c7c8b148f1d130ab6d17747da4f9f7dbaabf2ba186002ececb20",
+          "bytes": 652
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-format-final-v1.log",
+        "sha256": "cf12d02db2b5c7c8b148f1d130ab6d17747da4f9f7dbaabf2ba186002ececb20",
+        "bytes": 652,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-lint-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-final-v1.receipt.json",
+        "sha256": "29cfb57cd7fe809d9f05846e88fbb14d44613b523b6fb368050410c5e3d359db",
+        "bytes": 1832,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "libs/wbs/application/core/src/testing/bound-package-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/first-child.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:22:57.023Z",
+        "endedAt": "2026-11-19T19:23:02.480Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-final-v1.log",
+          "sha256": "a31d74978cf7dbce80127db3fc40f21b251ef1aed4bb5d62261021cb56984c99",
+          "bytes": 1095
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-final-v1.log",
+        "sha256": "a31d74978cf7dbce80127db3fc40f21b251ef1aed4bb5d62261021cb56984c99",
+        "bytes": 1095,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-fixture-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-fixture-lint-v1.receipt.json",
+        "sha256": "7da1de7247b095b22777aadd1a9399b0939fa6260aa9d574635c553d70ed16f3",
+        "bytes": 1774,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-fixture-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "libs/wbs/application/core/src/testing/bound-package-fixture.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:24:59.440Z",
+        "endedAt": "2026-11-19T19:25:11.123Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-fixture-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-fixture-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-types-v1.receipt.json",
+        "sha256": "b8bdb0ffb328001a9c6b0ce90c3f826282540f4a74248974706b44ad4cc727ea",
+        "bytes": 1564,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:24:59.440Z",
+        "endedAt": "2026-11-19T19:25:36.506Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-command-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1.receipt.json",
+        "sha256": "c5bff8a1ae25e413232c4418c460c8d2575aac8e836ad4801bbdab774108c518",
+        "bytes": 2047,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "./libs/wbs/application/core/src/service/actual.test.ts",
+            "./libs/wbs/application/core/src/service/progress.test.ts",
+            "./libs/wbs/application/core/src/service/measure.test.ts",
+            "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+            "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:24:59.440Z",
+        "endedAt": "2026-11-19T19:25:12.980Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1.log",
+          "sha256": "6a32f18246e0922a9ec4e1ab806ae1a9e62b219bb7fa3d714f0d10cd77855a84",
+          "bytes": 48467
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1.log",
+        "sha256": "6a32f18246e0922a9ec4e1ab806ae1a9e62b219bb7fa3d714f0d10cd77855a84",
+        "bytes": 48467,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-source-only-v2",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2.receipt.json",
+        "sha256": "274de945d39e59faf5b00cb7f086bb92d43042d9e52949d18e145281792242c8",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/compose.test.ts",
+            "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+            "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+            "./libs/wbs/application/core/src/http/endpoint.test.ts",
+            "./libs/wbs/application/core/src/http/history.routes.test.ts",
+            "./libs/wbs/application/core/src/http/import.routes.test.ts",
+            "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+            "./libs/wbs/application/core/src/http/project.routes.test.ts",
+            "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+            "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+            "./libs/wbs/application/core/src/http/step.routes.test.ts",
+            "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+            "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+            "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+            "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+            "./libs/wbs/application/core/src/module-boundaries.test.ts",
+            "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+            "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+            "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+            "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+            "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+            "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+            "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+            "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+            "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+            "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+            "./libs/wbs/application/core/src/module/directory/module.test.ts",
+            "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+            "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+            "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+            "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+            "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+            "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+            "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+            "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+            "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+            "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+            "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+            "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+            "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+            "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+            "./libs/wbs/application/core/src/module/step/module.test.ts",
+            "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+            "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+            "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+            "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+            "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+            "./libs/wbs/application/core/src/playwright-config.test.ts",
+            "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+            "./libs/wbs/application/core/src/ports/clock.test.ts",
+            "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+            "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+            "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+            "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+            "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+            "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+            "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+            "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+            "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+            "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+            "./libs/wbs/application/core/src/service/actual.test.ts",
+            "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+            "./libs/wbs/application/core/src/service/authorize.test.ts",
+            "./libs/wbs/application/core/src/service/broadcast.test.ts",
+            "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+            "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+            "./libs/wbs/application/core/src/service/compensating.test.ts",
+            "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+            "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+            "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+            "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+            "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+            "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+            "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+            "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+            "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+            "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+            "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+            "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+            "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+            "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+            "./libs/wbs/application/core/src/service/estimate.test.ts",
+            "./libs/wbs/application/core/src/service/freeze.test.ts",
+            "./libs/wbs/application/core/src/service/list-query.test.ts",
+            "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+            "./libs/wbs/application/core/src/service/measure.test.ts",
+            "./libs/wbs/application/core/src/service/node-readings.test.ts",
+            "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+            "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+            "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+            "./libs/wbs/application/core/src/service/plan-history.test.ts",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "./libs/wbs/application/core/src/service/progress.test.ts",
+            "./libs/wbs/application/core/src/service/project.resource.test.ts",
+            "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+            "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+            "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+            "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+            "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+            "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+            "./libs/wbs/application/core/src/service/shared-people.test.ts",
+            "./libs/wbs/application/core/src/service/space.resource.test.ts",
+            "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+            "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+            "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+            "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+            "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+            "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+            "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+            "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+            "./libs/wbs/application/core/src/testing/harness.test.ts",
+            "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+            "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+            "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+            "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+            "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+            "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T19:24:59.482Z",
+        "endedAt": "2026-11-19T19:26:36.315Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2.log",
+          "sha256": "1dfd00d255ecd4e33799da0a524ad60f2976edcd4baaa76d6d07313945c8bc94",
+          "bytes": 355628
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2.log",
+        "sha256": "1dfd00d255ecd4e33799da0a524ad60f2976edcd4baaa76d6d07313945c8bc94",
+        "bytes": 355628,
+        "mode": 384
+      }
+    }
+  ],
+  "moduleFirstRed": {
+    "phase": "current-work-item-fixture-red-v1",
+    "passed": 62,
+    "failed": 66,
+    "assertions": 200
+  },
+  "moduleMain": {
+    "phase": "current-work-item-fixture-main-v1",
+    "passed": 112,
+    "failed": 16,
+    "assertions": 295
+  },
+  "moduleSecondary": {
+    "phase": "current-work-item-fixture-secondary-v1",
+    "passed": 123,
+    "failed": 5,
+    "assertions": 341
+  },
+  "commandFirstRed": {
+    "phase": "current-command-fixtures-red-v1",
+    "passed": 9,
+    "failed": 83,
+    "assertions": 79
+  },
+  "commandAfterCatalogue": {
+    "phase": "current-command-fixtures-first-green-v1",
+    "passed": 87,
+    "failed": 5,
+    "assertions": 365
+  },
+  "commandAfterOwnership": {
+    "phase": "current-command-fixtures-green-v2",
+    "passed": 91,
+    "failed": 1,
+    "assertions": 383
+  },
+  "final": {
+    "selected": {
+      "name": "current-package-command-final-v1",
+      "passed": 362,
+      "failed": 3,
+      "assertions": 1604,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1.receipt.json",
+        "sha256": "c5bff8a1ae25e413232c4418c460c8d2575aac8e836ad4801bbdab774108c518",
+        "bytes": 2047,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-final-v1.log",
+        "sha256": "6a32f18246e0922a9ec4e1ab806ae1a9e62b219bb7fa3d714f0d10cd77855a84",
+        "bytes": 48467,
+        "mode": 384
+      }
+    },
+    "commands": {
+      "name": "current-command-fixtures-green-v3",
+      "passed": 92,
+      "failed": 0,
+      "assertions": 390,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3.receipt.json",
+        "sha256": "b28caa52826feccf6fb86710f284654ea4dface77e992e9586a58046dd5db239",
+        "bytes": 1615,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-command-fixtures-green-v3.log",
+        "sha256": "09625426e4c28ff9cc59a6a9adc04c66fbd2e8acf85a1055866f3173a671dc1c",
+        "bytes": 11152,
+        "mode": 384
+      }
+    },
+    "fullSource": {
+      "name": "current-core-source-only-v2",
+      "passed": 1914,
+      "failed": 139,
+      "assertions": 8843,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2.receipt.json",
+        "sha256": "274de945d39e59faf5b00cb7f086bb92d43042d9e52949d18e145281792242c8",
+        "bytes": 14588,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v2.log",
+        "sha256": "1dfd00d255ecd4e33799da0a524ad60f2976edcd4baaa76d6d07313945c8bc94",
+        "bytes": 355628,
+        "mode": 384
+      }
+    },
+    "sourceFiles": 168,
+    "roster": {
+      "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v2.json",
+      "sha256": "efd66d9477fdd38d0cecf70bdbe7f6b6b1dac84881d6481cb354d8f8aa0bbf5e",
+      "bytes": 43277,
+      "mode": 384
+    },
+    "failedByFile": [
+      {
+        "path": "libs/wbs/application/core/src/http/project.routes.test.ts",
+        "failures": [
+          "(fail) dispatches the complete returned variant and independently maps modeled package allocation refusals [1.18ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/solution.routes.test.ts",
+        "failures": [
+          "(fail) direct solution binding reads the exact slug and complete work package with ordered steps [2.75ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/step.routes.test.ts",
+        "failures": [
+          "(fail) a patched allowance runs as the one journalled setStepAllowance command [4.15ms]",
+          "(fail) a rename sent with an allowance is the batch prelude, and its refusal runs no command [2.70ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+        "failures": [
+          "(fail) assignments that run the plan past the calendar > refuses assignSubtree with calendar_range and writes nothing [12.53ms]",
+          "(fail) assignments that run the plan past the calendar > refuses a claim that assigns past the calendar, and admits the same claim without assign [7.93ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+        "failures": [
+          "(fail) a resource removed between the tree read and its labels > labels a bar of a resource removed between the two reads [6.25ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+        "failures": [
+          "(fail) facts keyed by measure definition > records a fact in a defined measure and under either name of tokens and hours, undoably [7.53ms]",
+          "(fail) facts keyed by measure definition > refuses deleting a definition that holds a fact, and deletes it once the fact is cleared [7.79ms]",
+          "(fail) facts keyed by measure definition > refuses an undo that would put a fact back in a measure deleted since [12.16ms]",
+          "(fail) facts keyed by measure definition > refuses an undo of a delete whose fact is in a measure deleted since [12.22ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a first-child create whose handed-down fact is in a measure deleted since [15.41ms]",
+          "(fail) agent minutes, derived on read > reads agent minutes from ended attempts and rolls them up; a running attempt adds nothing [6.72ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+        "failures": [
+          "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans [279.26ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+        "failures": [
+          "(fail) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [2.83ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+        "failures": [
+          "(fail) working plan batch ownership > refuses then runs another batch without leaked values [2.28ms]",
+          "(fail) working plan batch ownership > ordinary write between batches is the next before-image [1.63ms]",
+          "(fail) working plan batch ownership > closes the admitted graph after success, refusal, and throw [1.63ms]",
+          "(fail) working plan batch ownership > announces after commit through the nonworking graph [1.53ms]",
+          "(fail) working plan directory mutations through runner commands > delegates person reads and target-refreshes an assignment before the next patch [1.75ms]",
+          "(fail) working plan dependency mutations through runner commands > lets a later command read the committed FF type after an edit [3.55ms]",
+          "(fail) working plan value mutations through runner commands > keeps mixed-case memory value groups in the full readers order after population [1.60ms]",
+          "(fail) working plan value mutations through runner commands > keeps every memory value group in source order after sets populate an earlier group [1.68ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every set, hand-down endpoint, and measure metric before later commands [1.63ms]",
+          "(fail) working plan value mutations through runner commands > removes every moveAll source during the same create command [1.62ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every delete-last-child hand-up before editing the parent [1.74ms]",
+          "(fail) working plan value mutations through runner commands > removes every value and metric from retained reads before the store method returns [1.62ms]",
+          "(fail) working plan row mutations through runner commands > freezes arranged numbers from the preceding command in the same batch [1.58ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted estimates group placement [1.43ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted actuals group placement [1.13ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted progress group placement [1.08ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted measures group placement [1.12ms]",
+          "(fail) transactional memory move blockage closure > rolls back cleared facts and moved rows when a later batch command refuses [1.43ms]",
+          "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress [1.25ms]",
+          "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner [1.37ms]",
+          "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner [1.12ms]",
+          "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner [1.07ms]",
+          "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner [1.25ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it [1.42ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it [1.17ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it [1.15ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay [1.45ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay [1.28ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory deletion facts and rows when a later batch command refuses [1.34ms]",
+          "(fail) transactional memory move blockage closure > preserves collected memory deletion facts and progress through undo redo [1.29ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent state changes before deletion undo [1.33ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent time changes before deletion undo [1.09ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent missing changes before deletion undo [1.10ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent blockage changes before deletion undo [1.14ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory restore rows and earlier blockage writes after an injected insertion failure [1.28ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+        "failures": [
+          "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed [1.91ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+        "failures": [
+          "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it [7.88ms]",
+          "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed [2.81ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+        "failures": [
+          "(fail) public blockage authoring over transactional memory > collects one undo unit, refreshes retained facts, and emits committed readings [1.79ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a refuse store write [1.84ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a throw store write [1.09ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back an earlier fact when the later command is unknown [1.19ms]",
+          "(fail) public blockage authoring over transactional memory > refuses direct service ownership before an equivalent clear [1.16ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory undo without accepting forged owner revisions [1.26ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory redo without accepting forged owner revisions [1.01ms]",
+          "(fail) public blockage authoring over transactional memory > keeps progress, canonical input and full Fast schedule unchanged [1.19ms]",
+          "(fail) public blockage authoring over transactional memory > refuses an unknown service step before an equivalent clear [1.09ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+        "failures": [
+          "(fail) the admitted working batch baseline > preserves the four mutation sequences through a working collection [1.56ms]",
+          "(fail) targeted working-plan refreshes > refreshes the retained measures when a tokens trio writes or retires the legacy token estimate [1.27ms]",
+          "(fail) targeted working-plan refreshes > refreshes every restore-related collection and preserves borrowed before-images [1.44ms]",
+          "(fail) targeted working-plan refreshes > refreshes a labelled row and rejects an unrequested satellite row [3.23ms]",
+          "(fail) working plan value failures > does not advance a retained value after a modeled set refusal [1.23ms]",
+          "(fail) working plan value failures > does not advance a retained value before a throwing mutation succeeds [1.23ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+        "failures": [
+          "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes [0.99ms]",
+          "(fail) the Plan import module > admits a small document over the graph installPlanImport wires [6.58ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+        "failures": [
+          "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.28ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+        "failures": [
+          "(fail) the claim history read > lists claims, releases and reaps newest first, each with its reason [3.49ms]",
+          "(fail) the claim history read > reads a release named like a reap by its stored reason, not its label [2.39ms]",
+          "(fail) the claim history read > names a holder and an item deleted since as null [2.43ms]",
+          "(fail) the claim history read > lists no undo, redo or other command [2.33ms]",
+          "(fail) the claim history read > lists a claim made beside other commands in one batch [2.71ms]",
+          "(fail) the claim history read > lists a batch that released one claim and took another as two acts [2.55ms]",
+          "(fail) the claim history read > finds a claim batch under newer batches that claim nothing [2.47ms]",
+          "(fail) the claim history read > lists nothing for a batch that deleted a claimed item [2.40ms]",
+          "(fail) the claim history read > fails the read on a batch it cannot split into acts [2.41ms]",
+          "(fail) the claim history read > fails the read on a stored command it cannot decode, naming the event [2.26ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+        "failures": [
+          "(fail) delete sparse owner preservation > refuses leaf null with exact equal-default pairs before stamps or writes [1.32ms]",
+          "(fail) delete sparse owner preservation > refuses leaf cascade with exact equal-default pairs before stamps or writes [0.63ms]",
+          "(fail) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [0.91ms]",
+          "(fail) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [1.91ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+        "failures": [
+          "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [1.07ms]",
+          "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [0.77ms]",
+          "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [1.44ms]",
+          "(fail) duplicates an empty selection while unrelated and foreign policies keep their owners [1.27ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+        "failures": [
+          "(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.42ms]",
+          "(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.67ms]",
+          "(fail) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [0.69ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [1.55ms]",
+          "(fail) preserves empty-policy first-child undo and redo [5.57ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+        "failures": [
+          "(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.10ms]",
+          "(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.64ms]",
+          "(fail) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [0.67ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [1.37ms]",
+          "(fail) retains moving subtree and sibling policy while moving under an empty destination [0.74ms]",
+          "(fail) preserves empty-policy move undo and redo while unrelated facts survive [0.68ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+        "failures": [
+          "(fail) a work package step allowance > charges each estimated leaf once and parents the sum, leaving raw points alone [5.40ms]",
+          "(fail) a work package step allowance > schedules charged effort, and the edit changes the canonical input [2.12ms]",
+          "(fail) a work package step allowance > leaves an unknown estimate unknown and an explicit zero at zero [2.28ms]",
+          "(fail) a work package step allowance > charges a duplicated branch’s copied base estimates once [1.53ms]",
+          "(fail) a work package step allowance > charges an estimate handed down to a first child once, at the child [1.46ms]",
+          "(fail) a work package step allowance > announces the edited step [0.69ms]",
+          "(fail) undoing a step allowance edit > undoes an allowance edit in one step [0.65ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it [0.63ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it and changed it back [0.63ms]",
+          "(fail) undoing a step allowance edit > walks back two of one editor’s allowance edits in turn [0.65ms]",
+          "(fail) undoing a step allowance edit > journals nothing for an edit that leaves the allowance where it was [0.60ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+        "failures": [
+          "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo [4.44ms]",
+          "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo [4.23ms]",
+          "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent [4.88ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+        "failures": [
+          "(fail) arrangeBySchedule > puts the work item that starts first at the top [7.32ms]",
+          "(fail) arrangeBySchedule > arranges a frozen work item with the rest, and leaves its number alone [4.99ms]",
+          "(fail) arrangeBySchedule > arranges a group at every depth [7.94ms]",
+          "(fail) arrangeBySchedule > announces the tree once for one press [3.56ms]",
+          "(fail) arrangeBySchedule > leaves a work item that keeps its place where it is [4.98ms]",
+          "(fail) arrangeBySchedule > puts every work item back where it was when the press is undone [5.16ms]",
+          "(fail) arrangeBySchedule > re-applies the stored positions on a redo [6.30ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/broadcast.test.ts",
+        "failures": [
+          "(fail) what a work package subscriber receives > sends the whole tree when an estimate changes, ancestors included [4.83ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/connected-arrange.test.ts",
+        "failures": [
+          "(fail) connected selected optimized pending refuses without writes [3.53ms]",
+          "(fail) connected selected optimized boundary-infeasible refuses without writes [1.80ms]",
+          "(fail) connected selected optimized ready accepts the final target placement [3.30ms]",
+          "(fail) connected selected optimized ready-sibling accepts the final target placement [2.31ms]",
+          "(fail) connected selected optimized floor accepts the final target placement [2.80ms]",
+          "(fail) connected captured engine_unavailable refuses without writes [2.65ms]",
+          "(fail) connected captured calendar_range refuses without writes [2.52ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "failures": [
+          "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows [0.19ms]",
+          "(fail) rejects a required work package read returning another work package identity [0.11ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/dependency-graph.test.ts",
+        "failures": ["(fail) refuses a typed node endpoint absent from the full tree [0.12ms]"]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+        "failures": [
+          "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule [1.09ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/plan-history.test.ts",
+        "failures": [
+          "(fail) the plan’s history, as commands are recorded > records the estimate that was set, with the trio it replaced [2.67ms]",
+          "(fail) the plan’s history, as commands are recorded > names the work item and the step an estimate was aimed at [2.03ms]",
+          "(fail) the plan’s history, as commands are recorded > records the clearing of an estimate, and nothing when there was none to clear [3.60ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+        "failures": [
+          "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor [0.25ms]",
+          "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor [0.04ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+        "failures": [
+          "(fail) counting unit of work rejects unexpected store access and records rollback [1.86ms]"
+        ]
+      }
+    ],
+    "historicalCases": [
+      "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo [4.44ms]",
+      "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo [4.23ms]",
+      "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent [4.88ms]"
+    ],
+    "libraryRoots": ["core", "conformance", "store-memory", "store-sqlite"],
+    "backendTypecheck": "passed",
+    "fixtureLintFiles": 6,
+    "writerLint": {
+      "passed": false,
+      "errors": 6,
+      "phase": "current-package-command-lint-final-v1",
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-command-lint-final-v1.log",
+        "sha256": "a31d74978cf7dbce80127db3fc40f21b251ef1aed4bb5d62261021cb56984c99",
+        "bytes": 1095,
+        "mode": 384
+      }
+    },
+    "formattedCodeFiles": 7,
+    "qualification": "Both broad and selected combined invocations exit1 and remain failed. Only the four-command92test cohort passes completely. No skipped historical cases or weakened leaf guards; no whole application/adapter/UI/CLI/host/release certification."
+  },
+  "finiteEffects": {
+    "observations": [
+      {
+        "name": "both-authoring-entrypoints",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/bound-package-fixture.ts",
+        "before": "  for (const { definition, binding } of bindings) {",
+        "after": "  for (const { definition, binding } of []) {",
+        "files": [
+          "./libs/wbs/application/core/src/service/actual.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts"
+        ],
+        "matcher": "stores the days against a leaf and shows|claims every step that is not done",
+        "failed": 2,
+        "diagnostic": "step-dev",
+        "minimumAssertions": 1,
+        "qualification": "Both actual fixture entry points require the common real catalogue authoring loop. These are fixture prerequisite failures, not two independent production safety guards.",
+        "canonicalSha256": "1a8e151e7355750d62b5546ff802903438fc577fd2ea440a1e4f6beb5a222de0",
+        "candidateSha256": "7a3e116f7f4f759c1abb9c130e2416c4bc17e0dc97d77f99b55a92feccec84a5",
+        "restoredSha256": "1a8e151e7355750d62b5546ff802903438fc577fd2ea440a1e4f6beb5a222de0",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-both-authoring-entrypoints-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-both-authoring-entrypoints-v1.log"
+      },
+      {
+        "name": "shared-definition-scope",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+        "before": "      bindingId: 'two-step-dev-binding',\n      stepId,\n      scopeKind: 'project',\n      scopeId: TWO_STEP_PROJECT,",
+        "after": "      bindingId: 'two-step-dev-binding',\n      stepId,\n      scopeKind: 'project',\n      scopeId: OTHER_PROJECT,",
+        "files": ["./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts"],
+        "matcher": "queues every step of a work item its one assignee",
+        "failed": 1,
+        "diagnostic": "createTwoStepPackage",
+        "minimumAssertions": 1,
+        "qualification": "A successful actual binding at the wrong same-organization project leaves the two-step birth with QA alone; its explicit captured-ID oracle fails.",
+        "canonicalSha256": "3fec17a8902b7f6e7986c659521f6b1f318497bc3780e2366b03402ec5d1fb26",
+        "candidateSha256": "d8dfc13d0721f4a0fbdacc9ed9429f957178b4778c46a18c58527ce0493ae013",
+        "restoredSha256": "3fec17a8902b7f6e7986c659521f6b1f318497bc3780e2366b03402ec5d1fb26",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-shared-definition-scope-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-shared-definition-scope-v1.log"
+      },
+      {
+        "name": "claim-owner-prerequisite",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+        "before": "    fixture.ownPersonInOrganization(id, 'fixture-legacy-org', [F, G]);",
+        "after": "    // omitted person organization and membership fixture rows",
+        "files": ["./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts"],
+        "matcher": "transfers a peer",
+        "failed": 1,
+        "diagnostic": "claim holder/account is absent or foreign",
+        "minimumAssertions": 0,
+        "qualification": "The actual first-child usage capture refuses absent person ownership before the peer claim tail. This is a fixture prerequisite, not a peer-preservation proof.",
+        "canonicalSha256": "7129444031299b8ad7e9982a6cd1603606e63c41c7c0b80790e64f822b37eb96",
+        "candidateSha256": "1318f166b8a81bfd679fbaef36817f8163914115e850be31d1a86e0134e07f36",
+        "restoredSha256": "7129444031299b8ad7e9982a6cd1603606e63c41c7c0b80790e64f822b37eb96",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-claim-owner-prerequisite-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-claim-owner-prerequisite-v1.log"
+      },
+      {
+        "name": "peer-claim-transfer",
+        "owner": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/first-child.ts",
+        "before": "claim.workItemId === from && claim.stepId !== null ? { ...claim, workItemId: to } : claim",
+        "after": "claim.workItemId === from && claim.stepId !== null && claim.personId !== 'stranger' ? { ...claim, workItemId: to } : claim",
+        "files": ["./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts"],
+        "matcher": "transfers a peer",
+        "failed": 1,
+        "diagnostic": "claim",
+        "minimumAssertions": 3,
+        "qualification": "Both actual accounts and peer ownership are present. Omitting only the later peer transfer during actual reversal makes the regression fail after its peer-acquisition prerequisites; no credit is inferred for every satellite subtype.",
+        "canonicalSha256": "c987db0236c8425680acf727e390bbce0c7d831a0dc37ba91df106a7b6f61372",
+        "candidateSha256": "76a6cd75b916bbc93595137d49096e498ed4be360545da48b7f6b82cd953746a",
+        "restoredSha256": "c987db0236c8425680acf727e390bbce0c7d831a0dc37ba91df106a7b6f61372",
+        "receiptPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-peer-claim-transfer-v1.receipt.json",
+        "logPath": "/tmp/puni-combined-proposal-v1/control/package-command-effect-peer-claim-transfer-v1.log"
+      }
+    ],
+    "qualification": "Three actual fixture dependency effects and one actual peer-transfer production mutation. Original owners settle/reap before exact restore; first failing oracles receive only named credit."
+  },
+  "writerErasure": {
+    "canonical": {
+      "path": "/tmp/puni-combined-proposal-v1/control/package-command-effect-peer-claim-transfer-v1.canonical.ts",
+      "sha256": "c987db0236c8425680acf727e390bbce0c7d831a0dc37ba91df106a7b6f61372",
+      "bytes": 11875,
+      "mode": 384
+    },
+    "current": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/first-child.ts",
+      "sha256": "fb2884bf1e7fc559945d6eadb49f0029a00b4e646cc7cdfafaf9b3f070f417b3",
+      "bytes": 12902,
+      "mode": 436
+    },
+    "transpiler": {
+      "loader": "ts",
+      "target": "browser",
+      "minifyWhitespace": true
+    },
+    "identical": true,
+    "runtimeSha256": "bc7a57914a82e4338b1bf2ab7ea623944b4e649bef97658c8a81c8c233bed9c3",
+    "qualification": "Raw pretty-printed transpiler output differed on multiline formatting flags. Whitespace-minified emitted runtime is exactly identical, including import order. This supports comment/format-only production scope, not new Source certification."
+  },
+  "rejected": [
+    {
+      "phase": "current-package-command-lint-format-v1",
+      "reason": "Bun rejects.toBe is statically void, so awaiting it is not a valid promise proof. The test now explicitly awaits the original create operation, captures its actual error and compares identity."
+    },
+    {
+      "phase": "current-package-command-lint-final-v1",
+      "reason": "Fixture files pass, but writer reports six errors: import sort, single-use Row generic, three optional-chain style checks and an indexed relationship absence check with misleading static nonnull type. These remain open; the absence guard must be preserved when fixing typing."
+    },
+    {
+      "phase": "raw-writer-erasure",
+      "reason": "Non-minified Bun output preserves multiline AST formatting flags; raw emitted text differs. Actual before/after JS copies are retained in /tmp/puni-package-writer-runtime-{before,after}-v1.js. Whitespace-minified emitted runtime matches exactly."
+    }
+  ],
+  "decisions": [
+    "Secondary packages share actual organization Dev/QA identities through an explicit two-step project. Main package remains on its one-step project, and the assignment-isolation package has its own actual project/Other binding. No per-package definition IDs are fabricated.",
+    "Both fixture helper entry points take explicit NewStepDefinition/binding metadata and use the actual Source UoW. Before-birth metadata exercises real createWithSteps responses. Legacy Step add loops and redundant package attribution are removed.",
+    "Claim holders receive explicit actual fixture organization/member rows, matching usage capture requirements. No permission or admission answer is invented.",
+    "Current FirstChildRecord transfers live work; it does not recreate a cleared/deleted measure or overwrite a peer claim from an old snapshot. Exact claim identity/location comparisons and actual no-definition/no-trio checks replace obsolete snapshot expectations; ordinary stale claim undo still refuses.",
+    "Obsolete service blockage fault hooks are replaced by actual atomic capability failure propagation and a real typed-parent/untyped-child step_nodes_in_use refusal with exact state/no-publication checks and a successful same-Source binding/retry."
+  ],
+  "pending": [
+    "Task1.6.2: establish the genuine pre-catalogue historical parent-progress producer/admission/history owner. The three current cases still try to set a parent through a required leaf-only writer and remain failing. No current parent exception or fake progress fixture is added.",
+    "Audit unreachable historical first-child compensation guards in the non-first-child constructor. Their dated old proofs are not claimed as current atomic-writer evidence.",
+    "The seven-file scope has six clean fixture/helper lint checks but six writer lint errors remain. Preserve the indexed relationship absence check, prove changed safety checks before claiming writer lint cleanup, and requalify as needed.",
+    "The current139fail source-only work list remains unqualified. All original entity/settings/spaces/SC13/17/22/25/API/UI/history/scheduler, PUNI/Bun/client classification/install, unavailable Astra, exact committed host and public release scope remain active."
+  ]
+}

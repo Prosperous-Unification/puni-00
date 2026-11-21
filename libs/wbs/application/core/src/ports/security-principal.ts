@@ -18,7 +18,7 @@ export function retainSecurityPrincipal(
     throw new Error('security principal differs from the audited actor');
   // Proof: replacing this deep clone with a shallow projection admitted mutated machine authentication in 'retains queued machine authentication for the security cap independently of caller aliases'; killed/restored, 2026-11-09.
   // Proof: retaining nested caller authentication aliases (current-deep-auth-snapshot) failed `retains queued machine authentication for the security cap independently of caller aliases`; restored GREEN.
-  // Proof: cloning the full caller instead of this authority projection (snapshot-exact-security-projection) failed `projects actual security authority without retaining credential binding or secret-shaped extras`; restored GREEN.
+  // Proof: cloning the full caller instead of this authority projection (snapshot-exact-security-projection) failed `workPackages actual security authority without retaining credential binding or secret-shaped extras`; restored GREEN.
   return structuredClone({
     id: principal.id,
     authentication: principal.authentication,

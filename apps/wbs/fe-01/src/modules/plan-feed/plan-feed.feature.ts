@@ -2,11 +2,11 @@ import type { PlanFeed, PlanFeedHost } from './contract';
 import { createPlanReading } from './plan-feed.resource';
 
 /**
- * Builds the live plan reading for one reader: one project, one API, one screen.
+ * Builds the live plan reading for one reader: one work package, one API, one screen.
  *
  * The **feature**-service delivery sees (rule K2), and the only place that knows
  * **who** the reading belongs to. Two things can end a reader's claim and they
- * end it at different moments — the screen closing, and the project or API
+ * end it at different moments — the screen closing, and the work package or API
  * changing under a render that has not been torn down yet — so `isLive` is the
  * conjunction of both, and the resource asks it before every answer it gives.
  */

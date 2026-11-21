@@ -93,15 +93,15 @@ export function usePlanStructureEffects({
  */
 export function useAddWorkItem({
   flat,
-  projectId,
-  activeProject,
+  workPackageId,
+  activeWorkPackage,
   run,
   commands,
   focusIntent,
 }: {
   flat: TreeRow[];
-  projectId: string;
-  activeProject: React.RefObject<string>;
+  workPackageId: string;
+  activeWorkPackage: React.RefObject<string>;
   run: RunPlanWrite;
   commands: PlanCommands;
   focusIntent: React.RefObject<FocusIntent>;
@@ -133,13 +133,13 @@ export function useAddWorkItem({
    * this loop runs, so a re-read could hand be-01 the same `afterId` twice and
    * stack the burst in reverse.
    */
-  const addQueue = useRef({ projectId, queued: 0, draining: false });
+  const addQueue = useRef({ workPackageId, queued: 0, draining: false });
 
-  if (addQueue.current.projectId !== projectId) {
-    // Orphan the old project's queue. Its in-flight request may finish, but
+  if (addQueue.current.workPackageId !== workPackageId) {
+    // Orphan the old work package's queue. Its in-flight request may finish, but
     // pending clicks do not become writes after the reader has left it, and a
     // click here receives a fresh drain immediately.
-    addQueue.current = { projectId, queued: 0, draining: false };
+    addQueue.current = { workPackageId, queued: 0, draining: false };
   }
 
   const addWorkItem = useCallback(() => {
@@ -150,7 +150,7 @@ export function useAddWorkItem({
     void (async () => {
       try {
         let afterId = siblingsOf(null).at(-1)?.id ?? null;
-        while (queue.queued > 0 && activeProject.current === queue.projectId) {
+        while (queue.queued > 0 && activeWorkPackage.current === queue.workPackageId) {
           queue.queued -= 1;
           const outcome = await run(async (write) => {
             const created = await write.perform(['tree'], () =>
@@ -172,7 +172,7 @@ export function useAddWorkItem({
         queue.draining = false;
       }
     })();
-  }, [activeProject, commands, focusIntent, run, siblingsOf]);
+  }, [activeWorkPackage, commands, focusIntent, run, siblingsOf]);
   return { siblingsOf, addWorkItem };
 }
 
@@ -635,7 +635,7 @@ export interface HoverOpened {
  * Opens a collapsed parent held under a drag's middle zone for
  * {@link HOVER_OPEN_MS}, as an overlay on the reader's expansion that is
  * never saved: a drag that ends without a drop — abandoned, cancelled by a
- * peer's edit, or unmounted by leaving the project — drops the overlay and
+ * peer's edit, or unmounted by leaving the work package — drops the overlay and
  * the saved preference never saw it. Only a drop commits it, through
  * {@link HoverOpened.keep}.
  *

@@ -1,5 +1,6 @@
 import type { StoredEstimate } from '@wbs/domain';
 
+import type { StepWriteDecision } from '../module/step-catalogue/step-write';
 import type { WriteStamp } from './write-stamp';
 
 export type { StoredEstimate } from '@wbs/domain';
@@ -15,12 +16,12 @@ export type { StoredEstimate } from '@wbs/domain';
  * reading SQLite's, and a second source would have to produce that message to
  * be understood.
  *
- * `unknown_step` and nothing else: a foreign key that failed over a work item
- * or a person that has gone is still an unknown, and is still thrown. A step
- * removed while a client had it on screen is an ordinary race a caller can act
- * on; the others are invariants nothing should be able to break.
+ * Absent/foreign addressed identities are opaque unknown_step. Current direct type
+ * conflicts and owned identities outside the leaf's resolved catalogue are modeled
+ * refusals. An absent work item or malformed trusted catalogue still throws.
+ * Applicability is captured on the mutation's actual writer before its first write.
  */
-export type StepWriteOutcome = 'written' | 'unknown_step';
+export type StepWriteOutcome = 'written' | 'unknown_step' | 'step_not_resolved' | 'type_conflict';
 
 /** One populated value group's predecessor in that value store's full-reader order. */
 export interface ValueGroupPlacement {
@@ -29,17 +30,19 @@ export interface ValueGroupPlacement {
 }
 
 export interface EstimateStore {
-  listByProject(projectId: string): Promise<StoredEstimate[]>;
-  /** Values for the requested work items in project and step order. */
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredEstimate[]>;
+  /** One current leaf snapshot for validation; set always captures again on its own writer before mutation. */
+  readTarget(workItemId: string, stepId: string): Promise<StepWriteDecision>;
+  listByWorkPackage(workPackageId: string): Promise<StoredEstimate[]>;
+  /** Values for the requested work items in work package and step order. */
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredEstimate[]>;
   /**
    * Placement of each requested populated group in this store's full-reader order.
    *
    * Each answer names the immediate populated predecessor whether requested or
-   * not. Missing, empty, and foreign-project groups are absent; empty IDs return
+   * not. Missing, empty, and foreign-work-package groups are absent; empty IDs return
    * an empty collection.
    */
-  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
+  listPlacements(workPackageId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** Writes one work item's estimate for one step, replacing any earlier one. */
   set(estimate: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

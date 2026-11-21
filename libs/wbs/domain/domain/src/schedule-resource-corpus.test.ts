@@ -443,7 +443,7 @@ describe('resource corpus — invariants over a thousand resource-constrained pl
  * (`schedule.ts:1341-1350` keeps a capacity predecessor out of it when the
  * blocker does not finish by the accepted start, and no hand-off edge is added
  * for the plain case either), so the backward pass never learns that `a` is
- * holding the only slot `b` needs. `a` has no successor, takes the project
+ * holding the only slot `b` needs. `a` has no successor, takes the work package
  * finish as its late finish, and reports two days of float it does not have —
  * slipping `a` by a day pushes `b` by a day.
  *
@@ -506,7 +506,7 @@ describe('resource corpus — the capacity/floor hand-off finding still reproduc
   it('is false float rather than real slack: moving `a` later moves `b`', () => {
     // The proof that the two above are a defect and not a preference. If `a`
     // really had two days of room, floor `a` at 2 and `b` would still finish on
-    // day 4. It does not — `b` goes to 4→6 and the project grows by the float
+    // day 4. It does not — `b` goes to 4→6 and the work package grows by the float
     // the schedule just claimed was free.
     const slipped = schedule(
       [leaf('a', 10), leaf('b', 20)],

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { clearCaches } from '@typescript-eslint/parser';
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
+import ts from 'typescript';
 import tseslint from 'typescript-eslint';
 
 import { createPolicyWorkspace, runLint, writeProject } from './testing/lint-workspace';
@@ -420,7 +421,7 @@ describe('the effective production and test boundaries', () => {
       );
   }, 30_000);
 
-  it('Dash runtime history consumes only the public WBS contract at four exact paths', async () => {
+  it('Dash runtime history consumes only the public WBS contract at seven exact paths', async () => {
     const peers = [
       'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/plan-runtime.ts',
@@ -433,12 +434,15 @@ describe('the effective production and test boundaries', () => {
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-records.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/runtime-scope-boundary.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts',
       'apps/twilight-structure/twilight-dash/cli/src/runs/testing/runtime-history-contract.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-rename.db.test.ts',
     ]) {
       const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
       if (!isRecord(options)) throw new Error('Dash runtime boundary options are malformed');
       const [admission] = await lint.lintText(
-        "import type { RuntimeScope } from '@wbs/contracts';\nconst scope: RuntimeScope = { organizationId: 'o', projectId: 'p', personId: 'a' };\nvoid scope;",
+        "import type { RuntimeScope1 } from '@wbs/contracts';\nconst scope: RuntimeScope1 = { organizationId: 'o', projectId: 'p', personId: 'a' };\nvoid scope;",
         { filePath: path },
       );
       expect(admission.fatalErrorCount).toBe(0);
@@ -1526,7 +1530,7 @@ const ACTIVATION_IMPORTS = [
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/migration-set',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
     ],
   ],
   ['lib/complete-dependency-exclusion.ts', ['@wbs/contracts/dependency-runtime']],
@@ -1535,13 +1539,13 @@ const ACTIVATION_IMPORTS = [
   ['lib/initial-handoff-graph.ts', ['@wbs/contracts/dependency-runtime']],
   [
     'lib/complete-dependency-exclusion.test.ts',
-    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-project-dependency-activation'],
+    ['@wbs/store-sqlite/db', '@wbs/store-sqlite/cross-work-package-dependency-activation'],
   ],
   [
     'lib/dependency-activation-storage.test.ts',
     [
       '@wbs/store-sqlite/db',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       '@wbs/store-sqlite/migration-set',
     ],
   ],
@@ -1843,7 +1847,7 @@ describe('fixed source migration worker boundary', () => {
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/source',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       ...MIGRATION_IMPORTS.flatMap(([alias]) => [
         `${alias}/foreign`,
         `${alias}-extra`,
@@ -1947,7 +1951,7 @@ describe('fixed source parent ledger boundary', () => {
       '@wbs/store-sqlite/db',
       '@wbs/store-sqlite/backup',
       '@wbs/store-sqlite/source',
-      '@wbs/store-sqlite/cross-project-dependency-activation',
+      '@wbs/store-sqlite/cross-work-package-dependency-activation',
       '@wbs/store-sqlite/migration-set/foreign',
       '@wbs/store-sqlite/migration-set-extra',
       '@wbs/store-sqlite/foreign@wbs/store-sqlite/migration-set',
@@ -2258,6 +2262,7 @@ describe('Task3 exact write recovery policy', () => {
     '@wbs/observability',
     prefix + 'app',
     prefix + 'boot',
+    prefix + 'repository/migrate',
     prefix + 'testing/auth-fixture',
     prefix + 'testing/machine-grant-fixture',
     prefix + 'testing/organization-limits-fixture',
@@ -2289,6 +2294,7 @@ describe('Task3 exact write recovery policy', () => {
       ...[
         'app',
         'boot',
+        'repository/migrate',
         'testing/organization-harness',
         'testing/auth-fixture',
         'testing/machine-grant-fixture',
@@ -2526,3 +2532,117 @@ it('durable-contract evidence retains typed lint without admitting sibling paths
     true,
   );
 }, 30_000);
+
+describe('window report decoder import boundary', () => {
+  const owner = 'tools/tool-remote-scripts/src/lib/rename-window.ts';
+  const alias = '@wbs/contracts/window-backup-report';
+  async function readWindowBoundaryMessages(path: string, source: string) {
+    const reports = await lint.lintText(source, { filePath: path });
+    expect(reports).toHaveLength(1);
+    const report = reports[0];
+    expect(report.fatalErrorCount).toBe(0);
+    expect(
+      report.messages.filter((message) => message.fatal === true || message.ruleId === null),
+    ).toEqual([]);
+    return report.messages.map((message) => message.ruleId);
+  }
+  it('admits the runtime full report decoder at the exact host owner', async () => {
+    const source =
+      "import {readWindowBackupReport} from '" + alias + "';export{readWindowBackupReport};";
+    expect(await readWindowBoundaryMessages(owner, source)).not.toContain(
+      '@nx/enforce-module-boundaries',
+    );
+  }, 30000);
+  it('refuses actual resolvable window decoder siblings barrels adapter and relative bypasses', async () => {
+    for (const target of [
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-remote-scripts/src/lib/rename-window.test.ts',
+      'tools/tool-smoke/src/color.ts',
+    ]) {
+      const source =
+        "import {readWindowBackupReport} from '" + alias + "';export{readWindowBackupReport};";
+      expect(await readWindowBoundaryMessages(target, source), target).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+    for (const forbidden of [
+      '@wbs/contracts/dependency-runtime',
+      '@wbs/contracts/dependency-claim',
+      '@wbs/contracts',
+      '@wbs/store-sqlite',
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/migrate',
+      relative(dirname(owner), 'libs/wbs/domain/contracts/src/window-backup-report.ts'),
+    ]) {
+      for (const source of [
+        "import * as Leaf from '" + forbidden + "';export{Leaf};",
+        "await import('" + forbidden + "');",
+      ])
+        expect(await readWindowBoundaryMessages(owner, source), forbidden).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+    }
+  }, 30000);
+  // Proof: window-policy-exact-leaf-resolution changes the exact tsconfig.base.json alias; observed named RED: window report decoder import boundary compiler refuses unresolved window decoder suffix and subpath imports. Strict JSON configuration keeps its proof beside this actual compiler consumer.
+  // Proof: window-policy-required-leaf-resolution changes the exact tsconfig.base.json alias; observed named RED: window report decoder import boundary compiler refuses unresolved window decoder suffix and subpath imports. Strict JSON configuration keeps its proof beside this actual compiler consumer.
+  it('compiler refuses unresolved window decoder suffix and subpath imports', () => {
+    const configPath = join(workspace, 'tsconfig.base.json');
+    const config = ts.readConfigFile(configPath, ts.sys.readFile.bind(ts.sys));
+    if (config.error !== undefined)
+      throw new Error(ts.flattenDiagnosticMessageText(config.error.messageText, '\n'));
+    const parsed = ts.parseJsonConfigFileContent(
+      config.config,
+      ts.sys,
+      workspace,
+      { noEmit: true },
+      configPath,
+    );
+    expect(parsed.errors).toEqual([]);
+    const aliases = [alias + '/foreign', alias + '-extra', '@wbs/contracts/foreign' + alias];
+    const unresolved = aliases
+      .map(
+        (specifier, index) =>
+          'import * as Foreign' +
+          String(index) +
+          " from '" +
+          specifier +
+          "';export{Foreign" +
+          String(index) +
+          '};',
+      )
+      .join('\n');
+    const contents =
+      'import {readWindowBackupReport as actualDecoder} from "' +
+      alias +
+      '";export{actualDecoder};\n' +
+      unresolved;
+    const filename = join(workspace, owner);
+    const host = ts.createCompilerHost(parsed.options);
+    const readSource = host.getSourceFile.bind(host);
+    host.getSourceFile = (path, languageVersion, onError, shouldCreateNewSourceFile) =>
+      path === filename
+        ? ts.createSourceFile(path, contents, languageVersion, true)
+        : readSource(path, languageVersion, onError, shouldCreateNewSourceFile);
+    const program = ts.createProgram([filename], parsed.options, host);
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+    expect(diagnostics.map((diagnostic) => diagnostic.code)).toEqual([2307, 2307, 2307]);
+    const messages = diagnostics.map((diagnostic) =>
+      ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+    );
+    for (const specifier of aliases)
+      expect(messages.some((message) => message.includes(specifier))).toBe(true);
+  }, 30000);
+  it('preserves every peer Nx option except one exact window decoder allowance', async () => {
+    const options = boundaryOf(await lint.calculateConfigForFile(owner))[1];
+    const peer = boundaryOf(
+      await lint.calculateConfigForFile('tools/tool-remote-scripts/src/lib/docker.ts'),
+    )[1];
+    if (!isRecord(options) || !isRecord(peer)) throw new Error('window boundary options malformed');
+    expect(options['allow']).toEqual([...PENDING_INFRA_TO_PRODUCT_ALIASES, '^' + alias + '$']);
+    const retained: Readonly<Record<string, unknown>> = {
+      ...options,
+      allow: [...PENDING_INFRA_TO_PRODUCT_ALIASES],
+    };
+    expect(retained).toEqual(peer);
+  }, 30000);
+});

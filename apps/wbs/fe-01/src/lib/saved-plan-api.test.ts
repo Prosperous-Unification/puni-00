@@ -23,13 +23,13 @@ const response = (status: number, body: unknown): Response =>
 const document = (paths: readonly string[]): object => ({
   openapi: '3.1.0',
   paths: Object.fromEntries(
-    ['/api/auth/login', '/api/projects/{id}/tree', ...paths].map((path) => [path, {}]),
+    ['/api/auth/login', '/api/work-packages/{id}/tree', ...paths].map((path) => [path, {}]),
   ),
 });
 
 const STORED = {
   id: 'sp1',
-  projectId: 'p1',
+  workPackageId: 'p1',
   name: '2026-09-04 06:00',
   createdBy: 'ada',
   createdById: 'u1',
@@ -202,11 +202,13 @@ describe('shape-derived saved-plan requests', () => {
       diff: { input: [], schedule: [] },
       left: {
         source: { kind: 'saved', savedPlanId: 'sp1' },
+        parent: { kind: 'unrecorded' },
         schedule: { present: true, algorithmId: 'retired' },
         provenance: { kind: 'legacy-unknown' },
       },
       right: {
         source: { kind: 'current' },
+        parent: { kind: 'recorded', projectId: 'captured-parent' },
         schedule: { present: false, absentReason: 'pending' },
         provenance: { kind: 'local' },
       },
@@ -272,7 +274,7 @@ describe('shape-derived saved-plan requests', () => {
       body: { error: 'corrupt', savedPlanId: 'sp2', refusal: integrity },
     });
     expect(send.mock.calls[0]?.[0]).toBe(
-      '/api/projects/p1/saved-plans/compare?left=current&right=sp2',
+      '/api/work-packages/p1/saved-plans/compare?left=current&right=sp2',
     );
   });
 

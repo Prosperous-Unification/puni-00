@@ -4,7 +4,7 @@ The browser half of the socket, as scaffold. `runtime:browser`.
 
 ## Read this first
 
-**The live client is not here.** fe-01's `src/lib/project-stream.ts` is what the
+**The live client is not here.** fe-01's `src/lib/work-package-stream.ts` is what the
 plan page runs: it subscribes, resumes, backs off, and refetches on any frame.
 This library is the generic client the tool was built to grow into — a
 heartbeat, a `SubscriptionTracker` in storage, an attempt ceiling — and nothing

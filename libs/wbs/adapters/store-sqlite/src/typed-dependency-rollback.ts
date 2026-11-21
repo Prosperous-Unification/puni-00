@@ -12,7 +12,7 @@ export interface SavedTypedDependencies {
 
 const ROW_KEYS = [
   'id',
-  'projectId',
+  'workPackageId',
   'predecessorWorkItemId',
   'predecessorScope',
   'predecessorStepId',
@@ -55,7 +55,7 @@ function readNullableNumber(value: unknown, field: string): number | null {
  * reason and restores nothing` fail — the format, version and key-count
  * checks and the column count, `readString` and `readNullableNumber` on
  * `(restored without refusing)`, the column names on `createdBy must be a
- * string` and `readNullableString` on `names step 7 outside project p`, each
+ * string` and `readNullableString` on `names step 7 outside workPackage p`, each
  * a later check answering in the parser's place; watched 2026-09-27.
  */
 function readSavedTypedDependencies(saved: unknown): SavedTypedDependencies {
@@ -80,7 +80,7 @@ function readSavedTypedDependencies(saved: unknown): SavedTypedDependencies {
     }
     return {
       id: readString(candidate['id'], 'id'),
-      projectId: readString(candidate['projectId'], 'projectId'),
+      workPackageId: readString(candidate['workPackageId'], 'workPackageId'),
       predecessorWorkItemId: readString(
         candidate['predecessorWorkItemId'],
         'predecessorWorkItemId',

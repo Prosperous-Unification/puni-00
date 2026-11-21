@@ -1,4 +1,4 @@
-import type { AuthorityReceipt, ClaimReceipt, RuntimeState } from '@wbs/contracts';
+import type { AuthorityReceipt, ClaimReceipt, RetainedRuntimeState } from '@wbs/contracts';
 
 import type { Attempt2, Checkpoint, ClaimAcceptAck, ClaimAcceptCommand } from './execution-records';
 import type { ArtifactRef, Ownership, ScopedAttemptGuard } from './records';
@@ -96,11 +96,11 @@ export interface RecoveryGenerationConflict {
   readonly error: 'runtime_generation_conflict';
 }
 export type RecoveryBasis =
-  | { readonly kind: 'initial'; readonly state: RecoveryExchangeValue<RuntimeState> }
+  | { readonly kind: 'initial'; readonly state: RecoveryExchangeValue<RetainedRuntimeState> }
   | {
       readonly kind: 'superseding';
       readonly previousOrdinal: number;
-      readonly state: RecoveryExchangeValue<RuntimeState>;
+      readonly state: RecoveryExchangeValue<RetainedRuntimeState>;
       readonly lookup: RecoveryExchangeValue<RecoveryReceiptAbsent>;
     };
 export interface RecoveryFence {

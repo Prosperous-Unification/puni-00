@@ -62,14 +62,14 @@ function rows(query: string): unknown[] {
 /** One root of every kind, written the way the outgoing release writes them. */
 function writeRoots(suffix: string): string[] {
   return [
-    `INSERT INTO project (id, name, owner_id, created_at) VALUES ('p${suffix}', 'Plan ${suffix}', 'u1', 1)`,
+    `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p${suffix}', 'Plan ${suffix}', 'u1', 1)`,
     `INSERT INTO person (id, name) VALUES ('pe${suffix}', 'Ada ${suffix}')`,
     `INSERT INTO service_team (id, name) VALUES ('st${suffix}', 'Platform ${suffix}')`,
     `INSERT INTO service (id, name) VALUES ('s${suffix}', 'Billing ${suffix}')`,
     `INSERT INTO tag (id, name) VALUES ('t${suffix}', 'urgent ${suffix}')`,
     `INSERT INTO work_item_type (id, name) VALUES ('w${suffix}', 'Bug ${suffix}')`,
     `INSERT INTO external_system (id, name) VALUES ('e${suffix}', 'Jira ${suffix}')`,
-    `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+    `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp${suffix}', 'p${suffix}', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
     `INSERT INTO resource (id, name, kind, unit_label) VALUES ('r${suffix}', 'RAM ${suffix}', 'divisible', 'GB')`,
   ];
@@ -157,7 +157,7 @@ describe('the legacy bridge before activation', () => {
   it('maps every root either release writes to the legacy organization, with its name', () => {
     run([LEGACY, ...writeRoots('1')]);
     expect(owners('1')).toEqual({
-      project: [{ organization_id: 'legacy' }],
+      workPackage: [{ organization_id: 'legacy' }],
       person: [{ organization_id: 'legacy', name: 'Ada 1' }],
       service_team: [{ organization_id: 'legacy', name: 'Platform 1' }],
       service: [{ organization_id: 'legacy', name: 'Billing 1' }],
@@ -187,13 +187,13 @@ describe('the legacy bridge before activation', () => {
     run([
       LEGACY,
       "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
-      "INSERT INTO project_organization VALUES ('p1', 'org-b')",
+      "INSERT INTO work_package_organization VALUES ('p1', 'org-b')",
     ]);
     expect(await readRefusal(repository().backfillLegacyOwnership())).toBeInstanceOf(
       LegacyBackfillRefused,
     );
     expect(owners('1')).toEqual({
-      project: [{ organization_id: 'org-b' }],
+      workPackage: [{ organization_id: 'org-b' }],
       person: [],
       service_team: [],
       service: [],
@@ -280,7 +280,7 @@ describe('the legacy bridge before activation', () => {
   }
 
   for (const [label, corruption] of BROKEN_MARKERS) {
-    // Each new root; the saved plan hangs off project `p1`, written before the marker broke.
+    // Each new root; the saved plan hangs off work package `p1`, written before the marker broke.
     it.each(
       writeRoots('9').map((insert, index) => [
         OWNED_ROOT_KINDS[index],
@@ -324,15 +324,15 @@ describe('the legacy bridge after activation', () => {
       ACTIVATE,
       "INSERT INTO tag (id, name) VALUES ('tb', 'b-tag')",
       "INSERT INTO tag_organization VALUES ('tb', 'org-b', 'urgent')",
-      "INSERT INTO project (id, name, owner_id, created_at) VALUES ('pb', 'B plan', 'u1', 1)",
-      "INSERT INTO project_organization VALUES ('pb', 'org-b')",
+      "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('pb', 'B plan', 'u1', 1)",
+      "INSERT INTO work_package_organization VALUES ('pb', 'org-b')",
       "UPDATE tag SET name = 'b-tag renamed' WHERE id = 'tb'",
     ]);
     expect(
       rows("SELECT organization_id, name FROM tag_organization WHERE resource_id = 'tb'"),
     ).toEqual([{ organization_id: 'org-b', name: 'urgent' }]);
     expect(
-      rows("SELECT organization_id FROM project_organization WHERE resource_id = 'pb'"),
+      rows("SELECT organization_id FROM work_package_organization WHERE resource_id = 'pb'"),
     ).toEqual([{ organization_id: 'org-b' }]);
   });
 
@@ -383,9 +383,9 @@ describe('20260927190000_add_organization_bridge', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -415,13 +415,13 @@ describe('20260927190000_add_organization_bridge', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,

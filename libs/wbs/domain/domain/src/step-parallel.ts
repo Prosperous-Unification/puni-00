@@ -25,7 +25,7 @@ export type StepParallel =
  * when equal to the row maximum. Reads the supplied maximum once, validates that
  * captured number and returns it with provenance.
  * Throws for invalid maxima or a fact naming a different work-item/step pair.
- * Existence, leaf status and project ownership belong to the supplying store.
+ * Existence, leaf status and work package ownership belong to the supplying store.
  */
 export function resolveStepParallel(
   node: StepNodeRef,

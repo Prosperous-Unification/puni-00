@@ -29,7 +29,7 @@ function cellsOf(line: string): string[] {
  * Reads the role table of `wbs-permissions/permission-matrix.md`, the source of
  * truth of the built-in seed (`wbs-custom-permissions` CP7): a "yes" cell is a
  * row, a blank cell is absent, and "shell only (P3)" is `organization.navigate`
- * reaching the project shell, never `project.read`. Published beside the
+ * reaching the work package shell, never `project.read`. Published beside the
  * catalogue because both `@wbs/domain` and be-01's migration test hold their
  * seed to it, as `fast-golden-corpus` is published for the contracts' test.
  *

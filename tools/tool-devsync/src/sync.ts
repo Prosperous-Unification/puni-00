@@ -51,6 +51,7 @@ import {
   STALE_BOOT_EXIT_CODE,
   StaleBootError,
 } from './boot-convergence';
+import { assertInitialAccessSourceAllowed } from './initial-access-admission';
 import { prepareTargetSolverBinding } from './solver-binding-host';
 import { createTargetSolverBindingRuntime } from './solver-binding-runtime';
 import {
@@ -313,6 +314,7 @@ async function solverCompatibilityObjectIdAt(
 }
 
 export interface RehearsalTargetDependencies {
+  admitSource(currentSha: string, targetSha: string): Promise<void>;
   currentSha(): Promise<string>;
   changedPaths(from: string, to: string): Promise<readonly string[]>;
   reset(sourceSha: string): Promise<void>;
@@ -324,6 +326,7 @@ export async function deployRehearsalTarget(
   dependencies: RehearsalTargetDependencies,
 ): Promise<void> {
   const deployedSha = await dependencies.currentSha();
+  await dependencies.admitSource(deployedSha, sourceSha);
   const changed = await dependencies.changedPaths(deployedSha, sourceSha);
   if (changed.length > 0) {
     throw new Error(
@@ -334,6 +337,7 @@ export async function deployRehearsalTarget(
 }
 
 export interface SolverTargetDependencies {
+  admitSource(currentSha: string, targetSha: string): Promise<void>;
   currentSha(): Promise<string>;
   changedPaths(from: string, to: string): Promise<readonly string[]>;
   compatibilityIdentity(sourceSha: string): Promise<string>;
@@ -349,6 +353,7 @@ export async function deploySolverTarget(
   dependencies: SolverTargetDependencies,
 ): Promise<void> {
   const deployedSha = await dependencies.currentSha();
+  await dependencies.admitSource(deployedSha, sourceSha);
   const changed = await dependencies.changedPaths(deployedSha, sourceSha);
   if (changed.length === 0) {
     await dependencies.preflight(sourceSha);
@@ -395,6 +400,8 @@ export function solverTargetDependencies(
       ...target,
     });
   return {
+    admitSource: (currentSha, targetSha) =>
+      assertInitialAccessSourceAllowed(sourceRepository, [currentSha, targetSha]),
     currentSha: async () => (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim(),
     changedPaths: (from, to) => changedSolverPathsIn(sourceRepository, from, to),
     compatibilityIdentity: (sourceSha) =>
@@ -527,8 +534,6 @@ export async function runDevSyncLock(
   }
 }
 
-
-
 /**
  * Paths a restart cannot apply: they define the container itself. The running
  * container was created from the old file, so `docker restart` reuses the old
@@ -543,7 +548,6 @@ export const RECREATE_PATHS: readonly string[] = [
   'deploy/dev-src/compose.yml',
   'deploy/dev-src/Dockerfile',
 ];
-
 
 // Proof: restoring the pre-move default made sync.test.ts resolve MCP_ENV to
 // the removed app root while the real deploy preflight remained namespaced.

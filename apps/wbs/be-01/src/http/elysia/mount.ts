@@ -194,7 +194,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
       const refusal = options.admitDependencyClient(
         request.headers.get(DEPENDENCY_SEMANTICS_HEADER),
       );
-      // Proof: removing this refusal admitted ENABLED /api/projects,200 instead of409 in dependency-client.db.test.ts.
+      // Proof: removing this refusal admitted ENABLED /api/work-packages,200 instead of409 in dependency-client.db.test.ts.
       if (refusal !== null)
         return Response.json(refusal, {
           status: 409,
@@ -300,10 +300,10 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
           const contentType = request.headers.get('content-type') ?? '';
           const mediaType = parserMedia(contentType);
           // Proof: replacing parserMedia with normalized exact matching made the
-          // migrated project media cases return422 instead of200 for both
+          // migrated work package media cases return422 instead of200 for both
           // application/json-patch+json and application/xml.
           // Proof: admitting octet-stream bytes as an empty object made the binary
-          // project patch test receive200 instead of422.
+          // work package patch test receive200 instead of422.
           // Proof: removing media selection admitted valid JSON under missing/unsupported media (200 instead of 400).
           if (!bodyMediaFor(endpoint.shape).some((media) => media === mediaType))
             return classifyFailure(endpoint, {

@@ -1,0 +1,1118 @@
+{
+  "schema": "puni-current-candidate-cycle-verification-v1",
+  "recordedAt": "2026-11-20T21:39:03.159Z",
+  "previousGoalTurn": {
+    "classification": "progress",
+    "qualification": "V85 current status/claim own-step recipes. This continuation adds actual prospective type/owner capture and connects current graph consumers."
+  },
+  "qualification": "Partial SC18/proposed-cycle progress, with actual first-child refusal ordering restored. The current reader now requires actual own candidate inventories; this is not full Source/fact/access/history/UI/CLI certification or a release.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+      "sha256": "71cbdbaf63c201ae4bc6daf9814742bf6a12f91d54bfc988afef47f01dd957c2",
+      "bytes": 632,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/first-child.ts",
+      "sha256": "1d14ead3493217b8e41be77601f3338fa46803c0c3e587c10eda63a82260ec9b",
+      "bytes": 13360,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "a9f8a120051add90fe70580d42ef4a9b80c6768634e6fe7f49647b3d2fe0ad6b",
+      "bytes": 68698,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-work-item-fixture.ts",
+      "sha256": "8561a046c45336f7eef85945fddb7a57820d5e72f8942abc345118f667b8c98e",
+      "bytes": 16385,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "04663d5daf5b2552cfe0c4429d993bd716ffe8386b70ec9e7bef4d51e8a15cc6",
+      "bytes": 88448,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+      "sha256": "a082e365c2d84637ac2e5c4da1a468f0ab9e592d8aa4f1f43f670440291d3103",
+      "bytes": 4846,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-order-projection.ts",
+      "sha256": "81e5c08c003f138960ba6e16c9f51668f21081fd0cc2df15b798dbb5c91efcb5",
+      "bytes": 2117,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "14da95f94a09fe5e488395f4f58e06b78ffa310a94822209af5965c4a5aea42f",
+      "bytes": 325004,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/candidate-cycle.db.test.ts",
+      "sha256": "fc5d4151dcb983e748266090fa395493c697461811a3417b2cd2d306dda1616a",
+      "bytes": 673,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/first-child.ts",
+      "sha256": "122d53d922f2a3fcc7ab22639223c999b6d51e2509e760e32226dcd5e9485100",
+      "bytes": 13608,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+      "sha256": "0fe7f8a65cb99bad7416eb4e88d1629c26423fbfc9634d4b07f319c366d23621",
+      "bytes": 4535,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-order-projection.ts",
+      "sha256": "90af5a3c5400506c47b77e3453cad68e2dfd034d0785bfae96a96bd79a8c0eb5",
+      "bytes": 3580,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-item.ts",
+      "sha256": "0976256014604019ee8d3efa9c4781ff3441fa29eb69466bd1a0f1456cc2b8cc",
+      "bytes": 69256,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/index.ts",
+      "sha256": "66fee47d7c08553e2dbb24f816bf8bf3d3da30c9761b2c3d736a0ca9a5c36f08",
+      "bytes": 12186,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "sha256": "289549b7464860eaabec7f0c89fa394a85b8ccea67563d4d38ce551cf1d8a8f9",
+      "bytes": 57709,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/working-plan-rows.resource.ts",
+      "sha256": "d9d7a9606ae199ede3e07e50ca6f47cdcf9d3228d9a1fa4fc0c31c4221a2a815",
+      "bytes": 4167,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-commands/working-plan-subtrees.resource.ts",
+      "sha256": "ac39b16d9a0d7c224f82e4d220d91493fd120ec86dd304fc8f5e68132cf87bd2",
+      "bytes": 4163,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+      "sha256": "1d720f3f9ac3b8c56000b55130c28a4f098239c23c3f14ff0f658da61029fe99",
+      "bytes": 3322,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/subtree-write.ts",
+      "sha256": "16295ea25d583a520e81db97d476ef03a7ab11182b6cbb855a1a8baee3ee4571",
+      "bytes": 1754,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/tree-reads.ts",
+      "sha256": "fcf9add82742e9d8e316e28d43a04f815e6cc17c42f3a360bbda8e8dc58c1b11",
+      "bytes": 1818,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "sha256": "49fad6d6cb11bf22c76bf360ff87579154c28e1c6d519b8cacb14004b34f2e6c",
+      "bytes": 582584,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/subtree-store.ts",
+      "sha256": "d267f4f5617c0d9d4fa62e5ac84029064738fe77b039ef8438bd6f3a1c0d8834",
+      "bytes": 9644,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-item-store.ts",
+      "sha256": "56b62057b61b6f84e6730978d64d6428ff82b6926c972bf9eef59fa619663770",
+      "bytes": 21015,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+      "sha256": "06ea91cc83aaf7848a9f791973a8c5c767aed78f062793240b2e95bd2ae8dd78",
+      "bytes": 17981,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+      "sha256": "86d3d41e3feac7fdc056e371cdd0e5de8590117d4c1ca448ae6d75d0727f9e21",
+      "bytes": 15852,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/dependency-graph.ts",
+      "sha256": "6efb3de7a3bc6f17f6a0fd3e119f28ea7d5e3ed8c7dcd332fa8247234f266c07",
+      "bytes": 12549,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/candidate-cycle.ts",
+      "sha256": "7a05a6ba8e89ade910f82bf3eb89fd456682578b81d29beab9c1ea0868332ee6",
+      "bytes": 8623,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+      "sha256": "3a3f02ca3d59931f1242fb9eaf4539bb30151cad8a3e0c6fd47277d78d6a19f6",
+      "bytes": 21699,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/step-order-projection.ts",
+      "sha256": "776b24ba1cfb90619883abbf8dbf1b22bf6a300220ae7a38e8a5a10fe80cf9f4",
+      "bytes": 7371,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+      "sha256": "b4ba7f34f721ec2ec2826a171e793eac6e19959de3d058d76eb4c5d2fb13465c",
+      "bytes": 7671,
+      "mode": 436
+    }
+  ],
+  "assumptions": [
+    "The required resolveStepOrders purpose captures actual existing row ownership/direct types, including parents becoming leaves, and actual inherited bindings/explicit package values. Caller replacements propose types but never confer ownership.",
+    "New/restored identities require explicit direct types. Validated historical SubtreeCopy recipes retain their absent-type-means-no-types behavior through explicit conversion; missing current metadata never falls back.",
+    "Required inspectFirstChild evaluates the existing complete protected-fact decision before graph slicing. It changes no state and confers no write authority; the atomic writer still recaptures/revalidates. This ordering preserves modeled SC17 refusal for an inapplicable transferred estimate.",
+    "Astra remains unavailable until the previously recorded Nov22,2026 10:09AM, timezone unspecified. No retry, substitution or subagent was launched."
+  ],
+  "implementation": {
+    "capture": "Required WorkItemStore.resolveStepOrders with precise rows/type replacements, shared topology/ownership/census validation and actual Memory/SQLite adapters. SQLite owns one transaction and retains plain inputs before its queue; Memory captures synchronously. Existing explicit uniform historical inputs remain separate.",
+    "consumers": "Every current connected graph member requests Source candidate inventories after reached-package admission and checks observation lifetime after the new await. Current interpretation overrides are rejected. Fresh creation/first child, duplication and restoration provide explicit direct types. Type patches trigger the batch post-command cycle check. Step removal projects each own list as well as package policies/estimates.",
+    "firstChild": "Required read-only inspection reuses the same complete existing first-child decision on Source/public/ordinary/repair lifetimes, with retained working-plan forwarding. Initial create and replay inspect before prospective graph slicing; actual write protection remains installed."
+  },
+  "verification": {
+    "projectionAndReader": {
+      "name": "candidate-orders-lifetime-green-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-orders-lifetime-green-v1.receipt.json",
+        "sha256": "8a87e691b7cd462dbc62dc67502ad91bca134aa7d4553f34d864f0d3790a1f32",
+        "bytes": 1524,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-orders-lifetime-green-v1.log",
+        "sha256": "ec130b382c5b49dcba96b638e91d73ea21e6672f9f8a0a4aa23f52eafa2b846c",
+        "bytes": 4931,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+          "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 63,
+      "fail": 0,
+      "assertions": 1045,
+      "tests": 63,
+      "files": 3,
+      "seconds": 17.8
+    },
+    "cyclesAndInspection": {
+      "name": "candidate-first-child-inspection-lifetimes-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-first-child-inspection-lifetimes-v1.receipt.json",
+        "sha256": "d6938664d1c62d41cb91582fdda0a118899d16ff5e3c999804a4712e2ba937a7",
+        "bytes": 1527,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-first-child-inspection-lifetimes-v1.log",
+        "sha256": "23708af9a3ce0965dc997b4fd80bdba404c6590c7359b4cac115e1a51873ca6c",
+        "bytes": 1722,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/candidate-cycle.db.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 22,
+      "fail": 0,
+      "assertions": 543,
+      "tests": 22,
+      "files": 3,
+      "seconds": 10.63
+    },
+    "unit": {
+      "name": "candidate-cycle-final-unit-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-unit-v1.receipt.json",
+        "sha256": "0c6f1167066c44f478161a82cdd430612fbeacef40b425e9cee787aa60e012a6",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-unit-v1.log",
+        "sha256": "a899fa244db9747b5567fde0b0e213eda4fc787594701906d97b25700881ee82",
+        "bytes": 128471,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-candidate-cycle-checks-v1.ts", "unit"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 300000
+      },
+      "pass": 1088,
+      "fail": 3,
+      "assertions": 20032,
+      "tests": 1091,
+      "files": 55,
+      "seconds": 77.09,
+      "failures": [
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo"
+      ]
+    },
+    "core": {
+      "name": "current-core-source-only-v37",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v37.receipt.json",
+        "sha256": "61c6b3d074d8de7571deb66c0863bf371435109179d0b70fefc1aaad7ae6457f",
+        "bytes": 14837,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v37.log",
+        "sha256": "b51f3e8bdd1f91bb7f0fc6861dda46628302e79d9e03fd283b0a8a262ffd28d9",
+        "bytes": 262859,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/compose.test.ts",
+          "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+          "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+          "./libs/wbs/application/core/src/http/endpoint.test.ts",
+          "./libs/wbs/application/core/src/http/history.routes.test.ts",
+          "./libs/wbs/application/core/src/http/import.routes.test.ts",
+          "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+          "./libs/wbs/application/core/src/http/project.routes.test.ts",
+          "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+          "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+          "./libs/wbs/application/core/src/http/step-admission.test.ts",
+          "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+          "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+          "./libs/wbs/application/core/src/module-boundaries.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+          "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+          "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+          "./libs/wbs/application/core/src/module/directory/module.test.ts",
+          "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input13-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+          "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+          "./libs/wbs/application/core/src/module/step/module.test.ts",
+          "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+          "./libs/wbs/application/core/src/playwright-config.test.ts",
+          "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+          "./libs/wbs/application/core/src/ports/clock.test.ts",
+          "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+          "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+          "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+          "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+          "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+          "./libs/wbs/application/core/src/service/actual.test.ts",
+          "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/authorize.test.ts",
+          "./libs/wbs/application/core/src/service/broadcast.test.ts",
+          "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+          "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/compensating.test.ts",
+          "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+          "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+          "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+          "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+          "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+          "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+          "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+          "./libs/wbs/application/core/src/service/estimate.test.ts",
+          "./libs/wbs/application/core/src/service/freeze.test.ts",
+          "./libs/wbs/application/core/src/service/list-query.test.ts",
+          "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+          "./libs/wbs/application/core/src/service/measure.test.ts",
+          "./libs/wbs/application/core/src/service/node-readings.test.ts",
+          "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+          "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+          "./libs/wbs/application/core/src/service/plan-history.test.ts",
+          "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+          "./libs/wbs/application/core/src/service/progress.test.ts",
+          "./libs/wbs/application/core/src/service/project.resource.test.ts",
+          "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+          "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+          "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+          "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+          "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people.test.ts",
+          "./libs/wbs/application/core/src/service/space.resource.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+          "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+          "./libs/wbs/application/core/src/testing/harness.test.ts",
+          "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+          "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 900000
+      },
+      "pass": 2099,
+      "fail": 24,
+      "assertions": 9546,
+      "tests": 2123,
+      "files": 171,
+      "seconds": 84.72,
+      "priorFailures": [
+        "a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "counting unit of work rejects unexpected store access and records rollback",
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "the Plan import module > admits a small document over the graph installPlanImport wires",
+        "the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "currentFailures": [
+        "a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "counting unit of work rejects unexpected store access and records rollback",
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "the Plan import module > admits a small document over the graph installPlanImport wires",
+        "the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "removedPassingCases": []
+    },
+    "api": {
+      "name": "candidate-cycle-api-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-api-mcp-v1.receipt.json",
+        "sha256": "24b8a4b1711485e6e5876e815a7bbc5a397b2d3665b45e583c79e155490d29ed",
+        "bytes": 2571,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-api-mcp-v1.log",
+        "sha256": "b947be917dfb989aca5ea5837a7662af0e3249675a9da59c28efc89dc852b4ca",
+        "bytes": 33180,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/current-step-applicability.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-package-step-values.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/package-step-history.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-global-step-catalogue.controller.db.test.ts",
+          "./apps/wbs/mcp-01/src/current-step-catalogue.test.ts",
+          "./apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/current-step-tree.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/current-step-tree.db.test.ts",
+          "./libs/wbs/domain/contracts/src/http/work-item-response.test.ts",
+          "./libs/wbs/domain/domain/src/step-reference.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+          "./apps/wbs/be-01/src/controller/current-qualified-address.controller.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-address-search.db.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+          "./apps/wbs/be-01/src/controller/current-attempt-labels.controller.db.test.ts",
+          "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 238,
+      "fail": 0,
+      "assertions": 5452,
+      "tests": 238,
+      "files": 16,
+      "seconds": 219.77
+    },
+    "backend": {
+      "name": "candidate-cycle-final-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-types-v1.receipt.json",
+        "sha256": "e2bb3093fb05a18ff634f3bde59ddd4c9a791084b746c19f9210c816f9fb9717",
+        "bytes": 1343,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-candidate-cycle-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "entries": 256
+    },
+    "lint": {
+      "name": "candidate-cycle-final-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-lint-v1.receipt.json",
+        "sha256": "a44cdb727faebb64d2fb2bf54fda1c2cd4eea656efd9d775e3648570631797fa",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-candidate-cycle-checks-v1.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "files": 30
+    },
+    "format": {
+      "name": "candidate-cycle-final-format-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-format-v1.receipt.json",
+        "sha256": "e7777e2c950adb599735120281ff792a00b895369cbd968cd8be12c6632f5d9d",
+        "bytes": 1298,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-candidate-cycle-checks-v1.ts", "formatcheck"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "files": 30
+    },
+    "audit": {
+      "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v24.json",
+      "sha256": "4c9ad1895de6cba6b49f5aade4ea83690ffdd9a2c108bb292543be8687b4eee3",
+      "bytes": 1867341,
+      "mode": 384,
+      "check": {
+        "name": "candidate-cycle-retirement-audit-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-retirement-audit-v1.receipt.json",
+          "sha256": "428894211f3bb9171232008c279aece81bd1a05896405aadfbb2ef338ea47a37",
+          "bytes": 1293,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-retirement-audit-v1.log",
+          "sha256": "80c4c4bd63043b74148a826415e004b1f5f9ad24aa90aa72b3db2784ac461ea5",
+          "bytes": 275,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v24.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      "files": 6072,
+      "retiredSharedConsumers": 0,
+      "frontendRuntime": 352,
+      "frontendE2e": 93,
+      "qualification": "Existing frontend pins unchanged. Frontend compiler/browser were not repeated; backend Source and caller paths changed."
+    }
+  },
+  "proofs": {
+    "count": 17,
+    "effects": {
+      "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-effects-v1.json",
+      "sha256": "7dd804c935222fa8e14fa50c8edc083cd60067a5aa6b5aa7455f3a9e8d27e307",
+      "bytes": 12777,
+      "mode": 384
+    },
+    "emissions": {
+      "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-proof-emissions-v1.json",
+      "sha256": "fbe7becaa92a8143766e1a6bcd6caf69ec7d85b270de856b7be18ef5095095ff",
+      "bytes": 3173,
+      "mode": 384,
+      "check": {
+        "name": "candidate-cycle-proof-emissions-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-proof-emissions-v2.receipt.json",
+          "sha256": "f309bdf7f39b091d18e98409a967fcfbb3b402e1c94c8f9dc20c32c56f96e088",
+          "bytes": 1287,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-proof-emissions-v2.log",
+          "sha256": "3f5dc3c95dcb94e8a9d95da49e4a277bd0e996bd57ca35de0d5dd8b79336ea7f",
+          "bytes": 145,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "/tmp/puni-candidate-cycle-emissions-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      }
+    },
+    "faults": [
+      {
+        "id": "complete-index",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "indexCapturedLeafSteps(projection.rows, observation.steps, orders);",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection (orphan|cycle)$",
+        "qualification": "Breaking the complete index dependency accepts malformed prospective ancestry.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-complete-index-v1.receipt.json",
+          "sha256": "9f0a66774b5299725bc7aaf53a8f69be06e9de25e4cd54fce1634e352db04a1d",
+          "bytes": 1457,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-complete-index-v1.log",
+          "sha256": "51fd1b5d3c0ca122b61c6b843a8f15beb318ddc6087ae16e951cedae5076ea75",
+          "bytes": 1907,
+          "mode": 384
+        }
+      },
+      {
+        "id": "memory-inspection",
+        "path": "libs/wbs/adapters/store-memory/src/first-child.ts",
+        "before": "if (purpose === 'inspect') return structuredClone(decision);",
+        "after": "",
+        "test": "libs/wbs/adapters/store-memory/src/candidate-cycle.test.ts",
+        "pattern": "actual Memory candidate cycle first-child-inspection$",
+        "qualification": "Inspection omission performs the real Memory transition; the complete row snapshot comparison detects publication into the current state.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-memory-inspection-v1.receipt.json",
+          "sha256": "fa8fb7f6d37cc39649cfe653cb40aef592ce8a4c2d0bb7abfbfc1355e61298e4",
+          "bytes": 1462,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-memory-inspection-v1.log",
+          "sha256": "3f9e863cedcfa715502cb508b04a61c4b821288612a4e521749b3325c5d66ebc",
+          "bytes": 2106,
+          "mode": 384
+        }
+      },
+      {
+        "id": "sqlite-inspection",
+        "path": "libs/wbs/adapters/store-sqlite/src/first-child.ts",
+        "before": "if (purpose === 'inspect') return structuredClone(decision);",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/candidate-cycle.db.test.ts",
+        "pattern": "actual SQLite candidate cycle first-child-inspection$",
+        "qualification": "Inspection omission performs and commits the real SQLite transition; the complete row snapshot comparison detects it.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-sqlite-inspection-v1.receipt.json",
+          "sha256": "70a1100c5a5b42abe6ed61d121ba50431e80adaee60f112963b66a08e9971aaa",
+          "bytes": 1465,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-sqlite-inspection-v1.log",
+          "sha256": "91a51374219573ea31a2ea3cb8236edbb8e452db5f8749083cf2a2fd3bf5b6ae",
+          "bytes": 2298,
+          "mode": 384
+        }
+      },
+      {
+        "id": "duplicate-row",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (ids.has(row.id)) throw new Error('duplicate step projection row');",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection repeated-row$",
+        "qualification": "Diagnostic proof: the complete leaf-index validator remains active after this owning guard is omitted.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-duplicate-row-v1.receipt.json",
+          "sha256": "9bcbed9c7630093ef2f100a4eb1285ec58f26eb197ac265ff86f6b55a9b858b0",
+          "bytes": 1453,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-duplicate-row-v1.log",
+          "sha256": "5d845197126c790ca18854b81c64edb96e5abe6d413bc471aaa0f6e6b039396f",
+          "bytes": 1214,
+          "mode": 384
+        }
+      },
+      {
+        "id": "row-owner",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (row.workPackageId !== observation.workPackageId) throw new Error('step projection row has another work package');",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection foreign-owner$",
+        "qualification": "Own package identity guard omission accepts foreign proposed ownership.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-row-owner-v1.receipt.json",
+          "sha256": "24e7d0e1865dbbfd4002bea78cbb5716fb07ef7154ead19df7d6fadc25f6e2be",
+          "bytes": 1446,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-row-owner-v1.log",
+          "sha256": "69c2d3beef427ae20151a9a29699648f4481855beee63711156be36debc04186",
+          "bytes": 1053,
+          "mode": 384
+        }
+      },
+      {
+        "id": "stored-owner",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (owner !== undefined && owner !== observation.workPackageId) throw new Error('step projection reuses a foreign row');",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection foreign-stored-id$",
+        "qualification": "Actual stored foreign identity cannot be relabelled as a fresh candidate.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-stored-owner-v1.receipt.json",
+          "sha256": "70b026e31e6a1189db75fc89749c4babbc18ebb25c4856ee81da027037feb1e1",
+          "bytes": 1456,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-stored-owner-v1.log",
+          "sha256": "243d3cc5c03c617503f03fcb6b48c561a2a27d8d7fbc367d43e90d8973cc6a7d",
+          "bytes": 1057,
+          "mode": 384
+        }
+      },
+      {
+        "id": "type-owner",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (!ids.has(selection.workItemId)) throw new Error('step projection type owner is absent');",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection extra-type-entry$",
+        "qualification": "Unused explicit type replacement must be refused rather than silently ignored.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-owner-v1.receipt.json",
+          "sha256": "4ba8ce3456e9cfaa60385174ed8dd71797e0928a7b6038d2a1aa5af9f7956f5a",
+          "bytes": 1451,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-owner-v1.log",
+          "sha256": "3df976e36bf2115f461ef2c615404d751f04d9ad5aa60a1542ff672045f31f3c",
+          "bytes": 1056,
+          "mode": 384
+        }
+      },
+      {
+        "id": "duplicate-type-owner",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (replacements.has(selection.workItemId)) throw new Error('duplicate step projection type owner');",
+        "after": "",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection repeated-type-entry$",
+        "qualification": "Omission accepts the last replacement for a duplicated type owner.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-duplicate-type-owner-v1.receipt.json",
+          "sha256": "b9168498bf35c059520ec7a605c2e5357cca308c9a4d2dfddbea6bab86761609",
+          "bytes": 1474,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-duplicate-type-owner-v1.log",
+          "sha256": "801737b13a22a8edb076a1efcb515890cf786165f9afa0a06a0077ef1c598707",
+          "bytes": 1059,
+          "mode": 384
+        }
+      },
+      {
+        "id": "fresh-evidence",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "if (type === undefined) throw new Error('fresh step projection lacks direct types');",
+        "after": "if (type === undefined) { if (!parents.has(row.id)) orders.push({workItemId:row.id,stepIds:[]}); continue; }",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection absent-type$",
+        "qualification": "Injected untyped fallback accepts an undeclared fresh identity.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-fresh-evidence-v1.receipt.json",
+          "sha256": "450ca06ea42c1e9fd53b03b2649da3e9507e0c7f05253961f43b5a9452810f54",
+          "bytes": 1454,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-fresh-evidence-v1.log",
+          "sha256": "fb8602c621be2c10f141ecb884f766c5386efbb220dba1b3eb55548c7f25aa78",
+          "bytes": 1051,
+          "mode": 384
+        }
+      },
+      {
+        "id": "type-ownership",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "observation.readProposedTypes(selection.workItemId, selection.typeIds)",
+        "after": "{ kind: 'untyped' }",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection foreign-type$",
+        "qualification": "Bypassing actual type evidence validation accepts a foreign direct type.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-ownership-v1.receipt.json",
+          "sha256": "8f0dd574c19da8b66ec320989283aac4118197540b52bd6780e46663a73438e3",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-ownership-v1.log",
+          "sha256": "d05a48e3a647ccab995dafbd7bab61a98d66aae9a5cb91cd96cacbde59cc6bb0",
+          "bytes": 1052,
+          "mode": 384
+        }
+      },
+      {
+        "id": "type-membership",
+        "path": "libs/wbs/application/core/src/module/step-catalogue/step-order-projection.ts",
+        "before": "observation.readProposedTypes(selection.workItemId, selection.typeIds)",
+        "after": "{ kind: 'untyped' }",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite step projection repeated-type$",
+        "qualification": "Bypassing the same required dependency separately accepts duplicated memberships.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-membership-v1.receipt.json",
+          "sha256": "bd7765630d9618cec3b2af3b294506031723cb018f34e76f235ce41d2c07cd68",
+          "bytes": 1458,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-membership-v1.log",
+          "sha256": "ddb9c644066b3a649447f1bb91c0d2868b5be44d0c5586f8e55ecdd4e4bd8730",
+          "bytes": 1053,
+          "mode": 384
+        }
+      },
+      {
+        "id": "loan-entry",
+        "path": "libs/wbs/application/core/src/module/work-item/tree-reads.ts",
+        "before": "lifetime.assertOpen(); const retained = structuredClone(projection);",
+        "after": "const retained = structuredClone(projection);",
+        "test": "libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+        "pattern": "actual Memory step projection rejects retained public method after close$",
+        "qualification": "Retained actual Memory method must refuse admission after Source closure.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-loan-entry-v1.receipt.json",
+          "sha256": "a3bcf55c93522b9383db62fc0f6a5e750342ca844a4aaf1c734dc79af7d8751e",
+          "bytes": 1474,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-loan-entry-v1.log",
+          "sha256": "b0b980994de9f615f9bf3a710fff4e2e3cdd841a3c31af3e58a9d664d1ee5379",
+          "bytes": 1162,
+          "mode": 384
+        }
+      },
+      {
+        "id": "loan-return",
+        "path": "libs/wbs/application/core/src/module/work-item/tree-reads.ts",
+        "before": "if (lifetime.kind === 'borrowed') lifetime.assertOpen(); return orders;",
+        "after": "return orders;",
+        "test": "libs/wbs/adapters/store-memory/src/step-order-projection.test.ts",
+        "pattern": "candidate order guard rejects actual captured orders after borrowed return expiry$",
+        "qualification": "Controlled boundary expiration after actual captured orders must refuse their return.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-loan-return-v1.receipt.json",
+          "sha256": "cb6a60c3b7a06d92b7fe0b3479d3fcad93ac7e4c4ef365a22151526d6e816851",
+          "bytes": 1485,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-loan-return-v1.log",
+          "sha256": "311422f71b6a2f48a88823833cfd184ed4c16b7c708a39dac8849a45074dd07a",
+          "bytes": 1035,
+          "mode": 384
+        }
+      },
+      {
+        "id": "queued-retention",
+        "path": "libs/wbs/adapters/store-sqlite/src/work-item.ts",
+        "before": "const retained = structuredClone(projection);",
+        "after": "const retained = projection;",
+        "test": "libs/wbs/adapters/store-sqlite/src/step-order-projection.db.test.ts",
+        "pattern": "actual SQLite queued step projection retains its submitted direct types$",
+        "qualification": "Actual queued Source operation must not read a later caller mutation.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-queued-retention-v1.receipt.json",
+          "sha256": "e7a67315eb0b35c7db36cdb29724b7d5088f3bd69ef3d5bbdc4b3d01b6296c9e",
+          "bytes": 1488,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-queued-retention-v1.log",
+          "sha256": "7fbdee5a37ea08efbe765fbb18d24efd6174ffbd3c2423d744dcd70ef0467144",
+          "bytes": 1209,
+          "mode": 384
+        }
+      },
+      {
+        "id": "reader-return",
+        "path": "libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+        "before": "directTypes: selectDirectTypes(change?.directTypes), }); this.authority.assertActive();",
+        "after": "directTypes: selectDirectTypes(change?.directTypes), });",
+        "test": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "pattern": "checks lifetime for an empty observation and immediately after every awaited boundary$",
+        "qualification": "Reader must fence the new awaited candidate inventory independently.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-reader-return-v1.receipt.json",
+          "sha256": "9956b02c474744b29f9a5f7e028cc2ddd7df38911ba46cf3673ee1f8f9dc8b2c",
+          "bytes": 1500,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-reader-return-v1.log",
+          "sha256": "ed2a23ee5625bca343890c5604064fae71db06ce09609b4dac99d1dca4622604",
+          "bytes": 976,
+          "mode": 384
+        }
+      },
+      {
+        "id": "reader-override",
+        "path": "libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+        "before": "if ('stepOrder' in change) throw new TypeError('current graph interpretation overrides are not allowed');",
+        "after": "",
+        "test": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "pattern": "rejects explicit null step interpretation instead of selecting uniform$",
+        "qualification": "Protocol proof only: omission silently ignores the invalid override; actual own capture still remains.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-reader-override-v1.receipt.json",
+          "sha256": "135686a08892209c78b614bb4c787c0e6578339a442320125d2c38098089f82d",
+          "bytes": 1489,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-reader-override-v1.log",
+          "sha256": "9b7d1251d8c584a1b2f0b724ae5025c6bc3a16bf22f2234056da65882e86ba69",
+          "bytes": 821,
+          "mode": 384
+        }
+      },
+      {
+        "id": "type-edit-cycle",
+        "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+        "before": "(command.kind === 'patchWorkItem' && (command.patch.typeIds !== undefined || command.patch.typeRefs !== undefined))",
+        "after": "false",
+        "test": "libs/wbs/adapters/store-sqlite/src/candidate-cycle.db.test.ts",
+        "pattern": "actual SQLite candidate cycle type-edit$",
+        "qualification": "Actual batch commits a cycle-closing type edit when its post-command graph check is omitted.",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-edit-cycle-v1.receipt.json",
+          "sha256": "d08cc4cdd12e1209676adc63ac37933f3749f319cbad63e2367ded8801748ca7",
+          "bytes": 1448,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/candidate-cycle-fault-type-edit-cycle-v1.log",
+          "sha256": "9122c5955fa08a5e422d6b6d6b4f79792be276a00b400f732d711c37ff4a4ce1",
+          "bytes": 1259,
+          "mode": 384
+        }
+      }
+    ],
+    "qualification": "All fault actors failed the selected owning oracles, terminated and were reaped with closed descriptors before exact restoration. Duplicate-row and interpretation-override controls are diagnostic/protocol evidence. Full Source access/lifetime/fact matrices remain open. Final seven module emissions match the restored preimages and an injected guard change is detected."
+  },
+  "discoveryFailures": [
+    "The initial prospective graph RED distinguished genuine own-order cycles and false uniform-order cycles. A misplaced Memory method initially entered the state-table constructor; corrected before the credited capture green. Required methods reject asynchronously under the store protocol.",
+    "The type-edit RED initially had a malformed command, then exposed acceptance of a cycle. The first green revealed a fixture passing bare DependencyContext instead of its bound ServiceDependencyContext wrapper; corrected. Rollback snapshots were moved after actual relationship setup, and actual relationship order is retained rather than guessed.",
+    "The initial broader core found one new first-child regression: the prospective invalid estimate reached strict own slicing before the complete Source refusal. Required read-only inspection fixes this without dropping facts or weakening slicing. The final full core restores exactly the prior 24 failures and all prior passing identities.",
+    "The first inspection green exposed omitted required forwarding in subtree lifetime/working-plan wrappers. Those production paths and explicit delegating fixtures now forward the real purpose; no synthetic ready fallback was introduced.",
+    "First emission comparison used an incorrect expected module census of eight. Corrected to the actual seven canonical modules; final comparison validates every module."
+  ],
+  "remaining": [
+    "Complete all structural/type-edit consumers and genuine historical replay, including typeRefs, current type-edit undo/redo, distinct-type copy/restore, every refusal precedence and same-epoch/access/lifetime/cleanup matrix. Candidate slices3.1.1/3.1.2 and parent3.1 remain open pending full evidence and requested review.",
+    "Resolve the unchanged 24 core and three selected historical failures with correct current and genuine predecessor contracts; do not remove historical guards or fabricate producers. Complete all13 protected-family and all15 genuine historical guarantees.",
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

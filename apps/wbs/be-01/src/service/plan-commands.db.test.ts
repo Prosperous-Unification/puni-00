@@ -1,9 +1,11 @@
+import { seedLegacyProject } from '../testing/project-fixture';
+const PARENT_PROJECT_ID = 'service-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
@@ -18,12 +20,12 @@ import {
   type ScopedBatchOutcome,
 } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import {
   WorkItemService,
   type WorkItemServiceOptions,
 } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
@@ -57,7 +59,6 @@ import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { PriorityBandRepository } from '../repository/priority-band';
-import { ProjectRepository } from '../repository/project';
 import { person, personTeam, service, serviceTeam, tag, workItemType } from '../repository/schema';
 import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { StepRepository } from '../repository/step';
@@ -66,6 +67,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository } from '../repository/work-item';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -82,7 +84,7 @@ let runnerOptions: PlanCommandsSource;
 let serviceOptions: WorkItemServiceOptions;
 let workItems: WorkItemService;
 let workItemStore: WorkItemRepository;
-let projectStore: ProjectRepository;
+let workPackageStore: WorkPackageRepository;
 let estimateStore: EstimateRepository;
 let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
@@ -95,13 +97,14 @@ const relayTo = (collector: Broadcaster): WorkItemService => {
   batchBroadcast = collector;
   return workItems;
 };
-let projectId: string;
+let workPackageId: string;
 let ownerId: string;
 let steps: Step[];
 
 const dev = (): string => {
   const found = steps.at(0);
-  if (found === undefined) throw new Error('the project was created without its starting steps');
+  if (found === undefined)
+    throw new Error('the work package was created without its starting steps');
   return found.id;
 };
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
@@ -110,8 +113,9 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-batch-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyProject(path, 'service-fixture-legacy', PARENT_PROJECT_ID);
   db = openDrizzle(path);
-  projectStore = new ProjectRepository(db, OPEN);
+  workPackageStore = new WorkPackageRepository(db, OPEN);
   workItemStore = new WorkItemRepository(db, OPEN);
   estimateStore = new EstimateRepository(db, OPEN);
   dependencyStore = new DependencyRepository(db, OPEN);
@@ -137,18 +141,18 @@ beforeEach(async () => {
 
   serviceOptions = {
     dependencyContext: createLocalDependencyContext({
-      projects: projectStore,
+      workPackages: workPackageStore,
       workItems: workItemStore,
       estimates: estimateStore,
       dependencies: dependencyStore,
       typedDependencies: new TypedDependencyRepository(db, OPEN),
     }),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
-    projects: projectStore,
+    workPackages: workPackageStore,
     estimates: estimateStore,
     actuals: new ActualRepository(db, OPEN),
     measures: new StepMeasureRepository(db, OPEN),
@@ -190,36 +194,36 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       capacity: capacityStore,
       resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
-      admission: CREATOR_ADMISSION,
+      admission: LEGACY_EDIT_ADMISSION,
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
-    projects: new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+    workPackages: new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       steps: new StepRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     calendarMarkers: new CalendarMarkerService({
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       markers: new CalendarMarkerRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
@@ -239,14 +243,15 @@ beforeEach(async () => {
     announcements: broadcast,
   };
   runner = createPlanCommandRunner(runnerOptions);
-  const created = await new ProjectService({
-    dependencyContext: sqliteDependencyContext(db, projectStore),
+  const created = await new WorkPackageService({
+    dependencyContext: sqliteDependencyContext(db, workPackageStore),
     clock: testClock,
-    projects: projectStore,
+    workPackages: workPackageStore,
     broadcast: recordingBroadcaster(),
-  }).create('Rewire the shed', ownerId);
-  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
-  projectId = created.project.id;
+  }).create('Rewire the shed', PARENT_PROJECT_ID, ownerId);
+  if (typeof created === 'string')
+    throw new Error(`fixture work package creation refused: ${created}`);
+  workPackageId = created.workPackage.id;
   steps = created.steps;
 });
 
@@ -255,7 +260,7 @@ afterEach(() => {
 });
 
 const run = (commands: PlanCommand[]): Promise<ScopedBatchOutcome> =>
-  runner.run(projectId, ownerId, commands);
+  runner.run(workPackageId, ownerId, commands);
 
 function applied(outcome: ScopedBatchOutcome): Map<string, string> {
   if (!outcome.ok) throw new Error(`refused: ${JSON.stringify(outcome)}`);
@@ -267,9 +272,9 @@ function applied(outcome: ScopedBatchOutcome): Map<string, string> {
 }
 
 const names = async (): Promise<string[]> =>
-  (await workItemStore.listByProject(projectId)).map((row) => row.name).sort();
+  (await workItemStore.listByWorkPackage(workPackageId)).map((row) => row.name).sort();
 
-const journal = () => journalStore.entriesFor({ projectId, userId: ownerId, personId: null });
+const journal = () => journalStore.entriesFor({ workPackageId, userId: ownerId, personId: null });
 
 const DRAFT: PlanCommand[] = [
   { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
@@ -293,7 +298,7 @@ const DRAFT: PlanCommand[] = [
   { kind: 'setEstimate', workItemRef: 'sand', stepId: 'STEP', days: DAYS },
   { kind: 'addDependency', workItemRef: 'sand', predecessorRef: 'strip' },
 ];
-/** The draft with the project's real Dev step in place of the placeholder. */
+/** The draft with the work package's real Dev step in place of the placeholder. */
 const draft = (): PlanCommand[] =>
   DRAFT.map((command) =>
     'stepId' in command && command.stepId === 'STEP' ? { ...command, stepId: dev() } : command,
@@ -313,9 +318,9 @@ describe('a command batch', () => {
       throw new Error('the batch answered no id for a ref it applied');
     }
     expect(
-      (await estimateStore.listByProject(projectId)).map((each) => each.workItemId).sort(),
+      (await estimateStore.listByWorkPackage(workPackageId)).map((each) => each.workItemId).sort(),
     ).toEqual([sand, strip].sort());
-    expect(await dependencyStore.listByProject(projectId)).toHaveLength(1);
+    expect(await dependencyStore.listByWorkPackage(workPackageId)).toHaveLength(1);
   });
 
   it('creates by ref then estimates the minted row', async () => {
@@ -349,7 +354,7 @@ describe('a command batch', () => {
       },
     ]);
     if (!outcome.ok) throw new Error(`batch refused: ${JSON.stringify(outcome)}`);
-    const named = (await workItemStore.listByProject(projectId)).find(
+    const named = (await workItemStore.listByWorkPackage(workPackageId)).find(
       (row) => row.name === 'Named by the store',
     );
     if (named === undefined) throw new Error('the named work item was not stored');
@@ -357,7 +362,7 @@ describe('a command batch', () => {
     // Proof: resolving setEstimate from its previous raw id instead of the competing ref made
     // this receive that earlier row's id rather than the independently found named row's id.
     // Proof: binding setEstimate to clearEstimate made this receive an empty estimate list.
-    expect(await estimateStore.listByProject(projectId)).toEqual([
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: named.id, stepId: dev(), ...days },
     ]);
   });
@@ -386,7 +391,7 @@ describe('a command batch', () => {
     ]);
 
     expect(outcome).toEqual({ ok: false, at: 1, kind: 'setStepAllowance', reason: 'not_found' });
-    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    const held = (await workPackageStore.stepsOf(workPackageId)).find((step) => step.id === qa.id);
     expect(held?.allowancePercent).toBe(0);
     expect(await journal()).toHaveLength(0);
   });
@@ -403,8 +408,8 @@ describe('a command batch', () => {
     );
     expect(await journal()).toHaveLength(1);
 
-    expect((await runner.undo(projectId, ownerId)).ok).toBe(true);
-    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    expect((await runner.undo(workPackageId, ownerId)).ok).toBe(true);
+    const held = (await workPackageStore.stepsOf(workPackageId)).find((step) => step.id === qa.id);
     // The second edit read the first's 30% as its before-state, so walking the
     // batch back lands on the 0% it started from.
     expect(held?.allowancePercent).toBe(0);
@@ -442,15 +447,15 @@ describe('a command batch', () => {
     // `expected 6 to be 1`. Watched, 2026-08-29.
     applied(await run(draft()));
     expect(await journal()).toHaveLength(1);
-    expect(await planEvents.listFor(projectId, {})).toHaveLength(1);
+    expect(await planEvents.listFor(workPackageId, {})).toHaveLength(1);
 
-    const undone = await runner.undo(projectId, ownerId);
+    const undone = await runner.undo(workPackageId, ownerId);
     if (!undone.ok) throw new Error(`undo refused: ${JSON.stringify(undone)}`);
     expect(await names()).toEqual([]);
-    expect(await estimateStore.listByProject(projectId)).toHaveLength(0);
-    expect(await dependencyStore.listByProject(projectId)).toHaveLength(0);
+    expect(await estimateStore.listByWorkPackage(workPackageId)).toHaveLength(0);
+    expect(await dependencyStore.listByWorkPackage(workPackageId)).toHaveLength(0);
 
-    const redone = await runner.redo(projectId, ownerId);
+    const redone = await runner.redo(workPackageId, ownerId);
     if (!redone.ok) throw new Error(`redo refused: ${JSON.stringify(redone)}`);
     expect(await names()).toEqual(['Paint', 'Sand', 'Strip']);
   });
@@ -487,7 +492,7 @@ describe('a command batch', () => {
     await journalStore.append(
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         userId: ownerId,
         personId: null,
         kind: 'batch',
@@ -498,7 +503,7 @@ describe('a command batch', () => {
       },
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         userId: ownerId,
         kind: 'batch',
         label: '2 changes',
@@ -510,12 +515,12 @@ describe('a command batch', () => {
       },
     );
 
-    const undone = await runner.undo(projectId, ownerId);
+    const undone = await runner.undo(workPackageId, ownerId);
     expect(undone.ok).toBe(false);
     if ('refusal' in undone || 'error' in undone) throw new Error(JSON.stringify(undone));
     if (undone.ok) throw new Error('an undo naming a missing step was accepted');
     expect(undone.reason).toBe('stale_undo');
-    expect(undone.detail).toBe('that step is no longer in this project.');
+    expect(undone.detail).toBe('that step is no longer in this work package.');
     expect((await workItemStore.findById(x))?.name).toBe('X');
     // And the entry is gone for good, discarded outside the rolled-back
     // transaction: only the create is left to undo.
@@ -582,7 +587,7 @@ describe('a command batch', () => {
       ]),
     );
     expect(refs.has('checkout')).toBe(true);
-    const undone = await runner.undo(projectId, ownerId);
+    const undone = await runner.undo(workPackageId, ownerId);
     if (!undone.ok) throw new Error(`undo refused: ${JSON.stringify(undone)}`);
     expect(await names()).toEqual([]);
     expect((await directoryStore.listServices()).map((each) => each.name)).toEqual(['Checkout']);
@@ -607,10 +612,10 @@ describe('a command batch', () => {
     });
   });
 
-  it('applies a directory-only batch with no project, and refuses a plan command in it', async () => {
-    // The directory page has no project; its writes go through `runDirectory`,
+  it('applies a directory-only batch with no work package, and refuses a plan command in it', async () => {
+    // The directory page has no work package; its writes go through `runDirectory`,
     // which holds the same lock and transaction and records nothing. A plan
-    // command has no project to land in there and is refused by index.
+    // command has no work package to land in there and is refused by index.
     const outcome = await runner.runDirectory(ownerId, [
       { kind: 'createTeam', ref: 'platform', name: 'Platform' },
       { kind: 'createPerson', ref: 'kat', name: 'Kat', teamRefs: ['platform'] },
@@ -635,13 +640,13 @@ describe('a command batch', () => {
     if (planRow === undefined) throw new Error('the plan row minted no id');
 
     // Proof: bypassing registry scope admission returned ok with both the tag and unfreeze
-    // applied, instead of `project_required` for the real plan row at index 1.
+    // applied, instead of `work_package_required` for the real plan row at index 1.
     expect(
       await runner.runDirectory(ownerId, [
         { kind: 'createTag', name: 'x' },
         { kind: 'unfreezeWorkItem', workItemId: planRow },
       ]),
-    ).toEqual({ ok: false, at: 1, kind: 'unfreezeWorkItem', reason: 'project_required' });
+    ).toEqual({ ok: false, at: 1, kind: 'unfreezeWorkItem', reason: 'work_package_required' });
     // All or none here too: the tag went with the refusal.
     expect(await directoryStore.listTags()).toHaveLength(0);
   });
@@ -727,13 +732,13 @@ describe('a command batch', () => {
 
     const batchA = { state: 'pending' as 'pending' | 'applied' };
     const first = slowRunner
-      .run(projectId, ownerId, [
+      .run(workPackageId, ownerId, [
         { kind: 'createWorkItem', parentId: null, afterId: null, name: 'A' },
       ])
       .then(() => {
         batchA.state = 'applied';
       });
-    const second = await fastRunner.run(projectId, ownerId, [
+    const second = await fastRunner.run(workPackageId, ownerId, [
       { kind: 'createWorkItem', parentId: null, afterId: null, name: 'B' },
     ]);
     expect(second.ok).toBe(true);
@@ -749,7 +754,7 @@ describe('a command batch', () => {
     // own broadcast outside `lock.run`; `DirectoryService.announce`,
     // `CapacityService.set` and `PriorityBandService.set` published from inside
     // `applyAll`, which is inside both the lock and the outer transaction. A tag
-    // rename across forty projects made forty gateway pushes with the write lock
+    // rename across forty work packages made forty gateway pushes with the write lock
     // held, and `PushClient` retries a failing one for about a minute.
     //
     // Held by construction rather than by call order, for the reason the case
@@ -774,8 +779,8 @@ describe('a command batch', () => {
       announcements: slowPushes,
     });
 
-    // The tag has to be **on** something for its rename to touch a project:
-    // `DirectoryService.announce` publishes one event per project the write
+    // The tag has to be **on** something for its rename to touch a work package:
+    // `DirectoryService.announce` publishes one event per work package the write
     // touched, and a tag nobody uses touches none. A rename of an unused tag
     // queues nothing and would pass this whatever the runner did with the lock.
     const seeded = await run([
@@ -848,7 +853,7 @@ describe('a command batch', () => {
 /**
  * What a created work item's priority is, and where the number comes from.
  *
- * It comes from **this project's ladder, at rank 2** — not from the constant 50
+ * It comes from **this work package's ladder, at rank 2** — not from the constant 50
  * and not from the band that happens to be called `Medium`.
  * `openspec/changes/priority-default-medium/design.md` D1.
  */
@@ -881,10 +886,10 @@ describe('the priority a create writes', () => {
   it('a new work item is ordinary by default', async () => {
     const refs = applied(await run([add('w')]));
     expect(await priorityOf(refs.get('w'))).toBe(50);
-    // And 50 is the *third rung* of this project's ladder rather than a number
+    // And 50 is the *third rung* of this work package's ladder rather than a number
     // that happens to be 50: the rank is the contract, the figure is what this
     // ladder cuts it at.
-    expect(priorityBandRankOf(await bandStore.listFor(projectId), 50)).toBe(ORDINARY_BAND_RANK);
+    expect(priorityBandRankOf(await bandStore.listFor(workPackageId), 50)).toBe(ORDINARY_BAND_RANK);
   });
 
   it('a re-cut ladder moves the default', async () => {
@@ -898,7 +903,7 @@ describe('the priority a create writes', () => {
 
   it('a renamed middle band still supplies the default', async () => {
     // Proof: the lookup changed to `bands.find((band) => band.label === 'Medium')`,
-    // and this failed on `project … has a priority ladder of 5 bands, so it has
+    // and this failed on `workPackage … has a priority ladder of 5 bands, so it has
     // no rank 2 rung to create work items at` — the rung is still there and only
     // the word has moved, which is exactly the fault. Watched 2026-08-29.
     const renamed = DEFAULT_PRIORITY_BANDS.map((band, rank) =>
@@ -922,22 +927,23 @@ describe('the priority a create writes', () => {
     expect(await priorityOf(refs.get('w'))).toBeNull();
   });
 
-  it('the default priority comes from the project being written to', async () => {
+  it('the default priority comes from the work package being written to', async () => {
     // Two plans on differently-cut ladders, written through one runner. A ladder
     // read once and kept would give the second plan the first plan's number.
     // Proof: the read hoisted out of the create — `ordinaryPriorityOf` memoised
-    // on the service, ignoring its `projectId` after the first call — and this
+    // on the service, ignoring its `workPackageId` after the first call — and this
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
-    const other = await new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+    const other = await new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: recordingBroadcaster(),
-    }).create('Tile it', ownerId);
-    if (typeof other === 'string') throw new Error(`fixture project creation refused: ${other}`);
+    }).create('Tile it', PARENT_PROJECT_ID, ownerId);
+    if (typeof other === 'string')
+      throw new Error(`fixture work package creation refused: ${other}`);
     const plain = applied(
-      await runner.run(other.project.id, ownerId, [
+      await runner.run(other.workPackage.id, ownerId, [
         { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Grout' },
       ]),
     );
@@ -975,19 +981,19 @@ it('throws on malformed trusted deadline detail before creating a modeled batch 
   const patch = spyOn(workItems, 'patch');
   try {
     for (const missing of [
-      { ok: false, reason: 'deadline_before_project_start', workItemId: 'w' },
-      { ok: false, reason: 'deadline_before_project_start', projectDayZero: '2026-09-07' },
+      { ok: false, reason: 'deadline_before_work_package_start', workItemId: 'w' },
+      { ok: false, reason: 'deadline_before_work_package_start', workPackageDayZero: '2026-09-07' },
     ]) {
       patch.mockResolvedValueOnce(missing as never);
       await runner
-        .run(projectId, ownerId, [{ kind: 'patchWorkItem', workItemId: targetId, patch: {} }])
+        .run(workPackageId, ownerId, [{ kind: 'patchWorkItem', workItemId: targetId, patch: {} }])
         .then(
           () => {
             throw new Error('Malformed deadline refusal resolved');
           },
           (cause: unknown) => {
             expect(cause).toEqual(
-              new Error('Deadline refusal requires work item and project day zero'),
+              new Error('Deadline refusal requires work item and work package day zero'),
             );
           },
         );
@@ -1017,7 +1023,7 @@ export function appliedProducerTypes() {
   };
   const missingDayZero = {
     ok: false as const,
-    reason: 'deadline_before_project_start' as const,
+    reason: 'deadline_before_work_package_start' as const,
     at: 0,
     kind: 'patchWorkItem' as const,
     detail: { workItemId: 'w' },

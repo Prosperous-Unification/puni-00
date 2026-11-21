@@ -122,13 +122,29 @@ beforeAll(() => {
   exportsRoot = mkdtempSync(join(tmpdir(), 'dash-exports-'));
   const requirements = join(exportsRoot, 'requirements.md');
   writeFileSync(requirements, 'Requirements\n');
-  for (const version of [7, 8, 9, 10, 11]) {
+  for (const version of [7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
     const destination = join(exportsRoot, String(version));
     mkdirSync(destination);
+    const exportPath =
+      version === 15 || version === 16
+        ? join(exportsRoot, 'current-export-' + String(version) + '.json')
+        : version === 12
+          ? join(
+              navigatorRoot,
+              '../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-document12-connected.txt',
+            )
+          : join(navigatorRoot, 'fixtures', `plan-export.v${String(version)}.json`);
+    if (version === 15 || version === 16)
+      writeFileSync(
+        exportPath,
+        readFileSync(
+          join(navigatorRoot, 'fixtures', 'current-plan-export.v' + String(version) + '.json'),
+        ),
+      );
     const invocation = invokeCli(join(navigatorRoot, 'entrypoint.ts'), [
       'plan-reference',
       '--export',
-      join(navigatorRoot, 'fixtures', `plan-export.v${String(version)}.json`),
+      exportPath,
       '--repository',
       'repo',
       '--change',
@@ -347,7 +363,7 @@ for (const fault of [
   'v9schema1',
   'v10schema1',
   'v11schema1',
-  'v12',
+  'v17',
   'unknownTask',
   'parentTask',
   'unknownStep',
@@ -387,7 +403,7 @@ for (const fault of [
       writeInputs();
     }
     expectRefusal(
-      fault === 'referenceDigest' || fault === 'v12' || fault === 'referenceExtra'
+      fault === 'referenceDigest' || fault === 'v17' || fault === 'referenceExtra'
         ? 'plan reference is malformed'
         : fault === 'tasksExtra'
           ? 'task export is malformed'
@@ -533,3 +549,17 @@ test('record-progress-v2 explicitly binds the complete producer reference', () =
   expect(admission.exitCode, admission.stderr).toBe(0);
   expect(existsSync(proposed)).toBe(true);
 });
+
+test.each([12, 13, 14, 15, 16])(
+  'record-progress-v2 binds real Navigator document%s/schema3',
+  (version) => {
+    loadFixture(version);
+    const invocation = invokeCli(entrypoint, ['record-progress-v2', ...buildFlags()]);
+    expect(invocation.exitCode, invocation.stderr).toBe(0);
+    const receipt = JSON.parse(readFileSync(output, 'utf8')) as Record<string, unknown>;
+    expect(receipt['schemaVersion']).toBe(2);
+    expect(receipt['referenceDigest']).toBe(reference['referenceDigest']);
+    expect(tasks.schemaVersion).toBe(3);
+    expect(receipt['entries']).toEqual(entries);
+  },
+);

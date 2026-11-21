@@ -118,7 +118,7 @@ export const readingWords = (reading: NodeReading): string =>
 export const statusWords = (status: WorkItemStatus): string => `Status: ${STATUS_LABEL[status]}`;
 
 /**
- * What each status says about the row, for the cell's project fact.
+ * What each status says about the row, for the cell's work package fact.
  *
  * The status word comes first, because the cell itself is a glyph: `○ ◐ ✓`
  * is legible once learnt, and the card is where a reader learns it. Dany,

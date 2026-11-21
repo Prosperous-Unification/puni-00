@@ -1,6 +1,6 @@
 import type {
   DocumentExternalMapping,
-  DocumentV12TypedDependency,
+  DocumentV14TypedDependency,
   PlanDocumentImport,
 } from '@wbs/contracts';
 import type {
@@ -162,7 +162,7 @@ export interface PreparedImport {
   typedDependencyPaths: ReadonlyMap<string, string>;
   externalDependencies: {
     path: string;
-    predecessor: Extract<DocumentV12TypedDependency['predecessor'], { kind: 'external' }>;
+    predecessor: Extract<DocumentV14TypedDependency['predecessor'], { kind: 'external' }>;
     destination: DocumentExternalMapping['destination'];
     successor: TypedDependency['successor'];
     type: TypedDependency['type'];
@@ -195,7 +195,7 @@ export type ImportRefusalCode =
   | 'unknown_ref'
   | 'cycle'
   | 'ancestor'
-  | 'deadline_before_project_start'
+  | 'deadline_before_work_package_start'
   | 'engine_unavailable'
   | 'work_item_takes_one_type';
 
@@ -211,7 +211,7 @@ export type ImportPreparation =
 export function rowShape(row: DocumentRow): WorkItem {
   return {
     id: row.id,
-    projectId: 'file',
+    workPackageId: 'file',
     parentId: row.parentId,
     position: row.position,
     name: row.name,
@@ -275,25 +275,25 @@ export function preparedRow(
 
 /**
  * Finds semantic duplicates in mapped relationships, ignoring source relationship IDs.
- * Preparation accepts file-local successors without projectId; transaction admission
+ * Preparation accepts file-local successors without workPackageId; transaction admission
  * must call again with the complete scoped set after allocating destination IDs.
  */
 export function findImportDependencyDuplicate(
   relationships: readonly {
     path: string;
     predecessor: ScopedDependencyEndpoint;
-    successor: TypedDependency['successor'] & { readonly projectId?: string };
+    successor: TypedDependency['successor'] & { readonly workPackageId?: string };
     type: TypedDependency['type'];
   }[],
 ): string | null {
   const keys = new Set<string>();
   for (const { predecessor, successor, type, path } of relationships) {
     const key = JSON.stringify([
-      predecessor.projectId,
+      predecessor.workPackageId,
       predecessor.workItemId,
       predecessor.scope,
       'stepId' in predecessor ? predecessor.stepId : null,
-      successor.projectId ?? null,
+      successor.workPackageId ?? null,
       successor.workItemId,
       successor.scope,
       'stepId' in successor ? successor.stepId : null,

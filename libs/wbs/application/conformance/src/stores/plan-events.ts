@@ -13,7 +13,7 @@ interface HistoryRecord {
 function historyRecord(
   journalId: string,
   eventId: string,
-  projectId: string,
+  workPackageId: string,
   userId: string,
   workItemId: string | null,
   kind: string,
@@ -22,7 +22,7 @@ function historyRecord(
   return {
     entry: {
       id: journalId,
-      projectId,
+      workPackageId,
       userId,
       personId: null,
       kind,
@@ -33,7 +33,7 @@ function historyRecord(
     },
     event: {
       id: eventId,
-      projectId,
+      workPackageId,
       userId,
       kind,
       label: `History ${eventId}`,
@@ -51,7 +51,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-a-99',
       'history-a-99',
-      seed.projectIds[0],
+      seed.workPackageIds[0],
       seed.ownerIds[0],
       seed.workItemIds[0][0],
       'estimate',
@@ -63,7 +63,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-a-100-z',
       'history-a-100-z',
-      seed.projectIds[0],
+      seed.workPackageIds[0],
       seed.ownerIds[0],
       seed.workItemIds[0][0],
       'clear_estimate',
@@ -72,7 +72,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-a-100-a',
       'history-a-100-a',
-      seed.projectIds[0],
+      seed.workPackageIds[0],
       seed.ownerIds[0],
       seed.workItemIds[0][1],
       'rename',
@@ -81,7 +81,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-a-100-m',
       'history-a-100-m',
-      seed.projectIds[0],
+      seed.workPackageIds[0],
       seed.ownerIds[0],
       seed.workItemIds[0][0],
       'actual',
@@ -90,7 +90,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-a-101-wide',
       'history-a-101-wide',
-      seed.projectIds[0],
+      seed.workPackageIds[0],
       seed.ownerIds[0],
       null,
       'freeze',
@@ -99,7 +99,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-b-99',
       'history-b-99',
-      seed.projectIds[1],
+      seed.workPackageIds[1],
       seed.ownerIds[1],
       seed.workItemIds[1][0],
       'actual',
@@ -108,7 +108,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-b-100',
       'history-b-100',
-      seed.projectIds[1],
+      seed.workPackageIds[1],
       seed.ownerIds[1],
       seed.workItemIds[1][1],
       'rename',
@@ -117,7 +117,7 @@ function recordsFor(seed: SeededPlan): readonly HistoryRecord[] {
     historyRecord(
       'journal-b-101-wide',
       'history-b-101-wide',
-      seed.projectIds[1],
+      seed.workPackageIds[1],
       seed.ownerIds[1],
       null,
       'freeze',
@@ -141,7 +141,7 @@ function expectedEvents(
   return [
     {
       id: 'history-a-101-wide',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind: 'freeze',
       label: 'History history-a-101-wide',
@@ -153,7 +153,7 @@ function expectedEvents(
     },
     {
       id: 'history-a-100-z',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind: 'clear_estimate',
       label: 'History history-a-100-z',
@@ -165,7 +165,7 @@ function expectedEvents(
     },
     {
       id: 'history-a-100-m',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind: 'actual',
       label: 'History history-a-100-m',
@@ -177,7 +177,7 @@ function expectedEvents(
     },
     {
       id: 'history-a-100-a',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind: 'rename',
       label: 'History history-a-100-a',
@@ -189,7 +189,7 @@ function expectedEvents(
     },
     {
       id: 'history-a-99',
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind: 'estimate',
       label: 'History history-a-99',
@@ -201,7 +201,7 @@ function expectedEvents(
     },
     {
       id: 'history-b-101-wide',
-      projectId: seed.projectIds[1],
+      workPackageId: seed.workPackageIds[1],
       userId: seed.ownerIds[1],
       kind: 'freeze',
       label: 'History history-b-101-wide',
@@ -213,7 +213,7 @@ function expectedEvents(
     },
     {
       id: 'history-b-100',
-      projectId: seed.projectIds[1],
+      workPackageId: seed.workPackageIds[1],
       userId: seed.ownerIds[1],
       kind: 'rename',
       label: 'History history-b-100',
@@ -225,7 +225,7 @@ function expectedEvents(
     },
     {
       id: 'history-b-99',
-      projectId: seed.projectIds[1],
+      workPackageId: seed.workPackageIds[1],
       userId: seed.ownerIds[1],
       kind: 'actual',
       label: 'History history-b-99',
@@ -247,7 +247,7 @@ function expectedJournals(seed: SeededPlan): readonly [JournalEntry[], JournalEn
     createdAt: number,
   ): JournalEntry => ({
     id: `journal-a-${id}`,
-    projectId: seed.projectIds[0],
+    workPackageId: seed.workPackageIds[0],
     userId: seed.ownerIds[0],
     personId: null,
     seq,
@@ -266,7 +266,7 @@ function expectedJournals(seed: SeededPlan): readonly [JournalEntry[], JournalEn
     createdAt: number,
   ): JournalEntry => ({
     id: `journal-b-${id}`,
-    projectId: seed.projectIds[1],
+    workPackageId: seed.workPackageIds[1],
     userId: seed.ownerIds[1],
     personId: null,
     seq,
@@ -308,19 +308,19 @@ async function readJournals(
   const { readers, seed } = fixture;
   return await Promise.all([
     readers.journal.entriesFor({
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       personId: null,
     }),
     readers.journal.entriesFor({
-      projectId: seed.projectIds[1],
+      workPackageId: seed.workPackageIds[1],
       userId: seed.ownerIds[1],
       personId: null,
     }),
   ]);
 }
 
-/** One plan event of project A recorded through the journal, its `after` as given. */
+/** One plan event of work package A recorded through the journal, its `after` as given. */
 function batchRecord(
   seed: SeededPlan,
   id: string,
@@ -331,7 +331,7 @@ function batchRecord(
   return {
     entry: {
       id: `journal-${id}`,
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       personId: null,
       kind,
@@ -342,7 +342,7 @@ function batchRecord(
     },
     event: {
       id,
-      projectId: seed.projectIds[0],
+      workPackageId: seed.workPackageIds[0],
       userId: seed.ownerIds[0],
       kind,
       label: id,
@@ -386,7 +386,7 @@ function batchRecords(seed: SeededPlan): readonly HistoryRecord[] {
   ];
 }
 
-/** Shared project-history filtering, ordering and strict-retention cases. */
+/** Shared work-package-history filtering, ordering and strict-retention cases. */
 export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly CaseRegistration[] {
   return [
     storeCase('planEvents', 'planEvents.listFor:filters-order', open, async (fixture) => {
@@ -395,54 +395,55 @@ export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly C
       const [a101, a100z, a100m, a100a, a99, b101, b100, b99] = expectedEvents(seed);
       const journals = expectedJournals(seed);
 
-      // Proof: suppressing all project-B appends or discarding every journal
+      // Proof: suppressing all work-package-B appends or discarding every journal
       // row makes the adapter setup negatives phase-fail before filtered reads.
       expect({
-        projectAEvents: await port.listFor(seed.projectIds[0], {}),
-        projectBEvents: await port.listFor(seed.projectIds[1], {}),
+        workPackageAEvents: await port.listFor(seed.workPackageIds[0], {}),
+        workPackageBEvents: await port.listFor(seed.workPackageIds[1], {}),
         journals: await readJournals(fixture),
       }).toEqual({
-        projectAEvents: [a101, a100z, a100m, a100a, a99],
-        projectBEvents: [b101, b100, b99],
+        workPackageAEvents: [a101, a100z, a100m, a100a, a99],
+        workPackageBEvents: [b101, b100, b99],
         journals,
       });
       expect(
-        await port.listFor(seed.projectIds[0], { workItemId: seed.workItemIds[0][0] }),
+        await port.listFor(seed.workPackageIds[0], { workItemId: seed.workItemIds[0][0] }),
       ).toEqual([a100z, a100m, a99]);
       // Proof: dropping the item predicate only for an empty kinds filter
       // leaked the complete a101 and a100a records in memory and SQLite.
       expect(
-        await port.listFor(seed.projectIds[0], {
+        await port.listFor(seed.workPackageIds[0], {
           workItemId: seed.workItemIds[0][0],
           kinds: [],
         }),
       ).toEqual([a100z, a100m, a99]);
-      expect(await port.listFor(seed.projectIds[0], { kinds: ['estimate', 'freeze'] })).toEqual([
-        a101,
-        a99,
-      ]);
+      expect(await port.listFor(seed.workPackageIds[0], { kinds: ['estimate', 'freeze'] })).toEqual(
+        [a101, a99],
+      );
       expect(
-        await port.listFor(seed.projectIds[0], {
+        await port.listFor(seed.workPackageIds[0], {
           workItemId: seed.workItemIds[0][0],
           kinds: ['estimate', 'freeze'],
         }),
       ).toEqual([a99]);
-      expect(await port.listFor(seed.projectIds[0], { kinds: ['no-recorded-kind'] })).toEqual([]);
-      expect(await port.listFor(seed.projectIds[0], { kinds: [] })).toEqual([
+      expect(await port.listFor(seed.workPackageIds[0], { kinds: ['no-recorded-kind'] })).toEqual(
+        [],
+      );
+      expect(await port.listFor(seed.workPackageIds[0], { kinds: [] })).toEqual([
         a101,
         a100z,
         a100m,
         a100a,
         a99,
       ]);
-      expect(await port.listFor(seed.projectIds[1], {})).toEqual([b101, b100, b99]);
+      expect(await port.listFor(seed.workPackageIds[1], {})).toEqual([b101, b100, b99]);
     }),
     storeCase('planEvents', 'planEvents.listFor:batches-limit', open, async (fixture) => {
       const { port, seed, journalAppender } = fixture;
       for (const record of batchRecords(seed))
         await journalAppender.append(structuredClone(record.entry), structuredClone(record.event));
       const ids = async (filter: Parameters<PlanEventStore['listFor']>[1]) =>
-        (await port.listFor(seed.projectIds[0], filter)).map(({ id }) => id);
+        (await port.listFor(seed.workPackageIds[0], filter)).map(({ id }) => id);
       const claims = {
         kinds: ['claim', 'release'],
         batchesHolding: ['add_claims', 'remove_claims'],
@@ -481,25 +482,25 @@ export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly C
       const [a101, a100z, a100m, a100a, a99, b101, b100, b99] = expectedEvents(seed);
       const journals = expectedJournals(seed);
       expect({
-        projectAEvents: await port.listFor(seed.projectIds[0], {}),
-        projectBEvents: await port.listFor(seed.projectIds[1], {}),
+        workPackageAEvents: await port.listFor(seed.workPackageIds[0], {}),
+        workPackageBEvents: await port.listFor(seed.workPackageIds[1], {}),
         journals: await readJournals(fixture),
       }).toEqual({
-        projectAEvents: [a101, a100z, a100m, a100a, a99],
-        projectBEvents: [b101, b100, b99],
+        workPackageAEvents: [a101, a100z, a100m, a100a, a99],
+        workPackageBEvents: [b101, b100, b99],
         journals,
       });
 
       const deletedCount = await port.pruneOlderThan(100);
       expect({
         deletedCount,
-        projectAEvents: await port.listFor(seed.projectIds[0], {}),
-        projectBEvents: await port.listFor(seed.projectIds[1], {}),
+        workPackageAEvents: await port.listFor(seed.workPackageIds[0], {}),
+        workPackageBEvents: await port.listFor(seed.workPackageIds[1], {}),
         journals: await readJournals(fixture),
       }).toEqual({
         deletedCount: 2,
-        projectAEvents: [a101, a100z, a100m, a100a],
-        projectBEvents: [b101, b100],
+        workPackageAEvents: [a101, a100z, a100m, a100a],
+        workPackageBEvents: [b101, b100],
         journals,
       });
     }),

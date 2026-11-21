@@ -1,0 +1,1961 @@
+{
+  "schema": "puni-catalogue-import-verification-v1",
+  "recordedAt": "2026-11-20T23:21:02.496Z",
+  "goalStatus": "active",
+  "previousGoalTurn": {
+    "classification": "no progress",
+    "qualification": "The prior turn answered a status question. This continuation revalidated its terminal failed test and corrected the fixture boundary before progressing actual imports."
+  },
+  "qualification": "Actual current SC24 imports reconcile codes and values on the admitted Source; SC25 retired-code422 is implemented distinctly. Core loses the positive-import failure while all13 original historical failures remain. This selected import/retirement work is not completion of the full original goal, all catalogue tasks, complete Source closure, historical guarantees or release.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+      "sha256": "f1879702134cb1c88ba1b95c456e9b16b5f39945789b6c0fcfa582f42565754b",
+      "bytes": 11617,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts",
+      "sha256": "28f8862c4104a94120ff9927ce7d59fab421c06a2eebae1107590fdea0019d0c",
+      "bytes": 26602,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts",
+      "sha256": "a6ed1464c5c0f107c596ba060d3615b9d26bdbcab00ee819e095e8aabbdd6d17",
+      "bytes": 42645,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/prepare-import.ts",
+      "sha256": "e849bf3ed9042144525f245a5fbd3183f55d2aef417c3529b4084efc9b16f075",
+      "bytes": 52538,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+      "sha256": "e261ac314e976b882c76c46164df18a046e69c6b58f6c3dd0e835464b21b893e",
+      "bytes": 8421,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/plan-import/module.test.ts",
+      "sha256": "0f08fce9192bb3e64e6bc0fbbce758ab974c0c121740bea412cbabd77406f226",
+      "bytes": 16290,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/prepare-import.test.ts",
+      "sha256": "8c9412696f8c4209075167f25ffddd31de4a7102c216edcff23095011bcbf06b",
+      "bytes": 42010,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/testing/catalogue-import.ts",
+      "sha256": "9ec438747c53967f78b9fcbde82890245e5fdc8eae26776be159a9bb796556d9",
+      "bytes": 17681,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/import.routes.ts",
+      "sha256": "adeaa950451c29d22670a58d75370e2d482aa88aacd1b8b2f5cec15eaa7d6cbb",
+      "bytes": 5705,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/import.routes.test.ts",
+      "sha256": "857308ae3a0c34e397b6cbb900780c5ef186c9817323798ef67c36fea16fd986",
+      "bytes": 9050,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/import-shapes.ts",
+      "sha256": "e43b28cbaa2d787231810d6223392cafb8053a7fae7386c26a180b164cf07491",
+      "bytes": 6713,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/import-shapes.test.ts",
+      "sha256": "bace4dfd481c1615987277325f166bb51aa478bce29ede229e7811e13103a8ab",
+      "bytes": 5992,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/refusal.ts",
+      "sha256": "2b548291a6d1eac447944157e807dc25ab8f28cfc9c77488ee96b88992865a29",
+      "bytes": 43234,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+      "sha256": "c5a89fd4c389bdef56c0dfd91bf98ef24e31fbcb821101748254cdd5e848c60e",
+      "bytes": 89396,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/memory-stores.ts",
+      "sha256": "1d9e3f60fb6b0688691bd39917546995146f6090ec3ff96c8e6878d57c735d15",
+      "bytes": 69834,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+      "sha256": "d4c62de03c092213057360e5f185dc777c048fb78e52392039e13e8c46081152",
+      "bytes": 2809,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+      "sha256": "31a94c343c49a975ae945fc1e5d518c28d815300c7c0e1876a4cb959f34b908d",
+      "bytes": 4107,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+      "sha256": "8219eac312bd13009c8e78a95347c1cf2f2f848d503cf4483a23f0e0353128c6",
+      "bytes": 9484,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "b362b79005c0d3d9a4279faa5928e92f2b25fc213d2716339f40414736b0fe67",
+      "bytes": 324929,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+      "sha256": "b8e5dbe6e51602dff8dde06dbf04e865dd92b82a9a286ba1ba4f0a603dcbe5b7",
+      "bytes": 135236,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/current-step-catalogue.test.ts",
+      "sha256": "3f50005c09407412b6826d2e7eabe0437ecdf30f0e36b62eb0b3474796e467db",
+      "bytes": 21978,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/step-catalogue.ts",
+      "sha256": "3e228df58659c6a7fa8c9a763985986e21eddbf626d60bb63e5e371264bd6ef8",
+      "bytes": 12309,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-catalogue.ts",
+      "sha256": "c0a96454903a500b8c93609886642ea62f8800c6f824ddf7e36eb8f8bc1c9a40",
+      "bytes": 16586,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/step-catalogue.ts",
+      "sha256": "fb81ddb66b8254688e77080b54f085c8420f88564530f4f6874f51982eb326c4",
+      "bytes": 27637,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue.ts",
+      "sha256": "05dbda38a5a00dd08a09b07bbc85c3eb3f81ca73b2b8c200130c4cb5c5ae1cdb",
+      "bytes": 37774,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-catalogue-owner.ts",
+      "sha256": "ff8f4ca53d9224779fad9e7f5f0196ae680422f4d164a49f183423c0e596dbb7",
+      "bytes": 4815,
+      "mode": 436
+    }
+  ],
+  "implementation": {
+    "reconciliation": "Active codes reuse same-organization definition identities. Missing untyped/default resolution gets an every-type project binding; actual project.manage_settings admits both binding and define-and-bind without extra organization settings permission. Omitted defineMissing isfalse; unknown codes group in file position order before writes.",
+    "values": "Current birth receives no file-local seed. Units and allowances initialize only actual explicit values on the new package before portable facts. Existing definition names/defaults and independent sibling values remain exact. Reached-package catalogue refreshes are buffered until complete commit.",
+    "graph": "Direct types accompany rows into the same atomic subtree insertion. Explicit catalogue preparation defers uniform graph validation; current Source own inventories decide cycles. A dependency failure in a legacy-only import now aborts too. Pure detached preparation retains explicit document interpretation.",
+    "ranks": "A safe-integer boundary regression precedes compaction. Overflow uses a provisional same-writer binding and complete own-project binding reorder, retaining prior relative order across the entire census and appending the imported binding. Nothing is published before total commit.",
+    "retirement": "The canonical delta spec already requires422retired_step_codes. An early intermediate returned unknown/code_taken; real Source regressions exposed that mismatch before correction. Required readRetiredCodes captures decoded retirement metadata under actual public/ordinary/repair owners, separately from active catalogue omission. Retired codes take a grouped ordered422in both modes before unknown-code reconciliation. Lower code/name reservation remains intact.",
+    "memory": "Memory Source now mirrors SQLite pre-activation root ownership for newly inserted work-item types. The original positive import keeps its actual new Milestone type and complete document; no fake type assignment or simplified document substitutes for the missing ownership bridge. Two old fixture-only manual ownership assignments are removed.",
+    "clients": "Closed HTTP optionalboolean flag, typed unknown/retired422refusals and exact caller/options forwarding. Mounted requests observe actual grants, full physical rollback and no notifications after failure. Actual generated MCP inputs pass the SDK validator, forward exact bodies and preserve both refusal schemas."
+  },
+  "verification": {
+    "actualSourceAndMounted": {
+      "name": "catalogue-import-retirement-faults-after-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-after-v2.receipt.json",
+        "sha256": "0f073f9a4954fd89dca386f99fdc7ecb57b5bd12e63e3781159e30c5ea3bf05a",
+        "bytes": 1671,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-after-v2.log",
+        "sha256": "dab974c5cbe4b269841de70aaf8936b7d0d367bb1ff6996636a535ed5cfc8d6d",
+        "bytes": 20571,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+          "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+          "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+          "--timeout=60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 90000
+      },
+      "pass": 170,
+      "fail": 0,
+      "assertions": 593,
+      "tests": 170,
+      "files": 5,
+      "seconds": 20.11
+    },
+    "core": {
+      "name": "current-core-source-only-v40",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v40.receipt.json",
+        "sha256": "128143706446421f89b5f5e877543b87818aaf260d039a884efd706006a1a8cc",
+        "bytes": 14837,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v40.log",
+        "sha256": "2c6b804a87b2afa839aa8525d59fbfe84d5e64fe201afef3f57982ad304b9ac4",
+        "bytes": 251824,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/application/core/src/compose.test.ts",
+          "./libs/wbs/application/core/src/http/calendar-marker.routes.test.ts",
+          "./libs/wbs/application/core/src/http/directory.routes.test.ts",
+          "./libs/wbs/application/core/src/http/endpoint.test.ts",
+          "./libs/wbs/application/core/src/http/history.routes.test.ts",
+          "./libs/wbs/application/core/src/http/import.routes.test.ts",
+          "./libs/wbs/application/core/src/http/internal.routes.test.ts",
+          "./libs/wbs/application/core/src/http/project.routes.test.ts",
+          "./libs/wbs/application/core/src/http/saved-plan.routes.test.ts",
+          "./libs/wbs/application/core/src/http/solution.routes.test.ts",
+          "./libs/wbs/application/core/src/http/step-admission.test.ts",
+          "./libs/wbs/application/core/src/http/work-item.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-move.routes.test.ts",
+          "./libs/wbs/application/core/src/http/work-package-parent.test.ts",
+          "./libs/wbs/application/core/src/http/work-package.routes.test.ts",
+          "./libs/wbs/application/core/src/module-boundaries.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/account.resource.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/login-throttle.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/machine-key.test.ts",
+          "./libs/wbs/application/core/src/module/authentication/module.test.ts",
+          "./libs/wbs/application/core/src/module/bounded-replay-sweep/module.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.test.ts",
+          "./libs/wbs/application/core/src/module/calendar-marker/module.test.ts",
+          "./libs/wbs/application/core/src/module/capacity/module.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory-capacity.test.ts",
+          "./libs/wbs/application/core/src/module/directory/directory.resource.test.ts",
+          "./libs/wbs/application/core/src/module/directory/module.test.ts",
+          "./libs/wbs/application/core/src/module/event-log/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/admitted-write.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/claim-lease-sweep.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/command-bindings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-admission.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-command-scope.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-rename-receipts.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+          "./libs/wbs/application/core/src/module/plan-commands/working-plan.types.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/connected-document.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-project.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document-rename.test.ts",
+          "./libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+          "./libs/wbs/application/core/src/module/plan-event/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-history/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/imported-plan-settings.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+          "./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/priority-band/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/gateway-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/module.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.property.test.ts",
+          "./libs/wbs/application/core/src/module/realtime/replay-buffer.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/connected-history.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input12-comparison-summary.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/input13-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/plan-comparison-meaning.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/stored-codec-rename.test.ts",
+          "./libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts",
+          "./libs/wbs/application/core/src/module/step-catalogue/step-usage.test.ts",
+          "./libs/wbs/application/core/src/module/step/module.test.ts",
+          "./libs/wbs/application/core/src/module/transaction-boundary.types.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/budget-headroom.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/copy-typed-dependencies.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/person-work.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/reassigned-claimed-steps.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/startable.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-addresses.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/tree-demands.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item-export.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+          "./libs/wbs/application/core/src/module/work-item/work-package-claims.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module-loading.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/module.test.ts",
+          "./libs/wbs/application/core/src/module/work-package/work-package-opening.test.ts",
+          "./libs/wbs/application/core/src/playwright-config.test.ts",
+          "./libs/wbs/application/core/src/ports/announcement-collector.test.ts",
+          "./libs/wbs/application/core/src/ports/clock.test.ts",
+          "./libs/wbs/application/core/src/ports/credential-rules.test.ts",
+          "./libs/wbs/application/core/src/ports/enterprise-connections.test.ts",
+          "./libs/wbs/application/core/src/ports/event-port-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/external-dependency-authoring.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-command-records.test.ts",
+          "./libs/wbs/application/core/src/ports/runtime-rename-records.test.ts",
+          "./libs/wbs/application/core/src/ports/session-policies.test.ts",
+          "./libs/wbs/application/core/src/ports/sideways-type-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/store-boundaries.test.ts",
+          "./libs/wbs/application/core/src/ports/stores.types.test.ts",
+          "./libs/wbs/application/core/src/service/actual.test.ts",
+          "./libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/authorize.test.ts",
+          "./libs/wbs/application/core/src/service/broadcast.test.ts",
+          "./libs/wbs/application/core/src/service/command-normalizers.test.ts",
+          "./libs/wbs/application/core/src/service/committed-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/compensating.test.ts",
+          "./libs/wbs/application/core/src/service/connected-arrange.test.ts",
+          "./libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/connected-endpoints.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization-view.test.ts",
+          "./libs/wbs/application/core/src/service/connected-optimization.test.ts",
+          "./libs/wbs/application/core/src/service/connected-plan.test.ts",
+          "./libs/wbs/application/core/src/service/connected-readiness.test.ts",
+          "./libs/wbs/application/core/src/service/connected-tree.test.ts",
+          "./libs/wbs/application/core/src/service/delivery-gate.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-context.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-endpoint-evidence.test.ts",
+          "./libs/wbs/application/core/src/service/dependency-graph.test.ts",
+          "./libs/wbs/application/core/src/service/directory-usage.test.ts",
+          "./libs/wbs/application/core/src/service/domain-proof.service.test.ts",
+          "./libs/wbs/application/core/src/service/estimate.test.ts",
+          "./libs/wbs/application/core/src/service/freeze.test.ts",
+          "./libs/wbs/application/core/src/service/list-query.test.ts",
+          "./libs/wbs/application/core/src/service/machine-grant.test.ts",
+          "./libs/wbs/application/core/src/service/measure.test.ts",
+          "./libs/wbs/application/core/src/service/node-readings.test.ts",
+          "./libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+          "./libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.test.ts",
+          "./libs/wbs/application/core/src/service/per-leaf-slices.test.ts",
+          "./libs/wbs/application/core/src/service/person-load.feature.test.ts",
+          "./libs/wbs/application/core/src/service/plan-history.test.ts",
+          "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+          "./libs/wbs/application/core/src/service/progress.test.ts",
+          "./libs/wbs/application/core/src/service/project.resource.test.ts",
+          "./libs/wbs/application/core/src/service/retention-timer.test.ts",
+          "./libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+          "./libs/wbs/application/core/src/service/schedule-parts.test.ts",
+          "./libs/wbs/application/core/src/service/scim-admission.test.ts",
+          "./libs/wbs/application/core/src/service/service-boundaries.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people-fanout.test.ts",
+          "./libs/wbs/application/core/src/service/shared-people.test.ts",
+          "./libs/wbs/application/core/src/service/space.resource.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-page.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+          "./libs/wbs/application/core/src/service/work-item-statuses.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+          "./libs/wbs/application/core/src/service/work-package-page.test.ts",
+          "./libs/wbs/application/core/src/testing/current-plan-fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/estimate-service-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-current.test.ts",
+          "./libs/wbs/application/core/src/testing/first-child-local-relationships.test.ts",
+          "./libs/wbs/application/core/src/testing/harness.test.ts",
+          "./libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+          "./libs/wbs/application/core/src/testing/point-handup-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/point-subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/subtree-command-boundary.test.ts",
+          "./libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+          "./libs/wbs/application/core/src/use-cases/admission.test.ts",
+          "--timeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 900000
+      },
+      "pass": 2118,
+      "fail": 13,
+      "assertions": 12903,
+      "tests": 2131,
+      "files": 171,
+      "seconds": 107.7,
+      "beforeFailures": [
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "the Plan import module > admits a small document over the graph installPlanImport wires",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "failures": [
+        "deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "removedFailures": [
+        "the Plan import module > admits a small document over the graph installPlanImport wires"
+      ],
+      "addedFailures": [],
+      "lostPriorPassingIdentities": []
+    },
+    "memory": {
+      "name": "catalogue-import-memory-source-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-memory-source-v1.receipt.json",
+        "sha256": "0a7f11b86318b308f29ef101602a7185177139606bcd541588954b2fe7acaefe",
+        "bytes": 1366,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-memory-source-v1.log",
+        "sha256": "f1e5f439162953f24ec50fce15d1e836911d8d33fe3003d8dd61c431a9175a76",
+        "bytes": 24202,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "--timeout",
+          "600000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 114,
+      "fail": 0,
+      "assertions": 12159,
+      "tests": 114,
+      "files": 1,
+      "seconds": 6.28,
+      "observation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-memory-source-v1.observed-success.json",
+        "sha256": "49a095eb012b835fc8c7dd844afcd89fbabeb944688eb07e74acb6daeab04633",
+        "bytes": 12757,
+        "mode": 384
+      },
+      "protectedPostCheck": {
+        "name": "catalogue-import-memory-observation-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-memory-observation-v1.receipt.json",
+          "sha256": "d7755a072ee5a99328466893c37d549c88e9bfd1e28f7778e73c7f4b62b139e5",
+          "bytes": 1304,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-memory-observation-v1.log",
+          "sha256": "127d4f2d40c3d2905e5edcc6bb4d87cf272b15e78ce5d79be2eb988f5434bea9",
+          "bytes": 77,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "/tmp/puni-catalogue-import-memory-observation-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      "certificate": {
+        "source": "memory",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": [
+          "actuals.listByWorkItems:scope-order",
+          "actuals.listPlacements:source-order",
+          "actuals.moveAll:ownership",
+          "actuals.remove:pair",
+          "actuals.set:replace",
+          "actuals.set:unknown_step",
+          "attempts.moveAll:issued",
+          "attempts.moveAll:ownership",
+          "attempts.start:never-reuses",
+          "attempts.start:number-and-running",
+          "blockages.set:read-remove",
+          "budgets.set:defined-key",
+          "budgets.set:replace-remove",
+          "calendarMarkers.listFor:total-order",
+          "calendarMarkers.write:work-package-scope",
+          "capacity.set:clear",
+          "capacity.set:work-package-team-key",
+          "claims.add:taken-stated-remove",
+          "claims.lease:revoked-instant-read",
+          "claims.lease:run-scoped",
+          "claims.lease:write-renew-expire",
+          "claims.listStampedByWorkPackage:write-instant",
+          "claims.moveAll:in-place",
+          "claims.observeWorkPackage:legacy-observation",
+          "claims.occupancy:hold-read-cascade",
+          "claims.occupancy:organization-scope",
+          "claims.remove:delegated-cascade",
+          "demands.set:missing-reference",
+          "demands.set:replace-clear-scope",
+          "dependencies.add:idempotent-pair",
+          "dependencies.listByWorkItems:incident-scope",
+          "dependencies.remove:pair",
+          "dependencies.removeAllFor:touching-set",
+          "directory.addMeasure:index-backstop",
+          "directory.addResource:taken",
+          "directory.addTag",
+          "directory.assign:scope-replace-clear",
+          "directory.assign:unknown_person",
+          "directory.listMeasures:seeded-per-organization",
+          "directory.patchMeasure:scoped-key-frozen",
+          "directory.patchMeasure:shape-frozen",
+          "directory.patchPerson:account-binding",
+          "directory.patchPerson:owned-binding",
+          "directory.patchTeam:atomic-refusal",
+          "directory.removeMeasure:scoped",
+          "directory.removePerson:claims-in-use",
+          "directory.removePerson:delegated-claims",
+          "directory.removeResource:in-use-cascade",
+          "directory.setDirectoryCapacity:state-clear-remove",
+          "directory.setResourceProvider:unknown-and-clear",
+          "directory.usageOfMeasure:budgets",
+          "directory.usageOfMeasure:estimates",
+          "directory.usageOfMeasure:facts",
+          "estimates.listByWorkItems:scope-order",
+          "estimates.listPlacements:source-order",
+          "estimates.moveAll:ownership",
+          "estimates.remove",
+          "estimates.set",
+          "estimates.set:replace",
+          "estimates.set:unknown_step",
+          "eventLog.pruneBeyond",
+          "eventLog.pruneBeyond:empty-sequence",
+          "eventLog.rangeSince",
+          "eventLog.recordEvent",
+          "history.batch:independent-commit",
+          "history.batch:independent-rollback",
+          "history.batch:interleaved-success-survives",
+          "journal.append:account-redo-depth",
+          "journal.append:acting-person-stacks",
+          "journal.append:history-atomic",
+          "journal.appendEvent:history-only",
+          "journal.flip:preconditions",
+          "measureEstimates.moveAll:every-key",
+          "measureEstimates.set:basis",
+          "measureEstimates.set:defined-key",
+          "measureEstimates.set:three-point-clears-flag",
+          "measures.listByWorkItems:scope-order",
+          "measures.listPlacements:source-order",
+          "measures.moveAll:all-metrics",
+          "measures.remove:metric-key",
+          "measures.set:alias-one-row",
+          "measures.set:basis",
+          "measures.set:defined-key",
+          "measures.set:legacy-estimate-replaces-trio",
+          "measures.set:metric-key",
+          "measures.set:unknown_step",
+          "organizationLimits.readAgentPersonCap:organization-scope",
+          "organizationLimits.readCapacityCap:per-resource-except-work-package",
+          "organizationLimits.readConcurrentClaimCap:bound-triples",
+          "planEvents.listFor:batches-limit",
+          "planEvents.listFor:filters-order",
+          "planEvents.pruneOlderThan:strict-cutoff",
+          "priorityBands.listFor:defaults",
+          "priorityBands.replace:whole-work-package",
+          "progress.listByWorkItems:scope-order",
+          "progress.listPlacements:source-order",
+          "progress.moveAll:ownership",
+          "progress.remove:absence",
+          "progress.set:replace",
+          "progress.set:unknown_step",
+          "resourceCapacity.set:missing-reference",
+          "resourceCapacity.set:stated-zero-cleared",
+          "runtimeCommands.write:permanent-history",
+          "savedPlanCapture.readPlanInput:coherent-interleave",
+          "savedPlanCapture.readPlanInput:complete",
+          "savedPlanCapture.readPlanInput:detached",
+          "savedPlanCapture.readPlanInput:missing-work-package",
+          "savedPlans.touch:principals-scope",
+          "savedPlans.write:bytes-and-bodies",
+          "savedPlans.write:late-body-failure",
+          "savedPlans.write:quota-refusal",
+          "savedPlans.write:quota-window",
+          "settings.capture:inherited-and-detached",
+          "settings.packageIds:descendants-and-touch",
+          "settings.readTarget:actual-chain-and-scope",
+          "settings.write:refusal-and-clear",
+          "stepCatalogue.bindStep:scope-union-and-type-key",
+          "stepCatalogue.defineAndBindStep:modeled-refusals-atomic",
+          "stepCatalogue.defineAndBindStep:nan-default-atomic",
+          "stepCatalogue.defineAndBindStep:precision-default-atomic",
+          "stepCatalogue.defineAndBindStep:project-empty-materialization",
+          "stepCatalogue.defineAndBindStep:range-default-atomic",
+          "stepCatalogue.factRead:actual-borrowed-expiry",
+          "stepCatalogue.factRead:actual-current-order",
+          "stepCatalogue.factRead:actual-malformed-value",
+          "stepCatalogue.factRead:actual-public-source-close",
+          "stepCatalogue.factRead:actual-targeted-order",
+          "stepCatalogue.factRead:actual-unresolved-type",
+          "stepCatalogue.factRead:attempts-current-tuples",
+          "stepCatalogue.factRead:attempts-targeted-tuples",
+          "stepCatalogue.factRead:estimate-borrowed-expiry",
+          "stepCatalogue.factRead:estimate-catalogue-order",
+          "stepCatalogue.factRead:estimate-public-source-close",
+          "stepCatalogue.factRead:issued-counter-selection",
+          "stepCatalogue.factRead:issued-parent-allocator-retention",
+          "stepCatalogue.factRead:measure-estimates-current-tuples",
+          "stepCatalogue.factRead:measures-current-tuples",
+          "stepCatalogue.factRead:measures-targeted-tuples",
+          "stepCatalogue.factRead:progress-borrowed-expiry",
+          "stepCatalogue.factRead:progress-current-order",
+          "stepCatalogue.factRead:progress-malformed-time",
+          "stepCatalogue.factRead:progress-public-source-close",
+          "stepCatalogue.factRead:progress-targeted-order",
+          "stepCatalogue.factRead:progress-unresolved-type",
+          "stepCatalogue.factRead:targeted-estimate-catalogue-order",
+          "stepCatalogue.factRead:work-package-catalogue-values",
+          "stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit",
+          "stepCatalogue.factWrite:borrowed-subtree-actual-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-measure-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-progress-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit",
+          "stepCatalogue.factWrite:borrowed-target-types-keep-commit",
+          "stepCatalogue.factWrite:estimate-after-unbind",
+          "stepCatalogue.factWrite:estimate-target-types",
+          "stepCatalogue.factWrite:queued-estimate-input-retention",
+          "stepCatalogue.factWrite:subtree-actual-refusal",
+          "stepCatalogue.factWrite:subtree-borrowed-expiry",
+          "stepCatalogue.factWrite:subtree-estimate-after-unbind",
+          "stepCatalogue.factWrite:subtree-measure-refusal",
+          "stepCatalogue.factWrite:subtree-progress-refusal",
+          "stepCatalogue.factWrite:subtree-public-source-close",
+          "stepCatalogue.factWrite:subtree-queued-payload-retention",
+          "stepCatalogue.factWrite:target-borrowed-after-commit",
+          "stepCatalogue.factWrite:target-plain-repair-expiry",
+          "stepCatalogue.factWrite:target-public-source-close",
+          "stepCatalogue.lifetime:borrowed-settlement",
+          "stepCatalogue.lifetime:source-close",
+          "stepCatalogue.pointWrite:actual-conflict",
+          "stepCatalogue.pointWrite:actual-parent",
+          "stepCatalogue.pointWrite:actual-unknown",
+          "stepCatalogue.pointWrite:actual-untyped",
+          "stepCatalogue.pointWrite:measure-conflict",
+          "stepCatalogue.pointWrite:measure-parent",
+          "stepCatalogue.pointWrite:measure-unknown",
+          "stepCatalogue.pointWrite:measure-untyped",
+          "stepCatalogue.pointWrite:progress-conflict",
+          "stepCatalogue.pointWrite:progress-parent",
+          "stepCatalogue.pointWrite:progress-unknown",
+          "stepCatalogue.pointWrite:progress-untyped",
+          "stepCatalogue.read:detached-nested-values",
+          "stepCatalogue.unbindStep:201-pairs-cap-and-order",
+          "stepCatalogue.unbindStep:borrowed-expiry",
+          "stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit",
+          "stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit",
+          "stepCatalogue.unbindStep:detached-refusal",
+          "stepCatalogue.unbindStep:estimate-refusal-and-preview",
+          "stepCatalogue.unbindStep:foreign-parent-allocator-not-global-veto",
+          "stepCatalogue.unbindStep:parent-allocator-delete-unbind-revival",
+          "stepCatalogue.unbindStep:queued-mode-retention",
+          "stepCatalogue.unbindStep:redundant-binding-keeps-protected-node",
+          "stepCatalogue.unbindStep:safe-preview-apply-retains-values",
+          "stepCatalogue.unbindStep:sibling-parent-allocator-not-global-veto",
+          "stepCatalogue.unbindStep:source-close",
+          "stepCatalogue.write:queued-input-retention",
+          "stepParallels.set:sparse-replace-remove",
+          "steps.listByWorkPackage:detached",
+          "steps.listByWorkPackage:resolved-scope",
+          "steps.listByWorkPackage:unknown",
+          "subtrees.insertSubtree:complete-copy",
+          "subtrees.insertSubtree:late-failure",
+          "typedDependencies.write:identity-and-bulk",
+          "users.create:unique-name",
+          "users.find:identity",
+          "users.resolveOidcIdentity:issuer-subject",
+          "users.resolveOidcIdentity:verified-conflict",
+          "workItems.insert:respace",
+          "workItems.listByIds:labels-scope",
+          "workItems.listPlacements:source-order",
+          "workItems.move:parent-position",
+          "workItems.patch:refusal-atomic",
+          "workItems.remove:promotion",
+          "workItems.setFrozenNumbers:clear",
+          "workPackages.create:steps",
+          "workPackages.createWithSteps:catalogue-snapshot",
+          "workPackages.recordOpen:reader-order",
+          "workPackages.update:scope"
+        ],
+        "exclusions": [
+          {
+            "family": "capacity",
+            "caseId": "capacity.set:missing-reference",
+            "reason": "the memory capacity fixture does not hold work package or team reference sets",
+            "evidence": {
+              "sourceRevision": "52f961b5",
+              "assertion": "capacity set refuses missing work package and team references",
+              "observedFailure": "Expected  - 6\n+ Received  + 14"
+            }
+          },
+          {
+            "family": "priorityBands",
+            "caseId": "priorityBands.replace:missing-work-package",
+            "reason": "the memory priority-band fixture does not hold a work package reference set",
+            "evidence": {
+              "sourceRevision": "52f961b5",
+              "assertion": "priority-band replacement refuses a missing work package",
+              "observedFailure": "Expected  - 16\n+ Received  + 15"
+            }
+          }
+        ],
+        "absentFamilies": [
+          {
+            "family": "accessDecisions",
+            "reason": "Memory fixtures hold no access grants; the SQLite evaluator owns the decisions."
+          },
+          {
+            "family": "livePlans",
+            "reason": "Memory fixtures offer isolated stores without the SQLite shared snapshot reader."
+          },
+          {
+            "family": "spaces",
+            "reason": "the memory plan source installs no borrowed space store"
+          },
+          {
+            "family": "workPackageRanks",
+            "reason": "Memory fixtures do not install the SQLite organization rank writer."
+          }
+        ]
+      },
+      "qualification": "Complete114-test file passes, including the declared offered-case census. Its2exclusions and4absent families remain explicit. The launcher expected the old exit1; native exit0is separately verified and original inputs rechecked, with no duplicate test run merely to repair that expectation."
+    },
+    "sqlite": {
+      "name": "catalogue-import-sqlite-certificate-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-sqlite-certificate-v1.receipt.json",
+        "sha256": "6163387ce3dca63324d6d989118758f40724c5d9e87809062d43fc0ddcbac13f",
+        "bytes": 1489,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-sqlite-certificate-v1.log",
+        "sha256": "3649723c54f3ac46cd27e02dff25c7875177ee0b366177951f4c8d237c35e40f",
+        "bytes": 9689,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "--test-name-pattern",
+          "SQLite terminal certification runs every exact offered case without gaps",
+          "--timeout",
+          "600000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "pass": 1,
+      "fail": 0,
+      "assertions": 5964,
+      "tests": 1,
+      "files": 1,
+      "seconds": 160.35,
+      "certificate": {
+        "source": "sqlite",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": [
+          "accessDecisions.effectiveRoleAt:grant-reaches-package",
+          "actuals.listByWorkItems:scope-order",
+          "actuals.listPlacements:source-order",
+          "actuals.moveAll:ownership",
+          "actuals.remove:pair",
+          "actuals.set:replace",
+          "actuals.set:unknown_step",
+          "attempts.moveAll:issued",
+          "attempts.moveAll:ownership",
+          "attempts.start:never-reuses",
+          "attempts.start:number-and-running",
+          "blockages.set:read-remove",
+          "budgets.set:defined-key",
+          "budgets.set:replace-remove",
+          "calendarMarkers.listFor:total-order",
+          "calendarMarkers.write:work-package-scope",
+          "capacity.set:clear",
+          "capacity.set:missing-reference",
+          "capacity.set:work-package-team-key",
+          "claims.add:taken-stated-remove",
+          "claims.lease:revoked-instant-read",
+          "claims.lease:run-scoped",
+          "claims.lease:write-renew-expire",
+          "claims.listStampedByWorkPackage:write-instant",
+          "claims.moveAll:in-place",
+          "claims.observeWorkPackage:legacy-observation",
+          "claims.occupancy:hold-read-cascade",
+          "claims.occupancy:organization-scope",
+          "claims.remove:delegated-cascade",
+          "demands.set:missing-reference",
+          "demands.set:replace-clear-scope",
+          "dependencies.add:idempotent-pair",
+          "dependencies.listByWorkItems:incident-scope",
+          "dependencies.remove:pair",
+          "dependencies.removeAllFor:touching-set",
+          "directory.addMeasure:index-backstop",
+          "directory.addResource:taken",
+          "directory.addTag",
+          "directory.assign:scope-replace-clear",
+          "directory.assign:unknown_person",
+          "directory.listMeasures:seeded-per-organization",
+          "directory.patchMeasure:scoped-key-frozen",
+          "directory.patchMeasure:shape-frozen",
+          "directory.patchPerson:account-binding",
+          "directory.patchPerson:owned-binding",
+          "directory.patchTeam:atomic-refusal",
+          "directory.removeMeasure:scoped",
+          "directory.removePerson:claims-in-use",
+          "directory.removePerson:delegated-claims",
+          "directory.removeResource:in-use-cascade",
+          "directory.setDirectoryCapacity:state-clear-remove",
+          "directory.setResourceProvider:unknown-and-clear",
+          "directory.usageOfMeasure:budgets",
+          "directory.usageOfMeasure:estimates",
+          "directory.usageOfMeasure:facts",
+          "estimates.listByWorkItems:scope-order",
+          "estimates.listPlacements:source-order",
+          "estimates.moveAll:ownership",
+          "estimates.remove",
+          "estimates.set",
+          "estimates.set:replace",
+          "estimates.set:unknown_step",
+          "eventLog.pruneBeyond",
+          "eventLog.pruneBeyond:empty-sequence",
+          "eventLog.rangeSince",
+          "eventLog.recordEvent",
+          "history.batch:busy-does-not-wait",
+          "history.batch:independent-commit",
+          "history.batch:independent-rollback",
+          "journal.append:account-redo-depth",
+          "journal.append:acting-person-stacks",
+          "journal.append:history-atomic",
+          "journal.appendEvent:history-only",
+          "journal.flip:preconditions",
+          "livePlans.read:legacy-and-absence",
+          "measureEstimates.moveAll:every-key",
+          "measureEstimates.set:basis",
+          "measureEstimates.set:defined-key",
+          "measureEstimates.set:three-point-clears-flag",
+          "measures.listByWorkItems:scope-order",
+          "measures.listPlacements:source-order",
+          "measures.moveAll:all-metrics",
+          "measures.remove:metric-key",
+          "measures.set:alias-one-row",
+          "measures.set:basis",
+          "measures.set:defined-key",
+          "measures.set:legacy-estimate-replaces-trio",
+          "measures.set:metric-key",
+          "measures.set:unknown_step",
+          "organizationLimits.readAgentPersonCap:organization-scope",
+          "organizationLimits.readCapacityCap:per-resource-except-work-package",
+          "organizationLimits.readConcurrentClaimCap:bound-triples",
+          "planEvents.listFor:batches-limit",
+          "planEvents.listFor:filters-order",
+          "planEvents.pruneOlderThan:strict-cutoff",
+          "priorityBands.listFor:defaults",
+          "priorityBands.replace:missing-work-package",
+          "priorityBands.replace:whole-work-package",
+          "progress.listByWorkItems:scope-order",
+          "progress.listPlacements:source-order",
+          "progress.moveAll:ownership",
+          "progress.remove:absence",
+          "progress.set:replace",
+          "progress.set:unknown_step",
+          "resourceCapacity.set:missing-reference",
+          "resourceCapacity.set:stated-zero-cleared",
+          "runtimeCommands.write:permanent-history",
+          "savedPlanCapture.readPlanInput:coherent-interleave",
+          "savedPlanCapture.readPlanInput:complete",
+          "savedPlanCapture.readPlanInput:detached",
+          "savedPlanCapture.readPlanInput:missing-work-package",
+          "savedPlans.touch:principals-scope",
+          "savedPlans.write:bytes-and-bodies",
+          "savedPlans.write:late-body-failure",
+          "savedPlans.write:quota-refusal",
+          "savedPlans.write:quota-window",
+          "settings.capture:inherited-and-detached",
+          "settings.packageIds:descendants-and-touch",
+          "settings.readTarget:actual-chain-and-scope",
+          "settings.write:refusal-and-clear",
+          "spaces.create:scoped-round-trip",
+          "stepCatalogue.bindStep:scope-union-and-type-key",
+          "stepCatalogue.defineAndBindStep:modeled-refusals-atomic",
+          "stepCatalogue.defineAndBindStep:nan-default-atomic",
+          "stepCatalogue.defineAndBindStep:precision-default-atomic",
+          "stepCatalogue.defineAndBindStep:project-empty-materialization",
+          "stepCatalogue.defineAndBindStep:range-default-atomic",
+          "stepCatalogue.factRead:actual-borrowed-expiry",
+          "stepCatalogue.factRead:actual-current-order",
+          "stepCatalogue.factRead:actual-malformed-value",
+          "stepCatalogue.factRead:actual-public-source-close",
+          "stepCatalogue.factRead:actual-targeted-order",
+          "stepCatalogue.factRead:actual-unresolved-type",
+          "stepCatalogue.factRead:attempts-current-tuples",
+          "stepCatalogue.factRead:attempts-targeted-tuples",
+          "stepCatalogue.factRead:estimate-borrowed-expiry",
+          "stepCatalogue.factRead:estimate-catalogue-order",
+          "stepCatalogue.factRead:estimate-public-source-close",
+          "stepCatalogue.factRead:issued-counter-selection",
+          "stepCatalogue.factRead:issued-parent-allocator-retention",
+          "stepCatalogue.factRead:measure-estimates-current-tuples",
+          "stepCatalogue.factRead:measures-current-tuples",
+          "stepCatalogue.factRead:measures-targeted-tuples",
+          "stepCatalogue.factRead:progress-borrowed-expiry",
+          "stepCatalogue.factRead:progress-current-order",
+          "stepCatalogue.factRead:progress-malformed-time",
+          "stepCatalogue.factRead:progress-public-source-close",
+          "stepCatalogue.factRead:progress-targeted-order",
+          "stepCatalogue.factRead:progress-unresolved-type",
+          "stepCatalogue.factRead:targeted-estimate-catalogue-order",
+          "stepCatalogue.factRead:work-package-catalogue-values",
+          "stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit",
+          "stepCatalogue.factWrite:borrowed-subtree-actual-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-measure-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-progress-refusal",
+          "stepCatalogue.factWrite:borrowed-subtree-refusal-keeps-commit",
+          "stepCatalogue.factWrite:borrowed-target-types-keep-commit",
+          "stepCatalogue.factWrite:estimate-after-unbind",
+          "stepCatalogue.factWrite:estimate-target-types",
+          "stepCatalogue.factWrite:queued-estimate-input-retention",
+          "stepCatalogue.factWrite:subtree-actual-refusal",
+          "stepCatalogue.factWrite:subtree-borrowed-expiry",
+          "stepCatalogue.factWrite:subtree-estimate-after-unbind",
+          "stepCatalogue.factWrite:subtree-measure-refusal",
+          "stepCatalogue.factWrite:subtree-progress-refusal",
+          "stepCatalogue.factWrite:subtree-public-source-close",
+          "stepCatalogue.factWrite:subtree-queued-payload-retention",
+          "stepCatalogue.factWrite:target-borrowed-after-commit",
+          "stepCatalogue.factWrite:target-plain-repair-expiry",
+          "stepCatalogue.factWrite:target-public-source-close",
+          "stepCatalogue.lifetime:borrowed-settlement",
+          "stepCatalogue.lifetime:source-close",
+          "stepCatalogue.pointWrite:actual-conflict",
+          "stepCatalogue.pointWrite:actual-parent",
+          "stepCatalogue.pointWrite:actual-unknown",
+          "stepCatalogue.pointWrite:actual-untyped",
+          "stepCatalogue.pointWrite:measure-conflict",
+          "stepCatalogue.pointWrite:measure-parent",
+          "stepCatalogue.pointWrite:measure-unknown",
+          "stepCatalogue.pointWrite:measure-untyped",
+          "stepCatalogue.pointWrite:progress-conflict",
+          "stepCatalogue.pointWrite:progress-parent",
+          "stepCatalogue.pointWrite:progress-unknown",
+          "stepCatalogue.pointWrite:progress-untyped",
+          "stepCatalogue.read:detached-nested-values",
+          "stepCatalogue.unbindStep:201-pairs-cap-and-order",
+          "stepCatalogue.unbindStep:borrowed-expiry",
+          "stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit",
+          "stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit",
+          "stepCatalogue.unbindStep:detached-refusal",
+          "stepCatalogue.unbindStep:estimate-refusal-and-preview",
+          "stepCatalogue.unbindStep:foreign-parent-allocator-not-global-veto",
+          "stepCatalogue.unbindStep:parent-allocator-delete-unbind-revival",
+          "stepCatalogue.unbindStep:queued-mode-retention",
+          "stepCatalogue.unbindStep:redundant-binding-keeps-protected-node",
+          "stepCatalogue.unbindStep:safe-preview-apply-retains-values",
+          "stepCatalogue.unbindStep:sibling-parent-allocator-not-global-veto",
+          "stepCatalogue.unbindStep:source-close",
+          "stepCatalogue.write:queued-input-retention",
+          "stepParallels.set:sparse-replace-remove",
+          "steps.listByWorkPackage:detached",
+          "steps.listByWorkPackage:resolved-scope",
+          "steps.listByWorkPackage:unknown",
+          "subtrees.insertSubtree:complete-copy",
+          "subtrees.insertSubtree:late-failure",
+          "typedDependencies.write:identity-and-bulk",
+          "users.create:unique-name",
+          "users.find:identity",
+          "users.resolveOidcIdentity:issuer-subject",
+          "users.resolveOidcIdentity:verified-conflict",
+          "workItems.insert:respace",
+          "workItems.listByIds:labels-scope",
+          "workItems.listPlacements:source-order",
+          "workItems.move:parent-position",
+          "workItems.patch:refusal-atomic",
+          "workItems.remove:promotion",
+          "workItems.setFrozenNumbers:clear",
+          "workPackageRanks.orderIn:scoped-move",
+          "workPackages.create:steps",
+          "workPackages.createWithSteps:catalogue-snapshot",
+          "workPackages.recordOpen:reader-order",
+          "workPackages.update:scope"
+        ],
+        "exclusions": [],
+        "absentFamilies": []
+      },
+      "qualification": "All222declared certification cases execute and pass under the actual current SQLite Source. This is the exact terminal certificate test, not the whole SQLite test file or every new import/readRetiredCodes behavior. Additional import/retirement controls above supply selected evidence; generic registration for the new read remains required."
+    },
+    "mcp": {
+      "name": "catalogue-import-retired-mcp-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-mcp-v1.receipt.json",
+        "sha256": "7e014e64528240bbc19581c8cc68575634a4cdd5e78e273c8f149bbc7bccf637",
+        "bytes": 1450,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-mcp-v1.log",
+        "sha256": "751bfc0cb6cbf90f19a05d3d2552e8360a844e9820da7d75838249ba3dcf25f9",
+        "bytes": 2646,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/mcp-01/src/current-step-catalogue.test.ts",
+          "./apps/wbs/mcp-01/src/shape-document.test.ts",
+          "./apps/wbs/mcp-01/src/composed-inputs.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "pass": 23,
+      "fail": 0,
+      "assertions": 243,
+      "tests": 23,
+      "files": 3,
+      "seconds": 3.87
+    },
+    "compiler": {
+      "name": "catalogue-import-retired-final-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-final-types-v1.receipt.json",
+        "sha256": "5246490e4e5d0c185320f4b226d17c32e9f3462965846922dc0b87ced7d9249c",
+        "bytes": 1395,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-catalogue-import-types-v1.json",
+          "--pretty",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "entries": 276
+    },
+    "lint": {
+      "name": "catalogue-import-retired-final-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-final-lint-v1.receipt.json",
+        "sha256": "cfd6f2ee84b38a4c99a40074ec643d07967d2776ed1032cf2180f0415003a522",
+        "bytes": 1314,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-final-lint-v1.log",
+        "sha256": "bcba27108c2a3ce37f0bb9b8072c29c2acf0463a25bca9191ea855ca2fa1ebaf",
+        "bytes": 39,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-catalogue-import-retired-checks-v2.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "files": 26
+    },
+    "format": {
+      "name": "catalogue-import-retired-format-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-format-v2.receipt.json",
+        "sha256": "dbd8909cfb457f188f56adb22dc2af82d1d3cb278724c3d55b5168ea54893c70",
+        "bytes": 1308,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-format-v2.log",
+        "sha256": "e0c403a45c20eac72fcf50addf4669022edeee94677d50dd53c58697bcfe8310",
+        "bytes": 41,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-catalogue-import-retired-checks-v2.ts", "format"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "files": 26,
+      "finalProofComments": {
+        "name": "catalogue-import-retired-format-check-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-format-check-v1.receipt.json",
+          "sha256": "a4b642656ca6fbcd5f89a72387cea4241090e646b0870369650ced25c672da5f",
+          "bytes": 1476,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-format-check-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+            "libs/wbs/application/core/src/module/step-catalogue/step-catalogue.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      }
+    },
+    "retirementAudit": {
+      "name": "catalogue-import-retirement-audit-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-audit-v1.receipt.json",
+        "sha256": "6519343a5d511dd8b9099e052d00d645adcb5bec5f541ec1e5a28600bcee11b5",
+        "bytes": 1295,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-audit-v1.log",
+        "sha256": "0c4f533332b3a8158abd4320333e1ac3f05d9e97b5f599ac1a622a4aeb1a7286",
+        "bytes": 275,
+        "mode": 384
+      },
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v25.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "artifact": {
+        "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v25.json",
+        "sha256": "1a47faa65013d7b73c816c62a8d591a12a357d43d1cf600685b1ebae2a469ac6",
+        "bytes": 1868910,
+        "mode": 384
+      },
+      "files": 6077,
+      "frontendRuntime": 352,
+      "frontendE2e": 93
+    }
+  },
+  "proofs": {
+    "established15": {
+      "outer": {
+        "name": "catalogue-import-faults-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-v3.receipt.json",
+          "sha256": "ad3b5b26281f43a10b3a7930c357f326a96c24c0c36097713bdf843247324fef",
+          "bytes": 1269,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-v3.log",
+          "sha256": "d6fad561996a19fd83579f273cc6d6d452e79bd59707720b7e2585636aa69d7f",
+          "bytes": 781,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "/tmp/puni-catalogue-import-faults-v2.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        }
+      },
+      "before": {
+        "name": "catalogue-import-faults-before-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-before-v2.receipt.json",
+          "sha256": "6293bf26c6aebfb28c1a715375cacb2ab7d5f2cf4cc9843d3a582f349bcc8620",
+          "bytes": 1651,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-before-v2.log",
+          "sha256": "d6ff154db246cdc4b1ed3305eba75fe35b4bd413a9ba3435dfd3efed951105f4",
+          "bytes": 20202,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "--timeout=60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 90000
+        },
+        "pass": 165,
+        "fail": 0,
+        "assertions": 542,
+        "tests": 165,
+        "files": 5,
+        "seconds": 17.38
+      },
+      "after": {
+        "name": "catalogue-import-faults-after-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-after-v2.receipt.json",
+          "sha256": "7be3fd226a9e52c18315d17306808694fa82f794b913557ea028a71642255300",
+          "bytes": 1649,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-after-v2.log",
+          "sha256": "b53c16ccb42f4b5633a972a17a6ac764013ca068c99337e05275beeefb6f24d3",
+          "bytes": 20201,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "--timeout=60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 90000
+        },
+        "pass": 165,
+        "fail": 0,
+        "assertions": 542,
+        "tests": 165,
+        "files": 5,
+        "seconds": 17.87
+      },
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-faults-v2.state.json",
+        "sha256": "2ac7ab0a60aa46d15eb2fc541d8429f9564fa023024f0adc5f9c3d08c508d3db",
+        "bytes": 13571,
+        "mode": 436
+      },
+      "effects": [
+        {
+          "id": "unknown",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "if (unknown.length > 0 && !defineMissing)",
+          "after": "if (false)",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import unknown",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "fa69512228c4d7b09a53de105e7131922b2a0ac64129d91e2e018f3116cbc28e",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-unknown-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "permission",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "if (!decision.ok)",
+          "after": "if (false && !decision.ok)",
+          "tests": ["./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts"],
+          "pattern": "requires project settings",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "1af79ac54409e7eef4acfd2a1ab486e5382999352ab87294622877fa792f3230",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-permission-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 1,
+          "ran": 1,
+          "restored": true
+        },
+        {
+          "id": "reserved",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "if (isReservedStepCode(step.code))",
+          "after": "if (false)",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import reserved-new",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "2c3643e5fbf1447c2286ed1eccd4f0b50d09565aef49e013f306a437b2977dd5",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-reserved-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "mode",
+          "path": "libs/wbs/application/core/src/module/plan-import/prepare-import.ts",
+          "before": "  if (boundary !== 'document' && boundary !== 'catalogue')\n    throw new TypeError('import step interpretation is missing or unknown');\n",
+          "after": "",
+          "tests": ["./libs/wbs/application/core/src/service/prepare-import.test.ts"],
+          "pattern": "requires an explicit known import step interpretation",
+          "originalSha256": "e849bf3ed9042144525f245a5fbd3183f55d2aef417c3529b4084efc9b16f075",
+          "variantSha256": "0acc81e42646e87e323eb05a9bc2545fad5f8afd47ffb96d395aa3360e8b46c9",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-mode-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 1,
+          "ran": 1,
+          "restored": true
+        },
+        {
+          "id": "options",
+          "path": "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts",
+          "before": "    if (typeof defineMissing !== 'boolean')\n      throw new TypeError('import defineMissing must be boolean');\n",
+          "after": "",
+          "tests": ["./libs/wbs/application/core/src/module/plan-import/module.test.ts"],
+          "pattern": "rejects a nonboolean programmatic definition mode",
+          "originalSha256": "a6ed1464c5c0f107c596ba060d3615b9d26bdbcab00ee819e095e8aabbdd6d17",
+          "variantSha256": "af1e4f3d5f7c14e678c3bf619242cd69836dfac9a394b6e550f8de292c13074b",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-options-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 4,
+          "ran": 4,
+          "restored": true
+        },
+        {
+          "id": "overflow",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "const compact = !Number.isSafeInteger(nextPosition);",
+          "after": "const compact = false;",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import overflow",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "ff93e82603aa43b309daaac86e8337e3a38b2e17fd8d11e398ed453cf82721df",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-overflow-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "legacy-graph",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts",
+          "before": "    const context = this.#authority.contextFor(workPackageId);",
+          "after": "    if (located.length === 0) return null;\n    const context = this.#authority.contextFor(workPackageId);",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import legacy-graph-fault",
+          "originalSha256": "28f8862c4104a94120ff9927ce7d59fab421c06a2eebae1107590fdea0019d0c",
+          "variantSha256": "9a741f1cdaebf73611a5fc82cdf4edf13d47f1aea7320cf7e0f417a6f1216232",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-legacy-graph-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "memory-type",
+          "path": "libs/wbs/adapters/store-memory/src/memory-stores.ts",
+          "before": "        state.tables.directory.organizationOf.set(retained.id, legacy[0]);",
+          "after": "        void legacy;",
+          "tests": ["./libs/wbs/application/core/src/module/plan-import/module.test.ts"],
+          "pattern": "admits a small document",
+          "originalSha256": "1d9e3f60fb6b0688691bd39917546995146f6090ec3ff96c8e6878d57c735d15",
+          "variantSha256": "b27cec0bb2550388a37069ae6340c63dc5f250d92c958de88b1957f85c6918c4",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-memory-type-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 1,
+          "ran": 1,
+          "restored": true
+        },
+        {
+          "id": "wire-flag",
+          "path": "libs/wbs/domain/contracts/src/http/import-shapes.ts",
+          "before": "'defineMissing?': 'boolean'",
+          "after": "'defineMissing?': 'unknown'",
+          "tests": ["./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts"],
+          "pattern": "rejects malformed definition flags",
+          "originalSha256": "b32be00512faf40ee960c2333aa672fae1357cc58473a69b38fc83a9a76ecf89",
+          "variantSha256": "8d90136fdece45ae4ed60dca46d8c7489208bbf6f4c03d513b06e346698e141e",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-wire-flag-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 1,
+          "ran": 1,
+          "restored": true
+        },
+        {
+          "id": "catalogue",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "    if (catalogue === null) throw new Error('admitted import catalogue is absent');\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import catalogue-absent",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "4cd28483b5cf7c4110bba58a8567ad2800f43b758c4a7e7369e0cf62f7d6e7d1",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-catalogue-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "manifest",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "    if (manifest === null) throw new Error('admitted import project manifest is absent');\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import manifest-absent",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "a21ef958ff1f95a7c8498f49e3e31fd48a9ab0a32923a5ab5e79acf68264f320",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-manifest-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "birth-values",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "      if (initial === undefined) throw new Error('import birth lacks a resolved step value');\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import birth-values-absent",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "ef391652d0d446b27c7715742456576d8d9cfcc9c0c7f9ca973cbc54fb5e326f",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-birth-values-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "unit-refusal",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "        if (!written.ok) throw new Error('new import package unit refused: ' + written.reason);\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import unit-refused",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "28f5e89726fcc8c169d7015a25390c54173c90002dd535966af00cba54570b1d",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-unit-refusal-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "allowance-refusal",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "        if (!written.ok) throw new Error('new import package allowance refused: ' + written.reason);\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import allowance-refused",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "9361959c5442c9da2465ce3567e9559a87c6cc39eee534b23b3784a82085250e",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-allowance-refusal-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "unit-value",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "if (initial.estimateUnit !== step.estimateUnit)",
+          "after": "if (false)",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import values",
+          "originalSha256": "c9ea3dd1ced6423a1aa081577d0f6ea474e20bcee73c208a64706cf8bba9fd08",
+          "variantSha256": "b95f51d26284c4cada3524edb33e9d1a82694fe313b98aed685c0e0bb72f3d18",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-fault-unit-value-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        }
+      ],
+      "qualification": "Fifteen independent faults rerun after lint/type-boundary corrections, before the later SC25 retirement-read addition. Every selected control failed and exact restoration preceded aggregate success. Existing15guard predicates remain; the later current aggregate includes their consumers. These are not claimed as18whole-module identical-preimage tests."
+    },
+    "retirement3": {
+      "outer": {
+        "name": "catalogue-import-retirement-faults-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-v1.receipt.json",
+          "sha256": "73b37c6fbe91577546746ce403d3cf662cff21b0e09a8da90e779d6333201026",
+          "bytes": 1302,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-v1.log",
+          "sha256": "70be704bbdd1705a76f27a848a2f2e5edaeb584fd6933b7f0e4e42e77eb2ee00",
+          "bytes": 211,
+          "mode": 384
+        },
+        "command": {
+          "argv": ["bun", "/tmp/puni-catalogue-import-retirement-faults-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 660000
+        }
+      },
+      "before": {
+        "name": "catalogue-import-retirement-faults-before-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-before-v2.receipt.json",
+          "sha256": "8adcb6e322227b8b538189ce14c4bd07fcc8b40e07cf68ee120600969c47ae1b",
+          "bytes": 1673,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-before-v2.log",
+          "sha256": "a3abab090ad3f59303f408cf64e2ee3885abd8e5de0b2a431843ea8bfa94dbf2",
+          "bytes": 20572,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "--timeout=60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 90000
+        },
+        "pass": 170,
+        "fail": 0,
+        "assertions": 593,
+        "tests": 170,
+        "files": 5,
+        "seconds": 18.51
+      },
+      "after": {
+        "name": "catalogue-import-retirement-faults-after-v2",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-after-v2.receipt.json",
+          "sha256": "0f073f9a4954fd89dca386f99fdc7ecb57b5bd12e63e3781159e30c5ea3bf05a",
+          "bytes": 1671,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-after-v2.log",
+          "sha256": "dab974c5cbe4b269841de70aaf8936b7d0d367bb1ff6996636a535ed5cfc8d6d",
+          "bytes": 20571,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+            "./libs/wbs/application/core/src/module/plan-import/module.test.ts",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "--timeout=60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 90000
+        },
+        "pass": 170,
+        "fail": 0,
+        "assertions": 593,
+        "tests": 170,
+        "files": 5,
+        "seconds": 20.11
+      },
+      "state": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-faults-v2.state.json",
+        "sha256": "aac740d76fa1e85b789700c615a6ecfa36a9bb0e5827e62b125ef520d6d262d2",
+        "bytes": 3275,
+        "mode": 436
+      },
+      "effects": [
+        {
+          "id": "retirement",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "if (retiredSteps.length > 0)",
+          "after": "if (false)",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import retired",
+          "originalSha256": "7b91a5071516908b95fb8a7bec69a66a44622f1fc8693df7aa460f4ef1f13e5a",
+          "variantSha256": "fa62235bd71e24f57fbd4b52257cfa06f049e41b4409c594efbc769da4ba1a53",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-fault-retirement-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 4,
+          "ran": 4,
+          "restored": true
+        },
+        {
+          "id": "retirement-absence",
+          "path": "libs/wbs/application/core/src/module/plan-import/imported-steps.resource.ts",
+          "before": "    if (retired === null) throw new Error('admitted import retirement catalogue is absent');\n",
+          "after": "",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import retirement-absent",
+          "originalSha256": "7b91a5071516908b95fb8a7bec69a66a44622f1fc8693df7aa460f4ef1f13e5a",
+          "variantSha256": "49e22c0f32514e4b322c9f551a47793938faca1beaad20e386345285d34b8bee",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-fault-retirement-absence-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        },
+        {
+          "id": "retirement-loan",
+          "path": "libs/wbs/application/core/src/module/step-catalogue/step-catalogue.ts",
+          "before": "    async readRetiredCodes(organizationId) {\n      assertOpen();\n      const codes = await port.readRetiredCodes(organizationId);\n      assertOpen();\n      return structuredClone(codes);\n    },",
+          "after": "    async readRetiredCodes(organizationId) {\n      const codes = await port.readRetiredCodes(organizationId);\n      return structuredClone(codes);\n    },",
+          "tests": [
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts"
+          ],
+          "pattern": "catalogue import retired$",
+          "originalSha256": "ffcb59462bd793c8c2e43e724582feb1a07168f3a73c813e4a564d8f631912f2",
+          "variantSha256": "8543ea33f264b813209e16587d704e5daecab7f1cdf453286f1e8c0b8b4642c3",
+          "receipt": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-fault-retirement-loan-v2.receipt.json",
+          "exitCode": 1,
+          "fail": 2,
+          "ran": 2,
+          "restored": true
+        }
+      ],
+      "emission": {
+        "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retirement-proof-emissions-v1.json",
+        "sha256": "bfe1c1561673b519ebff365975d5e91af3c7dc375418097ea73d1445417b644f",
+        "bytes": 839,
+        "mode": 384
+      },
+      "qualification": "Retired-code refusal, missing retirement metadata and the combined ordinary/repair read-loan fence each fail independently. The combined fence test observes both outcomes before its assertion. No separate entry/postawait necessity or full Source lifetime claim. Added Proof comments preserve exact Bun emissions for both changed modules."
+    },
+    "red": [
+      {
+        "name": "catalogue-import-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-red-v1.receipt.json",
+          "sha256": "b10ef89d8ca210b2a53bc2c357ab385e2cce9a25607c3ad84614ac3bd89aa302",
+          "bytes": 1334,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-red-v1.log",
+          "sha256": "a2b30818f7c21978c3c18e0f531b56bf2817b513c346b0030023bd5ec14b08a8",
+          "bytes": 7199,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-reserved-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-reserved-red-v1.receipt.json",
+          "sha256": "cc3494dab05cc6a8945737f520844f785edbd7a99ff6fa141fedb48b0e7b6ae2",
+          "bytes": 1399,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-reserved-red-v1.log",
+          "sha256": "e327fb4eb624b73f6650a394a87b67f1231d7a6fbaeed7ed7c466b3a3780057c",
+          "bytes": 3669,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "reserved",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-mode-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-mode-red-v1.receipt.json",
+          "sha256": "485525864aab915e93a668be3f0a93250c7a17f9600e7e56d3f9c1f2aa9980f1",
+          "bytes": 1397,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-mode-red-v1.log",
+          "sha256": "653552ab866abe2c780c862c6f7e8e781d05670bf80cd00fe4e1be46eec433b6",
+          "bytes": 913,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/application/core/src/service/prepare-import.test.ts",
+            "--test-name-pattern",
+            "explicit known",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-cycle-red-v3",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-cycle-red-v3.receipt.json",
+          "sha256": "b498fb9d9047f84c7bb670150f001345058015bf197def9882214366c42ec753",
+          "bytes": 1389,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-cycle-red-v3.log",
+          "sha256": "4e318e98f973819c3f2d35b7bb072c6d4b40581ec23a6f4a25139b8c022cbda9",
+          "bytes": 1409,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "own-",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-overflow-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-overflow-red-v1.receipt.json",
+          "sha256": "bb7223a9fa6a6bd8c6bef7380a8e2da15aaba2fe020b150e6cc1db62b5fafde2",
+          "bytes": 1478,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-overflow-red-v1.log",
+          "sha256": "cbda25d5af54bca9a4a623d5bfbee16434190daf8b89d21c3a09ded207a7ffc9",
+          "bytes": 4353,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "overflow",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-legacy-graph-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-legacy-graph-red-v1.receipt.json",
+          "sha256": "1b867fb45a64c6b640aa5512121bfbb3081342bb95e7ff14aaf5181d0e78df0c",
+          "bytes": 1496,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-legacy-graph-red-v1.log",
+          "sha256": "47a4a89ca46306b002ef000d684e44e580818fbc001330eddc7cf264192dbeb4",
+          "bytes": 2443,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "legacy-graph-fault",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-retired-contract-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-contract-red-v1.receipt.json",
+          "sha256": "efa49718c136862cd70d519be4d75d97d209fa453165f61ead9741fc13ca4306",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-contract-red-v1.log",
+          "sha256": "9012a8e041928ad45643de5f3966a31b3cb04d4c104686c2ce6fe0e49f921579",
+          "bytes": 4898,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "catalogue import retired",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      },
+      {
+        "name": "catalogue-import-retired-owner-red-v1",
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-owner-red-v1.receipt.json",
+          "sha256": "a8c72f39bb39da3bec9fbebae8d94453696ad8757ddde954f61336d57cbca267",
+          "bytes": 1504,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/catalogue-import-retired-owner-red-v1.log",
+          "sha256": "9fce0f0abc23bef6f50fb292b242e5a5de23d97781538ff28af167b7f9ef7f51",
+          "bytes": 2678,
+          "mode": 384
+        },
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "./libs/wbs/adapters/store-memory/src/catalogue-import.test.ts",
+            "./libs/wbs/adapters/store-sqlite/src/testing/catalogue-import.test.ts",
+            "--test-name-pattern",
+            "catalogue import retired",
+            "--timeout",
+            "60000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        }
+      }
+    ],
+    "diagnosticLimits": "Initial opposing-order setup attempts lacked type ownership and are uncredited; current fixtures use actual Source ownership. The reserved-known control injects an explicit raw retained-code row only to test reader policy and supplies no immutable predecessor/migration provenance. Misplaced direct-handler malformed-input tests were replaced with actual mounted boundary tests. An initial MCP negative used a non-JSON undefined property, corrected to actual absence. First compiler command used the absent vanilla bin path; actual pinned @typescript/native succeeds. Fault v2 preparation stopped before mutation on an overbroad runner-path rename; corrected v3 runs to completion. All such setup/tool failures are retained, not guard evidence."
+  },
+  "reviews": {
+    "status": "Astra unavailable until recorded2026-11-22 10:09AM, timezone unspecified. No retry, substitute or new agent spawned. Catalogue reconciliation, rank compaction, required retirement read and authorization/cycle ownership remain queued for formal requested review."
+  },
+  "remaining": [
+    "Finish SC24 complete portable-fact/relationship remapping, existing/sibling bindings and row sets, all actual scoped authority/revocation/queued and public/ordinary/repair/epoch/retained-input matrices, notifications and late refusal/compaction/corruption variants. New guards without complete independent ownership negatives remain open; selected18effects do not close every constructor/assertion or Source path.",
+    "Register and verify readRetiredCodes in the generic Source conformance declaration; retain active catalogue omission and exact current119 retirement profile/corruption behavior. The222-case certificate does not silently expand its declared scope. Resolve Memory2exclusions/4absent-family declarations against actual capabilities with real production controls.",
+    "The13core historical parent/move failures and all15genuine producer/replay guarantees remain unchanged. No current parent point write was legalized and no historical producer was fabricated.",
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

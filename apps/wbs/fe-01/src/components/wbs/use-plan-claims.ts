@@ -61,7 +61,7 @@ const NO_CLAIMS: ClaimIndex = {
  * of the rows it hides.
  *
  * The read's own coherence (one claim per step, every parent listed) is checked
- * where it enters, in `httpProjectApi.readClaims`.
+ * where it enters, in `httpWorkPackageApi.readClaims`.
  */
 export function indexClaims(
   installed: InstalledClaims | null,

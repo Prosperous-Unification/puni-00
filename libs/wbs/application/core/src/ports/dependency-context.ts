@@ -7,9 +7,9 @@ import type { ResourceAccess } from './organization-access';
 import type { Step } from './step-store';
 import type { StoredTypedDependency } from './typed-dependency-store';
 
-/** An exact work-item identity; row IDs alone never establish project authority. */
+/** An exact work-item identity; row IDs alone never establish work package authority. */
 export interface WorkItemAddress {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly workItemId: string;
 }
 
@@ -24,7 +24,7 @@ export interface EndpointEvidence {
   readonly isLeaf: boolean;
   readonly revision: number;
   readonly name: string;
-  readonly projectAbbreviation: string;
+  readonly workPackageAbbreviation: string;
   readonly workItemNumber: string;
   readonly step: Pick<Step, 'id' | 'name' | 'code' | 'position'> | null;
 }
@@ -47,7 +47,7 @@ export interface DependencyEndpointEvidence {
 
 /** Fresh authority already established inside the current writer observation. */
 export interface CommandGraphAuthority {
-  readonly projectId: string | null;
+  readonly workPackageId: string | null;
   readonly actorId: string;
   readonly access: ResourceAccess;
   readonly admission: EditAdmission;
@@ -76,7 +76,7 @@ export interface DependencyContext {
   readonly incidents: IncidentNodeTransition;
   readonly endpoints: DependencyEndpointEvidence;
   /** Throws for a different owner/actor or a closed graph/observation. */
-  assertUsable(projectId: string, actorId: string): void;
+  assertUsable(workPackageId: string, actorId: string): void;
 }
 
 /** Process services open explicit local observations; admitted services retain their exact context. */
@@ -85,7 +85,7 @@ export type ServiceDependencyContext =
   | {
       readonly kind: 'local-only';
       readonly withContext: <T>(
-        projectId: string,
+        workPackageId: string,
         actorId: string,
         act: (context: DependencyContext) => Promise<T>,
       ) => Promise<T>;
@@ -94,19 +94,19 @@ export type ServiceDependencyContext =
 /** Runs under an exact bound context or a fresh explicitly local operation lifetime. */
 export async function withDependencyContext<T>(
   source: ServiceDependencyContext,
-  projectId: string,
+  workPackageId: string,
   actorId: string,
   act: (context: DependencyContext) => Promise<T>,
 ): Promise<T> {
   switch (source.kind) {
     case 'bound': {
-      source.context.assertUsable(projectId, actorId);
+      source.context.assertUsable(workPackageId, actorId);
       const value = await act(source.context);
-      source.context.assertUsable(projectId, actorId);
+      source.context.assertUsable(workPackageId, actorId);
       return value;
     }
     case 'local-only':
-      return source.withContext(projectId, actorId, act);
+      return source.withContext(workPackageId, actorId, act);
     default:
       throw new Error('unknown service dependency context');
   }

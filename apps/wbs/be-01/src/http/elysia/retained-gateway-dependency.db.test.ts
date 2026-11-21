@@ -69,15 +69,17 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
   const backendPort = backend.port;
   try {
     await harness.register('ada');
-    const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Retained' });
+    const created = await harness.call('ada', 'POST', '/api/work-packages', { name: 'Retained' });
     expect(created.status).toBe(200);
-    const projectId = (created.body as { project: { id: string } }).project.id;
-    const subscription = `project:${projectId}`;
+    const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+    const subscription = `work-package:${workPackageId}`;
     gateway = Bun.spawn(
       [
         process.execPath,
-        new URL('../../../../gw-01/src/testing/cross-project-delivery-gateway.ts', import.meta.url)
-          .pathname,
+        new URL(
+          '../../../../gw-01/src/testing/cross-work-package-delivery-gateway.ts',
+          import.meta.url,
+        ).pathname,
         `http://localhost:${String(backendPort)}`,
         TEST_JWT_KEY,
         'x'.repeat(32),
@@ -108,9 +110,11 @@ test('mounted SQLite authority ENABLED with zero external rows fences retained p
       );
       return { socket, frames };
     };
-    const replayProject = await harness.call('ada', 'POST', '/api/projects', { name: 'Replay' });
-    expect(replayProject.status).toBe(200);
-    const replaySubscription = `project:${(replayProject.body as { project: { id: string } }).project.id}`;
+    const replayWorkPackage = await harness.call('ada', 'POST', '/api/work-packages', {
+      name: 'Replay',
+    });
+    expect(replayWorkPackage.status).toBe(200);
+    const replaySubscription = `work-package:${(replayWorkPackage.body as { workPackage: { id: string } }).workPackage.id}`;
     const pushing = await connect(subscription);
     const replaying = await connect(replaySubscription);
     const sentinel = await new DrizzleEventLogStore(connection.db, OPEN).recordEvent(

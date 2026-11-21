@@ -1,0 +1,146 @@
+import {createHash} from 'node:crypto';
+import {cpSync,existsSync,mkdirSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {basename,join} from 'node:path';
+
+import type {Claim} from '@wbs/core';
+import {resourceUseActorOf} from '@wbs/core/http/resource-use.routes';
+import {parseRuntimeClaim} from '@wbs/core/ports/runtime-command-records';
+import {CONTRIBUTOR_CAP} from '@wbs/domain';
+import {expect,test} from 'bun:test';
+import {sql} from 'drizzle-orm';
+
+import {type Drizzle,openExistingConnection,openReadOnlyConnection} from '../db';
+import {runMigrations} from '../migrate';
+import {readMigrationFolders} from '../migrate-down';
+import {SqliteResourceUses} from '../resource-use';
+import {openSqliteSource,type SqliteSource} from '../source';
+import {applyStepCatalogue} from '../step-catalogue-apply';
+import {reportStepCatalogue} from '../step-catalogue-report';
+import {assertWindowBackup,createWindowBackup} from '../window-backup';
+import {CAPABLE_BACKEND_DEPENDENCY_CAPABILITY} from './dependency-capability';
+import {copyRecoveryPrefix} from './recovery-state';
+import {MIGRATIONS_FOLDER} from './space-database';
+
+const output='/tmp/puni-resource-use-117-merged-frozen-native-v1';
+const organizationId='merged-resource-org',authorId='merged-resource-author',workPackageId='merged-resource-old-package',parentId='merged-resource-leaf',stepId='z-resource-dev',survivorStepId='a-resource-dev',personId='merged-resource-person',runId='merged-resource-run';
+const stamp={at:100,by:authorId};
+
+function digest(bytes:Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+function filePin(path:string){const bytes=readFileSync(path);return{path,sha256:digest(bytes),bytes:bytes.length};}
+function artifactPin(path:string){const pin=filePin(path);return{file:basename(path),sha256:pin.sha256,bytes:pin.bytes};}
+
+function readLedger(db:Drizzle){
+  const candidates=new Map(readMigrationFolders(MIGRATIONS_FOLDER).map(folder=>[folder.name,folder.hash]));
+  const names=new Set<string>();
+  return db.all<{name:unknown;hash:unknown}>(sql`SELECT name,hash FROM __drizzle_migrations ORDER BY name COLLATE BINARY`).map(row=>{
+    if(typeof row.name!=='string'||row.name===''||typeof row.hash!=='string'||!(/^[0-9a-f]{64}$/).test(row.hash)||candidates.get(row.name)!==row.hash||names.has(row.name))throw new Error('genuine fixture ledger is malformed, duplicated or edited');
+    names.add(row.name);return{name:row.name,hash:row.hash};
+  });
+}
+
+function captureStore(db:Drizzle){
+  const schema=db.all(sql`SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type COLLATE BINARY,name COLLATE BINARY`);
+  const tables=db.all<{name:unknown}>(sql`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name COLLATE BINARY`).map(({name})=>{
+    if(typeof name!=='string'||name==='')throw new Error('frozen fixture table name is malformed');
+    const rows=db.all<Record<string,unknown>>(sql.raw('SELECT * FROM "'+name.replaceAll('"','""')+'"'));
+    rows.sort((left,right)=>Buffer.compare(Buffer.from(JSON.stringify(left)),Buffer.from(JSON.stringify(right))));
+    return{name,rows};
+  });
+  return{schema,tables,ledger:readLedger(db)};
+}
+
+/** Actual pretransition entities are historical migration-fixture storage, not a current runtime fallback or permission answer. */
+function seedHistorical116(db:Drizzle){
+  expect(readLedger(db)).toHaveLength(116);
+  db.run(sql`INSERT INTO users(id,username,created_at) VALUES(${authorId},'Merged resource author',100)`);
+  db.run(sql`INSERT INTO organization(id,name,created_at) VALUES(${organizationId},'Merged resource organization',100)`);
+  db.run(sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES(${organizationId},${authorId},'member',100)`);
+  db.run(sql`UPDATE organization_activation SET state='activated',activated_at=100 WHERE singleton=1`);
+  db.run(sql`INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('merged-resource-project-old',${organizationId},'Old package project',100,${authorId}),('merged-resource-project-survivor',${organizationId},'Survivor package project',100,${authorId})`);
+  db.run(sql`INSERT INTO work_package(id,project_id,name,restricted,created_at,created_by) VALUES(${workPackageId},'merged-resource-project-old','Merged resource old package',0,100,${authorId}),('merged-resource-survivor-package','merged-resource-project-survivor','Merged resource survivor package',0,100,${authorId})`);
+  db.run(sql`INSERT INTO work_package_organization(resource_id,organization_id) VALUES(${workPackageId},${organizationId}),('merged-resource-survivor-package',${organizationId})`);
+  db.run(sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at,created_by) VALUES('merged-resource-fixture-grant',${organizationId},'work_package',${workPackageId},'user',${authorId},'package-manager','creation',100,${authorId})`);
+  db.run(sql`INSERT INTO step(id,work_package_id,name,code,position,estimate_unit,allowance_bps,allowance_revision,created_at,created_by) VALUES(${stepId},${workPackageId},'Resource development','resource-dev',10,'workdays',500,3,100,${authorId}),(${survivorStepId},'merged-resource-survivor-package','Resource development','resource-dev',10,'workdays',500,7,100,${authorId})`);
+  db.run(sql`INSERT INTO work_item(id,work_package_id,parent_id,position,name) VALUES(${parentId},${workPackageId},NULL,10,'Original merged resource leaf')`);
+  db.run(sql`INSERT INTO person(id,name,account_id,created_at,created_by) VALUES(${personId},'Merged resource holder',${authorId},100,${authorId})`);
+  db.run(sql`INSERT INTO person_organization(resource_id,organization_id,name) VALUES(${personId},${organizationId},'Merged resource holder')`);
+  db.run(sql`INSERT INTO resource(id,name,kind,unit_label,created_at,created_by) VALUES('merged-resource-disk','Merged resource disk','divisible','GB',100,${authorId})`);
+  db.run(sql`INSERT INTO resource_organization(resource_id,organization_id,name) VALUES('merged-resource-disk',${organizationId},'Merged resource disk')`);
+  expect(db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);
+}
+
+/** Root-only acquisition before118 hooks; current real APIs produce every immutable observation before the actual117 merge. */
+test('freeze genuine merged117 resource binding with original immutable loser identity',async()=>{
+  if(existsSync(output))throw new Error('merged resource output namespace already exists: '+output);
+  mkdirSync(output);
+  const directory=mkdtempSync(join(tmpdir(),'wbs-merged-resource-producer-')),path=join(directory,'source.db');
+  let source:SqliteSource|undefined,closing:Promise<void>|undefined,sourceCloseFailure:{cause:unknown}|undefined;
+  const custody={unknown:false};const hasUnknownOwner=()=>custody.unknown;
+  let primary:{cause:unknown}|undefined;
+  const closeSource=()=>{const opened=source;if(opened===undefined)return Promise.resolve();closing??=Promise.resolve().then(()=>opened.close()).catch((cause:unknown)=>{sourceCloseFailure={cause};custody.unknown=true;throw cause;});return closing;};
+  function withinStore<Value>(use:(db:Drizzle)=>Value):Value{
+    let connection:ReturnType<typeof openExistingConnection>;
+    try{connection=openExistingConnection(path);}catch(cause:unknown){custody.unknown=true;throw cause;}
+    let observed:{ok:true;value:Value}|{ok:false;cause:unknown};
+    try{observed={ok:true,value:use(connection.db)};}catch(cause:unknown){observed={ok:false,cause};}
+    try{connection.close();}catch(cleanup:unknown){custody.unknown=true;if(!observed.ok)throw new AggregateError([observed.cause,cleanup],'merged producer read and close failed',{cause:cleanup});throw cleanup;}
+    if(!observed.ok)throw observed.cause;return observed.value;
+  }
+  try{
+    const migrations=copyRecoveryPrefix(directory,'20261115120000_add_step_migration_report');
+    try{runMigrations(path,migrations);}catch(cause:unknown){custody.unknown=true;throw cause;}
+    withinStore(seedHistorical116);
+    try{source=openSqliteSource({dbPath:path,dependencyCapability:CAPABLE_BACKEND_DEPENDENCY_CAPABILITY});}catch(cause:unknown){custody.unknown=true;throw cause;}
+    const opened=source,principal={id:authorId};
+    const actor=resourceUseActorOf(principal,{kind:'scoped',scope:{organizationId,userId:authorId,cap:CONTRIBUTOR_CAP},principal});
+    const uses=new SqliteResourceUses(opened.db,opened.gate);
+    const registered=await uses.register(workPackageId,actor,{requestId:'merged-resource-original',resourceId:'merged-resource-disk',workItemId:parentId,agentRun:runId,responsiblePersonId:personId,locator:'/fixture/merged-original',units:3},101);
+    expect(registered.ok).toBe(true);if(!registered.ok)throw new Error('actual116 broad report registration refused');
+    expect(registered.value).toMatchObject({workItemId:parentId,stepId:null,state:'active'});
+    const claim:Claim={id:'merged-resource-claim',workItemId:parentId,stepId,personId,runId,parentClaimId:null,accountId:authorId};
+    expect(await opened.stores.claims.add([claim],[],stamp,[])).toBe('written');
+    const runtimeScope={organizationId,workPackageId,personId};
+    const binding=parseRuntimeClaim({claimId:claim.id,workItemId:parentId,stepId,parentClaimId:null,execution:{storeId:'merged-resource-store',runId,attemptId:'merged-resource-attempt',sessionId:'merged-resource-session'}});
+    await opened.uow.run(async loan=>{await loan.stores.runtimeCommands.insertBinding(runtimeScope,binding);return{commit:true,value:undefined};});
+    expect(await opened.stores.runtimeCommands.readBinding(runtimeScope,claim.id)).toEqual(binding);
+    expect((await opened.stores.runtimeCommands.inspectLedger()).bindingCount).toBe(1);
+    const immutable=withinStore(db=>({uses:db.all(sql`SELECT * FROM resource_use`),events:db.all(sql`SELECT * FROM resource_use_event`),bindings:db.all(sql`SELECT * FROM runtime_claim_binding`),ledger:db.all(sql`SELECT * FROM runtime_ledger`)}));
+    await closeSource();
+    const additions=readMigrationFolders(MIGRATIONS_FOLDER).filter(({name})=>name==='20261115130000_add_step_catalogue');expect(additions).toHaveLength(1);
+    cpSync(join(MIGRATIONS_FOLDER,'20261115130000_add_step_catalogue'),join(migrations,'20261115130000_add_step_catalogue'),{recursive:true});
+    const report=withinStore(db=>reportStepCatalogue(db,110));
+    expect(report.rows).toEqual([{kind:'shared_code_identical',organizationId,code:'resource-dev',survivorStepId,stepIds:[survivorStepId,stepId]}]);
+    const window={sourcePath:path,migrationsFolder:migrations,snapshotPath:join(output,'before117.db'),reportPath:join(output,'before117.window.json')};
+    try{const before=createWindowBackup(window);expect(assertWindowBackup(window)).toEqual(before.report);applyStepCatalogue({window,rulesJson:JSON.stringify({version:1,fingerprint:report.fingerprint,organizations:{}}),appliedAt:'2026-11-18T12:00:00.000Z'});}catch(cause:unknown){custody.unknown=true;throw cause;}
+    const after=withinStore(db=>{
+      expect(db.all(sql`SELECT id,step_id FROM claim`)).toEqual([{id:claim.id,step_id:survivorStepId}]);
+      expect(db.all(sql`SELECT old_step_id,step_id FROM step_identity_history`)).toEqual([{old_step_id:stepId,step_id:survivorStepId}]);
+      expect({uses:db.all(sql`SELECT * FROM resource_use`),events:db.all(sql`SELECT * FROM resource_use_event`),bindings:db.all(sql`SELECT * FROM runtime_claim_binding`),ledger:db.all(sql`SELECT * FROM runtime_ledger`)}).toEqual(immutable);
+      expect(db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);expect(readLedger(db)).toHaveLength(117);
+      return captureStore(db);
+    });
+    const database=join(output,'merged-bound.db'),windowReport=join(output,'merged-bound.window.json');
+    let receipt:ReturnType<typeof createWindowBackup>;
+    try{receipt=createWindowBackup({sourcePath:path,snapshotPath:database,reportPath:windowReport,migrationsFolder:migrations});}catch(cause:unknown){custody.unknown=true;throw cause;}
+    let snapshot:ReturnType<typeof openReadOnlyConnection>;try{snapshot=openReadOnlyConnection(database);}catch(cause:unknown){custody.unknown=true;throw cause;}
+    let observed:{cause:unknown}|undefined;try{expect(captureStore(snapshot.db)).toEqual(after);expect(snapshot.db.all(sql`PRAGMA integrity_check`)).toEqual([{integrity_check:'ok'}]);}catch(cause:unknown){observed={cause};}
+    try{snapshot.close();}catch(cleanup:unknown){custody.unknown=true;if(observed!==undefined)throw new AggregateError([observed.cause,cleanup],'merged snapshot read and close failed',{cause:cleanup});throw cleanup;}
+    if(observed!==undefined)throw observed.cause;
+    const logical=join(output,'merged-bound.state.json');writeFileSync(logical,JSON.stringify(after,null,2)+'\n');
+    const producer=filePin(import.meta.path),sourcePins=['resource-use.ts','claim.ts','runtime-command.ts','step-catalogue-apply.ts','step-catalogue-report.ts','source.ts'].map(name=>filePin(join(import.meta.dir,'..',name)));
+    writeFileSync(join(output,'manifest.json'),JSON.stringify({format:'puni-resource-use-117-fixtures',version:1,produced:[{kind:'merged-bound',database:artifactPin(database),logicalState:artifactPin(logical),windowReport:artifactPin(windowReport),expected:{use:registered.value,kind:'merged-bound',runtimeScope,pointClaimId:claim.id,oldStepId:stepId,survivorStepId},ledger:after.ledger,identityHistory:withinStore(db=>db.all(sql`SELECT * FROM step_identity_history`)),report,immutable,receipt}],provenance:{producer,sourcePins},scope:'Actual116 public broad report/claims/runtime binding then actual guarded117 auto merge. Fixture persistence is not HTTP/runtime application admission or a host window barrier.'},null,2)+'\n');
+  }catch(cause:unknown){primary={cause};}
+  if(sourceCloseFailure===undefined){
+    try{await closeSource();}catch(cleanup:unknown){custody.unknown=true;if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'merged producer and original Source close failed',{cause:cleanup});throw cleanup;}
+  }
+  if(!hasUnknownOwner()){
+    try{rmSync(directory,{recursive:true});}catch(cleanup:unknown){
+      if(primary!==undefined)throw new AggregateError([primary.cause,cleanup],'merged producer and directory cleanup failed',{cause:cleanup});
+      throw cleanup;
+    }
+  }
+  if(primary!==undefined)throw primary.cause;
+  if(hasUnknownOwner())throw new Error('merged producer has unknown custody; retained '+directory);
+  console.log('Frozen merged resource fixture: '+join(output,'manifest.json'));
+},30000);

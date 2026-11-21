@@ -5,22 +5,20 @@ import { join } from 'node:path';
 import type { SubtreeCopy, WorkItem, WriteStamp } from '@wbs/core';
 import { slicesOf } from '@wbs/core';
 import { effectiveTeamsOf, type Schedule, schedule } from '@wbs/domain';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { Logger } from 'drizzle-orm';
 
-import { openDatabase, openDrizzle } from './db';
+import { type Connection, openConnection, openDatabase } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
-import { UserRepository } from './user';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { WorkPackageRepository } from './work-package';
 
 let dir: string;
 let dbPath: string;
@@ -31,12 +29,14 @@ let estimates: EstimateRepository;
 let measures: StepMeasureRepository;
 let dependencies: DependencyRepository;
 let directory: DirectoryRepository;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 let personId: string;
+let custody = { hasUnknownOwner: false };
+let connections: Connection[] = [];
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
@@ -44,9 +44,32 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-'));
+  custody = { hasUnknownOwner: false };
+  connections = [];
   dbPath = join(dir, 'test.db');
-  runMigrations(dbPath, FOLDER);
-  const db = openDrizzle(dbPath);
+  ownerId = crypto.randomUUID();
+  stepId = crypto.randomUUID();
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory: dir,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: wrote(),
+      definitions: [
+        {
+          id: stepId,
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    custody,
+  );
+  const db = openFixtureConnection();
   repo = new WorkItemRepository(db, OPEN);
   subtrees = new SubtreeRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
@@ -54,29 +77,13 @@ beforeEach(async () => {
   dependencies = new DependencyRepository(db, OPEN);
   directory = new DirectoryRepository(db, OPEN);
 
-  ownerId = crypto.randomUUID();
-  await new UserRepository(db, OPEN).create(
-    { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
-    wrote(),
-  );
-  projectId = crypto.randomUUID();
-  stepId = crypto.randomUUID();
-  await new ProjectRepository(db, OPEN).create(
-    projectRow({
-      id: projectId,
-      ownerId,
+  workPackageId = crypto.randomUUID();
+  await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({
+      id: workPackageId,
+      projectId: 'fixture-project',
     }),
-    [
-      {
-        id: stepId,
-        projectId,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
+    [],
     wrote(),
   );
   personId = (
@@ -85,13 +92,44 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  const failures: unknown[] = [];
+  for (const connection of connections.reverse()) {
+    try {
+      connection.close();
+    } catch (cause: unknown) {
+      failures.push(cause);
+    }
+  }
+  // Proof: Source acquisition refusal retained its real namespace; omitting this
+  // check deleted it, failing sqlite-current-fixture-v133-proof-work-item-custody.
+  if (custody.hasUnknownOwner)
+    failures.push(new Error('work item fixture owner is uncertain; retained ' + dir));
+  // Proof: separately omitting this refusal deleted the same uncertain namespace;
+  // sqlite-current-fixture-v133-proof-work-item-cleanup failed its filesystem check.
+  if (failures.length > 0)
+    throw new AggregateError(failures, 'work item fixture close failed; retained ' + dir);
+  rmSync(dir, { recursive: true });
 });
+
+/** Every repository/logger connection belongs to this test and closes before its namespace is removed. */
+function openFixtureConnection(logger?: Logger): Connection['db'] {
+  let connection: Connection;
+  try {
+    connection = openConnection(dbPath, logger);
+  } catch (cause: unknown) {
+    // Proof: breaking only the repository's second native acquisition retained its
+    // namespace; omitting this latch deleted it (v133-proof-repository-acquisition).
+    custody.hasUnknownOwner = true;
+    throw cause;
+  }
+  connections.push(connection);
+  return connection.db;
+}
 
 function row(parentId: string | null, position: number, name: string): WorkItem {
   return {
     id: crypto.randomUUID(),
-    projectId,
+    workPackageId,
     parentId,
     position,
     name,
@@ -216,7 +254,7 @@ function labelServices(workItemId: string, serviceIds: readonly string[]): void 
 
 describe('the services on the row', () => {
   it('reads every service on the row back, in one order', async () => {
-    // Task 10.2: the dimension is `work_item_service` and `listByProject` reads
+    // Task 10.2: the dimension is `work_item_service` and `listByWorkPackage` reads
     // it as a fourth indexed query — the tag join's shape. Two services, because
     // one would pass just as well against a read that took the first row and
     // stopped, which is exactly what the column it replaced did.
@@ -229,7 +267,7 @@ describe('the services on the row', () => {
     const billing = service('Billing');
     labelServices(strip.id, [payments, billing]);
 
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
 
     expect(read.at(0)?.serviceIds).toEqual([payments, billing].sort());
   });
@@ -240,7 +278,7 @@ describe('the services on the row', () => {
     // and is deliberately not stored here.
     await repo.insert(row(null, 10, 'Strip'), [], wrote());
 
-    expect((await repo.listByProject(projectId)).at(0)?.serviceIds).toEqual([]);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.serviceIds).toEqual([]);
   });
 
   it('keeps the row when one of its services is removed, and loses only that member', async () => {
@@ -262,7 +300,7 @@ describe('the services on the row', () => {
       db.close();
     }
 
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
     expect(read.map((each) => each.name)).toEqual(['Strip']);
     expect(read.at(0)?.serviceIds).toEqual([billing]);
   });
@@ -280,7 +318,7 @@ describe('the team set beside the column', () => {
     joinTeam(strip.id, design);
     joinTeam(strip.id, backend);
 
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
 
     expect(read.at(0)?.teamIds).toEqual([backend, design].sort((a, b) => (a < b ? -1 : 1)));
   });
@@ -290,7 +328,7 @@ describe('the team set beside the column', () => {
     // there is no second state meaning "deliberately no team".
     await repo.insert(row(null, 10, 'Strip'), [], wrote());
 
-    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([]);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.teamIds).toEqual([]);
   });
 
   it('labels the join as well as the column', async () => {
@@ -307,7 +345,7 @@ describe('the team set beside the column', () => {
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.serviceTeamId : null).toBe(backend);
     expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: backend }]);
-    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([backend]);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.teamIds).toEqual([backend]);
   });
 
   it('empties the join when the label is taken off', async () => {
@@ -319,12 +357,12 @@ describe('the team set beside the column', () => {
     await repo.patch(strip.id, { serviceTeamId: null }, wrote());
 
     expect(joinedTeams()).toEqual([]);
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
     expect(read.at(0)?.serviceTeamId).toBeNull();
     expect(read.at(0)?.teamIds).toEqual([]);
   });
 
-  it('replaces the whole team set, deduplicates it, and projects its sorted first id', async () => {
+  it('replaces the whole team set, deduplicates it, and work packages its sorted first id', async () => {
     // Break caught: writing request order into the scalar projection makes two
     // equal sets expose different legacy ids, while omitting the second join
     // silently loses one scheduling pool.
@@ -343,7 +381,7 @@ describe('the team set beside the column', () => {
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.serviceTeamId : null).toBe(sorted[0]);
     expect(joinedTeams()).toEqual(sorted.map((teamId) => ({ workItemId: strip.id, teamId })));
-    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual(sorted);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.teamIds).toEqual(sorted);
   });
 
   it('refuses one unknown team before changing the scalar row, joins, or revision', async () => {
@@ -379,7 +417,7 @@ describe('the team set beside the column', () => {
     await repo.patch(strip.id, { teamIds: [design] }, wrote());
 
     expect(joinedTeams()).toEqual([{ workItemId: strip.id, teamId: design }]);
-    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([design]);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.teamIds).toEqual([design]);
   });
 
   it('writes a reason beside the date it explains', async () => {
@@ -400,7 +438,7 @@ describe('the team set beside the column', () => {
     expect(written.ok ? written.workItem.startNoEarlierThanReason : null).toBe(
       'waiting on client sign-off',
     );
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
     expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
     expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
   });
@@ -417,12 +455,12 @@ describe('the team set beside the column', () => {
       'ready',
       'on_hold',
     ]);
-    const read = (await repo.listByProject(projectId)).at(0);
+    const read = (await repo.listByWorkPackage(workPackageId)).at(0);
     expect([read?.readiness, read?.hold]).toEqual(['ready', 'on_hold']);
 
     const cleared = await repo.patch(strip.id, { readiness: null, hold: null }, wrote());
     expect(cleared.ok).toBe(true);
-    const after = (await repo.listByProject(projectId)).at(0);
+    const after = (await repo.listByWorkPackage(workPackageId)).at(0);
     expect([after?.readiness, after?.hold]).toEqual([null, null]);
   });
 
@@ -442,7 +480,9 @@ describe('the team set beside the column', () => {
     });
     // Taking a statement off, and every other field, stays writable.
     expect((await repo.patch(parent.id, { hold: null, name: 'Renamed' }, wrote())).ok).toBe(true);
-    const read = (await repo.listByProject(projectId)).find((each) => each.id === parent.id);
+    const read = (await repo.listByWorkPackage(workPackageId)).find(
+      (each) => each.id === parent.id,
+    );
     expect([read?.name, read?.readiness, read?.hold]).toEqual(['Renamed', null, null]);
     expect(await repo.patch('no-such-row', { hold: 'on_hold' }, wrote())).toEqual({
       ok: false,
@@ -453,7 +493,7 @@ describe('the team set beside the column', () => {
   it('writes both fact dates and reads them back, and clears them with nulls', async () => {
     // The deadline's contract two columns over, for two columns at once: a date
     // goes in, comes back off both reads — the patch's own `returning()` and a
-    // later `listByProject`, which both project `WORK_ITEM_COLUMNS` — and `null`
+    // later `listByWorkPackage`, which both work package `WORK_ITEM_COLUMNS` — and `null`
     // takes it off again. No pair rule and no refusal: an end before a start is
     // a typo the two cells show, not a fact the store has an opinion about.
     //
@@ -474,12 +514,12 @@ describe('the team set beside the column', () => {
       '2026-09-08',
       '2026-09-12',
     ]);
-    const read = (await repo.listByProject(projectId)).at(0);
+    const read = (await repo.listByWorkPackage(workPackageId)).at(0);
     expect([read?.factStart, read?.factEnd]).toEqual(['2026-09-08', '2026-09-12']);
 
     const cleared = await repo.patch(strip.id, { factStart: null, factEnd: null }, wrote());
     expect(cleared.ok).toBe(true);
-    const after = (await repo.listByProject(projectId)).at(0);
+    const after = (await repo.listByWorkPackage(workPackageId)).at(0);
     expect([after?.factStart, after?.factEnd]).toEqual([null, null]);
   });
 
@@ -490,8 +530,8 @@ describe('the team set beside the column', () => {
     // back off the read projection, and `null` takes it off again.
     //
     // Both faces are asserted — `patch`'s own `returning()` and a later
-    // `listByProject` — because they are two different **reads**, not two
-    // different column lists: both project `WORK_ITEM_COLUMNS`, which is why
+    // `listByWorkPackage` — because they are two different **reads**, not two
+    // different column lists: both work package `WORK_ITEM_COLUMNS`, which is why
     // adding the column there made both true at once, and the second assertion
     // is what says the value was stored rather than only echoed back off the
     // statement that wrote it.
@@ -502,13 +542,13 @@ describe('the team set beside the column', () => {
 
     expect(written.ok).toBe(true);
     expect(written.ok ? written.workItem.deadline : null).toBe('2026-03-31');
-    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBe('2026-03-31');
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.deadline).toBe('2026-03-31');
 
     const cleared = await repo.patch(strip.id, { deadline: null }, wrote());
 
     expect(cleared.ok).toBe(true);
     expect(cleared.ok ? cleared.workItem.deadline : 'unset').toBeNull();
-    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBeNull();
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.deadline).toBeNull();
   });
 
   it('leaves a deadline alone when the patch does not name it', async () => {
@@ -523,7 +563,7 @@ describe('the team set beside the column', () => {
     const renamed = await repo.patch(strip.id, { name: 'Strip the walls' }, wrote());
 
     expect(renamed.ok ? renamed.workItem.deadline : null).toBe('2026-03-31');
-    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBe('2026-03-31');
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.deadline).toBe('2026-03-31');
   });
 
   it('refuses a reason with no date to be about', async () => {
@@ -544,7 +584,9 @@ describe('the team set beside the column', () => {
     expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
     // Refused rather than half-applied: the transaction that would have written
     // it is where the check lives, so the row is untouched.
-    expect((await repo.listByProject(projectId)).at(0)?.startNoEarlierThanReason).toBeNull();
+    expect(
+      (await repo.listByWorkPackage(workPackageId)).at(0)?.startNoEarlierThanReason,
+    ).toBeNull();
   });
 
   it('refuses a date cleared out from under the words beside it', async () => {
@@ -569,7 +611,7 @@ describe('the team set beside the column', () => {
 
     expect(written.ok).toBe(false);
     expect(written.ok ? null : written.reason).toBe('not_before_reason_needs_a_date');
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
     expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
     expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
   });
@@ -590,7 +632,7 @@ describe('the team set beside the column', () => {
     );
 
     expect(written.ok).toBe(true);
-    const read = await repo.listByProject(projectId);
+    const read = await repo.listByWorkPackage(workPackageId);
     expect(read.at(0)?.startNoEarlierThan).toBeNull();
     expect(read.at(0)?.startNoEarlierThanReason).toBeNull();
   });
@@ -631,7 +673,7 @@ describe('the team set beside the column', () => {
 
     await repo.insert(strip, [], wrote());
 
-    expect((await repo.listByProject(projectId)).at(0)?.teamIds).toEqual([backend]);
+    expect((await repo.listByWorkPackage(workPackageId)).at(0)?.teamIds).toEqual([backend]);
   });
 
   it('carries the teams of every row a copy writes', async () => {
@@ -724,11 +766,11 @@ describe('the team set beside the column', () => {
 });
 
 describe('WorkItemRepository', () => {
-  it('inserts and reads back a project’s work items', async () => {
+  it('inserts and reads back a work package’s work items', async () => {
     const strip = row(null, 10, 'Strip');
     await repo.insert(strip, [], wrote());
 
-    expect(byPosition(await repo.listByProject(projectId))).toEqual(['Strip']);
+    expect(byPosition(await repo.listByWorkPackage(workPackageId))).toEqual(['Strip']);
   });
 
   it('applies respacing in the same write as the insertion', async () => {
@@ -747,7 +789,11 @@ describe('WorkItemRepository', () => {
       wrote(),
     );
 
-    expect(byPosition(await repo.listByProject(projectId))).toEqual(['Strip', 'Survey', 'Cable']);
+    expect(byPosition(await repo.listByWorkPackage(workPackageId))).toEqual([
+      'Strip',
+      'Survey',
+      'Cable',
+    ]);
   });
 
   it('re-parents on move', async () => {
@@ -774,7 +820,7 @@ describe('WorkItemRepository', () => {
     // Ancestors-first, as `subtreeOf` produces them.
     await repo.remove([strip.id, sockets.id, boxes.id], [], wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('places the copy after the original, respacing the group in the same write', async () => {
@@ -807,7 +853,7 @@ describe('WorkItemRepository', () => {
       wrote(),
     );
 
-    expect(byPosition(await repo.listByProject(projectId))).toEqual([
+    expect(byPosition(await repo.listByWorkPackage(workPackageId))).toEqual([
       'Strip',
       'Strip (copy)',
       'Cable',
@@ -839,7 +885,7 @@ describe('WorkItemRepository', () => {
         dependencies: [
           {
             id: crypto.randomUUID(),
-            projectId,
+            workPackageId,
             predecessorId: copiedFirst.id,
             successorId: copiedSecond.id,
           },
@@ -852,8 +898,8 @@ describe('WorkItemRepository', () => {
       wrote(),
     );
 
-    expect(byPosition(await repo.listByProject(projectId))).toHaveLength(6);
-    expect(await estimates.listByProject(projectId)).toContainEqual({
+    expect(byPosition(await repo.listByWorkPackage(workPackageId))).toHaveLength(6);
+    expect(await estimates.listByWorkPackage(workPackageId)).toContainEqual({
       workItemId: copiedFirst.id,
       stepId,
       optimistic: 1,
@@ -864,7 +910,7 @@ describe('WorkItemRepository', () => {
       { workItemId: copiedSecond.id, stepId, personId },
     ]);
     expect(
-      (await dependencies.listByProject(projectId)).map((edge) => [
+      (await dependencies.listByWorkPackage(workPackageId)).map((edge) => [
         edge.predecessorId,
         edge.successorId,
       ]),
@@ -939,7 +985,7 @@ describe('WorkItemRepository', () => {
     // The hours survive with the stamp they were written under: a delete by the
     // pair leaves this list empty, and one that rewrote the survivor would be a
     // different fault wearing the same green.
-    expect(await measures.listByProject(projectId)).toEqual([
+    expect(await measures.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: strip.id, stepId, metric: 'hours_actual', value: 3, recordedAt: 222 },
     ]);
   });
@@ -976,7 +1022,7 @@ describe('WorkItemRepository', () => {
       dependencies: [
         {
           id: crypto.randomUUID(),
-          projectId,
+          workPackageId,
           // No such work item, so the foreign key refuses the last statement.
           predecessorId: crypto.randomUUID(),
           successorId: copiedChild.id,
@@ -998,10 +1044,10 @@ describe('WorkItemRepository', () => {
     }
     expect(refused).toBeInstanceOf(Error);
 
-    expect(byPosition(await repo.listByProject(projectId))).toEqual(['Strip']);
-    expect(await estimates.listByProject(projectId)).toEqual([]);
+    expect(byPosition(await repo.listByWorkPackage(workPackageId))).toEqual(['Strip']);
+    expect(await estimates.listByWorkPackage(workPackageId)).toEqual([]);
     expect(await directory.assignmentsOf([copiedChild.id])).toEqual([]);
-    expect(await dependencies.listByProject(projectId)).toEqual([]);
+    expect(await dependencies.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('promotes children before deleting the parent they point at', async () => {
@@ -1012,7 +1058,7 @@ describe('WorkItemRepository', () => {
 
     await repo.remove([strip.id], [{ id: sockets.id, parentId: null, position: 10 }], wrote());
 
-    const remaining = await repo.listByProject(projectId);
+    const remaining = await repo.listByWorkPackage(workPackageId);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.parentId).toBeNull();
   });
@@ -1046,7 +1092,7 @@ describe('deleting a subtree', () => {
 
     const statements: string[] = [];
     const counted = new WorkItemRepository(
-      openDrizzle(dbPath, {
+      openFixtureConnection({
         logQuery(query) {
           statements.push(query);
         },
@@ -1061,7 +1107,7 @@ describe('deleting a subtree', () => {
     // One delete of the estimates, one of the rows. A loop is one per row on
     // top of the estimates.
     expect(statements).toHaveLength(2);
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 });
 
@@ -1077,7 +1123,7 @@ describe('arranging a sibling group', () => {
     const rows = [row(null, 10, 'Held'), row(null, 20, 'Early'), row(null, 30, 'Late')];
     for (const each of rows) await repo.insert(each, [], wrote());
     const before = Object.fromEntries(
-      (await repo.listByProject(projectId)).map((each) => [each.name, each.revision]),
+      (await repo.listByWorkPackage(workPackageId)).map((each) => [each.name, each.revision]),
     );
 
     await repo.setPositions(
@@ -1091,7 +1137,7 @@ describe('arranging a sibling group', () => {
     );
 
     const after = Object.fromEntries(
-      (await repo.listByProject(projectId)).map((each) => [each.name, each.revision]),
+      (await repo.listByWorkPackage(workPackageId)).map((each) => [each.name, each.revision]),
     );
     // Proof: `bumping.has(placed.id) ? … : {}` replaced by an unconditional
     // `revision: bumpedWorkItem` — watched failing on this line, `Expected: 0 ·
@@ -1100,7 +1146,7 @@ describe('arranging a sibling group', () => {
     expect(after['Held']).toBe(before['Held'] ?? -1);
     expect(after['Early']).not.toBe(before['Early'] ?? -1);
     expect(after['Late']).not.toBe(before['Late'] ?? -1);
-    const placed = await repo.listByProject(projectId);
+    const placed = await repo.listByWorkPackage(workPackageId);
     expect(placed.map((each) => [each.name, each.position]).sort()).toEqual([
       ['Early', 30],
       ['Held', 10],
@@ -1111,7 +1157,7 @@ describe('arranging a sibling group', () => {
 
 describe('freezing every number', () => {
   /**
-   * A freeze names **every** work item in the project, so a loop of `UPDATE`s
+   * A freeze names **every** work item in the work package, so a loop of `UPDATE`s
    * costs one statement per row — inside the outer transaction, and therefore
    * inside the process-wide write lock (ADR 0007). Three rows here rather than
    * two, so "one statement" and "one per row" differ by more than the setup.
@@ -1126,7 +1172,7 @@ describe('freezing every number', () => {
 
     const statements: string[] = [];
     const counted = new WorkItemRepository(
-      openDrizzle(dbPath, {
+      openFixtureConnection({
         logQuery(query) {
           statements.push(query);
         },
@@ -1137,7 +1183,7 @@ describe('freezing every number', () => {
     await counted.setFrozenNumbers(
       // Strings, because a frozen number is one: `frozen_number` is a text
       // column and `FrozenNumber.frozenNumber` says `string | null`. The first
-      // draft passed numbers, which the spec project does not typecheck and
+      // draft passed numbers, which the spec work package does not typecheck and
       // SQLite stored as text anyway — the read is what said so.
       rows.map((each, at) => ({ id: each.id, frozenNumber: String((at + 1) * 10) })),
       wrote(),
@@ -1146,7 +1192,7 @@ describe('freezing every number', () => {
     expect(statements).toHaveLength(1);
     // The precondition: one statement that wrote nothing would also count one,
     // and each row must get **its own** number rather than all of them one.
-    const frozen = await repo.listByProject(projectId);
+    const frozen = await repo.listByWorkPackage(workPackageId);
     expect(frozen.map((each) => each.frozenNumber).sort()).toEqual(['10', '20', '30']);
   });
 });
@@ -1159,7 +1205,7 @@ describe('the order the work-item select answers in', () => {
    *
    * This array is not merely displayed. `slicesOf` walks it in order and emits
    * the `slices` argument in that order, and the intra-item step order is real
-   * precedence, so two reads of an unchanged project could hand Fast two
+   * precedence, so two reads of an unchanged work package could hand Fast two
    * different argument tuples. That is a scheduling defect before it is a cache
    * one.
    *
@@ -1180,8 +1226,8 @@ describe('the order the work-item select answers in', () => {
     await repo.insert(later, [], wrote());
     await repo.insert(earlier, [], wrote());
 
-    const first = await repo.listByProject(projectId);
-    const second = await repo.listByProject(projectId);
+    const first = await repo.listByWorkPackage(workPackageId);
+    const second = await repo.listByWorkPackage(workPackageId);
 
     expect(first.map((each) => each.id)).toEqual([earlier.id, later.id]);
     expect(second.map((each) => each.id)).toEqual(first.map((each) => each.id));
@@ -1195,14 +1241,14 @@ describe('the order the work-item select answers in', () => {
    * order differs — so that assertion could never fail, which is the
    * check-that-cannot-fail R5 names.
    *
-   * What Fast actually receives is this: `listByProject` → `slicesOf` → the
+   * What Fast actually receives is this: `listByWorkPackage` → `slicesOf` → the
    * `rows` and `slices` arguments. `slicesOf` walks the rows in order, so the
    * slice order is the row order, and the intra-item order is real step
    * precedence. Both arrays are asserted here in `work_item.id` order, and both
    * go red when the `ORDER BY` is removed.
    *
    * No estimate is written, deliberately: `slicesOf` emits one slice per leaf
-   * per project step whether or not anybody has estimated it, so an estimate
+   * per work package step whether or not anybody has estimated it, so an estimate
    * would be a second moving part in an assertion about order.
    */
   it('hands Fast rows and slices in id order, not in the order they were written', async () => {
@@ -1213,23 +1259,25 @@ describe('the order the work-item select answers in', () => {
     };
     await repo.insert(later, [], wrote());
     await repo.insert(earlier, [], wrote());
-    const project = projectRow({ id: projectId, ownerId });
+    const workPackage = workPackageRow({ id: workPackageId, projectId: 'fixture-project' });
 
-    const rows = await repo.listByProject(projectId);
+    const rows = await repo.listByWorkPackage(workPackageId);
+    const leafSteps = await repo.resolveStepOrders(workPackageId, { rows, directTypes: [] });
     const slices = slicesOf(
       rows,
-      await estimates.listByProject(projectId),
+      await estimates.listByWorkPackage(workPackageId),
       new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
       [{ estimateUnit: 'workdays' as const, id: stepId, allowancePercent: 0 }],
       {
-        method: project.estimateMethod,
-        pertWeights: project.pertWeights,
-        rounding: project.estimateRounding,
+        method: workPackage.estimateMethod,
+        pertWeights: workPackage.pertWeights,
+        rounding: workPackage.estimateRounding,
       },
       new Map(),
       effectiveTeamsOf(rows),
       new Map(),
       new Map(),
+      { kind: 'leaf', byLeaf: new Map(leafSteps.map((leaf) => [leaf.workItemId, leaf.stepIds])) },
     );
 
     expect(rows.map((each) => each.id)).toEqual([earlier.id, later.id]);
@@ -1270,7 +1318,7 @@ describe('the order the work-item select answers in', () => {
    * Proof: with the `ORDER BY` deleted from 1.7's production path, this
    * assertion fails with the two spans exchanged, alongside 1.7's and 1.8's.
    */
-  it('schedules the same project two ways when the rows arrive in two orders', async () => {
+  it('schedules the same work package two ways when the rows arrive in two orders', async () => {
     const shared = await team('Platform');
     const tied = 10;
     const later = {
@@ -1293,27 +1341,29 @@ describe('the order the work-item select answers in', () => {
     }
     joinTeam(later.id, shared);
     joinTeam(earlier.id, shared);
-    const project = projectRow({ id: projectId, ownerId });
+    const workPackage = workPackageRow({ id: workPackageId, projectId: 'fixture-project' });
     /** One slot, which is what makes the two leaves queue rather than run together. */
     const slotsOf = new Map([[shared, 1]]);
 
-    const rows = await repo.listByProject(projectId);
+    const rows = await repo.listByWorkPackage(workPackageId);
+    const leafSteps = await repo.resolveStepOrders(workPackageId, { rows, directTypes: [] });
     const slices = slicesOf(
       rows,
-      await estimates.listByProject(projectId),
+      await estimates.listByWorkPackage(workPackageId),
       new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
       [{ estimateUnit: 'workdays' as const, id: stepId, allowancePercent: 0 }],
       {
-        method: project.estimateMethod,
-        pertWeights: project.pertWeights,
-        rounding: project.estimateRounding,
+        method: workPackage.estimateMethod,
+        pertWeights: workPackage.pertWeights,
+        rounding: workPackage.estimateRounding,
       },
       new Map(),
       effectiveTeamsOf(rows),
       slotsOf,
       new Map(),
+      { kind: 'leaf', byLeaf: new Map(leafSteps.map((leaf) => [leaf.workItemId, leaf.stepIds])) },
     );
-    const planned = schedule(rows, [], slices, new Map(), slotsOf, project.depReach);
+    const planned = schedule(rows, [], slices, new Map(), slotsOf, workPackage.depReach);
 
     expect(planned.waitingForCapacity).toBe(1);
     expect(spanOf(planned, earlier.id)).toEqual({ start: 0, finish: 2 });
@@ -1324,8 +1374,8 @@ describe('the order the work-item select answers in', () => {
    * The three cases above watch the *returned* order, and that is no longer
    * enough to hold the contract down at the final schema. `beforeEach` builds
    * each database through the whole migration set, which now includes
-   * `work_item_project_id_id` on `(project_id, id)` — so with the `ORDER BY`
-   * deleted SQLite may satisfy `where project_id = ?` by walking that very
+   * `work_item_work_package_id_id` on `(work_package_id, id)` — so with the `ORDER BY`
+   * deleted SQLite may satisfy `where work_package_id = ?` by walking that very
    * index and hand back ascending id order anyway. Those assertions would pass
    * over a query that promises nothing, and a later planner or statistics
    * change picking `work_item_siblings` instead would restore the
@@ -1347,7 +1397,7 @@ describe('the order the work-item select answers in', () => {
   it('asks for the order in the statement rather than inheriting it from an index', async () => {
     const statements: string[] = [];
     const logged = new WorkItemRepository(
-      openDrizzle(dbPath, {
+      openFixtureConnection({
         logQuery(query) {
           statements.push(query);
         },
@@ -1355,7 +1405,7 @@ describe('the order the work-item select answers in', () => {
       OPEN,
     );
 
-    await logged.listByProject(projectId);
+    await logged.listByWorkPackage(workPackageId);
 
     // The work-item select itself. The two membership reads beside it also name
     // `work_item`, but they reach it through a join and order by their own

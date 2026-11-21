@@ -2,14 +2,14 @@ import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
-import { projectWithSteps } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
+import { workPackageWithSteps } from './work-package-response';
 
 /**
  * Resolves an external solution's plan only for callers granted read scope.
  * Proof: signed-in instead of read-scope reached lookup,404 instead of403 in
  * the mounted no-read-scope case. A tolerant query declaration likewise reached
- * lookup,404 instead of400 in the undeclared-query case (project.controller.test.ts).
+ * lookup,404 instead of400 in the undeclared-query case (work-package.controller.test.ts).
  * Omitting slug's descriptor made solution-shapes.test.ts's document consumer
  * throw: missing path parameter descriptor: slug.
  */
@@ -22,7 +22,7 @@ export const readSolution = defineEndpointShape({
     { kind: 'identity', require: 'read-scope' },
   ],
   params: requestSchema(type({ slug: 'string' })),
-  responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
+  responses: [{ kind: 'json', status: 200, schema: workPackageWithSteps }],
   refusals: [
     {
       status: 400,

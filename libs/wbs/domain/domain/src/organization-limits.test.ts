@@ -77,13 +77,13 @@ describe('refuseCapacityStatement', () => {
   const ram = (declared: number, held: number, asked: number, cap = 64) =>
     refuseCapacityStatement({ resourceId: 'ram', cap, declared, held, asked });
 
-  it('refuses a statement whose other projects plus the asked cross the cap, naming all four', () => {
+  it('refuses a statement whose other work packages plus the asked cross the cap, naming all four', () => {
     expect(ram(48, 0, 32)).toEqual({ resourceId: 'ram', cap: 64, declared: 48, asked: 32 });
     expect(ram(48, 0, 16)).toBeNull();
   });
 
-  it('replaces the project’s own units rather than counting them twice', () => {
-    // The project states 48 alone; raising to 64 reaches the cap exactly.
+  it('replaces the work package’s own units rather than counting them twice', () => {
+    // The work package states 48 alone; raising to 64 reaches the cap exactly.
     expect(ram(0, 48, 64)).toBeNull();
     expect(ram(0, 48, 65)).toEqual({ resourceId: 'ram', cap: 64, declared: 0, asked: 65 });
   });

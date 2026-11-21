@@ -1,0 +1,2724 @@
+{
+  "schema": "puni-package-step-retirement-v1",
+  "recordedAt": "2026-11-20T03:11:37.726Z",
+  "scope": "Current frontend runtime/helper package-definition retirement and retained package-value UI, including a genuine unit-only refresh repair. E2E/shared legacy model and whole original scope remain open.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/app-router.test.tsx",
+      "sha256": "151e86b4a515573ad794cfb38be43f386ec13e8a51c6983be36a70216fd2a2c5",
+      "bytes": 12290,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+      "sha256": "a435345ca279fe5aa8aa2ddc63e90c19aed85692ce580e3a733a7fc6c4e89f47",
+      "bytes": 474290,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+      "sha256": "b2ed505c048494b0cd0aaa8dc1baf088ce99fb3e1d72d2d570a4579f1c344050",
+      "bytes": 15114,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+      "sha256": "0057665ace59fb196c92c81b07fceef7750c2889ba4cea05b2f5af4d6359c07d",
+      "bytes": 206061,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+      "sha256": "c4ae6aede0d471f04d3585f7f121e82ebf8cc50a1e9ef3fd19172bb729e713dc",
+      "bytes": 204744,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+      "sha256": "6cf167dce629aac2fc8846ea55dbeac845543779edbccabc2b3f685e4f3d90b0",
+      "bytes": 47892,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+      "sha256": "b9cf365a331a5520a426c73558febd5aa6d3a140722d49665a535cba792775af",
+      "bytes": 118554,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+      "sha256": "f6bcd0b30c2c8a9b9b7effa7cb93e020d81e4dcb8fb8a4b11ed43b23feeebce2",
+      "bytes": 121183,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+      "sha256": "b74e28d017da4ae4d0f6b7dec0475a2e4a62b42d6e180f353ec1ae04a13051ab",
+      "bytes": 54815,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+      "sha256": "1962264b896c6a589c0d176d70e33aac6a13ae0e1cfb90d7daed41aba1e23432",
+      "bytes": 84779,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+      "sha256": "4eb5d1b3f36af0e2ac641590414c47ce908c0e9273fbcca835e85031fdc3c956",
+      "bytes": 11115,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+      "sha256": "e3fc68bd889f0446fb6f7105c93785294c714e9ccd6b1965275c0d3495484aec",
+      "bytes": 21606,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+      "sha256": "73e24150dcd00917e55b74abbb6b390f746644642c865a27eece09ead27f215b",
+      "bytes": 16645,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+      "sha256": "68f3e17439534d9950e960b310dc6451d771a3050f835053bab3a652844a8c88",
+      "bytes": 253321,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+      "sha256": "c4857b112646f3086d08785120ac60e6b163986d7c716722d0ae607dab11e0ce",
+      "bytes": 47215,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+      "sha256": "c3ffc171c3cf5cb80e4dadfa26943b2687f4a87edbbaf94a793bdab14554c8d9",
+      "bytes": 79366,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/wbs-api.ts",
+      "sha256": "ec76c886f31e6a224eedeba87948bd877542eb92b01c107e076ad328f57129c8",
+      "bytes": 153688,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+      "sha256": "8f7e983dc418070ce39fa5c3e61852c8d4c26f32a7fd78bb7c793d2b8bdbaff4",
+      "bytes": 4024,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+      "sha256": "f20238acfcb50599b2491eb2eb862dcc9dabba336e771c454bad824cb9ac0e33",
+      "bytes": 12088,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+      "sha256": "ad2d7a3f1d1a0a20af2aa115c0905bf88909176d77f4646b55a2e29e67f31da2",
+      "bytes": 6017,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+      "sha256": "85436f580580bad03d33290cfe9f2c17f0d72cf5d3b423c8c5238793368d6bc0",
+      "bytes": 21469,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+      "sha256": "53fbdf2d5b219ffbb010308e0714fd8432fd4075b0fc3e45941045be374abb5e",
+      "bytes": 13240,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+      "sha256": "02343684579fb5f748518137dfb7f000c86c0de180f90ce83889e5759777644c",
+      "bytes": 69127,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+      "sha256": "cb3bd81daab596391e90544679fa884d8d61f0f8f825272158c1e245ddb97d3e",
+      "bytes": 19363,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+      "sha256": "327e41c5682c126220097a4de82f39ec39bfcbacf217615a8b39b555d70a0f2b",
+      "bytes": 85296,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "71791a8013aa00eb12945962c6fd9a7f0bc493ce10da19130d8c6ef30cdfa80e",
+      "bytes": 30917,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+      "sha256": "67b44d9d9dd547a4bbcb8e3d5575a5a22d116cc19a9ae8418dac2f8d30c01b6d",
+      "bytes": 5270,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+      "sha256": "d3aceff94d85f0f4420423848af9373d2a88a1cc53c62e342604fff97eb9bd0a",
+      "bytes": 8902,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+      "sha256": "05222fb2cef4c6920962e560fb9512589243838691d2cc8a55753566f1404ce3",
+      "bytes": 2555,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+      "sha256": "25beb07fcb21b4c3a8286350e9573de5ea06687b365824479fe4e2f28a626bfe",
+      "bytes": 154476,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md",
+      "sha256": "a8571aa9101abe3b9e0229de385b58561357886839dd03a811ed71ccfba8fa2f",
+      "bytes": 42933,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verify.md",
+      "sha256": "d876c6551ad4d973f846c54047b274c08ff67813f16818223e4017a12c95d3d8",
+      "bytes": 178017,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "The actual package HTTP facade, bound PlanCommands, toolbar, StepsPanel and fake/refusing clients expose no addStep/renameStep/removeStep. Names render as text; unit, allowance, reach and actual table-width controls remain. No package definition cascade or assumed-assignee removal confirmation remains. Organization/space/project catalogue owners from V68 provide current definition/binding behavior.",
+    "Package allowance dirty/busy/escape/no-op/exact precision, protected unit controls, successful steps/tree refresh and full typed404 peer-loss recovery retain their owners. The toolbar no longer consumes people solely for retired cascade text.",
+    "RefusingApi classifies declared method names once through its exhaustive operation census. Unknown unstated keys, including promise protocol and symbols, are absent; a declared missing answer still rejects. The old separate promise-name check became redundant and is removed. Explicit fixture properties remain available.",
+    "Peer/board/draft/column tests publish explicit delivered step response rows through their real stream/feed or page owner. Mutable stepRows is documented as a response fixture, not a catalogue writer or admission proof. Current scoped settings and protected unbinding have their actual earlier owner/client coverage.",
+    "A migrated actual unit control test exposed sameSteps ignoring estimateUnit. New comparator/store tests and the real unit edit fail before repair; unit now participates in equality. Genuine equal snapshots still preserve editor identity.",
+    "The phone scenario edits a modeled allowance and reads the stored fake value while settings remain open. Three Gantt regexes now match the existing work package spelling after the mechanical entity rename; missing-date/refusal/no-write behavior remains."
+  ],
+  "verification": {
+    "selectedTests": 1481,
+    "sourceFiles": 30,
+    "cohorts": [
+      {
+        "name": "package-step-retirement-final-core-ui-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--exclude",
+            "src/components/wbs/plan-read-and-write.test.tsx",
+            "--exclude",
+            "src/components/wbs/work-package-page.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-cards.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-toolbar.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-core-ui-v1.receipt.json",
+          "sha256": "d08201592432f87487c61074132c9856e4d4eb7a0dd8b6042bd834defa2f3879",
+          "bytes": 1755,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-core-ui-v1.log",
+          "sha256": "41990b05fbb301b38ca7071953321fcd78749cc75a81d29e3d1eacbc90ec5c29",
+          "bytes": 74278,
+          "mode": 384
+        },
+        "tests": 423,
+        "files": 21
+      },
+      {
+        "name": "package-step-retirement-final-refresh-v2",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-refresh.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-refresh-v2.receipt.json",
+          "sha256": "498deba4a33212c186c527672c947deb7ef1bffd04126a9d133b71bdede86b9b",
+          "bytes": 1460,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-refresh-v2.log",
+          "sha256": "e85ebb2437e47d8c560c45f0504e76e9127730881f3871339f661af5482d0351",
+          "bytes": 57808,
+          "mode": 384
+        },
+        "tests": 250,
+        "files": 2
+      },
+      {
+        "name": "package-step-retirement-final-pages-v2",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-pages.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-pages-v2.receipt.json",
+          "sha256": "ec597a257bc6e49f972cc34f702e1642f7cc121c2a6b69b95af96814eb0d5333",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-pages-v2.log",
+          "sha256": "09b7eb887fab4a5a9b08a5c28ea84267da6d2b92b1e43c99b5d533ac07e13683",
+          "bytes": 115001,
+          "mode": 384
+        },
+        "tests": 342,
+        "files": 2
+      },
+      {
+        "name": "package-step-retirement-final-chart-v2",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-chart.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-chart-v2.receipt.json",
+          "sha256": "f733a3a27e875f1d1894b3c48bc0d5a0ed08041289dede07425b05523e9ff572",
+          "bytes": 1454,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-chart-v2.log",
+          "sha256": "e2c375f67adc3279f27cd62d6914eee506ee79b01527be19837de5762207cb3c",
+          "bytes": 95999,
+          "mode": 384
+        },
+        "tests": 466,
+        "files": 5
+      }
+    ],
+    "checks": [
+      {
+        "name": "package-step-retirement-final-types-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-types-v1.receipt.json",
+          "sha256": "b35d467c2503362311e452af8cbb1dc257e15d0849fd3f963819e35a616cd185",
+          "bytes": 1428,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-lint-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+            "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-lint-v1.receipt.json",
+          "sha256": "5121ee99838741a3195bf7fd223236edb8ace719ff1ffbbaa6d9cd4ca15d8b47",
+          "bytes": 3184,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-openspec-v2",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v2.receipt.json",
+          "sha256": "8a10aa6ea0919b4cb1eaf04a0b884e9adcbf8e17f1eb3327e457495e256eb1d6",
+          "bytes": 1379,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v2.log",
+          "sha256": "f7946f69580af0f4769fb26009d8fd8aa0a34b0d8a35056bfb49474f4e60cbd5",
+          "bytes": 345914,
+          "mode": 384
+        }
+      }
+    ],
+    "attempts": [
+      {
+        "name": "package-step-retirement-chart-green-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-chart.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-chart-green-v1.receipt.json",
+          "sha256": "104a60a26bbd8f0c5153dfaa40955edbafce754e3ea29209a331f6a8fd6d1a34",
+          "bytes": 1454,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-chart-green-v1.log",
+          "sha256": "0f0f4c117d09382341f55f6a3335408e366b70edf479f257a716312005ab7419",
+          "bytes": 99403,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-core-ui-green-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--exclude",
+            "src/components/wbs/plan-read-and-write.test.tsx",
+            "--exclude",
+            "src/components/wbs/work-package-page.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-cards.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-toolbar.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-core-ui-green-v2.receipt.json",
+          "sha256": "efce6448ec1e49a309c021efd573848032e2e620476d7d1a2d7e9a5a5bae53f4",
+          "bytes": 1749,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-core-ui-green-v2.log",
+          "sha256": "462e50e4017bc794b716eb9a2868699b7051746d379e0d4e68cd88d738897fef",
+          "bytes": 73591,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-corrections-green-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--testNamePattern",
+            "package.unit.edit.refreshes|edits.a.package.allowance",
+            "--exclude",
+            "src/components/wbs/plan-toolbar.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-corrections-green-v1.receipt.json",
+          "sha256": "f6f3a281c106e559d7df79cc861430c44836b898f70b63300491c569507e59e8",
+          "bytes": 1631,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-corrections-green-v1.log",
+          "sha256": "3a06bbfdf0f538f08891809c2b0cbccab1618b9827a062f9613a5d478b477b58",
+          "bytes": 126571,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-chart-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-chart.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-chart-v2.receipt.json",
+          "sha256": "f733a3a27e875f1d1894b3c48bc0d5a0ed08041289dede07425b05523e9ff572",
+          "bytes": 1454,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-chart-v2.log",
+          "sha256": "e2c375f67adc3279f27cd62d6914eee506ee79b01527be19837de5762207cb3c",
+          "bytes": 95999,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-core-ui-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--exclude",
+            "src/components/wbs/plan-read-and-write.test.tsx",
+            "--exclude",
+            "src/components/wbs/work-package-page.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-cards.test.tsx",
+            "--exclude",
+            "src/components/wbs/plan-toolbar.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-core-ui-v1.receipt.json",
+          "sha256": "d08201592432f87487c61074132c9856e4d4eb7a0dd8b6042bd834defa2f3879",
+          "bytes": 1755,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-core-ui-v1.log",
+          "sha256": "41990b05fbb301b38ca7071953321fcd78749cc75a81d29e3d1eacbc90ec5c29",
+          "bytes": 74278,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-doc-format-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "openspec/changes/wbs-step-catalogue/verify.md",
+            "openspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-doc-format-v1.receipt.json",
+          "sha256": "822b57f1a77da97c8b0afcaccb918e889684fd0696a8eaf29c8a8ba8bb1530a9",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-doc-format-v1.log",
+          "sha256": "85b8ade7bcbb96d958d97376e30925535c690401a73bf4b514e716706676ae4e",
+          "bytes": 208,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-lint-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+            "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-lint-v1.receipt.json",
+          "sha256": "5121ee99838741a3195bf7fd223236edb8ace719ff1ffbbaa6d9cd4ca15d8b47",
+          "bytes": 3184,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-openspec-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v1.receipt.json",
+          "sha256": "01d8120deefbc56b34025b97fd717cbcf8afd2a3e1cb132734c24d67a20cfc6f",
+          "bytes": 1379,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v1.log",
+          "sha256": "c7b5b452b0a7de87a88db163e95f79fdb5c29c090fe700592f46312a9b37edab",
+          "bytes": 346049,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-openspec-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v2.receipt.json",
+          "sha256": "8a10aa6ea0919b4cb1eaf04a0b884e9adcbf8e17f1eb3327e457495e256eb1d6",
+          "bytes": 1379,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-openspec-v2.log",
+          "sha256": "f7946f69580af0f4769fb26009d8fd8aa0a34b0d8a35056bfb49474f4e60cbd5",
+          "bytes": 345914,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-pages-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-pages.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-pages-v2.receipt.json",
+          "sha256": "ec597a257bc6e49f972cc34f702e1642f7cc121c2a6b69b95af96814eb0d5333",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-pages-v2.log",
+          "sha256": "09b7eb887fab4a5a9b08a5c28ea84267da6d2b92b1e43c99b5d533ac07e13683",
+          "bytes": 115001,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-refresh-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-refresh.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-refresh-v2.receipt.json",
+          "sha256": "498deba4a33212c186c527672c947deb7ef1bffd04126a9d133b71bdede86b9b",
+          "bytes": 1460,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-refresh-v2.log",
+          "sha256": "e85ebb2437e47d8c560c45f0504e76e9127730881f3871339f661af5482d0351",
+          "bytes": 57808,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-source-format-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+            "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+            "openspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md",
+            "openspec/changes/wbs-step-catalogue/verify.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-source-format-v2.receipt.json",
+          "sha256": "ad0aaa040734c9b21cdafe9e28d6e0c928d45236f4fb85dac1905df276cd6d99",
+          "bytes": 3384,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-source-format-v2.log",
+          "sha256": "ad4c4ff6871a449445b969d996bbca7ff22d1737e745c37f4595bebb539b096a",
+          "bytes": 2266,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-source-write-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+            "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+            "openspec/changes/wbs-step-catalogue/specs/step-catalogue/spec.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-source-write-v1.receipt.json",
+          "sha256": "6ff375672466165b1f169ec7e23a8b7fdcde3b040dbfc66825a95a32611bd306",
+          "bytes": 3327,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-source-write-v1.log",
+          "sha256": "5a5166e6be46af1cbaf048a28e922f3b57ec914495f197cfb816336fc8282ef9",
+          "bytes": 2214,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-final-types-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-types-v1.receipt.json",
+          "sha256": "b35d467c2503362311e452af8cbb1dc257e15d0849fd3f963819e35a616cd185",
+          "bytes": 1428,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-first-format-v1",
+        "exitCode": 2,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-format-v1.receipt.json",
+          "sha256": "f2ed4a0a70b48ab01ff2fa8591a7b4ae046aec546593d5fbe578663c1a3741e4",
+          "bytes": 1822,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-format-v1.log",
+          "sha256": "7d4dcf42252e1822eaef8b710ad3eea666cf082c2f5bbc7034e1f9ee839283cc",
+          "bytes": 3443,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-first-format-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-format-v2.receipt.json",
+          "sha256": "bc1d452e8df01b893bf19f51e5441fb6ac082ed0b1993885c095ff2fb63ac2fb",
+          "bytes": 1821,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-format-v2.log",
+          "sha256": "4f293732630d4a46295df555f09cc0a3012a001e749d9c578d9c15b3cd47e5df",
+          "bytes": 519,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-first-types-v1",
+        "exitCode": 2,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-types-v1.receipt.json",
+          "sha256": "a896acd5b1487c4c1d254b4a1b8111f1a4833f7962bcc8af17a48501726963aa",
+          "bytes": 1432,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-first-types-v1.log",
+          "sha256": "5496ae30e7a569738253cda9c7e441b65b966dea49a9cc0d7e2082a13ffe8b32",
+          "bytes": 25342,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-lint-fix-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts",
+            "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-lint-fix-v2.receipt.json",
+          "sha256": "d39b60d82ac4c8bbd0262bb6a121bd7ca1ffacaf3f69611d38baaef6dd5f1c4f",
+          "bytes": 3195,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-lint-fix-v2.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-lint-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-lint-v1.receipt.json",
+          "sha256": "24eb6e78b3469d397515e0f0b4c249515938ad0ccf2c8c8f123e846aa4414f3f",
+          "bytes": 3118,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-lint-v1.log",
+          "sha256": "d5c4b5a0f498b41640ca10e53b6726a634f3f76aec6845e7a206380757926d3f",
+          "bytes": 1231,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-migration-format-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-migration-format-v1.receipt.json",
+          "sha256": "d925d52ae2733a3af81d1bb3e41ae97bcf0d3c4c03bf785655188f4f8a37e129",
+          "bytes": 3057,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-migration-format-v1.log",
+          "sha256": "ba9a4ba3c592ccd700b8820c0f24884bc33ebb09673e78727e321686e48f9053",
+          "bytes": 1809,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-migration-types-v2",
+        "exitCode": 2,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-migration-types-v2.receipt.json",
+          "sha256": "2d733ec2b21fc9d495b17cfb88284413b67e236344f554ebf1b245eb88a84306",
+          "bytes": 1438,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-migration-types-v2.log",
+          "sha256": "1695e127ce4ba347552fb0a57e0a13c8243637b7a5b22b54454fab70d6691957",
+          "bytes": 302,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-noop-control-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--testNamePattern",
+            "does not send an unchanged allowance",
+            "src/components/wbs/steps-panel.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-noop-control-v1.receipt.json",
+          "sha256": "a036b638547fac50a703c371f7aab7f81bf195105d8a652eef888b9a71d3d597",
+          "bytes": 1588,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-noop-control-v1.log",
+          "sha256": "b8ec6c7a2b760308cbdfcee6dbac61ff870479418d35ccac05490b7536bc2040",
+          "bytes": 3978,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-original-chart-seam-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": ["git", "show", ":apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-chart-seam-v1.receipt.json",
+          "sha256": "ec2bd7dd0000a33fad366df52fcb4b599431bf0735ca82fd97751ce96bfd386b",
+          "bytes": 1345,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-chart-seam-v1.log",
+          "sha256": "635e93f8099764b67e1292a5b5588381cefd4841e7aff62b19864f49b53a793c",
+          "bytes": 48114,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-original-dependencies-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": ["git", "show", ":apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-dependencies-v1.receipt.json",
+          "sha256": "62b9f2f035ea07ab0903ee610195f3e965a2c51955131790c5b8ac297cd6aee6",
+          "bytes": 1352,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-dependencies-v1.log",
+          "sha256": "c7a1f92ceea7c4db3b7bd0852cd19b176b07acee7993d92fa4b0197391e58980",
+          "bytes": 118776,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-original-same-steps-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": ["git", "show", ":apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-same-steps-v1.receipt.json",
+          "sha256": "eda394367503a0bb9f594d49b0d8a40eb524f78500e9bd9a7738108aade5b99e",
+          "bytes": 1341,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-same-steps-v1.log",
+          "sha256": "ad3a2ee0af4794895bf324858841698674d8bd0cfda658b9b07a86cb26122db2",
+          "bytes": 1557,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-original-shortcuts-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": ["git", "show", ":apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-shortcuts-v1.receipt.json",
+          "sha256": "af4369aa4de9b635fe494a57015f32015dcc3fc067d48c7c33859180691c1eae",
+          "bytes": 1342,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-original-shortcuts-v1.log",
+          "sha256": "0fa8dbfc41bfeefc824f1db679697fbf02bed30017245c1b442e77c266f5291a",
+          "bytes": 15336,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-pages-green-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-pages.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-pages-green-v1.receipt.json",
+          "sha256": "1ab8d7ccac7183f63c7fc629706ef8bf4b734ce83eb437dfffe3196f00b76b69",
+          "bytes": 1455,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-pages-green-v1.log",
+          "sha256": "4c540502230b75380a994cdf69cc9dd329b9228d133832e49794dbb8312372b8",
+          "bytes": 130334,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-proof-baseline-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--testNamePattern",
+            "the real package facade and its bound commands expose values without retired definition methods|the fake package facade exposes no retired definition methods and still refuses an unstated supported method|package steps show immutable names, editable local values and scoped-settings guidance|a pending allowance keeps its focus and sends one write across repeated Enter and blur|refuses to close over a local allowance draft until it is reverted|a local allowance draft remains dirty and Escape restores the actual package value|blocks the unit control over estimates and changes an empty step with an explicit unit|refuses a trusted step list with an absent estimate count|refuses a fractional hundredth overflow locally|package unit edit refreshes tree and steps without a socket|fully recovers when a peer already removed the refused step|unit-only|package unit edit refreshes tree and steps without a socket|does not send an unchanged allowance"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v1.receipt.json",
+          "sha256": "587f5f37861f9fafa68a70045cceff0f706da40cb422a4020f5e811fbdf7e288",
+          "bytes": 2457,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v1.log",
+          "sha256": "4ce0e778d1f004dffc3c262db904638c51fc045da28dc50916c430222cea11c1",
+          "bytes": 132331,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-proof-baseline-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--testNamePattern",
+            "the real package facade and its bound commands expose values without retired definition methods|the fake package facade exposes no retired definition methods and still refuses an unstated supported method|package steps show immutable names, editable local values and scoped-settings guidance|a pending allowance keeps its focus and sends one write across repeated Enter and blur|refuses to close over a local allowance draft until it is reverted|a local allowance draft remains dirty and Escape restores the actual package value|blocks the unit control over estimates and changes an empty step with an explicit unit|refuses a trusted step list with an absent estimate count|refuses a fractional hundredth overflow locally|package unit edit refreshes tree and steps without a socket|fully recovers when a peer already removed the refused step|unit-only|package unit edit refreshes tree and steps without a socket|does not send an unchanged allowance",
+            "src/components/wbs/package-step-values-surface.test.tsx",
+            "src/components/wbs/work-package-settings-modal.test.tsx",
+            "src/components/wbs/steps-panel.test.tsx",
+            "src/components/wbs/plan-read-and-write.test.tsx",
+            "src/modules/plan-feed/same-steps.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v2.receipt.json",
+          "sha256": "d924a5b80b92efc06fdd6da47ec093091e0a6aae6e9faa07603c24d1afa9e6ee",
+          "bytes": 2742,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v2.log",
+          "sha256": "642c31711e443ad961f2547a002c80a68c9678675319239e3ed6c67c41646e2f",
+          "bytes": 28798,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-proof-baseline-v3",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement-final.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "--testNamePattern",
+            "the real package facade and its bound commands expose values without retired definition methods|the fake package facade exposes no retired definition methods and still refuses an unstated supported method|package steps show immutable names, editable local values and scoped-settings guidance|a pending allowance keeps its focus and sends one write across repeated Enter and blur|refuses to close over a local allowance draft until it is reverted|a local allowance draft remains dirty and Escape restores the actual package value|blocks the unit control over estimates and changes an empty step with an explicit unit|refuses a trusted step list with an absent estimate count|refuses a fractional hundredth overflow locally|package unit edit refreshes tree and steps without a socket|fully recovers when a peer already removed the refused step|unit-only|package unit edit refreshes tree and steps without a socket|does not send an unchanged allowance",
+            "src/components/wbs/package-step-values-surface.test.tsx",
+            "src/components/wbs/work-package-settings-modal.test.tsx",
+            "src/components/wbs/steps-panel.test.tsx",
+            "src/components/wbs/plan-read-and-write.test.tsx",
+            "src/modules/plan-feed/same-steps.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v3.receipt.json",
+          "sha256": "0bc4350722886382177fef7e7008e9d5f2af736055755c71e511a6649bf6e153",
+          "bytes": 2742,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-baseline-v3.log",
+          "sha256": "173558cd9cb9465c3e0651215f33899187ba21332c2a22506eda0ad09def2168",
+          "bytes": 28798,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-proof-format-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/app-router.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/gantt-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/page-shortcuts.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cards.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-cells.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-chart-seam.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-dependencies.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-read-and-write.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/plan-refusal.ts",
+            "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+            "apps/wbs/fe-01/src/components/wbs/settings-busy.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-page.test.tsx",
+            "apps/wbs/fe-01/src/components/wbs/work-package-settings-modal.test.tsx",
+            "apps/wbs/fe-01/src/lib/wbs-api.test.ts",
+            "apps/wbs/fe-01/src/lib/wbs-api.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/contract.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.test.ts",
+            "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+            "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.test.ts",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "apps/wbs/fe-01/src/components/wbs/package-step-values-surface.test.tsx",
+            "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+            "apps/wbs/fe-01/src/modules/plan-feed/same-steps.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-format-v1.receipt.json",
+          "sha256": "7409480042f624411a3055871a4efd13607977463e50119a4e4ebc0d1bd419df",
+          "bytes": 3184,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-proof-format-v1.log",
+          "sha256": "909a1731fc9dbe07bfeeea85ff5ce50c37d82a43aa533d483a3a06b4ccfd89fd",
+          "bytes": 2053,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-red-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-red-v1.receipt.json",
+          "sha256": "8deee0615f3e636d3c06c263ba63440241c707eabe1aa2fcc465fdd8ce54c8b1",
+          "bytes": 1507,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-red-v1.log",
+          "sha256": "1b9d3f1a9b178ca7a1593a5bfd8f9577f65321c101d1d551312f0e23a042acc0",
+          "bytes": 5843,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-red-v2",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-red-v2.receipt.json",
+          "sha256": "8b1586c89df2a7323c11fea8060cbbc07e2be6814f45f73220cb914bbd226df2",
+          "bytes": 1507,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-red-v2.log",
+          "sha256": "237e645ce8597197fe44b52c2d4b88977d727f98fccab128bdecc645151e6525",
+          "bytes": 5863,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-refresh-green-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-refresh.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-refresh-green-v1.receipt.json",
+          "sha256": "2f99e5d7e8f9ecb138f0f1cf059592a5eddba0d7ce2cdea6bcbc7b95c6034c3f",
+          "bytes": 1460,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-refresh-green-v1.log",
+          "sha256": "b6444038f55ef6b7763370061227f481b6d0ab25549e1394222b18e2e268dc5e",
+          "bytes": 73180,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-surface-green-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-package-step-retirement.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/components/wbs/package-step-values-surface.test.tsx"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-surface-green-v1.receipt.json",
+          "sha256": "0b46b084291bb963d64c932ff80968cb3e3616265b706f736c65bc8e4288bd64",
+          "bytes": 1527,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-surface-green-v1.log",
+          "sha256": "289fc407b9283494d8b59da035a6ff6fe691d6b864a8dced981dcde21f3b5a86",
+          "bytes": 1471,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-types-v3",
+        "exitCode": 2,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v3.receipt.json",
+          "sha256": "1941a8f46667d8a2ba020bb3ed9d859739f87688bf834845a3a20bb03b333de8",
+          "bytes": 1419,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v3.log",
+          "sha256": "778b39b78d29b6b2e5af889839e90fbe4df4fc3cfdb218aac727a1fa0f825fa1",
+          "bytes": 1027,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-retirement-types-v4",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v4.receipt.json",
+          "sha256": "28b8d6c2f7b40a02f396d8605fea12a9d3f93cae8e48a01185ef1f9258dac521",
+          "bytes": 1416,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-types-v4.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "package-step-unit-refresh-red-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-unit-refresh.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-unit-refresh-red-v1.receipt.json",
+          "sha256": "057fc5090ba704397267adc0571d506b1dcbf00692d77e26f6f884d8a33b2a0f",
+          "bytes": 1440,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-unit-refresh-red-v1.log",
+          "sha256": "9010b043720229d9de96110da691858e25cfb6943e773a4066caf97f0d936cfe",
+          "bytes": 2886,
+          "mode": 384
+        }
+      }
+    ],
+    "formatQualification": "Source was formatted before final cohort/types/lint checks. Final33path format receipt is recorded in the continuation state after evidence serialization; no self-referential source pin is invented.",
+    "initialEvidenceFormat": {
+      "exitCode": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-format-v1.receipt.json",
+        "sha256": "e317ec2a9b201a1c17e80dfb0a2d2f1b282d3e450eaa1649aff85be9430d4338",
+        "bytes": 3465,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-final-format-v1.log",
+        "sha256": "a1d2c9c41830a70f44c7a8e0191d1f08800a862f8b2375852a163af5e3eb5591",
+        "bytes": 201,
+        "mode": 384
+      },
+      "qualification": "Only this generated evidence JSON needed formatter normalization; all other32paths passed. Final full33path receipt is recorded in continuation state."
+    }
+  },
+  "proofs": {
+    "manifest": {
+      "path": "/tmp/puni-package-step-retirement-proofs-v1/effects.json",
+      "sha256": "ebab7c52f269aa422bf4e01c1f44e99b19924fb2d4bd457673859c44f80b1315",
+      "bytes": 26081,
+      "mode": 384
+    },
+    "independentFaults": 15,
+    "selectedFailures": 17,
+    "effects": [
+      {
+        "id": "real-client-surface",
+        "target": "apps/wbs/fe-01/src/lib/wbs-api.ts",
+        "from": "  return {\n    ...directory,",
+        "to": "  return {\n    addStep: () => Promise.reject(new Error('Retired definition method leaked')),\n    ...directory,",
+        "test": "the real package facade and its bound commands expose values without retired definition methods",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "sha256": "f4aa3bb6cedc8e2c2398c4fdb963e893bdc4140440f8d0d01c58fa845129c2af",
+          "bytes": 153565,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/real-client-surface.mutant.txt",
+          "sha256": "64e8f25f7f1e318e392726d4c3d4d0cc4add7e63a99c750700cd4ba77e01aed9",
+          "bytes": 153647,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-real-client-surface-v1.receipt.json",
+          "sha256": "dde0df28fecb04beedffa511aa19583415120038d6e550700d7ba505ec784c89",
+          "bytes": 1688,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-real-client-surface-v1.log",
+          "sha256": "fd89a265d18462c76944aa4f07f139df57096abbed9f057d3dda25335ecbe0d8",
+          "bytes": 2353,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "command-surface",
+        "target": "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+        "from": "  return {\n    undo:",
+        "to": "  return {\n    renameStep: () => Promise.reject(new Error('Retired command leaked')),\n    undo:",
+        "test": "the real package facade and its bound commands expose values without retired definition methods",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+          "sha256": "f63f0842079d00319c87c8ee1e7e911ce386978b14e3a5a5b02ea25943dd981b",
+          "bytes": 5893,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/command-surface.mutant.txt",
+          "sha256": "d3ca583d643442e8f3a7f50d4b914ed6e72539b5d2d3a7b9ba075d5224c3a649",
+          "bytes": 5968,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-command-surface-v1.receipt.json",
+          "sha256": "44b1c602dd6c3fe6a9701d6de8bc56308a575d0ba5755237c0f75b8937a0497a",
+          "bytes": 1680,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-command-surface-v1.log",
+          "sha256": "b6c7b58274efa57dc39c29f29e98902c45d71159b8ef4b040d09de9319423891",
+          "bytes": 2362,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "fake-supported-method-census",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "      if (!isWorkPackageApiMethod(key)) return undefined;",
+        "to": "",
+        "test": "the fake package facade exposes no retired definition methods and still refuses an unstated supported method",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "81f34a83ac2c8c8f6ae72dad6990d85b76f8482805ad503380a966b3b49458d7",
+          "bytes": 85096,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/fake-supported-method-census.mutant.txt",
+          "sha256": "1ea36da444b2b84d761fe0193a55acedcf9055efaecc46636db6068d0db876b6",
+          "bytes": 85039,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-fake-supported-method-census-v1.receipt.json",
+          "sha256": "46029c637211c0a52cb3e25ec3575bb5ccef5724f3189f1d73c8e88534bb8692",
+          "bytes": 1719,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-fake-supported-method-census-v1.log",
+          "sha256": "9250b7be35c08716fca0c0eb1397d2f6841d46025ec6890872370f48f3bfdec8",
+          "bytes": 2346,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "immutable-name",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "                <span className=\"min-w-0 break-words\" title={step.name}>\n                  {step.name}\n                </span>",
+        "to": "                <Input aria-label={step.name} value={step.name} readOnly />",
+        "test": "package steps show immutable names, editable local values and scoped-settings guidance",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/immutable-name.mutant.txt",
+          "sha256": "41ed39a79caf4297856b7592ffd02b1019bae5b5040fdffbc0746824aade0b6e",
+          "bytes": 15959,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-immutable-name-v1.receipt.json",
+          "sha256": "4f2158a98ba748658cdff774dc7c1e3c537ec7c7ac12e902e3ac0ccb9d102b30",
+          "bytes": 1669,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-immutable-name-v1.log",
+          "sha256": "bd7281117f3a0ec49c90027532c56c2fc2325211c1f681fa3ce20971cf2578a8",
+          "bytes": 2713,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "pending-allowance",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    if (section.busy) return;",
+        "to": "",
+        "test": "a pending allowance keeps its focus and sends one write across repeated Enter and blur",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/pending-allowance.mutant.txt",
+          "sha256": "c32638abc7346e6c71a000cace0a8d82c86f257c6f9e2bf7fd70ee49c8c3bb34",
+          "bytes": 15981,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-pending-allowance-v1.receipt.json",
+          "sha256": "5715ecc8f2fa022f4cd19415c54c1e097c4a384ed512fe622a6cf03e0722893b",
+          "bytes": 1675,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-pending-allowance-v1.log",
+          "sha256": "66fd21f7e6fd0a82fe78d7ae489235553252a3c3a2138d3912bcea8a54727353",
+          "bytes": 2745,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "allowance-dirty-owner",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    dirty: Object.keys(allowances).length > 0,",
+        "to": "    dirty: false,",
+        "test": "refuses to close over a local allowance draft until it is reverted",
+        "failures": 1,
+        "file": "src/components/wbs/work-package-settings-modal.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/allowance-dirty-owner.mutant.txt",
+          "sha256": "8d8491eddc0eada5a02e80cb5521b2e2b0f178faee19f557acd2a00cc19adc60",
+          "bytes": 15981,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-allowance-dirty-owner-v1.receipt.json",
+          "sha256": "be186c13834eddfaf271bd5b9df4998325339f52caf70812f3a96ce4adb0ebd7",
+          "bytes": 1664,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-allowance-dirty-owner-v1.log",
+          "sha256": "fbb068bba73101e89c049ef849337782f5dd97a76b44988025ccfa17e78f787c",
+          "bytes": 17225,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "allowance-escape",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    forget();",
+        "to": "",
+        "test": "a local allowance draft remains dirty and Escape restores the actual package value",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/allowance-escape.mutant.txt",
+          "sha256": "22933f605710c463065106dbef82c2016f78ebafc5c4dd7e628d37df925dbf04",
+          "bytes": 15997,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-allowance-escape-v1.receipt.json",
+          "sha256": "431a74744c587daba569e4c55842f942b0dd88011ff29af322e8d7844cc1c4b7",
+          "bytes": 1669,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-allowance-escape-v1.log",
+          "sha256": "e0e2009f23462ac94b5faabf4bf1ee2d388366eb374cfce30dda425de183810f",
+          "bytes": 2348,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "unit-over-estimates",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "disabled={section.busy || estimateCount(step.id) > 0}",
+        "to": "disabled={section.busy}",
+        "test": "blocks the unit control over estimates and changes an empty step with an explicit unit",
+        "failures": 1,
+        "file": "src/components/wbs/steps-panel.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/unit-over-estimates.mutant.txt",
+          "sha256": "aef8521043e4ea94c66040a98395de81cb0ecd9137a7fd0984e3abbb9aff0638",
+          "bytes": 15980,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unit-over-estimates-v1.receipt.json",
+          "sha256": "76d8ab5b7f1b185451304ee5aea69381ffc3490ac6595170833f371e2f28f30b",
+          "bytes": 1663,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unit-over-estimates-v1.log",
+          "sha256": "a2c0b417c96411c432f4fa8a334e95c7a5c75cfd90cfb55bbf071eddc3920d98",
+          "bytes": 5099,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "required-estimate-count",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    if (count === undefined) throw new Error(`no estimate count for step ${stepId}`);",
+        "to": "",
+        "test": "refuses a trusted step list with an absent estimate count",
+        "failures": 1,
+        "file": "src/components/wbs/steps-panel.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/required-estimate-count.mutant.txt",
+          "sha256": "1686193829304a2dc0f87e2f0d689765e93fea099214fdb3cbe4ebd02aebd6e1",
+          "bytes": 15925,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-required-estimate-count-v1.receipt.json",
+          "sha256": "6dd9b50bbcac07e6a349f468042fb22e1f5fcb5a7ebe381be6830864491f64f7",
+          "bytes": 1642,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-required-estimate-count-v1.log",
+          "sha256": "d617ca861ea53bbe8f7d5b69f1641f78bc20e8c7ac5a479ac24485206a1f7a9b",
+          "bytes": 4677,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "local-allowance-precision",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    if (typed.trim() === '' || percent === null) {\n      section.refuse('invalid_allowance');\n      return;\n    }",
+        "to": "",
+        "test": "refuses a fractional hundredth overflow locally",
+        "failures": 1,
+        "file": "src/components/wbs/steps-panel.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/local-allowance-precision.mutant.txt",
+          "sha256": "b098e7a3df412ff3db403e71242c733f5f4a3b64cc5ef8f2b34833c8a3e80960",
+          "bytes": 15897,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-local-allowance-precision-v1.receipt.json",
+          "sha256": "ae9f7e43bd3a39a282a8d2abf029e2b31d9a717fd4f95cc3f3e9e4e700d603e2",
+          "bytes": 1636,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-local-allowance-precision-v1.log",
+          "sha256": "64e2b406881d45447b9eb49f5cd8bf93cc3791f39fb30ea004d3d6795151902c",
+          "bytes": 4997,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "successful-values-refresh",
+        "target": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+        "from": "          onChanged: () => refreshOrMarkStale('tree-and-steps'),",
+        "to": "          onChanged: () => refreshOrMarkStale('tree'),",
+        "test": "package unit edit refreshes tree and steps without a socket",
+        "failures": 1,
+        "file": "src/components/wbs/plan-read-and-write.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+          "sha256": "4225e9735334b74668b4e2a62a015bb3585231d0bc62fde4160343c74362a638",
+          "bytes": 84716,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/successful-values-refresh.mutant.txt",
+          "sha256": "922a5eaf5a7e463dd03e629b61ae7a6c4ea13f919323a17e629e2bd61ed1dc12",
+          "bytes": 84706,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-successful-values-refresh-v1.receipt.json",
+          "sha256": "515842464a20affed4dd0ccffb8e337e8b342e0e577631731c32d217af17fb35",
+          "bytes": 1657,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-successful-values-refresh-v1.log",
+          "sha256": "9bf0aa91586cbb9a73fff9e8987cf5f1ef094d57e1cbd078b14f6920b3020ba5",
+          "bytes": 15383,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "refused-values-refresh",
+        "target": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+        "from": "          onRefused: () => refreshOrMarkStale(),",
+        "to": "",
+        "test": "fully recovers when a peer already removed the refused step",
+        "failures": 1,
+        "file": "src/components/wbs/plan-read-and-write.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+          "sha256": "4225e9735334b74668b4e2a62a015bb3585231d0bc62fde4160343c74362a638",
+          "bytes": 84716,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/refused-values-refresh.mutant.txt",
+          "sha256": "4852a6a10a1a0cd745c475512b3d4c3745a80971fd17855c43f5240db94b5bc1",
+          "bytes": 84668,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-refused-values-refresh-v1.receipt.json",
+          "sha256": "8bf9d48c6f04b337411a77d2a9924245802bb0c3f4548e13caa85fb720f4295a",
+          "bytes": 1651,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-refused-values-refresh-v1.log",
+          "sha256": "8bfff38f45968be5ecc86d0211eafa8ef8e8aeff19be6cff1130ab18753d8809",
+          "bytes": 30180,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "unit-snapshot-equality",
+        "target": "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+        "from": "        step.estimateUnit === b[i]?.estimateUnit &&\n",
+        "to": "",
+        "test": "unit-only|package unit edit refreshes tree and steps without a socket",
+        "failures": 3,
+        "files": [
+          "src/modules/plan-feed/same-steps.test.ts",
+          "src/components/wbs/plan-read-and-write.test.tsx"
+        ],
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+          "sha256": "473d9784655d73bed21bc2cef3a709a4a755f33e13b13457c5b470dfc08f7f25",
+          "bytes": 8748,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/unit-snapshot-equality.mutant.txt",
+          "sha256": "4ec3a99cced801f0a28da6e16a5569cd05e596f65d2a4ea81ff687b234ea22a6",
+          "bytes": 8696,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unit-snapshot-equality-v1.receipt.json",
+          "sha256": "fb52fe66b9b59b90b3006c483bb9a193ae19f5689d98c2268185d4e352c8ac2c",
+          "bytes": 1711,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unit-snapshot-equality-v1.log",
+          "sha256": "4406faf45e1995abf84ce6fa57b780c2ce7f8cc6b9f1c68a5856adcb6b34aef6",
+          "bytes": 32173,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "pending-escape",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "event.key !== 'Escape' || section.busy",
+        "to": "event.key !== 'Escape'",
+        "test": "a pending allowance keeps its focus and sends one write across repeated Enter and blur",
+        "failures": 1,
+        "file": "src/components/wbs/package-step-values-surface.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/pending-escape.mutant.txt",
+          "sha256": "0bd1374a78c626a3d6a11f3c1e26759df997f53a5b680b6e1f11fbcc86918ff4",
+          "bytes": 15994,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-pending-escape-v1.receipt.json",
+          "sha256": "4f1f37df064d39820751df8b901d97dfd52a2f526d489b3139f968027a26acdb",
+          "bytes": 1669,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-pending-escape-v1.log",
+          "sha256": "5d2e788fd13a7e9c7463b21bcaec1b6c921b20dbb48015bc87b3a112435d2f2d",
+          "bytes": 2340,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "unchanged-allowance",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    if (percent === step.allowancePercent) {",
+        "to": "    if (false) {",
+        "test": "does not send an unchanged allowance",
+        "failures": 1,
+        "file": "src/components/wbs/steps-panel.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v2/unchanged-allowance.mutant.txt",
+          "sha256": "117dfbb0f7f98397694a72e7a7c15556f35966de30d852f761e5a73ecff894b7",
+          "bytes": 15982,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unchanged-allowance-v2.receipt.json",
+          "sha256": "99ed140ce63fb46be3d21c9bad5df4c694fb75c3b28033991f9cb042c44d99ca",
+          "bytes": 1613,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unchanged-allowance-v2.log",
+          "sha256": "bb14e7ce697c89a248e752948d91ecd1125e77ab4b83db712e91083ee417a45b",
+          "bytes": 4972,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      }
+    ],
+    "initialSurvivors": [
+      {
+        "id": "unchanged-allowance",
+        "target": "apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "from": "    if (percent === step.allowancePercent) {",
+        "to": "    if (false) {",
+        "test": "does not send an unchanged allowance",
+        "failures": 1,
+        "file": "src/components/wbs/steps-panel.test.tsx",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+          "bytes": 16010,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-package-step-retirement-proofs-v1/unchanged-allowance.mutant.txt",
+          "sha256": "117dfbb0f7f98397694a72e7a7c15556f35966de30d852f761e5a73ecff894b7",
+          "bytes": 15982,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unchanged-allowance-v1.receipt.json",
+          "sha256": "6edd8159855ee74484ef1f286bb75d3dc258022a7b583c2210299659ff8a6dc5",
+          "bytes": 1613,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-fault-unchanged-allowance-v1.log",
+          "sha256": "dad3a14d4b85d298c1924cd1dde73018b07499ae5038cd88fe44fac871ff9017",
+          "bytes": 3978,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 0,
+        "selectedFailure": false
+      }
+    ],
+    "productionEmissions": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/wbs-api.ts",
+        "canonicalSource": "f4aa3bb6cedc8e2c2398c4fdb963e893bdc4140440f8d0d01c58fa845129c2af",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "sha256": "ec76c886f31e6a224eedeba87948bd877542eb92b01c107e076ad328f57129c8",
+          "bytes": 153688,
+          "mode": 436
+        },
+        "canonicalEmission": "b0ed0d929244a5f7620d1feb0c018b0c70c9f5cca909b5543bb52e737e6c39e4",
+        "currentEmission": "b0ed0d929244a5f7620d1feb0c018b0c70c9f5cca909b5543bb52e737e6c39e4"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+        "canonicalSource": "f63f0842079d00319c87c8ee1e7e911ce386978b14e3a5a5b02ea25943dd981b",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts",
+          "sha256": "ad2d7a3f1d1a0a20af2aa115c0905bf88909176d77f4646b55a2e29e67f31da2",
+          "bytes": 6017,
+          "mode": 436
+        },
+        "canonicalEmission": "18ec950475ed0685c60dfefe47a0f09d54fd79bf7ac2d815ce09fc3d32367a33",
+        "currentEmission": "18ec950475ed0685c60dfefe47a0f09d54fd79bf7ac2d815ce09fc3d32367a33"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "canonicalSource": "81f34a83ac2c8c8f6ae72dad6990d85b76f8482805ad503380a966b3b49458d7",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "327e41c5682c126220097a4de82f39ec39bfcbacf217615a8b39b555d70a0f2b",
+          "bytes": 85296,
+          "mode": 436
+        },
+        "canonicalEmission": "827475bf8c3d02c4b4eb26bed5b8d54dae20d0769a73192b22497e68a0e19b6f",
+        "currentEmission": "827475bf8c3d02c4b4eb26bed5b8d54dae20d0769a73192b22497e68a0e19b6f"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+        "canonicalSource": "5f8919c4ec5111ebe365ef493477b2215b5fa33542b6222016d9dddbd32c55f4",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/steps-panel.tsx",
+          "sha256": "73e24150dcd00917e55b74abbb6b390f746644642c865a27eece09ead27f215b",
+          "bytes": 16645,
+          "mode": 436
+        },
+        "canonicalEmission": "28cd123a532a8b70dfececaa0e5d723770c035bda219cd1d6e4e68066f3991cd",
+        "currentEmission": "28cd123a532a8b70dfececaa0e5d723770c035bda219cd1d6e4e68066f3991cd"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+        "canonicalSource": "4225e9735334b74668b4e2a62a015bb3585231d0bc62fde4160343c74362a638",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+          "sha256": "1962264b896c6a589c0d176d70e33aac6a13ae0e1cfb90d7daed41aba1e23432",
+          "bytes": 84779,
+          "mode": 436
+        },
+        "canonicalEmission": "eb2ba14cf813fe7b50a592cd182c4362f1f93c142835d2278e50fc6f120658c0",
+        "currentEmission": "eb2ba14cf813fe7b50a592cd182c4362f1f93c142835d2278e50fc6f120658c0"
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+        "canonicalSource": "473d9784655d73bed21bc2cef3a709a4a755f33e13b13457c5b470dfc08f7f25",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts",
+          "sha256": "d3aceff94d85f0f4420423848af9373d2a88a1cc53c62e342604fff97eb9bd0a",
+          "bytes": 8902,
+          "mode": 436
+        },
+        "canonicalEmission": "6b6bbcb2d07350da77e58ea5b04f36d492bb9bb0e2f61b41fb4bfcc688873436",
+        "currentEmission": "6b6bbcb2d07350da77e58ea5b04f36d492bb9bb0e2f61b41fb4bfcc688873436"
+      }
+    ],
+    "qualification": "All fault actors are terminal/reaped/descriptors closed before restoration. Source injections prove real factory/commands/fake surface and name display; actual allowance/modal/reader controls prove retained behavior. Unit omission fails two comparator/store observations plus the actual package control. Initial unchanged-allowance omission survived because its test blurred an untouched field; typing0.00over0 now reaches numeric equality, checks dirty→clean and no write, and the corrected omission fails. The original survivor/receipt remains. Six emitted runtime/helper modules match their finite canonical after Proof comments and formatting."
+  },
+  "runtimeAudit": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-source-audit-v1.json",
+      "sha256": "902ec5a0f658bf5f9a4206d69c710356f9bc9d721f0e38c2c83d7aebeb825c87",
+      "bytes": 113889,
+      "mode": 384
+    },
+    "files": 352,
+    "retiredDeclarationsImportsOrDirectCalls": 0,
+    "remainingE2e": [
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/gantt-minute-estimate.spec.ts",
+          "sha256": "c3062159911ff4ecc6f65b4297e59790ff35f7294ebd74ac2d99bdf4f2047c6a",
+          "bytes": 10285,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 5,
+            "source": "renameStep as renameStepShape,"
+          },
+          {
+            "line": 50,
+            "source": "await send(requestHeaders.renameStep, `/steps/${stepId}`, 'PATCH', {"
+          },
+          {
+            "line": 90,
+            "source": "renameStep: createOrdinaryHeaders(renameStepShape),"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/layout.spec.ts",
+          "sha256": "dbaf02f909ba445af49adfb8b95a75183ebe57d8c2e839ed539b65dfa992140b",
+          "bytes": 204397,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 2423,
+            "source": "await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');"
+          },
+          {
+            "line": 2424,
+            "source": "await page.getByRole('button', { name: 'Add step' }).click();"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/mobile.spec.ts",
+          "sha256": "8c03c40fb22ea03e6d8e08f19c9019c9ecd9e4fb21b6c42b2212dfa788514f8e",
+          "bytes": 98016,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 1629,
+            "source": "// Steps' Add step is the dialog's `size=\"sm\"` button to measure instead."
+          },
+          {
+            "line": 1631,
+            "source": "const add = page.getByRole('button', { name: 'Add step' });"
+          },
+          {
+            "line": 1640,
+            "source": "// *unchanged*, and an Add step that had grown to 40 would pass the looser"
+          },
+          {
+            "line": 1644,
+            "source": "`the phone’s floor reached Add step at ${String(width)}px`,"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/plan-fixture.ts",
+          "sha256": "36c8b6caf1e1cf418129614a4fd30726af80784cee98e27c4cb6d3bdd2cf65f8",
+          "bytes": 22685,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 3,
+            "source": "addStep,"
+          },
+          {
+            "line": 379,
+            "source": "addStep,"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/settings-layout.spec.ts",
+          "sha256": "2cbe9ff698a90c8e5723364b681e05368f48f67504f2b42d75f16e630d052ce9",
+          "bytes": 23056,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 44,
+            "source": "await dialog.getByLabel('New step', { exact: true }).fill(name);"
+          },
+          {
+            "line": 45,
+            "source": "await dialog.getByRole('button', { name: 'Add step' }).click();"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/settings-vocabulary.spec.ts",
+          "sha256": "df116e3742f429eda1b565724299e295c4298b85f3353816036ec0df65bad079",
+          "bytes": 18575,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 169,
+            "source": "const live = dialog.getByRole('radio', { name: 'New step minutes' });"
+          },
+          {
+            "line": 207,
+            "source": "await dialog.getByLabel('New step', { exact: true }).focus();"
+          },
+          {
+            "line": 209,
+            "source": "const focused = dialog.getByRole('radio', { name: 'New step workdays' });"
+          }
+        ]
+      },
+      {
+        "source": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/e2e/steps.spec.ts",
+          "sha256": "fb3acf1676be4ffcd25b3e12b3e325cdf5fcbff4830f201d4fa2607e5881c04e",
+          "bytes": 12779,
+          "mode": 436
+        },
+        "lines": [
+          {
+            "line": 70,
+            "source": "await expect(page.getByRole('textbox', { name: 'New step', exact: true })).toBeVisible();"
+          },
+          {
+            "line": 134,
+            "source": "await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');"
+          },
+          {
+            "line": 166,
+            "source": "await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');"
+          },
+          {
+            "line": 194,
+            "source": "await page.getByRole('textbox', { name: 'New step', exact: true }).fill('Design');"
+          },
+          {
+            "line": 195,
+            "source": "await page.getByRole('button', { name: 'Add step' }).click();"
+          },
+          {
+            "line": 251,
+            "source": "await page.getByRole('button', { name: 'Remove QA' }).click();"
+          },
+          {
+            "line": 257,
+            "source": "const confirm = page.getByRole('button', { name: 'Remove QA' });"
+          },
+          {
+            "line": 264,
+            "source": "await expect(page.getByRole('button', { name: 'Remove QA' })).toBeHidden();"
+          }
+        ]
+      }
+    ],
+    "remainingSharedAndUnmounted": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-shapes.ts",
+        "sha256": "cb0b9d05d04fcccf9a043b4dce07f22bfb9fa51a703763d84ed925503dd10959",
+        "bytes": 10278,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-shapes.test.ts",
+        "sha256": "727cc5fe1be1213f55a659878415b78714cd404c5d7283966047b7a4b09d53d1",
+        "bytes": 6780,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/domain/contracts/src/http/step-blockage-activation.test.ts",
+        "sha256": "7a2c97f86fdddeed9c6c50ae833785e51ee6a0f2375c8699dca57713fb407bfc",
+        "bytes": 1045,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/http/step.routes.ts",
+        "sha256": "c3fac8c08acb6fbd455d7365d27d5204b0c4811d82e1ac8751d0ef1f82d0968b",
+        "bytes": 16095,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.routes.ts",
+        "sha256": "630d8a3f312f538b5ab8db5e944328bbb187c085008797fd681c2f6456e058f2",
+        "bytes": 44,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+        "sha256": "d4ee9d24d9d9a747ac3ad39ee383902dab294404fd6c2da33611bbfde70948f0",
+        "bytes": 78152,
+        "mode": 436
+      }
+    ],
+    "qualification": "The runtime API/commands/fake absence also has actual execution and independent injected-method negatives. E2E still consumes legacy shape exports and selectors; migrate genuine scoped setup/current values before deleting shared legacy models, unused adapters and obsolete route scenarios. No server/catalogue admission is inferred from delivered response fixtures."
+  },
+  "caseInventory": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/control/package-step-retirement-case-inventory-v1.json",
+      "sha256": "92a9f4841b07f7c5a3628daea12d21936c159ed61575b2619afdbb8c5e7b411e",
+      "bytes": 837491,
+      "mode": 384
+    },
+    "files": 19,
+    "removedOrRenamedDeclarations": 46,
+    "addedOrRenamedDeclarations": 20,
+    "qualification": "Static named declaration patterns, including group paths, not expanded matrix execution counts. Group renames appear as removed/added full names with same-title candidates. Obsolete package definition/cascade scenarios retire under the catalogue scope; current scoped settings/protected binding coverage replaces them. Peer/draft/column and package value scenarios retain their observations. Frozen Navigator/history/core producers are not modified."
+  },
+  "assumptions": [
+    "Continue the authorized existing catalogue and entity scope without another interview/approval. Removing obsolete package definitions is intentional end-state behavior, not compatibility preservation.",
+    "Legacy cascade/name/new-step protocol scenarios retire under SC17/catalogue semantics; current scope creation/global edits/protected binding preview/apply and provenance replace them. Original frozen/history/core producers are unchanged.",
+    "Controlled response fixtures model delivered UI state only. They do not authorize real catalogue writes, provide current Source history or prove stored-state applicability."
+  ],
+  "pending": [
+    "Migrate seven audited E2E files to actual scoped catalogue setup/current package values/current selectors, then remove unused shared legacy add/rename/remove shapes, unmounted HTTP adapters/models and obsolete route scenarios while retaining current DTO/activation/history coverage.4.1.4/4.1.4b/4.1.4c remain unchecked pending this and review.",
+    "Finish per-leaf applicability/conflicts/preflight, Playwright/visual, broader project settings and product checks. Selected1481UI cases are not the full frontend or mounted/live-authority proof.",
+    "Previous full core2062pass29fail is not rerun or reclassified. Original15history/all13Source, all entity/settings/spaces/PUNI Optique/Bun client inventory/installed/exactSHAhost/release and all9originalrequirements remain open.",
+    "Astra quota unavailable until recordedNovember22,2026 10:09AM timezoneunspecified; no retry/spawn/substitute review. No install/public commit/push/PR update/merge/deploy."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

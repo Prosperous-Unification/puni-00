@@ -8,7 +8,7 @@ import { FoldedStepCard, type FoldedStepCardProps } from './folded-step-card';
 /** A card with no step node: these cases are about the estimate lines alone. */
 const UNADDRESSED = {
   estimateUnit: 'workdays' as const,
-  projectId: 'project',
+  workPackageId: 'work_package',
   stepNode: null,
   onExitActions: () => undefined,
   onPointerArrives: () => undefined,
@@ -305,7 +305,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
         }}
         doing={null}
         problem={null}
-        projectId="project"
+        workPackageId="work_package"
         stepNode={{ id: 'sn1', workItemId: 'w1', stepId: 'step-dev', reference: '010.dev' }}
         onExitActions={() => undefined}
         onPointerArrives={() => undefined}
@@ -384,7 +384,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
     ).toBeInTheDocument();
   });
 
-  it('leaves the list and its actions out without the project zone', () => {
+  it('leaves the list and its actions out without the work package zone', () => {
     attemptCard({ timezone: null });
     expect(screen.queryByRole('list', { name: 'Attempts at 010.dev' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Start attempt' })).toBeNull();
@@ -421,7 +421,7 @@ describe('folded step card attempts (step-node-attempts D7)', () => {
         }}
         doing={null}
         problem={null}
-        projectId="project"
+        workPackageId="work_package"
         stepNode={{ id: 'sn1', workItemId: 'w1', stepId: 'step-dev', reference: '010.dev' }}
         onExitActions={exits}
         onPointerArrives={() => undefined}

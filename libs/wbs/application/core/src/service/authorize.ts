@@ -2,13 +2,25 @@ import { type EffectiveRole, may, type Permission } from '@wbs/domain';
 
 import type { AccessDecisions, AccessTarget, ScopedPrincipal } from '../ports/access-decisions';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { Project, ProjectPatch } from '../ports/project-store';
+import type { WorkPackage, WorkPackagePatch } from '../ports/work-package-store';
 
 /** The permission decision; an invisible object reveals no permission or provenance. */
 export type Authorization =
   | { readonly ok: true; readonly effective: EffectiveRole }
   | { readonly ok: false; readonly reason: 'not_found' }
   | { readonly ok: false; readonly reason: 'forbidden'; readonly permission: Permission };
+
+/**
+ * Requires the current owner's grant evaluator.
+ * @throws when the admitted catalog lacks its required access-decision port.
+ */
+export function requireAccessDecisions(decisions: AccessDecisions | undefined): AccessDecisions {
+  // Proof: removing this boundary changed the actual Memory absent-port refusal to an
+  // incidental TypeError in `throws when a memory catalog carries no access decisions`;
+  // exact restore passed (verification-project-shell-read-20261119.json).
+  if (decisions === undefined) throw new Error('the catalog carries no access decisions');
+  return decisions;
+}
 
 /**
  * Evaluates `permission` through the catalog's grant authority (P10, P13).
@@ -28,9 +40,7 @@ export async function authorize(
   scope: AccessTarget,
   permission: Permission,
 ): Promise<Authorization> {
-  // Proof: returning ok for an absent port admitted a memory turn in
-  // `throws when a memory catalog carries no access decisions`; watched 2026-11-09.
-  if (decisions === undefined) throw new Error('the catalog carries no access decisions');
+  decisions = requireAccessDecisions(decisions);
   // Proof: catching this read and admitting failed `propagates unreadable trusted
   // state` and SQLite's `throws when trusted grant state is unreadable`; watched 2026-11-09.
   const effective = await decisions.effectiveRoleAt(principal, scope);
@@ -52,60 +62,65 @@ export async function authorize(
   return { ok: true, effective };
 }
 
-/** Evaluates a current package grant with the admitted authenticated identity and interim hierarchy. */
-export function authorizePackage(
-  decisions: AccessDecisions | undefined,
+/** The shared actor boundary for general and already-captured package targets. */
+function assertPackageActor(
   access: Extract<ResourceAccess, { kind: 'scoped' }>,
-  project: Pick<Project, 'id' | 'restricted'>,
   actorId: string,
-  permission: Permission,
-): Promise<Authorization> {
+): void {
   // Proof: package-actor-coherence fault failed 'scoped step service preserves exact grant scope' (step.routes.test.ts); restored GREEN, 2026-11-09.
   if (access.principal.id !== actorId || access.scope.userId !== actorId)
     throw new Error('package permission principal differs from the acting account');
-  return authorize(
-    decisions,
-    access.principal,
-    {
-      kind: 'work_package',
-      chain: {
-        level: 'work_package',
-        organizationId: access.scope.organizationId,
-        workPackageId: project.id,
-      },
-      restricted: project.restricted,
-    },
-    permission,
-  );
+}
+
+/** Authorizes one already-retained actual target; never re-queries or rebuilds its space. */
+export function authorizePackageAt(
+  decisions: AccessDecisions | undefined,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  target: Extract<AccessTarget, { kind: 'work_package' }>,
+  actorId: string,
+  permission: Permission,
+): Promise<Authorization> {
+  assertPackageActor(access, actorId);
+  if (target.chain.organizationId !== access.scope.organizationId)
+    return Promise.resolve({ ok: false, reason: 'not_found' });
+  return authorize(decisions, access.principal, target, permission);
+}
+
+/** General DTO callers obtain the actual narrow current target on the same admitted owner. */
+export async function authorizePackage(
+  decisions: AccessDecisions | undefined,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  workPackage: Pick<WorkPackage, 'id'>,
+  actorId: string,
+  permission: Permission,
+): Promise<Authorization> {
+  access = structuredClone(access);
+  const id = workPackage.id;
+  assertPackageActor(access, actorId);
+  if (decisions === undefined) throw new Error('the catalog carries no access decisions');
+  const target = await decisions.packageTargetOf(id, access.scope.organizationId);
+  return target === null
+    ? { ok: false, reason: 'not_found' }
+    : authorizePackageAt(decisions, access, target, actorId, permission);
 }
 
 /** A restricted-package recovery clears only its flag; all other settings require the package permission. */
 export async function authorizePackageSettings(
   decisions: AccessDecisions | undefined,
   principal: ScopedPrincipal,
-  organizationId: string,
-  project: Pick<Project, 'id' | 'restricted'>,
-  patch: ProjectPatch,
+  target: Extract<AccessTarget, { kind: 'work_package' }>,
+  patch: WorkPackagePatch,
 ): Promise<
   | (Extract<Authorization, { ok: true }> & { readonly recovery: boolean })
   | Extract<Authorization, { ok: false }>
 > {
-  const decision = await authorize(
-    decisions,
-    principal,
-    {
-      kind: 'work_package',
-      chain: { level: 'work_package', organizationId, workPackageId: project.id },
-      restricted: project.restricted,
-    },
-    'package.manage_settings',
-  );
+  const decision = await authorize(decisions, principal, target, 'package.manage_settings');
   if (decision.ok) return { ...decision, recovery: false };
   // Proof: accepting extra settings fields admitted a compound recovery patch; `allows recovery only to clear the restricted flag`
   // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
   if (
     decision.reason === 'not_found' ||
-    !project.restricted ||
+    !target.restricted ||
     patch.restricted !== false ||
     Object.keys(patch).length !== 1
   )
@@ -113,7 +128,7 @@ export async function authorizePackageSettings(
   const recovery = await authorize(
     decisions,
     principal,
-    { kind: 'organization', organizationId },
+    { kind: 'organization', organizationId: target.chain.organizationId },
     'organization.recover_restricted',
   );
   return recovery.ok ? { ...recovery, recovery: true } : recovery;

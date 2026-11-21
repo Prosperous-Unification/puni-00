@@ -1,5 +1,10 @@
-import type { CanonicalPlanInput } from './canonical-plan-input';
-import type { CanonicalPlanInputV10 } from './versioned-plan-input';
+import type { ProjectedPlanInput } from './comparison-input';
+import {
+  type DependencyMeaning,
+  type PlanComparison,
+  renderScheduleMeaning,
+} from './comparison-meaning';
+import { projectDependencyExecution } from './dependency-execution';
 
 /**
  * One side of a comparison: a canonical plan input, **its** schedule, and the
@@ -13,13 +18,12 @@ import type { CanonicalPlanInputV10 } from './versioned-plan-input';
  * byte-identical and whose dates differ — which is exactly what a `schedule()`
  * semantics change produces — must not compare as unchanged.
  *
- * On the `current` side these three come from `projectCurrentPlan()` (tasks 7.3
+ * On the `current` side these three come from `workPackageCurrentPlan()` (tasks 7.3
  * and 7.3a), never from a stored record. Snapshot↔snapshot and
  * snapshot↔`current` are one code path.
  */
-export interface PlanSide {
-  /** Legacy normalization stays v8; new records retain their explicit v9 captured context. */
-  readonly input: CanonicalPlanInput | CanonicalPlanInputV10;
+export interface PlanSide extends ProjectedPlanInput {
+  readonly comparison: PlanComparison;
   readonly schedule: PlanSideSchedule;
 }
 
@@ -63,6 +67,7 @@ export type PlanDiffCategory =
   | 'removed'
   | 'renamed'
   | 'reparented'
+  | 'retired-field'
   | 'reordered'
   | 'estimates'
   | 'uncertainty'
@@ -125,6 +130,7 @@ export function planDiffIsEmpty(diff: PlanDiff): boolean {
 const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   workItems: ['id'],
   steps: ['id'],
+  leafSteps: ['workItemId'],
   stepValues: ['workItemId', 'stepId'],
   stepBlockages: ['workItemId', 'stepId'],
   stepParallels: ['workItemId', 'stepId'],
@@ -152,9 +158,10 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
 const FIELD_CATEGORIES: Readonly<
   Record<string, Readonly<Record<string, PlanDiffCategory | undefined>> | undefined>
 > = {
-  project: {
+  workPackage: {
     name: 'renamed',
-    ownerId: 'ownership',
+    projectId: 'reparented',
+    ownerId: 'retired-field',
   },
   workItems: {
     name: 'renamed',
@@ -181,6 +188,7 @@ const FIELD_CATEGORIES: Readonly<
     allowancePercent: 'estimates',
     estimateUnit: 'estimates',
   },
+  leafSteps: { stepIds: 'reordered' },
   stepValues: {
     optimistic: 'uncertainty',
     realistic: 'uncertainty',
@@ -199,7 +207,7 @@ const FIELD_CATEGORIES: Readonly<
 
 /** Per-collection fallback when the field itself has no entry above. */
 const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefined>> = {
-  project: 'settings',
+  workPackage: 'settings',
   measures: 'measures',
   // A trio or a budget in any measure other than time reads as a measure
   // change (`wbs-measure-budgets` design D66); the factor is a setting.
@@ -208,6 +216,7 @@ const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefine
   stepBlockages: 'progress',
   stepParallels: 'capacity',
   dependencies: 'dependencies',
+  dependencyHistory: 'dependencies',
   typedDependencies: 'dependencies',
   assignments: 'ownership',
   personTeams: 'ownership',
@@ -234,8 +243,47 @@ const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefine
  */
 export function diffPlans(left: PlanSide, right: PlanSide): PlanDiff {
   return {
-    input: diffInput(left.input, right.input),
-    schedule: diffSchedule(left.schedule, right.schedule),
+    input: diffInput(readComparableInput(left, right), readComparableInput(right, left)),
+    schedule: diffSchedule(
+      left.comparison.kind === 'captured'
+        ? left.schedule
+        : renderScheduleMeaning(left.comparison.schedule),
+      right.comparison.kind === 'captured'
+        ? right.schedule
+        : renderScheduleMeaning(right.comparison.schedule),
+    ),
+  };
+}
+
+/** Include generation-specific facts only when both original captures recorded them. */
+function readComparableInput(side: PlanSide, other: PlanSide): PlanSide['input'] {
+  const evidence = side.inputEvidence;
+  const counterpart = other.inputEvidence;
+  const input = side.comparison.kind === 'captured' ? side.input : side.comparison.input;
+  // Proof: bypassing execution projection reported a false connected old/current difference
+  // while original bytes remained exact (current-writer13-fault-comparison-unprojected-v2).
+  // Proof: omitting execution projection reported a false original/current connected
+  // difference (current-writer13-fault-comparison-unprojected-v5); captured bodies stay exact.
+  const dependencies: DependencyMeaning =
+    side.comparison.kind === 'captured'
+      ? evidence.dependencies.kind === 'unrecorded'
+        ? evidence.dependencies
+        : { kind: 'recorded', history: projectDependencyExecution(evidence.dependencies) }
+      : side.comparison.dependencies;
+  return {
+    ...input,
+    workPackage: {
+      ...input.workPackage,
+      ...(evidence.parent.kind === 'recorded' && counterpart.parent.kind === 'recorded'
+        ? { projectId: evidence.parent.projectId }
+        : {}),
+      ...(evidence.retired !== undefined && counterpart.retired !== undefined
+        ? { ownerId: evidence.retired.ownerId }
+        : {}),
+    },
+    ...(dependencies.kind === 'recorded' && counterpart.dependencies.kind === 'recorded'
+      ? { dependencyHistory: dependencies.history }
+      : {}),
   };
 }
 

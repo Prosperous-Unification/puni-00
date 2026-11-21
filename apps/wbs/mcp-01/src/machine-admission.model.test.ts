@@ -109,7 +109,7 @@ function fetchFor(be: Be): FetchLike {
     return Promise.resolve(
       be.revoked
         ? Response.json({ error: 'unknown_identity' }, { status: 401 })
-        : Response.json({ projects: [] }),
+        : Response.json({ workPackages: [] }),
     );
   };
 }
@@ -181,7 +181,7 @@ async function send(
     jsonrpc: '2.0',
     id: index + 1,
     method: 'tools/call',
-    params: { name: 'getApiProjects', arguments: {} },
+    params: { name: 'getApiWorkPackages', arguments: {} },
   }));
   const response = await handle(
     new Request(MCP_URL, {

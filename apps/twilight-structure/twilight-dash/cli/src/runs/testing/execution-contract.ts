@@ -7,6 +7,7 @@ import { stageClaimRequest } from '../claim-history';
 import { attemptId, executionCommandId, operationKey, ownerId } from '../record-codecs';
 import { readTargetObservation } from '../record-preparation';
 import type { ExecutionFact } from '../records';
+import { mapLocalScope } from '../runtime-codecs';
 import { createExecutionCommand, createRunGuard } from './fixtures';
 import {
   type OutcomeFixture,
@@ -55,7 +56,12 @@ export function executionContract(name: string, create: () => Promise<OutcomeFix
           observation: await readTargetObservation(
             stores.artifacts,
             setup.preparationInput.stateEvidence,
-            { scope, workItemId: setup.run.workItemId, stepId: 'step', stepCode: 'plan' },
+            {
+              scope: mapLocalScope(scope),
+              workItemId: setup.run.workItemId,
+              stepId: 'step',
+              stepCode: 'plan',
+            },
           ),
         };
         const guard = await setup.scopedGuard();

@@ -25,7 +25,7 @@ function aPageWithAHint(): { hinted: HTMLElement; bare: HTMLElement } {
   };
 }
 
-/** A mark carrying a project fact, which waits for nothing. */
+/** A mark carrying a work package fact, which waits for nothing. */
 function aPageWithAFact(): { facted: HTMLElement; bare: HTMLElement } {
   render(
     <div>
@@ -109,7 +109,7 @@ const waitOut = (ms: number): void => {
 /** The wait ring, or null while none is drawn. */
 const ring = (): Element | null => document.querySelector('[data-wait-ring]');
 
-describe('a project fact is drawn the moment the pointer arrives', () => {
+describe('a work package fact is drawn the moment the pointer arrives', () => {
   itDom('opens the page’s own card on a pointer, with no timer to wait out', () => {
     const { facted } = aPageWithAFact();
 

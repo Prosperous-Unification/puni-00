@@ -4,35 +4,8 @@ import { type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
-import { stepBlockageInactiveRefusal } from './step-blockage-refusal';
 
-const projectParams = requestSchema(type({ id: 'string' }));
 const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
-/**
- * Whitespace is a domain name refusal, not a structural request defect. The
- * allowance a step is added with is optional and omitted means 0%; it is
- * structurally a number here, and its 0–1000, two-decimal range is the
- * domain's `allowancePercentOf`, refused as `invalid_allowance`.
- */
-// Proof: using responseSchema admitted the extra name body,200 instead of422
-// in step.controller.db.test.ts's undeclared-input case.
-/** A rename, an allowance edit, or both; an empty body is `invalid_body`. */
-const patchBody = requestSchema(
-  type({ 'name?': 'string', 'allowancePercent?': 'number', 'estimateUnit?': 'string' }),
-);
-/**
- * A new step's name and, optionally, the step code its creator chose; absent,
- * the code is suggested from the name. Grammar and reservation are domain
- * refusals (422), not structural defects, so the code arrives as any string.
- */
-const newStepBody = requestSchema(
-  type({
-    name: 'string',
-    'code?': 'string',
-    'allowancePercent?': 'number',
-    'estimateUnit?': 'string',
-  }),
-);
 /**
  * One step as every read and write returns it.
  *
@@ -54,7 +27,7 @@ const newStepBody = requestSchema(
  */
 export const stepShape = type({
   id: 'string',
-  projectId: 'string',
+  workPackageId: 'string',
   name: 'string',
   position: 'number',
   'code?': 'string | null',
@@ -90,127 +63,34 @@ const sharedRefusals = [
   organizationContextRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
-const nameRefusals = [
-  { status: 422, schema: responseSchema(type({ error: "'name_required'" })) },
-  ...sharedRefusals,
-  { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
-  { status: 409, schema: responseSchema(type({ error: "'taken'" })) },
-  {
-    status: 422,
-    schema: responseSchema(
-      type({ error: "'invalid_body' | 'invalid_allowance' | 'invalid_estimate_unit'" }),
-    ),
-  },
-] as const;
-
-/** Adds a named step to a project, with an optional allowance; retains the 200 response. */
-export const addStep = defineEndpointShape({
-  method: 'POST',
-  path: '/api/projects/:id/steps',
-  operationId: 'postApiProjectsByIdSteps',
-  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
-  params: projectParams,
-  body: newStepBody,
-  bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
-  responses: [{ kind: 'json', status: 200, schema: stepReply }],
-  refusals: [
-    ...nameRefusals,
-    { status: 422, schema: responseSchema(type({ error: "'invalid_code' | 'reserved_code'" })) },
-    { status: 409, schema: responseSchema(type({ error: "'code_taken' | 'dependency_cycle'" })) },
-  ] as const,
-  document: { summary: 'Add a project step.' },
-});
-
 /**
- * Renames the addressed project step, sets its estimate allowance, or both.
- * The allowance edit is the journalled `setStepAllowance` command — one undo —
- * and a rename sent with it settles with it: both, or neither. An allowance
- * that would place the plan past the supported calendar is `calendar_range`.
+ * Explicit values for one current package/step pair. Shared definition metadata
+ * and binding membership belong to their organization/scope routes. Allowance
+ * arrives as integer hundredths of a percent; allowance commands retain undo/redo.
  */
-export const renameStep = defineEndpointShape({
+export const patchWorkPackageStepValues = defineEndpointShape({
   method: 'PATCH',
-  path: '/api/projects/:id/steps/:stepId',
-  operationId: 'patchApiProjectsByIdStepsByStepId',
+  path: '/api/work-packages/:id/steps/:stepId',
+  operationId: 'patchWorkPackageStepValues',
   policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
   params: stepParams,
-  body: patchBody,
+  body: requestSchema(
+    type({
+      'estimateUnit?': "'workdays' | 'minutes'",
+      'allowanceBps?': '0 <= number.integer <= 100000',
+    }),
+  ),
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
   refusals: [
-    ...nameRefusals,
+    ...sharedRefusals,
+    { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
+    { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
+    { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
     {
       status: 409,
       schema: responseSchema(type({ error: "'estimates_present'", count: 'number' })),
     },
-    { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
   ] as const,
-  document: { summary: 'Rename a project step or set its estimate allowance.' },
-});
-
-/**
- * Removes a step, reporting every usage category before explicit cascade.
- * Cascade remains a string: only its exact value true confirms removal, and
- * repeated query values retain the adapter's legacy last-value reading.
- */
-export const removeStep = defineEndpointShape({
-  method: 'DELETE',
-  path: '/api/projects/:id/steps/:stepId',
-  operationId: 'deleteApiProjectsByIdStepsByStepId',
-  policies: [...policies, { kind: 'organization-resource', operation: 'mutation' }],
-  params: stepParams,
-  // Proof: the tolerant wrapper deleted the used step,204 instead of400 in
-  // the unknown-cascade-query wire case (step.controller.db.test.ts).
-  query: requestSchema(type({ 'cascade?': 'string' })),
-  responses: [{ kind: 'empty', status: 204 }],
-  refusals: [
-    stepBlockageInactiveRefusal,
-    ...sharedRefusals,
-    { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
-    {
-      status: 409,
-      schema: responseSchema(
-        type({
-          error: "'in_use'",
-          inUse: {
-            estimates: 'number',
-            actuals: 'number',
-            progress: 'number',
-            // Optional at the older-server wire boundary; absence is unknown.
-            'blockages?': 'number',
-            measures: 'number',
-            // Optional: an outgoing be-01 mid-swap counts no attempts.
-            'attempts?': 'number',
-            // Optional: an outgoing be-01 mid-swap counts no claims.
-            'claims?': 'number',
-            assignments: 'number',
-            assumedAssignees: type({
-              workItemId: 'string',
-              assumedNow: 'string | null',
-              assumedAfter: 'string | null',
-            }).array(),
-          },
-        }),
-      ),
-    },
-    {
-      status: 409,
-      // A typed dependency names the step; it must be removed or reassigned first.
-      schema: responseSchema(
-        type({ error: "'referenced_by_dependency'", dependencyIds: 'string[]' }),
-      ),
-    },
-    {
-      status: 409,
-      schema: responseSchema(
-        type({
-          // Proof: undeclared sparse refusal produced HTTP 500 in both mounted cases, 2026-10-17.
-          error: "'referenced_by_step_parallel'",
-          nodes: type({ workItemId: 'string', stepId: 'string' }).array(),
-        }),
-      ),
-    },
-    // Removing the step would move a legacy anchor into a step-node cycle.
-    { status: 409, schema: responseSchema(type({ error: "'dependency_cycle'" })) },
-  ],
-  document: { summary: 'Remove a project step, confirming cascade when it is used.' },
-});
+  document: { summary: 'Set the addressed work package step unit or allowance.' },
+} as const);

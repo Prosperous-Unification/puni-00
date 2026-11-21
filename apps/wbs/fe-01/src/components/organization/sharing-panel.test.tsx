@@ -25,7 +25,7 @@ describe('shared people', () => {
     renderPanel();
     expect(screen.getByText('Loading how people are shared…')).toBeDefined();
     expect(await screen.findByText(/as if it had them alone/)).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Share people across projects' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Share people across work packages' })).toBeDefined();
   });
 
   it('shares people after a confirmation and re-reads the mode', async () => {
@@ -39,11 +39,13 @@ describe('shared people', () => {
       ],
     });
     renderPanel();
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     expect(sent.some((call) => call.route.startsWith('PATCH'))).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Confirm: share people' }));
-    expect(await screen.findByText('People are now shared across projects.')).toBeDefined();
-    expect(await screen.findByText(/People are shared across projects:/)).toBeDefined();
+    expect(await screen.findByText('People are now shared across work packages.')).toBeDefined();
+    expect(await screen.findByText(/People are shared across work packages:/)).toBeDefined();
     expect(sent.find((call) => call.route.startsWith('PATCH'))?.body).toEqual({
       sharedPeople: true,
     });
@@ -58,7 +60,7 @@ describe('shared people', () => {
     renderPanel();
     expect(await screen.findByText(/as if it had them alone/)).toBeDefined();
     expect(
-      screen.getByText('Sharing people across projects is not available in this release yet.'),
+      screen.getByText('Sharing people across work packages is not available in this release yet.'),
     ).toBeDefined();
     expect(screen.queryByRole('button')).toBeNull();
   });
@@ -94,10 +96,12 @@ describe('shared people', () => {
       ],
     });
     renderPanel();
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     expect(
       screen.getByText(
-        'This moves the dates of every project in the organization. Switching back restores them.',
+        'This moves the dates of every work package in the organization. Switching back restores them.',
       ),
     ).toBeDefined();
   });
@@ -111,11 +115,13 @@ describe('shared people', () => {
       'PATCH /api/organization': [() => answer(409, { error: 'capacity_mode_unsupported' })],
     });
     renderPanel();
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm: share people' }));
     expect(await screen.findByRole('status')).toHaveProperty(
       'textContent',
-      'Sharing people across projects is not available in this release yet.',
+      'Sharing people across work packages is not available in this release yet.',
     );
     await waitFor(() => {
       expect(screen.queryByRole('button')).toBeNull();
@@ -145,7 +151,7 @@ describe('shared people', () => {
     [
       'capacity_mode_unsupported',
       409,
-      'Sharing people across projects is not available in this release yet.',
+      'Sharing people across work packages is not available in this release yet.',
     ],
   ])('renders the %s switch refusal', async (error, status, copy) => {
     stubServer({
@@ -156,7 +162,9 @@ describe('shared people', () => {
       'PATCH /api/organization': [() => answer(status, { error })],
     });
     renderPanel();
-    fireEvent.click(await screen.findByRole('button', { name: 'Share people across projects' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Share people across work packages' }),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Confirm: share people' }));
     expect(await screen.findByRole('status')).toHaveProperty('textContent', copy);
   });

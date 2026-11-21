@@ -46,7 +46,7 @@ function cut(stem: string, length: number): string {
  * in it (`Ревю`, `!!!`) is coded `step`.
  *
  * Always answers a code {@link isStepCode} accepts and {@link isReservedStepCode}
- * refuses; `taken` is the project's codes, and the answer is never in it.
+ * refuses; `taken` is the work package's codes, and the answer is never in it.
  */
 export function suggestStepCode(name: string, taken: ReadonlySet<string>): string {
   const collapsed = name

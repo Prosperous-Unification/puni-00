@@ -5,6 +5,7 @@ import {
   type MeasureDefinition,
   type PriorityBand,
   refuseCapacityStatement,
+  resolveSetting,
   type StoredBudget,
   type StoredMeasureEstimate,
   type StoredStepBlockage,
@@ -20,17 +21,20 @@ import {
 import type { ImportDirectory } from '../../ports/import-directory';
 import type { RefusedOrganizationAccess } from '../../ports/organization-access';
 import type { ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
-import type { NewProject } from '../../ports/project-values';
+import type { SettingTarget } from '../../ports/setting-store';
 import type { StoredAttempt } from '../../ports/step-node-attempt-store';
-import type { Step } from '../../ports/step-store';
-import type { SubtreeCopy } from '../../ports/subtree-store';
+import type { SubtreeCopy, SubtreeWriteOutcome } from '../../ports/subtree-store';
 import type { TreeAnnouncement } from '../../ports/tree-announcement';
 import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
+import type { Broadcaster } from '../../ports/work-package-event';
+import type { WorkPackageCreatorGrant } from '../../ports/work-package-store';
+import type { NewWorkPackage } from '../../ports/work-package-values';
 import type { WriteStamp } from '../../ports/write-stamp';
 import { authorize, authorizePackage } from '../../service/authorize';
+import type { PreparedStep } from './import-values';
 import { findImportDependencyDuplicate } from './import-values';
+import { ImportedSteps, type ImportStepResolution } from './imported-steps.resource';
 import type { LocatedImportDependency } from './resolve-import-dependencies';
 
 /** The ports one import uses to reconcile directory entries and announce its tree. */
@@ -54,6 +58,23 @@ export interface ImportedPlan {
   services: ImportServices;
 }
 
+/** Missing and foreign destination projects share the same opaque admission refusal. */
+export interface ImportProjectRefusal {
+  readonly ok: false;
+  readonly code: 'not_found';
+  readonly path: 'projectId';
+  readonly detail: null;
+}
+
+/** An inherited project value is compared, never rewritten from archival package settings. */
+export interface ImportSettingsConflict {
+  readonly ok: false;
+  readonly code: 'import_settings_conflict';
+  readonly key: 'budgetFactor';
+}
+
+export type ImportProject = Extract<SettingTarget, { readonly kind: 'project' }>;
+
 /**
  * Resolves retained caller evidence on the borrowed writer before opening any
  * resource, graph or observation. The callback receives current resolved access;
@@ -65,10 +86,11 @@ export interface ImportedPlan {
 export interface ImportTransaction {
   run<T>(
     caller: CommandCaller,
+    projectId: string,
     forbidden: (permission?: Permission) => T,
     broadcast: Broadcaster,
     act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
-  ): Promise<T | RefusedOrganizationAccess>;
+  ): Promise<T | RefusedOrganizationAccess | ImportProjectRefusal>;
 }
 
 /**
@@ -105,10 +127,11 @@ export type ImportDependencyRefusal =
 /** Bound by composition; no feature receives a scope or dependency context. */
 export interface ImportAuthority {
   readonly actorId: string;
+  readonly project: ImportProject;
   readonly access: ResourceAccess;
   readonly externalDependencies: ExternalDependencyAuthoringSource;
   assertActive(): void;
-  contextFor(projectId: string): DependencyContext;
+  contextFor(workPackageId: string): DependencyContext;
 }
 
 /**
@@ -116,7 +139,7 @@ export interface ImportAuthority {
  * work supplied.
  *
  * Every read and write goes through that scope, so it commits or rolls back
- * with the import. A write the created project refuses is an internal error:
+ * with the import. A write the created work package refuses is an internal error:
  * preparation already admitted the document, so each such refusal throws and
  * abandons the unit of work. Dependency admission answers modeled reference,
  * shape, duplicate and graph refusals; labels answer `source_refused`.
@@ -124,17 +147,29 @@ export interface ImportAuthority {
 export class ImportedPlanResource {
   readonly #scope: Scope;
   readonly #authority: ImportAuthority;
-  #createdProjectId: string | null = null;
+  readonly #steps: ImportedSteps;
+  #createdWorkPackageId: string | null = null;
 
   constructor(scope: Scope, authority: ImportAuthority) {
     this.#scope = scope;
     this.#authority = authority;
+    this.#steps = new ImportedSteps(() => this.#stores, authority);
   }
 
   // Proof: removing this assertion let retained slug reads succeed after all three settlement arms (scoped-import-dependencies.db.test.ts, 2026-10-22).
   get #stores() {
     this.#authority.assertActive();
     return this.#scope.stores;
+  }
+
+  /** Reads the admitted destination's inherited factor on this writer; a mismatch writes nothing. */
+  async checkBudgetFactor(expected: number): Promise<ImportSettingsConflict | null> {
+    const captured = await this.#stores.settings.capture(this.#authority.project);
+    this.#authority.assertActive();
+    const current = resolveSetting(this.#authority.project.chain, 'budgetFactor', captured).value;
+    return current === expected
+      ? null
+      : { ok: false, code: 'import_settings_conflict', key: 'budgetFactor' };
   }
 
   /** Current directory authority in this import's admitted transaction. */
@@ -151,6 +186,25 @@ export class ImportedPlanResource {
     return decision.ok;
   }
 
+  /** Reconciles file codes on this exact admitted catalogue owner before directory writes. */
+  resolveSteps(
+    steps: readonly PreparedStep[],
+    defineMissing: boolean,
+    stamp: WriteStamp,
+    newId: () => string,
+  ): Promise<ImportStepResolution> {
+    return this.#steps.resolve(steps, defineMissing, stamp, newId);
+  }
+
+  /** File values may initialize only the package this import actually created. */
+  async initializeStepValues(workPackageId: string, stamp: WriteStamp): Promise<void> {
+    this.#authority.assertActive();
+    if (workPackageId !== this.#createdWorkPackageId || stamp.by !== this.#authority.actorId)
+      throw new Error('import value owner or actor mismatch');
+    await this.#steps.initialize(workPackageId, stamp);
+    this.#authority.assertActive();
+  }
+
   /** Refuses external declarations before allocation; legacy never gains remote authority. */
   checkExternalAuthoring(path: string) {
     this.#authority.assertActive();
@@ -164,7 +218,7 @@ export class ImportedPlanResource {
   }
 
   /**
-   * Whether a project the caller can collide with already holds the slug.
+   * Whether a work package the caller can collide with already holds the slug.
    * Under scoped access only the organization's own slugs collide, so another
    * organization's link neither blocks the slug nor shows.
    *
@@ -176,83 +230,89 @@ export class ImportedPlanResource {
   async isSolutionSlugHeld(slug: string, access: ResourceAccess): Promise<boolean> {
     const holder =
       access.kind === 'scoped'
-        ? await this.#stores.projects.findBySolutionSlugInOrganization(
+        ? await this.#stores.workPackages.findBySolutionSlugInOrganization(
             slug,
             access.scope.organizationId,
           )
-        : await this.#stores.projects.findBySolutionSlug(slug);
+        : await this.#stores.workPackages.findBySolutionSlug(slug);
     return holder !== null;
   }
 
   /**
-   * Writes the project and its steps, in the caller's organization under scoped access.
+   * Writes the work package and its steps, in the caller's organization under scoped access.
    *
-   * Proof: creating the project unmapped under scoped access made `imports into
+   * Proof: creating the work package unmapped under scoped access made `imports into
    * the organization, resolving names among its own entries` in
-   * `import-export-organization.controller.db.test.ts` find no imported project
+   * `import-export-organization.controller.db.test.ts` find no imported work package
    * in A's list; watched 2026-09-27, and again here on 2026-09-29 (8 pass, 2 fail).
    */
-  async createProject(
-    project: NewProject,
-    steps: readonly Step[],
+  async createWorkPackage(
+    workPackage: NewWorkPackage,
     stamp: WriteStamp,
     access: ResourceAccess,
-  ): Promise<'abbreviation_taken' | 'abbreviation_exhausted' | null> {
-    const created =
-      access.kind === 'scoped'
-        ? await this.#stores.projects.createInOrganization(
-            project,
-            steps,
-            stamp,
-            access.scope.organizationId,
-          )
-        : await this.#stores.projects.create(project, steps, stamp);
+    creatorGrant: WorkPackageCreatorGrant | null,
+  ): Promise<'abbreviation_taken' | 'abbreviation_exhausted' | 'not_found' | null> {
+    if (access.kind === 'scoped' && creatorGrant === null)
+      throw new Error('scoped import creator grant identities are missing');
+    const created = await this.#stores.workPackages.createWithSteps(
+      workPackage,
+      stamp,
+      access.kind === 'scoped' && creatorGrant !== null
+        ? { kind: 'scoped', organizationId: access.scope.organizationId, creatorGrant }
+        : { kind: 'legacy' },
+    );
     this.#authority.assertActive();
     if (typeof created === 'string') return created;
-    this.#createdProjectId = project.id;
+    this.#createdWorkPackageId = created.workPackage.id;
     return null;
   }
 
-  /** @throws when the created project refuses its priority bands. */
+  /** @throws when the created work package refuses its priority bands. */
   async replacePriorityBands(
-    projectId: string,
+    workPackageId: string,
     bands: readonly PriorityBand[],
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#stores.priorityBands.replace(projectId, bands, stamp);
-    if (!written.ok) throw new Error(`created project refused its priority bands: ${projectId}`);
+    const written = await this.#stores.priorityBands.replace(workPackageId, bands, stamp);
+    if (!written.ok)
+      throw new Error(`created work package refused its priority bands: ${workPackageId}`);
   }
 
-  /** @throws when the created project refuses the team's capacity. */
+  /** @throws when the created work package refuses the team's capacity. */
   async setCapacity(
-    projectId: string,
+    workPackageId: string,
     teamId: string,
     size: number | null,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#stores.capacity.set(projectId, teamId, size, stamp);
-    if (!written.ok) throw new Error(`created project refused its capacity: ${projectId}`);
+    const written = await this.#stores.capacity.set(workPackageId, teamId, size, stamp);
+    if (!written.ok) throw new Error(`created work package refused its capacity: ${workPackageId}`);
   }
 
-  /** @throws when the created project refuses the resource's capacity (`wbs-resources`). */
+  /** @throws when the created work package refuses the resource's capacity (`wbs-resources`). */
   async setResourceCapacity(
-    projectId: string,
+    workPackageId: string,
     resourceId: string,
     units: number,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.#stores.resourceCapacity.set(projectId, resourceId, units, stamp);
+    const written = await this.#stores.resourceCapacity.set(
+      workPackageId,
+      resourceId,
+      units,
+      stamp,
+    );
     if (!written.ok)
-      throw new Error(`created project refused its resource capacity: ${written.reason}`);
+      throw new Error(`created work package refused its resource capacity: ${written.reason}`);
   }
 
   /**
-   * Whether stating `asked` units of `resourceId` in the project being
-   * imported would make the organization's projects state more of it than its
+   * Whether stating `asked` units of `resourceId` in the work package being
+   * imported would make the organization's work packages state more of it than its
    * cap allows (`wbs-organization-limits` L9): {@link refuseCapacityStatement}
-   * over the other projects' sum, read in this import's admitted transaction,
+   * over the other work packages' sum, read in this import's admitted transaction,
    * as `CapacityService` decides a batch's statement. The import always
-   * creates its project, which states nothing yet, so every existing project
+   * creates its work package, which states nothing yet, so every existing work package
    * counts, the one an export came from among them. Null under legacy access.
    *
    * @throws when this import's stores carry no organization limits under
@@ -260,7 +320,7 @@ export class ImportedPlanResource {
    */
   async refuseCapacityWithin(
     access: ResourceAccess,
-    projectId: string,
+    workPackageId: string,
     resourceId: string,
     asked: number,
   ): Promise<CapacityLimitCrossed | null> {
@@ -273,7 +333,11 @@ export class ImportedPlanResource {
       throw new Error(
         'an import stated a capacity under scoped access without organization limits',
       );
-    const reading = await gauge.readCapacityCap(access.scope.organizationId, resourceId, projectId);
+    const reading = await gauge.readCapacityCap(
+      access.scope.organizationId,
+      resourceId,
+      workPackageId,
+    );
     this.#authority.assertActive();
     return refuseCapacityStatement({
       resourceId,
@@ -301,20 +365,20 @@ export class ImportedPlanResource {
     if (written !== 'written') throw new Error(`created row refused its demand: ${written}`);
   }
 
-  /** @throws when the created project refuses the marker, naming the store's reason. */
+  /** @throws when the created work package refuses the marker, naming the store's reason. */
   async createCalendarMarker(marker: CalendarMarker): Promise<void> {
     const written = await this.#stores.calendarMarkers.create(marker);
     if (!written.ok)
-      throw new Error(`created project refused its calendar marker: ${written.reason}`);
+      throw new Error(`created work package refused its calendar marker: ${written.reason}`);
   }
 
   /**
-   * The measure definitions the created project's figures are decided
+   * The measure definitions the created work package's figures are decided
    * against (`wbs-measure-budgets` design D65): the organization's under
    * scoped access; under legacy access the legacy organization's, which owns
-   * every project created before activation (`project_organization_bridge`)
+   * every work package created before activation (`work_package_organization_bridge`)
    * and every legacy-access definition (`MeasureDefinitions`); null only
-   * when no legacy organization exists, where the created project answers the
+   * when no legacy organization exists, where the created work package answers the
    * seeded four (design D19).
    *
    * Proof: answering null under legacy access again made `before activation,
@@ -359,19 +423,19 @@ export class ImportedPlanResource {
   }
 
   /** Inserts the whole prepared tree, parents first, with its step values and edges. */
-  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
-    await this.#stores.subtrees.insertSubtree(copy, stamp);
+  async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<SubtreeWriteOutcome> {
+    return await this.#stores.subtrees.insertSubtree(copy, stamp);
   }
 
   /**
-   * Stores the created project's zone. `createProject` writes the column's
-   * `UTC`, so only a document naming another zone calls this.
+   * Writes the archival package's own timezone override, including an explicit UTC.
+   * The destination project's inherited zone is never changed by an import.
    *
-   * @throws when the created project is not there to take it.
+   * @throws when the created work package is not there to take it.
    */
-  async setTimezone(projectId: string, timezone: string, stamp: WriteStamp): Promise<void> {
-    if (!(await this.#stores.projects.setTimezone(projectId, timezone, stamp)))
-      throw new Error(`created project refused its timezone: ${projectId}`);
+  async setTimezone(workPackageId: string, timezone: string, stamp: WriteStamp): Promise<void> {
+    if (!(await this.#stores.workPackages.setTimezone(workPackageId, timezone, stamp)))
+      throw new Error(`created work package refused its timezone: ${workPackageId}`);
   }
 
   /** Restores an exact imported fact within the admitted unit of work; refuses a lost step. */
@@ -379,7 +443,9 @@ export class ImportedPlanResource {
     const written = await this.#stores.blockages.set(fact, stamp);
     // Proof: bypassing refusal resolved `rolls back direct blockage import after refused`, leaking the import (2026-10-14).
     if (written !== 'written')
-      throw new Error(`created project refused its blockage: ${fact.workItemId}/${fact.stepId}`);
+      throw new Error(
+        `created work package refused its blockage: ${fact.workItemId}/${fact.stepId}`,
+      );
   }
 
   /** Writes one attempt verbatim under its own number onto a created leaf. */
@@ -393,22 +459,26 @@ export class ImportedPlanResource {
    * rollback to the outer import writer; trusted faults and store failures throw.
    */
   async writeDependencies(
-    projectId: string,
+    workPackageId: string,
     located: readonly LocatedImportDependency[],
     stamp: WriteStamp,
   ): Promise<ImportDependencyRefusal | null> {
     this.#authority.assertActive();
     // Proof: independently dropping owner or actor equality failed its forged trusted-boundary SQLite case (2026-10-22).
-    if (projectId !== this.#createdProjectId || stamp.by !== this.#authority.actorId)
+    if (workPackageId !== this.#createdWorkPackageId || stamp.by !== this.#authority.actorId)
       throw new Error('import dependency owner or actor mismatch');
-    if (located.length === 0) return null;
-    const context = this.#authority.contextFor(projectId);
-    context.assertUsable(projectId, stamp.by);
+    // Proof: the former empty-set return committed both actual Sources despite
+    // an injected own-order capture failure (catalogue-import-legacy-graph-red-v1).
+    const context = this.#authority.contextFor(workPackageId);
+    context.assertUsable(workPackageId, stamp.by);
     for (const { relationship, path } of located) {
       // Proof: independently dropping owner or successor-owner equality failed its forged relationship SQLite case (2026-10-22).
-      if (relationship.projectId !== projectId || relationship.successor.projectId !== projectId)
+      if (
+        relationship.workPackageId !== workPackageId ||
+        relationship.successor.workPackageId !== workPackageId
+      )
         throw new Error('import relationship owner mismatch');
-      if (relationship.predecessor.projectId !== projectId) {
+      if (relationship.predecessor.workPackageId !== workPackageId) {
         const dormant = this.checkExternalAuthoring(path);
         // Proof: omitting this refusal let an injected declaration-gate bypass persist remote links with inactive capability (2026-10-22).
         if (dormant !== null) throw new Error('external import bypassed authoring admission');
@@ -416,9 +486,9 @@ export class ImportedPlanResource {
       for (const side of ['predecessor', 'successor'] as const) {
         const endpoint = relationship[side];
         const access = this.#authority.access;
-        if (access.kind === 'scoped' && endpoint.projectId !== projectId) {
-          const addressed = await this.#stores.projects.findInOrganization(
-            endpoint.projectId,
+        if (access.kind === 'scoped' && endpoint.workPackageId !== workPackageId) {
+          const addressed = await this.#stores.workPackages.findInOrganization(
+            endpoint.workPackageId,
             access.scope.organizationId,
           );
           if (addressed === null)
@@ -467,9 +537,9 @@ export class ImportedPlanResource {
       return { ok: false, code: 'invalid_typed_dependency', path: duplicate, detail: 'duplicate' };
     const relationships = located.map(({ relationship }) => relationship);
     // Proof: bypassing the complete-set graph check failed reverse-mapping and seeded-corruption SQLite cases (2026-10-22).
-    const cycle = await context.graph.findCycle(projectId, { typed: relationships });
+    const cycle = await context.graph.findCycle(workPackageId, { typed: relationships });
     if (cycle !== null) {
-      let path = 'typedDependencies';
+      let path = located.length === 0 ? 'workItems' : 'typedDependencies';
       for (const declaration of located)
         if (cycle.relationshipIds.includes(declaration.relationship.id)) path = declaration.path;
       // Proof: omitting this diagnosis failed the later external component's original-path assertion (2026-10-22).
@@ -477,11 +547,11 @@ export class ImportedPlanResource {
         // Only after complete-set refusal: find which declaration reached a
         // pre-existing corrupt component whose cycle names no imported edge.
         const local = relationships.filter(
-          (relationship) => relationship.predecessor.projectId === projectId,
+          (relationship) => relationship.predecessor.workPackageId === workPackageId,
         );
         for (const declaration of located) {
-          if (declaration.relationship.predecessor.projectId === projectId) continue;
-          const defect = await context.graph.findCycle(projectId, {
+          if (declaration.relationship.predecessor.workPackageId === workPackageId) continue;
+          const defect = await context.graph.findCycle(workPackageId, {
             typed: [...local, declaration.relationship],
           });
           if (defect !== null) {
@@ -493,10 +563,10 @@ export class ImportedPlanResource {
       return { ok: false, code: 'invalid_typed_dependency', path, detail: cycle.kind };
     }
     for (const relationship of relationships) {
-      context.assertUsable(projectId, stamp.by);
+      context.assertUsable(workPackageId, stamp.by);
       // Proof: omitting persistence failed the real scoped whole-predecessor import (2026-10-22).
       await this.#stores.typedDependencies.add(relationship, stamp);
-      context.assertUsable(projectId, stamp.by);
+      context.assertUsable(workPackageId, stamp.by);
     }
     return null;
   }
@@ -518,20 +588,23 @@ export class ImportedPlanResource {
   }
 
   /**
-   * The projects told that the directory changed: under scoped access only the
+   * The work packages told that the directory changed: under scoped access only the
    * organization's own, because another organization's plans draw nothing this
    * import created.
    *
-   * Proof: telling every project made `tells only the organization's projects
+   * Proof: telling every work package made `tells only the organization's workPackages
    * that its directory changed` in `import-export-organization.controller.db.test.ts`
-   * find B's project told; watched 2026-09-27, and again here on 2026-09-29
+   * find B's work package told; watched 2026-09-27, and again here on 2026-09-29
    * (9 pass, 1 fail).
    */
-  async listToldProjectIds(actorId: string, access: ResourceAccess): Promise<string[]> {
+  async listToldWorkPackageIds(actorId: string, access: ResourceAccess): Promise<string[]> {
     const told =
       access.kind === 'scoped'
-        ? await this.#stores.projects.listForInOrganization(actorId, access.scope.organizationId)
-        : await this.#stores.projects.list();
+        ? await this.#stores.workPackages.listForInOrganization(
+            actorId,
+            access.scope.organizationId,
+          )
+        : await this.#stores.workPackages.list();
     return told.map(({ id }) => id);
   }
 }

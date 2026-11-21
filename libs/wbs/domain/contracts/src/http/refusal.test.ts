@@ -82,7 +82,7 @@ export function refusalTypeCases() {
   });
   // The plan import names the numbers without a command position.
   expectTypeOf<Refusal>({ error: 'capacity_limit', ...statedPast });
-  // @ts-expect-error A capacity cap refusal always names the other projects' units.
+  // @ts-expect-error A capacity cap refusal always names the other work packages' units.
   expectTypeOf<Refusal>({ error: 'capacity_limit', resourceId: 'ram', cap: 64, asked: 32 });
   // @ts-expect-error An arbitrary detail bag is not a directory refusal.
   expectTypeOf<Refusal>({ error: 'taken', at: 0, kind: 'createTeam', arbitrary: true });
@@ -90,10 +90,15 @@ export function refusalTypeCases() {
     error: 'in_use',
     at: 0,
     kind: 'deleteTeam',
-    usage: { projects: [], members: [] },
+    usage: { workPackages: [], members: [] },
   });
   // @ts-expect-error Directory usage always reports both arrays.
-  expectTypeOf<Refusal>({ error: 'in_use', at: 0, kind: 'deleteTeam', usage: { projects: [] } });
+  expectTypeOf<Refusal>({
+    error: 'in_use',
+    at: 0,
+    kind: 'deleteTeam',
+    usage: { workPackages: [] },
+  });
   expectTypeOf<Refusal>({
     error: 'in_use',
     inUse: {
@@ -194,9 +199,9 @@ export function refusalTypeCases() {
   expectTypeOf<Refusal>({
     code: 'schedule-input-unavailable',
     reason: 'engine_unavailable',
-    projectId: 'readable-influencer',
+    workPackageId: 'readable-influencer',
   });
-  // @ts-expect-error Modeled Retry refusal requires a readable failing project.
+  // @ts-expect-error Modeled Retry refusal requires a readable failing work package.
   expectTypeOf<Refusal>({ code: 'schedule-input-unavailable', reason: 'cycle' });
   // @ts-expect-error Retry states are the coordinator's finite public states.
   expectTypeOf<Refusal>({ code: 'not-retryable', state: 'future' });
@@ -220,7 +225,7 @@ test('the compiler enforces closed refusal codes, detail variants and command co
       '--noEmit',
       '--strict',
       '--skipLibCheck',
-      '--project',
+      '--workPackage',
       'libs/wbs/domain/contracts/tsconfig.spec.json',
     ],
     cwd: new URL('../../../../../../', import.meta.url).pathname,
@@ -235,20 +240,20 @@ test('the compiler enforces closed refusal codes, detail variants and command co
 
 export function deadlineRefusalTypes() {
   const valid = {
-    error: 'deadline_before_project_start' as const,
+    error: 'deadline_before_work_package_start' as const,
     at: 0,
     kind: 'patchWorkItem' as const,
     workItemId: 'w',
-    projectDayZero: '2026-09-07',
+    workPackageDayZero: '2026-09-07',
   };
   expectTypeOf<Refusal>(valid);
-  const { projectDayZero, ...missingDayZero } = valid;
-  // @ts-expect-error The deadline refusal identifies both the row and project day zero.
+  const { workPackageDayZero, ...missingDayZero } = valid;
+  // @ts-expect-error The deadline refusal identifies both the row and work package day zero.
   expectTypeOf<Refusal>(missingDayZero);
   const missingContext = {
-    error: 'deadline_before_project_start' as const,
+    error: 'deadline_before_work_package_start' as const,
     workItemId: 'w',
-    projectDayZero: '2026-09-07',
+    workPackageDayZero: '2026-09-07',
   };
   // @ts-expect-error A runtime deadline refusal cannot lose its recognized command context.
   expectTypeOf<Refusal>(missingContext);

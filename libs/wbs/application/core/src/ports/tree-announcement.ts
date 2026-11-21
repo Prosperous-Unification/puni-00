@@ -1,5 +1,5 @@
 /**
- * Announces a project's complete tree through the supplying scope's collector.
+ * Announces a work package's complete tree through the supplying scope's collector.
  * Composition passes the resource instance so its method retains its receiver.
  *
  * Proof: restoring the concrete work-item import directly or through this port's
@@ -9,5 +9,5 @@
  */
 export interface TreeAnnouncement {
   /** Publishes the current tree through the already composed announcement path. */
-  announceTreeNow(projectId: string): Promise<void>;
+  announceTreeNow(workPackageId: string): Promise<void>;
 }

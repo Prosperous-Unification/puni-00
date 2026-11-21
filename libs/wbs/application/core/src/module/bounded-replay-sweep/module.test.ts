@@ -87,8 +87,8 @@ describe('the Bounded replay sweep module', () => {
   it('starts, sweeps on the borrowed schedule and stops', async () => {
     const schedule = fakeSchedule();
     const eventLog = inMemoryEventLog();
-    await eventLog.record('project:a', {});
-    await eventLog.record('project:a', {});
+    await eventLog.record('work-package:a', {});
+    await eventLog.record('work-package:a', {});
     const { retention } = installBoundedReplaySweep({
       ...requirements(),
       eventLog: new EventLogService(eventLog),
@@ -102,7 +102,7 @@ describe('the Bounded replay sweep module', () => {
     await retention.stop();
 
     expect(retention.isRunning()).toBe(false);
-    expect(await eventLog.rangeSince('project:a', -1)).toHaveLength(1);
+    expect(await eventLog.rangeSince('work-package:a', -1)).toHaveLength(1);
   });
 
   /**

@@ -7,7 +7,7 @@ import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import type {
   ConnectedPlanOptimizationView,
   PlanOptimizationView,
-  ProjectOptimizationPatch,
+  WorkPackageOptimizationPatch,
 } from '@/lib/wbs-api';
 
 import { OptimizationCue } from './optimization-cue';
@@ -59,7 +59,7 @@ const SUGGESTING: PlanOptimizationView = {
 function Harness({
   optimization,
   stale = false,
-  projectStart = '2026-09-07',
+  workPackageStart = '2026-09-07',
   today = new Date(2026, 8, 7),
   workItemName = (id) => (id === 'parent' ? 'Launch' : id === 'leaf' ? 'Migration' : null),
   onChoose,
@@ -68,10 +68,10 @@ function Harness({
 }: {
   optimization: PlanOptimizationView;
   stale?: boolean;
-  projectStart?: string | null;
+  workPackageStart?: string | null;
   today?: Date;
   workItemName?: (id: string) => string | null;
-  onChoose?: (patch: ProjectOptimizationPatch) => void;
+  onChoose?: (patch: WorkPackageOptimizationPatch) => void;
   onRetry?: (objective: 'pri' | 'time', inputHash: string) => void;
   busy?: boolean;
 }): React.JSX.Element {
@@ -80,7 +80,7 @@ function Harness({
     <OptimizationCue
       optimization={optimization}
       stale={stale}
-      projectStart={projectStart}
+      workPackageStart={workPackageStart}
       today={today}
       workItemName={workItemName}
       menuOpen={open}
@@ -139,8 +139,8 @@ describe('the schedule cue', () => {
   });
 
   itDom.each([
-    ['the same project deadline in a different order', { fast: 10, pri: 10 }, { pri: false }],
-    ['a later project deadline', { fast: 10, pri: 12 }, { pri: true }],
+    ['the same work package deadline in a different order', { fast: 10, pri: 10 }, { pri: false }],
+    ['a later work package deadline', { fast: 10, pri: 12 }, { pri: true }],
   ] as const)('wears nothing for %s', (_what, finishDays, sameOrderAsFast) => {
     render(
       <Harness
@@ -221,7 +221,7 @@ describe('the schedule cue', () => {
       expect(pill()).toHaveAccessibleName(/Search stopped before proving this schedule optimal/);
       fireEvent.click(pill());
       const pri = screen.getByRole('menuitem', {
-        name: /Pri · 7 days · Earlier project deadline by 3 days · Search stopped/,
+        name: /Pri · 7 days · Earlier work package deadline by 3 days · Search stopped/,
       });
       expect(pri).toHaveAttribute('aria-disabled', 'false');
     },
@@ -305,7 +305,7 @@ describe('the schedule cue', () => {
     fireEvent.click(pill());
     expect(items()).toEqual([
       '✓ Fast · 10 days',
-      'Pri · 7 days · Earlier project deadline by 3 days',
+      'Pri · 7 days · Earlier work package deadline by 3 days',
       'Time · Optimizing…',
     ]);
     // The active one is checked and carries **no** fact: `MenuControl` focuses
@@ -326,8 +326,8 @@ describe('the schedule cue', () => {
     );
   });
 
-  itDom('switches the project onto the variant it suggested', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+  itDom('switches the work package onto the variant it suggested', () => {
+    const asked: WorkPackageOptimizationPatch[] = [];
     render(
       <Harness
         optimization={SUGGESTING}
@@ -342,7 +342,7 @@ describe('the schedule cue', () => {
   });
 
   itDom('switches back to Fast from a displayed variant', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+    const asked: WorkPackageOptimizationPatch[] = [];
     render(
       <Harness
         optimization={{ ...SUGGESTING, engine: 'optimized', displayed: 'pri' }}
@@ -357,7 +357,7 @@ describe('the schedule cue', () => {
   });
 
   itDom('asks for nothing when the schedule on screen is chosen again', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+    const asked: WorkPackageOptimizationPatch[] = [];
     render(
       <Harness
         optimization={SUGGESTING}
@@ -372,7 +372,7 @@ describe('the schedule cue', () => {
   });
 
   itDom('takes nothing from the item that says why it cannot be taken', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+    const asked: WorkPackageOptimizationPatch[] = [];
     render(
       <Harness
         optimization={SUGGESTING}
@@ -400,7 +400,7 @@ describe('the schedule cue', () => {
    * "Fast" · Received: "Pri"`. Watched 2026-09-08.
    */
   itDom('leaves the active schedule alone until a plan read moves it', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+    const asked: WorkPackageOptimizationPatch[] = [];
     const view = render(
       <Harness
         optimization={SUGGESTING}
@@ -435,7 +435,7 @@ describe('the schedule cue', () => {
   });
 
   itDom('shows the items unavailable while a write is in flight', () => {
-    const asked: ProjectOptimizationPatch[] = [];
+    const asked: WorkPackageOptimizationPatch[] = [];
     render(
       <Harness
         optimization={SUGGESTING}
@@ -493,7 +493,7 @@ describe('the schedule cue', () => {
   itDom('reads without offering a switch when there is no writer', () => {
     render(<Harness optimization={SUGGESTING} />);
     // The pill is still there and still says everything: what a reader without
-    // the project's settings loses is the ability to act, not the reading.
+    // the work package's settings loses is the ability to act, not the reading.
     // Still a `<button>`, so the keyboard can reach the fact — `HintLayer`
     // opens the same card from `focusin` — and still carrying every word.
     const reader = screen.getByRole('button', { name: /is the active schedule/ });
@@ -509,21 +509,21 @@ describe('the schedule cue', () => {
    * is `HintLayer`'s contract and is proven in `hint.test.tsx` and in
    * `e2e/optimization-cue.spec.ts`.
    *
-   * `data-fact` and **not** `data-hint`: this is information about the project
+   * `data-fact` and **not** `data-hint`: this is information about the work package
    * rather than about what the control does, and the two open on different
    * rules (Dany, 2026-09-08).
    */
-  itDom('carries the whole reading as a project fact, not as a tool hint', () => {
+  itDom('carries the whole reading as a work package fact, not as a tool hint', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
     const fact = pill().getAttribute('data-fact');
     expect(pill()).not.toHaveAttribute('data-hint');
     expect(fact).toContain('Fast · 10 days · active');
-    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days');
+    expect(fact).toContain('Pri · 7 days · Earlier work package deadline by 3 days');
     expect(fact).toContain('Time · Optimizing…');
     // What the three algorithms are — a name this short cannot say it, and the
     // reader has to choose between them.
     expect(fact).toContain('Fast places the plan in milliseconds');
-    expect(fact).toContain('Time searches for the earliest project deadline');
+    expect(fact).toContain('Time searches for the earliest work package deadline');
     expect(fact).toContain('Pri searches for the schedule that starts higher-priority work');
     expect(fact).toContain('CP-SAT searches from Google OR-Tools');
     // The metadata, which is the only place a reader can find out which plan
@@ -535,7 +535,7 @@ describe('the schedule cue', () => {
     expect((fact ?? '').split('\n\n')).toHaveLength(3);
   });
 
-  itDom('names the active schedule in the fact, wherever the project is', () => {
+  itDom('names the active schedule in the fact, wherever the work package is', () => {
     render(
       <Harness
         optimization={{ ...SUGGESTING, engine: 'optimized', displayed: 'pri' }}
@@ -543,7 +543,7 @@ describe('the schedule cue', () => {
       />,
     );
     const fact = pill().getAttribute('data-fact');
-    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days · active');
+    expect(fact).toContain('Pri · 7 days · Earlier work package deadline by 3 days · active');
     expect(fact).not.toContain('Fast · 10 days · active');
   });
 
@@ -578,7 +578,7 @@ describe('the schedule cue', () => {
     render(<Harness optimization={SUGGESTING} stale onChoose={() => undefined} />);
     const fact = pill().getAttribute('data-fact');
     expect(fact).toContain('Schedule comparison unavailable while this plan may be stale');
-    expect(fact).not.toContain('Earlier project deadline');
+    expect(fact).not.toContain('Earlier work package deadline');
   });
 
   itDom('puts every unmeetable work item deadline in the fact', () => {
@@ -608,7 +608,9 @@ describe('the schedule cue', () => {
     // honestly instead of presenting it as the date the user entered.
     expect(fact).toContain('Launch → Migration · Work item deadline (effective workday) 11 Sep');
     // The same row on both ends of the binding is named once.
-    expect(fact).toContain("Migration · Work item deadline before the project's first working day");
+    expect(fact).toContain(
+      "Migration · Work item deadline before the work package's first working day",
+    );
     // A row that has left the plan is named, never its raw id.
     expect(fact).toContain(
       'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
@@ -683,7 +685,7 @@ describe('the schedule cue', () => {
     );
   });
 
-  itDom('refuses a malformed project start at the renderer boundary without throwing', () => {
+  itDom('refuses a malformed work package start at the renderer boundary without throwing', () => {
     render(
       <Harness
         optimization={{
@@ -698,7 +700,7 @@ describe('the schedule cue', () => {
             },
           },
         }}
-        projectStart="the end of August"
+        workPackageStart="the end of August"
         onChoose={() => undefined}
       />,
     );
@@ -707,7 +709,7 @@ describe('the schedule cue', () => {
     );
   });
 
-  itDom('does not invent sentinel copy when the project has no calendar start', () => {
+  itDom('does not invent sentinel copy when the work package has no calendar start', () => {
     render(
       <Harness
         optimization={{
@@ -722,7 +724,7 @@ describe('the schedule cue', () => {
             },
           },
         }}
-        projectStart={null}
+        workPackageStart={null}
         onChoose={() => undefined}
       />,
     );
@@ -746,7 +748,7 @@ describe('the schedule cue', () => {
             },
           },
         }}
-        projectStart="2026-12-28"
+        workPackageStart="2026-12-28"
         today={new Date(2026, 11, 31, 23, 30)}
         onChoose={() => undefined}
       />,
@@ -796,7 +798,7 @@ const CONNECTED: ConnectedPlanOptimizationView = {
   ...SUGGESTING,
   scope: {
     kind: 'connected-stage',
-    projectId: 'target',
+    workPackageId: 'target',
     originOrdinal: 0,
     mode: 'isolated',
     quantum: 48,
@@ -804,9 +806,9 @@ const CONNECTED: ConnectedPlanOptimizationView = {
     boundary: { format: 'wbs-connected-stage', version: 1, canonical: 'captured' },
     fixed: [
       {
-        projectId: 'foreign',
-        projectName: 'Foreign',
-        projectAbbreviation: 'FOR',
+        workPackageId: 'foreign',
+        workPackageName: 'Foreign',
+        workPackageAbbreviation: 'FOR',
         workItemId: 'work',
         workItemName: 'Fixed work',
         stepId: 'step',
@@ -824,7 +826,7 @@ function terminal(evidence: 'contradictory-bounds' | 'initial-model-infeasible')
       kind: 'boundary-infeasible' as const,
       evidence,
       question: {
-        projectId: 'target',
+        workPackageId: 'target',
         inputHash: 'hash-a',
         questionHash: 'question',
         objective: 'pri' as const,
@@ -859,7 +861,9 @@ describe('the connected captured cue', () => {
       );
       expect(pill()).toHaveAccessibleName(/Fast is retained/);
       const fact = pill().getAttribute('data-fact');
-      expect(fact).toContain('Target project target; Priority-first; captured fixed positions');
+      expect(fact).toContain(
+        'Target work package target; Priority-first; captured fixed positions',
+      );
       expect(fact).toContain('Foreign (FOR, foreign) / Fixed work (work) / Build (step)');
       expect(fact).toContain('start 0.2, finish 1.2 workdays from the captured component origin');
       expect(fact).toContain('Quantum 48; wire version 1; contract 1.5+test');

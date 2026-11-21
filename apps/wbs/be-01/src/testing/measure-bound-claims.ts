@@ -9,7 +9,7 @@ import { countBoundClaims } from '@wbs/store-sqlite/organization-limits';
 /**
  * Times `countBoundClaims` (`wbs-organization-limits` task 3.5) over a scratch
  * database, the numbers verify.md records. Each of `organizations`
- * organizations owns one project with five steps, twenty agents and `leaves`
+ * organizations owns one work package with five steps, twenty agents and `leaves`
  * leaves, and holds `claims` claim rows spread over its leaves and steps; the
  * count is read for the first. Prints the claim rows, the count, the query
  * plan and the mean of 500 timed calls after 50 warm-up calls.
@@ -47,23 +47,23 @@ try {
     seeding.run("INSERT INTO users (id, username, created_at) VALUES ('owner', 'owner', 1)");
     for (let o = 0; o < organizations; o++) {
       const organizationId = `org-${String(o)}`;
-      const projectId = `project-${String(o)}`;
+      const workPackageId = `workPackage-${String(o)}`;
       seeding.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [
         organizationId,
         organizationId,
       ]);
       seeding.run(
-        "INSERT INTO project (id, name, owner_id, created_at, updated_at) VALUES (?, ?, 'owner', 1, 1)",
-        [projectId, projectId],
+        "INSERT INTO work_package (id, name, owner_id, created_at, updated_at) VALUES (?, ?, 'owner', 1, 1)",
+        [workPackageId, workPackageId],
       );
-      seeding.run('INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)', [
-        projectId,
-        organizationId,
-      ]);
+      seeding.run(
+        'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
+        [workPackageId, organizationId],
+      );
       for (let k = 0; k < STEPS; k++)
-        seeding.run('INSERT INTO step (id, project_id, name) VALUES (?, ?, ?)', [
+        seeding.run('INSERT INTO step (id, work_package_id, name) VALUES (?, ?, ?)', [
           `step-${String(o)}-${String(k)}`,
-          projectId,
+          workPackageId,
           `Step ${String(k)}`,
         ]);
       for (let n = 0; n < AGENTS; n++) {
@@ -74,12 +74,10 @@ try {
         ]);
       }
       for (let l = 0; l < leaves; l++)
-        seeding.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, ?, ?)', [
-          `leaf-${String(o)}-${String(l)}`,
-          projectId,
-          l,
-          `Leaf ${String(o)}-${String(l)}`,
-        ]);
+        seeding.run(
+          'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, ?, ?)',
+          [`leaf-${String(o)}-${String(l)}`, workPackageId, l, `Leaf ${String(o)}-${String(l)}`],
+        );
       for (let c = 0; c < claims; c++) {
         const leaf = c % leaves;
         seeding.run(

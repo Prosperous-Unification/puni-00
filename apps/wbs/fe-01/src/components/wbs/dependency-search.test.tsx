@@ -2,24 +2,29 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DependencyLookup, ProjectDiscoveryReply } from '@/modules/dependency-lookup/contract';
+import type {
+  DependencyLookup,
+  WorkPackageDiscoveryReply,
+} from '@/modules/dependency-lookup/contract';
 
 import { DependencyOptions } from './dependency-options';
 import { useDependencySearch } from './use-dependency-search';
 
 function lookup(): DependencyLookup {
   return {
-    discoverProjects: vi.fn().mockResolvedValue({
+    discoverWorkPackages: vi.fn().mockResolvedValue({
       kind: 'success',
       body: {
-        projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Puni project' }],
+        workPackages: [
+          { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Puni work package' },
+        ],
         nextCursor: null,
       },
     }),
     searchEndpoints: vi.fn().mockResolvedValue({
       kind: 'success',
       body: {
-        project: { projectId: 'remote', abbreviation: 'PUNI', name: 'Puni project' },
+        workPackage: { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Puni work package' },
         addressRevision: 'r1',
         candidates: [],
         nextCursor: null,
@@ -32,7 +37,7 @@ function Field({ service }: { service: DependencyLookup }) {
   const [typed, setTyped] = useState('');
   const search = useDependencySearch({
     lookup: service,
-    projectId: 'local',
+    workPackageId: 'local',
     ownerId: 'successor',
     active: true,
     typed,
@@ -71,7 +76,7 @@ afterEach(() => {
 });
 
 describe('mounted dependency lookup', () => {
-  it('empty numeric and local step tokens never request projects', async () => {
+  it('empty numeric and local step tokens never request work packages', async () => {
     vi.useFakeTimers();
     const service = lookup();
     render(<Field service={service} />);
@@ -79,23 +84,23 @@ describe('mounted dependency lookup', () => {
       fireEvent.change(screen.getByRole('textbox'), { target: { value: token } });
       await tick();
     }
-    expect(service.discoverProjects).not.toHaveBeenCalled();
+    expect(service.discoverWorkPackages).not.toHaveBeenCalled();
   });
-  it('shows projects alongside local title matches after debounce and selecting only scopes lookup', async () => {
+  it('shows work packages alongside local title matches after debounce and selecting only scopes lookup', async () => {
     vi.useFakeTimers();
     const service = lookup();
     render(<Field service={service} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '010,  puni' } });
-    expect(service.discoverProjects).not.toHaveBeenCalled();
+    expect(service.discoverWorkPackages).not.toHaveBeenCalled();
     expect(screen.getByRole('option', { name: '010 - Puni local title' })).toBeDefined();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(199);
     });
-    expect(service.discoverProjects).not.toHaveBeenCalled();
+    expect(service.discoverWorkPackages).not.toHaveBeenCalled();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    fireEvent.click(screen.getByRole('option', { name: 'Project PUNI - Puni project' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Work package PUNI - Puni work package' }));
     expect(screen.getByRole<HTMLInputElement>('textbox').value).toBe('010,  PUNI.');
     await tick();
     expect(service.searchEndpoints).toHaveBeenCalledWith(
@@ -108,8 +113,8 @@ describe('mounted dependency lookup', () => {
   it('late alphabetic response cannot populate 080 even if transport ignores cancellation', async () => {
     vi.useFakeTimers();
     const service = lookup();
-    let answer: ((reply: ProjectDiscoveryReply) => void) | undefined;
-    vi.mocked(service.discoverProjects).mockImplementation(
+    let answer: ((reply: WorkPackageDiscoveryReply) => void) | undefined;
+    vi.mocked(service.discoverWorkPackages).mockImplementation(
       () =>
         new Promise((resolve) => {
           answer = resolve;
@@ -124,19 +129,21 @@ describe('mounted dependency lookup', () => {
       answer?.({
         kind: 'success',
         body: {
-          projects: [{ projectId: 'remote', abbreviation: 'PUNI', name: 'Stale project' }],
+          workPackages: [
+            { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Stale work package' },
+          ],
           nextCursor: null,
         },
       });
       await Promise.resolve();
     });
-    expect(screen.queryByText('Stale project')).toBeNull();
-    expect(screen.queryByRole('option', { name: /Project PUNI/ })).toBeNull();
+    expect(screen.queryByText('Stale work package')).toBeNull();
+    expect(screen.queryByRole('option', { name: /Work package PUNI/ })).toBeNull();
   });
   it('failed lookup renders retry instead of an empty result', async () => {
     vi.useFakeTimers();
     const service = lookup();
-    vi.mocked(service.discoverProjects).mockResolvedValueOnce({
+    vi.mocked(service.discoverWorkPackages).mockResolvedValueOnce({
       kind: 'failure',
       failure: { code: 'transport', cause: 'offline' },
     });
@@ -146,16 +153,16 @@ describe('mounted dependency lookup', () => {
     expect(screen.getByRole('button', { name: 'Retry lookup' })).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Retry lookup' }));
     await tick();
-    expect(screen.getByRole('option', { name: /Project PUNI/ })).toBeDefined();
+    expect(screen.getByRole('option', { name: /Work package PUNI/ })).toBeDefined();
   });
   it('unmount cancels lookup', async () => {
     vi.useFakeTimers();
     const service = lookup();
-    vi.mocked(service.discoverProjects).mockImplementation(() => new Promise(() => undefined));
+    vi.mocked(service.discoverWorkPackages).mockImplementation(() => new Promise(() => undefined));
     const mounted = render(<Field service={service} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
     await tick();
-    const signal = vi.mocked(service.discoverProjects).mock.calls[0]?.[2];
+    const signal = vi.mocked(service.discoverWorkPackages).mock.calls[0]?.[2];
     mounted.unmount();
     expect(signal?.aborted).toBe(true);
   });
@@ -167,16 +174,16 @@ it('hides old alphabetic options synchronously when the current question changes
   render(<Field service={service} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
-  expect(screen.getByRole('option', { name: /Project PUNI/ })).toBeDefined();
+  expect(screen.getByRole('option', { name: /Work package PUNI/ })).toBeDefined();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'OTHER' } });
-  expect(screen.queryByRole('option', { name: /Project PUNI/ })).toBeNull();
+  expect(screen.queryByRole('option', { name: /Work package PUNI/ })).toBeNull();
 });
 
 it('an older ignored-abort answer cannot erase a newer ready question', async () => {
   vi.useFakeTimers();
   const service = lookup();
-  let answer: ((reply: ProjectDiscoveryReply) => void) | undefined;
-  vi.mocked(service.discoverProjects)
+  let answer: ((reply: WorkPackageDiscoveryReply) => void) | undefined;
+  vi.mocked(service.discoverWorkPackages)
     .mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -186,7 +193,7 @@ it('an older ignored-abort answer cannot erase a newer ready question', async ()
     .mockResolvedValueOnce({
       kind: 'success',
       body: {
-        projects: [{ projectId: 'new', abbreviation: 'NEW', name: 'New question' }],
+        workPackages: [{ workPackageId: 'new', abbreviation: 'NEW', name: 'New question' }],
         nextCursor: null,
       },
     });
@@ -195,28 +202,28 @@ it('an older ignored-abort answer cannot erase a newer ready question', async ()
   await tick();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'NEW' } });
   await tick();
-  expect(screen.getByRole('option', { name: 'Project NEW - New question' })).toBeDefined();
+  expect(screen.getByRole('option', { name: 'Work package NEW - New question' })).toBeDefined();
   if (answer === undefined) throw new Error('Old request not sent');
   await act(async () => {
-    answer?.({ kind: 'success', body: { projects: [], nextCursor: null } });
+    answer?.({ kind: 'success', body: { workPackages: [], nextCursor: null } });
     await Promise.resolve();
   });
-  expect(screen.getByRole('option', { name: 'Project NEW - New question' })).toBeDefined();
+  expect(screen.getByRole('option', { name: 'Work package NEW - New question' })).toBeDefined();
 });
 
 it('explicit More refuses endpoint pages from another revision and keeps scopes distinct', async () => {
   vi.useFakeTimers();
   const service = lookup();
-  const project = { projectId: 'remote', abbreviation: 'PUNI', name: 'Puni project' };
+  const workPackage = { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Puni work package' };
   vi.mocked(service.searchEndpoints)
     .mockResolvedValueOnce({
       kind: 'success',
       body: {
-        project,
+        workPackage,
         addressRevision: 'r1',
         candidates: [
           {
-            projectId: 'remote',
+            workPackageId: 'remote',
             workItemId: 'a',
             number: '080',
             name: 'Build',
@@ -224,7 +231,7 @@ it('explicit More refuses endpoint pages from another revision and keeps scopes 
             reference: 'PUNI.080',
           },
           {
-            projectId: 'remote',
+            workPackageId: 'remote',
             workItemId: 'a',
             number: '080',
             name: 'Build',
@@ -233,7 +240,7 @@ it('explicit More refuses endpoint pages from another revision and keeps scopes 
             step: { id: 'dev', code: 'DEV', name: 'Dev', position: 0, ordinal: 1 },
           },
           {
-            projectId: 'remote',
+            workPackageId: 'remote',
             workItemId: 'a',
             number: '080',
             name: 'Build',
@@ -248,11 +255,11 @@ it('explicit More refuses endpoint pages from another revision and keeps scopes 
     .mockResolvedValueOnce({
       kind: 'success',
       body: {
-        project,
+        workPackage,
         addressRevision: 'r2',
         candidates: [
           {
-            projectId: 'remote',
+            workPackageId: 'remote',
             workItemId: 'b',
             number: '090',
             name: 'Changed',
@@ -266,7 +273,7 @@ it('explicit More refuses endpoint pages from another revision and keeps scopes 
   render(<Field service={service} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
-  fireEvent.click(screen.getByRole('option', { name: /Project PUNI/ }));
+  fireEvent.click(screen.getByRole('option', { name: /Work package PUNI/ }));
   await tick();
   expect(screen.getByRole('option', { name: 'PUNI.080 - Build' })).toBeDefined();
   expect(screen.getByRole('option', { name: 'PUNI.080.s1-dev - Build' })).toBeDefined();
@@ -292,25 +299,29 @@ it('qualified discovery uses the first-dot abbreviation and numeric replacement 
   render(<Field service={service} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI-CORE.080.39' } });
   await tick();
-  expect(service.discoverProjects).toHaveBeenCalledWith('PUNI-CORE', null, expect.any(AbortSignal));
-  fireEvent.click(screen.getByRole('option', { name: /Project PUNI/ }));
+  expect(service.discoverWorkPackages).toHaveBeenCalledWith(
+    'PUNI-CORE',
+    null,
+    expect.any(AbortSignal),
+  );
+  fireEvent.click(screen.getByRole('option', { name: /Work package PUNI/ }));
   await tick();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '080' } });
   await tick();
-  expect(service.discoverProjects).toHaveBeenCalledTimes(1);
+  expect(service.discoverWorkPackages).toHaveBeenCalledTimes(1);
   expect(service.searchEndpoints).toHaveBeenCalledTimes(1);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
-  expect(service.discoverProjects).toHaveBeenCalledTimes(2);
+  expect(service.discoverWorkPackages).toHaveBeenCalledTimes(2);
 });
 
-it('rejects candidate evidence for a different stable project', async () => {
+it('rejects candidate evidence for a different stable work package', async () => {
   vi.useFakeTimers();
   const service = lookup();
   vi.mocked(service.searchEndpoints).mockResolvedValue({
     kind: 'success',
     body: {
-      project: { projectId: 'other', abbreviation: 'PUNI', name: 'Reused address' },
+      workPackage: { workPackageId: 'other', abbreviation: 'PUNI', name: 'Reused address' },
       addressRevision: 'r1',
       candidates: [],
       nextCursor: null,
@@ -319,26 +330,26 @@ it('rejects candidate evidence for a different stable project', async () => {
   render(<Field service={service} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
-  fireEvent.click(screen.getByRole('option', { name: /Project PUNI/ }));
+  fireEvent.click(screen.getByRole('option', { name: /Work package PUNI/ }));
   await tick();
   expect(screen.getByRole('button', { name: 'Refresh choices' })).toBeDefined();
   expect(screen.queryByText('No matching dependency choices.')).toBeNull();
 });
 
-it('replacement lookup requires a deliberate project choice before using retained selected scope', async () => {
+it('replacement lookup requires a deliberate work package choice before using retained selected scope', async () => {
   vi.useFakeTimers();
   const service = lookup();
   const mounted = render(<Field service={service} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'PUNI' } });
   await tick();
-  fireEvent.click(screen.getByRole('option', { name: 'Project PUNI - Puni project' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Work package PUNI - Puni work package' }));
   await tick();
   const replacement = lookup();
   mounted.rerender(<Field service={replacement} />);
   await tick();
   expect(replacement.searchEndpoints).not.toHaveBeenCalled();
-  expect(replacement.discoverProjects).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole('option', { name: 'Project PUNI - Puni project' }));
+  expect(replacement.discoverWorkPackages).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('option', { name: 'Work package PUNI - Puni work package' }));
   await tick();
   expect(replacement.searchEndpoints).toHaveBeenCalledWith(
     'remote',

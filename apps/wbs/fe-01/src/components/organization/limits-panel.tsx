@@ -266,7 +266,7 @@ export function LimitsReady({ limits }: { limits: OrganizationLimitsRead }): Rea
           Capacity units per resource (cap {capacityCap})
         </h3>
         {limits.usage.capacityUnits.length === 0 ? (
-          <p className={STATUS_CLASS}>No project states a capacity of any resource yet.</p>
+          <p className={STATUS_CLASS}>No work package states a capacity of any resource yet.</p>
         ) : (
           <ul className={`${LIST_CLASS} divide-border divide-y`} aria-label="Capacity by resource">
             {limits.usage.capacityUnits.map((resource) => (

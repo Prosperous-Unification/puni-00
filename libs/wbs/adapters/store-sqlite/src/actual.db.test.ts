@@ -2,18 +2,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
+import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -22,14 +23,14 @@ let path: string;
 let ownerId: string;
 let repo: ActualRepository;
 let workItems: WorkItemRepository;
-let projectId: string;
+let workPackageId: string;
 let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row. Not to be read as an
  * actual's `recordedAt` — that is the day somebody says the work took, and this
@@ -40,7 +41,7 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 const insertItem = async (id: string, position: number, name: string): Promise<void> => {
   const item: WorkItem = workItemRow({
     id,
-    projectId,
+    workPackageId,
     position,
     name,
   });
@@ -48,9 +49,9 @@ const insertItem = async (id: string, position: number, name: string): Promise<v
 };
 
 const revisionOf = async (id: string): Promise<number> => {
-  const rows = await workItems.listByProject(projectId);
+  const rows = await workItems.listByWorkPackage(workPackageId);
   const found = rows.find((row) => row.id === id);
-  if (found === undefined) throw new Error(`${id} is not in the project`);
+  if (found === undefined) throw new Error(`${id} is not in the work package`);
   return found.revision;
 };
 
@@ -58,6 +59,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-actual-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   repo = new ActualRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
@@ -67,20 +69,20 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
-  projectId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
   // Ids chosen so that sorting them disagrees with step order, exactly as
   // `estimate.test.ts` does: `Dev` runs first and sorts last, so a read that
   // fell back to the primary key's own order hands back `QA` first.
   devId = `z-dev-${crypto.randomUUID()}`;
   qaId = `a-qa-${crypto.randomUUID()}`;
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
+  const workPackage: WorkPackage = workPackageRow({
+    id: workPackageId,
+    projectId: 'fixture-project',
   });
   const steps: Step[] = [
     {
       id: devId,
-      projectId,
+      workPackageId,
       name: 'Dev',
       position: 10,
       code: 'dev',
@@ -89,7 +91,7 @@ beforeEach(async () => {
     },
     {
       id: qaId,
-      projectId,
+      workPackageId,
       name: 'QA',
       position: 20,
       code: 'qa',
@@ -97,7 +99,7 @@ beforeEach(async () => {
       estimateUnit: 'workdays' as const,
     },
   ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
+  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -120,7 +122,7 @@ describe('ActualRepository', () => {
 
     await repo.set({ workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 8, recordedAt: 2_000 },
     ]);
   });
@@ -136,7 +138,7 @@ describe('ActualRepository', () => {
 
     await repo.remove(stripId, devId, wrote());
 
-    const left = await repo.listByProject(projectId);
+    const left = await repo.listByWorkPackage(workPackageId);
     expect(left).toHaveLength(2);
     // The same step on another work item survives — the work-item half.
     expect(left).toContainEqual({ workItemId: sandId, stepId: devId, days: 3, recordedAt: 3 });
@@ -150,7 +152,7 @@ describe('ActualRepository', () => {
     await repo.remove(stripId, devId, wrote());
     await repo.remove(stripId, devId, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: qaId, days: 2, recordedAt: 2 },
     ]);
   });
@@ -162,7 +164,7 @@ describe('ActualRepository', () => {
     // that treated 0 as nothing to write would make the two the same sentence.
     await repo.set({ workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 0, recordedAt: 5 },
     ]);
   });
@@ -176,13 +178,13 @@ describe('ActualRepository', () => {
     await repo.set({ workItemId: stripId, stepId: qaId, days: 4, recordedAt: 1 }, wrote());
     await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 2 }, wrote());
 
-    const held = await repo.listByProject(projectId);
+    const held = await repo.listByWorkPackage(workPackageId);
 
     expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
 
-  it('answers one project only, so another plan’s recorded days are never in the list', async () => {
-    const otherProject = crypto.randomUUID();
+  it('answers one work package only, so another plan’s recorded days are never in the list', async () => {
+    const otherWorkPackage = crypto.randomUUID();
     const otherStep = crypto.randomUUID();
     const otherItem = crypto.randomUUID();
     const db = openDrizzle(path);
@@ -193,16 +195,16 @@ describe('ActualRepository', () => {
       { id: owner, username: 'other', passwordHash: 'x', createdAt: 1 },
       wroteElsewhere,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
-        id: otherProject,
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
+        id: otherWorkPackage,
         name: 'Another shed',
-        ownerId: owner,
+        projectId: 'fixture-project',
       }),
       [
         {
           id: otherStep,
-          projectId: otherProject,
+          workPackageId: otherWorkPackage,
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -215,7 +217,7 @@ describe('ActualRepository', () => {
     await new WorkItemRepository(db, OPEN).insert(
       workItemRow({
         id: otherItem,
-        projectId: otherProject,
+        workPackageId: otherWorkPackage,
         position: 10,
         name: 'Elsewhere',
       }),
@@ -228,7 +230,7 @@ describe('ActualRepository', () => {
     );
     await repo.set({ workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 }, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: devId, days: 1, recordedAt: 1 },
     ]);
   });
@@ -259,7 +261,7 @@ describe('ActualRepository', () => {
 
     await repo.moveAll(stripId, sandId, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: sandId, stepId: devId, days: 2, recordedAt: 7 },
     ]);
     expect(await revisionOf(sandId)).toBe(sandBefore + 1);
@@ -283,7 +285,7 @@ describe('ActualRepository', () => {
       db.close();
     }
 
-    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it('refuses to leave a step that still holds recorded days, rather than emptying it quietly', async () => {
@@ -304,6 +306,6 @@ describe('ActualRepository', () => {
       db.close();
     }
 
-    expect(await repo.listByProject(projectId)).toHaveLength(1);
+    expect(await repo.listByWorkPackage(workPackageId)).toHaveLength(1);
   });
 });

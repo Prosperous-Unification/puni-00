@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { fakeProjectApi } from '@/testing/fake-project-api';
+import { fakeWorkPackageApi } from '@/testing/fake-work-package-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { recordCalls } from '@/testing/record-calls';
 
@@ -51,7 +51,7 @@ describe('a clicked day reaches the create body as the day it was, under a non-U
   };
 
   it('sends the clicked date verbatim rather than its UTC neighbour', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const creates = recordCalls(api, 'createCalendarMarker');
     render(
       <GanttPanel

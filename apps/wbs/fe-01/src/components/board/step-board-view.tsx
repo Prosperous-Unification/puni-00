@@ -1,11 +1,11 @@
 import { Button } from '@ui/saas-01';
 import { useSyncExternalStore } from 'react';
 
-import type { ProjectRuntime } from '@/modules/project/contract';
+import type { WorkPackageRuntime } from '@/modules/work-package/contract';
 
 import { refusalSentence } from '../wbs/plan-refusal';
 import { statusWords } from '../wbs/status-cell';
-import { projectStepBoard } from './step-board';
+import { workPackageStepBoard } from './step-board';
 
 const columns = [
   { key: 'unknown', label: 'Unknown' },
@@ -13,15 +13,15 @@ const columns = [
   { key: 'done', label: 'Done' },
 ] as const;
 
-/** The selected project's read-only board, drawn from one delivered tree. */
+/** The selected work package's read-only board, drawn from one delivered tree. */
 export function StepBoardView({
-  project,
+  workPackage,
   onReturnToPlan,
 }: {
-  project: Pick<ProjectRuntime, 'plan' | 'reread'>;
+  workPackage: Pick<WorkPackageRuntime, 'plan' | 'reread'>;
   onReturnToPlan: () => void;
 }): React.JSX.Element {
-  const delivered = useSyncExternalStore(project.plan.subscribe, project.plan.snapshot);
+  const delivered = useSyncExternalStore(workPackage.plan.subscribe, workPackage.plan.snapshot);
   const { tree, treeFailure, staleResources, connected } = delivered;
   // Proof: suppressing this condition failed `shows a first tree failure and retries through
   // the current runtime` (no alert); ignoring staleResources alone failed `shows a stale
@@ -34,25 +34,25 @@ export function StepBoardView({
       ? 'This plan may be out of date — the last refresh failed.'
       : refusalSentence(treeFailure.cause);
 
-  // A separate steps delivery can be newer than this tree. Project only the tree's own steps.
+  // A separate steps delivery can be newer than this tree. Work package only the tree's own steps.
   // Proof: replacing tree.value.steps with delivered.steps failed `does not combine separately
   // delivered newer steps with an older tree` (QA vanished before the newer tree arrived).
   // Proof: bypassing the projector's malformed-progress throw defaulted it to Unknown and
   // failed `sends invalid delivered progress to the visible app error boundary` (no app alert).
   // Proof: dropping the last board on stale failure failed `keeps last delivered cards visibly
   // stale after a failed read and shows disconnection` (Build vanished).
-  const board = tree === null ? null : projectStepBoard(tree.value);
-  // Proof: suppressing this branch failed `distinguishes an empty project from work with
-  // no project steps` (no "No work items" text).
-  const isEmptyProject = tree !== null && tree.value.workItems.length === 0;
-  // Proof: suppressing this branch failed `distinguishes an empty project from work with
-  // no project steps` (no "No project steps" text).
+  const board = tree === null ? null : workPackageStepBoard(tree.value);
+  // Proof: suppressing this branch failed `distinguishes an empty workPackage from work with
+  // no work package steps` (no "No work items" text).
+  const isEmptyWorkPackage = tree !== null && tree.value.workItems.length === 0;
+  // Proof: suppressing this branch failed `distinguishes an empty workPackage from work with
+  // no work package steps` (no "No workPackage steps" text).
   const hasNoSteps = tree !== null && tree.value.steps.length === 0;
 
   const retry = (): void => {
     // Proof: rereading steps instead failed `shows a first tree failure and retries through
     // the current runtime` (received steps, expected tree).
-    void project.reread(['tree']);
+    void workPackage.reread(['tree']);
   };
 
   return (
@@ -77,10 +77,10 @@ export function StepBoardView({
         treeMayBeStale ? null : (
           <p>Loading board…</p>
         )
-      ) : isEmptyProject ? (
+      ) : isEmptyWorkPackage ? (
         <p>No work items</p>
       ) : hasNoSteps ? (
-        <p>No project steps</p>
+        <p>No work package steps</p>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map(({ key, label }) => (

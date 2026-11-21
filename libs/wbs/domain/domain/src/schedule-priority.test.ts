@@ -186,7 +186,7 @@ describe('priority never overrides a hard constraint', () => {
     expect(planned(found, 'a', DEV)).toMatchObject({
       earliestStart: 0,
       earliestFinish: 0,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
     });
     expect(planned(found, 'a', QA)).toMatchObject({ earliestStart: 0, earliestFinish: 3 });
     expect(planned(found, 'b', DEV)).toMatchObject({ earliestStart: 3, boundBy: 'person' });
@@ -268,7 +268,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * 8 → 7, and sam's queue reverses behind it: `c-a/step-qa` 7 → 9.5 with
  * `boundBy` `stepOrder` → `person` and `c-c/step-dev` as its resource
  * predecessor, while `c-p1/step-qa` — unestimated, floating — takes the
- * project's new finish, float 3.5 → 6.5. Everything else is untouched, which is
+ * work package's new finish, float 3.5 → 6.5. Everything else is untouched, which is
  * the point: the anchor rule moves what waits on a dependency and nothing else.
  * Priority is still what this pin is *for*; the plan still priorities nothing.
  *
@@ -276,7 +276,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * slice: `c-p1/step-qa`, which nobody estimated and `sam` is on. It used to sit
  * at 4→4 with six and a half days of slack, occupying nobody; it is now two
  * workdays wide, so it queues behind `sam`'s other work at 10.5→12.5, becomes
- * critical, and takes the project's finish from 10.5 to 12.5 — which gives
+ * critical, and takes the work package's finish from 10.5 to 12.5 — which gives
  * `c-b`, `c-d` and `c-p2` two more days of float each and carries `c-p1` and
  * `c-parent` out to the new end. `waitingForPerson` counts it: 2 → 3. Every
  * estimated slice's own start and finish is untouched, which is the line this
@@ -297,7 +297,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * critical and `c-d` becomes so. `waitingForPerson` goes 3 → 4, because
  * `c-c/role-dev` now waits for a person where it used to wait for a dependency.
  *
- * The project still finishes at 12.5 and no estimated slice changed length.
+ * The work package still finishes at 12.5 and no estimated slice changed length.
  * What moved is who waits behind whom, which is exactly what a reach decides —
  * and the pin is here so that a change to *priority* cannot move it silently.
  *
@@ -306,7 +306,7 @@ describe('a priority written up the tree reaches the leaves', () => {
  * again, so it stands at 4→4 behind its `Dev` and occupies `sam` for nothing.
  * `c-parent` ends on day 4, `c-d` runs 4→7, `sam` takes `c-a/role-qa` 7→8
  * and `c-c/role-dev` 8→10.5 behind its predecessor rather than behind a
- * queue, and the project finishes at 10.5. `waitingForPerson` goes 4 → 2.
+ * queue, and the work package finishes at 10.5. `waitingForPerson` goes 4 → 2.
  */
 const CONTENTION_ROWS: readonly PlannedRow[] = [
   item('c-a'),
@@ -478,7 +478,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         float: 0,
         critical: true,
         personId: 'kat',
-        boundBy: 'projectStart',
+        boundBy: 'workPackageStart',
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
@@ -514,7 +514,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         float: 6.5,
         critical: false,
         personId: 'ro',
-        boundBy: 'projectStart',
+        boundBy: 'workPackageStart',
         resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
@@ -526,7 +526,7 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
     //
     // Re-derived with the slices above at `dep-waits-on-first-role`: `c-a`
     // finishes 8 → 10.5 because its `QA` was pushed behind `c-c`, `c-c` runs
-    // 7 → 9.5, and the two `latestFinish`es that read the project's end
+    // 7 → 9.5, and the two `latestFinish`es that read the work package's end
     // (`c-p1`, `c-parent`) follow it 7.5 → 10.5.
     const saidOfWorkItems = [...found.workItems].sort(([left], [right]) => (left < right ? -1 : 1));
 

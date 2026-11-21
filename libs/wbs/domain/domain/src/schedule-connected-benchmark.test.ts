@@ -9,13 +9,13 @@ import { groupSlicesByLeaf } from './slice-groups';
 for (const shape of ['sparse', 'dense'] as const) {
   test(`${shape} connected fixture retains its graph density and complete scheduled projections`, () => {
     const fixture = buildConnectedBenchmark(shape);
-    expect(fixture.projects).toHaveLength(shape === 'sparse' ? 202 : 26);
+    expect(fixture.workPackages).toHaveLength(shape === 'sparse' ? 202 : 26);
     expect(fixture.relationships).toHaveLength(shape === 'sparse' ? 101 : 300);
     expect(
-      new Set(fixture.projects.flatMap(({ personId }) => (personId === null ? [] : [personId])))
+      new Set(fixture.workPackages.flatMap(({ personId }) => (personId === null ? [] : [personId])))
         .size,
     ).toBe(shape === 'sparse' ? 100 : 1);
-    const members = fixture.projects.map((member) => {
+    const members = fixture.workPackages.map((member) => {
       const rows = [
         { id: member.workItemId, parentId: null, position: 0, priority: null, frozenNumber: null },
       ];
@@ -43,14 +43,17 @@ for (const shape of ['sparse', 'dense'] as const) {
       return {
         member,
         input,
-        projectId: member.projectId,
+        workPackageId: member.workPackageId,
         tree,
         slicesByLeaf: groupSlicesByLeaf(tree.leafIds, slices),
         graph: input.graph,
         relationships: [],
       };
     });
-    const authored = resolveConnectedGraph({ projects: members, external: fixture.relationships });
+    const authored = resolveConnectedGraph({
+      workPackages: members,
+      external: fixture.relationships,
+    });
     expect(authored.graph.edges).toHaveLength(fixture.relationships.length);
     const combined = resolveScheduleInput({
       rows: members.flatMap(({ input }) => input.rows),
@@ -68,12 +71,14 @@ for (const shape of ['sparse', 'dense'] as const) {
       graph: authored.graph,
       order: {
         kind: 'connected',
-        projectIdByWorkItem: authored.projectIdByWorkItem,
-        rankByProject: new Map(fixture.projects.map(({ projectId }, rank) => [projectId, rank])),
+        workPackageIdByWorkItem: authored.workPackageIdByWorkItem,
+        rankByWorkPackage: new Map(
+          fixture.workPackages.map(({ workPackageId }, rank) => [workPackageId, rank]),
+        ),
       },
     });
     const deriveMs = performance.now() - started;
-    expect(scheduled.slices.size).toBe(fixture.projects.length);
+    expect(scheduled.slices.size).toBe(fixture.workPackages.length);
     for (const relationship of fixture.relationships) {
       const predecessor = scheduled.workItems.get(relationship.predecessor.workItemId);
       const successor = scheduled.workItems.get(relationship.successor.workItemId);
@@ -82,7 +87,7 @@ for (const shape of ['sparse', 'dense'] as const) {
       expect(successor.earliestStart).toBeGreaterThanOrEqual(predecessor.earliestFinish);
     }
     for (const personId of new Set(
-      fixture.projects.flatMap(({ personId }) => (personId === null ? [] : [personId])),
+      fixture.workPackages.flatMap(({ personId }) => (personId === null ? [] : [personId])),
     )) {
       const spans = [...scheduled.slices.values()]
         .filter((slice) => slice.personId === personId)
@@ -95,7 +100,7 @@ for (const shape of ['sparse', 'dense'] as const) {
       JSON.stringify({
         metric: 'connected-domain-schedule',
         shape,
-        projects: fixture.projects.length,
+        workPackages: fixture.workPackages.length,
         relationships: authored.graph.edges.length,
         deriveMs,
       }),

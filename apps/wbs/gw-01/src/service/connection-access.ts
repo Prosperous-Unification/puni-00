@@ -2,19 +2,19 @@ import { type Timers, withinDeadline } from '@wbs/runtime-portable';
 
 import {
   ACCESS_CHECK_DEADLINE_MS,
-  type CheckProjectAccess,
+  type CheckWorkPackageAccess,
   LEASE_RENEW_MS,
-} from './project-access';
+} from './work-package-access';
 
 /** What one access decision left the connection with. `closed` means it is being closed. */
 export type Admission = 'granted' | 'denied' | 'closed';
 
 export interface ConnectionAccessDeps {
-  check: CheckProjectAccess;
+  check: CheckWorkPackageAccess;
   timers: Timers;
   /** Aborted when the connection closes; no check starts or reports after it. */
   signal: AbortSignal;
-  /** A held project lost access; await its unsubscribe/presence/control delivery before advancing. */
+  /** A held work package lost access; await its unsubscribe/presence/control delivery before advancing. */
   onRevoked: (subscription: string) => Promise<void> | void;
   /** The credential no longer proves anyone: the composition closes the socket with 1008. */
   onUnauthenticated: () => void;
@@ -25,7 +25,7 @@ export interface ConnectionAccessDeps {
 }
 
 /**
- * One socket's project authorization: admission, the lease that keeps it, and
+ * One socket's work package authorization: admission, the lease that keeps it, and
  * the order in which subscription changes take effect.
  *
  * Fails closed. A check be-01 cannot answer never grants: the socket is closed
@@ -65,14 +65,14 @@ export class ConnectionAccess {
    * Asks be-01 once. `unauthenticated` and an unanswered check close the
    * connection through the deps hooks and answer `closed`.
    */
-  async admit(projectId: string): Promise<Admission> {
+  async admit(workPackageId: string): Promise<Admission> {
     if (this.closed || this.deps.signal.aborted) return 'closed';
     let verdict;
     try {
       verdict = await withinDeadline(
         this.deps.timers,
         this.deps.checkDeadlineMs ?? ACCESS_CHECK_DEADLINE_MS,
-        (signal) => this.deps.check(projectId, signal),
+        (signal) => this.deps.check(workPackageId, signal),
         this.deps.signal,
       );
     } catch (caught) {
@@ -80,7 +80,7 @@ export class ConnectionAccess {
       if (isAborted(this.deps.signal)) return 'closed';
       // Proof: answering `granted` here kept the subscription and the socket
       // open in `closes the socket when be-01 cannot answer, and grants
-      // nothing` (project-authorization.integration.test.ts, 2026-10-11).
+      // nothing` (work-package-authorization.integration.test.ts, 2026-10-11).
       this.close(() => {
         this.deps.onUnavailable(caught);
       });
@@ -93,9 +93,9 @@ export class ConnectionAccess {
     return verdict;
   }
 
-  /** Starts leasing `subscription`, which names `projectId`, after it was admitted. */
-  hold(subscription: string, projectId: string): void {
-    this.held.set(subscription, projectId);
+  /** Starts leasing `subscription`, which names `workPackageId`, after it was admitted. */
+  hold(subscription: string, workPackageId: string): void {
+    this.held.set(subscription, workPackageId);
     if (this.cancelLease === null && !this.closed) this.scheduleRound();
   }
 
@@ -136,17 +136,19 @@ export class ConnectionAccess {
    * just after a renewal` (2026-10-11).
    */
   private async renew(): Promise<void> {
-    // Every held project at once, so one round takes one check deadline
+    // Every held work package at once, so one round takes one check deadline
     // however many subscriptions the socket holds.
     // Proof: checking them one after another made `keeps the bound and serves
-    // a subscribe with five held projects and a slow be-01` observe
+    // a subscribe with five held work packages and a slow be-01` observe
     // revocations beyond the 4.5 s bound (2026-10-11).
     const held = [...this.held];
-    const admissions = await Promise.all(held.map(([, projectId]) => this.admit(projectId)));
+    const admissions = await Promise.all(
+      held.map(([, workPackageId]) => this.admit(workPackageId)),
+    );
     if (admissions.includes('closed')) return;
     await Promise.all(
-      held.map(async ([subscription, projectId], index) => {
-        if (admissions[index] !== 'denied' || this.held.get(subscription) !== projectId) return;
+      held.map(async ([subscription, workPackageId], index) => {
+        if (admissions[index] !== 'denied' || this.held.get(subscription) !== workPackageId) return;
         this.held.delete(subscription);
         // Proof: detaching this callback loses the error in reports a rejected asynchronous revocation.
         await this.deps.onRevoked(subscription);

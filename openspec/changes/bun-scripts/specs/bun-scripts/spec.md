@@ -9,6 +9,21 @@ The migration SHALL inventory executable entrypoints, generated/embedded script 
 - **WHEN** a first-party shell or Node entrypoint or generated script is introduced through a new path, package command or CI consumer
 - **THEN** acceptance refuses and names the unclassified executable/consumer rather than accepting the existing inventory count
 
+#### Scenario: Compose service execution cannot disappear from the inventory
+
+- **WHEN** a standard Compose filename, including an override in a new or hidden directory, declares service command, entrypoint, post_start or pre_stop bodies
+- **THEN** discovery records their structural locations, exact string/null/vector forms and complete captured configuration without evaluating interpolation or substituting host files for container paths
+- **AND** image inheritance and include-only configurations remain explicit unresolved references; a declaration naming a PUNI replacement cannot qualify their image, mounts or merge semantics
+- **AND** malformed service/hook/command shapes and missing or null required hook commands throw rather than becoming an empty inventory
+
+#### Scenario: Docker build and image execution remain visible
+
+- **WHEN** a captured Dockerfile or Containerfile, including prefix/suffix variants in a new or hidden directory, contains build or runtime execution
+- **THEN** discovery retains the entire exact file and ordinary RUN, CMD, ENTRYPOINT, HEALTHCHECK and ONBUILD instruction spans, including continued physical lines
+- **AND** heredocs, escape directives and custom frontends retain the complete file as an opaque unresolved boundary rather than inventing sites from embedded lines
+- **AND** build stages, copied files, image inheritance and frontend semantics remain unqualified; a Bun declaration cannot certify them or resolve image paths against host programs
+- **AND** selected build files with other names still require caller discovery; these collectors alone do not prove exhaustive container coverage
+
 ### Requirement: First-party script logic executes on Bun
 
 First-party script and test-orchestration logic SHALL run on Bun with explicit argv, replacing shell/Node implementations rather than wrapping them. This includes gates, CI/dev operations, remote payloads and generated helpers. Bun-supported standard-library imports SHALL NOT imply a Node executable dependency. Third-party tools, declarative configuration and immutable historical artifacts remain outside conversion.
@@ -413,7 +428,6 @@ Run and calibration SHALL optionally borrow a provider-private GateControl subsc
 - **WHEN** the native-lock dependency returns cancelled without observed control after admission but before preparation or launch
 - **THEN** the operation retains its loud missing-control failure and withdraws only that known unprepared admission through the existing checked API
 - **AND** concurrent withdrawal failure retains both causes; an acquisition throw or unknown native ownership grants no new release authority
-
 
 ### Requirement: Current source startup retains explicit PUNI authority
 

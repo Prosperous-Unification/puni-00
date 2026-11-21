@@ -1,0 +1,1767 @@
+{
+  "recordedAt": "2026-11-19T18:44:57.477Z",
+  "goalStatus": "active",
+  "scope": "Broader core diagnostic and mechanical restoration of closed-feature value ownership; no production behavior, safety predicate or architecture-check changes.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/saved-plan-values.ts",
+      "sha256": "1f57436ed6129b81bceaaa8a9c6f0fd7c27def7a403899eb380dfff42dc5c984",
+      "bytes": 4022,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/saved-plan-store.ts",
+      "sha256": "5af7de98fde91f606ffa6b690b7770e35a59a64544a7c2ef15dd53c49d86313c",
+      "bytes": 2614,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+      "sha256": "20845dea070877ca825fdcafb51ed3bd048e1dac26908e19c0f9eda825612798",
+      "bytes": 37003,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/subtree-store.ts",
+      "sha256": "ed7f75d6f7c50f3674743942978dcc43da595329abe50352b38e41744b2000f0",
+      "bytes": 8794,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/subtree-values.ts",
+      "sha256": "48e0cd65d23db52d9537f9218da3b7a6c4e2c1713ab696880cc33e2c748eb85b",
+      "bytes": 707,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/compensating.ts",
+      "sha256": "49241e6b41bdd49b47c6ef49630b79a758e987e76c8304fdce0c6a56a9c1a632",
+      "bytes": 72653,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-core-boundary-final-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1.receipt.json",
+        "sha256": "38c443bc77f18035ae1a0f17677619ad5c5953a1e833f47f4f99ff899a056359",
+        "bytes": 1407,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/application/core/src/module-boundaries.test.ts",
+            "libs/wbs/application/core/src/service/service-boundaries.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:43:21.828Z",
+        "endedAt": "2026-11-19T18:44:24.667Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1.log",
+          "sha256": "fd7b344d6285c92e14b98cc4d5cef7e8f0d231d8caebcaf278dd546a6ed16f70",
+          "bytes": 1523
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1.log",
+        "sha256": "fd7b344d6285c92e14b98cc4d5cef7e8f0d231d8caebcaf278dd546a6ed16f70",
+        "bytes": 1523,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-boundary-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-format-v1.receipt.json",
+        "sha256": "6187c761bc36250377b6fe7624e0709a236f1d22b1b9d2f63bc7d2a7ab54d3e7",
+        "bytes": 1693,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/core/src/ports/saved-plan-values.ts",
+            "libs/wbs/application/core/src/ports/saved-plan-store.ts",
+            "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+            "libs/wbs/application/core/src/ports/subtree-values.ts",
+            "libs/wbs/application/core/src/ports/subtree-store.ts",
+            "libs/wbs/application/core/src/service/command-normalizers.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:41:57.758Z",
+        "endedAt": "2026-11-19T18:42:01.645Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-format-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-format-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-boundary-selected-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-selected-v1.receipt.json",
+        "sha256": "dbf36afdf135bfd3580eac6e2089bc513986a322ff228f0356dfc015ea9ed32a",
+        "bytes": 1527,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-selected-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "test",
+            "libs/wbs/application/core/src/module-boundaries.test.ts",
+            "libs/wbs/application/core/src/service/service-boundaries.test.ts",
+            "--test-name-pattern",
+            "closed feature modules do not reference|keeps extracted production services",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:42:12.357Z",
+        "endedAt": "2026-11-19T18:42:24.670Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-selected-v1.log",
+          "sha256": "d0a4d933f0c1496ea64a912270d9559130c05a01f58eec449eee97b1985529ff",
+          "bytes": 2636
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-selected-v1.log",
+        "sha256": "d0a4d933f0c1496ea64a912270d9559130c05a01f58eec449eee97b1985529ff",
+        "bytes": 2636,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-full-diagnostic-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-full-diagnostic-v1.receipt.json",
+        "sha256": "1a6263c2096e0554393435dbc7dcb38c1df91e497f4c5a180eaf163dfc28ac24",
+        "bytes": 1311,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-full-diagnostic-v1",
+        "command": {
+          "argv": ["bun", "test", "libs/wbs/application/core/src", "--timeout=30000"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 900000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:38:41.683Z",
+        "endedAt": "2026-11-19T18:41:03.157Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-full-diagnostic-v1.log",
+          "sha256": "3860b6e45fac3663cef414e0699cd98163c8ebb7ac4a2e98d189cfb4125bc5b8",
+          "bytes": 646925
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-full-diagnostic-v1.log",
+        "sha256": "3860b6e45fac3663cef414e0699cd98163c8ebb7ac4a2e98d189cfb4125bc5b8",
+        "bytes": 646925,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-services-format-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-format-v1.receipt.json",
+        "sha256": "fb3d070004ed325c82a74d54c3d5c668e72e892b8030617241093ccc78f828ed",
+        "bytes": 1349,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-services-format-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/core/src/service/compensating.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:42:51.917Z",
+        "endedAt": "2026-11-19T18:42:54.953Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-format-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-format-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-services-lint-diagnostic-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-lint-diagnostic-v1.receipt.json",
+        "sha256": "74da68bf2d58a38b47661016f1d54247261f0449241cf03379a7baac8fca9fda",
+        "bytes": 1969,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-services-lint-diagnostic-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/core/src/service/auth.service.ts",
+            "libs/wbs/application/core/src/service/command-fields.ts",
+            "libs/wbs/application/core/src/service/command-normalizers.ts",
+            "libs/wbs/application/core/src/service/compensating.ts",
+            "libs/wbs/application/core/src/service/directory-usage.ts",
+            "libs/wbs/application/core/src/service/numbered-work-item.ts",
+            "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts",
+            "libs/wbs/application/core/src/service/plan-command.ts",
+            "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
+            "libs/wbs/application/core/src/service/saved-plan.service.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:42:35.692Z",
+        "endedAt": "2026-11-19T18:42:39.189Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-lint-diagnostic-v1.log",
+          "sha256": "d1bc6d4959d117cd4753a1dc66e512022ca3b112c45d4a78706d96ba2d183d55",
+          "bytes": 276
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-services-lint-diagnostic-v1.log",
+        "sha256": "d1bc6d4959d117cd4753a1dc66e512022ca3b112c45d4a78706d96ba2d183d55",
+        "bytes": 276,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-values-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-lint-v1.receipt.json",
+        "sha256": "1a3002c54856f3a5292090e8458d42d33d5283cd1443530ebda63de7647c62b0",
+        "bytes": 1663,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-values-lint-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/core/src/ports/saved-plan-values.ts",
+            "libs/wbs/application/core/src/ports/saved-plan-store.ts",
+            "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+            "libs/wbs/application/core/src/ports/subtree-values.ts",
+            "libs/wbs/application/core/src/ports/subtree-store.ts",
+            "libs/wbs/application/core/src/service/compensating.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:43:21.792Z",
+        "endedAt": "2026-11-19T18:43:29.180Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-values-prettier-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-prettier-v1.receipt.json",
+        "sha256": "789eac2b693d838db936751bb5fd2871b90b11c6d0216536edefed3987a52805",
+        "bytes": 1695,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-values-prettier-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/application/core/src/ports/saved-plan-values.ts",
+            "libs/wbs/application/core/src/ports/saved-plan-store.ts",
+            "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+            "libs/wbs/application/core/src/ports/subtree-values.ts",
+            "libs/wbs/application/core/src/ports/subtree-store.ts",
+            "libs/wbs/application/core/src/service/compensating.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:43:01.112Z",
+        "endedAt": "2026-11-19T18:43:01.515Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-prettier-v1.log",
+          "sha256": "3e9685e244fba36a7198ab8c70779b2535310ae3c264972092407fb8dd00287a",
+          "bytes": 423
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-prettier-v1.log",
+        "sha256": "3e9685e244fba36a7198ab8c70779b2535310ae3c264972092407fb8dd00287a",
+        "bytes": 423,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-core-values-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-types-v1.receipt.json",
+        "sha256": "241629da6d64fa7c2abe69dea08b51f7e19da0c65310b463be0fb915bb0718ce",
+        "bytes": 1556,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-core-values-types-v1",
+        "command": {
+          "argv": [
+            "bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/application/core/tsconfig.json",
+            "libs/wbs/application/conformance/tsconfig.json",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json",
+            "apps/wbs/be-01/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T18:43:21.782Z",
+        "endedAt": "2026-11-19T18:43:56.873Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-values-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    }
+  ],
+  "fullDiagnostic": {
+    "passed": 1783,
+    "failed": 554,
+    "errors": 141,
+    "assertions": 9169,
+    "tests": 2337,
+    "files": 336,
+    "failedByFile": [
+      {
+        "path": "libs/wbs/application/core/src/module-boundaries.test.ts",
+        "failures": [
+          "(fail) closed feature modules do not reference repository ports and debt stays live [8341.12ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/connected-arrange.test.ts",
+        "failures": [
+          "(fail) connected selected optimized pending refuses without writes [7.58ms]",
+          "(fail) connected selected optimized boundary-infeasible refuses without writes [2.89ms]",
+          "(fail) connected selected optimized ready accepts the final target placement [4.98ms]",
+          "(fail) connected selected optimized ready-sibling accepts the final target placement [3.09ms]",
+          "(fail) connected selected optimized floor accepts the final target placement [4.47ms]",
+          "(fail) connected captured engine_unavailable refuses without writes [5.01ms]",
+          "(fail) connected captured calendar_range refuses without writes [4.52ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/plan-history.test.ts",
+        "failures": [
+          "(fail) the plan’s history, as commands are recorded > records the estimate that was set, with the trio it replaced [5.09ms]",
+          "(fail) the plan’s history, as commands are recorded > names the work item and the step an estimate was aimed at [2.82ms]",
+          "(fail) the plan’s history, as commands are recorded > records the clearing of an estimate, and nothing when there was none to clear [5.28ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/dependency-graph.test.ts",
+        "failures": ["(fail) refuses a typed node endpoint absent from the full tree [0.13ms]"]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/connected-dependency-graph.test.ts",
+        "failures": [
+          "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows [0.24ms]",
+          "(fail) rejects a required work package read returning another work package identity [0.15ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/schedule-parts.test.ts",
+        "failures": [
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=false [2.51ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=true [1.06ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=false [0.90ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=true [0.94ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=false [0.93ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=true [0.91ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=false [0.89ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=true [0.87ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=false [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=true [0.87ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=false [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=true [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=false [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=true [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=false [0.79ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=false [0.78ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=false [0.81ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=true [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=false [0.78ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=false [0.77ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=true [0.94ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=false [0.88ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=false [0.93ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=true [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=false [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=true [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=false [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=true [0.85ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/service-boundaries.test.ts",
+        "failures": [
+          "(fail) keeps extracted production services inside the core boundary [3587.34ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/node-resources-schedule.test.ts",
+        "failures": [
+          "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule [1.17ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/work-item-status-command.test.ts",
+        "failures": [
+          "(fail) readiness > refuses readiness once a step has spoken, and writes nothing [4.10ms]",
+          "(fail) holds > holds and blocks a leaf without touching its progress, readiness or facts [3.91ms]",
+          "(fail) holds > refuses a hold on a leaf reading done [3.37ms]",
+          "(fail) in progress > starts the first silent step, fills an empty fact start and clears the hold [3.55ms]",
+          "(fail) in progress > on a parent starts one leaf, preferring an unheld one, and clears only its hold [10.24ms]",
+          "(fail) in progress > on a parent whose every silent leaf is held starts the first held one and clears its hold [8.03ms]",
+          "(fail) in progress > reopens a done leaf: its last step goes back to in progress and its fact end is cleared [3.61ms]",
+          "(fail) in progress > reopens a done parent through its first leaf and clears the parent fact end too [6.33ms]",
+          "(fail) unknown and done clear readiness and holds > done clears a hold, and unknown clears both [4.33ms]",
+          "(fail) review follow-ups > refuses an undo that would put a hold back on a row that has since gained a child [4.96ms]",
+          "(fail) review follow-ups > starts a held branch whose progress fold reads in progress but whose status does not [11.84ms]",
+          "(fail) review follow-ups > takes the hold off a done leaf when its branch is held [8.49ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a first child is created [4.24ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a row moves under a leaf [30000.83ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a move that emptied it is undone [30014.67ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > lets a successor start at day zero, and reports the held row with no schedule [5.11ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > keeps a blocked leaf in the schedule where the forecast puts it [6.19ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > brackets a parent by its unheld leaves, and gives a wholly held parent none [7.90ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > done fills the fact end from the last attempt's end day in the work package zone [4.91ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > in_progress fills the fact start from the first attempt's start day [3.15ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > no attempt fills the day of the act, byte-identical to today [3.00ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > a typed day is never overwritten, and an explicit on and factStart win [3.12ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > Kyiv at 23:30Z fills the next day [2.91ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > the attempt is the better witness: a UTC Dev attempt across midnight [2.86ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/actual.test.ts",
+        "failures": [
+          "(fail) recording actual days > stores the days against a leaf and shows them beside the estimate [4.53ms]",
+          "(fail) recording actual days > leaves a step nobody has recorded absent rather than zero [2.75ms]",
+          "(fail) recording actual days > keeps a recorded zero, which is a person saying the work took no days [2.42ms]",
+          "(fail) recording actual days > sums a parent’s recorded days from its descendants, and reports nothing where nothing was recorded [7.05ms]",
+          "(fail) recording actual days > journals the write as a command, which is what puts it in the plan’s history [2.43ms]",
+          "(fail) recording actual days > undoes a first recording back to absence, not to zero [5.36ms]",
+          "(fail) recording actual days > undoes a correction back to the figure it replaced, and redoes it again [4.27ms]",
+          "(fail) recording actual days > undoes a clear by putting the figure back [4.27ms]",
+          "(fail) actuals through the structural commands > hands the recorded days down when a leaf gains its first child, and back up on undo [4.10ms]",
+          "(fail) actuals through the structural commands > hands the branch’s recorded days up when its last child is deleted [5.08ms]",
+          "(fail) actuals through the structural commands > copies the estimate into a duplicate and leaves the recorded days behind [4.14ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/broadcast.test.ts",
+        "failures": [
+          "(fail) what a work package subscriber receives > sends the whole tree when an estimate changes, ancestors included [5.37ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/arrange-by-schedule.test.ts",
+        "failures": [
+          "(fail) arrangeBySchedule > puts the work item that starts first at the top [5.10ms]",
+          "(fail) arrangeBySchedule > arranges a frozen work item with the rest, and leaves its number alone [5.32ms]",
+          "(fail) arrangeBySchedule > arranges a group at every depth [7.81ms]",
+          "(fail) arrangeBySchedule > announces the tree once for one press [4.00ms]",
+          "(fail) arrangeBySchedule > leaves a work item that keeps its place where it is [5.24ms]",
+          "(fail) arrangeBySchedule > puts every work item back where it was when the press is undone [5.32ms]",
+          "(fail) arrangeBySchedule > re-applies the stored positions on a redo [6.32ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/progress.test.ts",
+        "failures": [
+          "(fail) stating where the work has got to > stores a step’s state on a leaf and shows it beside the figures [3.92ms]",
+          "(fail) stating where the work has got to > is in progress when one step is done and another has said nothing [2.60ms]",
+          "(fail) stating where the work has got to > is done only when every step with work on the row says so [2.66ms]",
+          "(fail) stating where the work has got to > counts a step that only has a recorded day as work still to be spoken about [2.68ms]",
+          "(fail) stating where the work has got to > folds a parent from its children, and a mixed branch reads as in progress [4.83ms]",
+          "(fail) stating where the work has got to > a branch is not done while one of its rows has never been spoken about [4.78ms]",
+          "(fail) stating where the work has got to > journals the write as a command, which is what puts it in the plan’s history [2.67ms]",
+          "(fail) stating where the work has got to > undoes a first statement back to absence, not to not-started-as-a-row [3.48ms]",
+          "(fail) stating where the work has got to > undoes a correction back to the state it replaced, and redoes it again [3.83ms]",
+          "(fail) stating where the work has got to > undoes a clear by saying it again [3.55ms]",
+          "(fail) states through the structural commands > hands a statement down when a leaf gains its first child, and back up on undo [3.51ms]",
+          "(fail) states through the structural commands > hands the branch’s reading up when its last child is deleted [4.55ms]",
+          "(fail) states through the structural commands > hands up what was said and nothing else, so the parent still reads as in progress [3.73ms]",
+          "(fail) states through the structural commands > copies the estimate into a duplicate and leaves the statement behind [4.30ms]",
+          "(fail) setting the row’s status as one act > marks every step of a leaf done and fills its fact end with the day given [2.33ms]",
+          "(fail) setting the row’s status as one act > marks every leaf beneath a parent, skips one already done, and speaks for the parent too, as one entry [6.39ms]",
+          "(fail) setting the row’s status as one act > fills an empty fact start with the day given, and keeps one somebody typed [4.13ms]",
+          "(fail) setting the row’s status as one act > takes the UTC day of its own stamp when no day is given [3.27ms]",
+          "(fail) setting the row’s status as one act > writes nothing when nothing would change [2.18ms]",
+          "(fail) setting the row’s status as one act > unknown takes the statements away, and the fact end of a done row with them [3.49ms]",
+          "(fail) setting the row’s status as one act > a parent’s unknown clears only the fact ends of what read done [6.35ms]",
+          "(fail) setting the row’s status as one act > one undo of an unknown puts the cleared day back with the statements [7.87ms]",
+          "(fail) setting the row’s status as one act > one undo puts every statement back and empties the fact ends it filled [9.21ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/service/measure.test.ts",
+        "failures": [
+          "(fail) recording the figures that are not days > stores a figure against a leaf, in the metric it was given [3.02ms]",
+          "(fail) recording the figures that are not days > keeps the three metrics of one pair as three rows, each absent on its own [2.51ms]",
+          "(fail) recording the figures that are not days > clears one metric and leaves that pair’s others alone [3.46ms]",
+          "(fail) recording the figures that are not days > keeps a recorded zero, which is an agent saying the work cost nothing [1.89ms]",
+          "(fail) recording the figures that are not days > journals both writes as commands, which is what puts them in the plan’s history [2.16ms]",
+          "(fail) recording the figures that are not days > records nothing at all for clearing a metric that was never recorded [2.26ms]",
+          "(fail) recording the figures that are not days > undoes a first recording of one metric without touching the pair’s others [3.03ms]",
+          "(fail) recording the figures that are not days > undoes a correction back to the figure it replaced, and redoes it again [3.45ms]",
+          "(fail) recording the figures that are not days > undoes a clear by putting the figure back in its own metric [3.68ms]",
+          "(fail) the figures that are not days, read back through the tree > answers a leaf’s own figures, metric first and then step [2.78ms]",
+          "(fail) the figures that are not days, read back through the tree > leaves out a metric nobody recorded rather than carrying it empty [2.21ms]",
+          "(fail) the figures that are not days, read back through the tree > sums a parent’s descendants per metric and per step, and no further [4.96ms]",
+          "(fail) the figures that are not days, read back through the tree > keeps a recorded zero in the sum, because somebody said the work cost nothing [4.89ms]",
+          "(fail) the figures that are not days, read back through the tree > stops reporting a metric once its last figure on the row is cleared [2.64ms]",
+          "(fail) the figures that are not days, through the structural commands > hands every metric down when a leaf gains its first child, and back up on undo [3.38ms]",
+          "(fail) the figures that are not days, through the structural commands > hands the branch’s figures up in every metric when its last child is deleted [5.34ms]",
+          "(fail) the figures that are not days, through the structural commands > hands up a metric the branch holds and stays silent about one it does not [5.24ms]",
+          "(fail) the figures that are not days, through the structural commands > copies the token plan into a duplicate and leaves both records behind [3.93ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/project.routes.test.ts",
+        "failures": [
+          "(fail) dispatches the complete returned variant and independently maps modeled package allocation refusals [0.34ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/solution.routes.test.ts",
+        "failures": [
+          "(fail) direct solution binding reads the exact slug and complete work package with ordered steps [1.72ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/http/step.routes.test.ts",
+        "failures": [
+          "(fail) a patched allowance runs as the one journalled setStepAllowance command [1.48ms]",
+          "(fail) a rename sent with an allowance is the batch prelude, and its refusal runs no command [1.29ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/writes-fixture.test.ts",
+        "failures": [
+          "(fail) counting unit of work rejects unexpected store access and records rollback [2.42ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/testing/navigator-exports.fixture.test.ts",
+        "failures": [
+          "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor [0.30ms]",
+          "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor [0.03ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/use-cases/admission.test.ts",
+        "failures": [
+          "(fail) closed feature modules do not reference repository ports and debt stays live [0.41ms]",
+          "(fail) resolved alias type from a repository port is refused [0.29ms]",
+          "(fail) repository method reached through compatibility options is refused [0.08ms]",
+          "(fail) renamed scope inside a nested transaction callback is refused [0.08ms]",
+          "(fail) import transaction cannot return a raw scope through a nested resource callback [0.07ms]",
+          "(fail) public resource surfaces cannot pass raw repository authority to a feature [0.11ms]",
+          "(fail) indexed resource results cannot contain raw scope but may contain value records [0.57ms]",
+          "(fail) feature wrappers cannot hide a resource with a public raw scope [0.11ms]",
+          "(fail) repository-owned value types are refused without a Store suffix [0.06ms]",
+          "(fail) named value import from a repository port is refused [0.06ms]",
+          "(fail) wildcard export of a repository port is refused [0.05ms]",
+          "(fail) malformed import type cannot silently leave the audit [0.08ms]",
+          "(fail) a closed module with no directory is refused [0.06ms]",
+          "(fail) every feature module is closed or recorded as debt [0.07ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-import/module.test.ts",
+        "failures": [
+          "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes [1.80ms]",
+          "(fail) the Plan import module > admits a small document over the graph installPlanImport wires [7.49ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/claim-command.test.ts",
+        "failures": [
+          "(fail) claimWorkItem in a batch > claims every step that is not done, states the unstated one, one journal entry [3.63ms]",
+          "(fail) claimWorkItem in a batch > answers alreadyHeld to the holder repeating it and adds no entry [6.71ms]",
+          "(fail) claimWorkItem in a batch > undo removes exactly the claims and the progress it stated; redo puts them back [7.77ms]",
+          "(fail) claimWorkItem in a batch > claims and assigns in one entry; undo clears both the claim and the assignment [10.10ms]",
+          "(fail) claimWorkItem in a batch > leaves assignments untouched when assign is false or absent [5.87ms]",
+          "(fail) claimWorkItem in a batch > refuses a claim on a leaf whose only worked step is done: it reads done [5.68ms]",
+          "(fail) claimWorkItem in a batch > refuses a redo of a claim once another holder took the step [4.70ms]",
+          "(fail) claimWorkItem in a batch > shows the batch the progress its claim stated [4.23ms]",
+          "(fail) claimWorkItem in a batch > lets two agents hold two steps of one leaf [6.34ms]",
+          "(fail) claimWorkItem in a batch > refuses a step another holder has, naming the holder, and writes nothing [5.20ms]",
+          "(fail) claimWorkItem in a batch > refuses a leaf reading blocked_by_proxy with that status [9.65ms]",
+          "(fail) claimWorkItem in a batch > refuses a pinned credential claiming as another agent [3.59ms]",
+          "(fail) claimWorkItem in a batch > claims and releases as the acting agent person when none is named; an account must name one [2.51ms]",
+          "(fail) claimWorkItem in a batch > claims as an owned person bound to a member of its organization [3.41ms]",
+          "(fail) claimWorkItem in a batch > chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger [6.46ms]",
+          "(fail) a claimed leaf that gains its first child > hands a claimed leaf's claims to its first child and back on undo [3.41ms]",
+          "(fail) a claimed leaf that gains its first child > releases the handed-down claim on the child [8.46ms]",
+          "(fail) a claimed leaf that gains its first child > refuses a move under a claimed leaf, naming its holders, until they are released [12.11ms]",
+          "(fail) a claimed leaf that gains its first child > refuses an undo of a split once the child's claims changed [12.28ms]",
+          "(fail) releaseWorkItem in a batch > releases a half-done leaf and leaves its progress as it was [6.35ms]",
+          "(fail) releaseWorkItem in a batch > cascades a subtree release in one entry, and undo restores all three [7.10ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts",
+        "failures": [
+          "(fail) the admitted working batch baseline > preserves the four mutation sequences through a working collection [2.34ms]",
+          "(fail) targeted working-plan refreshes > refreshes the retained measures when a tokens trio writes or retires the legacy token estimate [2.02ms]",
+          "(fail) targeted working-plan refreshes > refreshes every restore-related collection and preserves borrowed before-images [1.86ms]",
+          "(fail) targeted working-plan refreshes > refreshes a labelled row and rejects an unrequested satellite row [4.36ms]",
+          "(fail) working plan value failures > does not advance a retained value after a modeled set refusal [2.32ms]",
+          "(fail) working plan value failures > does not advance a retained value before a throwing mutation succeeds [2.61ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-command.test.ts",
+        "failures": [
+          "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed [3.09ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-schedule.property.test.ts",
+        "failures": [
+          "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans [262.28ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/resource-schedule.test.ts",
+        "failures": [
+          "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it [8.29ms]",
+          "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed [3.39ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/legacy-demands-read.test.ts",
+        "failures": [
+          "(fail) a resource removed between the tree read and its labels > labels a bar of a resource removed between the two reads [5.52ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/assignee-calendar.test.ts",
+        "failures": [
+          "(fail) assignments that run the plan past the calendar > refuses assignSubtree with calendar_range and writes nothing [7.52ms]",
+          "(fail) assignments that run the plan past the calendar > refuses a claim that assigns past the calendar, and admits the same claim without assign [6.52ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-estimate-command.test.ts",
+        "failures": [
+          "(fail) measure estimates as plan commands > records, re-estimates and clears a trio in tokens, cost and a defined measure, undoably [10.04ms]",
+          "(fail) measure estimates as plan commands > refuses an unknown, scheduling, two-point-only or fractional measure estimate and stores nothing [14.49ms]",
+          "(fail) measure estimates as plan commands > refuses an unordered trio and stores nothing [7.48ms]",
+          "(fail) measure estimates as plan commands > refuses deleting a definition that holds a trio, and deletes it once the trio is cleared [9.65ms]",
+          "(fail) expected measure and variance on the row read > reads expected and variance per step node and rolled up [8.70ms]",
+          "(fail) expected measure and variance on the row read > weighs the trio by the work package's own PERT weights [11.75ms]",
+          "(fail) the legacy token estimate as a single-point trio > reads a legacy token estimate as a single-point trio and clears the flag on a three-point write [8.68ms]",
+          "(fail) the legacy token estimate as a single-point trio > undoes a legacy token estimate written over a three-point trio by putting the trio back [9.40ms]",
+          "(fail) measure estimates follow their work item > hands a leaf's trios down to its first child and back up on undo [10.83ms]",
+          "(fail) measure estimates follow their work item > hands a deleted last child's trios up to the parent and takes them off again on undo [24.93ms]",
+          "(fail) measure estimates follow their work item > puts a deleted branch's trios back on undo [14.67ms]",
+          "(fail) measure estimates follow their work item > copies a duplicated branch's trios and takes them with the copy on undo [12.57ms]",
+          "(fail) a definition that stops allowing three points > undoes a delete and a first-child create after tokens stops allowing three points [16.84ms]",
+          "(fail) the legacy token estimate through a restore > restores a deleted leaf's legacy token estimate with its recordedAt verbatim [8.28ms]",
+          "(fail) replays across a deleted definition > refuses an undo that would put a trio back in a measure deleted since [14.89ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a delete whose trio is in a measure deleted since [17.04ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a first-child create whose handed-down trio is in a measure deleted since [19.00ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+        "failures": [
+          "(fail) working plan batch ownership > refuses then runs another batch without leaked values [3.84ms]",
+          "(fail) working plan batch ownership > ordinary write between batches is the next before-image [2.41ms]",
+          "(fail) working plan batch ownership > closes the admitted graph after success, refusal, and throw [2.15ms]",
+          "(fail) working plan batch ownership > announces after commit through the nonworking graph [2.01ms]",
+          "(fail) working plan directory mutations through runner commands > delegates person reads and target-refreshes an assignment before the next patch [2.13ms]",
+          "(fail) working plan dependency mutations through runner commands > lets a later command read the committed FF type after an edit [4.18ms]",
+          "(fail) working plan value mutations through runner commands > keeps mixed-case memory value groups in the full readers order after population [2.38ms]",
+          "(fail) working plan value mutations through runner commands > keeps every memory value group in source order after sets populate an earlier group [2.66ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every set, hand-down endpoint, and measure metric before later commands [2.06ms]",
+          "(fail) working plan value mutations through runner commands > removes every moveAll source during the same create command [1.93ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every delete-last-child hand-up before editing the parent [1.94ms]",
+          "(fail) working plan value mutations through runner commands > removes every value and metric from retained reads before the store method returns [1.85ms]",
+          "(fail) working plan row mutations through runner commands > freezes arranged numbers from the preceding command in the same batch [2.30ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted estimates group placement [1.87ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted actuals group placement [1.53ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted progress group placement [1.45ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted measures group placement [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back cleared facts and moved rows when a later batch command refuses [1.95ms]",
+          "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress [1.57ms]",
+          "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner [1.62ms]",
+          "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner [1.43ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it [1.69ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it [1.46ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it [1.49ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay [1.92ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay [1.44ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory deletion facts and rows when a later batch command refuses [1.77ms]",
+          "(fail) transactional memory move blockage closure > preserves collected memory deletion facts and progress through undo redo [1.73ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent state changes before deletion undo [1.67ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent time changes before deletion undo [1.62ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent missing changes before deletion undo [1.66ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent blockage changes before deletion undo [2.13ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory restore rows and earlier blockage writes after an injected insertion failure [1.72ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+        "failures": [
+          "(fail) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [3.09ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/budget-command.test.ts",
+        "failures": [
+          "(fail) budgets as plan commands > sets, replaces and clears a budget, undoably [2.71ms]",
+          "(fail) budgets as plan commands > refuses an unknown, scheduling, negative or fractional budget and stores nothing [1.80ms]",
+          "(fail) budgets as plan commands > refuses deleting a definition that holds a budget, and deletes it once the budget is cleared [1.61ms]",
+          "(fail) budgets as plan commands > refuses invalid project factors and package-level overrides while keeping the inherited factor [1.69ms]",
+          "(fail) budgets on the row read > reads a parent's strict budget against its three leaves' facts [1.55ms]",
+          "(fail) budgets on the row read > derives a budget from the pessimistic points times the work package's budget factor [1.68ms]",
+          "(fail) budgets on the row read > keeps a row holding no budget free of the field, every other field unchanged [1.48ms]",
+          "(fail) budgets on the row read > holds the allowance of each running attempt of unknown usage, and releases it on its end [1.62ms]",
+          "(fail) budgets on the row read > reads agent minutes spent against an agent minutes budget [1.47ms]",
+          "(fail) budgets stay on their work item > keeps a leaf budget on the leaf when it gains a first child, and bounds the child [1.52ms]",
+          "(fail) budgets stay on their work item > does not hand a deleted last child's budget up, and puts it back on undo [1.54ms]",
+          "(fail) budgets stay on their work item > puts a deleted branch's budgets back on undo [1.58ms]",
+          "(fail) budgets stay on their work item > copies a duplicated branch's budgets and takes them with the copy on undo [1.65ms]",
+          "(fail) budgets stay on their work item > refuses an undo that would put a budget back in a measure deleted since [1.79ms]",
+          "(fail) budgets stay on their work item > refuses an undo of a delete whose budget is in a measure deleted since [1.82ms]",
+          "(fail) the headroom read > reports each startable and claimed step with its tightest budget, holds taken off [2.32ms]",
+          "(fail) the headroom read > names a mix on the blocked step and key only, the read itself never refused [1.74ms]",
+          "(fail) the headroom read > keeps an exhausted strict budget beside a looser advisory one [1.53ms]",
+          "(fail) money carries its basis > requires a rate card on a cost fact and refuses one on tokens [1.43ms]",
+          "(fail) money carries its basis > requires a rate card on a cost trio and refuses one on tokens [1.45ms]",
+          "(fail) money carries its basis > undoes a cost fact back to the figure and rate card it replaced [1.46ms]",
+          "(fail) money carries its basis > reads a parent whose leaves hold two rate cards as mixed, naming both, with no cost sum [1.49ms]",
+          "(fail) money carries its basis > refuses a last-child delete whose hand-up would add two rate cards, naming both [1.50ms]",
+          "(fail) money carries its basis > hands up a fact on one card beside a trio on another [1.49ms]",
+          "(fail) money carries its basis > reads a leaf whose trio and fact sit on two cards as unmixed, and strips a mix among trios from the estimates alone [1.52ms]",
+          "(fail) money carries its basis > names the one basis a row's cost sums are in, per kind, and none on a mixed parent [1.72ms]",
+          "(fail) money carries its basis > refuses an undo that would put an unpriced cost fact back [2.00ms]",
+          "(fail) money carries its basis > refuses an undo that would put an unpriced cost trio back [2.20ms]",
+          "(fail) money carries its basis > hands a branch’s priced figures up under their one rate card [1.50ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/step-blockage.test.ts",
+        "failures": [
+          "(fail) public blockage authoring over transactional memory > collects one undo unit, refreshes retained facts, and emits committed readings [2.31ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a refuse store write [1.94ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a throw store write [1.87ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back an earlier fact when the later command is unknown [1.88ms]",
+          "(fail) public blockage authoring over transactional memory > refuses direct service ownership before an equivalent clear [1.50ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory undo without accepting forged owner revisions [1.59ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory redo without accepting forged owner revisions [1.36ms]",
+          "(fail) public blockage authoring over transactional memory > keeps progress, canonical input and full Fast schedule unchanged [1.88ms]",
+          "(fail) public blockage authoring over transactional memory > refuses an unknown service step before an equivalent clear [1.53ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/plan-commands/measure-fact-command.test.ts",
+        "failures": [
+          "(fail) facts keyed by measure definition > records a fact in a defined measure and under either name of tokens and hours, undoably [11.03ms]",
+          "(fail) facts keyed by measure definition > refuses deleting a definition that holds a fact, and deletes it once the fact is cleared [9.06ms]",
+          "(fail) facts keyed by measure definition > refuses an undo that would put a fact back in a measure deleted since [15.43ms]",
+          "(fail) facts keyed by measure definition > refuses an undo of a delete whose fact is in a measure deleted since [16.07ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a first-child create whose handed-down fact is in a measure deleted since [17.01ms]",
+          "(fail) agent minutes, derived on read > reads agent minutes from ended attempts and rolls them up; a running attempt adds nothing [8.92ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/saved-plans/module.test.ts",
+        "failures": [
+          "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.80ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+        "failures": [
+          "(fail) delete sparse owner preservation > refuses leaf null with exact equal-default pairs before stamps or writes [2.01ms]",
+          "(fail) delete sparse owner preservation > refuses leaf cascade with exact equal-default pairs before stamps or writes [0.94ms]",
+          "(fail) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [1.17ms]",
+          "(fail) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [2.46ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+        "failures": [
+          "(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.67ms]",
+          "(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.88ms]",
+          "(fail) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [1.09ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [2.31ms]",
+          "(fail) preserves empty-policy first-child undo and redo [9.03ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.test.ts",
+        "failures": [
+          "(fail) deleting blocked work items > restores exact root leaf blockage beneath done through delete undo redo [5.54ms]",
+          "(fail) deleting blocked work items > hands up deletion blockage only with all direct former leaves (%s) [8.87ms]",
+          "(fail) deleting blocked work items > hands up deletion blockage only with all direct former leaves (%s) [8.46ms]",
+          "(fail) deleting blocked work items > reports a refused deletion blockage hand-up [5.34ms]",
+          "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo [3.64ms]",
+          "(fail) deleting blocked work items > refuses new parent progress before restore deletes any hand-up facts [7.78ms]",
+          "(fail) creating work items > preserves exact blockage and progress through first-child create undo redo [3.71ms]",
+          "(fail) creating work items > reports a refused first-child blockage write [3.70ms]",
+          "(fail) creating work items > reports a refused parent blockage clear before inserting a first child [3.84ms]",
+          "(fail) creating work items > hands a leaf’s attempts down to its first child, numbers kept [3.17ms]",
+          "(fail) moving work items > clears destination progress before moving and restores it after undo (blockage: %s) [6.67ms]",
+          "(fail) moving work items > clears destination progress before moving and restores it after undo (blockage: %s) [4.26ms]",
+          "(fail) moving work items > reports a refused move destination clear before reparenting [4.43ms]",
+          "(fail) moving work items > reports a refused move blockage hand-up [4.78ms]",
+          "(fail) moving work items > hands up only unanimous direct blockage with the latest negative timestamp and no progress [7.82ms]",
+          "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo [4.02ms]",
+          "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent [6.35ms]",
+          "(fail) moving work items > duplicates blocked leaves and descendants without inheriting blockage [7.91ms]",
+          "(fail) dependencies > keeps canonical input and full Fast bytes while direct blockage work packages over a typed edge [4.12ms]",
+          "(fail) dependencies > schedules a dependent work item after the one it waits for [4.32ms]",
+          "(fail) the plan waits for the people in it > runs two work items one person is doing one after the other [3.88ms]",
+          "(fail) the plan waits for the people in it > frees a held assignee for the rest of their queue (add-work-item-statuses) [4.37ms]",
+          "(fail) the plan waits for the people in it > starts the work somebody said matters most, end to end [4.74ms]",
+          "(fail) the plan waits for the people in it > reaches every leaf beneath a parent somebody gave a priority [7.19ms]",
+          "(fail) the plan waits for the people in it > queues every step of a work item its one assignee is assumed to be doing [4.76ms]",
+          "(fail) the plan waits for the people in it > stops assuming at two, and lets the second person work alongside the first [5.44ms]",
+          "(fail) who is doing the work > assigns somebody who is not in the work item’s team [2.72ms]",
+          "(fail) who is doing the work > refuses an assignment naming a person the directory has lost [2.23ms]",
+          "(fail) duplicating a subtree > copies notes, estimates, assignees, the team label and the date [7.05ms]",
+          "(fail) the calendar > places the plan on working days, skipping the weekend [4.40ms]",
+          "(fail) the calendar > lets a dependency push past the constraint, never the other way [4.92ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > carries a span across two weekends without counting them [2.69ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > hands a fractional finish and its successor the same calendar day [4.24ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > keeps a zero-length row on its own start day, whole or fractional [7.78ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > moves the dates and the printed figure together when the method changes [2.59ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > ends a chain of PERT estimates on the day the estimates add up to [6.54ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > holds the calendar steady when a chained finish drifts above the whole day [9.79ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > holds the calendar steady when a chained finish drifts below the whole day [8.89ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > keeps a genuine fraction just shy of a boundary as real work [4.95ms]",
+          "(fail) the work package’s dependency reach > each work package is scheduled by its own reach [7.82ms]",
+          "(fail) the work package’s estimate method > reports the final figure per step and their sum, under PERT [2.69ms]",
+          "(fail) the work package’s estimate method > reports the chosen point instead when the work package chose one [2.61ms]",
+          "(fail) the work package’s estimate method > plans the dates with the same figure it prints [2.26ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > rounds each step before summing them [3.85ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > floors, rounds and keeps the fraction when the work package says so [3.27ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > weighs the three points by the coefficients the work package set [3.08ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > gives a parent the days its children were charged, and the chart the same [6.77ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > plans the dates with the rounded figures it prints [4.88ms]",
+          "(fail) capacity, as the adapter resolves it > compresses a work item across the people its parallelism allows [2.07ms]",
+          "(fail) capacity, as the adapter resolves it > clamps a work item’s parallelism down to the size of its team [1.73ms]",
+          "(fail) capacity, as the adapter resolves it > reports the non-first team that bound a joint-capacity slice [2.23ms]",
+          "(fail) capacity, as the adapter resolves it > runs a named person’s work one at a time however parallel the item is [2.54ms]",
+          "(fail) capacity, as the adapter resolves it > draws a leaf’s pool from the team its parent labels [2.02ms]",
+          "(fail) capacity, as the adapter resolves it > leaves an unsized team labelling the work and constraining nothing [1.70ms]",
+          "(fail) the slices the schedule placed, on the wire > names the slice the person was finishing, under the engine’s own id [3.48ms]",
+          "(fail) the slices the schedule placed, on the wire > reports the engine’s fractional numbers verbatim [3.33ms]",
+          "(fail) the slices the schedule placed, on the wire > carries the steps its slices were placed under, in the engine’s order [4.13ms]",
+          "(fail) the slices the schedule placed, on the wire > names everybody its slices are assigned to, and nobody else [3.40ms]",
+          "(fail) the slices the schedule placed, on the wire > answers from one read of the steps, whatever a later read would say [3.36ms]",
+          "(fail) the slices the schedule placed, on the wire > adds slices and moves nothing else in the payload [2.53ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > takes the write stamp as the start and refuses an at after it, never the client clock [2.78ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > numbers past every number issued, so a removed number is never reused [2.84ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3 [2.64ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > refuses an end before its running start, and stores the reference and note given [2.31ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > one undo per command restores the row verbatim [3.99ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > writes no statement, and setStatus done leaves a running attempt running [2.67ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+        "failures": [
+          "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [22.14ms]",
+          "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [1.34ms]",
+          "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [2.74ms]",
+          "(fail) duplicates an empty selection while unrelated and foreign policies keep their owners [2.27ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/startable.test.ts",
+        "failures": [
+          "(fail) the startable read > lists a team's allotment, its claimed leaf apart, and omits the unlabelled leaf [2.75ms]",
+          "(fail) the startable read > lists every startable step with no team, unlabelled leaves included [1.92ms]",
+          "(fail) the startable read > leaves a ready leaf behind an unfinished held predecessor out [1.73ms]",
+          "(fail) the startable read > keeps already-started work visible with unfinished predecessors and drops finished predecessors [1.72ms]",
+          "(fail) the startable read > leaves a done step out and keeps the other [1.58ms]",
+          "(fail) the startable read > names the subtree holder and still lists the subtree's free steps [1.60ms]",
+          "(fail) the startable read > lists a silent subtree claim whose every leaf has stopped [1.88ms]",
+          "(fail) the startable read > shows a claimed step beside its assignee [1.60ms]",
+          "(fail) the startable read > answers the frozen number, never the derived path [1.69ms]",
+          "(fail) the startable read > names the assignee of each startable step that has one [1.58ms]",
+          "(fail) the startable read > refuses a team the directory does not hold, and an absent work package [1.50ms]",
+          "(fail) resource fit in the startable read > lists a leaf whose demand exceeds the free units apart, with its shortfall [1.66ms]",
+          "(fail) resource fit in the startable read > never excludes on an unstated capacity, and lists no resource for it [1.49ms]",
+          "(fail) resource fit in the startable read > excludes any demand on a stated capacity of 0 [1.48ms]",
+          "(fail) resource fit in the startable read > fits a held leaf whose demand was raised past the free units [1.56ms]",
+          "(fail) resource fit in the startable read > keeps the team filter on the leaves that do not fit [1.52ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+        "failures": [
+          "(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.40ms]",
+          "(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.80ms]",
+          "(fail) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [1.13ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [2.08ms]",
+          "(fail) retains moving subtree and sibling policy while moving under an empty destination [0.97ms]",
+          "(fail) preserves empty-policy move undo and redo while unrelated facts survive [1.02ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/claim-history.test.ts",
+        "failures": [
+          "(fail) the claim history read > lists claims, releases and reaps newest first, each with its reason [4.63ms]",
+          "(fail) the claim history read > reads a release named like a reap by its stored reason, not its label [2.93ms]",
+          "(fail) the claim history read > names a holder and an item deleted since as null [2.69ms]",
+          "(fail) the claim history read > lists no undo, redo or other command [2.76ms]",
+          "(fail) the claim history read > lists a claim made beside other commands in one batch [2.76ms]",
+          "(fail) the claim history read > lists a batch that released one claim and took another as two acts [2.66ms]",
+          "(fail) the claim history read > finds a claim batch under newer batches that claim nothing [2.88ms]",
+          "(fail) the claim history read > lists nothing for a batch that deleted a claimed item [2.97ms]",
+          "(fail) the claim history read > fails the read on a batch it cannot split into acts [2.89ms]",
+          "(fail) the claim history read > fails the read on a stored command it cannot decode, naming the event [2.86ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/work-item/step-allowance.test.ts",
+        "failures": [
+          "(fail) a work package step allowance > charges each estimated leaf once and parents the sum, leaving raw points alone [5.71ms]",
+          "(fail) a work package step allowance > schedules charged effort, and the edit changes the canonical input [1.93ms]",
+          "(fail) a work package step allowance > leaves an unknown estimate unknown and an explicit zero at zero [2.70ms]",
+          "(fail) a work package step allowance > charges a duplicated branch’s copied base estimates once [1.78ms]",
+          "(fail) a work package step allowance > charges an estimate handed down to a first child once, at the child [1.72ms]",
+          "(fail) a work package step allowance > announces the edited step [0.90ms]",
+          "(fail) undoing a step allowance edit > undoes an allowance edit in one step [0.83ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it [0.87ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it and changed it back [0.80ms]",
+          "(fail) undoing a step allowance edit > walks back two of one editor’s allowance edits in turn [0.86ms]",
+          "(fail) undoing a step allowance edit > journals nothing for an edit that leaves the allowance where it was [0.78ms]"
+        ]
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/capacity/module.test.ts",
+        "failures": [
+          "(fail) keeps extracted production services inside the core boundary [0.21ms]",
+          "(fail) the neutral work-package-event port > rejects the checked event-contract import routes [0.99ms]",
+          "(fail) the no-sideways type routes of the 040.6 map > rejects the checked sideways-type import routes [0.73ms]",
+          "(fail) the work package module loads its declared live service export [1.05ms]",
+          "(fail) closed feature modules do not reference repository ports and debt stays live [8341.12ms]",
+          "(fail) connected selected optimized pending refuses without writes [7.58ms]",
+          "(fail) connected selected optimized boundary-infeasible refuses without writes [2.89ms]",
+          "(fail) connected selected optimized ready accepts the final target placement [4.98ms]",
+          "(fail) connected selected optimized ready-sibling accepts the final target placement [3.09ms]",
+          "(fail) connected selected optimized floor accepts the final target placement [4.47ms]",
+          "(fail) connected captured engine_unavailable refuses without writes [5.01ms]",
+          "(fail) connected captured calendar_range refuses without writes [4.52ms]",
+          "(fail) the plan’s history, as commands are recorded > records the estimate that was set, with the trio it replaced [5.09ms]",
+          "(fail) the plan’s history, as commands are recorded > names the work item and the step an estimate was aimed at [2.82ms]",
+          "(fail) the plan’s history, as commands are recorded > records the clearing of an estimate, and nothing when there was none to clear [5.28ms]",
+          "(fail) refuses a typed node endpoint absent from the full tree [0.13ms]",
+          "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows [0.24ms]",
+          "(fail) rejects a required work package read returning another work package identity [0.15ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=false [2.51ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=$anchor held=true [1.06ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=false [0.90ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/exact, anchor=2026-10-05, held=true [0.94ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=false [0.93ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=$anchor held=true [0.91ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=false [0.89ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with optimistic/ceil, anchor=2026-10-05, held=true [0.87ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=false [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=$anchor held=true [0.87ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=false [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/exact, anchor=2026-10-05, held=true [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=false [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=$anchor held=true [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=false [0.79ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with realistic/ceil, anchor=2026-10-05, held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=false [0.78ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=false [0.81ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/exact, anchor=2026-10-05, held=true [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=false [0.78ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=false [0.77ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pessimistic/ceil, anchor=2026-10-05, held=true [0.94ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=false [0.88ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=$anchor held=true [0.82ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=false [0.93ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/exact, anchor=2026-10-05, held=true [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=false [0.84ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=$anchor held=true [0.86ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=false [0.83ms]",
+          "(fail) shared live and captured preparation > preserves canonical bytes with pert/ceil, anchor=2026-10-05, held=true [0.85ms]",
+          "(fail) keeps extracted production services inside the core boundary [3587.34ms]",
+          "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule [1.17ms]",
+          "(fail) readiness > refuses readiness once a step has spoken, and writes nothing [4.10ms]",
+          "(fail) holds > holds and blocks a leaf without touching its progress, readiness or facts [3.91ms]",
+          "(fail) holds > refuses a hold on a leaf reading done [3.37ms]",
+          "(fail) in progress > starts the first silent step, fills an empty fact start and clears the hold [3.55ms]",
+          "(fail) in progress > on a parent starts one leaf, preferring an unheld one, and clears only its hold [10.24ms]",
+          "(fail) in progress > on a parent whose every silent leaf is held starts the first held one and clears its hold [8.03ms]",
+          "(fail) in progress > reopens a done leaf: its last step goes back to in progress and its fact end is cleared [3.61ms]",
+          "(fail) in progress > reopens a done parent through its first leaf and clears the parent fact end too [6.33ms]",
+          "(fail) unknown and done clear readiness and holds > done clears a hold, and unknown clears both [4.33ms]",
+          "(fail) review follow-ups > refuses an undo that would put a hold back on a row that has since gained a child [4.96ms]",
+          "(fail) review follow-ups > starts a held branch whose progress fold reads in progress but whose status does not [11.84ms]",
+          "(fail) review follow-ups > takes the hold off a done leaf when its branch is held [8.49ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a first child is created [4.24ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a row moves under a leaf [30000.83ms]",
+          "(fail) no read sees a parent holding a statement mid-write (Fable review, I1) > no read sees a parent holding a statement while a move that emptied it is undone [30014.67ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > lets a successor start at day zero, and reports the held row with no schedule [5.11ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > keeps a blocked leaf in the schedule where the forecast puts it [6.19ms]",
+          "(fail) an on-hold leaf takes no part in the schedule > brackets a parent by its unheld leaves, and gives a wholly held parent none [7.90ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > done fills the fact end from the last attempt's end day in the work package zone [4.91ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > in_progress fills the fact start from the first attempt's start day [3.15ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > no attempt fills the day of the act, byte-identical to today [3.00ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > a typed day is never overwritten, and an explicit on and factStart win [3.12ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > Kyiv at 23:30Z fills the next day [2.91ms]",
+          "(fail) the attempt is the better witness (step-node-attempts D4) > the attempt is the better witness: a UTC Dev attempt across midnight [2.86ms]",
+          "(fail) recording actual days > stores the days against a leaf and shows them beside the estimate [4.53ms]",
+          "(fail) recording actual days > leaves a step nobody has recorded absent rather than zero [2.75ms]",
+          "(fail) recording actual days > keeps a recorded zero, which is a person saying the work took no days [2.42ms]",
+          "(fail) recording actual days > sums a parent’s recorded days from its descendants, and reports nothing where nothing was recorded [7.05ms]",
+          "(fail) recording actual days > journals the write as a command, which is what puts it in the plan’s history [2.43ms]",
+          "(fail) recording actual days > undoes a first recording back to absence, not to zero [5.36ms]",
+          "(fail) recording actual days > undoes a correction back to the figure it replaced, and redoes it again [4.27ms]",
+          "(fail) recording actual days > undoes a clear by putting the figure back [4.27ms]",
+          "(fail) actuals through the structural commands > hands the recorded days down when a leaf gains its first child, and back up on undo [4.10ms]",
+          "(fail) actuals through the structural commands > hands the branch’s recorded days up when its last child is deleted [5.08ms]",
+          "(fail) actuals through the structural commands > copies the estimate into a duplicate and leaves the recorded days behind [4.14ms]",
+          "(fail) what a work package subscriber receives > sends the whole tree when an estimate changes, ancestors included [5.37ms]",
+          "(fail) arrangeBySchedule > puts the work item that starts first at the top [5.10ms]",
+          "(fail) arrangeBySchedule > arranges a frozen work item with the rest, and leaves its number alone [5.32ms]",
+          "(fail) arrangeBySchedule > arranges a group at every depth [7.81ms]",
+          "(fail) arrangeBySchedule > announces the tree once for one press [4.00ms]",
+          "(fail) arrangeBySchedule > leaves a work item that keeps its place where it is [5.24ms]",
+          "(fail) arrangeBySchedule > puts every work item back where it was when the press is undone [5.32ms]",
+          "(fail) arrangeBySchedule > re-applies the stored positions on a redo [6.32ms]",
+          "(fail) stating where the work has got to > stores a step’s state on a leaf and shows it beside the figures [3.92ms]",
+          "(fail) stating where the work has got to > is in progress when one step is done and another has said nothing [2.60ms]",
+          "(fail) stating where the work has got to > is done only when every step with work on the row says so [2.66ms]",
+          "(fail) stating where the work has got to > counts a step that only has a recorded day as work still to be spoken about [2.68ms]",
+          "(fail) stating where the work has got to > folds a parent from its children, and a mixed branch reads as in progress [4.83ms]",
+          "(fail) stating where the work has got to > a branch is not done while one of its rows has never been spoken about [4.78ms]",
+          "(fail) stating where the work has got to > journals the write as a command, which is what puts it in the plan’s history [2.67ms]",
+          "(fail) stating where the work has got to > undoes a first statement back to absence, not to not-started-as-a-row [3.48ms]",
+          "(fail) stating where the work has got to > undoes a correction back to the state it replaced, and redoes it again [3.83ms]",
+          "(fail) stating where the work has got to > undoes a clear by saying it again [3.55ms]",
+          "(fail) states through the structural commands > hands a statement down when a leaf gains its first child, and back up on undo [3.51ms]",
+          "(fail) states through the structural commands > hands the branch’s reading up when its last child is deleted [4.55ms]",
+          "(fail) states through the structural commands > hands up what was said and nothing else, so the parent still reads as in progress [3.73ms]",
+          "(fail) states through the structural commands > copies the estimate into a duplicate and leaves the statement behind [4.30ms]",
+          "(fail) setting the row’s status as one act > marks every step of a leaf done and fills its fact end with the day given [2.33ms]",
+          "(fail) setting the row’s status as one act > marks every leaf beneath a parent, skips one already done, and speaks for the parent too, as one entry [6.39ms]",
+          "(fail) setting the row’s status as one act > fills an empty fact start with the day given, and keeps one somebody typed [4.13ms]",
+          "(fail) setting the row’s status as one act > takes the UTC day of its own stamp when no day is given [3.27ms]",
+          "(fail) setting the row’s status as one act > writes nothing when nothing would change [2.18ms]",
+          "(fail) setting the row’s status as one act > unknown takes the statements away, and the fact end of a done row with them [3.49ms]",
+          "(fail) setting the row’s status as one act > a parent’s unknown clears only the fact ends of what read done [6.35ms]",
+          "(fail) setting the row’s status as one act > one undo of an unknown puts the cleared day back with the statements [7.87ms]",
+          "(fail) setting the row’s status as one act > one undo puts every statement back and empties the fact ends it filled [9.21ms]",
+          "(fail) recording the figures that are not days > stores a figure against a leaf, in the metric it was given [3.02ms]",
+          "(fail) recording the figures that are not days > keeps the three metrics of one pair as three rows, each absent on its own [2.51ms]",
+          "(fail) recording the figures that are not days > clears one metric and leaves that pair’s others alone [3.46ms]",
+          "(fail) recording the figures that are not days > keeps a recorded zero, which is an agent saying the work cost nothing [1.89ms]",
+          "(fail) recording the figures that are not days > journals both writes as commands, which is what puts them in the plan’s history [2.16ms]",
+          "(fail) recording the figures that are not days > records nothing at all for clearing a metric that was never recorded [2.26ms]",
+          "(fail) recording the figures that are not days > undoes a first recording of one metric without touching the pair’s others [3.03ms]",
+          "(fail) recording the figures that are not days > undoes a correction back to the figure it replaced, and redoes it again [3.45ms]",
+          "(fail) recording the figures that are not days > undoes a clear by putting the figure back in its own metric [3.68ms]",
+          "(fail) the figures that are not days, read back through the tree > answers a leaf’s own figures, metric first and then step [2.78ms]",
+          "(fail) the figures that are not days, read back through the tree > leaves out a metric nobody recorded rather than carrying it empty [2.21ms]",
+          "(fail) the figures that are not days, read back through the tree > sums a parent’s descendants per metric and per step, and no further [4.96ms]",
+          "(fail) the figures that are not days, read back through the tree > keeps a recorded zero in the sum, because somebody said the work cost nothing [4.89ms]",
+          "(fail) the figures that are not days, read back through the tree > stops reporting a metric once its last figure on the row is cleared [2.64ms]",
+          "(fail) the figures that are not days, through the structural commands > hands every metric down when a leaf gains its first child, and back up on undo [3.38ms]",
+          "(fail) the figures that are not days, through the structural commands > hands the branch’s figures up in every metric when its last child is deleted [5.34ms]",
+          "(fail) the figures that are not days, through the structural commands > hands up a metric the branch holds and stays silent about one it does not [5.24ms]",
+          "(fail) the figures that are not days, through the structural commands > copies the token plan into a duplicate and leaves both records behind [3.93ms]",
+          "(fail) dispatches the complete returned variant and independently maps modeled package allocation refusals [0.34ms]",
+          "(fail) direct solution binding reads the exact slug and complete work package with ordered steps [1.72ms]",
+          "(fail) a patched allowance runs as the one journalled setStepAllowance command [1.48ms]",
+          "(fail) a rename sent with an allowance is the batch prelude, and its refusal runs no command [1.29ms]",
+          "(fail) counting unit of work rejects unexpected store access and records rollback [2.42ms]",
+          "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor [0.30ms]",
+          "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor [0.03ms]",
+          "(fail) closed feature modules do not reference repository ports and debt stays live [0.41ms]",
+          "(fail) resolved alias type from a repository port is refused [0.29ms]",
+          "(fail) repository method reached through compatibility options is refused [0.08ms]",
+          "(fail) renamed scope inside a nested transaction callback is refused [0.08ms]",
+          "(fail) import transaction cannot return a raw scope through a nested resource callback [0.07ms]",
+          "(fail) public resource surfaces cannot pass raw repository authority to a feature [0.11ms]",
+          "(fail) indexed resource results cannot contain raw scope but may contain value records [0.57ms]",
+          "(fail) feature wrappers cannot hide a resource with a public raw scope [0.11ms]",
+          "(fail) repository-owned value types are refused without a Store suffix [0.06ms]",
+          "(fail) named value import from a repository port is refused [0.06ms]",
+          "(fail) wildcard export of a repository port is refused [0.05ms]",
+          "(fail) malformed import type cannot silently leave the audit [0.08ms]",
+          "(fail) a closed module with no directory is refused [0.06ms]",
+          "(fail) every feature module is closed or recorded as debt [0.07ms]",
+          "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes [1.80ms]",
+          "(fail) the Plan import module > admits a small document over the graph installPlanImport wires [7.49ms]",
+          "(fail) claimWorkItem in a batch > claims every step that is not done, states the unstated one, one journal entry [3.63ms]",
+          "(fail) claimWorkItem in a batch > answers alreadyHeld to the holder repeating it and adds no entry [6.71ms]",
+          "(fail) claimWorkItem in a batch > undo removes exactly the claims and the progress it stated; redo puts them back [7.77ms]",
+          "(fail) claimWorkItem in a batch > claims and assigns in one entry; undo clears both the claim and the assignment [10.10ms]",
+          "(fail) claimWorkItem in a batch > leaves assignments untouched when assign is false or absent [5.87ms]",
+          "(fail) claimWorkItem in a batch > refuses a claim on a leaf whose only worked step is done: it reads done [5.68ms]",
+          "(fail) claimWorkItem in a batch > refuses a redo of a claim once another holder took the step [4.70ms]",
+          "(fail) claimWorkItem in a batch > shows the batch the progress its claim stated [4.23ms]",
+          "(fail) claimWorkItem in a batch > lets two agents hold two steps of one leaf [6.34ms]",
+          "(fail) claimWorkItem in a batch > refuses a step another holder has, naming the holder, and writes nothing [5.20ms]",
+          "(fail) claimWorkItem in a batch > refuses a leaf reading blocked_by_proxy with that status [9.65ms]",
+          "(fail) claimWorkItem in a batch > refuses a pinned credential claiming as another agent [3.59ms]",
+          "(fail) claimWorkItem in a batch > claims and releases as the acting agent person when none is named; an account must name one [2.51ms]",
+          "(fail) claimWorkItem in a batch > claims as an owned person bound to a member of its organization [3.41ms]",
+          "(fail) claimWorkItem in a batch > chains a subagent’s leaf claim to the superagent’s subtree, and refuses a stranger [6.46ms]",
+          "(fail) a claimed leaf that gains its first child > hands a claimed leaf's claims to its first child and back on undo [3.41ms]",
+          "(fail) a claimed leaf that gains its first child > releases the handed-down claim on the child [8.46ms]",
+          "(fail) a claimed leaf that gains its first child > refuses a move under a claimed leaf, naming its holders, until they are released [12.11ms]",
+          "(fail) a claimed leaf that gains its first child > refuses an undo of a split once the child's claims changed [12.28ms]",
+          "(fail) releaseWorkItem in a batch > releases a half-done leaf and leaves its progress as it was [6.35ms]",
+          "(fail) releaseWorkItem in a batch > cascades a subtree release in one entry, and undo restores all three [7.10ms]",
+          "(fail) the admitted working batch baseline > preserves the four mutation sequences through a working collection [2.34ms]",
+          "(fail) targeted working-plan refreshes > refreshes the retained measures when a tokens trio writes or retires the legacy token estimate [2.02ms]",
+          "(fail) targeted working-plan refreshes > refreshes every restore-related collection and preserves borrowed before-images [1.86ms]",
+          "(fail) targeted working-plan refreshes > refreshes a labelled row and rejects an unrequested satellite row [4.36ms]",
+          "(fail) working plan value failures > does not advance a retained value after a modeled set refusal [2.32ms]",
+          "(fail) working plan value failures > does not advance a retained value before a throwing mutation succeeds [2.61ms]",
+          "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed [3.09ms]",
+          "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans [262.28ms]",
+          "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it [8.29ms]",
+          "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed [3.39ms]",
+          "(fail) a resource removed between the tree read and its labels > labels a bar of a resource removed between the two reads [5.52ms]",
+          "(fail) assignments that run the plan past the calendar > refuses assignSubtree with calendar_range and writes nothing [7.52ms]",
+          "(fail) assignments that run the plan past the calendar > refuses a claim that assigns past the calendar, and admits the same claim without assign [6.52ms]",
+          "(fail) measure estimates as plan commands > records, re-estimates and clears a trio in tokens, cost and a defined measure, undoably [10.04ms]",
+          "(fail) measure estimates as plan commands > refuses an unknown, scheduling, two-point-only or fractional measure estimate and stores nothing [14.49ms]",
+          "(fail) measure estimates as plan commands > refuses an unordered trio and stores nothing [7.48ms]",
+          "(fail) measure estimates as plan commands > refuses deleting a definition that holds a trio, and deletes it once the trio is cleared [9.65ms]",
+          "(fail) expected measure and variance on the row read > reads expected and variance per step node and rolled up [8.70ms]",
+          "(fail) expected measure and variance on the row read > weighs the trio by the work package's own PERT weights [11.75ms]",
+          "(fail) the legacy token estimate as a single-point trio > reads a legacy token estimate as a single-point trio and clears the flag on a three-point write [8.68ms]",
+          "(fail) the legacy token estimate as a single-point trio > undoes a legacy token estimate written over a three-point trio by putting the trio back [9.40ms]",
+          "(fail) measure estimates follow their work item > hands a leaf's trios down to its first child and back up on undo [10.83ms]",
+          "(fail) measure estimates follow their work item > hands a deleted last child's trios up to the parent and takes them off again on undo [24.93ms]",
+          "(fail) measure estimates follow their work item > puts a deleted branch's trios back on undo [14.67ms]",
+          "(fail) measure estimates follow their work item > copies a duplicated branch's trios and takes them with the copy on undo [12.57ms]",
+          "(fail) a definition that stops allowing three points > undoes a delete and a first-child create after tokens stops allowing three points [16.84ms]",
+          "(fail) the legacy token estimate through a restore > restores a deleted leaf's legacy token estimate with its recordedAt verbatim [8.28ms]",
+          "(fail) replays across a deleted definition > refuses an undo that would put a trio back in a measure deleted since [14.89ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a delete whose trio is in a measure deleted since [17.04ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a first-child create whose handed-down trio is in a measure deleted since [19.00ms]",
+          "(fail) working plan batch ownership > refuses then runs another batch without leaked values [3.84ms]",
+          "(fail) working plan batch ownership > ordinary write between batches is the next before-image [2.41ms]",
+          "(fail) working plan batch ownership > closes the admitted graph after success, refusal, and throw [2.15ms]",
+          "(fail) working plan batch ownership > announces after commit through the nonworking graph [2.01ms]",
+          "(fail) working plan directory mutations through runner commands > delegates person reads and target-refreshes an assignment before the next patch [2.13ms]",
+          "(fail) working plan dependency mutations through runner commands > lets a later command read the committed FF type after an edit [4.18ms]",
+          "(fail) working plan value mutations through runner commands > keeps mixed-case memory value groups in the full readers order after population [2.38ms]",
+          "(fail) working plan value mutations through runner commands > keeps every memory value group in source order after sets populate an earlier group [2.66ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every set, hand-down endpoint, and measure metric before later commands [2.06ms]",
+          "(fail) working plan value mutations through runner commands > removes every moveAll source during the same create command [1.93ms]",
+          "(fail) working plan value mutations through runner commands > refreshes every delete-last-child hand-up before editing the parent [1.94ms]",
+          "(fail) working plan value mutations through runner commands > removes every value and metric from retained reads before the store method returns [1.85ms]",
+          "(fail) working plan row mutations through runner commands > freezes arranged numbers from the preceding command in the same batch [2.30ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted estimates group placement [1.87ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted actuals group placement [1.53ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted progress group placement [1.45ms]",
+          "(fail) working plan value placement validation rolls back its production unit of work > rejects an omitted measures group placement [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back cleared facts and moved rows when a later batch command refuses [1.95ms]",
+          "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress [1.57ms]",
+          "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner [1.62ms]",
+          "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner [1.35ms]",
+          "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner [1.43ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it [1.69ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it [1.46ms]",
+          "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it [1.49ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay [1.92ms]",
+          "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay [1.44ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory deletion facts and rows when a later batch command refuses [1.77ms]",
+          "(fail) transactional memory move blockage closure > preserves collected memory deletion facts and progress through undo redo [1.73ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent state changes before deletion undo [1.67ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent time changes before deletion undo [1.62ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent missing changes before deletion undo [1.66ms]",
+          "(fail) transactional memory move blockage closure > refuses memory parent blockage changes before deletion undo [2.13ms]",
+          "(fail) transactional memory move blockage closure > rolls back memory restore rows and earlier blockage writes after an injected insertion failure [1.72ms]",
+          "(fail) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [3.09ms]",
+          "(fail) budgets as plan commands > sets, replaces and clears a budget, undoably [2.71ms]",
+          "(fail) budgets as plan commands > refuses an unknown, scheduling, negative or fractional budget and stores nothing [1.80ms]",
+          "(fail) budgets as plan commands > refuses deleting a definition that holds a budget, and deletes it once the budget is cleared [1.61ms]",
+          "(fail) budgets as plan commands > refuses invalid project factors and package-level overrides while keeping the inherited factor [1.69ms]",
+          "(fail) budgets on the row read > reads a parent's strict budget against its three leaves' facts [1.55ms]",
+          "(fail) budgets on the row read > derives a budget from the pessimistic points times the work package's budget factor [1.68ms]",
+          "(fail) budgets on the row read > keeps a row holding no budget free of the field, every other field unchanged [1.48ms]",
+          "(fail) budgets on the row read > holds the allowance of each running attempt of unknown usage, and releases it on its end [1.62ms]",
+          "(fail) budgets on the row read > reads agent minutes spent against an agent minutes budget [1.47ms]",
+          "(fail) budgets stay on their work item > keeps a leaf budget on the leaf when it gains a first child, and bounds the child [1.52ms]",
+          "(fail) budgets stay on their work item > does not hand a deleted last child's budget up, and puts it back on undo [1.54ms]",
+          "(fail) budgets stay on their work item > puts a deleted branch's budgets back on undo [1.58ms]",
+          "(fail) budgets stay on their work item > copies a duplicated branch's budgets and takes them with the copy on undo [1.65ms]",
+          "(fail) budgets stay on their work item > refuses an undo that would put a budget back in a measure deleted since [1.79ms]",
+          "(fail) budgets stay on their work item > refuses an undo of a delete whose budget is in a measure deleted since [1.82ms]",
+          "(fail) the headroom read > reports each startable and claimed step with its tightest budget, holds taken off [2.32ms]",
+          "(fail) the headroom read > names a mix on the blocked step and key only, the read itself never refused [1.74ms]",
+          "(fail) the headroom read > keeps an exhausted strict budget beside a looser advisory one [1.53ms]",
+          "(fail) money carries its basis > requires a rate card on a cost fact and refuses one on tokens [1.43ms]",
+          "(fail) money carries its basis > requires a rate card on a cost trio and refuses one on tokens [1.45ms]",
+          "(fail) money carries its basis > undoes a cost fact back to the figure and rate card it replaced [1.46ms]",
+          "(fail) money carries its basis > reads a parent whose leaves hold two rate cards as mixed, naming both, with no cost sum [1.49ms]",
+          "(fail) money carries its basis > refuses a last-child delete whose hand-up would add two rate cards, naming both [1.50ms]",
+          "(fail) money carries its basis > hands up a fact on one card beside a trio on another [1.49ms]",
+          "(fail) money carries its basis > reads a leaf whose trio and fact sit on two cards as unmixed, and strips a mix among trios from the estimates alone [1.52ms]",
+          "(fail) money carries its basis > names the one basis a row's cost sums are in, per kind, and none on a mixed parent [1.72ms]",
+          "(fail) money carries its basis > refuses an undo that would put an unpriced cost fact back [2.00ms]",
+          "(fail) money carries its basis > refuses an undo that would put an unpriced cost trio back [2.20ms]",
+          "(fail) money carries its basis > hands a branch’s priced figures up under their one rate card [1.50ms]",
+          "(fail) public blockage authoring over transactional memory > collects one undo unit, refreshes retained facts, and emits committed readings [2.31ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a refuse store write [1.94ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back a prior mutation and emits no fanout after a throw store write [1.87ms]",
+          "(fail) public blockage authoring over transactional memory > rolls back an earlier fact when the later command is unknown [1.88ms]",
+          "(fail) public blockage authoring over transactional memory > refuses direct service ownership before an equivalent clear [1.50ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory undo without accepting forged owner revisions [1.59ms]",
+          "(fail) public blockage authoring over transactional memory > refuses stale memory redo without accepting forged owner revisions [1.36ms]",
+          "(fail) public blockage authoring over transactional memory > keeps progress, canonical input and full Fast schedule unchanged [1.88ms]",
+          "(fail) public blockage authoring over transactional memory > refuses an unknown service step before an equivalent clear [1.53ms]",
+          "(fail) facts keyed by measure definition > records a fact in a defined measure and under either name of tokens and hours, undoably [11.03ms]",
+          "(fail) facts keyed by measure definition > refuses deleting a definition that holds a fact, and deletes it once the fact is cleared [9.06ms]",
+          "(fail) facts keyed by measure definition > refuses an undo that would put a fact back in a measure deleted since [15.43ms]",
+          "(fail) facts keyed by measure definition > refuses an undo of a delete whose fact is in a measure deleted since [16.07ms]",
+          "(fail) replays across a deleted definition > refuses an undo of a first-child create whose handed-down fact is in a measure deleted since [17.01ms]",
+          "(fail) agent minutes, derived on read > reads agent minutes from ended attempts and rolls them up; a running attempt adds nothing [8.92ms]",
+          "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.80ms]",
+          "(fail) delete sparse owner preservation > refuses leaf null with exact equal-default pairs before stamps or writes [2.01ms]",
+          "(fail) delete sparse owner preservation > refuses leaf cascade with exact equal-default pairs before stamps or writes [0.94ms]",
+          "(fail) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [1.17ms]",
+          "(fail) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [2.46ms]",
+          "(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.67ms]",
+          "(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.88ms]",
+          "(fail) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [1.09ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [2.31ms]",
+          "(fail) preserves empty-policy first-child undo and redo [9.03ms]",
+          "(fail) deleting blocked work items > restores exact root leaf blockage beneath done through delete undo redo [5.54ms]",
+          "(fail) deleting blocked work items > hands up deletion blockage only with all direct former leaves (%s) [8.87ms]",
+          "(fail) deleting blocked work items > hands up deletion blockage only with all direct former leaves (%s) [8.46ms]",
+          "(fail) deleting blocked work items > reports a refused deletion blockage hand-up [5.34ms]",
+          "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo [3.64ms]",
+          "(fail) deleting blocked work items > refuses new parent progress before restore deletes any hand-up facts [7.78ms]",
+          "(fail) creating work items > preserves exact blockage and progress through first-child create undo redo [3.71ms]",
+          "(fail) creating work items > reports a refused first-child blockage write [3.70ms]",
+          "(fail) creating work items > reports a refused parent blockage clear before inserting a first child [3.84ms]",
+          "(fail) creating work items > hands a leaf’s attempts down to its first child, numbers kept [3.17ms]",
+          "(fail) moving work items > clears destination progress before moving and restores it after undo (blockage: %s) [6.67ms]",
+          "(fail) moving work items > clears destination progress before moving and restores it after undo (blockage: %s) [4.26ms]",
+          "(fail) moving work items > reports a refused move destination clear before reparenting [4.43ms]",
+          "(fail) moving work items > reports a refused move blockage hand-up [4.78ms]",
+          "(fail) moving work items > hands up only unanimous direct blockage with the latest negative timestamp and no progress [7.82ms]",
+          "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo [4.02ms]",
+          "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent [6.35ms]",
+          "(fail) moving work items > duplicates blocked leaves and descendants without inheriting blockage [7.91ms]",
+          "(fail) dependencies > keeps canonical input and full Fast bytes while direct blockage work packages over a typed edge [4.12ms]",
+          "(fail) dependencies > schedules a dependent work item after the one it waits for [4.32ms]",
+          "(fail) the plan waits for the people in it > runs two work items one person is doing one after the other [3.88ms]",
+          "(fail) the plan waits for the people in it > frees a held assignee for the rest of their queue (add-work-item-statuses) [4.37ms]",
+          "(fail) the plan waits for the people in it > starts the work somebody said matters most, end to end [4.74ms]",
+          "(fail) the plan waits for the people in it > reaches every leaf beneath a parent somebody gave a priority [7.19ms]",
+          "(fail) the plan waits for the people in it > queues every step of a work item its one assignee is assumed to be doing [4.76ms]",
+          "(fail) the plan waits for the people in it > stops assuming at two, and lets the second person work alongside the first [5.44ms]",
+          "(fail) who is doing the work > assigns somebody who is not in the work item’s team [2.72ms]",
+          "(fail) who is doing the work > refuses an assignment naming a person the directory has lost [2.23ms]",
+          "(fail) duplicating a subtree > copies notes, estimates, assignees, the team label and the date [7.05ms]",
+          "(fail) the calendar > places the plan on working days, skipping the weekend [4.40ms]",
+          "(fail) the calendar > lets a dependency push past the constraint, never the other way [4.92ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > carries a span across two weekends without counting them [2.69ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > hands a fractional finish and its successor the same calendar day [4.24ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > keeps a zero-length row on its own start day, whole or fractional [7.78ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > moves the dates and the printed figure together when the method changes [2.59ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > ends a chain of PERT estimates on the day the estimates add up to [6.54ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > holds the calendar steady when a chained finish drifts above the whole day [9.79ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > holds the calendar steady when a chained finish drifts below the whole day [8.89ms]",
+          "(fail) the calendar — weekend edges and fractions of a day > keeps a genuine fraction just shy of a boundary as real work [4.95ms]",
+          "(fail) the work package’s dependency reach > each work package is scheduled by its own reach [7.82ms]",
+          "(fail) the work package’s estimate method > reports the final figure per step and their sum, under PERT [2.69ms]",
+          "(fail) the work package’s estimate method > reports the chosen point instead when the work package chose one [2.61ms]",
+          "(fail) the work package’s estimate method > plans the dates with the same figure it prints [2.26ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > rounds each step before summing them [3.85ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > floors, rounds and keeps the fraction when the work package says so [3.27ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > weighs the three points by the coefficients the work package set [3.08ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > gives a parent the days its children were charged, and the chart the same [6.77ms]",
+          "(fail) the work package’s estimate arithmetic — weights, and the rounding per step > plans the dates with the rounded figures it prints [4.88ms]",
+          "(fail) capacity, as the adapter resolves it > compresses a work item across the people its parallelism allows [2.07ms]",
+          "(fail) capacity, as the adapter resolves it > clamps a work item’s parallelism down to the size of its team [1.73ms]",
+          "(fail) capacity, as the adapter resolves it > reports the non-first team that bound a joint-capacity slice [2.23ms]",
+          "(fail) capacity, as the adapter resolves it > runs a named person’s work one at a time however parallel the item is [2.54ms]",
+          "(fail) capacity, as the adapter resolves it > draws a leaf’s pool from the team its parent labels [2.02ms]",
+          "(fail) capacity, as the adapter resolves it > leaves an unsized team labelling the work and constraining nothing [1.70ms]",
+          "(fail) the slices the schedule placed, on the wire > names the slice the person was finishing, under the engine’s own id [3.48ms]",
+          "(fail) the slices the schedule placed, on the wire > reports the engine’s fractional numbers verbatim [3.33ms]",
+          "(fail) the slices the schedule placed, on the wire > carries the steps its slices were placed under, in the engine’s order [4.13ms]",
+          "(fail) the slices the schedule placed, on the wire > names everybody its slices are assigned to, and nobody else [3.40ms]",
+          "(fail) the slices the schedule placed, on the wire > answers from one read of the steps, whatever a later read would say [3.36ms]",
+          "(fail) the slices the schedule placed, on the wire > adds slices and moves nothing else in the payload [2.53ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > takes the write stamp as the start and refuses an at after it, never the client clock [2.78ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > numbers past every number issued, so a removed number is never reused [2.84ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > numbers past a removed highest attempt: remove 2 of {1, 2}, the next is 3 [2.64ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > refuses an end before its running start, and stores the reference and note given [2.31ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > one undo per command restores the row verbatim [3.99ms]",
+          "(fail) attempts at step nodes (step-node-attempts D2) > writes no statement, and setStatus done leaves a running attempt running [2.67ms]",
+          "(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [22.14ms]",
+          "(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [1.34ms]",
+          "(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [2.74ms]",
+          "(fail) duplicates an empty selection while unrelated and foreign policies keep their owners [2.27ms]",
+          "(fail) the startable read > lists a team's allotment, its claimed leaf apart, and omits the unlabelled leaf [2.75ms]",
+          "(fail) the startable read > lists every startable step with no team, unlabelled leaves included [1.92ms]",
+          "(fail) the startable read > leaves a ready leaf behind an unfinished held predecessor out [1.73ms]",
+          "(fail) the startable read > keeps already-started work visible with unfinished predecessors and drops finished predecessors [1.72ms]",
+          "(fail) the startable read > leaves a done step out and keeps the other [1.58ms]",
+          "(fail) the startable read > names the subtree holder and still lists the subtree's free steps [1.60ms]",
+          "(fail) the startable read > lists a silent subtree claim whose every leaf has stopped [1.88ms]",
+          "(fail) the startable read > shows a claimed step beside its assignee [1.60ms]",
+          "(fail) the startable read > answers the frozen number, never the derived path [1.69ms]",
+          "(fail) the startable read > names the assignee of each startable step that has one [1.58ms]",
+          "(fail) the startable read > refuses a team the directory does not hold, and an absent work package [1.50ms]",
+          "(fail) resource fit in the startable read > lists a leaf whose demand exceeds the free units apart, with its shortfall [1.66ms]",
+          "(fail) resource fit in the startable read > never excludes on an unstated capacity, and lists no resource for it [1.49ms]",
+          "(fail) resource fit in the startable read > excludes any demand on a stated capacity of 0 [1.48ms]",
+          "(fail) resource fit in the startable read > fits a held leaf whose demand was raised past the free units [1.56ms]",
+          "(fail) resource fit in the startable read > keeps the team filter on the leaves that do not fit [1.52ms]",
+          "(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [1.40ms]",
+          "(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [0.80ms]",
+          "(fail) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [1.13ms]",
+          "(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [2.08ms]",
+          "(fail) retains moving subtree and sibling policy while moving under an empty destination [0.97ms]",
+          "(fail) preserves empty-policy move undo and redo while unrelated facts survive [1.02ms]",
+          "(fail) the claim history read > lists claims, releases and reaps newest first, each with its reason [4.63ms]",
+          "(fail) the claim history read > reads a release named like a reap by its stored reason, not its label [2.93ms]",
+          "(fail) the claim history read > names a holder and an item deleted since as null [2.69ms]",
+          "(fail) the claim history read > lists no undo, redo or other command [2.76ms]",
+          "(fail) the claim history read > lists a claim made beside other commands in one batch [2.76ms]",
+          "(fail) the claim history read > lists a batch that released one claim and took another as two acts [2.66ms]",
+          "(fail) the claim history read > finds a claim batch under newer batches that claim nothing [2.88ms]",
+          "(fail) the claim history read > lists nothing for a batch that deleted a claimed item [2.97ms]",
+          "(fail) the claim history read > fails the read on a batch it cannot split into acts [2.89ms]",
+          "(fail) the claim history read > fails the read on a stored command it cannot decode, naming the event [2.86ms]",
+          "(fail) a work package step allowance > charges each estimated leaf once and parents the sum, leaving raw points alone [5.71ms]",
+          "(fail) a work package step allowance > schedules charged effort, and the edit changes the canonical input [1.93ms]",
+          "(fail) a work package step allowance > leaves an unknown estimate unknown and an explicit zero at zero [2.70ms]",
+          "(fail) a work package step allowance > charges a duplicated branch’s copied base estimates once [1.78ms]",
+          "(fail) a work package step allowance > charges an estimate handed down to a first child once, at the child [1.72ms]",
+          "(fail) a work package step allowance > announces the edited step [0.90ms]",
+          "(fail) undoing a step allowance edit > undoes an allowance edit in one step [0.83ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it [0.87ms]",
+          "(fail) undoing a step allowance edit > refuses an allowance undo after somebody else changed it and changed it back [0.80ms]",
+          "(fail) undoing a step allowance edit > walks back two of one editor’s allowance edits in turn [0.86ms]",
+          "(fail) undoing a step allowance edit > journals nothing for an edit that leaves the allowance where it was [0.78ms]",
+          "(fail) keeps extracted production services inside the core boundary [0.21ms]",
+          "(fail) the neutral work-package-event port > rejects the checked event-contract import routes [0.99ms]",
+          "(fail) the no-sideways type routes of the 040.6 map > rejects the checked sideways-type import routes [0.73ms]",
+          "(fail) the work package module loads its declared live service export [1.05ms]"
+        ]
+      }
+    ],
+    "qualification": "Original full invocation exits1. Grouping follows the last actual test-file header; intertest/collection errors remain in raw transcript. This is not a passing full core suite, nor a count after the repair."
+  },
+  "finalBoundary": {
+    "passed": 16,
+    "failed": 0,
+    "assertions": 31,
+    "files": 2,
+    "receipt": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1.receipt.json",
+      "sha256": "38c443bc77f18035ae1a0f17677619ad5c5953a1e833f47f4f99ff899a056359",
+      "bytes": 1407,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-core-boundary-final-v1.log",
+      "sha256": "fd7b344d6285c92e14b98cc4d5cef7e8f0d231d8caebcaf278dd546a6ed16f70",
+      "bytes": 1523,
+      "mode": 384
+    }
+  },
+  "erasure": {
+    "stagedPredecessor": "5c311edde4d7deae0c9517629aa8a5a24e88d12e",
+    "observations": [
+      {
+        "path": "libs/wbs/application/core/src/ports/saved-plan-values.ts",
+        "identicalRuntime": true,
+        "runtimeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "libs/wbs/application/core/src/ports/saved-plan-store.ts",
+        "identicalRuntime": true,
+        "runtimeSha256": "2483dfe4cab358addbed3e7a97fbafa6b8537e1803f773746d72e2e169e667ff"
+      },
+      {
+        "path": "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts",
+        "identicalRuntime": true,
+        "runtimeSha256": "83c706cac7ab1a36adc18e2f20fc8e1a9a94252bb59c876dcedce422ee834dec"
+      },
+      {
+        "path": "libs/wbs/application/core/src/ports/subtree-store.ts",
+        "identicalRuntime": true,
+        "runtimeSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "qualification": "Bun browser TypeScript transpilation is byte-identical for all four existing type-move consumers. New subtree values module contains only types. Compensating import sorting/format is outside this four-file erasure comparison."
+  },
+  "checks": {
+    "libraryRoots": ["core", "conformance", "store-memory", "store-sqlite"],
+    "backendTypecheck": "passed",
+    "lintFiles": 6,
+    "formattedFiles": 6
+  },
+  "rejected": [
+    {
+      "phase": "current-core-boundary-selected-v1",
+      "reason": "Value ownership repair passes actual architecture check; service boundary still fails import sorting in compensating.ts. Initial autofix targeted clean command-normalizers.ts; actual lint diagnostic locates compensating.ts. Correct file is sorted/formatted; full16test boundary cohort passes."
+    }
+  ],
+  "decisions": [
+    "Move plain saved-plan touch values into existing saved-plan-values and subtree reply values into subtree-values, preserving store reexports and exact type shapes. Feature imports values directly; current repository capability checker stays unchanged.",
+    "No new safety guard, compatibility default or feature debt is added. This mechanical refactor restores the precise existing architecture contract and needs no new behavior OpenSpec delta."
+  ],
+  "pending": [
+    "The full core diagnostic still owns554failures141errors at its original epoch. Broader fixture/service/route/module capability adoption requires investigation; do not subtract two fixed boundary tests and claim a new whole-suite count.",
+    "Several actual service tests seed legacy Step DTOs into current Source creation. Replace fixture setup with explicit actual catalogue authoring; do not infer live catalogue authority from legacy request seeds.",
+    "All original entity/settings/spaces/SC13/17/22/25 and PUNI/Bun/client classification/install scope, unavailable Astra review, exact committed host gates and public release remain active."
+  ]
+}

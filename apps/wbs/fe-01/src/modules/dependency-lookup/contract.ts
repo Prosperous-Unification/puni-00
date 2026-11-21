@@ -1,4 +1,4 @@
-import type { ProjectAddressApi } from '@/lib/wbs-api';
+import type { WorkPackageAddressApi } from '@/lib/wbs-api';
 
 type Reply<Operation extends (...args: never[]) => unknown> = Awaited<ReturnType<Operation>>;
 type FeatureReply<Wire> = Wire extends { kind: 'success'; body: infer Body }
@@ -9,8 +9,8 @@ type FeatureReply<Wire> = Wire extends { kind: 'success'; body: infer Body }
       ? { kind: 'failure'; failure: Failure } | { kind: 'cancelled' }
       : never;
 
-export type ProjectDiscoveryReply = FeatureReply<Reply<ProjectAddressApi['projects']>>;
-type EndpointWireReply = FeatureReply<Reply<ProjectAddressApi['candidates']>>;
+export type WorkPackageDiscoveryReply = FeatureReply<Reply<WorkPackageAddressApi['workPackages']>>;
+type EndpointWireReply = FeatureReply<Reply<WorkPackageAddressApi['candidates']>>;
 type EndpointBody = Extract<EndpointWireReply, { kind: 'success' }>['body'];
 type WireCandidate = EndpointBody['candidates'][number];
 /** Non-whole candidates carry the observed step evidence required by Customize. */
@@ -28,27 +28,27 @@ export type EndpointSearchReply =
       kind: 'success';
       body: Omit<EndpointBody, 'candidates'> & { candidates: AddressCandidate[] };
     };
-export type ReferenceResolutionReply = FeatureReply<Reply<ProjectAddressApi['resolve']>>;
-export type AddressProject = Extract<
-  ProjectDiscoveryReply,
+export type ReferenceResolutionReply = FeatureReply<Reply<WorkPackageAddressApi['resolve']>>;
+export type AddressWorkPackage = Extract<
+  WorkPackageDiscoveryReply,
   { kind: 'success' }
->['body']['projects'][number];
+>['body']['workPackages'][number];
 
-/** Read-only bounded address observations, scoped to one project runtime lifetime. */
+/** Read-only bounded address observations, scoped to one work package runtime lifetime. */
 export interface DependencyLookup {
-  discoverProjects: (
+  discoverWorkPackages: (
     query: string,
     cursor: string | null,
     signal?: AbortSignal,
-  ) => Promise<ProjectDiscoveryReply>;
+  ) => Promise<WorkPackageDiscoveryReply>;
   searchEndpoints: (
-    projectId: string,
+    workPackageId: string,
     query: string,
     cursor: string | null,
     signal?: AbortSignal,
   ) => Promise<EndpointSearchReply>;
   resolveReference: (
-    projectId: string,
+    workPackageId: string,
     reference: string,
     revision: string,
     signal?: AbortSignal,

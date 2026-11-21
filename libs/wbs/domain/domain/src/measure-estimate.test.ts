@@ -90,7 +90,7 @@ describe('decideMeasureEstimate', () => {
     expect(decideMeasureEstimate(SEEDED, 'tokens', null)).toMatchObject({ ok: true });
   });
 
-  it('answers an unowned project against the seeded four, so tokens is known and cost is not', () => {
+  it('answers an unowned work package against the seeded four, so tokens is known and cost is not', () => {
     expect(decideMeasureEstimate(null, 'tokens', TRIO)).toMatchObject({ ok: true });
     expect(decideMeasureEstimate(null, 'cost', TRIO)).toEqual({
       ok: false,

@@ -1,19 +1,45 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
-import {
-  CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
-  canonicalisePlanInput,
-  serialiseCanonicalPlanInput,
-} from './canonical-plan-input';
+import { projectSavedPlanInput } from './comparison-input';
 import { diffPlans, planDiffIsEmpty, type PlanSide, type PlanSideSchedule } from './diff-plans';
+import { LEGACY_PLAN_INPUT_SCHEMA_VERSION as CANONICAL_PLAN_INPUT_SCHEMA_VERSION } from './legacy-input-fields';
+import { type LegacyPlanInputV10, readLegacySavedPlanInput } from './legacy-input10';
 import {
-  normalisePlanInputForward,
+  normalisePlanInputForward as normaliseLegacyBody,
   type PlanInputUpgrade,
   PlanInputVersionError,
 } from './normalise-plan-input';
-import { planFixtureRows } from './plan-fixture';
+const capture = readLegacySavedPlanInput(
+  JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../../../../openspec/changes/wbs-work-packages/fixtures/legacy-input9-local.txt',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ),
+  9,
+);
+const {
+  schemaVersion: ignoredVersion,
+  dependencyHistory: ignoredHistory,
+  ...planFixtureRows
+} = capture;
+// Unit fixtures retain published field names; this is not a current writer or historical decoder.
+const canonicalisePlanInput = (rows: typeof planFixtureRows) => ({
+  schemaVersion: 9 as const,
+  ...rows,
+});
+const serialiseCanonicalPlanInput = JSON.stringify;
+type LegacyFields = Omit<LegacyPlanInputV10, 'schemaVersion' | 'dependencyHistory'> & {
+  schemaVersion: number;
+};
+const normalisePlanInputForward = (...args: Parameters<typeof normaliseLegacyBody>) =>
+  normaliseLegacyBody(...args) as LegacyFields;
 
 const bytes = serialiseCanonicalPlanInput(canonicalisePlanInput(planFixtureRows));
 
@@ -62,7 +88,11 @@ describe('normalising a stored plan input forward — 7.4', () => {
 
   it('a normalised body still compares clean against the same plan', () => {
     const side = (input: unknown): PlanSide => ({
-      input: normalisePlanInputForward(input, CANONICAL_PLAN_INPUT_SCHEMA_VERSION),
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(
+        normalisePlanInputForward(input, CANONICAL_PLAN_INPUT_SCHEMA_VERSION),
+        9,
+      ),
       schedule: absent,
     });
 

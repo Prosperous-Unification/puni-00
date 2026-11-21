@@ -30,10 +30,10 @@ export class PlanEventRepository implements PlanEventStore {
   ) {}
 
   /**
-   * One project's history, newest first, narrowed by `filter`.
+   * One work package's history, newest first, narrowed by `filter`.
    *
    * Newest first because that is what a reader wants first and because the
-   * `(project_id, created_at)` index serves it directly. `id` breaks a tie: two
+   * `(work_package_id, created_at)` index serves it directly. `id` breaks a tie: two
    * commands inside one millisecond are ordered arbitrarily by `created_at`
    * alone, and an arbitrary order means two reads of an unchanged plan can
    * disagree.
@@ -48,7 +48,7 @@ export class PlanEventRepository implements PlanEventStore {
    * satisfies. The reading this line refuses is not "a narrower answer"; it is
    * "the plan has no history". Watched 2026-08-17.
    */
-  async listFor(projectId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
+  async listFor(workPackageId: string, filter: PlanEventFilter): Promise<PlanEvent[]> {
     // Proof: with this check removed, the SQLite certification failed
     // `planEvents.listFor:batches-limit` (conformance), whose `limit` 0, -1
     // and 1.5 must be refused; watched 2026-10-24.
@@ -84,7 +84,7 @@ export class PlanEventRepository implements PlanEventStore {
       .from(planEvent)
       .where(
         and(
-          eq(planEvent.projectId, projectId),
+          eq(planEvent.workPackageId, workPackageId),
           filter.workItemId === undefined ? undefined : eq(planEvent.workItemId, filter.workItemId),
           kinds.length === 0 ? undefined : kept,
         ),
@@ -140,7 +140,7 @@ export class PlanEventRepository implements PlanEventStore {
 function asEvent(row: PlanEventRow): PlanEvent {
   return {
     id: row.id,
-    projectId: row.projectId,
+    workPackageId: row.workPackageId,
     userId: row.userId,
     kind: row.kind,
     label: row.label,

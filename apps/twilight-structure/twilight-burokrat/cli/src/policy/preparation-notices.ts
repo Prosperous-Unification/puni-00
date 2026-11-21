@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { prepareCompiler } from '../packaging/preparation-compiler';
 import { readOperatorFile } from './preparation-inputs';
 import type { PreparationNotice } from './prepared-activation';
-import type { BunToolkit } from './toolkit';
+import { type BunExecutionToolkit, resolveToolkitModules } from './toolkit';
 
 /**
  * Derive legal notices from the already verified raw compiler closure and pinned transform.
@@ -12,7 +12,7 @@ import type { BunToolkit } from './toolkit';
  * @throws for missing/nonregular/unreadable or changed pinned compiler/license/notice bytes.
  */
 export function readPreparationNotices(
-  toolkit: Pick<BunToolkit, 'directory' | 'trustedNodeModules'>,
+  toolkit: Pick<BunExecutionToolkit, 'directory' | 'trustedNodeModules' | 'schemaVersion'>,
 ):
   | { readonly kind: 'compiler-free'; readonly notices: readonly [] }
   | { readonly kind: 'compiler'; readonly notices: readonly PreparationNotice[] } {
@@ -23,7 +23,7 @@ export function readPreparationNotices(
       throw new Error('preparation compiler roster is incomplete');
     return { kind: 'compiler-free', notices: [] };
   }
-  const root = join(toolkit.directory, 'trusted-node-modules/@typescript/old');
+  const root = join(resolveToolkitModules(toolkit), '@typescript/old');
   const prepared = prepareCompiler(
     new TextDecoder('utf-8', { fatal: true }).decode(
       readOperatorFile(join(root, 'lib/typescript.js')),

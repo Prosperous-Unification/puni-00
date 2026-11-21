@@ -1,17 +1,17 @@
 import {
-  buildConnectedScheduleBody,
+  buildLeafConnectedScheduleBody,
   CalendarRangeError,
   canonicalConnectedStageInput,
-  canonicalisePlanInputV10,
-  type CanonicalPlanInputV10,
+  canonicalisePlanInputV13,
+  type CanonicalPlanInputV13,
   type ConnectedPublicationDecision,
   deriveNumbers,
   encodeSavedPlacement,
   planInputRowsOf,
-  readSavedDependencyHistory,
-  type SavedConnectedDependencyHistory,
+  readLeafDependencyHistory,
   type SavedConnectedScheduleBody,
   SavedHistoryError,
+  type SavedLeafConnectedHistory,
   type SavedOptimizationStage,
   type SavedOptimizationVariant,
   sliceKey,
@@ -23,13 +23,13 @@ import {
   validateConnectedMetadata,
 } from '../../service/connected-endpoints';
 import type { ConnectedOptimizationSelection } from '../../service/connected-optimization';
-import { selectConnectedProject } from '../../service/connected-plan-projection';
+import { selectConnectedWorkPackage } from '../../service/connected-plan-projection';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 
 /** Prepared historical bodies; callers serialize and hash only after their live snapshot closes. */
 export interface ConnectedHistoryCapture {
-  readonly input: CanonicalPlanInputV10;
+  readonly input: CanonicalPlanInputV13;
   readonly schedule:
     | { readonly present: true; readonly body: SavedConnectedScheduleBody }
     | { readonly present: false; readonly absentReason: 'unavailable' | 'infeasible' };
@@ -47,10 +47,13 @@ function validateCapturedFacts(captured: ConnectedRead): void {
     // Proof: removing this refusal admitted contradictory foreign names with 201 in both mounted save modes (evidence/mounted-save-refusal/contradictory-facts.log).
     if (metadata !== read) throw new SavedHistoryError('metadata_facts', path);
   };
-  for (const member of captured.projection.capture.projects) {
-    const metadata = requireCaptured(captured.metadataByProject.get(member.projectId), 'metadata');
-    const path = `$.projects.${member.projectId}`;
-    requireFact(metadata.project.abbreviation, member.abbreviation, `${path}.abbreviation`);
+  for (const member of captured.projection.capture.workPackages) {
+    const metadata = requireCaptured(
+      captured.metadataByWorkPackage.get(member.workPackageId),
+      'metadata',
+    );
+    const path = `$.workPackages.${member.workPackageId}`;
+    requireFact(metadata.workPackage.abbreviation, member.abbreviation, `${path}.abbreviation`);
     for (const field of [
       'name',
       'startDate',
@@ -58,7 +61,7 @@ function validateCapturedFacts(captured: ConnectedRead): void {
       'scheduleObjective',
       'optimizationEnabled',
     ] as const) {
-      requireFact(metadata.project[field], member.reads.project[field], `${path}.${field}`);
+      requireFact(metadata.workPackage[field], member.reads.workPackage[field], `${path}.${field}`);
     }
     const rows = new Map(member.reads.workItems.map((row) => [row.id, row]));
     for (const row of metadata.workItems) {
@@ -109,10 +112,10 @@ function captureStage(selection: ConnectedOptimizationSelection): SavedOptimizat
     };
   };
   return {
-    projectId: selection.stage.projectId,
+    workPackageId: selection.stage.workPackageId,
     engine: selection.engine,
     objective: selection.objective,
-    format: 'connected-stage-v1',
+    format: 'connected-stage-v2',
     // Proof: replacing these bytes with '{}' failed eight converter cases, including exact retained-boundary coverage.
     stageBytes: canonicalConnectedStageInput(selection.stage),
     observation:
@@ -140,34 +143,38 @@ function captureStage(selection: ConnectedOptimizationSelection): SavedOptimizat
  */
 export function captureConnectedHistory(
   captured: ConnectedRead,
-  projectId: string,
+  workPackageId: string,
 ): ConnectedHistoryCapture {
   validateConnectedMetadata(captured);
   validateCapturedFacts(captured);
-  const target = selectConnectedProject(captured.projection, projectId);
+  const target = selectConnectedWorkPackage(captured.projection, workPackageId);
   const { capture, authored, placement } = captured.projection;
   const member = requireCaptured(
-    capture.projects.find((project) => project.projectId === projectId),
+    capture.workPackages.find((workPackage) => workPackage.workPackageId === workPackageId),
     'target',
   );
-  const endpoint = createConnectedEndpointProjector(captured.metadataByProject);
-  const projectEndpoint = (selector: Parameters<typeof endpoint>[0]) => {
+  const endpoint = createConnectedEndpointProjector(captured.metadataByWorkPackage);
+  const workPackageEndpoint = (selector: Parameters<typeof endpoint>[0]) => {
     const { endpoint: identity, revision: _revision, ...labels } = endpoint(selector);
     return { ...identity, ...labels };
   };
-  const projects = capture.projects.map((project) => {
-    const metadata = requireCaptured(captured.metadataByProject.get(project.projectId), 'metadata');
+  const workPackages = capture.workPackages.map((workPackage) => {
+    const metadata = requireCaptured(
+      captured.metadataByWorkPackage.get(workPackage.workPackageId),
+      'metadata',
+    );
     const numbers = deriveNumbers(metadata.workItems);
     return {
-      projectId: project.projectId,
-      name: metadata.project.name,
-      abbreviation: metadata.project.abbreviation,
-      startDate: project.reads.project.startDate,
-      timezone: project.reads.project.timezone,
-      rank: project.rank,
-      engine: project.reads.project.scheduleEngine,
-      objective: project.reads.project.scheduleObjective,
-      enabled: project.reads.project.optimizationEnabled,
+      workPackageId: workPackage.workPackageId,
+      name: metadata.workPackage.name,
+      abbreviation: metadata.workPackage.abbreviation,
+      startDate: workPackage.reads.workPackage.startDate,
+      timezone: workPackage.reads.workPackage.timezone,
+      rank: workPackage.rank,
+      engine: workPackage.reads.workPackage.scheduleEngine,
+      objective: workPackage.reads.workPackage.scheduleObjective,
+      enabled: workPackage.reads.workPackage.optimizationEnabled,
+      leafSteps: workPackage.reads.leafSteps,
       steps: metadata.steps.map(({ id, code, name, position }) => ({ id, code, name, position })),
       workItems: metadata.workItems.map((row) => ({
         id: row.id,
@@ -185,7 +192,10 @@ export function captureConnectedHistory(
     const key = sliceKey(workItemId, stepId);
     const base = {
       key,
-      projectId: requireCaptured(authored.projectIdByWorkItem.get(workItemId), 'node owner'),
+      workPackageId: requireCaptured(
+        authored.workPackageIdByWorkItem.get(workItemId),
+        'node owner',
+      ),
       workItemId,
       status: requireCaptured(captured.readiness.statuses.get(workItemId), 'status'),
       intrinsic: requireCaptured(captured.readiness.evidenceByNode.get(key), 'intrinsic'),
@@ -208,23 +218,23 @@ export function captureConnectedHistory(
         };
   });
   const historyOf = (
-    placementState: SavedConnectedDependencyHistory['placementState'],
-  ): SavedConnectedDependencyHistory => {
-    const history = readSavedDependencyHistory({
+    placementState: SavedLeafConnectedHistory['placementState'],
+  ): SavedLeafConnectedHistory => {
+    const history = readLeafDependencyHistory({
       kind: 'connected',
-      targetProjectId: projectId,
+      targetWorkPackageId: workPackageId,
       mode: capture.mode,
       placementState,
-      projects,
+      workPackages,
       relationships: capture.relationships.map((relationship) => ({
         id: relationship.id,
-        projectId: relationship.projectId,
+        workPackageId: relationship.workPackageId,
         type: relationship.type,
-        predecessor: projectEndpoint(relationship.predecessor),
-        successor: projectEndpoint(relationship.successor),
+        predecessor: workPackageEndpoint(relationship.predecessor),
+        successor: workPackageEndpoint(relationship.successor),
       })),
       graph: authored.graph,
-      ownership: [...authored.projectIdByWorkItem],
+      ownership: [...authored.workPackageIdByWorkItem],
       readiness,
     });
     if (history.kind !== 'connected') throw new Error('connected history discriminator');
@@ -233,7 +243,11 @@ export function captureConnectedHistory(
   if (target.kind !== 'scheduled') {
     const history = historyOf(target);
     return {
-      input: canonicalisePlanInputV10(planInputRowsOf(member.reads), history),
+      input: canonicalisePlanInputV13(
+        planInputRowsOf(member.reads),
+        member.reads.leafSteps,
+        history,
+      ),
       schedule: {
         present: false,
         absentReason: target.kind === 'unavailable' ? 'infeasible' : 'unavailable',
@@ -243,32 +257,37 @@ export function captureConnectedHistory(
   if (placement.kind !== 'scheduled') throw new Error('connected history placement discriminator');
   const history = historyOf({ kind: 'scheduled' });
   try {
-    const body = buildConnectedScheduleBody(
+    const body = buildLeafConnectedScheduleBody(
       target.schedule,
-      member.reads.project.startDate,
+      member.reads.workPackage.startDate,
       history,
       {
         kind: 'connected',
-        targetProjectId: projectId,
+        targetWorkPackageId: workPackageId,
         mode: capture.mode,
         originOrdinal: placement.originOrdinal,
         baseline: encodeSavedPlacement(placement.baseline),
         // Proof: substituting baseline failed the optimized-displacement converter case on retained stage-boundary validation.
         composite: encodeSavedPlacement(placement.combined),
         stages: placement.stages.map(captureStage),
-        idleProjects: [...placement.idleProjects],
+        idleWorkPackages: [...placement.idleWorkPackages],
       },
     );
     return {
-      input: canonicalisePlanInputV10(planInputRowsOf(member.reads), history),
+      input: canonicalisePlanInputV13(
+        planInputRowsOf(member.reads),
+        member.reads.leafSteps,
+        history,
+      ),
       schedule: { present: true, body },
     };
   } catch (cause) {
     // Proof: rethrowing CalendarRangeError failed the coherent input-state/schedule-absence converter case.
     if (!(cause instanceof CalendarRangeError)) throw cause;
     return {
-      input: canonicalisePlanInputV10(
+      input: canonicalisePlanInputV13(
         planInputRowsOf(member.reads),
+        member.reads.leafSteps,
         historyOf({ kind: 'unavailable', reason: 'calendar_range' }),
       ),
       schedule: { present: false, absentReason: 'infeasible' },

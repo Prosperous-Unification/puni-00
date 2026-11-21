@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PlanEvent, Project, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import type { PlanEvent, WorkPackage, WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -11,8 +11,9 @@ import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
-import { ProjectRepository } from './project';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -34,11 +35,11 @@ describe('the plan’s history, against a real database', () => {
   let sqlite: Database;
   let events: PlanEventRepository;
 
-  const project = (id: string, name: string): Project =>
-    projectRow({
+  const workPackage = (id: string, name: string): WorkPackage =>
+    workPackageRow({
       id,
       name,
-      ownerId: 'owner',
+      projectId: 'fixture-project',
     });
 
   /** One recorded command, written the way `record` writes it. */
@@ -48,7 +49,7 @@ describe('the plan’s history, against a real database', () => {
     over: Partial<Omit<PlanEvent, 'id' | 'createdAt'>> = {},
   ): void {
     const row = {
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       kind: 'estimate',
       label: `estimate ${id}`,
@@ -59,11 +60,11 @@ describe('the plan’s history, against a real database', () => {
       ...over,
     };
     sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
         ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         id,
-        row.projectId,
+        row.workPackageId,
         row.userId,
         row.kind,
         row.label,
@@ -80,6 +81,7 @@ describe('the plan’s history, against a real database', () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-plan-event-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
+    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
     events = new PlanEventRepository(db, OPEN);
@@ -87,9 +89,9 @@ describe('the plan’s history, against a real database', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    const projects = new ProjectRepository(db, OPEN);
-    await projects.create(project('p1', 'Rewire the shed'), [], wrote);
-    await projects.create(project('p2', 'Reroof the barn'), [], wrote);
+    const workPackages = new WorkPackageRepository(db, OPEN);
+    await workPackages.create(workPackage('p1', 'Rewire the shed'), [], wrote);
+    await workPackages.create(workPackage('p2', 'Reroof the barn'), [], wrote);
   });
 
   afterEach(() => {
@@ -97,11 +99,11 @@ describe('the plan’s history, against a real database', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('answers one project’s events, newest first, and nobody else’s', async () => {
+  it('answers one work package’s events, newest first, and nobody else’s', async () => {
     write('a', 1_000);
     write('c', 3_000);
     write('b', 2_000);
-    write('other', 9_000, { projectId: 'p2' });
+    write('other', 9_000, { workPackageId: 'p2' });
 
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['c', 'b', 'a']);
     // The other plan's event is the newest of the four and is not in that answer,
@@ -115,7 +117,7 @@ describe('the plan’s history, against a real database', () => {
     //
     // **Written `b` first and `a` second, and that is the whole of the test.**
     // With the rows inserted in id order the tie-break is unobservable: SQLite
-    // walks the `(project_id, created_at)` index backwards for a `DESC` read and
+    // walks the `(work_package_id, created_at)` index backwards for a `DESC` read and
     // hands back the later rowid first, which for `a` then `b` is `["b", "a"]` —
     // exactly what the tie-break asks for. That version passed with
     // `desc(planEvent.id)` struck: **7 pass, 0 fail**, watched 2026-08-17. Writing
@@ -204,7 +206,7 @@ describe('the plan’s history, against a real database', () => {
     // and `asEntry` in `command-journal.ts` makes the identical call. A row read
     // as `null` would put a history on screen with a blank where a change was.
     sqlite.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, step_id, before, after, created_at)' +
         " VALUES ('bad', 'p1', 'owner', 'estimate', 'x', NULL, NULL, 'not json', '{}', 1)",
     );
 
@@ -215,9 +217,9 @@ describe('the plan’s history, against a real database', () => {
     write('ancient', 1_000);
     write('old', 2_000);
     write('kept', 3_000);
-    write('other-plan', 1_500, { projectId: 'p2' });
+    write('other-plan', 1_500, { workPackageId: 'p2' });
 
-    // Every project's old events, in one statement: retention is about the table,
+    // Every work package's old events, in one statement: retention is about the table,
     // not about a plan somebody happens to be looking at.
     expect(await events.pruneOlderThan(3_000)).toBe(3);
     expect((await events.listFor('p1', {})).map((each) => each.id)).toEqual(['kept']);

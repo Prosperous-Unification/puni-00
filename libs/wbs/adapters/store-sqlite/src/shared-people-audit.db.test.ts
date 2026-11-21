@@ -7,13 +7,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { rollbackTo } from './migrate-down';
-import { ProjectRankRepository } from './project-rank';
 import { removeSharedPeople, saveSharedPeople } from './shared-people-rollback';
 import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
+import { WorkPackageRankRepository } from './work-package-rank';
 
 /**
  * `20261011200000_add_shared_people_audit` and the audited capacity-mode
- * setter (`share-people-across-projects` 8.1), over the organizations of
+ * setter (`share-people-across-work-packages` 8.1), over the organizations of
  * {@link openSpaceDatabase}.
  */
 let directory: string;
@@ -39,7 +39,7 @@ const stamp = (at: number) => ({ by: 'ada', at });
 
 describe('shared people audit', () => {
   it('records each switch, and nothing for the mode it already has', async () => {
-    const modes = new ProjectRankRepository(openDrizzle(path), OPEN);
+    const modes = new WorkPackageRankRepository(openDrizzle(path), OPEN);
     expect(await modes.setCapacityMode('org-a', 'isolated', stamp(10), 'audit-0')).toEqual({
       changed: false,
     });
@@ -92,7 +92,7 @@ describe('shared people audit', () => {
   });
 
   it('refuses to roll back over a recorded switch, keeping schema and ledger', async () => {
-    await new ProjectRankRepository(openDrizzle(path), OPEN).setCapacityMode(
+    await new WorkPackageRankRepository(openDrizzle(path), OPEN).setCapacityMode(
       'org-a',
       'shared',
       stamp(11),
@@ -116,7 +116,7 @@ describe('shared people audit', () => {
   });
 
   it('refuses the shared-people remove once a switch is recorded, changing nothing', async () => {
-    const modes = new ProjectRankRepository(openDrizzle(path), OPEN);
+    const modes = new WorkPackageRankRepository(openDrizzle(path), OPEN);
     await modes.setCapacityMode('org-a', 'shared', stamp(11), 'audit-1');
     await modes.setCapacityMode('org-a', 'isolated', stamp(12), 'audit-2');
     const saved = saveSharedPeople(path);
@@ -151,9 +151,9 @@ describe('shared people audit', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',

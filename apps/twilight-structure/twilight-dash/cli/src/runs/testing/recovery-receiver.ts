@@ -1,5 +1,7 @@
-import { rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 import { parseOrThrow, type } from '@shared/validation';
 import { fetchTransport, type RuntimeState } from '@wbs/contracts';
@@ -9,9 +11,11 @@ import {
   SqliteOrganizationAccess,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import { type SQL, sql } from 'drizzle-orm';
 
 import { buildApp } from '../../../../../../wbs/be-01/src/app';
 import { bootBe01, type RunningBe } from '../../../../../../wbs/be-01/src/boot';
+import { runMigrations } from '../../../../../../wbs/be-01/src/repository/migrate';
 import { TEST_JWT_KEY } from '../../../../../../wbs/be-01/src/testing/auth-fixture';
 import { TEST_MCP_SERVICE_SETTINGS } from '../../../../../../wbs/be-01/src/testing/machine-grant-fixture';
 import { OrganizationHarness } from '../../../../../../wbs/be-01/src/testing/organization-harness';
@@ -40,7 +44,22 @@ export interface RecoveryReceiverFixture {
   close(): Promise<void>;
 }
 
-/** Owns the composed SQLite/controller graph. Barriers stop actual transport before receiver admission. The optional per-instance inspection hook is solely for fixture cleanup faults; setup failure still disposes its acquired harness. */
+interface LegacyReceiverCapture {
+  readonly scope: RuntimeScope;
+  readonly claimRequest: {
+    readonly action: { readonly workItemId: string; readonly stepId: string };
+  };
+  readonly writeRequest: { readonly action: { readonly claim: { readonly claimId: string } } };
+}
+export interface LegacyRecoveryReceiverFixture extends RecoveryReceiverFixture {
+  inspectRuntime(): unknown;
+  readWorkPackage(): Promise<{ readonly status: number; readonly body: unknown }>;
+  deleteRuntimeTargets(): void;
+  allowReadOnly(): void;
+  restoreWrite(): void;
+}
+type ReceiverInspection = Parameters<typeof createRecoveryReceiver>[0];
+/** Preserves the fresh current setup and its existing cleanup owner. */
 export async function createRecoveryReceiver(
   inspectHarness?: (
     harness: Pick<OrganizationHarness, 'token' | 'closeComposed'> & {
@@ -48,7 +67,52 @@ export async function createRecoveryReceiver(
     },
   ) => void,
 ): Promise<RecoveryReceiverFixture> {
-  const harness = OrganizationHarness.openComposed();
+  return createReceiver({ kind: 'fresh' }, inspectHarness);
+}
+/** Restores the independently captured outgoing110 database through the actual migration owner, then grants only a distinct named current caller. Historical runtime identities are never retargeted. */
+export async function createLegacyRecoveryReceiver(): Promise<LegacyRecoveryReceiverFixture> {
+  const base = new URL(
+    '../../../../../../../openspec/changes/wbs-work-packages/fixtures/',
+    import.meta.url,
+  );
+  const compressed = readFileSync(new URL('legacy-runtime-database1.sqlite.gz', base));
+  const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+  if (hash(compressed) !== '8f8d37a855cca7681b95617233e2f8294dea95505c4612626c0ad741d15c9071')
+    throw Error('original WBS110 compressed database changed');
+  const snapshot = gunzipSync(compressed);
+  if (hash(snapshot) !== 'cb070a4d59e1b8dd464279f97f09e4ca804c21d1b77ff4bdcea1861ddb0e1a77')
+    throw Error('original WBS110 database bytes changed');
+  // Exact producer fixture SHA guards this test-only shape; no production decoding is delegated here.
+  const captureBytes = readFileSync(new URL('legacy-runtime-database1.txt', base));
+  if (hash(captureBytes) !== '5a887d7358e184285324a76f15e9aacc9bd935f706f54a17bc167485f3df8868')
+    throw Error('original paired WBS110 identity changed');
+  const capture = JSON.parse(captureBytes.toString()) as LegacyReceiverCapture;
+  return createReceiver({ kind: 'legacy', snapshot, capture });
+}
+/** Owns the composed SQLite/controller graph and all restarted native resources; barriers stop transport before admission. */
+async function createReceiver(
+  setup:
+    | { readonly kind: 'fresh' }
+    | {
+        readonly kind: 'legacy';
+        readonly snapshot: Uint8Array;
+        readonly capture: LegacyReceiverCapture;
+      },
+  inspectHarness?: ReceiverInspection,
+): Promise<LegacyRecoveryReceiverFixture> {
+  const harness =
+    setup.kind === 'fresh'
+      ? OrganizationHarness.openComposed()
+      : OrganizationHarness.openComposedWith({
+          migrate(path) {
+            writeFileSync(path, setup.snapshot, { flag: 'wx' });
+            runMigrations(
+              path,
+              new URL('../../../../../../wbs/be-01/drizzle', import.meta.url).pathname,
+            );
+          },
+        });
+  const username = setup.kind === 'fresh' ? 'ada' : 'current-reader';
   console.log('Task3 receiver DB root ' + dirname(harness.databasePath()));
   let mounted: Pick<OrganizationHarness['app'], 'handle'> = harness.app;
   let restarted: RunningBe | undefined;
@@ -69,50 +133,98 @@ export async function createRecoveryReceiver(
   const observers: ((request: { operationId: string; commandId: string | null }) => void)[] = [];
   try {
     inspectHarness?.(harness);
-    await harness.register('ada');
-    harness.organization('org-a');
-    harness.member('org-a', 'ada', 'admin');
-    harness.bind('ada', 'org-a');
-    harness.activate();
-    const project = await harness.call('ada', 'POST', '/api/projects', { name: 'Recovery' });
-    if (project.status !== 200) throw new Error(JSON.stringify(project));
-    const projectId = (project.body as { project: { id: string } }).project.id;
-    async function createCommand(path: string, command: unknown) {
-      const answer = await harness.call('ada', 'POST', path, { commands: [command] });
-      if (answer.status !== 200) throw new Error(JSON.stringify(answer));
-      const identity = (answer.body as { results: { id: string }[] }).results.at(0)?.id;
-      if (identity === undefined) throw new Error('fixture creation identity absent');
-      return identity;
+    await harness.register(username);
+    if (setup.kind === 'fresh') harness.organization('org-a');
+    harness.member('org-a', username, 'admin', ['org-admin']);
+    harness.bind(username, 'org-a');
+    if (setup.kind === 'fresh') harness.activate();
+    else harness.grantPermissions('org-a', username, ['package.read']);
+    let workPackageId: string;
+    let personId: string;
+    let workItemId: string;
+    let stepId: string;
+    if (setup.kind === 'fresh') {
+      const workPackage = await harness.call(username, 'POST', '/api/work-packages', {
+        name: 'Recovery',
+      });
+      if (workPackage.status !== 200) throw new Error(JSON.stringify(workPackage));
+      workPackageId = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
+      async function createCommand(path: string, command: unknown) {
+        const answer = await harness.call(username, 'POST', path, { commands: [command] });
+        if (answer.status !== 200) throw new Error(JSON.stringify(answer));
+        const identity = (answer.body as { results: { id: string }[] }).results.at(0)?.id;
+        if (identity === undefined) throw new Error('fixture creation identity absent');
+        return identity;
+      }
+      personId = await createCommand('/api/directory/commands', {
+        kind: 'createPerson',
+        name: 'Resolver',
+        teamIds: [],
+      });
+      workItemId = await createCommand(`/api/work-packages/${workPackageId}/commands`, {
+        kind: 'createWorkItem',
+        parentId: null,
+        name: 'Recover',
+      });
+      const step = await harness.call(
+        username,
+        'POST',
+        `/api/work-packages/${workPackageId}/steps`,
+        {
+          name: 'Plan',
+          code: 'plan',
+        },
+      );
+      if (step.status !== 200) throw new Error(JSON.stringify(step));
+      stepId = (step.body as { step: { id: string } }).step.id;
+      // Plan is the claimed activity; default Dev and QA otherwise block it with workflow FS.
+      const positioned = harness.sqlite.run(
+        'UPDATE step SET position = 0 WHERE id = ? AND work_package_id = ?',
+        [stepId, workPackageId],
+      );
+      // Proof: an absent Plan ID failed "real receiver ordered effects and sender receiver reopen
+      // staged-before-post" here; restoring the ID passed the same case.
+      if (positioned.changes !== 1) throw new Error('fixture Plan step position was not updated');
+      harness.sqlite.run("INSERT INTO external_system (id,name) VALUES ('task3','Task3')");
+      harness.sqlite.run(
+        "INSERT INTO external_system_organization (resource_id,organization_id,name) VALUES ('task3','org-a','Task3')",
+      );
+    } else {
+      workPackageId = setup.capture.scope.projectId;
+      personId = setup.capture.scope.personId;
+      workItemId = setup.capture.claimRequest.action.workItemId;
+      stepId = setup.capture.claimRequest.action.stepId;
     }
-    const personId = await createCommand('/api/directory/commands', {
-      kind: 'createPerson',
-      name: 'Resolver',
-      teamIds: [],
-    });
-    const workItemId = await createCommand(`/api/projects/${projectId}/commands`, {
-      kind: 'createWorkItem',
-      parentId: null,
-      name: 'Recover',
-    });
-    const step = await harness.call('ada', 'POST', `/api/projects/${projectId}/steps`, {
-      name: 'Plan',
-      code: 'plan',
-    });
-    if (step.status !== 200) throw new Error(JSON.stringify(step));
-    const stepId = (step.body as { step: { id: string } }).step.id;
-    // Plan is the claimed activity; default Dev and QA otherwise block it with workflow FS.
-    const positioned = harness.sqlite.run(
-      'UPDATE step SET position = 0 WHERE id = ? AND project_id = ?',
-      [stepId, projectId],
-    );
-    // Proof: an absent Plan ID failed "real receiver ordered effects and sender receiver reopen
-    // staged-before-post" here; restoring the ID passed the same case.
-    if (positioned.changes !== 1) throw new Error('fixture Plan step position was not updated');
-    harness.sqlite.run("INSERT INTO external_system (id,name) VALUES ('task3','Task3')");
-    harness.sqlite.run(
-      "INSERT INTO external_system_organization (resource_id,organization_id,name) VALUES ('task3','org-a','Task3')",
-    );
-    const scope = { organizationId: 'org-a', projectId, personId };
+    const scope = { organizationId: 'org-a', projectId: workPackageId, personId };
+    const actorId = harness.userId(username);
+    const writeGrants = harness.sqlite
+      .query<{ id: string }, [string]>(
+        "SELECT id FROM access_grant WHERE subject_kind='user' AND subject_id=? AND role_id='org-admin'",
+      )
+      .all(actorId);
+    if (writeGrants.length !== 1) throw Error('named receiver writer grant absent');
+    const writeGrant = writeGrants.at(0);
+    if (writeGrant === undefined) throw Error('named receiver writer identity absent');
+    let readOnly = false;
+    function select(sql: string) {
+      return reopenedSource === undefined
+        ? harness.sqlite.query(sql).all()
+        : reopenedSource.db.all(sql);
+    }
+    // Both selected SQL APIs own this exact id-only projection; table names are a closed fixture set.
+    function readIdentities(table: 'claim' | 'work_item' | 'access_grant') {
+      const statement = 'SELECT id FROM ' + table;
+      return reopenedSource === undefined
+        ? harness.sqlite.query<{ id: string }, []>(statement).all()
+        : reopenedSource.db.all<{ id: string }>(statement);
+    }
+    function execute(statement: string, bindings: readonly string[], query: SQL) {
+      if (reopenedSource === undefined) harness.sqlite.run(statement, [...bindings]);
+      // Proof: dash-fixture-actual-write-withdrawal: suppressing the controlled named writer-grant deletion.
+      // 'current RuntimeClient replays all original1 operations after actual111 migration cold reopen and deleted references with current authorization' failed; exact restoration passed.
+      // Fixture setup postcondition only, not production authorization.
+      else reopenedSource.db.run(query);
+    }
     const requests: { operationId: string; commandId: string | null }[] = [];
     const transport = fetchTransport('http://localhost', (url, init) =>
       Promise.resolve(mounted.handle(new Request(url, init))),
@@ -140,7 +252,7 @@ export async function createRecoveryReceiver(
         const answer = await transport(shape, {
           ...input,
           headers: {
-            authorization: 'Bearer ' + harness.token('ada'),
+            authorization: 'Bearer ' + harness.token(username),
             origin: 'http://localhost',
             'X-WBS-Expected-Organization': 'org-a',
           },
@@ -176,7 +288,7 @@ export async function createRecoveryReceiver(
       );
       return delivery;
     });
-    const state = await client.readState({ params: { id: projectId }, query: { personId } });
+    const state = await client.readState({ params: { id: workPackageId }, query: { personId } });
     if (state.reply.kind !== 'success') throw new Error('receiver discovery failed');
     return {
       client,
@@ -185,7 +297,7 @@ export async function createRecoveryReceiver(
       requests,
       workItemId,
       stepId,
-      actorId: harness.userId('ada'),
+      actorId: harness.userId(username),
       observeRequests(observer) {
         observers.push(observer);
       },
@@ -214,7 +326,7 @@ export async function createRecoveryReceiver(
               requests.push({ operationId: 'applyRuntimeCommands', commandId: command.commandId });
             }
             const headers = new Headers(request.headers);
-            headers.set('authorization', 'Bearer ' + harness.token('ada'));
+            headers.set('authorization', 'Bearer ' + harness.token(username));
             headers.set('origin', 'http://localhost');
             headers.set('X-WBS-Expected-Organization', 'org-a');
             return mounted.handle(new Request(request, { headers }));
@@ -228,6 +340,86 @@ export async function createRecoveryReceiver(
       },
       dropReply(commandId) {
         lostReplies.add(commandId);
+      },
+      async readWorkPackage() {
+        const response = await mounted.handle(
+          new Request('http://localhost/api/work-packages/' + workPackageId, {
+            headers: {
+              authorization: 'Bearer ' + harness.token(username),
+              origin: 'http://localhost',
+              'X-WBS-Expected-Organization': 'org-a',
+            },
+          }),
+        );
+        return { status: response.status, body: await response.json() };
+      },
+      inspectRuntime() {
+        return Object.fromEntries(
+          [
+            '__drizzle_migrations',
+            'runtime_ledger',
+            'runtime_authority',
+            'runtime_claim_binding',
+            'runtime_command_receipt',
+            'claim',
+            'work_item',
+            'command_journal',
+            'plan_event',
+            'step_progress',
+            'event_log',
+            'event_sequencer',
+          ].map((table) => [table, select('SELECT * FROM ' + table + ' ORDER BY rowid')]),
+        );
+      },
+      deleteRuntimeTargets() {
+        if (setup.kind !== 'legacy')
+          throw Error('historical target deletion requires legacy fixture');
+        if (
+          !readIdentities('claim').some(
+            (row) => row.id === setup.capture.writeRequest.action.claim.claimId,
+          ) ||
+          !readIdentities('work_item').some((row) => row.id === workItemId)
+        )
+          throw Error('historical receiver deletion targets absent before controlled deletion');
+        execute(
+          'DELETE FROM claim WHERE id = ?',
+          [setup.capture.writeRequest.action.claim.claimId],
+          sql`DELETE FROM claim WHERE id = ${setup.capture.writeRequest.action.claim.claimId}`,
+        );
+        execute(
+          'DELETE FROM work_item WHERE id = ?',
+          [workItemId],
+          sql`DELETE FROM work_item WHERE id = ${workItemId}`,
+        );
+        if (
+          readIdentities('claim').some(
+            (row) => row.id === setup.capture.writeRequest.action.claim.claimId,
+          ) ||
+          readIdentities('work_item').some((row) => row.id === workItemId)
+        )
+          throw Error('historical receiver targets were not deleted');
+      },
+      allowReadOnly() {
+        if (setup.kind !== 'legacy' || readOnly)
+          throw Error('named receiver read-only transition invalid');
+        execute(
+          'DELETE FROM access_grant WHERE id = ?',
+          [writeGrant.id],
+          sql`DELETE FROM access_grant WHERE id = ${writeGrant.id}`,
+        );
+        if (readIdentities('access_grant').some((row) => row.id === writeGrant.id))
+          throw Error('named receiver writer grant was not removed');
+        readOnly = true;
+      },
+      restoreWrite() {
+        if (setup.kind !== 'legacy' || !readOnly)
+          throw Error('named receiver write restoration invalid');
+        execute(
+          "INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,'org-a','organization','org-a','user',?,'org-admin','route',1)",
+          [writeGrant.id, actorId],
+          sql`INSERT INTO access_grant (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (${writeGrant.id},'org-a','organization','org-a','user',${actorId},'org-admin','route',1)`,
+        );
+        readOnly = false;
       },
       inspectEffects() {
         const tables = [
@@ -250,7 +442,7 @@ export async function createRecoveryReceiver(
       async reopen() {
         if (isStopped) throw Error('receiver already restarted');
         await closeRecoveryResources([], pending);
-        const actorId = harness.userId('ada');
+        const actorId = harness.userId(username);
         const path = await harness.stopForRecovery();
         isStopped = true;
         console.log('Task3 receiver native connections stopped ' + path);
@@ -276,6 +468,13 @@ export async function createRecoveryReceiver(
               if (reopenedSource === undefined) throw Error('receiver source missing');
               const app = buildApp({
                 ...options,
+                workPackageObservation: reopenedSource.createWorkPackageObservation({
+                  activeOrganizationOf: () =>
+                    userBoundOrganizationOf((userId) =>
+                      Promise.resolve(userId === actorId ? 'org-a' : null),
+                    ),
+                  now: Date.now,
+                }),
                 organizations: new SqliteOrganizationAccess(
                   reopenedSource.db,
                   userBoundOrganizationOf((userId) =>

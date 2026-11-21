@@ -7,12 +7,12 @@ import type {
   DirectoryWriteResolution,
 } from '../../ports/fanout-capture-store';
 import type { ResourceAccess } from '../../ports/organization-access';
-import type { Broadcaster } from '../../ports/project-event';
 import type { UnitOfWork } from '../../ports/unit-of-work';
+import type { Broadcaster } from '../../ports/work-package-event';
 import { type Authorization, authorize } from '../../service/authorize';
 import {
   type CommittedFanoutDelivery,
-  type CommittedProjectEvent,
+  type CommittedWorkPackageEvent,
   recordCommittedFanout,
 } from '../../service/committed-fanout';
 import { DirectoryService, type DirectoryServiceOptions } from './directory.resource';
@@ -75,7 +75,7 @@ export function standaloneDirectoryService(options: {
     const access = address.access;
     // Proof: removing actor coherence returned a refusal instead of throwing on mismatched trusted identity; `throws on a mismatched standalone principal`
     // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
-    // Proof: omitting invocation actor equality accepted seven direct service mismatch cases across directory/project creation; observed RED/GREEN, 2026-11-09.
+    // Proof: omitting invocation actor equality accepted seven direct service mismatch cases across directory/work-package creation; observed RED/GREEN, 2026-11-09.
     // Proof: direct-standalone-actor fault failed 'mismatched standalone.*actor' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
     if (access.principal.id !== access.scope.userId || access.principal.id !== actorId)
       throw new Error('standalone directory principal differs from its scoped account');
@@ -94,7 +94,7 @@ export function standaloneDirectoryService(options: {
       const settled = await uow.run<
         | {
             value: Value;
-            events: readonly CommittedProjectEvent[];
+            events: readonly CommittedWorkPackageEvent[];
           }
         | { readonly refusal: Extract<Authorization, { reason: 'forbidden' }> }
       >(async (scope) => {
@@ -128,7 +128,7 @@ export function standaloneDirectoryService(options: {
         );
         const value = await mutate(scope.stores.directory, scope.stores.accessDecisions);
         if (!accepted(value)) return { commit: false, value: { value, events: [] } };
-        const events: CommittedProjectEvent[] = [];
+        const events: CommittedWorkPackageEvent[] = [];
         for (const [index, organizationId] of resolution.organizationIds.entries()) {
           const previous = before.at(index);
           if (previous === undefined) throw new Error('directory before capture disappeared');
@@ -289,14 +289,16 @@ export function standaloneDirectoryService(options: {
           (borrowed) => borrowed.addExternalSystem(row, stamp),
           () => true,
         ),
-      mapInOrganization: (catalog, resourceId, organizationId, name) => {
+      mapInOrganization: (catalog, resourceId, organizationId, name, stamp) => {
+        const retainedStamp = structuredClone(stamp);
         if (catalog === 'resources') throw new Error(STANDALONE_RESOURCE_WRITE);
         if (organizationId !== access.scope.organizationId)
           throw new Error('standalone map changed invocation organization');
         return recordMutation(
           { kind: 'add', catalog, access },
           unexpected,
-          (borrowed) => borrowed.mapInOrganization(catalog, resourceId, organizationId, name),
+          (borrowed) =>
+            borrowed.mapInOrganization(catalog, resourceId, organizationId, name, retainedStamp),
           () => true,
         );
       },

@@ -1,0 +1,1965 @@
+{
+  "state": "Actual immutable outgoing Dash producer bootstrap/pin/stage/verified acceptance/read/settled close",
+  "revision": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "source": "/tmp/task-698-dash-old-producer1-sJAKmj/source",
+  "bun": "1.4.4",
+  "sqliteVersion": {
+    "version": "3.53.4"
+  },
+  "paired": {
+    "path": "/tmp/task-698-dash-old-producer1-sJAKmj/paired-wbs-database1.txt",
+    "sha256": "5a887d7358e184285324a76f15e9aacc9bd935f706f54a17bc167485f3df8868",
+    "bytes": 13497
+  },
+  "options": {
+    "path": "/tmp/task-698-dash-old-producer1-sJAKmj/original-runs4.sqlite",
+    "organizationId": "org-a",
+    "capacity": 1,
+    "leaseMilliseconds": 10000,
+    "clock": {
+      "read": 1000
+    },
+    "maxBusyAttempts": 20,
+    "busyDelayMilliseconds": 1
+  },
+  "captured": {
+    "ownership": {
+      "version": 1,
+      "storeId": "d1499665-d366-4e6e-9897-a56918ae2ab5",
+      "organizationId": "org-a",
+      "ownerId": "legacy-dash-capture",
+      "epoch": 1,
+      "expiresAt": 11000
+    },
+    "pin": {
+      "version": 1,
+      "scope": {
+        "organizationId": "org-a",
+        "projectId": "ea3ff9a8-930a-4b6a-b238-52a050a55eef",
+        "personId": "person"
+      },
+      "ledgerId": "da6596bfd77213bab49efd16231a32ed"
+    },
+    "pinned": {
+      "kind": "applied",
+      "value": {
+        "version": 1,
+        "scope": {
+          "organizationId": "org-a",
+          "projectId": "ea3ff9a8-930a-4b6a-b238-52a050a55eef",
+          "personId": "person"
+        },
+        "ledgerId": "da6596bfd77213bab49efd16231a32ed"
+      }
+    },
+    "staged": {
+      "kind": "applied",
+      "value": {
+        "version": 1,
+        "commandId": "grant",
+        "canonicalRequest": "{\"schemaVersion\":1,\"expectedLedgerId\":\"da6596bfd77213bab49efd16231a32ed\",\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"},\"commandId\":\"grant\",\"operation\":{\"kind\":\"authority\",\"ownerId\":\"old\",\"expectedGeneration\":null}}",
+        "requestDigest": "f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412",
+        "localOwner": {
+          "ownerId": "legacy-dash-capture",
+          "epoch": 1
+        },
+        "stagedRevision": 1
+      }
+    },
+    "retained": {
+      "kind": "retained",
+      "reference": {
+        "version": 1,
+        "digest": "915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401",
+        "byteLength": 402,
+        "mediaType": "application/json",
+        "retention": "retain"
+      }
+    },
+    "acceptance": {
+      "kind": "applied",
+      "value": {
+        "version": 1,
+        "commandId": "grant",
+        "requestDigest": "f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412",
+        "evidence": {
+          "version": 1,
+          "digest": "915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401",
+          "byteLength": 402,
+          "mediaType": "application/json",
+          "retention": "retain"
+        },
+        "acceptedRevision": 2
+      }
+    },
+    "history": {
+      "version": 3,
+      "generationFloor": 1,
+      "kind": "pinned",
+      "pin": {
+        "version": 1,
+        "scope": {
+          "organizationId": "org-a",
+          "projectId": "ea3ff9a8-930a-4b6a-b238-52a050a55eef",
+          "personId": "person"
+        },
+        "ledgerId": "da6596bfd77213bab49efd16231a32ed"
+      },
+      "revision": 2,
+      "ownerEpoch": 1,
+      "intents": [
+        {
+          "version": 1,
+          "commandId": "grant",
+          "canonicalRequest": "{\"schemaVersion\":1,\"expectedLedgerId\":\"da6596bfd77213bab49efd16231a32ed\",\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"},\"commandId\":\"grant\",\"operation\":{\"kind\":\"authority\",\"ownerId\":\"old\",\"expectedGeneration\":null}}",
+          "requestDigest": "f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412",
+          "localOwner": {
+            "ownerId": "legacy-dash-capture",
+            "epoch": 1
+          },
+          "stagedRevision": 1
+        }
+      ],
+      "acceptances": [
+        {
+          "version": 1,
+          "commandId": "grant",
+          "requestDigest": "f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412",
+          "evidence": {
+            "version": 1,
+            "digest": "915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401",
+            "byteLength": 402,
+            "mediaType": "application/json",
+            "retention": "retain"
+          },
+          "acceptedRevision": 2
+        }
+      ],
+      "pendingCommandId": null,
+      "grant": {
+        "localEpoch": 1,
+        "commandId": "grant",
+        "authority": {
+          "ownerId": "old",
+          "generation": 1
+        }
+      },
+      "recoveries": [],
+      "activeRecoveryId": null
+    },
+    "receiptBytesBase64": "eyJzY2hlbWFWZXJzaW9uIjoxLCJsZWRnZXJJZCI6ImRhNjU5NmJmZDc3MjEzYmFiNDllZmQxNjIzMWEzMmVkIiwic2NvcGUiOnsib3JnYW5pemF0aW9uSWQiOiJvcmctYSIsInByb2plY3RJZCI6ImVhM2ZmOWE4LTkzMGEtNGI2YS1iMjM4LTUyYTA1MGE1NWVlZiIsInBlcnNvbklkIjoicGVyc29uIn0sImNvbW1hbmRJZCI6ImdyYW50IiwicmVxdWVzdERpZ2VzdCI6ImYwNGNkYWRmYzUzOTdmOTJkZTNmM2NiYzU5NGM4M2Q5ZDQ0ZjQ1ODg5NzVlMjNjZTRhYzEwYzY5NTJmMjE0MTIiLCJhY3RvcklkIjoiZWIwYjNmYTktOWQ5Mi00YjkxLThjNWUtOTBhNWIzMTQ0OTY2IiwiYWNjZXB0YW5jZSI6eyJraW5kIjoiYXV0aG9yaXR5IiwiYXV0aG9yaXR5Ijp7Im93bmVySWQiOiJvbGQiLCJnZW5lcmF0aW9uIjoxfX19",
+    "canonicalRequest": "{\"schemaVersion\":1,\"expectedLedgerId\":\"da6596bfd77213bab49efd16231a32ed\",\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"},\"commandId\":\"grant\",\"operation\":{\"kind\":\"authority\",\"ownerId\":\"old\",\"expectedGeneration\":null}}",
+    "acceptedWbsOriginal": "{\"schemaVersion\":1,\"commandId\":\"grant\",\"canonicalRequest\":\"{\\\"schemaVersion\\\":1,\\\"expectedLedgerId\\\":\\\"da6596bfd77213bab49efd16231a32ed\\\",\\\"scope\\\":{\\\"organizationId\\\":\\\"org-a\\\",\\\"projectId\\\":\\\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\\\",\\\"personId\\\":\\\"person\\\"},\\\"commandId\\\":\\\"grant\\\",\\\"operation\\\":{\\\"kind\\\":\\\"authority\\\",\\\"ownerId\\\":\\\"old\\\",\\\"expectedGeneration\\\":null}}\",\"requestDigest\":\"f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412\",\"receipt\":{\"schemaVersion\":1,\"ledgerId\":\"da6596bfd77213bab49efd16231a32ed\",\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"},\"commandId\":\"grant\",\"requestDigest\":\"f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412\",\"actorId\":\"eb0b3fa9-9d92-4b91-8c5e-90a5b3144966\",\"acceptance\":{\"kind\":\"authority\",\"authority\":{\"ownerId\":\"old\",\"generation\":1}}},\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"}}",
+    "scopeTuple": "[\"org-a\",\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"person\"]"
+  },
+  "physical": {
+    "schema": [
+      {
+        "type": "index",
+        "name": "run5_active_occurrence",
+        "tbl_name": "run5_attempt",
+        "sql": "CREATE UNIQUE INDEX run5_active_occurrence ON run5_attempt(run_id, occurrence_id)\n  WHERE json_extract(record, '$.state.kind') NOT IN ('interrupted','terminal')"
+      },
+      {
+        "type": "index",
+        "name": "run6_active_occurrence",
+        "tbl_name": "run6_attempt",
+        "sql": "CREATE UNIQUE INDEX run6_active_occurrence ON run6_attempt(run_id, occurrence_id)\n  WHERE json_extract(record, '$.state.kind') NOT IN ('interrupted','terminal')"
+      },
+      {
+        "type": "index",
+        "name": "run_active_occurrence",
+        "tbl_name": "run_attempt",
+        "sql": "CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id)\n  WHERE json_extract(record, '$.state.kind') NOT IN ('interrupted','terminal')"
+      },
+      {
+        "type": "table",
+        "name": "run5_attempt",
+        "tbl_name": "run5_attempt",
+        "sql": "CREATE TABLE run5_attempt (\n  attempt_id TEXT PRIMARY KEY,\n  run_id TEXT NOT NULL REFERENCES run5_record(run_id),\n  occurrence_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  record TEXT NOT NULL,\n  admission TEXT NOT NULL,\n  UNIQUE(run_id, occurrence_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_completion",
+        "tbl_name": "run5_completion",
+        "sql": "CREATE TABLE run5_completion (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL UNIQUE REFERENCES run5_attempt(attempt_id),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_consumption",
+        "tbl_name": "run5_consumption",
+        "sql": "CREATE TABLE run5_consumption (\n decision_id TEXT PRIMARY KEY REFERENCES run5_decision(decision_id),\n attempt_id TEXT NOT NULL REFERENCES run5_attempt(attempt_id),\n correlation_key TEXT NOT NULL,\n wait TEXT NOT NULL,\n reply TEXT NOT NULL,\n UNIQUE(attempt_id,correlation_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_decision",
+        "tbl_name": "run5_decision",
+        "sql": "CREATE TABLE run5_decision (\n decision_id TEXT PRIMARY KEY,\n attempt_id TEXT NOT NULL REFERENCES run5_attempt(attempt_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_execution",
+        "tbl_name": "run5_execution",
+        "sql": "CREATE TABLE run5_execution (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL REFERENCES run5_attempt(attempt_id),\n  record TEXT NOT NULL,\n  reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_outbox",
+        "tbl_name": "run5_outbox",
+        "sql": "CREATE TABLE run5_outbox (\n  command_id TEXT PRIMARY KEY REFERENCES run5_completion(command_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_receipt",
+        "tbl_name": "run5_receipt",
+        "sql": "CREATE TABLE run5_receipt (\n command_id TEXT PRIMARY KEY REFERENCES run5_completion(command_id),\n attempt_id TEXT NOT NULL UNIQUE REFERENCES run5_attempt(attempt_id),\n record TEXT NOT NULL,\n reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_record",
+        "tbl_name": "run5_record",
+        "sql": "CREATE TABLE run5_record (\n  run_id TEXT PRIMARY KEY,\n  manifest_digest TEXT NOT NULL REFERENCES run_manifest(digest),\n  record TEXT NOT NULL,\n  initial_record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_active",
+        "tbl_name": "run5_recovery_active",
+        "sql": "CREATE TABLE run5_recovery_active (\n  scope_key TEXT PRIMARY KEY NOT NULL,\n  recovery_id TEXT NOT NULL UNIQUE,\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run5_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_barrier",
+        "tbl_name": "run5_recovery_barrier",
+        "sql": "CREATE TABLE run5_recovery_barrier (\n  scope_key TEXT NOT NULL,\n  scope_after INTEGER NOT NULL CHECK(scope_after > 0),\n  recovery_id TEXT NOT NULL UNIQUE REFERENCES run5_recovery_closure(recovery_id),\n  record TEXT NOT NULL,\n  PRIMARY KEY(scope_key, scope_after),\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run5_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_closure",
+        "tbl_name": "run5_recovery_closure",
+        "sql": "CREATE TABLE run5_recovery_closure (\n  recovery_id TEXT PRIMARY KEY NOT NULL REFERENCES run5_recovery_journal(recovery_id),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_fence",
+        "tbl_name": "run5_recovery_fence",
+        "sql": "CREATE TABLE run5_recovery_fence (\n  recovery_id TEXT NOT NULL REFERENCES run5_recovery_journal(recovery_id),\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  command_id TEXT NOT NULL UNIQUE,\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_format",
+        "tbl_name": "run5_recovery_format",
+        "sql": "CREATE TABLE run5_recovery_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  journal_count INTEGER NOT NULL CHECK(journal_count >= 0),\n  fence_count INTEGER NOT NULL CHECK(fence_count >= 0),\n  observation_count INTEGER NOT NULL CHECK(observation_count >= 0),\n  closure_count INTEGER NOT NULL CHECK(closure_count >= 0),\n  barrier_count INTEGER NOT NULL CHECK(barrier_count >= 0),\n  active_count INTEGER NOT NULL CHECK(active_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_journal",
+        "tbl_name": "run5_recovery_journal",
+        "sql": "CREATE TABLE run5_recovery_journal (\n  recovery_id TEXT PRIMARY KEY NOT NULL,\n  command_id TEXT NOT NULL UNIQUE,\n  scope_key TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0),\n  record TEXT NOT NULL,\n  UNIQUE(recovery_id, scope_key),\n  FOREIGN KEY(command_id, scope_key) REFERENCES run5_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_recovery_observation",
+        "tbl_name": "run5_recovery_observation",
+        "sql": "CREATE TABLE run5_recovery_observation (\n  recovery_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal),\n  FOREIGN KEY(recovery_id, ordinal) REFERENCES run5_recovery_fence(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_reservation",
+        "tbl_name": "run5_reservation",
+        "sql": "CREATE TABLE run5_reservation (\n  attempt_id TEXT PRIMARY KEY REFERENCES run5_attempt(attempt_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_runtime_acceptance",
+        "tbl_name": "run5_runtime_acceptance",
+        "sql": "CREATE TABLE run5_runtime_acceptance (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run5_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  FOREIGN KEY(command_id, scope_key) REFERENCES run5_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_runtime_format",
+        "tbl_name": "run5_runtime_format",
+        "sql": "CREATE TABLE run5_runtime_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  scope_count INTEGER NOT NULL CHECK(scope_count >= 0),\n  intent_count INTEGER NOT NULL CHECK(intent_count >= 0),\n  acceptance_count INTEGER NOT NULL CHECK(acceptance_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_runtime_intent",
+        "tbl_name": "run5_runtime_intent",
+        "sql": "CREATE TABLE run5_runtime_intent (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run5_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  UNIQUE(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_runtime_scope",
+        "tbl_name": "run5_runtime_scope",
+        "sql": "CREATE TABLE run5_runtime_scope (\n  scope_key TEXT PRIMARY KEY,\n  pin TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run5_usage",
+        "tbl_name": "run5_usage",
+        "sql": "CREATE TABLE run5_usage (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  used INTEGER NOT NULL CHECK(used IN (0,1))\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_attempt",
+        "tbl_name": "run6_attempt",
+        "sql": "CREATE TABLE run6_attempt (\n  attempt_id TEXT PRIMARY KEY,\n  run_id TEXT NOT NULL REFERENCES run6_record(run_id),\n  occurrence_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  record TEXT NOT NULL,\n  admission TEXT NOT NULL,\n  UNIQUE(run_id, occurrence_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_completion",
+        "tbl_name": "run6_completion",
+        "sql": "CREATE TABLE run6_completion (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL UNIQUE REFERENCES run6_attempt(attempt_id),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_consumption",
+        "tbl_name": "run6_consumption",
+        "sql": "CREATE TABLE run6_consumption (\n decision_id TEXT PRIMARY KEY REFERENCES run6_decision(decision_id),\n attempt_id TEXT NOT NULL REFERENCES run6_attempt(attempt_id),\n correlation_key TEXT NOT NULL,\n wait TEXT NOT NULL,\n reply TEXT NOT NULL,\n UNIQUE(attempt_id,correlation_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_decision",
+        "tbl_name": "run6_decision",
+        "sql": "CREATE TABLE run6_decision (\n decision_id TEXT PRIMARY KEY,\n attempt_id TEXT NOT NULL REFERENCES run6_attempt(attempt_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_execution",
+        "tbl_name": "run6_execution",
+        "sql": "CREATE TABLE run6_execution (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL REFERENCES run6_attempt(attempt_id),\n  record TEXT NOT NULL,\n  reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_outbox",
+        "tbl_name": "run6_outbox",
+        "sql": "CREATE TABLE run6_outbox (\n  command_id TEXT PRIMARY KEY REFERENCES run6_completion(command_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_receipt",
+        "tbl_name": "run6_receipt",
+        "sql": "CREATE TABLE run6_receipt (\n command_id TEXT PRIMARY KEY REFERENCES run6_completion(command_id),\n attempt_id TEXT NOT NULL UNIQUE REFERENCES run6_attempt(attempt_id),\n record TEXT NOT NULL,\n reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_record",
+        "tbl_name": "run6_record",
+        "sql": "CREATE TABLE run6_record (\n  run_id TEXT PRIMARY KEY,\n  manifest_digest TEXT NOT NULL REFERENCES run_manifest(digest),\n  record TEXT NOT NULL,\n  initial_record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_active",
+        "tbl_name": "run6_recovery_active",
+        "sql": "CREATE TABLE run6_recovery_active (\n  scope_key TEXT PRIMARY KEY NOT NULL,\n  recovery_id TEXT NOT NULL UNIQUE,\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run6_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_barrier",
+        "tbl_name": "run6_recovery_barrier",
+        "sql": "CREATE TABLE run6_recovery_barrier (\n  scope_key TEXT NOT NULL,\n  scope_after INTEGER NOT NULL CHECK(scope_after > 0),\n  recovery_id TEXT NOT NULL UNIQUE REFERENCES run6_recovery_closure(recovery_id),\n  record TEXT NOT NULL,\n  PRIMARY KEY(scope_key, scope_after),\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run6_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_closure",
+        "tbl_name": "run6_recovery_closure",
+        "sql": "CREATE TABLE run6_recovery_closure (\n  recovery_id TEXT PRIMARY KEY NOT NULL REFERENCES run6_recovery_journal(recovery_id),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_fence",
+        "tbl_name": "run6_recovery_fence",
+        "sql": "CREATE TABLE run6_recovery_fence (\n  recovery_id TEXT NOT NULL REFERENCES run6_recovery_journal(recovery_id),\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  command_id TEXT NOT NULL UNIQUE,\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_format",
+        "tbl_name": "run6_recovery_format",
+        "sql": "CREATE TABLE run6_recovery_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  journal_count INTEGER NOT NULL CHECK(journal_count >= 0),\n  fence_count INTEGER NOT NULL CHECK(fence_count >= 0),\n  observation_count INTEGER NOT NULL CHECK(observation_count >= 0),\n  closure_count INTEGER NOT NULL CHECK(closure_count >= 0),\n  barrier_count INTEGER NOT NULL CHECK(barrier_count >= 0),\n  active_count INTEGER NOT NULL CHECK(active_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_journal",
+        "tbl_name": "run6_recovery_journal",
+        "sql": "CREATE TABLE run6_recovery_journal (\n  recovery_id TEXT PRIMARY KEY NOT NULL,\n  command_id TEXT NOT NULL UNIQUE,\n  scope_key TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0),\n  record TEXT NOT NULL,\n  UNIQUE(recovery_id, scope_key),\n  FOREIGN KEY(command_id, scope_key) REFERENCES run6_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_recovery_observation",
+        "tbl_name": "run6_recovery_observation",
+        "sql": "CREATE TABLE run6_recovery_observation (\n  recovery_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal),\n  FOREIGN KEY(recovery_id, ordinal) REFERENCES run6_recovery_fence(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_reservation",
+        "tbl_name": "run6_reservation",
+        "sql": "CREATE TABLE run6_reservation (\n  attempt_id TEXT PRIMARY KEY REFERENCES run6_attempt(attempt_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_runtime_acceptance",
+        "tbl_name": "run6_runtime_acceptance",
+        "sql": "CREATE TABLE run6_runtime_acceptance (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run6_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  FOREIGN KEY(command_id, scope_key) REFERENCES run6_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_runtime_format",
+        "tbl_name": "run6_runtime_format",
+        "sql": "CREATE TABLE run6_runtime_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  scope_count INTEGER NOT NULL CHECK(scope_count >= 0),\n  intent_count INTEGER NOT NULL CHECK(intent_count >= 0),\n  acceptance_count INTEGER NOT NULL CHECK(acceptance_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_runtime_intent",
+        "tbl_name": "run6_runtime_intent",
+        "sql": "CREATE TABLE run6_runtime_intent (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run6_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  UNIQUE(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_runtime_scope",
+        "tbl_name": "run6_runtime_scope",
+        "sql": "CREATE TABLE run6_runtime_scope (\n  scope_key TEXT PRIMARY KEY,\n  pin TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_usage",
+        "tbl_name": "run6_usage",
+        "sql": "CREATE TABLE run6_usage (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  used INTEGER NOT NULL CHECK(used IN (0,1))\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_write",
+        "tbl_name": "run6_write",
+        "sql": "CREATE TABLE run6_write (\n command_id TEXT PRIMARY KEY NOT NULL,\n run_id TEXT NOT NULL REFERENCES run6_record(run_id),\n attempt_id TEXT NOT NULL REFERENCES run6_attempt(attempt_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_write_format",
+        "tbl_name": "run6_write_format",
+        "sql": "CREATE TABLE run6_write_format (\n singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n record_count INTEGER NOT NULL CHECK(record_count >= 0),\n obligation_count INTEGER NOT NULL CHECK(obligation_count >= 0),\n receipt_count INTEGER NOT NULL CHECK(receipt_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_write_obligation",
+        "tbl_name": "run6_write_obligation",
+        "sql": "CREATE TABLE run6_write_obligation (\n stage_command_id TEXT PRIMARY KEY NOT NULL REFERENCES run6_write(command_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run6_write_receipt",
+        "tbl_name": "run6_write_receipt",
+        "sql": "CREATE TABLE run6_write_receipt (\n stage_command_id TEXT PRIMARY KEY NOT NULL REFERENCES run6_write(command_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_artifact",
+        "tbl_name": "run_artifact",
+        "sql": "CREATE TABLE run_artifact (\n  digest TEXT PRIMARY KEY,\n  reference TEXT NOT NULL,\n  content BLOB NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_attempt",
+        "tbl_name": "run_attempt",
+        "sql": "CREATE TABLE run_attempt (\n  attempt_id TEXT PRIMARY KEY,\n  run_id TEXT NOT NULL REFERENCES run_record(run_id),\n  occurrence_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  record TEXT NOT NULL,\n  admission TEXT NOT NULL,\n  UNIQUE(run_id, occurrence_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_completion",
+        "tbl_name": "run_completion",
+        "sql": "CREATE TABLE run_completion (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL UNIQUE REFERENCES run_attempt(attempt_id),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_consumption",
+        "tbl_name": "run_consumption",
+        "sql": "CREATE TABLE run_consumption (\n decision_id TEXT PRIMARY KEY REFERENCES run_decision(decision_id),\n attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),\n correlation_key TEXT NOT NULL,\n wait TEXT NOT NULL,\n reply TEXT NOT NULL,\n UNIQUE(attempt_id,correlation_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_decision",
+        "tbl_name": "run_decision",
+        "sql": "CREATE TABLE run_decision (\n decision_id TEXT PRIMARY KEY,\n attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),\n record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_execution",
+        "tbl_name": "run_execution",
+        "sql": "CREATE TABLE run_execution (\n  command_id TEXT PRIMARY KEY,\n  attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),\n  record TEXT NOT NULL,\n  reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_format",
+        "tbl_name": "run_format",
+        "sql": "CREATE TABLE run_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  bundle_hash TEXT NOT NULL,\n  scope_count INTEGER NOT NULL CHECK(scope_count >= 0),\n  intent_count INTEGER NOT NULL CHECK(intent_count >= 0),\n  acceptance_count INTEGER NOT NULL CHECK(acceptance_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_manifest",
+        "tbl_name": "run_manifest",
+        "sql": "CREATE TABLE run_manifest (\n  digest TEXT PRIMARY KEY,\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_meta",
+        "tbl_name": "run_meta",
+        "sql": "CREATE TABLE run_meta (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  schema_version INTEGER NOT NULL,\n  migration_hash TEXT NOT NULL,\n  down_hash TEXT NOT NULL,\n  ownership TEXT NOT NULL,\n  capacity INTEGER NOT NULL CHECK(capacity > 0),\n  lease_milliseconds INTEGER NOT NULL CHECK(lease_milliseconds > 0),\n  last_observed_at INTEGER NOT NULL CHECK(last_observed_at >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_outbox",
+        "tbl_name": "run_outbox",
+        "sql": "CREATE TABLE run_outbox (\n  command_id TEXT PRIMARY KEY REFERENCES run_completion(command_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_receipt",
+        "tbl_name": "run_receipt",
+        "sql": "CREATE TABLE run_receipt (\n command_id TEXT PRIMARY KEY REFERENCES run_completion(command_id),\n attempt_id TEXT NOT NULL UNIQUE REFERENCES run_attempt(attempt_id),\n record TEXT NOT NULL,\n reply TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_record",
+        "tbl_name": "run_record",
+        "sql": "CREATE TABLE run_record (\n  run_id TEXT PRIMARY KEY,\n  manifest_digest TEXT NOT NULL REFERENCES run_manifest(digest),\n  record TEXT NOT NULL,\n  initial_record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_active",
+        "tbl_name": "run_recovery_active",
+        "sql": "CREATE TABLE run_recovery_active (\n  scope_key TEXT PRIMARY KEY NOT NULL,\n  recovery_id TEXT NOT NULL UNIQUE,\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_barrier",
+        "tbl_name": "run_recovery_barrier",
+        "sql": "CREATE TABLE run_recovery_barrier (\n  scope_key TEXT NOT NULL,\n  scope_after INTEGER NOT NULL CHECK(scope_after > 0),\n  recovery_id TEXT NOT NULL UNIQUE REFERENCES run_recovery_closure(recovery_id),\n  record TEXT NOT NULL,\n  PRIMARY KEY(scope_key, scope_after),\n  FOREIGN KEY(recovery_id, scope_key) REFERENCES run_recovery_journal(recovery_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_closure",
+        "tbl_name": "run_recovery_closure",
+        "sql": "CREATE TABLE run_recovery_closure (\n  recovery_id TEXT PRIMARY KEY NOT NULL REFERENCES run_recovery_journal(recovery_id),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_fence",
+        "tbl_name": "run_recovery_fence",
+        "sql": "CREATE TABLE run_recovery_fence (\n  recovery_id TEXT NOT NULL REFERENCES run_recovery_journal(recovery_id),\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  command_id TEXT NOT NULL UNIQUE,\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_format",
+        "tbl_name": "run_recovery_format",
+        "sql": "CREATE TABLE run_recovery_format (\n  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),\n  journal_count INTEGER NOT NULL CHECK(journal_count >= 0),\n  fence_count INTEGER NOT NULL CHECK(fence_count >= 0),\n  observation_count INTEGER NOT NULL CHECK(observation_count >= 0),\n  closure_count INTEGER NOT NULL CHECK(closure_count >= 0),\n  barrier_count INTEGER NOT NULL CHECK(barrier_count >= 0),\n  active_count INTEGER NOT NULL CHECK(active_count >= 0)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_journal",
+        "tbl_name": "run_recovery_journal",
+        "sql": "CREATE TABLE run_recovery_journal (\n  recovery_id TEXT PRIMARY KEY NOT NULL,\n  command_id TEXT NOT NULL UNIQUE,\n  scope_key TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0),\n  record TEXT NOT NULL,\n  UNIQUE(recovery_id, scope_key),\n  FOREIGN KEY(command_id, scope_key) REFERENCES run_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_recovery_observation",
+        "tbl_name": "run_recovery_observation",
+        "sql": "CREATE TABLE run_recovery_observation (\n  recovery_id TEXT NOT NULL,\n  ordinal INTEGER NOT NULL CHECK(ordinal > 0),\n  revision INTEGER NOT NULL CHECK(revision > 0),\n  record TEXT NOT NULL,\n  PRIMARY KEY(recovery_id, ordinal),\n  FOREIGN KEY(recovery_id, ordinal) REFERENCES run_recovery_fence(recovery_id, ordinal)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_reservation",
+        "tbl_name": "run_reservation",
+        "sql": "CREATE TABLE run_reservation (\n  attempt_id TEXT PRIMARY KEY REFERENCES run_attempt(attempt_id)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_runtime_acceptance",
+        "tbl_name": "run_runtime_acceptance",
+        "sql": "CREATE TABLE run_runtime_acceptance (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  FOREIGN KEY(command_id, scope_key) REFERENCES run_runtime_intent(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_runtime_intent",
+        "tbl_name": "run_runtime_intent",
+        "sql": "CREATE TABLE run_runtime_intent (\n  command_id TEXT PRIMARY KEY,\n  scope_key TEXT NOT NULL REFERENCES run_runtime_scope(scope_key),\n  record TEXT NOT NULL,\n  UNIQUE(command_id, scope_key)\n)"
+      },
+      {
+        "type": "table",
+        "name": "run_runtime_scope",
+        "tbl_name": "run_runtime_scope",
+        "sql": "CREATE TABLE run_runtime_scope (\n  scope_key TEXT PRIMARY KEY,\n  pin TEXT NOT NULL,\n  revision INTEGER NOT NULL CHECK(revision >= 0)\n)"
+      }
+    ],
+    "tables": {
+      "run5_attempt": [],
+      "run5_completion": [],
+      "run5_consumption": [],
+      "run5_decision": [],
+      "run5_execution": [],
+      "run5_outbox": [],
+      "run5_receipt": [],
+      "run5_record": [],
+      "run5_recovery_active": [],
+      "run5_recovery_barrier": [],
+      "run5_recovery_closure": [],
+      "run5_recovery_fence": [],
+      "run5_recovery_format": [
+        {
+          "singleton": 1,
+          "journal_count": 0,
+          "fence_count": 0,
+          "observation_count": 0,
+          "closure_count": 0,
+          "barrier_count": 0,
+          "active_count": 0
+        }
+      ],
+      "run5_recovery_journal": [],
+      "run5_recovery_observation": [],
+      "run5_reservation": [],
+      "run5_runtime_acceptance": [],
+      "run5_runtime_format": [
+        {
+          "singleton": 1,
+          "scope_count": 0,
+          "intent_count": 0,
+          "acceptance_count": 0
+        }
+      ],
+      "run5_runtime_intent": [],
+      "run5_runtime_scope": [],
+      "run5_usage": [
+        {
+          "singleton": 1,
+          "used": 0
+        }
+      ],
+      "run6_attempt": [],
+      "run6_completion": [],
+      "run6_consumption": [],
+      "run6_decision": [],
+      "run6_execution": [],
+      "run6_outbox": [],
+      "run6_receipt": [],
+      "run6_record": [],
+      "run6_recovery_active": [],
+      "run6_recovery_barrier": [],
+      "run6_recovery_closure": [],
+      "run6_recovery_fence": [],
+      "run6_recovery_format": [
+        {
+          "singleton": 1,
+          "journal_count": 0,
+          "fence_count": 0,
+          "observation_count": 0,
+          "closure_count": 0,
+          "barrier_count": 0,
+          "active_count": 0
+        }
+      ],
+      "run6_recovery_journal": [],
+      "run6_recovery_observation": [],
+      "run6_reservation": [],
+      "run6_runtime_acceptance": [
+        {
+          "command_id": "\"grant\"",
+          "scope_key": "[\"org-a\",\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"person\"]",
+          "record": "{\"version\":1,\"commandId\":\"grant\",\"requestDigest\":\"f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412\",\"evidence\":{\"version\":1,\"digest\":\"915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401\",\"byteLength\":402,\"mediaType\":\"application/json\",\"retention\":\"retain\"},\"acceptedRevision\":2}"
+        }
+      ],
+      "run6_runtime_format": [
+        {
+          "singleton": 1,
+          "scope_count": 1,
+          "intent_count": 1,
+          "acceptance_count": 1
+        }
+      ],
+      "run6_runtime_intent": [
+        {
+          "command_id": "\"grant\"",
+          "scope_key": "[\"org-a\",\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"person\"]",
+          "record": "{\"version\":1,\"commandId\":\"grant\",\"canonicalRequest\":\"{\\\"schemaVersion\\\":1,\\\"expectedLedgerId\\\":\\\"da6596bfd77213bab49efd16231a32ed\\\",\\\"scope\\\":{\\\"organizationId\\\":\\\"org-a\\\",\\\"projectId\\\":\\\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\\\",\\\"personId\\\":\\\"person\\\"},\\\"commandId\\\":\\\"grant\\\",\\\"operation\\\":{\\\"kind\\\":\\\"authority\\\",\\\"ownerId\\\":\\\"old\\\",\\\"expectedGeneration\\\":null}}\",\"requestDigest\":\"f04cdadfc5397f92de3f3cbc594c83d9d44f4588975e23ce4ac10c6952f21412\",\"localOwner\":{\"ownerId\":\"legacy-dash-capture\",\"epoch\":1},\"stagedRevision\":1}"
+        }
+      ],
+      "run6_runtime_scope": [
+        {
+          "scope_key": "[\"org-a\",\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"person\"]",
+          "pin": "{\"version\":1,\"scope\":{\"organizationId\":\"org-a\",\"projectId\":\"ea3ff9a8-930a-4b6a-b238-52a050a55eef\",\"personId\":\"person\"},\"ledgerId\":\"da6596bfd77213bab49efd16231a32ed\"}",
+          "revision": 2
+        }
+      ],
+      "run6_usage": [
+        {
+          "singleton": 1,
+          "used": 1
+        }
+      ],
+      "run6_write": [],
+      "run6_write_format": [
+        {
+          "singleton": 1,
+          "record_count": 0,
+          "obligation_count": 0,
+          "receipt_count": 0
+        }
+      ],
+      "run6_write_obligation": [],
+      "run6_write_receipt": [],
+      "run_artifact": [
+        {
+          "digest": "915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401",
+          "reference": "{\"version\":1,\"digest\":\"915e2eeb0eb389f069f5df20d966fb10b6dba7f2d75f3a007a8d40d90ef3e401\",\"byteLength\":402,\"mediaType\":\"application/json\",\"retention\":\"retain\"}",
+          "content": {
+            "base64": "eyJzY2hlbWFWZXJzaW9uIjoxLCJsZWRnZXJJZCI6ImRhNjU5NmJmZDc3MjEzYmFiNDllZmQxNjIzMWEzMmVkIiwic2NvcGUiOnsib3JnYW5pemF0aW9uSWQiOiJvcmctYSIsInByb2plY3RJZCI6ImVhM2ZmOWE4LTkzMGEtNGI2YS1iMjM4LTUyYTA1MGE1NWVlZiIsInBlcnNvbklkIjoicGVyc29uIn0sImNvbW1hbmRJZCI6ImdyYW50IiwicmVxdWVzdERpZ2VzdCI6ImYwNGNkYWRmYzUzOTdmOTJkZTNmM2NiYzU5NGM4M2Q5ZDQ0ZjQ1ODg5NzVlMjNjZTRhYzEwYzY5NTJmMjE0MTIiLCJhY3RvcklkIjoiZWIwYjNmYTktOWQ5Mi00YjkxLThjNWUtOTBhNWIzMTQ0OTY2IiwiYWNjZXB0YW5jZSI6eyJraW5kIjoiYXV0aG9yaXR5IiwiYXV0aG9yaXR5Ijp7Im93bmVySWQiOiJvbGQiLCJnZW5lcmF0aW9uIjoxfX19"
+          }
+        }
+      ],
+      "run_attempt": [],
+      "run_completion": [],
+      "run_consumption": [],
+      "run_decision": [],
+      "run_execution": [],
+      "run_format": [
+        {
+          "singleton": 1,
+          "bundle_hash": "4fae943a19a52582bf001d05ffc593bc5aa7efa3e3bddb218633219578fdcec2",
+          "scope_count": 0,
+          "intent_count": 0,
+          "acceptance_count": 0
+        }
+      ],
+      "run_manifest": [],
+      "run_meta": [
+        {
+          "singleton": 1,
+          "schema_version": 6,
+          "migration_hash": "eac7079d3b5ce666ce83ad10fc152fed03c63d095cbece5be3650260d5515e2b",
+          "down_hash": "51c0699efa5f96a726474052a0ecb736ecf0adb6acd22d5c1be0d384e8d70772",
+          "ownership": "{\"storeId\":\"d1499665-d366-4e6e-9897-a56918ae2ab5\",\"organizationId\":\"org-a\",\"epoch\":1,\"owner\":{\"version\":1,\"storeId\":\"d1499665-d366-4e6e-9897-a56918ae2ab5\",\"organizationId\":\"org-a\",\"ownerId\":\"legacy-dash-capture\",\"epoch\":1,\"expiresAt\":11000}}",
+          "capacity": 1,
+          "lease_milliseconds": 10000,
+          "last_observed_at": 1000
+        }
+      ],
+      "run_outbox": [],
+      "run_receipt": [],
+      "run_record": [],
+      "run_recovery_active": [],
+      "run_recovery_barrier": [],
+      "run_recovery_closure": [],
+      "run_recovery_fence": [],
+      "run_recovery_format": [
+        {
+          "singleton": 1,
+          "journal_count": 0,
+          "fence_count": 0,
+          "observation_count": 0,
+          "closure_count": 0,
+          "barrier_count": 0,
+          "active_count": 0
+        }
+      ],
+      "run_recovery_journal": [],
+      "run_recovery_observation": [],
+      "run_reservation": [],
+      "run_runtime_acceptance": [],
+      "run_runtime_intent": [],
+      "run_runtime_scope": []
+    },
+    "sidecarsBeforeObservation": [
+      {
+        "suffix": "-wal",
+        "exists": false,
+        "bytes": null
+      },
+      {
+        "suffix": "-shm",
+        "exists": false,
+        "bytes": null
+      },
+      {
+        "suffix": "-journal",
+        "exists": false,
+        "bytes": null
+      }
+    ],
+    "sidecarsAfterObservation": [
+      {
+        "suffix": "-wal",
+        "exists": false,
+        "bytes": null
+      },
+      {
+        "suffix": "-shm",
+        "exists": false,
+        "bytes": null
+      },
+      {
+        "suffix": "-journal",
+        "exists": false,
+        "bytes": null
+      }
+    ]
+  },
+  "format": {
+    "SCHEMA_VERSION": 6,
+    "FORMAT_HASH": "4fae943a19a52582bf001d05ffc593bc5aa7efa3e3bddb218633219578fdcec2",
+    "migrations": [
+      {
+        "name": "0001-run-store",
+        "forwardHash": "eac7079d3b5ce666ce83ad10fc152fed03c63d095cbece5be3650260d5515e2b",
+        "downHash": "51c0699efa5f96a726474052a0ecb736ecf0adb6acd22d5c1be0d384e8d70772"
+      },
+      {
+        "name": "0002-runtime-authority",
+        "forwardHash": "828fca1d887833f8f21f60863c68bb4396853e6132a62b50c844987976421393",
+        "downHash": "ae045a2e32f92ba9f6d4c73ce488d923b16d850ba30ff76e314c068e255036dd"
+      },
+      {
+        "name": "0003-execution-history",
+        "forwardHash": "f61904834a9bfceaba5b4264684ada8d6c7f65704f4292816688b91db5fe2fab",
+        "downHash": "fcb81adc1aab74ce96d5f87605e78a39f603cf481ffb13a599d2443b15c8aab9"
+      },
+      {
+        "name": "0004-runtime-recovery",
+        "forwardHash": "9687d6eed6670737dd0f6913b6d54d8ff5a76b31f11c7d8f4c34e4b8f8dd2970",
+        "downHash": "7a84937f3f3750fbc6b902e21f2e2fe8c737add37d382310ab4934888134bd78"
+      },
+      {
+        "name": "0005-identity-keys",
+        "forwardHash": "c3b98136fd78a0b36ec3734822398b08162e6b791941880dd077c039050051d0",
+        "downHash": "209fdffa2d8bf444c59bc76471c7a83175c8caca51f2411dfbf3d48520bf2f98"
+      },
+      {
+        "name": "0006-runtime-write",
+        "forwardHash": "2a30a22c0616c62d70c6171ab36884f0e5d677d70168ea32200af324d3b06afc",
+        "downHash": "4d891090c074e264abbdfe275823d3a848974302492edb12cf5c4e8b3eaae67d"
+      }
+    ],
+    "sql": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0001-run-store/migration.sql",
+        "sha256": "eac7079d3b5ce666ce83ad10fc152fed03c63d095cbece5be3650260d5515e2b",
+        "bytes": 2354
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0001-run-store/down.sql",
+        "sha256": "51c0699efa5f96a726474052a0ecb736ecf0adb6acd22d5c1be0d384e8d70772",
+        "bytes": 333
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/migration.sql",
+        "sha256": "828fca1d887833f8f21f60863c68bb4396853e6132a62b50c844987976421393",
+        "bytes": 1056
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0002-runtime-authority/down.sql",
+        "sha256": "ae045a2e32f92ba9f6d4c73ce488d923b16d850ba30ff76e314c068e255036dd",
+        "bytes": 1415
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0003-execution-history/migration.sql",
+        "sha256": "f61904834a9bfceaba5b4264684ada8d6c7f65704f4292816688b91db5fe2fab",
+        "bytes": 85
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0003-execution-history/down.sql",
+        "sha256": "fcb81adc1aab74ce96d5f87605e78a39f603cf481ffb13a599d2443b15c8aab9",
+        "bytes": 2062
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0004-runtime-recovery/migration.sql",
+        "sha256": "9687d6eed6670737dd0f6913b6d54d8ff5a76b31f11c7d8f4c34e4b8f8dd2970",
+        "bytes": 2516
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0004-runtime-recovery/down.sql",
+        "sha256": "7a84937f3f3750fbc6b902e21f2e2fe8c737add37d382310ab4934888134bd78",
+        "bytes": 2092
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0005-identity-keys/migration.sql",
+        "sha256": "c3b98136fd78a0b36ec3734822398b08162e6b791941880dd077c039050051d0",
+        "bytes": 5742
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0005-identity-keys/down.sql",
+        "sha256": "209fdffa2d8bf444c59bc76471c7a83175c8caca51f2411dfbf3d48520bf2f98",
+        "bytes": 2012
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0006-runtime-write/migration.sql",
+        "sha256": "2a30a22c0616c62d70c6171ab36884f0e5d677d70168ea32200af324d3b06afc",
+        "bytes": 6670
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/migrations/0006-runtime-write/down.sql",
+        "sha256": "4d891090c074e264abbdfe275823d3a848974302492edb12cf5c4e8b3eaae67d",
+        "bytes": 2208
+      }
+    ]
+  },
+  "fixture": {
+    "path": "/tmp/task-698-dash-old-producer1-sJAKmj/original-runs4.sqlite",
+    "sha256": "32ba0809e7026f41d7e6063b5efd0d723d73e0d68335bac6710561522f10eb6e",
+    "bytes": 692224,
+    "gzip": {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/original-runs.sqlite.gz",
+      "sha256": "2bf5736e00d175987b6d569fe067c5fdf59185e3a41de37c9d983a5635a33bbc",
+      "bytes": 11591
+    }
+  },
+  "loaded": [
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/open-stores.ts",
+      "sha256": "1a99871a3a582852bacaac2cf2554bb95090da60a4e57ce9dc4e864232457945",
+      "bytes": 13931,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/validation/src/index.ts",
+      "sha256": "55d6d66c5acc869f9ae509712b8df2c5df1cf14b5f152fe76dcfdf74c902a6e8",
+      "bytes": 50,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/record-codecs.ts",
+      "sha256": "477e35e412ba1964bcafa3119d073f9cb263067be596cc8cf178d28d376b8973",
+      "bytes": 9084,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/inspect-format.ts",
+      "sha256": "d5be7bd715f8e65bff157f9c69edb008bdc40321af08f6e43e797b10be5177d8",
+      "bytes": 8956,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/run-store.ts",
+      "sha256": "d2f8fd5f31803b4bf630af4ef87d609d94ad82f2ae9ac691d405c6955d94a778",
+      "bytes": 68236,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/schema.ts",
+      "sha256": "a80f0eacefdebb56bab09eeeb678e43100b24c0f546e8cfc9c1de9927d316690",
+      "bytes": 12844,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/validation/src/core.ts",
+      "sha256": "80b932d5a268908879da95f90bd249a8ef1907025118c1bafa454b2654586d27",
+      "bytes": 2710,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/validation/src/errors.ts",
+      "sha256": "469d24a32634e81c471a76b1421dfcf206cb6297b01b687419b4ab26891e7ef5",
+      "bytes": 350,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/execution-codecs.ts",
+      "sha256": "631f7d34dc31bf34eba33f530bcea336087051158b1f917e2e9fcc55be68e5fb",
+      "bytes": 18606,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/recovery-codecs.ts",
+      "sha256": "a20f46fbb4a801c746772011fa9adde2927e849a6b9f811cd0cf3d262a23254b",
+      "bytes": 16092,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/write-codecs.ts",
+      "sha256": "6d2f71d1d1e40c35393df4d3207cdf20713003e33b0a0cf96afe933756fb9e95",
+      "bytes": 22417,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/index.ts",
+      "sha256": "beb218e9cf5af2ec6c99c156dca35f1ffde16a8c8a5140c4fe294669760ca32b",
+      "bytes": 5099,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/value-codecs.ts",
+      "sha256": "06d30254ef32d21b1bc69737b0300123761ff93cfdecafbfe2073cfc39d36dbe",
+      "bytes": 4921,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-admission.ts",
+      "sha256": "f60c1beefd7dffec3c59e7973d2341635fd39bd70b4f937afb42a0f995a70d5b",
+      "bytes": 9955,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-claims.ts",
+      "sha256": "8b78275c0559ddd983b41e7269ca707b1374ea8567aac057999efd651768a7af",
+      "bytes": 18888,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-execution.ts",
+      "sha256": "1005be180e3607bab3257016acfd9d7abef94df38190295e6e029bec376c576b",
+      "bytes": 18534,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-outcome.ts",
+      "sha256": "7e0d7f85791f7bd678de2989d2027d70760837a7249c53d9fd4944b05cc6b1c6",
+      "bytes": 4703,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-ownership.ts",
+      "sha256": "0b303888ab6a5f19ae60fd19c985d772dbcbff576c6dfbc6458cfd36d8ab25d2",
+      "bytes": 3116,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-receipt.ts",
+      "sha256": "f7dc24435014efc467bf471c46e7175ec7d011e05d527f529cbaa1d602aad438",
+      "bytes": 4033,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-recovery.ts",
+      "sha256": "5016cf1a74a76a319652a7acdeb976e4774723ac52cc68b8966cf9efea7b3402",
+      "bytes": 48436,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-runtime.ts",
+      "sha256": "a5b8d60fc73899dcec6b5a68e9a70b5d411eefab4155135f57964db26a421e41",
+      "bytes": 14403,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-signals.ts",
+      "sha256": "ea23fda8f1ec0329e665adb9b0c7b1cd61c4b9ca95389a1e2222545153998465",
+      "bytes": 4692,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-writes.ts",
+      "sha256": "180b045e0d7d04f3f79d085f81ee4b110d92899ee134ed3fc5775cc3c97af6ed",
+      "bytes": 26697,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/runtime-codecs.ts",
+      "sha256": "be9fdacbf06760726d86de2285344105a7872346e69166b130ae8288afd83e46",
+      "bytes": 3907,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/artifact-store.ts",
+      "sha256": "ee1efb9b25cce810b928c043bf65ccad0b45c78c12af3d56e72297b7353aa12b",
+      "bytes": 3484,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/identity-usage.ts",
+      "sha256": "9fd2d8eb0f26b3bc8390d879ed0e707e36eb99811a442723c249d60fe256286e",
+      "bytes": 1337,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-executions.ts",
+      "sha256": "5f5122cda3fdff921ef38f7974d9c6020d6c35bdc303ed3a12c16e1a6dd2d9e5",
+      "bytes": 2188,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-history.ts",
+      "sha256": "6aa9809db09cdf9017855493f183d2d1c178d35fbb70c2f42704a3b59b9165f6",
+      "bytes": 4299,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-runtime.ts",
+      "sha256": "b1e79a8bbf643c11b21c2cef89666bf02339528b648a78136bac6b0705441170",
+      "bytes": 6893,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-signals.ts",
+      "sha256": "7309c9f6cba5357b87321edf3fa84f11352f2a89288d38cffbbc3c8a4504eba9",
+      "bytes": 3846,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/recovery-store.ts",
+      "sha256": "409e18aa92475adcabd89eee24638b3c42b43a1db4131ee6b3a9881db5b3838e",
+      "bytes": 7710,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/row-codecs.ts",
+      "sha256": "abc82ad635350e44072aaf8592f04b43eb4c2288b58f1362c9e15dc5c8663f35",
+      "bytes": 7713,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/runtime-store.ts",
+      "sha256": "5be15262273eb209980a2d0a05253381c7f089f27c7f6660eb6ce498f5c17bee",
+      "bytes": 2534,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/write-store.ts",
+      "sha256": "ca7d0eb695436dac430472bcc2fc6277261df47e48215f94b64527641a624c91",
+      "bytes": 4607,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/write-usage.ts",
+      "sha256": "c3f69684e1dd37cf5e5cbfa4e256652916f2fa34ece59957037f2c3826869e4f",
+      "bytes": 1439,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/format.ts",
+      "sha256": "8c9ced5a76198933d4322e19204b9b09823317b470afb41e86502bceb1da582f",
+      "bytes": 6674,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/identity-key.ts",
+      "sha256": "6c6d14bd24b99da719fac9aaf68ed603c4a4a12760923ae31fbd336fb812633c",
+      "bytes": 2332,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/agents/execution-codecs.ts",
+      "sha256": "4446079a2fb4f67b754d2dec860ce9569894cebd5d00757ac637cbff07829b8d",
+      "bytes": 9873,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/index.ts",
+      "sha256": "7c946de1803e7f88cc2fd10f0306b259777600289f330633d850d5229f836c59",
+      "bytes": 3417,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/write-recovery-codecs.ts",
+      "sha256": "fcb599a6b4c9837dcf60cd53e59d8be363b833898505b5aadb2577b40b0c46b8",
+      "bytes": 1016,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/canonical.ts",
+      "sha256": "e09471c92f773e983fb9cfa1ffd5ff19b7cdca225cad6bb49773c2638c8f8c61",
+      "bytes": 2776,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/decode-record.ts",
+      "sha256": "7016f6e568d83ce2f3b5f9e1b1cc9ba33df35a976f38ea9341d07bbc390a2992",
+      "bytes": 2764,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/job-catalogue.ts",
+      "sha256": "5417b601492d8d79120ddb867304a0f1effad6b3e8a9cd740c2ec1973157f3f2",
+      "bytes": 6657,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/navigator-records.ts",
+      "sha256": "474b6c361f8e58f76e2dc2020d08c7203a8c5f93acf7113acbce4cfa677a1df4",
+      "bytes": 6190,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/plan-tasks.ts",
+      "sha256": "e2c68366cc8eb82a6b8a384356bb7c93dcec941b73712a377d69f1438c00052f",
+      "bytes": 2958,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/records.ts",
+      "sha256": "2b5339cdf797471a48be282fcebac8453db9bbfb187aa88002feb874c5109d0c",
+      "bytes": 36178,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/validate-plan-tasks.ts",
+      "sha256": "6db64f03f35b76627eaf79696f67319de70c8e3f31ab6bc82f73a08cb6dd11d1",
+      "bytes": 4712,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/validate-progress-receipt.ts",
+      "sha256": "436a72c2eb01fb5d6e93af7fee9e65e28a66b733ea5a4449cdea636d64d22008",
+      "bytes": 4311,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/validate-workflow-binding.ts",
+      "sha256": "1d60352f3fb402ec68c0597eae71d88cc6bed9ec4e6f57c92554d5b5365e808f",
+      "bytes": 11109,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-binding.ts",
+      "sha256": "c96b5d4fe10f824093c45573a93116faf05b300551c07e83378fbd95f1962031",
+      "bytes": 20718,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/plan-recovery-history.ts",
+      "sha256": "9104323139527d2314b48d030fb2d9b7ec96e833428ba91a945652eebcafd128",
+      "bytes": 35697,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/recovery-evidence.ts",
+      "sha256": "b619d4405ded97abfe61af5c6150cb5a52ce2564d9b279822fdb0d15772cc352",
+      "bytes": 12238,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/artifact-integrity.ts",
+      "sha256": "faf1c045759e1e5ef45186725b0edeacf25391b9739f7534f4f2f39df378cab9",
+      "bytes": 1634,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-recovery.ts",
+      "sha256": "2d6d1d525503a24ca2dd9c2aa8c5bb3359ae8419742e9d81a7833b161978263a",
+      "bytes": 9226,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/validate-history.ts",
+      "sha256": "6757165020856829c3861e63c0cddac07e8aaa4f169481445a78b6f9726a216c",
+      "bytes": 49198,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-outcomes.ts",
+      "sha256": "0b74a733fe75139434947341ff3841b93415b182ef031aa3e4eaa6ace189e338",
+      "bytes": 2080,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/read-writes.ts",
+      "sha256": "58cccdfce1285b076e601deb3bd61836e17859984e4f1cfe427afc64ca47aa64",
+      "bytes": 4205,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/auth-methods.ts",
+      "sha256": "55d67232a4c0c9c2715c0412ae458edeaf0b2324a9200bdb87d73146aad0a838",
+      "bytes": 3449,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/commands/definitions.ts",
+      "sha256": "52523a6f74c3704a30a6a3eb3040542384889b3134e646591866d92a05ac41d2",
+      "bytes": 35216,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/dependency-client.ts",
+      "sha256": "7e035f5fb2f35ca7c97b11ff7cb997ec26f5f908ce84beae941e3bbf101e5e46",
+      "bytes": 1130,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/dependency-runtime.ts",
+      "sha256": "6d8bb70b1bd4c844ae50e63e25d4d596ccb0c3073cbcd27880b92ce2c93f59c2",
+      "bytes": 4700,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/errors.ts",
+      "sha256": "96014041eab1480536ff2bd3488fa2c69100a080ec0f43b758a15e2334f88672",
+      "bytes": 305,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/agent-pool-shapes.ts",
+      "sha256": "bee1333048e13bc7ac3e49df7c3be3a06aaa9138f9157d199a0b7eb5f5112f10",
+      "bytes": 9693,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/auth-oidc-shapes.ts",
+      "sha256": "5cfa1c0474d5bc3f4119a80cd0dacaef0102deef88e3907ae7a9da61c3e9449b",
+      "bytes": 7208,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/auth-password-shapes.ts",
+      "sha256": "4e8cab945bc56413bdbf956f9e158ddf69df1fab3190c4ec6a7ec26ccf004a19",
+      "bytes": 6664,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/auth-reset-shapes.ts",
+      "sha256": "b769430ccdb8e9da85c5e7a68e26e0ca99aae4dbc40ec752f42d951c0ced6563",
+      "bytes": 1108,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/budget-headroom-shapes.ts",
+      "sha256": "1856b2b78f9d216106fc7755b9b360de6589c310dbd8ee8f4dbe353083992378",
+      "bytes": 5817,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/calendar-marker-shapes.ts",
+      "sha256": "cf9eec28fee19fac229b1ce74acfa2a072272c038b6348f7349d105d74a1445f",
+      "bytes": 5478,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/capacity-mode-shapes.ts",
+      "sha256": "b367a1a6f4c69a01da4eee3670f3f7bfd649e0f1bdfa987bfdd06a2fd6ea6882",
+      "bytes": 3100,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/claim-history-shapes.ts",
+      "sha256": "4005b32c1e306cc585b671f1d0e1d1727462f83d7dc6eb8501392996dbe78c12",
+      "bytes": 3752,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/claim-lease-shapes.ts",
+      "sha256": "3b163723a79cd8dcfbaf435adfd336adaa4f01912504c4519a9bf999659385f7",
+      "bytes": 2455,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/client.ts",
+      "sha256": "752d07abe24b213f6e61ca78cce648b9b4088462c59855f4d79098444e06c67d",
+      "bytes": 14992,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/client-error.ts",
+      "sha256": "79f44175007e0d28f7a5be5097846025175072ddef827d391eea975c1a2d3d48",
+      "bytes": 150,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/client-fetch.ts",
+      "sha256": "8e029e34be27627dc820a28c8e02f28b08ce1877d2c76d041efb125cadf7ae86",
+      "bytes": 3135,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/client-types.ts",
+      "sha256": "2bbb446bec9d183014d2093f7302ef8255ad3b4ea6b58a4cfe9d113fe2dc4d3f",
+      "bytes": 4551,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/compute-provider-shapes.ts",
+      "sha256": "e402d86b47e34eef6867e776780cb99e77b916c9a4a1dde766b856cfb073c9d4",
+      "bytes": 10494,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/delivery-shapes.ts",
+      "sha256": "f823ebb57dc76a210083506612e096775e888416e33573772136bb60ff239076",
+      "bytes": 3789,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/directory-shapes.ts",
+      "sha256": "c9d489aea581064faffaccc9c04051ab45055da21f06a87015dc43ec1d7c04d6",
+      "bytes": 5250,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/document-from-shapes.ts",
+      "sha256": "54cf817b104cc74bff0830ad72089193591c29aa0a9440d0ce09ba548ea1a403",
+      "bytes": 10963,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/domain-shapes.ts",
+      "sha256": "8be90bf6ff68a91a28a6823040d041d93730011cb9746ec79262cbe1d7460ef4",
+      "bytes": 9424,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/endpoint-shape.ts",
+      "sha256": "c35937150837820f16511fb858141f3cf58c7083f1fdd8c9cdd6cf475f157848",
+      "bytes": 9396,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/gateway-dependency-http-shapes.ts",
+      "sha256": "3f38001e1b475c0015bd923f8b1b892001f3843d1b90804441f7078e66108d4c",
+      "bytes": 1298,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/history-shapes.ts",
+      "sha256": "4ed488195b75f16f86ef9ea51c361005c6c5af74895be35500d131d10af18966",
+      "bytes": 2402,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/import-shapes.ts",
+      "sha256": "e99a3f472c08d9e9e659bdd7e4e4b08a5a6cf3b8cfe671bc7e4d1e0900f09b40",
+      "bytes": 4932,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/infrastructure-shapes.ts",
+      "sha256": "fb8694fd57db7ee3077a38fe5a35fae46cdc48a126257701fd15ba5cde7a9055",
+      "bytes": 3815,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/internal-http-shapes.ts",
+      "sha256": "1a676d3dbcf1c41bcf7528ca00f1356045e3aa4fad5710103be34daf20283d81",
+      "bytes": 7120,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/invitation-shapes.ts",
+      "sha256": "4f249e697cc850616e698201a1429f38bb35ff6077922c4768a892a28821a166",
+      "bytes": 4622,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/join-request-shapes.ts",
+      "sha256": "d96d27897e8455b355758f779f50c12b9fc84208bd24a406dbf7d229531b943c",
+      "bytes": 3559,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/machine-credential-shapes.ts",
+      "sha256": "1278143f27c2ca53bafa86cf115fad81063db1cf40585e5e66d7a50a79984cbd",
+      "bytes": 13632,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/mcp-delegation-shapes.ts",
+      "sha256": "f9858e2600ce6ebe5e5913c1de90952ea2a3930427d60e590d75e922519e4789",
+      "bytes": 11513,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/measure-shapes.ts",
+      "sha256": "5726fa7b4198b791a98b43d4be19d1a0a5f01c64e059676eb73fbaac5e5cacbc",
+      "bytes": 2391,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/onboarding-shapes.ts",
+      "sha256": "5acbffc178469ace18da6b01521e50a55f8c1451014fa1a80bba9a85e5c21051",
+      "bytes": 6067,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/organization-limits-shapes.ts",
+      "sha256": "55198376b31c7763af9b6beb84c78f8569c00ff6930a8c5d76392e374ae60ecf",
+      "bytes": 3322,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/organization-shapes.ts",
+      "sha256": "8511a0f14d6ba46474ee8581590bee11bbfde9e212c6c895d6628b3f49e29380",
+      "bytes": 8844,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/person-load-shapes.ts",
+      "sha256": "52a0fa661c7eda72e38e9528c6fc94edb3529bd0a9a17fa164c9482f57fcda31",
+      "bytes": 3700,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/person-work-shapes.ts",
+      "sha256": "acb2e1268dd54b720bbb3873aa67620d74f4ed275a5bc1a1084237077655253f",
+      "bytes": 2966,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/plan-document-connected-shapes.ts",
+      "sha256": "ad7b2ed5f9c6e2e2148b520e2658f0667c999bfe34faf828ab0ae9bcb9716b7a",
+      "bytes": 3748,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/plan-document-shapes.ts",
+      "sha256": "1520805f37a6f4f9d26f75cf3b8a96d07ad67d6d49b020ac6fb631318a9dc6a7",
+      "bytes": 21110,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/project-address-shapes.ts",
+      "sha256": "7317bc9165c4d96696bbc9d042cfa029b9e9516a48b2db45a9227d4b41482faf",
+      "bytes": 3951,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/project-claims-shapes.ts",
+      "sha256": "63a25e200c08063a9d88dbe62fd14f45ef88da062778fb036a2af79371417446",
+      "bytes": 3266,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/project-rank-shapes.ts",
+      "sha256": "7b2df2c21208a7dbf3a90471d8f92e365f08fbb7f511a7d4b7707028cdfd0d36",
+      "bytes": 3071,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/project-response.ts",
+      "sha256": "10201a7a092f45bf331540637487042b1535699aaecaac4424d0a5b0cb223af1",
+      "bytes": 2291,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/project-shapes.ts",
+      "sha256": "210b54744b7819f39b17d884dd9f238c5f200ae02d7ade5e9ff2e9ec7739cbfb",
+      "bytes": 14102,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/provisioning-token-shapes.ts",
+      "sha256": "db0cbfec450cbbee244a640c22a4619aa6ca1f1774b032e0f01be27e62a90af1",
+      "bytes": 5686,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/refusal.ts",
+      "sha256": "4c5ba0f276c822185d7c6bbae25c2c37713f68303adcbeacc67074391e18ed25",
+      "bytes": 40762,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/resource-runtime-shapes.ts",
+      "sha256": "ad2a944a1b03ae0d8f5c4ccb66e02d3cc8d89bfa427adab4b6d9113c7fc74196",
+      "bytes": 9793,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/resource-shapes.ts",
+      "sha256": "2e618a7630dc945810102a00ffea02088ac13f1c86d77b40104dc27159584d22",
+      "bytes": 8296,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/resource-use-shapes.ts",
+      "sha256": "00541047f93b78dfdce965aeea736efd869a89750a104ccacee73e99e515688f",
+      "bytes": 6493,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/runtime-command-shapes.ts",
+      "sha256": "109abad03233f80594459a6a22faa41a2eef11ab9ab2391d03710f5bf0db6902",
+      "bytes": 11065,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/saved-plan-shapes.ts",
+      "sha256": "11517d52d45f520bce838e18ac799ea9696649d9b1e7bf0d8adfa6c49827278f",
+      "bytes": 13405,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/schema-shape.ts",
+      "sha256": "8fb2a1722239a421d28f51490b9625adeb637ccc1ca1b45de4b036f86a3b4335",
+      "bytes": 12288,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/session-policy-shapes.ts",
+      "sha256": "aa4b071e627f65c74e40694d5c1bbe482629ab4c69137bceb7701e5e5949954b",
+      "bytes": 3389,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/shapes.ts",
+      "sha256": "0412427f77036d084c5419a6718129c239b3fb46dcc221680e7df3f38b8787f9",
+      "bytes": 8873,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/shared-people-restore-shapes.ts",
+      "sha256": "b924a29f0d3899f65983bf61231053aa78ddd225f1525a3cf29744aa5eea3df0",
+      "bytes": 3035,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/smoke-shapes.ts",
+      "sha256": "2257f3c664444afa820f5fbb8745777eeb4d4e96d54f0a9224da09f9ba64dd30",
+      "bytes": 1467,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/solution-shapes.ts",
+      "sha256": "9a7ad424ae534ce4e51f45a40fe70e881b336a7f39c099b194febe8593d6d2ec",
+      "bytes": 1707,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/space-shapes.ts",
+      "sha256": "8df773c6b4d35c1d235ef766b701ed6bf7410a523d06b20e3b03db5ca8ec3618",
+      "bytes": 11112,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/sso-connection-shapes.ts",
+      "sha256": "998a7e864c3cd107d84d6f5025bf573a88d883b80fed3348040f615cc56ad285",
+      "bytes": 5742,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/startable-shapes.ts",
+      "sha256": "c530a234a36b4461c169f7571a17ef8c1c52f88afdab7a88c8841a84290d6ab1",
+      "bytes": 6652,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/step-shapes.ts",
+      "sha256": "8f61d5200605ba1894da7e8391cbebb5a1768189a290f5751feb18dabf852073",
+      "bytes": 8890,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/timezone-shapes.ts",
+      "sha256": "61d8ed5840daf6154ae872e3715964d9e2d15f658dcbd76d4824a5303caceedd",
+      "bytes": 1052,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/work-item-fields.ts",
+      "sha256": "b08a5f65687a1eb62f8e905252759907f470ad58019f1ac9bb1df106db2631c7",
+      "bytes": 2465,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/work-item-response.ts",
+      "sha256": "b1154fd751e4afc0a3ed8209f591c10decc5a06e78c25c16492ae0a41a5765dc",
+      "bytes": 16923,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "sha256": "bc894417b6b0f29687f3e4b471b322f2616f0e6343825f8f920fe90ff90fd003",
+      "bytes": 30386,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/internal.ts",
+      "sha256": "22be3700aff4c96cc8bbbb9fd582bde21b509b524f7c1bf332699f27111e749d",
+      "bytes": 2411,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/logger.ts",
+      "sha256": "178db531df59f41219323929d0bc9b4d1da04b6fdb50284fc9b690987fac0144",
+      "bytes": 609,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/mcp-authorization-server.ts",
+      "sha256": "2432914e471cd91904bd1fa4d6f900989e39b6eb812c8cd0e0d86192d27f72fb",
+      "bytes": 3029,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/oidc-identity.ts",
+      "sha256": "5b4217ccb6dbf1d80f3a31171f1f4b47443fcce4a7e35784ba4af9e52ac314ac",
+      "bytes": 621,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/plan-command-values.ts",
+      "sha256": "ce7600cb1c27bcf1e01c837b3fb2af68ba525c7d2550f1542d8a87ffb5b6a80d",
+      "bytes": 260,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/principal.ts",
+      "sha256": "6761cec1c9eaca32183bb44c3e154e7de90b61f668377360722e1224eb44ec7e",
+      "bytes": 8160,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/runtime-command-values.ts",
+      "sha256": "36622a8228ebdd909565c1cbf97ce8f1e00c6c3e7af332ddab5d05eb5b2419b8",
+      "bytes": 7813,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/runtime-receipt.ts",
+      "sha256": "258fa2def1b50c012bfd9152d5600d21e5c1b7a62caf546afcbd5c84bb482426",
+      "bytes": 4055,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/runtime-request.ts",
+      "sha256": "09132c877935125bcee5f308451daa8b77ef6a840f764ba9ddc6e95ae72f4037",
+      "bytes": 10872,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/ws.ts",
+      "sha256": "8d3dc78c11d3655692a346045046b9c3f08496bb1172ff03d2595942becc36bd",
+      "bytes": 7204,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/runtime-receipt.ts",
+      "sha256": "5bf8cfe77b670b4a675de582a1bae73ee62fadae0b0f001911ce45f5e97c694e",
+      "bytes": 2599,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/dependency-claim.ts",
+      "sha256": "8ac420c8fc9d61df43fbdfaae1970237cbb031689e3e9ec2f987e60cef0e1aef",
+      "bytes": 1627,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/domain/src/access-role.ts",
+      "sha256": "b76265d2f5724b654a18fdfb65297e353aa2123dacf361da235e662498262f66",
+      "bytes": 25960,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/organization-refusal.ts",
+      "sha256": "c8269539ff8f4445cab711321532335056d49b4324a9ea6034147f7171ad3e38",
+      "bytes": 1300,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/schedule-error-shape.ts",
+      "sha256": "0c94666db45be15a3009b298377aab81d877e974bc4ba3c8a531590085fc5e78",
+      "bytes": 975,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/step-blockage-refusal.ts",
+      "sha256": "5b96257d0d7627773562f264e1f799112e01d9622d1d5b5ab6bf02fd0128ed4d",
+      "bytes": 445,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/delivery/src/index.ts",
+      "sha256": "c16acc299eb4da2ea6d892c89646783626fb693606f62ee99bc09c419a86e9bf",
+      "bytes": 57,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/scheduler-shapes.ts",
+      "sha256": "5895208ca7678cf2143427388c0ca588710ac19bd56d4dae9cf402faa7ac0d1d",
+      "bytes": 324,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/validation/src/index.ts",
+      "sha256": "86eb06d2570e2599fccd7e8f2be0f0921446cb03ee702e8ade5acb7af5ea9e9b",
+      "bytes": 36,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/mcp-internal-auth.ts",
+      "sha256": "7dfd64c5ba23bca20a9202e5b9213a4cc06dd03e89bc5b998228a713329b729b",
+      "bytes": 153,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/command-parser-refusal.ts",
+      "sha256": "7759c9482429c6808e548006ddd97a879cd2ab6f836e393104a8c06d661d551a",
+      "bytes": 7444,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/plan-command-shapes.ts",
+      "sha256": "18271d0f92638806415de29c214ce11260a2566208a78023dbb94903137c5610",
+      "bytes": 1271,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/http/tree-response-schema.ts",
+      "sha256": "d3e806fd657e899b43c6c49cc20cfe4d257db69e1b2068ce14bac825f94247aa",
+      "bytes": 3889,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/wbs/domain/contracts/src/ws-frames.ts",
+      "sha256": "762502efe0f9b5dd295b7f7b3b611624150f81a71f214341fdfd3d83a71467b9",
+      "bytes": 3099,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/delivery/src/observation.ts",
+      "sha256": "30f573a7c0cf69eb092293ffa633da5f1bc26ba24b4b01bc7c69e678f7d9662a",
+      "bytes": 8402,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/libs/shared/domain/delivery/src/timing.ts",
+      "sha256": "5576d8d4ff5b06ec7ca0f400ef1efbcff4f6d777594af4b91432c0e42d563751",
+      "bytes": 5382,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/runtime-history.ts",
+      "sha256": "9fbeaa41e8fd9d59ced1181e57a1a769784846501230d1664082f11036f079d8",
+      "bytes": 3347,
+      "kind": "exact-original-first-party"
+    },
+    {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/apps/twilight-structure/twilight-dash/cli/src/runs/recovery-history.ts",
+      "sha256": "43578515b6d2210aeee6c099f5a87b0ffe38eacd8d3b213063b9712b9fea39fb",
+      "bytes": 3507,
+      "kind": "exact-original-first-party"
+    }
+  ],
+  "settled": true,
+  "qualification": [
+    "No original production source edited; loader validates exact original Git bytes and returns those unchanged bytes with the loader Bun selected; no source rewrite.",
+    "Only one authority history graph is captured; no old execution/claim/write graph or uncaptured original HTTP whitespace claim.",
+    "Local explicit fixed1000 clock and10000 lease are independent of current credential time.",
+    "Actual original receipt value serialization is explicitly pinned, not claimed captured original HTTP response whitespace."
+  ],
+  "provenance": {
+    "capsule": {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/capsule.json",
+      "sha256": "bcc22db2103922cd484c59c75ba5cf872052090b390e6d12a5f1f4109736ad37",
+      "bytes": 5608676
+    },
+    "producerCapture": {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/capture.json",
+      "sha256": "f790b012c2eb7c0552973e723ba94c94021e5e04858ed5b99dd7423d317d69e0",
+      "bytes": 89690
+    },
+    "helper": {
+      "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/capture-original4.ts",
+      "sha256": "8d564afd60273bcb7087392f279e4b386ef7acf14f330ab42001d5b541f4369c",
+      "bytes": 9006
+    },
+    "command": {
+      "path": "/tmp/task-698-dash-old-producer-capture4.json",
+      "sha256": "54a9a58df07ce3291a1e10ed0d1011c65ae9210864d6db40c92a106f20883724",
+      "bytes": 880
+    },
+    "log": {
+      "path": "/tmp/task-698-dash-old-producer-capture4.log",
+      "sha256": "6278e66d3f571c269d1ff2171ee0b4d7babe9b174c79eccc2d412a699292e586",
+      "bytes": 458
+    },
+    "environment": {
+      "installedRoot": "/home/df/.codex/worktrees/af5e/puni-00/node_modules",
+      "package": {
+        "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/package.json",
+        "sha256": "275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf",
+        "bytes": 5030
+      },
+      "lock": {
+        "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/bun.lock",
+        "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+        "bytes": 543082
+      },
+      "bunVersion": {
+        "path": "/tmp/task-698-dash-old-producer1-sJAKmj/source/.bun-version",
+        "sha256": "d03d8b268b4171328ac2458ce8ca82d69a1fde38469d4e4faae4f8fa8d8a5e35",
+        "bytes": 6
+      },
+      "currentPackage": {
+        "path": "/home/df/.codex/worktrees/af5e/puni-00/package.json",
+        "sha256": "275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf",
+        "bytes": 5030
+      },
+      "currentLock": {
+        "path": "/home/df/.codex/worktrees/af5e/puni-00/bun.lock",
+        "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+        "bytes": 543082
+      },
+      "bunExecutable": {
+        "path": "/home/df/.bun/bin/bun",
+        "sha256": "10702245766b225e70bbf6235fd6b47214fd94b4760d00ffaed8ab0df57ac235",
+        "bytes": 107308936
+      },
+      "bunActual": "1.4.4"
+    },
+    "configuration": [
+      {
+        "path": "tsconfig.base.json",
+        "mode": "100644",
+        "blob": "1140e79849b363827da7d114b19eaebff77d7c35",
+        "sha256": "36d8fae76b973987c180ac2dbe3b33150c62431089f842a15ac45d764e020cb2",
+        "bytes": 11250
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/tsconfig.json",
+        "mode": "100644",
+        "blob": "6342d0151058bdb6d22c96caff4e0ded4c098aeb",
+        "sha256": "94679ed2ceaf31ff6c883e23bb66e3f0780fcd3d4d984d101bd9c12f0f11d525",
+        "bytes": 359
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+        "mode": "100644",
+        "blob": "0a9d9367251fa6a47f7832b3fc55eb93950862ef",
+        "sha256": "dae69c2043508f840dd57bf6d282763783439ba1151317160ea65e63267c6248",
+        "bytes": 249
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+        "mode": "100644",
+        "blob": "bd3565a8507239bc544e08d78abfacb53d3cf351",
+        "sha256": "a8c29e71c2187f4d8930f76d8969a24e49175ce709e18a3fbb5975d17121339e",
+        "bytes": 177
+      }
+    ],
+    "excludedAttempts": [
+      {
+        "command": {
+          "path": "/tmp/task-698-dash-old-producer-capture1.json",
+          "sha256": "13f6add8233456d623fb43673fd1f646fa2e2d10fcaf4dea39172693b9c8162f",
+          "bytes": 832
+        },
+        "log": {
+          "path": "/tmp/task-698-dash-old-producer-capture1.log",
+          "sha256": "f4c88bdaafe79cb19602e94c1df6bac1ebacf3f9dc1a5529d79713d300c86b8b",
+          "bytes": 1463
+        }
+      },
+      {
+        "command": {
+          "path": "/tmp/task-698-dash-old-producer-capture2.json",
+          "sha256": "37a21a4c61bdaed0796b1c18d5025cf693cce5dfad9d822490347d298ff33811",
+          "bytes": 880
+        },
+        "log": {
+          "path": "/tmp/task-698-dash-old-producer-capture2.log",
+          "sha256": "a088cd007953848ce7f9e7867cd2cbcf02db74bdffe0f679ebacb7221b73e2a0",
+          "bytes": 152
+        }
+      },
+      {
+        "command": {
+          "path": "/tmp/task-698-dash-old-producer-capture3.json",
+          "sha256": "36cda7a9905a06fc6eaab8a65c6f3e1a8d7e846647b1ad9505268c41038bd605",
+          "bytes": 881
+        },
+        "log": {
+          "path": "/tmp/task-698-dash-old-producer-capture3.log",
+          "sha256": "e42780cc4e93d082d5cfeaaaacbca36ad97bfd6be6d6079d2b6601014e7344d9",
+          "bytes": 3307
+        }
+      }
+    ],
+    "limits": [
+      "Runtime observer validates152 original TypeScript modules and passes their bytes unchanged to Bun selected TS loader; third-party JavaScript remains native, pinned installed package/lock/Bun environment is shared.",
+      "Attempt1 documented undefined loader return failed at runtime; attempt2 interception of third-party CommonJS failed export setup; attempt3 succeeded APIs but overstrict postcapture SHM helper assertion failed. All three are unqualified.",
+      "Immutable physical observation occurs only after original close and independent absent-WAL/SHM/journal observation; it establishes no writer exclusion or concurrent backup policy."
+    ]
+  }
+}

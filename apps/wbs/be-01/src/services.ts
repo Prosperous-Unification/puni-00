@@ -9,13 +9,19 @@ import {
   composeServices,
   type OidcVerifier,
   type PlanTransactionalStores,
-  type ProjectRankStore,
   servicesOver as coreServicesOver,
+  type WorkPackageRankStore,
 } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import type { TrustedIssuerVerification } from '@wbs/core/module/authentication/authentication.feature';
 import type { ConnectedOptimizationAdmission } from '@wbs/core/ports/optimization-input';
+import type { PlanExportReader } from '@wbs/core/ports/plan-export-reader';
+import type { ProjectRead } from '@wbs/core/ports/project-read';
+import type { SpaceRead, SpaceRollUpRead } from '@wbs/core/ports/space-read';
+import type { WorkPackageObservation } from '@wbs/core/ports/work-package-observation';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { ProjectResource } from '@wbs/core/service/project.resource';
+import { ProjectSettingsPurpose } from '@wbs/core/service/project-settings';
 import { standaloneCapacityModeSwitch } from '@wbs/core/service/standalone-capacity-mode';
 import { standaloneRankStore } from '@wbs/core/service/standalone-rank';
 import { contractVersionOf } from '@wbs/domain';
@@ -30,6 +36,7 @@ import {
   type SqliteSource,
 } from '@wbs/store-sqlite';
 import { hashConnectedBytes } from '@wbs/store-sqlite/connected-question-identity';
+import { SqliteProjectAdministration } from '@wbs/store-sqlite/project-administration';
 
 import { installOptimization } from './module/optimization/check';
 import type { ReservedSpawner } from './module/optimization/contract';
@@ -65,6 +72,13 @@ export interface OptimizerRuntime {
 }
 
 export interface ServicesOptions {
+  projectRead: ProjectRead;
+  createSpaceRead: (
+    configured: Pick<SqliteSource, 'createSpaceRead'>,
+  ) => SpaceRead & SpaceRollUpRead;
+  createWorkPackageObservation: (
+    configured: Pick<SqliteSource, 'createWorkPackageObservation'>,
+  ) => WorkPackageObservation;
   commandAccess: CommandAccess;
   clock: Clock;
   source: SqliteSource;
@@ -91,12 +105,16 @@ export interface ServicesOptions {
 }
 
 export interface BeServices extends AccountfulServices {
+  readonly planExports: PlanExportReader;
+  readonly workPackageObservation: WorkPackageObservation;
+  readonly projects: ProjectResource;
+  readonly spaceRead: SpaceRead & SpaceRollUpRead;
   readonly accessDecisions: PlanTransactionalStores['accessDecisions'];
   readonly commandAccess: CommandAccess;
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
-  readonly projectRanks: ProjectRankStore & CapacityModeSwitch;
+  readonly workPackageRanks: WorkPackageRankStore & CapacityModeSwitch;
 }
 
 export type { WritingServices } from '@wbs/core';
@@ -112,7 +130,7 @@ export interface SharedRuntime {
 /** Compatibility entrypoint over core's pure transactional half. */
 export function servicesOver(stores: PlanTransactionalStores, shared: SharedRuntime) {
   return coreServicesOver(stores, {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     dependencyContext: createLocalDependencyContext(stores),
     clock: shared.clock,
     broadcast: shared.broadcast,
@@ -174,6 +192,11 @@ export function buildServices(options: ServicesOptions): BeServices {
           },
         }),
   });
+  const workPackageObservation = // Proof: C12 — Passing the pre-bind source retained the original factory identity instead of the
+    // configured factory. Call count one passed first; later returned-observer assertions were unreached.
+    // Observed in services.db.test.ts, "creates the sole package observation once from the post-bind
+    // factory" (2026-11-15).
+    options.createWorkPackageObservation(boundSource);
   const graph = composeServices({
     // Proof: omitting installation failed mounted `shared tree and export agree` (start 0 instead of 3).
     source: boundSource,
@@ -193,7 +216,7 @@ export function buildServices(options: ServicesOptions): BeServices {
         maxRetries: 5,
       }),
       scheduler,
-      onPlanChanged: (projectId) => coordinator?.inputChanged(projectId),
+      onPlanChanged: (workPackageId) => coordinator?.inputChanged(workPackageId),
       ...(options.optimizer === undefined
         ? {}
         : {
@@ -302,13 +325,13 @@ export function buildServices(options: ServicesOptions): BeServices {
       ownerId: crypto.randomUUID(),
       now: options.now ?? Date.now,
       attemptToken: () => crypto.randomUUID(),
-      inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
-      enabledOf: async (projectId) =>
-        (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
+      inputOf: async (workPackageId) => await graph.workItems.scheduleInput(workPackageId),
+      enabledOf: async (workPackageId) =>
+        (await source.stores.workPackages.findById(workPackageId))?.optimizationEnabled === true,
       // Proof: omitting the shared capture made the mounted upstream-only edit
       // request lose `elsewhere` (undefined instead of its holder interval).
       // Proof: legacy optimizationInput made mounted upstream edits log connected optimization input is unsupported.
-      captureOf: async (projectId) => await graph.workItems.optimizationCapture(projectId),
+      captureOf: async (workPackageId) => await graph.workItems.optimizationCapture(workPackageId),
       hashInput: scheduleInputHash,
       // Proof: omitting this digest made mounted upstream edits log connected optimizer lacks installed digest.
       hashConnectedBytes,
@@ -320,10 +343,28 @@ export function buildServices(options: ServicesOptions): BeServices {
     }).optimizer;
   }
 
-  const publicRanks = boundSource.stores.projectRanks;
+  const publicRanks = boundSource.stores.workPackageRanks;
   if (publicRanks === undefined) throw new Error('SQLite source omitted its public rank store');
   return {
     ...graph,
+    spaceRead: options.createSpaceRead(boundSource),
+    planExports: boundSource.planExports,
+    workPackageObservation,
+    projects: new ProjectResource({
+      settings: new ProjectSettingsPurpose({
+        uow: boundSource.uow,
+        commandAccess: options.commandAccess,
+        clock,
+        announcements: graph.announcements,
+      }),
+      administration: new SqliteProjectAdministration(
+        source.db,
+        source.gate,
+        options.commandAccess,
+      ),
+      read: options.projectRead,
+      clock,
+    }),
     accessDecisions: boundSource.stores.accessDecisions,
     commandAccess: options.commandAccess,
     optimizer: coordinator,
@@ -331,7 +372,7 @@ export function buildServices(options: ServicesOptions): BeServices {
     // undefined when this process had no active solver runtime.
     optimizationLifecycle,
     gate: source.gate,
-    projectRanks: {
+    workPackageRanks: {
       ...standaloneRankStore(
         publicRanks,
         boundSource.uow,
@@ -339,7 +380,7 @@ export function buildServices(options: ServicesOptions): BeServices {
         options.commandAccess,
       ),
       // Proof: binding the raw repository here instead made the mounted
-      // demoted-switch and every-project cases in
+      // demoted-switch and every-work-package cases in
       // `capacity-mode.controller.db.test.ts` fail; watched 2026-10-11.
       ...standaloneCapacityModeSwitch(
         publicRanks,

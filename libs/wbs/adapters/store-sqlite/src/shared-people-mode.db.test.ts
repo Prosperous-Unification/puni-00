@@ -84,9 +84,9 @@ describe('shared people mode storage', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -116,9 +116,9 @@ describe('shared people mode storage', () => {
       '20261011120000_add_browser_auth_lifecycle',
     ]);
     const ledger = execute('SELECT * FROM __drizzle_migrations');
-    expect(() => rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_project_rank')).toThrow(
-      'shared-people-rollback-cli.ts',
-    );
+    expect(() =>
+      rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_work_package_rank'),
+    ).toThrow('shared-people-rollback-cli.ts');
     expect(execute("SELECT shared_people FROM organization WHERE id = 'org-a'")).toEqual([
       { shared_people: 1 },
     ]);
@@ -127,12 +127,12 @@ describe('shared people mode storage', () => {
 
   it('independently refuses column rollback while a rank exists', () => {
     execute(
-      "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES ('a1','org-a',1,1,'ada')",
+      "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES ('a1','org-a',1,1,'ada')",
     );
-    expect(() => rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_project_rank')).toThrow(
-      'project ranks exist',
-    );
+    expect(() =>
+      rollbackTo(path, MIGRATIONS_FOLDER, '20260929180000_add_work_package_rank'),
+    ).toThrow('work package ranks exist');
     expect(execute('SELECT shared_people FROM organization')).toHaveLength(2);
-    expect(execute('SELECT * FROM project_rank')).toHaveLength(1);
+    expect(execute('SELECT * FROM work_package_rank')).toHaveLength(1);
   });
 });

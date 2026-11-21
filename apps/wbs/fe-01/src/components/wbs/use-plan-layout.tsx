@@ -176,55 +176,55 @@ export function GanttHeightHandle({
 }
 
 /**
- * What this browser remembers about how this project's plan is laid out, read
- * at mount and kept in step with the project on screen.
+ * What this browser remembers about how this work package's plan is laid out, read
+ * at mount and kept in step with the work package on screen.
  *
  * The expansion, the dragged widths, the panel's height, the day scale and the
  * name column: five pieces of {@link remembered-layout}'s storage, held here as
  * state because every one of them is read on the first render and written when
- * a control is used. Switching project re-reads them all and saves none.
+ * a control is used. Switching work package re-reads them all and saves none.
  */
-export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
+export function useRememberedPlanLayout({ workPackageId }: { workPackageId: string }) {
   /**
-   * Which branches are open, as this browser last left them for this project.
+   * Which branches are open, as this browser last left them for this work package.
    *
    * Read straight into the initial state rather than in an effect: an effect
    * would render the default first and collapse the tree a frame later, which
    * is the plan visibly rearranging itself under the reader on every load.
    */
   const [expanded, setExpanded] = useState<ExpandedState>(
-    () => rememberedExpansion(projectId).value,
+    () => rememberedExpansion(workPackageId).value,
   );
 
-  /** Which project the expansion above belongs to, so a save cannot pair it with another. */
-  const expansionProject = useRef(projectId);
+  /** Which work package the expansion above belongs to, so a save cannot pair it with another. */
+  const expansionWorkPackage = useRef(workPackageId);
 
   /**
    * Saves every change to the expansion, and swaps it whole for another
-   * project's.
+   * work package's.
    *
    * The two are one effect because they are one rule: the state and the key it
-   * is written under must always name the same project. Switching project
+   * is written under must always name the same work package. Switching work package
    * re-reads first and saves nothing — this component is not remounted between
-   * projects (`project-page.tsx` renders it without a `key`), so without the
-   * swap the first save after a switch would stamp the old project's collapsed
-   * branches onto the new project's key.
+   * work packages (`work-package-page.tsx` renders it without a `key`), so without the
+   * swap the first save after a switch would stamp the old work package's collapsed
+   * branches onto the new work package's key.
    */
   useEffect(() => {
-    if (expansionProject.current !== projectId) {
-      expansionProject.current = projectId;
-      setExpanded(rememberedExpansion(projectId).value);
+    if (expansionWorkPackage.current !== workPackageId) {
+      expansionWorkPackage.current = workPackageId;
+      setExpanded(rememberedExpansion(workPackageId).value);
       return;
     }
     // Proof: removed, `remembers a collapsed branch across a remount` failed
     // with the branch open again, and `drops a remembered expansion that is
     // not one` failed with the hand-edited value still in storage. Watched,
     // 2026-08-06.
-    rememberExpansion(projectId, expanded);
-  }, [projectId, expanded]);
+    rememberExpansion(workPackageId, expanded);
+  }, [workPackageId, expanded]);
 
   /**
-   * How wide this browser has dragged this project's columns, by column id.
+   * How wide this browser has dragged this work package's columns, by column id.
    *
    * Beside the expansion and **not** in the `columns` memo, which is the whole
    * of where this state is allowed to live: it reaches the layout through
@@ -236,21 +236,21 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * column one frame later.
    */
   const [widthOverrides, setWidthOverrides] = useState<Map<string, number>>(
-    () => rememberedWidthOverrides(projectId).value,
+    () => rememberedWidthOverrides(workPackageId).value,
   );
 
-  /** Which project the widths above belong to, so a save cannot pair them with another. */
-  const widthProject = useRef(projectId);
+  /** Which work package the widths above belong to, so a save cannot pair them with another. */
+  const widthWorkPackage = useRef(workPackageId);
 
   /**
-   * The Gantt panel's dragged height, or `null` while this project's panel has
+   * The Gantt panel's dragged height, or `null` while this work package's panel has
    * never been dragged — which is the bounded default share, not a number.
    *
    * Read straight into the initial state for {@link widthOverrides}'s reason:
    * an effect would open the chart at its default and move it a frame later.
    */
   const [ganttHeightPx, setGanttHeightPx] = useState<number | null>(
-    () => rememberedGanttHeight(projectId).value,
+    () => rememberedGanttHeight(workPackageId).value,
   );
 
   /**
@@ -275,7 +275,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
 
   /**
    * The day scale in force, and {@link DAY_PX} where this browser has never
-   * picked one for this project.
+   * picked one for this work package.
    *
    * A resolved rung rather than `DayPx | null`, which is where it parts from
    * {@link ganttHeightPx} beside it: a height of `null` is a real state — the
@@ -283,7 +283,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * such thing as a chart drawn at no scale. What "never picked" buys is
    * {@link resetLayout}'s answer, and that is `DAY_PX` either way.
    */
-  const [initialGanttRung] = useState(() => rememberedGanttDayPx(projectId));
+  const [initialGanttRung] = useState(() => rememberedGanttDayPx(workPackageId));
   const [ganttDayPx, setGanttDayPx] = useState<DayPx>(initialGanttRung.value ?? DAY_PX);
   const [ganttRungNotice, setGanttRungNotice] = useState<string | null>(
     initialGanttRung.wasReset ? 'Remembered rung was unknown; reset to Days' : null,
@@ -291,7 +291,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
 
   /**
    * Whether the chart draws its row-name column, and `true` where this browser
-   * has never said for this project.
+   * has never said for this work package.
    *
    * Resolved rather than `boolean | null` for {@link ganttDayPx}'s reason:
    * there is no such thing as a chart drawn with the names in neither state,
@@ -299,7 +299,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * either way.
    */
   const [ganttLabelsShown, setGanttLabelsShown] = useState<boolean>(
-    () => rememberedGanttLabels(projectId).value ?? true,
+    () => rememberedGanttLabels(workPackageId).value ?? true,
   );
 
   /**
@@ -310,9 +310,9 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
    * reason: there is no such thing as a fence written with its `section` lines
    * in no grouping at all.
    *
-   * Not swapped by the project effect below, unlike the four layout answers
+   * Not swapped by the work package effect below, unlike the four layout answers
    * there: {@link MERMAID_SECTION_MODE_KEY} is one key for the browser, so
-   * there is nothing per project to swap in.
+   * there is nothing per work package to swap in.
    */
   const [mermaidSectionMode, setMermaidSectionMode] = useState<SectionMode>(
     () => rememberedMermaidSectionMode().value ?? DEFAULT_SECTION_MODE,
@@ -322,7 +322,7 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
     setExpanded,
     widthOverrides,
     setWidthOverrides,
-    widthProject,
+    widthWorkPackage,
     ganttHeightPx,
     setGanttHeightPx,
     ganttColumn,
@@ -340,16 +340,16 @@ export function useRememberedPlanLayout({ projectId }: { projectId: string }) {
 }
 
 /**
- * Swaps the remembered layout whole when the project on screen changes.
+ * Swaps the remembered layout whole when the work package on screen changes.
  *
  * Its own hook rather than a branch inside the reads above, because it is the
  * one thing about them that is not a read: this component is not remounted
- * between projects (`project-page.tsx` renders it without a `key`), so without
- * this the second project would be laid out by the first one's widths.
+ * between work packages (`work-package-page.tsx` renders it without a `key`), so without
+ * this the second work package would be laid out by the first one's widths.
  */
 export function usePlanLayoutSwap({
-  widthProject,
-  projectId,
+  widthWorkPackage,
+  workPackageId,
   setWidthOverrides,
   setStoredHiddenColumns,
   setGanttHeightPx,
@@ -357,8 +357,8 @@ export function usePlanLayoutSwap({
   setGanttRungNotice,
   setGanttLabelsShown,
 }: {
-  widthProject: React.RefObject<string>;
-  projectId: string;
+  widthWorkPackage: React.RefObject<string>;
+  workPackageId: string;
   setWidthOverrides: React.Dispatch<React.SetStateAction<Map<string, number>>>;
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   setGanttHeightPx: React.Dispatch<React.SetStateAction<number | null>>;
@@ -367,34 +367,34 @@ export function usePlanLayoutSwap({
   setGanttLabelsShown: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   /**
-   * Swaps the widths and the panel height whole when the project does.
+   * Swaps the widths and the panel height whole when the work package does.
    *
    * Not the expansion's effect, and not paired with a save: nothing is written
    * here at all. Both are written when a drag is let go of and when the
    * reset is pressed, so there is no first-save-after-a-switch to guard against
-   * — only the read, which would otherwise leave one project's layout laid out
+   * — only the read, which would otherwise leave one work package's layout laid out
    * over another's.
    */
   useEffect(() => {
-    if (widthProject.current === projectId) return;
-    widthProject.current = projectId;
-    setWidthOverrides(rememberedWidthOverrides(projectId).value);
-    setStoredHiddenColumns(rememberedHiddenColumns(projectId).value);
-    setGanttHeightPx(rememberedGanttHeight(projectId).value);
-    const recalledRung = rememberedGanttDayPx(projectId);
+    if (widthWorkPackage.current === workPackageId) return;
+    widthWorkPackage.current = workPackageId;
+    setWidthOverrides(rememberedWidthOverrides(workPackageId).value);
+    setStoredHiddenColumns(rememberedHiddenColumns(workPackageId).value);
+    setGanttHeightPx(rememberedGanttHeight(workPackageId).value);
+    const recalledRung = rememberedGanttDayPx(workPackageId);
     setGanttDayPx(recalledRung.value ?? DAY_PX);
-    // Proof: removing this update left p1's refusal title on p2; the project-switch case failed (2026-10-12).
+    // Proof: removing this update left p1's refusal title on p2; the work-package-switch case failed (2026-10-12).
     setGanttRungNotice(recalledRung.wasReset ? 'Remembered rung was unknown; reset to Days' : null);
-    setGanttLabelsShown(rememberedGanttLabels(projectId).value ?? true);
+    setGanttLabelsShown(rememberedGanttLabels(workPackageId).value ?? true);
   }, [
-    projectId,
+    workPackageId,
     setGanttDayPx,
     setGanttRungNotice,
     setGanttHeightPx,
     setGanttLabelsShown,
     setStoredHiddenColumns,
     setWidthOverrides,
-    widthProject,
+    widthWorkPackage,
   ]);
   return {};
 }
@@ -573,7 +573,7 @@ export function usePlanLayoutEffects({
 }
 
 /**
- * What the Depends on cells draw as chips, over the whole project for the
+ * What the Depends on cells draw as chips, over the whole work package for the
  * `deepestDepth` reason in {@link usePlanLayout}: every plain wait
  * (`010.3.01 ✕`) and every typed dependency between whole rows (`020 SS`, or
  * `020 ✕` for a whole finish-to-start) — the chip words `dependencyWords`
@@ -631,7 +631,7 @@ export function usePlanLayout({
   typedDependencies,
   widthOverrides,
   setWidthOverrides,
-  projectId,
+  workPackageId,
   setGanttHeightPx,
   setGanttDayPx,
   setGanttRungNotice,
@@ -647,7 +647,7 @@ export function usePlanLayout({
   typedDependencies: readonly TypedDependencyView[];
   widthOverrides: Map<string, number>;
   setWidthOverrides: React.Dispatch<React.SetStateAction<Map<string, number>>>;
-  projectId: string;
+  workPackageId: string;
   setGanttHeightPx: React.Dispatch<React.SetStateAction<number | null>>;
   setGanttDayPx: React.Dispatch<React.SetStateAction<DayPx>>;
   setGanttRungNotice: React.Dispatch<React.SetStateAction<string | null>>;
@@ -667,7 +667,7 @@ export function usePlanLayout({
    * Every fact about this plan that a column's width is allowed to depend on.
    *
    * `flat` rather than the rows on screen, and that is the whole point of the
-   * question being asked this way: it is every row in the **project**, open or
+   * question being asked this way: it is every row in the **work package**, open or
    * collapsed, matched by a search or narrowed out of it. A column that got
    * narrower because the one row with a day on it was collapsed away would
    * change width under a reader who was only scrolling.
@@ -711,7 +711,7 @@ export function usePlanLayout({
 
   /** What the resize handles on the heading row do with the widths they work out. */
   const resizeColumn: ColumnResize = createColumnResize(
-    projectId,
+    workPackageId,
     widthOverrides,
     setWidthOverrides,
   );
@@ -725,18 +725,18 @@ export function usePlanLayout({
     },
     commit: (heightPx) => {
       setGanttHeightPx(heightPx);
-      rememberGanttHeight(projectId, heightPx);
+      rememberGanttHeight(workPackageId, heightPx);
     },
     abandon: () => {
       // Re-read from storage rather than remembered in a ref, for
       // {@link resizeColumn}'s reason: the storage is the last committed
       // answer by construction.
-      setGanttHeightPx(rememberedGanttHeight(projectId).value);
+      setGanttHeightPx(rememberedGanttHeight(workPackageId).value);
     },
   };
 
   /**
-   * Forgets the Gantt's own settings for this project — the dragged panel
+   * Forgets the Gantt's own settings for this work package — the dragged panel
    * height, the picked day scale and the hidden row-name labels — so each
    * returns to what is resolved for it **now**: the panel to its default
    * share, the scale back to {@link DAY_PX} (Days), the labels to shown.
@@ -751,18 +751,18 @@ export function usePlanLayout({
    */
   function resetGanttSettings(): void {
     setGanttHeightPx(null);
-    forgetGanttHeight(projectId);
+    forgetGanttHeight(workPackageId);
     setGanttDayPx(DAY_PX);
     // Proof: removing this update kept the title after Reset layout; the layout-reset notice case failed (2026-10-12).
     setGanttRungNotice(null);
-    forgetGanttDayPx(projectId);
+    forgetGanttDayPx(workPackageId);
     setGanttLabelsShown(true);
-    forgetGanttLabels(projectId);
+    forgetGanttLabels(workPackageId);
   }
 
   /**
    * Forgets the column widths, the hidden columns **and** the Gantt settings
-   * for this project, so each returns to what is resolved for it **now** — the
+   * for this work package, so each returns to what is resolved for it **now** — the
    * widths to the frame layout's answer, the columns on screen to the default
    * column set, the chart to its default share, the scale to Days, the labels
    * to shown.
@@ -779,10 +779,10 @@ export function usePlanLayout({
    */
   function resetLayout(): void {
     setWidthOverrides(new Map());
-    forgetWidthOverrides(projectId);
+    forgetWidthOverrides(workPackageId);
     setStoredHiddenColumns(resetTargetHiddenColumnIds);
-    forgetHiddenColumns(projectId);
-    rememberLinksResetTarget(projectId, hasAnyExternalRefs);
+    forgetHiddenColumns(workPackageId);
+    rememberLinksResetTarget(workPackageId, hasAnyExternalRefs);
     // Proof: with this call removed, `Reset layout forgets the measure columns`
     // (measure-panel.test.tsx) still read `{"tokens":true}`; watched 2026-10-23.
     measureColumns?.forget();

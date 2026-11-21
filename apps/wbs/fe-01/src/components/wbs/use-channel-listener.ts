@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 import type { Channel } from '@/modules/channel';
 
 /**
- * Listens to one project channel for as long as the component is mounted, with
+ * Listens to one work package channel for as long as the component is mounted, with
  * the listener of the latest render.
  *
  * Three things a naive `useEffect(() => channel.subscribe(listener))` gets

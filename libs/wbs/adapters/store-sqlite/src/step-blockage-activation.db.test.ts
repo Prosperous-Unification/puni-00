@@ -30,11 +30,11 @@ beforeEach(() => {
   const sqlite = openDatabase(path);
   sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)");
   sqlite.run(
-    "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1)",
+    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1)",
   );
-  sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1)");
+  sqlite.run("INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1)");
   sqlite.run(
-    "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0)",
+    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0)",
   );
   sqlite.close();
 });
@@ -98,7 +98,7 @@ for (const statement of [
   "UPDATE step_blockage SET blocked_at=2 WHERE work_item_id='a'",
   "DELETE FROM step_blockage WHERE work_item_id='a'",
   "DELETE FROM work_item WHERE id='a'",
-  "DELETE FROM project WHERE id='p'",
+  "DELETE FROM work_package WHERE id='p'",
 ]) {
   it(`refuses independent disabled writer: ${statement}`, () => {
     activateTestStepBlockages(path);
@@ -109,7 +109,7 @@ for (const statement of [
     const writer = openDatabase(path);
     try {
       expect(() => writer.run(statement)).toThrow(
-        statement.includes('DELETE FROM project')
+        statement.includes('DELETE FROM work_package')
           ? 'FOREIGN KEY constraint failed'
           : 'step_blockage_inactive',
       );
@@ -205,7 +205,7 @@ it('rolls back earlier writes before mapping an inactive writer through the prod
   try {
     expect(
       source.uow.run(async ({ stores }) => {
-        source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+        source.db.run("UPDATE work_package SET name='changed',revision=revision+1 WHERE id='p'");
         await stores.blockages.set(
           { workItemId: 'a', stepId: 'dev', blockedAt: 1 },
           { at: 1, by: 'u' },
@@ -215,10 +215,10 @@ it('rolls back earlier writes before mapping an inactive writer through the prod
     ).rejects.toBeInstanceOf(StepBlockageInactive);
     expect(
       source.db.get<{ name: string; revision: number }>(
-        "SELECT name,revision FROM project WHERE id='p'",
+        "SELECT name,revision FROM work_package WHERE id='p'",
       ),
     ).toEqual({ name: 'Plan', revision: 0 });
-    expect(await source.stores.blockages.listByProject('p')).toEqual([]);
+    expect(await source.stores.blockages.listByWorkPackage('p')).toEqual([]);
   } finally {
     await source.close();
   }
@@ -241,15 +241,17 @@ for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
           : { do: 'patch' };
       const preconditions = direction === 'preconditions' ? { moveProgress: {} } : {};
       source.db
-        .run(sql`INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+        .run(sql`INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
         VALUES ('j','p','u',1,'deleteWorkItem',${JSON.stringify(payload)},${JSON.stringify(inverse)},${JSON.stringify(preconditions)},0,1)`);
       const before = source.db.all('SELECT * FROM command_journal');
       for (const undone of [true, false]) {
         expect(
           source.uow.run(async ({ stores }) => {
-            source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+            source.db.run(
+              "UPDATE work_package SET name='changed',revision=revision+1 WHERE id='p'",
+            );
             await stores.journal.flip(
-              { projectId: 'p', userId: 'u', personId: null },
+              { workPackageId: 'p', userId: 'u', personId: null },
               'j',
               undone,
               {},
@@ -260,7 +262,7 @@ for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
         expect(source.db.all('SELECT * FROM command_journal')).toEqual(before);
         expect(
           source.db.get<{ name: string; revision: number }>(
-            "SELECT name,revision FROM project WHERE id='p'",
+            "SELECT name,revision FROM work_package WHERE id='p'",
           ),
         ).toEqual({ name: 'Plan', revision: 0 });
       }
@@ -290,7 +292,7 @@ for (const retained of ['facts', 'forward-history', 'inverse-history', 'precondi
           : { do: 'patch' };
       const preconditions = retained === 'preconditions' ? { moveProgress: {} } : {};
       sqlite.run(
-        `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+        `INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`,
         [JSON.stringify(payload), JSON.stringify(inverse), JSON.stringify(preconditions)],
       );
@@ -334,14 +336,14 @@ it('maps an inactive raw owner cascade after full production UoW rollback', asyn
     source.db.run("UPDATE step_blockage_activation SET state='DISABLED'");
     expect(
       source.uow.run(() => {
-        source.db.run("UPDATE project SET name='changed',revision=revision+1 WHERE id='p'");
+        source.db.run("UPDATE work_package SET name='changed',revision=revision+1 WHERE id='p'");
         source.db.run("DELETE FROM work_item WHERE id='a'");
         return Promise.resolve({ commit: true, value: 'committed' });
       }),
     ).rejects.toBeInstanceOf(StepBlockageInactive);
     expect(
       source.db.get<{ name: string; revision: number }>(
-        "SELECT name,revision FROM project WHERE id='p'",
+        "SELECT name,revision FROM work_package WHERE id='p'",
       ),
     ).toEqual({ name: 'Plan', revision: 0 });
     expect(source.db.all('SELECT work_item_id,step_id,blocked_at FROM step_blockage')).toEqual([

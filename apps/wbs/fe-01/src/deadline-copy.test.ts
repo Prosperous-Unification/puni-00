@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
  *
  * The standing scenario is `specs/scheduler-optimization/spec.md`'s "only the
  * exact column labels use unqualified Deadline": every other occurrence reads
- * either _project deadline_ or _work item deadline_, because the two are
+ * either _work_package deadline_ or _work item deadline_, because the two are
  * different dates and a bare "deadline" beside a row does not say which one
  * moved. The only exceptions are the compact table heading and the matching
  * entry in the Columns control, whose exact label is the product contract
@@ -228,7 +228,9 @@ const OCCURRENCE = /\bdeadlines?\b/gi;
 const HAS_OCCURRENCE = /\bdeadlines?\b/i;
 
 /** What has to sit immediately in front of every occurrence. */
-const QUALIFIER = /(?:project|work item)\s$/i;
+// Proof: frontend-fault-deadline-phrase-v120 restored the internal camel-case token;
+// the work-package phrase control failed, then passed after exact restoration.
+const QUALIFIER = /(?:work package|work item)\s$/i;
 
 /**
  * A bare lower-case token — `deadline`, `not-before`, `deadline_at`.
@@ -290,6 +292,13 @@ describe('the scan, on sources written to fail it', () => {
   it('reads the same label as qualified once it names which deadline', () => {
     const source = 'const a = <input aria-label={`Work item deadline for ${n}`} />;\n';
     expect(runsIn('src/x.tsx', source).flatMap(unqualifiedIn)).toEqual([]);
+  });
+
+  it('recognizes the work package deadline while refusing an unspaced internal name', () => {
+    const qualified = 'const a = <p>Earlier work package deadline</p>;\n';
+    const internal = 'const a = <p>Earlier workPackage deadline</p>;\n';
+    expect(runsIn('src/x.tsx', qualified).flatMap(unqualifiedIn)).toEqual([]);
+    expect(runsIn('src/x.tsx', internal).flatMap(unqualifiedIn)).toHaveLength(1);
   });
 
   it('reads JSX text, which this item’s first measurement never scanned', () => {
@@ -463,7 +472,7 @@ describe('shipped deadline copy', () => {
     const texts = deadlineCopy().map((run) => run.text);
     expect(texts.filter((text) => text === 'Work item deadline for ')).toHaveLength(7);
     expect(texts.filter((text) => text.includes('This work item deadline falls before'))).toEqual([
-      "This work item deadline falls before the project's first working day, so nothing can finish by it. The date is kept; move the work item deadline or the project start.",
+      "This work item deadline falls before the work package's first working day, so nothing can finish by it. The date is kept; move the work item deadline or the work package start.",
     ]);
     expect(texts.some((text) => text.includes('hold a work item deadline against'))).toBe(true);
   });

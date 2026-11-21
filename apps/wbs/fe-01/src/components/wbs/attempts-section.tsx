@@ -57,7 +57,7 @@ export interface AttemptsSectionProps {
  * reach a cell (see {@link Button}). The phone card's step details draw the
  * same section for the same reason a phone has no hover to open the card.
  *
- * **Nothing at all without the project's zone.** A be-01 whose tree read
+ * **Nothing at all without the work package's zone.** A be-01 whose tree read
  * predates `timezone` sends attempts it cannot say the days of; printing them
  * in the browser's zone would be the two-readers-two-days fault D3 exists to
  * stop, so the list and its actions are left out and the summary lines above
@@ -145,7 +145,7 @@ export function AttemptsSection({
 }: AttemptsSectionProps) {
   const zone = node.timezone;
   // Proof: the zone defaulted to `UTC` and this guard removed, `leaves the
-  // list and its actions out without the project zone` failed on `expected
+  // list and its actions out without the work package zone` failed on `expected
   // <ol …(2)>…(2)</ol> to be null`; watched 2026-10-12.
   if (zone === null) return null;
   const newestFirst = [...node.attempts].reverse();

@@ -4,16 +4,28 @@ import { expect, it } from 'bun:test';
 
 import type { CapturedFanout } from '../ports/fanout-capture-store';
 import { recordCommittedFanout } from './committed-fanout';
-import { compareSharedPeopleFanout, type FanoutProject } from './shared-people-fanout';
+import { compareSharedPeopleFanout, type FanoutWorkPackage } from './shared-people-fanout';
 
-function project(projectId: string, personIds: string[], incomingBasis: string): FanoutProject {
+function workPackage(
+  workPackageId: string,
+  personIds: string[],
+  incomingBasis: string,
+): FanoutWorkPackage {
   const assigned = personIds.at(-1) ?? null;
   const planned = schedule(
-    [{ id: `${projectId}-row`, parentId: null, position: 10, frozenNumber: null, priority: null }],
+    [
+      {
+        id: `${workPackageId}-row`,
+        parentId: null,
+        position: 10,
+        frozenNumber: null,
+        priority: null,
+      },
+    ],
     [],
     [
       {
-        workItemId: `${projectId}-row`,
+        workItemId: `${workPackageId}-row`,
         stepId: 'build',
         days: 1,
         personId: assigned,
@@ -27,9 +39,9 @@ function project(projectId: string, personIds: string[], incomingBasis: string):
     new Map(),
   );
   return {
-    projectId,
+    workPackageId,
     organizationId: 'org-a',
-    name: projectId,
+    name: workPackageId,
     rankPosition: 10,
     startDate: '2026-10-05',
     personIds,
@@ -41,18 +53,18 @@ function project(projectId: string, personIds: string[], incomingBasis: string):
 }
 
 it('treats both changed connection endpoints as direct causes without adding transitive recipients', async () => {
-  const beforeProjects = [
-    project('A', ['ana'], 'a'),
-    project('B', ['ana', 'ben'], 'b'),
-    project('C', ['ben'], 'old'),
+  const beforeWorkPackages = [
+    workPackage('A', ['ana'], 'a'),
+    workPackage('B', ['ana', 'ben'], 'b'),
+    workPackage('C', ['ben'], 'old'),
   ];
-  const afterProjects = [
-    beforeProjects[0],
-    project('B', ['ben'], 'b'),
-    project('C', ['ben'], 'new'),
+  const afterWorkPackages = [
+    beforeWorkPackages[0],
+    workPackage('B', ['ben'], 'b'),
+    workPackage('C', ['ben'], 'new'),
   ];
-  const captured = (projects: FanoutProject[], bFact: string): CapturedFanout => ({
-    observation: { mode: 'shared', organizationId: 'org-a', projects },
+  const captured = (workPackages: FanoutWorkPackage[], bFact: string): CapturedFanout => ({
+    observation: { mode: 'shared', organizationId: 'org-a', workPackages },
     dependency: null,
     localFacts: new Map([
       ['A', 'same'],
@@ -63,20 +75,20 @@ it('treats both changed connection endpoints as direct causes without adding tra
   const eventLog = openMemorySource().stores.eventLog;
   const committed = await recordCommittedFanout(
     eventLog,
-    captured(beforeProjects, 'old'),
-    captured(afterProjects, 'new'),
+    captured(beforeWorkPackages, 'old'),
+    captured(afterWorkPackages, 'new'),
     () => 1,
   );
 
-  expect(committed.map(({ projectId, event }) => [projectId, event])).toEqual([
-    ['C', { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'A' }],
-    ['C', { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'B' }],
+  expect(committed.map(({ workPackageId, event }) => [workPackageId, event])).toEqual([
+    ['C', { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'A' }],
+    ['C', { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'B' }],
   ]);
-  expect(await eventLog.rangeSince('project:C', -1)).toHaveLength(2);
+  expect(await eventLog.rangeSince('work-package:C', -1)).toHaveLength(2);
 });
 
 it('uses an addressed retirement cause when selected display changes at equal local facts', async () => {
-  const upstream = project('A', ['ana'], 'same-basis');
+  const upstream = workPackage('A', ['ana'], 'same-basis');
   if (upstream.outcome.kind !== 'scheduled') throw new Error('fixture must schedule A');
   const selected = schedule(
     [{ id: 'A-row', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -87,7 +99,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     'whole-item',
     new Map(),
   );
-  const ready: FanoutProject = {
+  const ready: FanoutWorkPackage = {
     ...upstream,
     outcome: {
       kind: 'scheduled',
@@ -103,8 +115,8 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     },
     settings: { optimizationEnabled: true, scheduleEngine: 'optimized', scheduleObjective: 'pri' },
   };
-  const downstream = project('B', ['ana'], 'same-basis');
-  const afterUpstream: FanoutProject = {
+  const downstream = workPackage('B', ['ana'], 'same-basis');
+  const afterUpstream: FanoutWorkPackage = {
     ...upstream,
     settings: ready.settings,
     outcome: {
@@ -121,7 +133,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     },
   };
   const before: CapturedFanout = {
-    observation: { mode: 'shared', organizationId: 'org-a', projects: [ready, downstream] },
+    observation: { mode: 'shared', organizationId: 'org-a', workPackages: [ready, downstream] },
     dependency: null,
     localFacts: new Map([
       ['A', 'same'],
@@ -129,7 +141,11 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     ]),
   };
   const after: CapturedFanout = {
-    observation: { mode: 'shared', organizationId: 'org-a', projects: [afterUpstream, downstream] },
+    observation: {
+      mode: 'shared',
+      organizationId: 'org-a',
+      workPackages: [afterUpstream, downstream],
+    },
     dependency: null,
     localFacts: new Map([
       ['A', 'same'],
@@ -141,10 +157,10 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     after: after.observation,
     directCauses: ['A'],
   });
-  expect(comparison.projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged).toBe(
-    true,
-  );
-  expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+  expect(
+    comparison.projections.find(({ workPackageId }) => workPackageId === 'A')?.bookingsChanged,
+  ).toBe(true);
+  expect(comparison.recipients).toEqual([{ workPackageId: 'B', causeWorkPackageId: 'A' }]);
   const committed = await recordCommittedFanout(
     openMemorySource().stores.eventLog,
     before,
@@ -152,8 +168,8 @@ it('uses an addressed retirement cause when selected display changes at equal lo
     () => 1,
     ['A'],
   );
-  expect(committed.map(({ projectId, event }) => [projectId, event])).toEqual([
-    ['B', { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+  expect(committed.map(({ workPackageId, event }) => [workPackageId, event])).toEqual([
+    ['B', { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
   ]);
 });
 
@@ -162,15 +178,15 @@ function dependencyCapture(
   connections: readonly (readonly [string, string])[],
 ): CapturedFanout {
   return {
-    observation: { mode: 'isolated', organizationId: 'org-a', projects: [] },
+    observation: { mode: 'isolated', organizationId: 'org-a', workPackages: [] },
     localFacts: new Map(),
     dependency: {
       organizationId: 'org-a',
-      projects: new Map(facts),
-      connections: connections.map(([predecessorProjectId, successorProjectId]) => ({
-        key: `${predecessorProjectId}-${successorProjectId}`,
-        predecessorProjectId,
-        successorProjectId,
+      workPackages: new Map(facts),
+      connections: connections.map(([predecessorWorkPackageId, successorWorkPackageId]) => ({
+        key: `${predecessorWorkPackageId}-${successorWorkPackageId}`,
+        predecessorWorkPackageId,
+        successorWorkPackageId,
       })),
     },
   };
@@ -206,8 +222,8 @@ it('invalidates a transitive dependency component without shared people or booki
     () => 1,
   );
   expect(committed.map(({ event }) => event)).toEqual([
-    { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
-    { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'A' },
+    { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
+    { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'A' },
   ]);
 });
 
@@ -233,9 +249,9 @@ it('refreshes surviving old and new components after topology changes', async ()
     () => 1,
   );
   expect(
-    committed.map(({ projectId, event }) => [
-      projectId,
-      event.type === 'elsewhere_changed' ? event.causeProjectId : null,
+    committed.map(({ workPackageId, event }) => [
+      workPackageId,
+      event.type === 'elsewhere_changed' ? event.causeWorkPackageId : null,
     ]),
   ).toEqual([
     ['A', 'B'],
@@ -273,8 +289,8 @@ it('refreshes dependency recipients when authored relationship semantics change'
     () => 1,
   );
   expect(committed.map(({ event }) => event)).toEqual([
-    { type: 'elsewhere_changed', projectId: 'A', causeProjectId: 'B' },
-    { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    { type: 'elsewhere_changed', workPackageId: 'A', causeWorkPackageId: 'B' },
+    { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
   ]);
 });
 
@@ -311,9 +327,9 @@ it('does not invent a dependency path by mixing old and new topology edges', asy
     () => 1,
   );
   expect(
-    committed.map(({ projectId, event }) => [
-      projectId,
-      event.type === 'elsewhere_changed' ? event.causeProjectId : null,
+    committed.map(({ workPackageId, event }) => [
+      workPackageId,
+      event.type === 'elsewhere_changed' ? event.causeWorkPackageId : null,
     ]),
   ).toEqual([
     ['A', 'B'],
@@ -325,10 +341,10 @@ it('does not invent a dependency path by mixing old and new topology edges', asy
 
 it('refuses an explicit cause missing from the complete partitioned inventory', () => {
   const capture: CapturedFanout = {
-    observation: { mode: 'shared', organizationId: 'org-a', projects: [] },
+    observation: { mode: 'shared', organizationId: 'org-a', workPackages: [] },
     dependency: {
       organizationId: 'org-a',
-      projects: new Map([['A', 'connected']]),
+      workPackages: new Map([['A', 'connected']]),
       connections: [],
     },
     localFacts: new Map(),

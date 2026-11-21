@@ -1,0 +1,406 @@
+{
+  "schema": "wbs-current-qualified-addresses-v1",
+  "recordedAt": "2026-11-20T08:13:14.839Z",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+      "sha256": "19e93e1398adfc8229c5bfdfb418e7caccd4950ef8ae4b85eb9cc3aaea310b71",
+      "bytes": 11922,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/current-qualified-address.controller.db.test.ts",
+      "sha256": "e29ea0deca3532e317270c87b0a6ce7d5b834c81acc896aa732e6f1d5935c26f",
+      "bytes": 14926,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/ports/work-package-address-search.ts",
+      "sha256": "44816a4dea5e75e993b58ca5ccb0366391a5920cc6a4650c49fe4768c728a04b",
+      "bytes": 1883,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-package-address-search.ts",
+      "sha256": "108fc980019073c10f2564cd15cdfbdcf435badbcf540f784057e9335f9ef306",
+      "bytes": 16511,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-tree-reads.ts",
+      "sha256": "fbab9a27f0543d3fd1bca5c248108d09e20afbc69a20ef4ad9b2a5683e95c834",
+      "bytes": 2321,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-address-search.ts",
+      "sha256": "76e49f19fc09dee17bc67c58c7a3dc75e23b5697997df4012f1907544053fe3f",
+      "bytes": 7837,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-address-search.db.test.ts",
+      "sha256": "e2f290f6c663b5d1a107ea2866b41815184705c075233b3786fa2cfee440c58d",
+      "bytes": 6747,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-package-address-search.test.ts",
+      "sha256": "4cd26f4c768256eedf6e5155d09b0d05316094936c6873e798dcee5ea496e83c",
+      "bytes": 2754,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/core/src/service/work-package-address-revision.ts",
+      "sha256": "5d0748955bbadf769d133bde583adcd1ab9c8b366f729914e1468f5bdb9d06c5",
+      "bytes": 1049,
+      "mode": 436
+    }
+  ],
+  "assumptions": [
+    "Current qualified capture uses actual catalogue and per-leaf reads within its existing read-only admission transaction; header discovery stays bounded without a tree read.",
+    "Parent selectors deduplicate steps by first matching descendant in effective number/ID order, then each leaf SC18 order. Package-union metadata cannot reorder their coordinates.",
+    "Candidate step position remains package-union compatibility metadata; ordinal/reference spelling follows the actual leaf or filtered descendant list.",
+    "Qualified qar2 includes stable ID/parent-ID ancestry and the local ar2 description. A frozen move changes qualified selector observations even when unchanged local addresses keep ar2.",
+    "The two detached-purpose unit fixtures prove orchestration invariants/diagnostics only, not Source authorization. Actual composed HTTP and SQLite owner tests supply that evidence."
+  ],
+  "verification": {
+    "api": {
+      "phase": "current-qualified-address-api-mcp-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-api-mcp-v2.receipt.json",
+        "sha256": "386226236dcaaf432072db49d2705100dc6e215974126b4cd3ec595dc8ca1260",
+        "bytes": 2428,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-api-mcp-v2.log",
+        "sha256": "23d2cd653d0922cda4809dfaf3b74d746803fcdf43c06bc4af7112b2db0b505f",
+        "bytes": 32041,
+        "mode": 384
+      },
+      "passed": 229,
+      "failed": 0,
+      "assertions": 5369,
+      "tests": 229,
+      "files": 14,
+      "seconds": 213.81
+    },
+    "core": {
+      "phase": "current-core-source-only-v20",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v20.receipt.json",
+        "sha256": "d741a65cceb3af68360710956e2367afffb0d51955671b88835a14b2c5b3d965",
+        "bytes": 14678,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-core-source-only-v20.log",
+        "sha256": "394553b39e168c5b5dda56e8dfa1ec3eacb5cfe0cf4ff105c29d251e074f570d",
+        "bytes": 261920,
+        "mode": 384
+      },
+      "passed": 2064,
+      "failed": 27,
+      "assertions": 9447,
+      "tests": 2091,
+      "files": 169,
+      "seconds": 82.22,
+      "same27BaselineFailures": true,
+      "failures": [
+        "(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later",
+        "(fail) counting unit of work rejects unexpected store access and records rollback",
+        "(fail) deleting blocked work items > reports refused historical progress restoration during deletion undo",
+        "(fail) existing Navigator v13 bytes remain frozen under their historical descriptor",
+        "(fail) existing Navigator v14 bytes remain frozen under their historical descriptor",
+        "(fail) measures other than time never move the schedule > keeps the schedule digest byte-identical to a twin that never sees a measure write, over 200 random plans",
+        "(fail) moving work items > preserves historical parent progress during same-parent reorder and reparent into an existing parent",
+        "(fail) moving work items > preserves unchanged historical parent progress through last-child move undo redo",
+        "(fail) preserves base schedule slice bytes, pool order, canonical hash and Fast schedule",
+        "(fail) refuses a typed node endpoint absent from the full tree",
+        "(fail) rejects a required work package read returning another work package identity",
+        "(fail) setDemand > constrains nothing without a stated capacity: a demanding leaf is still claimed",
+        "(fail) the Plan import module > admits a small document over the graph installPlanImport wires",
+        "(fail) the Plan import module > keeps an external v11 import dormant before directory or work package writes",
+        "(fail) the live plan read levels resource demands > moves neither the schedule key nor a date when a leaf is claimed",
+        "(fail) the live plan read levels resource demands > serialises two leaves on the one staging environment and names it",
+        "(fail) throws for missing required work packages, unreadable facts and foreign work-item rows",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory progress replay",
+        "(fail) transactional memory move blockage closure > does not launder stale destination facts through memory rename replay",
+        "(fail) transactional memory move blockage closure > refuses known destination progress missing before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress state before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > refuses known destination progress time before the memory redo clears it",
+        "(fail) transactional memory move blockage closure > rolls back an earlier handed blockage clear when move undo finds new progress",
+        "(fail) transactional memory move blockage closure > rolls back extra historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back missing historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back state historical progress refusal through the memory runner",
+        "(fail) transactional memory move blockage closure > rolls back time historical progress refusal through the memory runner"
+      ],
+      "roster": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-only-roster-v20.json",
+        "sha256": "95e3f1230345b2e40dcc7dc6b857900de058ba23fb073e7f1fb8fc756aa16651",
+        "bytes": 43551,
+        "mode": 384
+      }
+    },
+    "focus": {
+      "phase": "current-qualified-final-focus-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-focus-v1.receipt.json",
+        "sha256": "f44a26552b1cace76bb282f8da49a6eb146b7842953362e4fdde770e0da57de6",
+        "bytes": 1621,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-focus-v1.log",
+        "sha256": "9b4ea5e133bea8e6ff6c54d8df415720bca6cbc73083f254afd7cc41cd1cead1",
+        "bytes": 1489,
+        "mode": 384
+      },
+      "passed": 11,
+      "failed": 0,
+      "assertions": 290,
+      "tests": 11,
+      "files": 4,
+      "seconds": 11.02,
+      "qualification": "Before final proof comments/formatting; three faulted production modules have matching Bun emissions and the final full cohort follows."
+    },
+    "backendTypes": {
+      "phase": "current-qualified-final-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-types-v2.receipt.json",
+        "sha256": "ed3993fe345751e4fbf583fdc9ebda3ef87482ea763808de8397ab035bec8269",
+        "bytes": 1357,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "frontendTypes": {
+      "phase": "current-qualified-final-frontend-types-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-frontend-types-v2.receipt.json",
+        "sha256": "0af021ad32d75ec7d44c6d61e8edfb7df7a1c8386337095d43bb8cd1efb05a63",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-frontend-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "lint": {
+      "phase": "current-qualified-final-lint-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-lint-v2.receipt.json",
+        "sha256": "6dfd3df2378eac87f3f18e6dd55989659c19214e97cc3bf174518f60daf7a630",
+        "bytes": 2001,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    "codeFormat": {
+      "phase": "current-qualified-final-format-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-format-v1.receipt.json",
+        "sha256": "4135a9acc07a23886c9afab003067c9503ac7c2e6283af035b6264bd5baa72fe",
+        "bytes": 2002,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      }
+    },
+    "proofs": {
+      "phase": "current-qualified-address-proofs-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-proofs-v2.receipt.json",
+        "sha256": "fa5da2f1a63580f1250e88e88f9454290044e397510bec0b019ac840cf782059",
+        "bytes": 1296,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-proofs-v2.log",
+        "sha256": "79a2c886fa98e0f653db954b430485bd7c787d83762995e49c59fbef74cf6404",
+        "bytes": 496,
+        "mode": 384
+      }
+    },
+    "audit": {
+      "phase": "current-qualified-retirement-audit-v2",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-retirement-audit-v2.receipt.json",
+        "sha256": "e11e31152114ea0baabcbfa09e73f0ebf7a1e983fa7d87d58a1f66ca0c0efa02",
+        "bytes": 1296,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-retirement-audit-v2.log",
+        "sha256": "5ac6590f344df0ac964fafc8e7d53ef67d21978005068ad1816b4ed1941a535c",
+        "bytes": 274,
+        "mode": 384
+      }
+    }
+  },
+  "effects": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-effects-v2.json",
+    "sha256": "30668c7d8ab12c9657aa1cb1723f640668708183ad591b3f7c1d733ee0382f61",
+    "bytes": 11777,
+    "mode": 384
+  },
+  "runtimeEmissions": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-comment-emissions-v2.json",
+    "sha256": "53e7d926fb39fea59c5865c3c27c0144b7ba5ec8c4f82d8ef2ba7bc4f89e8703",
+    "bytes": 504,
+    "mode": 436
+  },
+  "audit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v9.json",
+    "sha256": "2d37f0c488ad64181e9bd3a195493605f510d161211f370a843e0e6790e075e7",
+    "bytes": 1855244,
+    "mode": 384
+  },
+  "archive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  },
+  "attempts": [
+    {
+      "phase": "current-qualified-address-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-red-v1.receipt.json",
+        "sha256": "6c4dfadb1a94a19a79591ca5976d084bfd6118a8775d16bd23a36637ec04825f",
+        "bytes": 1362,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-address-red-v1.log",
+        "sha256": "53344b6c11b352bea8a1cfe3e5b51e5de0674b2993a0da5b085750091f2809f7",
+        "bytes": 8341,
+        "mode": 384
+      },
+      "qualification": "Intended actual HTTP regression failure before its production fix."
+    },
+    {
+      "phase": "current-qualified-parent-order-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-parent-order-red-v1.receipt.json",
+        "sha256": "f8efc4f35de9286a4865a382c8626d9685e2c1327834437b7d637ed75c18fb72",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-parent-order-red-v1.log",
+        "sha256": "653bc6ec5c91023144da14aac3f62e0b3845026cd67773c077c28565bad5ae3b",
+        "bytes": 2566,
+        "mode": 384
+      },
+      "qualification": "Intended actual HTTP regression failure before its production fix."
+    },
+    {
+      "phase": "current-qualified-ancestry-red-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-ancestry-red-v1.receipt.json",
+        "sha256": "1850fd58c9065270da8b4a052291e4e513202f9ad76ecaedebe2dfeb43bc2e2a",
+        "bytes": 1497,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-ancestry-red-v1.log",
+        "sha256": "b66b060fee60ecb713c94ea934233a3896bba6c4febd87d5e0a34b2cead015b7",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "qualification": "Intended actual HTTP regression failure before its production fix."
+    },
+    {
+      "phase": "current-qualified-store-control-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-store-control-v1.receipt.json",
+        "sha256": "0fa747a90ee0cea838af993a0cf9a48343aff893e19c70abf859e28b13ae5ed3",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-store-control-v1.log",
+        "sha256": "31d94c9b6ea77057ea8b421f06f32a6823fe88b425d8a20224e102f37a802d36",
+        "bytes": 2642,
+        "mode": 384
+      },
+      "qualification": "Retained setup/invocation attempt, superseded by final checks. Store: permanent activation marker, table spelling, integer CHECK; order: mistaken restricted-member expectation; types: wrong compiler path; lint: import order/optional chaining."
+    },
+    {
+      "phase": "current-qualified-order-control-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-order-control-v1.receipt.json",
+        "sha256": "022a7186a72c9d044492d2fd9fb5da19a9248ba08101491cc904b7e1d7a5823c",
+        "bytes": 1374,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-order-control-v1.log",
+        "sha256": "ce312b3dec2dc7b0d069c465a5156e92379dd24199724ed4b2fb80639365c085",
+        "bytes": 1617,
+        "mode": 384
+      },
+      "qualification": "Retained setup/invocation attempt, superseded by final checks. Store: permanent activation marker, table spelling, integer CHECK; order: mistaken restricted-member expectation; types: wrong compiler path; lint: import order/optional chaining."
+    },
+    {
+      "phase": "current-qualified-types-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-types-v1.receipt.json",
+        "sha256": "247850c15542d3fee5a6d3d76bd339d12d1ae888b09404b79a9a8b8f00bc35e0",
+        "bytes": 1326,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-types-v1.log",
+        "sha256": "82fc1edaa95a286bf058a9e87cbbfbed57c8554b3d99781c7f759635878508fa",
+        "bytes": 58,
+        "mode": 384
+      },
+      "qualification": "Retained setup/invocation attempt, superseded by final checks. Store: permanent activation marker, table spelling, integer CHECK; order: mistaken restricted-member expectation; types: wrong compiler path; lint: import order/optional chaining."
+    },
+    {
+      "phase": "current-qualified-lint-v1",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-lint-v1.receipt.json",
+        "sha256": "193243a240f6be91dd60a0a2d97a94698922cfb3a367472926a302a490a88980",
+        "bytes": 1828,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-qualified-lint-v1.log",
+        "sha256": "1621a2611d549bbf033a62223d99b65ef54b8421a78ff175e1172bfdf903d5f5",
+        "bytes": 917,
+        "mode": 384
+      },
+      "qualification": "Retained setup/invocation attempt, superseded by final checks. Store: permanent activation marker, table spelling, integer CHECK; order: mistaken restricted-member expectation; types: wrong compiler path; lint: import order/optional chaining."
+    }
+  ],
+  "remaining": [
+    "Migrate the older qualified HTTP fixture to current admitted births, catalogue identities and qar2 without retiring its original query/Unicode/cursor/opacity/legacy guarantees. It was not run in this slice.",
+    "Future attempt labels and connected endpoint labels still use package-wide order; preserve recorded history bytes when fixing future labels. Frontend fake API also retains global ordering.",
+    "Full tree/fact/authority owner capture, node readings/resources/slices, zero-step scheduling, all13 fact families and all15 genuine historical guarantees remain open; core still has27 baseline failures.",
+    "SC9 document/saved-input versions and converters, SC24 import, complete settings/type/UI/browser checks remain open.",
+    "All original entity dependencies and PUNI Optique1.3.6 aliases/Bun client-script inventory/embedding/installed toolchain/exact-SHA host gates/integration/release remain active.",
+    "Astra review remains unavailable until recorded Nov22,2026 10:09AM, timezone unspecified; no retry/spawn/substitute. Browser runtime, full host gates, installed CLI and release were not run."
+  ],
+  "qualification": "Bounded current qualified-purpose cutover and two paging fixes; no activation, frozen history rewrite, public commit, push, PR update, merge, deploy or install. All faults restored after terminal ownership. Original full goal remains active."
+}

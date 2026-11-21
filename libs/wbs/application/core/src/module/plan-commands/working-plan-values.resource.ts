@@ -9,10 +9,10 @@ interface WorkingValueStore<
   Value extends StoredValue,
   RemoveArguments extends readonly [workItemId: string, ...parameters: unknown[]],
 > {
-  listByProject(projectId: string): Promise<Value[]>;
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<Value[]>;
+  listByWorkPackage(workPackageId: string): Promise<Value[]>;
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<Value[]>;
   listPlacements(
-    projectId: string,
+    workPackageId: string,
     ids: readonly string[],
   ): Promise<{ id: string; afterId: string | null }[]>;
   set(value: Value, stamp: WriteStamp): Promise<StepWriteOutcome>;
@@ -21,10 +21,10 @@ interface WorkingValueStore<
 }
 
 interface RetainedValueReads<Value> {
-  all(projectId: string): Promise<Value[]>;
-  byWorkItems(projectId: string, ids: readonly string[]): Promise<Value[]>;
+  all(workPackageId: string): Promise<Value[]>;
+  byWorkItems(workPackageId: string, ids: readonly string[]): Promise<Value[]>;
   placements(
-    projectId: string,
+    workPackageId: string,
     ids: readonly string[],
   ): Promise<{ id: string; afterId: string | null }[]>;
 }
@@ -46,9 +46,9 @@ export function createWorkingPlanValues<
   refreshRows: (ids: readonly string[]) => Promise<void>,
 ): WorkingValueStore<Value, RemoveArguments> {
   return {
-    listByProject: async (projectId) => reads.all(projectId),
-    listByWorkItems: async (projectId, ids) => reads.byWorkItems(projectId, ids),
-    listPlacements: async (projectId, ids) => reads.placements(projectId, ids),
+    listByWorkPackage: async (workPackageId) => reads.all(workPackageId),
+    listByWorkItems: async (workPackageId, ids) => reads.byWorkItems(workPackageId, ids),
+    listPlacements: async (workPackageId, ids) => reads.placements(workPackageId, ids),
     set: async (value, stamp) => {
       assertOpen();
       const written = await source().set(value, stamp);

@@ -31,30 +31,30 @@ beforeEach(() => {
     sqlite.run(
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('owner','owner','hash',1)",
     );
-    for (const projectId of ['target', 'bystander']) {
+    for (const workPackageId of ['target', 'bystander']) {
       sqlite.run(
-        'INSERT INTO project (id,name,owner_id,restricted,revision,created_at) VALUES (?,?,?,0,0,1)',
-        [projectId, projectId, 'owner'],
+        'INSERT INTO work_package (id,name,owner_id,restricted,revision,created_at) VALUES (?,?,?,0,0,1)',
+        [workPackageId, workPackageId, 'owner'],
       );
       sqlite.run(
-        'INSERT INTO work_item (id,project_id,name,position,revision) VALUES (?,?,?,1,0)',
-        [projectId, projectId, projectId],
+        'INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES (?,?,?,1,0)',
+        [workPackageId, workPackageId, workPackageId],
       );
       for (const suffix of ['dev', 'qa'])
-        sqlite.run('INSERT INTO step (id,project_id,name,position) VALUES (?,?,?,?)', [
-          `${projectId}-${suffix}`,
-          projectId,
+        sqlite.run('INSERT INTO step (id,work_package_id,name,position) VALUES (?,?,?,?)', [
+          `${workPackageId}-${suffix}`,
+          workPackageId,
           suffix,
           suffix === 'dev' ? 10 : 20,
         ]);
       sqlite.run(
         'INSERT INTO estimate (work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,2,3)',
-        [projectId, `${projectId}-dev`],
+        [workPackageId, `${workPackageId}-dev`],
       );
-      sqlite.run('INSERT INTO project_access (user_id,project_id,last_opened_at) VALUES (?,?,2)', [
-        'owner',
-        projectId,
-      ]);
+      sqlite.run(
+        'INSERT INTO work_package_access (user_id,work_package_id,last_opened_at) VALUES (?,?,2)',
+        ['owner', workPackageId],
+      );
     }
     sqlite.run(
       "INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES ('target','target-dev',1),('target','target-qa',4),('bystander','bystander-dev',3)",
@@ -73,7 +73,7 @@ function seedSlot(): void {
   allocateGeneration(db, 'target', contractVersion, 'input', 10);
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'target',
+      workPackageId: 'target',
       inputHash: 'input',
       objective: 'pri',
       contractVersion,
@@ -87,7 +87,7 @@ function seedSlot(): void {
     .run();
   db.insert(solverSlot)
     .values({
-      projectId: 'target',
+      workPackageId: 'target',
       contractVersion,
       generation: 1,
       objective: 'time',
@@ -111,21 +111,21 @@ function runDrain(path: DrainPath) {
   if (path === 'finish') return finishOptimizationDrain(db, 'target');
   if (path === 'last-release')
     return releaseSolverSlot(db, {
-      projectId: 'target',
+      workPackageId: 'target',
       contractVersion,
       generation: 1,
       objective: 'time',
       budgetMs: 60,
       attemptToken: 'token',
     });
-  return db.transaction((tx) => reclaimExpiredSolverSlotsIn(tx, 100, { projectId: 'target' }));
+  return db.transaction((tx) => reclaimExpiredSolverSlotsIn(tx, 100, { workPackageId: 'target' }));
 }
 
 function snapshot(sparseTable = 'step_parallel'): unknown[] {
   const sqlite = openDatabase(filename);
   try {
     return [
-      'project',
+      'work_package',
       'work_item',
       'step',
       sparseTable,
@@ -133,7 +133,7 @@ function snapshot(sparseTable = 'step_parallel'): unknown[] {
       'solver_slot',
       'solver_queue',
       'optimized_schedule_cache',
-      'project_access',
+      'work_package_access',
       'estimate',
       'command_journal',
       'event_log',
@@ -147,7 +147,7 @@ function snapshot(sparseTable = 'step_parallel'): unknown[] {
 }
 
 for (const path of paths) {
-  it(`${path} deletes valid equal-default and unequal sparse facts only at terminal project deletion`, () => {
+  it(`${path} deletes valid equal-default and unequal sparse facts only at terminal work package deletion`, () => {
     if (path !== 'finish') seedSlot();
     const sqlite = openDatabase(filename);
     try {
@@ -169,7 +169,7 @@ for (const path of paths) {
             ? { released: true, retirement: 'finished', deletion: 'finished' }
             : { reclaimed: 1, finished: 1, waiting: 0 },
       );
-      expect(sqlite.query("SELECT id FROM project WHERE id = 'target'").all()).toEqual([]);
+      expect(sqlite.query("SELECT id FROM work_package WHERE id = 'target'").all()).toEqual([]);
       expect(sqlite.query('SELECT * FROM step_parallel').all()).toEqual(bystander);
       expect(sqlite.query('PRAGMA foreign_key_check').all()).toEqual([]);
     } finally {
@@ -216,7 +216,7 @@ for (const path of paths) {
         sqlite.run('PRAGMA foreign_keys = OFF');
         sqlite.run('PRAGMA ignore_check_constraints = ON');
         // Corruption injection must bypass the independent ownership trigger;
-        // disabling foreign keys/checks alone cannot store cross-project evidence.
+        // disabling foreign keys/checks alone cannot store cross-work-package evidence.
         if (isReferenceFault) sqlite.run('DROP TRIGGER step_parallel_owner_insert');
         if (fault === 'target-owner-foreign-step')
           sqlite.run(
@@ -236,7 +236,7 @@ for (const path of paths) {
           );
         if (fault === 'parent')
           sqlite.run(
-            "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','target','target','Child',1,0)",
+            "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','target','target','Child',1,0)",
           );
         if (
           fault === 'zero' ||
@@ -274,8 +274,8 @@ for (const path of paths) {
         expect(() => runDrain(path)).toThrow();
       } else {
         const diagnostics = {
-          'target-owner-foreign-step': 'step parallelism project mismatch',
-          'foreign-owner-target-step': 'step parallelism project mismatch',
+          'target-owner-foreign-step': 'step parallelism work package mismatch',
+          'foreign-owner-target-step': 'step parallelism work package mismatch',
           'missing-owner': 'step parallelism has an invalid work-item reference',
           'missing-step': 'step parallelism has an invalid step reference',
           parent: 'step parallelism owner is not a leaf',
@@ -317,14 +317,14 @@ for (const state of [
       sqlite.run('DROP TABLE step_parallel');
       if (state === 'dependency-refusal')
         sqlite.run(
-          "INSERT INTO dependency (id,project_id,predecessor_id,successor_id) VALUES ('cross','bystander','target','bystander')",
+          "INSERT INTO dependency (id,work_package_id,predecessor_id,successor_id) VALUES ('cross','bystander','target','bystander')",
         );
       if (state === 'typed-dependency-refusal')
         sqlite.run(
-          "INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('cross-typed','bystander','target','whole','bystander','whole','FS')",
+          "INSERT INTO typed_dependency (id,work_package_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('cross-typed','bystander','target','whole','bystander','whole','FS')",
         );
       if (state === 'dependency-refusal' || state === 'typed-dependency-refusal') {
-        expect(() => finishOptimizationDrain(db, 'target')).toThrow('cross-project');
+        expect(() => finishOptimizationDrain(db, 'target')).toThrow('cross-work-package');
       } else {
         expect(
           finishOptimizationDrain(
@@ -334,7 +334,7 @@ for (const state of [
           ),
         ).toBe(state === 'contract-only' ? 'finished' : state);
       }
-      expect(sqlite.query("SELECT id FROM project WHERE id = 'target'").all()).toEqual([
+      expect(sqlite.query("SELECT id FROM work_package WHERE id = 'target'").all()).toEqual([
         { id: 'target' },
       ]);
     } finally {

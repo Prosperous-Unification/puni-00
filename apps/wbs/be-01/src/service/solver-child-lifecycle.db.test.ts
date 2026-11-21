@@ -39,7 +39,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -52,7 +52,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
 function reserve(db: ReturnType<typeof openDrizzle>, token = 'token-1', now = 10): SolverChildSlot {
   const generation = allocateGeneration(db, 'p-1', CONTRACT, 'hash-1', now);
   const admission = reserveSolverSlot(db, {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation,
     objective: 'pri',
@@ -64,7 +64,7 @@ function reserve(db: ReturnType<typeof openDrizzle>, token = 'token-1', now = 10
   if (admission.kind !== 'reserved') throw new Error(`expected reservation, got ${admission.kind}`);
   expect(
     bindSolverSlot(db, {
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       contractVersion: CONTRACT,
       generation,
       objective: 'pri',
@@ -74,7 +74,7 @@ function reserve(db: ReturnType<typeof openDrizzle>, token = 'token-1', now = 10
     }),
   ).toBe(true);
   return {
-    projectId: 'p-1',
+    workPackageId: 'p-1',
     contractVersion: CONTRACT,
     generation,
     objective: 'pri',
@@ -308,7 +308,7 @@ describe('runSolverChildLifecycle', () => {
     if (first === undefined) throw new Error('missing first slot');
     expect(
       reserveSolverSlot(db, {
-        projectId: slot.projectId,
+        workPackageId: slot.workPackageId,
         contractVersion: slot.contractVersion,
         generation: slot.generation,
         objective: slot.objective,

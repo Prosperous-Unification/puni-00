@@ -1,0 +1,38 @@
+{
+  "schema": "puni-genuine-history-fixture-v1",
+  "scenario": "parent-existing",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "sourceLockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+  "runtime": {
+    "version": "1.4.4",
+    "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+  },
+  "originalProducerSha256": "c2c778cec62b2fda27eab4e43707b7e59f412cbc76eb7e74093de4321500d600",
+  "producerScriptSha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+  "databaseSha256": "232942c1ca48bad61d5954bcdbaee6246fd74a98b96e1acbe0836624383b91d0",
+  "gzipSha256": "420dd69b1ce2b46f166bb27bb3c5bd2c5a9577bab53bdc2cc8ba9cfa2874bacf",
+  "fingerprint": "3f7cb628b2b3657b5a62d554b77961448b4aeb4e1e154a57c1ed97159a36bf5a",
+  "ledgerEpoch": "20261115120000_add_step_migration_report",
+  "ledgerEntries": 116,
+  "provenance": "Actual old SQLite Source writers authored parent progress, same-parent reorder and reparenting under that existing parent. Actual current normal migrations advanced110→116; this is the E37 backup produced before actual117 apply. No journal or fact was hand-built or rewritten for this fixture. It carries isolated fixture blockage activation only; no live host/scoped authority.",
+  "historicalGuarantees": "Current point ports remain leaf-only. Original15scenarios remain open; this fixture certifies only the precise unsupported-live-parent admission refusal.",
+  "producerCommand": "bun --no-env-file --config=/dev/null --tsconfig-override=/tmp/puni-legacy-producer-v1/tree/tsconfig.base.json /tmp/puni-legacy-producer-v1/produce-history-v2.ts",
+  "producerScript": "legacy-history-producer.ts.txt",
+  "memoryProducer": {
+    "file": "legacy-memory-producer.ts.txt",
+    "sha256": "a4706db9dc5a56614bf17ca426e39e919341c11e2aba1f2d95420e77cd3627a4",
+    "captures": [
+      {
+        "kind": "rename",
+        "file": "legacy-memory-laundering-rename.capture.txt",
+        "sha256": "aa8438299a09ab5da8da22aa0fcfb0d70a48c4f2c5dce755e5282f2c2d3086e3"
+      },
+      {
+        "kind": "progress",
+        "file": "legacy-memory-laundering-progress.capture.txt",
+        "sha256": "70c009b235669c83b971ec8f377eb87e775a79652142fee0f1ee839ec5a2fa6a"
+      }
+    ],
+    "qualification": "Actual old Memory Source producers reach both laundering checkpoints and refuse final replay with unchanged rows/progress/blockages. All default project steps are explicitly authored through the old actual StepStore before observation. The earlier SQLite producer refuses at prior-command undo; these are separate genuine Memory journal values, not fabricated SQLite admission or current reader proof."
+  }
+}

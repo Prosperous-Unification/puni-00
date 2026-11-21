@@ -20,8 +20,8 @@ export function canDepend(
   successorId: string,
 ): DependencyRefusal | null {
   const known = new Set(rows.map((row) => row.id));
-  // Unknown is not OK, and it is also how a cross-project edge arrives: the rows
-  // are one project's, so a work item from another is simply not among them.
+  // Unknown is not OK, and it is also how a cross-work-package edge arrives: the rows
+  // are one work package's, so a work item from another is simply not among them.
   if (!known.has(predecessorId) || !known.has(successorId)) return 'not_found';
 
   // Onto itself, an ancestor, or a descendant. A parent already spans its
@@ -39,7 +39,7 @@ export function canDepend(
   // Asked of the graph the schedule will actually build, not of the edges as
   // written. The first version walked the written edges with its own tree-aware
   // reachability, and it was subtly wrong in both directions — an edge whose
-  // *expansion* closed a cycle was accepted, and every later read of the project
+  // *expansion* closed a cycle was accepted, and every later read of the work package
   // then threw. Both reviewers found it independently, with different examples.
   //
   // Expanding the proposed edge and asking whether the result can be ordered is

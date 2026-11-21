@@ -1,4 +1,6 @@
-import { Database, SQLiteError } from 'bun:sqlite';
+import { pathToFileURL } from 'node:url';
+
+import { constants, Database, SQLiteError } from 'bun:sqlite';
 import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -166,8 +168,8 @@ export function switchToWal(
  * went through the pragma assertions above.
  *
  * `logger` is drizzle's own hook and is how a caller can count the statements a
- * repository method issues — `costs one statement however many projects there
- * are` in `project.test.ts` is the reason it is here, because "the owner's name
+ * repository method issues — `costs one statement however many workPackages there
+ * are` in `work-package.test.ts` is the reason it is here, because "the owner's name
  * costs no extra query" is a claim about the number of round trips and nothing
  * about the returned rows can observe it. The process itself passes none, so
  * every production connection is silent as before.
@@ -372,7 +374,7 @@ export function drizzleOuterTransaction(db: Drizzle): {
  * function. `IMMEDIATE` takes the write lock at `BEGIN`, which is right for a
  * command batch that is *going* to write and wrong for a capture that never
  * does: it would make every save block concurrent editing for the length of a
- * whole-project read. `DEFERRED` takes a read lock at the first statement, and
+ * whole-work-package read. `DEFERRED` takes a read lock at the first statement, and
  * under WAL that pins the snapshot every later read in the block sees.
  *
  * **It must be held on a connection nothing else is using.** SQLite's
@@ -403,15 +405,106 @@ export function drizzleReadTransaction(db: Drizzle): {
   };
 }
 
+const readOnlyOwners = new WeakMap<Database, object>();
+
 /**
  * A read-only connection to an existing database file, for reports that must
  * leave the file byte for byte as they found it: no file is created, no
- * journal mode is set, and SQLite refuses any write. Opening a missing file
+ * journal mode is set, and SQLite refuses writes to its main database. Opening a missing file
  * throws.
  */
 export function openReadOnlyConnection(dbPath: string, logger?: Logger): Connection {
   const client = openReadOnlyDatabase(dbPath);
-  return wrapConnection(client, () => drizzle({ client, logger }));
+  const connection = wrapConnection(client, () => drizzle({ client, logger }));
+  readOnlyOwners.set(client, Object.freeze({}));
+  return connection;
+}
+
+/** A native-owner identity with no database capability; unavailable means this optional reuse is disabled. */
+export type ReadEpoch =
+  | {
+      readonly kind: 'available';
+      readonly owner: object;
+      readonly version: number;
+      readonly schema: number;
+      readonly tempSchema: number;
+      readonly changes: number;
+    }
+  | {
+      readonly kind: 'unavailable';
+      readonly reason: 'unregistered' | 'no_transaction' | 'attached';
+    };
+
+/**
+ * Identifies the exact held snapshot of one registered readonly native owner, across pool loans.
+ * Main commits, main/TEMP DDL and TEMP writes participate independently. Attachments decline
+ * optional reuse because their snapshots are not described here. The token never exposes the
+ * client or extends the loan. All queries still pass through its active Drizzle wrapper.
+ * @throws on expired loans, absent native clients or malformed required native evidence.
+ */
+export function captureReadEpoch(db: Drizzle): ReadEpoch {
+  const client: unknown = Reflect.get(db, '$client');
+  // Proof: native-client omission admitted the missing-client boundary as unsupported (V114 native refusal test).
+  if (!(client instanceof Database)) throw new Error('read epoch native client is unavailable');
+  const owner = readOnlyOwners.get(client);
+  // Proof: native-owner omission exposed writable owner evidence (V114 writable-owner test).
+  if (owner === undefined) return { kind: 'unavailable', reason: 'unregistered' };
+  const active: unknown = client.inTransaction;
+  // Proof: native-state omission treated an injected undefined native state as no transaction (V114).
+  if (typeof active !== 'boolean')
+    throw new Error('read epoch native transaction state is malformed');
+  // Proof: native-transaction omission admitted a readonly handle without a held snapshot (V114).
+  if (!active) return { kind: 'unavailable', reason: 'no_transaction' };
+  const schemas = db.all<{ name: unknown }>('PRAGMA database_list');
+  let hasMain = false;
+  let hasAttachment = false;
+  for (const schema of schemas) {
+    // Proof: native-schema omission reached the wrong main-absence refusal for a null schema name (V114).
+    if (typeof schema.name !== 'string' || schema.name === '')
+      throw new Error('read epoch schema identity is malformed');
+    if (schema.name === 'main') hasMain = true;
+    else if (schema.name !== 'temp') hasAttachment = true;
+  }
+  // Proof: native-main omission fabricated evidence from an injected empty native schema list (V114).
+  if (!hasMain) throw new Error('read epoch main schema is absent');
+  // Proof: native-attached omission admitted reuse with a real attached memory database (V114).
+  if (hasAttachment) return { kind: 'unavailable', reason: 'attached' };
+  return {
+    kind: 'available',
+    owner,
+    version: readEpochInteger(db, 'PRAGMA main.data_version', 'data_version'),
+    schema: readEpochInteger(db, 'PRAGMA main.schema_version', 'schema_version'),
+    tempSchema: readEpochInteger(db, 'PRAGMA temp.schema_version', 'schema_version'),
+    changes: readEpochInteger(db, 'SELECT total_changes() AS changes', 'changes'),
+  };
+}
+
+function readEpochInteger(db: Drizzle, statement: string, key: string): number {
+  const scalar = db.get<Record<string, unknown> | undefined>(statement)?.[key];
+  // Proof: native-integer whole-guard omission admitted missing/string/negative/NaN native scalars (V114).
+  if (typeof scalar !== 'number' || !Number.isSafeInteger(scalar) || scalar < 0)
+    throw new Error(`read epoch integer is absent or malformed: ${key}`);
+  return scalar;
+}
+
+/**
+ * Acquires only the E37 stopped-window SOURCE on readonly media with no creating/writable mode.
+ * The window owner must reject nonempty/nonregular WAL immediately before acquisition and after
+ * close, and retain digest/full-ledger rechecks plus E36's external stopped-writer/poller/lock barrier.
+ * SQLite immutable bypasses locking/change detection: this asserts that barrier, never proves it.
+ * {@link https://sqlite.org/uri.html#uriimmutable}
+ * The URL API preserves literal ?, #, % and spaces. Snapshots/capture/ordinary readers keep their
+ * existing acquisition/recovery behavior. The caller owns one close, including close failure.
+ */
+export function openWindowSourceDatabase(dbPath: string): Database {
+  // Proof: window-native-url-encoding changes/removes this production behavior boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Actual production-path negative; no broader host/deployment claim.
+  const uri = pathToFileURL(dbPath);
+  // Proof: window-native-readonly-mode-tuple changes/removes this native mode tuple boundary; observed named RED: window native source acquisition refuses SQL writes without changing evidence; window native source acquisition never creates an absent escaped path. One combined mode proof: immutable alone also enforces readonly, so both assertions must be compromised to admit the real DELETE. No independent-bit write-bypass claim.
+  // Proof: window-native-immutable-readonly-media changes/removes this native capability prerequisite boundary; observed named RED: verifies a WAL-header report with absent source sidecars and denied artifact writes. Reached WAL2/2, absent source sidecars, and real EACCES directory controls. Earlier writable/existing-sidecar positives are insufficient.
+  uri.searchParams.set('immutable', '1');
+  // Proof: window-native-readonly-flag-prerequisite changes/removes this native dependency prerequisite boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Removing the access-mode bit invalidates native flags. It does not demonstrate writable admission; immutable also forces readonly.
+  // Proof: window-native-uri-flag changes/removes this native dependency prerequisite boundary; observed named RED: opens the exact immutable source whose native filename contains URI delimiters. Installed Bun requires URI interpretation for this escaped file URL. This is an acquisition prerequisite fault, not evidence of a successful write bypass.
+  return new Database(uri.href, constants.SQLITE_OPEN_READONLY | constants.SQLITE_OPEN_URI);
 }
 
 /** Open an existing SQLite file without creating it or changing its journal mode. */
@@ -549,4 +642,18 @@ function isInTransaction(connection: Connection): boolean {
   // place allowed to read it, and an absent client answers true above.
   const client = (connection.db as Drizzle & { readonly $client?: Database }).$client;
   return client?.inTransaction !== false;
+}
+
+/**
+ * Actual supplied connection state, read only after the caller owns its write turn.
+ * This chooses transaction nesting; it supplies no admission, scope or lifetime
+ * authority. The native client is confined to this database boundary.
+ * @throws if the configured Bun connection cannot be inspected.
+ */
+export function hasSqliteTransaction(db: Drizzle): boolean {
+  const client: unknown = Reflect.get(db, '$client');
+  if (!(client instanceof Database)) throw new Error('SQLite transaction client is unavailable');
+  const active: unknown = client.inTransaction;
+  if (typeof active !== 'boolean') throw new Error('SQLite transaction state is unreadable');
+  return active;
 }

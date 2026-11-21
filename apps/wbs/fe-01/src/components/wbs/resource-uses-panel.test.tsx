@@ -9,9 +9,9 @@ import { answerJson as answer, stubServer } from '@/testing/stub-server';
 import { ResourceUsesPanel } from './resource-uses-panel';
 
 const NOW = Date.UTC(2026, 9, 25, 10);
-const LIST = 'GET /api/projects/p1/resource-uses';
-const EVENT = 'POST /api/projects/p1/resource-uses/u1/events';
-const HISTORY = 'GET /api/projects/p1/resource-uses/u1/history';
+const LIST = 'GET /api/work-packages/p1/resource-uses';
+const EVENT = 'POST /api/work-packages/p1/resource-uses/u1/events';
+const HISTORY = 'GET /api/work-packages/p1/resource-uses/u1/history';
 const scope: ResourceScope = {
   organization: { kind: 'active', organizationId: 'org-a' },
   isCurrent: () => true,
@@ -21,8 +21,8 @@ const useOf = (fields: Record<string, unknown> = {}) => ({
   id: 'u1',
   source: 'reported',
   organizationId: 'org-a',
-  projectId: 'p1',
-  projectName: 'Plan',
+  workPackageId: 'p1',
+  workPackageName: 'Plan',
   resourceId: 'r1',
   resourceName: 'Scratch disk',
   unitLabel: 'GB',
@@ -61,11 +61,11 @@ const eventOf = (revision: number) => ({
   ownerPersonId: null,
   reviewAt: null,
 });
-function mount(projectId = 'p1', shown = true, onBusyChange?: (busy: boolean) => void) {
+function mount(workPackageId = 'p1', shown = true, onBusyChange?: (busy: boolean) => void) {
   return renderBare(
     <OrganizationResourcesProvider scope={scope}>
       <ResourceUsesPanel
-        projectId={projectId}
+        workPackageId={workPackageId}
         shown={shown}
         onDirtyChange={() => undefined}
         onBusyChange={onBusyChange}
@@ -93,7 +93,7 @@ describe('reported resource uses', () => {
     expect(sent).toHaveLength(0);
     mounted.rerender(
       <OrganizationResourcesProvider scope={scope}>
-        <ResourceUsesPanel projectId="p1" shown onDirtyChange={() => undefined} />
+        <ResourceUsesPanel workPackageId="p1" shown onDirtyChange={() => undefined} />
       </OrganizationResourcesProvider>,
     );
     const row = await screen.findByRole('listitem', { name: /Scratch disk.*Compile/ });
@@ -314,7 +314,7 @@ describe('reported resource uses', () => {
     ).toHaveLength(2);
   });
 
-  it('ignores an old project response after switching projects', async () => {
+  it('ignores an old work package response after switching work packages', async () => {
     let finishOld: ((response: Response) => void) | undefined;
     const sent: string[] = [];
     vi.stubGlobal(
@@ -322,13 +322,13 @@ describe('reported resource uses', () => {
       vi.fn((url: string) => {
         const address = new URL(url, 'http://wbs.test');
         sent.push(address.pathname);
-        if (address.pathname === '/api/projects/p1/resource-uses')
+        if (address.pathname === '/api/work-packages/p1/resource-uses')
           return new Promise<Response>((resolve) => {
             finishOld = resolve;
           });
         return Promise.resolve(
           answer(200, {
-            uses: [useOf({ id: 'u2', projectId: 'p2', resourceName: 'New project disk' })],
+            uses: [useOf({ id: 'u2', workPackageId: 'p2', resourceName: 'New work package disk' })],
             nextCursor: null,
           }),
         );
@@ -340,18 +340,18 @@ describe('reported resource uses', () => {
     });
     mounted.rerender(
       <OrganizationResourcesProvider scope={scope}>
-        <ResourceUsesPanel projectId="p2" shown onDirtyChange={() => undefined} />
+        <ResourceUsesPanel workPackageId="p2" shown onDirtyChange={() => undefined} />
       </OrganizationResourcesProvider>,
     );
     expect(
-      await screen.findByRole('listitem', { name: /New project disk.*Compile/ }),
+      await screen.findByRole('listitem', { name: /New work package disk.*Compile/ }),
     ).toBeDefined();
     await act(async () => {
       finishOld?.(answer(200, { uses: [useOf()], nextCursor: null }));
       await Promise.resolve();
     });
     expect(screen.queryByRole('listitem', { name: /Scratch disk.*Compile/ })).toBeNull();
-    expect(sent).toContain('/api/projects/p2/resource-uses');
+    expect(sent).toContain('/api/work-packages/p2/resource-uses');
   });
 
   it('ignores an old organization response after scope changes', async () => {
@@ -386,7 +386,7 @@ describe('reported resource uses', () => {
     };
     mounted.rerender(
       <OrganizationResourcesProvider scope={otherScope}>
-        <ResourceUsesPanel projectId="p1" shown onDirtyChange={() => undefined} />
+        <ResourceUsesPanel workPackageId="p1" shown onDirtyChange={() => undefined} />
       </OrganizationResourcesProvider>,
     );
     expect(

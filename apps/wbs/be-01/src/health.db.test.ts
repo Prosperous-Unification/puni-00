@@ -2,13 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { openTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
 import { openConnection } from './repository/db';
 import { probeSchema } from './repository/health-probe';
-import { runMigrations } from './repository/migrate';
 import { testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
@@ -30,15 +30,19 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from './testing/organization-catalogue-fixture';
+import { refusingPlanExports } from './testing/plan-export-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
-import { testProjectService } from './testing/project-fixture';
-import { refusingProjectRanks } from './testing/project-rank-fixture';
+import { refusingProjects } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
-import { refusingSpaces } from './testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from './testing/space-fixture';
 import { testStepService } from './testing/step-fixture';
 import { testWorkItemService } from './testing/work-item-fixture';
+import { refusingWorkPackageAddressSearch } from './testing/work-package-address-search-fixture';
+import { refusingWorkPackageObservation } from './testing/work-package-fixture';
+import { testWorkPackageService } from './testing/work-package-fixture';
+import { refusingWorkPackageRanks } from './testing/work-package-rank-fixture';
 import { testWrites } from './testing/writes-fixture';
 
 const TEST_SECRET = 'x'.repeat(32);
@@ -46,7 +50,10 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: refusingWorkPackageObservation,
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -56,7 +63,8 @@ describe('GET /health', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -69,15 +77,15 @@ describe('GET /health', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
-      projects: testProjectService(),
-      workItems: testWorkItemService(),
+      workPackages: testWorkPackageService(),
+      workItems: testWorkItemService(openTestSource()),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
-      writes: testWrites(),
+      writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
       migrationsApplied: true,
     });
     const res = await app.handle(new Request('http://localhost/health'));
@@ -88,7 +96,10 @@ describe('GET /health', () => {
 
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: refusingWorkPackageObservation,
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -98,7 +109,8 @@ describe('GET /health', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -111,15 +123,15 @@ describe('GET /health', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
-      projects: testProjectService(),
-      workItems: testWorkItemService(),
+      workPackages: testWorkPackageService(),
+      workItems: testWorkItemService(openTestSource()),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       admitDependencyClient: () => null,
       probeDatabase: () => 'ok',
       internalAuthSecret: TEST_SECRET,
-      writes: testWrites(),
+      writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
       migrationsApplied: false,
     });
     const res = await app.handle(new Request('http://localhost/health'));
@@ -142,7 +154,10 @@ describe('/health tells the truth about the database', () => {
     try {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
-        projectAddressSearch: refusingProjectAddressSearch,
+        projects: refusingProjects,
+        planExports: refusingPlanExports,
+        workPackageObservation: refusingWorkPackageObservation,
+        workPackageAddressSearch: refusingWorkPackageAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -152,7 +167,8 @@ describe('/health tells the truth about the database', () => {
         invitations: refusingInvitations,
         joinRequests: refusingJoinRequests,
         spaces: refusingSpaces,
-        projectRanks: refusingProjectRanks,
+        spaceRead: refusingSpaceRead,
+        workPackageRanks: refusingWorkPackageRanks,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -165,13 +181,13 @@ describe('/health tells the truth about the database', () => {
         stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         auth: testAuthService(),
-        projects: testProjectService(),
-        workItems: testWorkItemService(),
+        workPackages: testWorkPackageService(),
+        workItems: testWorkItemService(openTestSource()),
         savedPlans: testSavedPlanService(),
         steps: testStepService(),
         replay: testReplay().replay,
         internalAuthSecret: TEST_SECRET,
-        writes: testWrites(),
+        writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
         migrationsApplied: true,
         admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
@@ -196,10 +212,13 @@ describe('/health tells the truth about the database', () => {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-health-'));
     try {
       const path = join(dir, 'real.db');
-      runMigrations(path, new URL('../drizzle', import.meta.url).pathname);
+      migrateOrganizationCatalogueFixture(path);
       const { db, close } = openConnection(path);
       const app = buildApp({
-        projectAddressSearch: refusingProjectAddressSearch,
+        projects: refusingProjects,
+        planExports: refusingPlanExports,
+        workPackageObservation: refusingWorkPackageObservation,
+        workPackageAddressSearch: refusingWorkPackageAddressSearch,
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -209,7 +228,8 @@ describe('/health tells the truth about the database', () => {
         invitations: refusingInvitations,
         joinRequests: refusingJoinRequests,
         spaces: refusingSpaces,
-        projectRanks: refusingProjectRanks,
+        spaceRead: refusingSpaceRead,
+        workPackageRanks: refusingWorkPackageRanks,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -222,13 +242,13 @@ describe('/health tells the truth about the database', () => {
         stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         auth: testAuthService(),
-        projects: testProjectService(),
-        workItems: testWorkItemService(),
+        workPackages: testWorkPackageService(),
+        workItems: testWorkItemService(openTestSource()),
         savedPlans: testSavedPlanService(),
         steps: testStepService(),
         replay: testReplay().replay,
         internalAuthSecret: TEST_SECRET,
-        writes: testWrites(),
+        writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
         migrationsApplied: true,
         admitDependencyClient: () => null,
         probeDatabase: () => probeSchema(db),
@@ -245,7 +265,10 @@ describe('/health tells the truth about the database', () => {
 
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: refusingWorkPackageObservation,
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -255,7 +278,8 @@ describe('/health tells the truth about the database', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -268,13 +292,13 @@ describe('/health tells the truth about the database', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
-      projects: testProjectService(),
-      workItems: testWorkItemService(),
+      workPackages: testWorkPackageService(),
+      workItems: testWorkItemService(openTestSource()),
       savedPlans: testSavedPlanService(),
       steps: testStepService(),
       replay: testReplay().replay,
       internalAuthSecret: TEST_SECRET,
-      writes: testWrites(),
+      writes: testWrites(undefined, { workItems: testWorkItemService(openTestSource()) }),
       migrationsApplied: true,
       admitDependencyClient: () => null,
       probeDatabase: () => {

@@ -3,7 +3,7 @@ import { SignJWT } from 'jose';
 
 import { type JwtClaims, JwtVerifier, type TokenVerifier } from './service/jwt-auth';
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 const JWT_KEY = 'k'.repeat(32);
 const INTERNAL_SECRET = 's'.repeat(32);
@@ -36,7 +36,7 @@ let stop: () => void;
 beforeAll(() => {
   const app = buildApp({
     beUrl: 'http://be.invalid',
-    projectAccess: GRANT_EVERY_PROJECT,
+    workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
     internalAuthSecret: INTERNAL_SECRET,
     jwtKey: JWT_KEY,
     appOrigin: APP_ORIGIN,
@@ -125,7 +125,7 @@ describe('a frame that arrives before the connection has joined', () => {
     // handler as it was before this change — this test failed on
     // `no roster of 1 for ada; it has []`, the same sentence, and the same
     // cause, as the flake in `fan-out.integration.test.ts`. Watched 2026-08-11.
-    const hull = `project:${crypto.randomUUID()}`;
+    const hull = `work-package:${crypto.randomUUID()}`;
     const ada = await connect('ada');
 
     ada.socket.send(JSON.stringify({ type: 'subscribe', subscription: hull }));
@@ -139,10 +139,10 @@ describe('a frame that arrives before the connection has joined', () => {
   it('leaves no ghost behind when a socket closes before it has joined', async () => {
     // Proof: `await conn.joined` struck from `close`, so `leave` ran against a
     // connection `join` had not made yet and deleted nothing, while the
-    // `subscribe` behind it entered the project after the join — this test
+    // `subscribe` behind it entered the work package after the join — this test
     // failed on `no roster of 1 for grace; it has [ada,grace]`, a roster naming
     // a socket that had been shut for three seconds. Watched 2026-08-11.
-    const hull = `project:${crypto.randomUUID()}`;
+    const hull = `work-package:${crypto.randomUUID()}`;
     const departing = await connect('ada');
     departing.socket.send(JSON.stringify({ type: 'subscribe', subscription: hull }));
     departing.socket.close();

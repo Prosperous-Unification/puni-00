@@ -2,11 +2,11 @@ import { createChannel } from '@/modules/channel';
 import type { Store } from '@/modules/store';
 
 /**
- * Whether this project is waiting for be-01 on one of its reader's gestures —
+ * Whether this work package is waiting for be-01 on one of its reader's gestures —
  * the shared busy state the toolbar and the cells read.
  *
  * A gesture raises it when it starts and lowers it when it ends, however it
- * ended. One of these belongs to each project runtime and to nothing else, so
+ * ended. One of these belongs to each work package runtime and to nothing else, so
  * a departed reader's answer lowers only its own runtime's, which nobody draws
  * any more, and can never clear its replacement's pending rename. What this
  * store owns is the value and the telling: a boolean, stable by value, and a
@@ -19,8 +19,8 @@ import type { Store } from '@/modules/store';
  *
  * Plain TypeScript and no lifetime of its own (rule F1): it holds no resource,
  * nothing closes it, and no call on it ever throws a lifecycle refusal. Its
- * owner is the project runtime (`runtime/project-runtime.ts`), one per selected
- * project.
+ * owner is the work package runtime (`runtime/work-package-runtime.ts`), one per selected
+ * work package.
  */
 export interface Busy extends Store<boolean> {
   readonly raise: () => void;
@@ -30,7 +30,7 @@ export interface Busy extends Store<boolean> {
 /** The half of {@link Busy} a gesture is handed: it can raise and lower, and cannot listen. */
 export type BusyWrites = Pick<Busy, 'raise' | 'lower'>;
 
-/** Builds a project's busy state, not busy. */
+/** Builds a work package's busy state, not busy. */
 export function createBusy(): Busy {
   const changes = createChannel<undefined>();
   let busy = false;

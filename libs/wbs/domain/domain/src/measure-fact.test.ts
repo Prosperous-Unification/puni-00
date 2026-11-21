@@ -121,7 +121,7 @@ describe('decideMeasureFact', () => {
     });
   });
 
-  it('answers a project owned by no organization against tokens, hours and agent minutes', () => {
+  it('answers a work package owned by no organization against tokens, hours and agent minutes', () => {
     expect(decideMeasureFact(null, 'token_actual', 3)).toEqual({
       ok: true,
       metric: 'token_actual',

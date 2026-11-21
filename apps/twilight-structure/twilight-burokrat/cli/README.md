@@ -44,7 +44,7 @@ explicit instant, while an instant supplied without any dated rule is refused.
 Usage: twilight-burokrat validate-progress-receipt RECEIPT-JSON PLAN-REFERENCE-JSON TASKS-JSON
        twilight-burokrat validate-plan-tasks PLAN-REFERENCE-JSON TASKS-JSON
        twilight-burokrat validate-record KIND JSON
-       twilight-burokrat validate workflow-binding --steps STEPS FILE
+       twilight-burokrat validate workflow-binding (--steps STEPS | --manifest FILE) FILE
        twilight-burokrat validate KIND JSON
        twilight-burokrat read-candidate SELECTION REPOSITORY REVISION-OR-BASE
        twilight-burokrat classify-candidate SELECTION REPOSITORY REVISION-OR-BASE POLICY-JSON
@@ -233,6 +233,26 @@ availability, tool registration, approvals or spending authority. The strict ver
 and limits are in the [validator design](../../../../openspec/changes/burokrat-workflow-binding-validation/design.md);
 [durable acceptance and retention](../../../../openspec/changes/twilight-agentic-workflows/binding-design.md)
 are specified separately.
+
+The offline manifest form is `validate workflow-binding workflows.yaml --manifest step-manifest.json`. Export the manifest from WBS `GET /api/projects/:id/step-manifest`, then name its exact project ID and revision in a version2 binding:
+
+```yaml
+version: 2
+project: { id: engagement, revision: 7 }
+default:
+  - { code: build, class: verify }
+types:
+  - workItemTypeId: spike
+    steps:
+      - { code: build, class: verify }
+      - { code: research, class: verify }
+classes:
+  verify: { executor: tool, command: verify }
+```
+
+`default` covers the untyped resolved codes. Each actual organization-owned type uses its entire explicit mapping or the entire default mapping, checked against that type's own codes. An explicit mapping never fills missing steps from default. Type IDs are stable identities; an actual type ID `default` stays separate from the untyped mapping. Empty resolved sets accept empty arrays. Both project identity and revision must match, so a refreshed manifest after a type-set change requires an explicit binding revision update.
+
+Validation is offline and prints only an acceptance digest. The digest includes canonical manifest/configuration content and original prompt byte hashes. Reordering type entries or binding mapping presentation preserves the digest; changing manifest code order or prompt bytes changes it. Missing, unreadable, nonregular and malformed manifest files refuse with named diagnostics. Existing version1 bindings with `--steps` and schema1 retained acceptance stay compatible. Manifest acceptance uses a separate schema2 descriptor contract and grants no runtime execution authority.
 
 ## Diagnostic test reports
 

@@ -59,7 +59,7 @@ export function readRuntimeSolverVersion(
   if (nodeEnv !== 'development') return readInstalledSolverVersion(probe);
   // setuptools resolves `[tool.setuptools.dynamic]` from this attribute, so
   // source development and the installed console script share one authority.
-  // pyproject.toml intentionally has no static `[project].version` to read.
+  // pyproject.toml intentionally has no static `[workPackage].version` to read.
   const module =
     sourceModule ??
     readFileSync(

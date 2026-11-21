@@ -27,7 +27,7 @@ import {
 import {
   activateDependencies,
   inspectDependencyActivation,
-} from '@wbs/store-sqlite/cross-project-dependency-activation';
+} from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import { openReadOnlyConnection, openReadOnlyDatabase } from '@wbs/store-sqlite/db';
 import {
   captureAppliedMigrationSet,

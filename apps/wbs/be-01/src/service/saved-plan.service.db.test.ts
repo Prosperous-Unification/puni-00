@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { OptimizationVariantState, Scheduler } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { SCHEDULE_ALGORITHM_ID } from '@wbs/domain';
+import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -15,19 +16,18 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
-import { projectRow } from '../testing/project-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import { fastScheduler } from './optimizer-wiring';
-
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -43,7 +43,7 @@ describe('SavedPlanService.save', () => {
 
   const item = (id: string, position: number) => ({
     id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     parentId: null,
     position,
     name: id,
@@ -66,25 +66,46 @@ describe('SavedPlanService.save', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-service-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'saved-plan-legacy', 'saved-plan-parent');
     const seed = openConnection(path);
     const db = seed.db;
     await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db, OPEN).create(
-      projectRow({
+    const step = await new StepCatalogueRepository(db, OPEN, 'owned').defineAndBindStep(
+      'saved-plan-legacy',
+      {
+        id: 'st-1',
+        code: 'dev',
+        name: 'Dev',
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'saved-plan-service-dev',
+        scopeKind: 'project',
+        scopeId: 'saved-plan-parent',
+        workItemTypeId: null,
+        position: 10,
+      },
+      wrote,
+    );
+    if (!step.ok) throw Error('saved-plan service fixture step refused: ' + step.reason);
+    await new WorkPackageRepository(db, OPEN).create(
+      workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -120,9 +141,9 @@ describe('SavedPlanService.save', () => {
       now: () => OPENED_AT,
     });
 
-  const save = (scheduler: Scheduler = fastScheduler, projectId = 'p1') =>
+  const save = (scheduler: Scheduler = fastScheduler, workPackageId = 'p1') =>
     service(scheduler).save({
-      projectId,
+      workPackageId,
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -141,9 +162,9 @@ describe('SavedPlanService.save', () => {
     (engine) => fastScheduler.supports(engine),
   );
 
-  const selectOptimized = async (projectId = 'p1', enabled = true) => {
-    await new ProjectRepository(reader.db, OPEN).update(
-      projectId,
+  const selectOptimized = async (workPackageId = 'p1', enabled = true) => {
+    await new WorkPackageRepository(reader.db, OPEN).update(
+      workPackageId,
       { optimizationEnabled: enabled, scheduleEngine: 'optimized', scheduleObjective: 'pri' },
       wrote,
     );
@@ -194,7 +215,7 @@ describe('SavedPlanService.save', () => {
     // The whole header, field for field, against what `save` said it wrote:
     // an assertion on a subset stays green for every column the service
     // forgot to fill, which is the failure this row exists to catch.
-    expect(header.projectId).toBe('p1');
+    expect(header.workPackageId).toBe('p1');
     expect(header.name).toBe('before the rewire');
     expect(header.createdBy).toBe('Ada Lovelace');
     expect(header.createdAt).toBe(OPENED_AT);
@@ -221,7 +242,7 @@ describe('SavedPlanService.save', () => {
     const scheduler = schedulerWith({ state: 'ready', proof: 'proven' });
     const savedPlans = service(scheduler);
     const result = await savedPlans.save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -237,7 +258,7 @@ describe('SavedPlanService.save', () => {
     expect(body.algorithmId).toBe('optimized:2.4:pri:12345');
     expect(result.record.schedule.algorithmId).toBe(body.algorithmId);
     expect((await headers())[0]?.schedulerAlgorithmId).toBe(body.algorithmId);
-    const current = await savedPlans.projectCurrentPlan('p1');
+    const current = await savedPlans.workPackageCurrentPlan('p1');
     expect(current?.schedule.present).toBe(true);
     if (!current?.schedule.present) return;
     expect(current.schedule.algorithmId).toBe(body.algorithmId);
@@ -272,7 +293,7 @@ describe('SavedPlanService.save', () => {
     await selectOptimized('p1', false);
     const disabled = await service(
       schedulerWith({ state: 'ready', proof: 'proven' }),
-    ).projectCurrentPlan('p1');
+    ).workPackageCurrentPlan('p1');
     expect(disabled?.schedule.present).toBe(true);
     if (!disabled?.schedule.present) return;
     expect(disabled.schedule.algorithmId).toBe(SCHEDULE_ALGORITHM_ID);
@@ -282,11 +303,11 @@ describe('SavedPlanService.save', () => {
   });
 
   it('keeps an empty optimized capture pending instead of inventing a schedule', async () => {
-    await new ProjectRepository(reader.db, OPEN).create(
-      projectRow({
+    await new WorkPackageRepository(reader.db, OPEN).create(
+      workPackageRow({
         id: 'p-empty',
         name: 'Empty optimized plan',
-        ownerId: 'owner',
+        projectId: 'saved-plan-parent',
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
         scheduleObjective: 'pri',
@@ -294,7 +315,7 @@ describe('SavedPlanService.save', () => {
       [
         {
           id: 'st-empty',
-          projectId: 'p-empty',
+          workPackageId: 'p-empty',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -330,13 +351,13 @@ describe('SavedPlanService.save', () => {
 
     const parsed = JSON.parse(result.record.input.bytes) as {
       schemaVersion: number;
-      project: { id: string; name: string; startDate: string | null };
+      workPackage: { id: string; name: string; startDate: string | null };
       workItems: { id: string }[];
     };
     expect(parsed.schemaVersion).toBe(result.record.input.schemaVersion);
-    expect(parsed.project.id).toBe('p1');
-    expect(parsed.project.name).toBe('Rewire the shed');
-    expect(parsed.project.startDate).toBe('2026-03-02');
+    expect(parsed.workPackage.id).toBe('p1');
+    expect(parsed.workPackage.name).toBe('Rewire the shed');
+    expect(parsed.workPackage.startDate).toBe('2026-03-02');
     expect(parsed.workItems.map((row) => row.id)).toEqual(['wi-1', 'wi-2']);
   });
 
@@ -350,7 +371,7 @@ describe('SavedPlanService.save', () => {
    */
   it('carries the saving account through save to the stored header', async () => {
     const result = await service().save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'before the rewire',
       createdBy: 'Ada Lovelace',
       createdById: 'owner',
@@ -365,15 +386,15 @@ describe('SavedPlanService.save', () => {
     expect(rows[0]?.createdBy).toBe('Ada Lovelace');
   });
 
-  it('answers no_project for a project that does not exist, and writes nothing', async () => {
+  it('answers no_work_package for a work package that does not exist, and writes nothing', async () => {
     const result = await service().save({
-      projectId: 'missing',
+      workPackageId: 'missing',
       name: 'x',
       createdBy: 'Ada Lovelace',
       createdById: null,
     });
 
-    expect(result.outcome).toBe('no_project');
+    expect(result.outcome).toBe('no_work_package');
     expect((await headers()).length).toBe(0);
     expect((await bodies()).length).toBe(0);
   });
@@ -382,11 +403,11 @@ describe('SavedPlanService.save', () => {
     const seed = openConnection(path);
     const deps = new DependencyRepository(seed.db, OPEN);
     await deps.add(
-      { id: 'd-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+      { id: 'd-1', workPackageId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
       wrote,
     );
     await deps.add(
-      { id: 'd-2', projectId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' },
+      { id: 'd-2', workPackageId: 'p1', predecessorId: 'wi-2', successorId: 'wi-1' },
       wrote,
     );
     seed.close();
@@ -428,11 +449,15 @@ describe('SavedPlanService.save', () => {
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
       newId: () => 'sp-1',
       now: () => OPENED_AT,
-      quota: { mostBytesPerBody: 8, mostPlansPerProject: 100, mostBytesPerProject: 64 * 1024 },
+      quota: {
+        mostBytesPerBody: 8,
+        mostPlansPerWorkPackage: 100,
+        mostBytesPerWorkPackage: 64 * 1024,
+      },
     });
 
     const result = await refusing.save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'too big',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -457,13 +482,13 @@ describe('SavedPlanService.save', () => {
       now: () => OPENED_AT,
       quota: {
         mostBytesPerBody: 8 * 1024 * 1024,
-        mostPlansPerProject: 100,
-        mostBytesPerProject: 64 * 1024 * 1024,
+        mostPlansPerWorkPackage: 100,
+        mostBytesPerWorkPackage: 64 * 1024 * 1024,
       },
     });
 
     const result = await admitting.save({
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'fits',
       createdBy: 'Ada Lovelace',
       createdById: null,
@@ -476,10 +501,10 @@ describe('SavedPlanService.save', () => {
   it('reads the count limit from construction, so raising it admits the same save', async () => {
     // Task 4.7 names **the count**, and it is the limit worth naming: the body
     // bound above is a property of one save, while this one is a property of
-    // the project and is the only one of the three a caller could plausibly
+    // the work package and is the only one of the three a caller could plausibly
     // have hard-coded at the call site as `100`.
     let issued = 0;
-    const capped = (mostPlansPerProject: number): SavedPlanService =>
+    const capped = (mostPlansPerWorkPackage: number): SavedPlanService =>
       new SavedPlanService({
         scheduler: fastScheduler,
         digest: nodeDigest,
@@ -491,12 +516,12 @@ describe('SavedPlanService.save', () => {
         now: () => OPENED_AT,
         quota: {
           mostBytesPerBody: 8 * 1024 * 1024,
-          mostPlansPerProject,
-          mostBytesPerProject: 64 * 1024 * 1024,
+          mostPlansPerWorkPackage,
+          mostBytesPerWorkPackage: 64 * 1024 * 1024,
         },
       });
     const request = {
-      projectId: 'p1',
+      workPackageId: 'p1',
       name: 'once more',
       createdBy: 'Ada Lovelace',
       createdById: null,

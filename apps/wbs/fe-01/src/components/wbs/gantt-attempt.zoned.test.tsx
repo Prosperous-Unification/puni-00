@@ -5,7 +5,7 @@ import { AttemptCard } from './gantt-attempt';
 import type { GanttAttemptMark } from './gantt-geometry';
 
 afterEach(cleanup);
-it('shows the original overnight dates in the project zone even when the browser differs', () => {
+it('shows the original overnight dates in the work package zone even when the browser differs', () => {
   const mark: GanttAttemptMark = {
     nodeId: 'node',
     nodeReference: '010.dev',

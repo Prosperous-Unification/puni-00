@@ -22,12 +22,12 @@ const SAVED_PLAN = '20260903190000_add_saved_plan';
 // reverses everything applied after its target, newest first, so a rollback to
 // SAVED_PLAN reverses them before it reaches this file's own column.
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
 /**
- * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * The newest: the `(work_package_id, id)` index that serves
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -74,7 +74,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -113,18 +113,18 @@ function columnsOf(table: string): string[] {
   }
 }
 
-/** Two accounts, one project owned by the first, and a plan saved by the second. */
+/** Two accounts, one work package owned by the first, and a plan saved by the second. */
 function seed(): void {
   const db = openDatabase(path);
   try {
     db.run(`INSERT INTO users (id, username, created_at) VALUES ('owner', 'owner', 1000)`);
     db.run(`INSERT INTO users (id, username, created_at) VALUES ('ada', 'Ada', 1000)`);
     db.run(
-      `INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'P', 'owner', 1000)`,
+      `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'P', 'owner', 1000)`,
     );
     db.run(
       `INSERT INTO saved_plan (
-         id, project_id, name, created_by, created_by_id, created_at,
+         id, work_package_id, name, created_by, created_by_id, created_at,
          input_schema_version, input_bytes, input_sha256, schedule_absent_reason
        ) VALUES ('sp1', 'p1', 'Q3', 'Ada', 'ada', 1000, 1, 2, 'deadbeef', 'pending')`,
     );
@@ -197,9 +197,9 @@ describe('saved_plan.created_by_id', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -229,13 +229,13 @@ describe('saved_plan.created_by_id', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -250,7 +250,7 @@ describe('saved_plan.created_by_id', () => {
       WORK_ITEM_DEADLINE,
       READ_ORDER_INDEX,
       CALENDAR_MARKER,
-      PROJECT_SETTINGS,
+      WORK_PACKAGE_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
     ]);
@@ -314,7 +314,7 @@ describe('saved_plan.created_by_id', () => {
       expect(() =>
         db.run(
           `INSERT INTO saved_plan (
-             id, project_id, name, created_by, created_by_id, created_at,
+             id, work_package_id, name, created_by, created_by_id, created_at,
              input_schema_version, input_bytes, input_sha256, schedule_absent_reason
            ) VALUES ('sp2', 'p1', 'Q4', 'Nobody', 'ghost', 1000, 1, 2, 'deadbeef', 'pending')`,
         ),
@@ -329,7 +329,7 @@ describe('saved_plan.created_by_id', () => {
    *
    * A row written before this migration ran reads `NULL`, which means the same
    * thing a deleted creator means: no live account claims this plan, so the rule
-   * falls back to the project owner. Written as a rollback-then-insert-then-
+   * falls back to the work package owner. Written as a rollback-then-insert-then-
    * re-apply rather than by inserting a null directly, because that is the only
    * way to produce a row that genuinely predates the column.
    */
@@ -353,9 +353,9 @@ describe('saved_plan.created_by_id', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -385,13 +385,13 @@ describe('saved_plan.created_by_id', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -406,7 +406,7 @@ describe('saved_plan.created_by_id', () => {
       WORK_ITEM_DEADLINE,
       READ_ORDER_INDEX,
       CALENDAR_MARKER,
-      PROJECT_SETTINGS,
+      WORK_PACKAGE_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
     ]);
@@ -415,11 +415,11 @@ describe('saved_plan.created_by_id', () => {
     try {
       before.run(`INSERT INTO users (id, username, created_at) VALUES ('owner', 'owner', 1000)`);
       before.run(
-        `INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'P', 'owner', 1000)`,
+        `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'P', 'owner', 1000)`,
       );
       before.run(
         `INSERT INTO saved_plan (
-           id, project_id, name, created_by, created_at,
+           id, work_package_id, name, created_by, created_at,
            input_schema_version, input_bytes, input_sha256, schedule_absent_reason
          ) VALUES ('old', 'p1', 'Q1', 'Ada', 1000, 1, 2, 'deadbeef', 'pending')`,
       );

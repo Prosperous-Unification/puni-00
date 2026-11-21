@@ -28,8 +28,8 @@ const AUDIENCE = 'api://wbs';
 let jwks: ReturnType<typeof Bun.serve>;
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
-let projectA: string;
-let projectB: string;
+let workPackageA: string;
+let workPackageB: string;
 let leaf: string;
 let firstStepId: string;
 
@@ -75,19 +75,19 @@ beforeEach(async () => {
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  projectA = await createProject('dany', 'Plan of A');
-  projectB = await createProject('bob', 'Plan of B');
-  const rows = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+  workPackageA = await createWorkPackage('dany', 'Plan of A');
+  workPackageB = await createWorkPackage('bob', 'Plan of B');
+  const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
   const firstStep = h.sqlite
     .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
+      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1',
     )
-    .get(projectA);
-  if (firstStep === null) throw new Error('created project has no first step');
+    .get(workPackageA);
+  if (firstStep === null) throw new Error('created work package has no first step');
   firstStepId = firstStep.id;
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'codex', 'org-a', h.userId('dany'));
@@ -116,10 +116,10 @@ function openHarness(now?: () => number): OrganizationHarness {
   });
 }
 
-async function createProject(username: string, name: string): Promise<string> {
-  const created = await h.call(username, 'POST', '/api/projects', { name });
+async function createWorkPackage(username: string, name: string): Promise<string> {
+  const created = await h.call(username, 'POST', '/api/work-packages', { name });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  return (created.body as { project: { id: string } }).project.id;
+  return (created.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** Claire's key: issued by Dany for the agent person bound to Dany's account. */
@@ -178,21 +178,21 @@ describe('an API key on the MCP path', () => {
   // Proof: with the direct context removed from `machinePrincipalOf`, this,
   // the batch write and the administration refusal below failed; watched
   // 2026-10-29.
-  it("admits a live key to its organization's projects only", async () => {
+  it("admits a live key to its organization's work packages only", async () => {
     const { key } = await claireKey();
     h.unbind('dany');
-    const listed = await viaMcp(key, 'GET', '/api/projects');
+    const listed = await viaMcp(key, 'GET', '/api/work-packages');
     expect(listed.status).toBe(200);
     const names = JSON.stringify(listed.body);
     expect(names).toContain('Plan of A');
     expect(names).not.toContain('Plan of B');
-    expect((await viaMcp(key, 'GET', `/api/projects/${projectB}`)).status).toBe(404);
+    expect((await viaMcp(key, 'GET', `/api/work-packages/${workPackageB}`)).status).toBe(404);
   });
 
   it('writes a command batch as the bound account and leaves the users table alone', async () => {
     const { key } = await claireKey();
     const before = usersTable();
-    const written = await viaMcp(key, 'POST', `/api/projects/${projectA}/commands`, {
+    const written = await viaMcp(key, 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [{ kind: 'createWorkItem', parentId: null, name: 'By machine' }],
     });
     expect(written.status).toBe(200);
@@ -213,19 +213,19 @@ describe('an API key on the MCP path', () => {
 
   it('is refused unknown_identity after revoke, changing no account', async () => {
     const { id, key } = await claireKey();
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
     revokeMachineCredential(h.sqlite, id, Date.now());
     const before = usersTable();
-    expect(await viaMcp(key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await viaMcp(key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     expect(usersTable()).toEqual(before);
   });
 
   it('is refused unknown_identity with a wrong secret or an unknown credential id', async () => {
     const { id, key } = await claireKey();
     const flipped = `${key.slice(0, -1)}${key.endsWith('A') ? 'B' : 'A'}`;
-    expect(await viaMcp(flipped, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await viaMcp(flipped, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     const stranger = key.replace(id, crypto.randomUUID());
-    expect(await viaMcp(stranger, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await viaMcp(stranger, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
   });
 
   it('is refused unknown_identity for a live secret under another credential’s id', async () => {
@@ -236,8 +236,8 @@ describe('an API key on the MCP path', () => {
       issuedBy: h.userId('dany'),
     });
     const crossed = codex.key.replace(codex.id, id);
-    expect(await viaMcp(crossed, 'GET', '/api/projects')).toEqual(UNKNOWN);
-    expect((await viaMcp(codex.key, 'GET', '/api/projects')).status).toBe(200);
+    expect(await viaMcp(crossed, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
+    expect((await viaMcp(codex.key, 'GET', '/api/work-packages')).status).toBe(200);
   });
 
   it('is refused unknown_identity once its secret has expired', async () => {
@@ -246,7 +246,7 @@ describe('an API key on the MCP path', () => {
       Date.now() - 1,
       secretId,
     ]);
-    expect(await viaMcp(key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await viaMcp(key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
   });
 
   // On `/api` the key answers not_a_member; the grant route refuses it as an
@@ -254,7 +254,7 @@ describe('an API key on the MCP path', () => {
   it('is refused unknown_identity once its account leaves the organization, credential intact', async () => {
     const { id, key } = await claireKey();
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('dany')]);
-    expect(await viaMcp(key, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect(await viaMcp(key, 'GET', '/api/work-packages')).toEqual(UNKNOWN);
     expect(
       h.sqlite.query('SELECT revoked_at FROM machine_credential WHERE id = ?').get(id),
     ).toEqual({ revoked_at: null });
@@ -270,7 +270,7 @@ describe('an API key on the MCP path', () => {
     h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     const { key } = await claireKey();
-    expect(await viaMcp(key, 'GET', '/api/projects')).toEqual({
+    expect(await viaMcp(key, 'GET', '/api/work-packages')).toEqual({
       status: 409,
       body: { error: 'not_activated' },
     });
@@ -286,19 +286,19 @@ describe('an API key as a Bearer on /api', () => {
   // renamed table answered 500); watched 2026-10-29.
   it('is refused machine_bearer_not_accepted before any credential read, recording no use', async () => {
     const { id, key } = await claireKey();
-    expect(await as(key, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+    expect(await as(key, 'GET', '/api/work-packages')).toEqual(NOT_ACCEPTED);
     expect(lastUsedAt(id)).toBeNull();
     h.sqlite.run('ALTER TABLE machine_credential RENAME TO machine_credential_away');
-    expect(await as(key, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+    expect(await as(key, 'GET', '/api/work-packages')).toEqual(NOT_ACCEPTED);
     expect(
-      await as(key, 'POST', `/api/projects/${projectA}/commands`, {
+      await as(key, 'POST', `/api/work-packages/${workPackageA}/commands`, {
         commands: [{ kind: 'createWorkItem', parentId: null, name: 'By machine' }],
       }),
     ).toEqual(NOT_ACCEPTED);
     h.sqlite.run('ALTER TABLE machine_credential_away RENAME TO machine_credential');
     expect(lastUsedAt(id)).toBeNull();
     // The same key still verifies where mcp-01 presents it.
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
   });
 
   // One answer whatever the key's state, so `/api` is no oracle for it.
@@ -324,7 +324,7 @@ describe('an API key as a Bearer on /api', () => {
       `wbs_mk_${id.toUpperCase()}.${secret}`,
       'wbs_mk_',
     ])
-      expect(await as(presented, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+      expect(await as(presented, 'GET', '/api/work-packages')).toEqual(NOT_ACCEPTED);
   });
 
   it('is refused machine_bearer_not_accepted before activation too', async () => {
@@ -335,13 +335,13 @@ describe('an API key as a Bearer on /api', () => {
     h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     const { key } = await claireKey();
-    expect(await as(key, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
+    expect(await as(key, 'GET', '/api/work-packages')).toEqual(NOT_ACCEPTED);
   });
 
   // A22: only `Authorization` carries a key; any other header is no credential.
   it('treats a live key in a custom header as no credential at all', async () => {
     const { key } = await claireKey();
-    const response = await h.request('/api/projects', { headers: { 'x-wbs-api-key': key } });
+    const response = await h.request('/api/work-packages', { headers: { 'x-wbs-api-key': key } });
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'unauthenticated' });
   });
@@ -352,7 +352,7 @@ describe('an API key as a Bearer on /api', () => {
   it('refuses a key carried by the session cookie unknown_identity, with no read', async () => {
     const { key } = await claireKey();
     h.sqlite.run('ALTER TABLE machine_credential RENAME TO machine_credential_away');
-    const response = await h.request('/api/projects', {
+    const response = await h.request('/api/work-packages', {
       headers: { cookie: `__Host-wbs_access=${key}` },
     });
     expect(response.status).toBe(401);
@@ -382,27 +382,27 @@ describe('an API key’s stored state on the MCP path', () => {
     h.sqlite.run('PRAGMA ignore_check_constraints = ON');
     h.sqlite.run(corrupt);
     h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(500);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(500);
   });
 
   it('records its last use at most once a minute', async () => {
     const { id, key } = await claireKey();
     expect(lastUsedAt(id)).toBeNull();
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
     const first = lastUsedAt(id);
     expect(first).not.toBeNull();
     const recent = Date.now() - 20_000;
     h.sqlite.run('UPDATE machine_credential SET last_used_at = ? WHERE id = ?', [recent, id]);
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
     expect(lastUsedAt(id)).toBe(recent);
     const old = Date.now() - 61_000;
     h.sqlite.run('UPDATE machine_credential SET last_used_at = ? WHERE id = ?', [old, id]);
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
     expect(lastUsedAt(id)).toBeGreaterThan(old + 60_000);
   });
 });
 
-describe('machine restricted-project grant and cap boundaries', () => {
+describe('machine restricted-work-package grant and cap boundaries', () => {
   beforeEach(() => {
     h.grantPermissions('org-a', 'mem', ['organization.create_project', 'package.manage_settings']);
   });
@@ -423,13 +423,14 @@ describe('machine restricted-project grant and cap boundaries', () => {
   it.each(['commands', 'undo', 'redo', 'steps', 'calendar-markers', 'optimization/retry'])(
     'refuses %s recovery without mutations, audit or events',
     async (route) => {
-      const restricted = await createProject('mem', 'Restricted member project');
+      const restricted = await createWorkPackage('mem', 'Restricted member work package');
       expect(
-        (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+        (await h.call('mem', 'PATCH', `/api/work-packages/${restricted}`, { restricted: true }))
+          .status,
       ).toBe(200);
       const callMachine = await admitMachine();
       const tables = [
-        'project',
+        'work_package',
         'work_item',
         'step',
         'calendar_marker',
@@ -451,22 +452,23 @@ describe('machine restricted-project grant and cap boundaries', () => {
               : route === 'optimization/retry'
                 ? { objective: 'pri', inputHash: 'ignored' }
                 : undefined;
-      expect((await callMachine('POST', `/api/projects/${restricted}/${route}`, body)).status).toBe(
-        404,
-      );
+      expect(
+        (await callMachine('POST', `/api/work-packages/${restricted}/${route}`, body)).status,
+      ).toBe(404);
       expect(snapshot()).toEqual(before);
     },
   );
 
   it('refuses saved-plan recovery save, rename and delete without effects', async () => {
-    const restricted = await createProject('mem', 'Restricted saved project');
-    const saved = await h.call('mem', 'POST', `/api/projects/${restricted}/saved-plans`, {
+    const restricted = await createWorkPackage('mem', 'Restricted saved work package');
+    const saved = await h.call('mem', 'POST', `/api/work-packages/${restricted}/saved-plans`, {
       name: 'Original',
     });
     expect(saved.status).toBe(201);
     const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
     expect(
-      (await h.call('mem', 'PATCH', `/api/projects/${restricted}`, { restricted: true })).status,
+      (await h.call('mem', 'PATCH', `/api/work-packages/${restricted}`, { restricted: true }))
+        .status,
     ).toBe(200);
     const callMachine = await admitMachine();
     const snapshot = () =>
@@ -475,7 +477,7 @@ describe('machine restricted-project grant and cap boundaries', () => {
       );
     const before = snapshot();
     for (const [method, path, body] of [
-      ['POST', `/api/projects/${restricted}/saved-plans`, { name: 'Outside cap' }],
+      ['POST', `/api/work-packages/${restricted}/saved-plans`, { name: 'Outside cap' }],
       ['PATCH', `/api/saved-plans/${savedId}`, { name: 'Outside cap' }],
       ['DELETE', `/api/saved-plans/${savedId}`, undefined],
     ] as const) {
@@ -484,14 +486,15 @@ describe('machine restricted-project grant and cap boundaries', () => {
     }
   });
 
-  it('allows a machine with its own explicit package grant to write a restricted project', async () => {
+  it('allows a machine with its own explicit package grant to write a restricted work package', async () => {
     expect(
-      (await h.call('dany', 'PATCH', `/api/projects/${projectA}`, { restricted: true })).status,
+      (await h.call('dany', 'PATCH', `/api/work-packages/${workPackageA}`, { restricted: true }))
+        .status,
     ).toBe(200);
-    const callMachine = await admitMachine(projectA);
+    const callMachine = await admitMachine(workPackageA);
     expect(
       (
-        await callMachine('POST', `/api/projects/${projectA}/commands`, {
+        await callMachine('POST', `/api/work-packages/${workPackageA}/commands`, {
           commands: [{ kind: 'createWorkItem', parentId: null, name: 'Within cap' }],
         })
       ).status,
@@ -538,9 +541,9 @@ describe('recording an API key’s last use on the MCP path', () => {
   // per-test limit; watched 2026-10-23.
   it('answers while another write holds the turn when its last use is fresh', async () => {
     const { id, key } = await claireKey();
-    expect((await viaMcp(key, 'GET', '/api/projects')).status).toBe(200);
+    expect((await viaMcp(key, 'GET', '/api/work-packages')).status).toBe(200);
     const first = lastUsedAt(id);
-    const answer = await whileTurnHeld(() => viaMcp(key, 'GET', '/api/projects'));
+    const answer = await whileTurnHeld(() => viaMcp(key, 'GET', '/api/work-packages'));
     expect(answer.status).toBe(200);
     expect(lastUsedAt(id)).toBe(first);
   });
@@ -556,7 +559,7 @@ describe('recording an API key’s last use on the MCP path', () => {
     h.sqlite.run('UPDATE machine_credential SET last_used_at = ? WHERE id = ?', [old, id]);
     let answer: Promise<Answer> | undefined;
     await whileTurnHeld(async () => {
-      answer = viaMcp(key, 'GET', '/api/projects');
+      answer = viaMcp(key, 'GET', '/api/work-packages');
       expect(await within(300, answer)).toBe('pending');
       expect(lastUsedAt(id)).toBe(old);
     });
@@ -580,7 +583,7 @@ describe('recording an API key’s last use on the MCP path', () => {
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     const { id, key } = await claireKey();
     // The grant's `exp` is asked from the harness clock, as mcp-01 asks from its own.
-    const call = () => callForwarded(h, key, 'GET', '/api/projects', undefined, { now: at });
+    const call = () => callForwarded(h, key, 'GET', '/api/work-packages', undefined, { now: at });
     expect((await call()).status).toBe(200);
     expect(lastUsedAt(id)).toBe(5_000_000);
     at = 5_059_999;
@@ -610,7 +613,7 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
   it('claims as its person and is refused as any other of its account’s persons', async () => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
-      send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+      send(key, 'POST', `/api/work-packages/${workPackageA}/commands`, { commands });
     expect(await batch([claim('codex')])).toEqual(refused('credential_not_for_person'));
     expect(claimsOf('codex')).toBe(0);
     expect((await batch([claim('claire')])).status).toBe(200);
@@ -620,8 +623,8 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
   it('delegates under its own person’s subtree claim, and only there', async () => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
-      send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
-    const created = await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+      send(key, 'POST', `/api/work-packages/${workPackageA}/commands`, { commands });
+    const created = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [{ kind: 'createWorkItem', parentId: leaf, afterId: null, name: 'Under' }],
     });
     if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
@@ -668,7 +671,7 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
   it('refuses an admin-bound key a person bound to another account', async () => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
-      send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+      send(key, 'POST', `/api/work-packages/${workPackageA}/commands`, { commands });
     expect(await batch([claim('mems-agent')])).toEqual({
       status: 404,
       body: { error: 'unknown_person', at: 0, kind: 'claimWorkItem' },
@@ -679,7 +682,7 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
   it('gives a super-admin-bound key no claim-admin bypass', async () => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
-      send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+      send(key, 'POST', `/api/work-packages/${workPackageA}/commands`, { commands });
     expect(await batch([claim('loose')])).toEqual({
       status: 404,
       body: { error: 'unknown_person', at: 0, kind: 'claimWorkItem' },
@@ -700,7 +703,7 @@ describe('the account a key is bound to', () => {
     await claireKey();
     expect(
       (
-        await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+        await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
           commands: [claim('codex')],
         })
       ).status,

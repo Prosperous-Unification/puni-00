@@ -136,7 +136,11 @@ it('refuses an independently candidate-targeted current validator before reading
   const cause: unknown = await Promise.resolve()
     .then(() =>
       executeCurrentRequest(
-        { command: 'validate workflow-binding', file: 'absent.json', steps: ['development'] },
+        {
+          command: 'validate workflow-binding',
+          file: 'absent.json',
+          catalogue: { kind: 'steps', steps: ['development'] },
+        },
         fixture.context,
       ),
     )

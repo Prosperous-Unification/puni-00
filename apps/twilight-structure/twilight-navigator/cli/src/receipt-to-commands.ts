@@ -11,7 +11,7 @@ import type { PlanCommandWire } from '@wbs/contracts';
 import type { NavigatorRequest } from './cli-parser';
 import { createExclusiveFiles, parseRequiredJson, readRequiredBytes } from './required-file';
 
-/** The document a person or the WBS MCP posts to `POST /api/projects/:id/commands`. */
+/** The document a person or the WBS MCP posts to `POST /api/work-packages/:id/commands`. */
 export interface CommandBatchDocument {
   readonly id: string;
   readonly commands: readonly PlanCommandWire[];
@@ -38,7 +38,7 @@ export async function readDecoded<Decoded>(
  * The WBS commands that record a receipt: per entry in receipt order, one `setProgress` with
  * the entry's status, then one `setMeasure` per present measure in {@link MEASURE_ORDER}.
  * `setProgress`, not `setStatus`, because an entry names one step and `setStatus` acts on the
- * whole work item. Task schemas 1 and 2 retain their original values through decoding;
+ * whole work item. Task schemas 1, 2 and 3 retain their original values through decoding;
  * Burokrat receipt consistency check precedes reading their shared task and step identifiers.
  *
  * @throws when the receipt is for another plan reference, the task export is not the one the

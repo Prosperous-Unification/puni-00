@@ -44,7 +44,7 @@ test('boot composition refuses stale cookie context without effects', async () =
     if (cookie === undefined) throw new Error('booted selection cookie is absent');
     const snapshot = () =>
       [
-        'project',
+        'work_package',
         'service_team',
         'command_journal',
         'organization_audit',
@@ -53,7 +53,7 @@ test('boot composition refuses stale cookie context without effects', async () =
       ].map((table) => process.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
     const before = snapshot();
     for (const [path, body] of [
-      ['/api/projects', { name: 'stale project' }],
+      ['/api/work-packages', { name: 'stale work package' }],
       ['/api/directory/commands', { commands: [{ kind: 'createTeam', name: 'stale team' }] }],
     ] as const) {
       const response = await send(path, body, cookie, 'org-a');
@@ -61,8 +61,8 @@ test('boot composition refuses stale cookie context without effects', async () =
       expect(await response.json()).toEqual({ error: 'organization_context_changed' });
       expect(snapshot()).toEqual(before);
     }
-    expect((await send('/api/projects', { name: 'current project' }, cookie, 'org-b')).status).toBe(
-      200,
-    );
+    expect(
+      (await send('/api/work-packages', { name: 'current work package' }, cookie, 'org-b')).status,
+    ).toBe(200);
   }
 });

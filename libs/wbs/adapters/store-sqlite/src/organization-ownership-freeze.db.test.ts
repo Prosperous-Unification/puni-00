@@ -17,7 +17,7 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** Each side table with its root table and the root row seeded for it. */
 const SIDES = [
-  ['project_organization', 'project', 'p1', false],
+  ['work_package_organization', 'work_package', 'p1', false],
   ['saved_plan_organization', 'saved_plan', 'sp1', false],
   ['person_organization', 'person', 'pe1', true],
   ['service_team_organization', 'service_team', 'st1', true],
@@ -41,14 +41,14 @@ beforeEach(() => {
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-a', 'A', 1, 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-    "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
     "INSERT INTO person (id, name) VALUES ('pe1', 'Ada')",
     "INSERT INTO service_team (id, name) VALUES ('st1', 'Platform')",
     "INSERT INTO service (id, name) VALUES ('s1', 'Billing')",
     "INSERT INTO tag (id, name) VALUES ('t1', 'urgent')",
     "INSERT INTO work_item_type (id, name) VALUES ('w1', 'Bug')",
     "INSERT INTO external_system (id, name) VALUES ('e1', 'Jira')",
-    `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+    `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
     "INSERT INTO resource (id, name, kind, unit_label) VALUES ('r1', 'RAM', 'divisible', 'GB')",
   ]) {
@@ -157,9 +157,9 @@ it('rolls back to the bridge and reapplies', () => {
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_project_dependency_activation',
+    '20261022212000_add_cross_work_package_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_project_abbreviations',
+    '20261022210000_add_work_package_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -189,13 +189,13 @@ it('rolls back to the bridge and reapplies', () => {
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',
     '20261001010000_add_browser_credential_revocations',
-    '20260929180000_add_project_rank',
+    '20260929180000_add_work_package_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
     '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
-    '20260928010000_add_project_solution',
+    '20260928010000_add_work_package_solution',
     '20260927220000_add_organization_audit',
     TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,

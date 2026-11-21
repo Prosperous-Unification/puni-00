@@ -10,7 +10,7 @@ export interface DependencyTokenObservation {
   selectionId?: number;
 }
 
-/** Retains unchanged token occurrences across one text edit; only the active occurrence may extend its selected project prefix. */
+/** Retains unchanged token occurrences across one text edit; only the active occurrence may extend its selected work package prefix. */
 export function retainDependencyBindings(
   previous: string,
   typed: string,
@@ -54,7 +54,9 @@ export function retainDependencyBindings(
     const unchanged = token === binding.token;
     const extendsActive =
       binding.start === activeStart &&
-      token.toUpperCase().startsWith(`${binding.observation.project.abbreviation.toUpperCase()}.`);
+      token
+        .toUpperCase()
+        .startsWith(`${binding.observation.workPackage.abbreviation.toUpperCase()}.`);
     // Proof: removing this prefix guard kept the chosen remote scope after numeric replacement (mounted dependency-search round1 negative).
     if (!unchanged && !extendsActive) return [];
     // Proof: without this refusal marker an ambiguous duplicate-token deletion authored a surviving occurrence without explicit reselection (mounted round1 test).
@@ -77,7 +79,7 @@ export function encodeDependencyBindings(bindings: readonly DependencyTokenObser
       binding.start,
       binding.end,
       binding.token,
-      binding.observation.project.projectId,
+      binding.observation.workPackage.workPackageId,
       binding.selectionId ?? null,
       binding.requiresReselection === true,
     ]),

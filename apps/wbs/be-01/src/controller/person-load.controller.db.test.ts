@@ -1,6 +1,6 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { scheduleInputOfCaptured } from '@wbs/core';
-import { schedule } from '@wbs/domain';
+import { contractVersionOf, schedule } from '@wbs/domain';
 import { openConnection, openDatabase } from '@wbs/store-sqlite/db';
 import { allocateGeneration } from '@wbs/store-sqlite/optimization-generation';
 import { SavedPlanCaptureRepository } from '@wbs/store-sqlite/saved-plan-capture';
@@ -10,9 +10,10 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readProjectIds, readSpaceReply } from '../testing/space-rollup';
 
 /**
- * The load reads (`openspec/changes/share-people-across-projects`, slice 1)
+ * The load reads (`openspec/changes/share-people-across-work-packages`, slice 1)
  * over be-01's production composition, real SQLite and the production
  * organization access. Organization A holds Ana (`pe-a`) and two plans that
  * both book her from Monday 2026-10-05; organization B holds a plan whose row
@@ -28,15 +29,15 @@ const WEEK = `from=${MONDAY}&to=2026-10-16`;
 
 interface PersonLoadBody {
   person: { id: string; name: string };
-  projects: {
-    projectId: string;
+  workPackages: {
+    workPackageId: string;
     name: string;
     engine: string;
     bookings: { workItemId: string; name: string; startsOn: string; endsOn: string }[];
   }[];
-  overlaps: { startsOn: string; endsOn: string; bookings: { projectId: string }[] }[];
-  undated: { projectId: string; name: string }[];
-  unavailable: { projectId: string; reason: string }[];
+  overlaps: { startsOn: string; endsOn: string; bookings: { workPackageId: string }[] }[];
+  undated: { workPackageId: string; name: string }[];
+  unavailable: { workPackageId: string; reason: string }[];
 }
 
 beforeEach(async () => {
@@ -70,13 +71,13 @@ beforeEach(async () => {
   // on it; A's reads must never reach B at all.
   h.sqlite.run(
     `UPDATE assignment SET person_id = 'pe-a'
-       WHERE work_item_id IN (SELECT id FROM work_item WHERE project_id = ?)`,
+       WHERE work_item_id IN (SELECT id FROM work_item WHERE work_package_id = ?)`,
     [foreign],
   );
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
 function seedPerson(org: 'a' | 'b', name: string): void {
@@ -99,14 +100,15 @@ async function plan(
   personId: string,
   days: number,
 ): Promise<string> {
-  const created = await expectOk(await h.call(username, 'POST', '/api/projects', { name }));
-  const id = (created.body as { project: { id: string } }).project.id;
-  await expectOk(await h.call(username, 'PATCH', `/api/projects/${id}`, { startDate: MONDAY }));
-  const read = await h.call(username, 'GET', `/api/projects/${id}`);
-  const step = (read.body as { steps: { id: string }[] }).steps.at(0);
-  if (step === undefined) throw new Error('the project started with no step');
+  const id = await createFixturePackage(h, username, name);
   await expectOk(
-    await h.call(username, 'POST', `/api/projects/${id}/commands`, {
+    await readSpaceReply(h, username, 'PATCH', `/api/work-packages/${id}`, { startDate: MONDAY }),
+  );
+  const read = await readSpaceReply(h, username, 'GET', `/api/work-packages/${id}`);
+  const step = (read.body as { steps: { id: string }[] }).steps.at(0);
+  if (step === undefined) throw new Error('the work package started with no step');
+  await expectOk(
+    await readSpaceReply(h, username, 'POST', `/api/work-packages/${id}/commands`, {
       commands: [
         { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: `${name} work` },
         {
@@ -122,8 +124,13 @@ async function plan(
   return id;
 }
 
-async function rowDates(projectId: string): Promise<{ startsOn: string; endsOn: string }> {
-  const tree = await h.call('ada', 'GET', `/api/projects/${projectId}/work-items`);
+async function rowDates(workPackageId: string): Promise<{ startsOn: string; endsOn: string }> {
+  const tree = await readSpaceReply(
+    h,
+    'ada',
+    'GET',
+    `/api/work-packages/${workPackageId}/work-items`,
+  );
   const row = (
     tree.body as { workItems: { dates: { startsOn: string; endsOn: string } | null }[] }
   ).workItems.at(0);
@@ -132,7 +139,7 @@ async function rowDates(projectId: string): Promise<{ startsOn: string; endsOn: 
 }
 
 async function personLoad(username: string, query = WEEK): Promise<Answer> {
-  return h.call(username, 'GET', `/api/people/pe-a/load?${query}`);
+  return readSpaceReply(h, username, 'GET', `/api/people/pe-a/load?${query}`);
 }
 
 describe('one person', () => {
@@ -141,10 +148,13 @@ describe('one person', () => {
     expect(answer.status).toBe(200);
     const body = answer.body as PersonLoadBody;
     expect(body.person).toEqual({ id: 'pe-a', name: 'Ana' });
-    expect(body.projects.map((project) => project.name)).toEqual(['Platform', 'Billing']);
-    expect(body.projects.map((project) => project.engine)).toEqual(['fast', 'fast']);
+    expect(body.workPackages.map((workPackage) => workPackage.name)).toEqual([
+      'Platform',
+      'Billing',
+    ]);
+    expect(body.workPackages.map((workPackage) => workPackage.engine)).toEqual(['fast', 'fast']);
     for (const [index, id] of [platform, billing].entries()) {
-      const booking = body.projects[index]?.bookings.at(0);
+      const booking = body.workPackages[index]?.bookings.at(0);
       const { startsOn, endsOn } = await rowDates(id);
       expect({ startsOn: booking?.startsOn, endsOn: booking?.endsOn }).toEqual({
         startsOn,
@@ -153,7 +163,7 @@ describe('one person', () => {
     }
     expect(body.overlaps).toHaveLength(1);
     expect(body.overlaps[0]?.startsOn).toBe(MONDAY);
-    expect(body.overlaps[0]?.bookings.map((booking) => booking.projectId).sort()).toEqual(
+    expect(body.overlaps[0]?.bookings.map((booking) => booking.workPackageId).sort()).toEqual(
       [platform, billing].sort(),
     );
     expect(body.undated).toEqual([]);
@@ -165,16 +175,16 @@ describe('one person', () => {
     const next = new Date(`${endsOn}T00:00:00Z`);
     next.setUTCDate(next.getUTCDate() + 1);
     await expectOk(
-      await h.call('ada', 'PATCH', `/api/projects/${billing}`, {
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${billing}`, {
         startDate: next.toISOString().slice(0, 10),
       }),
     );
     const body = (await personLoad('ada')).body as PersonLoadBody;
-    expect(body.projects).toHaveLength(2);
+    expect(body.workPackages).toHaveLength(2);
     expect(body.overlaps).toEqual([]);
   });
 
-  it('omits a foreign project that assigns the same person id', async () => {
+  it('omits a foreign work package that assigns the same person id', async () => {
     const body = (await personLoad('ada')).body as PersonLoadBody;
     const named = JSON.stringify(body);
     expect(named).not.toContain(foreign);
@@ -182,35 +192,41 @@ describe('one person', () => {
   });
 
   it('answers a foreign person as an absent one', async () => {
-    const foreignPerson = await h.call('ada', 'GET', `/api/people/pe-b/load?${WEEK}`);
-    const absent = await h.call('ada', 'GET', `/api/people/pe-nobody/load?${WEEK}`);
+    const foreignPerson = await readSpaceReply(h, 'ada', 'GET', `/api/people/pe-b/load?${WEEK}`);
+    const absent = await readSpaceReply(h, 'ada', 'GET', `/api/people/pe-nobody/load?${WEEK}`);
     expect(foreignPerson).toEqual(absent);
     expect(absent.status).toBe(404);
   });
 
   it('lists a restricted plan, which restricts writes only', async () => {
-    await expectOk(await h.call('ada', 'PATCH', `/api/projects/${billing}`, { restricted: true }));
+    await expectOk(
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${billing}`, {
+        restricted: true,
+      }),
+    );
     const body = (await personLoad('vic')).body as PersonLoadBody;
-    expect(body.projects.map((project) => project.projectId)).toContain(billing);
+    expect(body.workPackages.map((workPackage) => workPackage.workPackageId)).toContain(billing);
   });
 
   it('lists an undated plan that assigns the person, and books nothing from it', async () => {
-    await expectOk(await h.call('ada', 'PATCH', `/api/projects/${billing}`, { startDate: null }));
+    await expectOk(
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${billing}`, { startDate: null }),
+    );
     const body = (await personLoad('ada')).body as PersonLoadBody;
-    expect(body.undated).toEqual([{ projectId: billing, name: 'Billing' }]);
-    expect(body.projects.map((project) => project.projectId)).toEqual([platform]);
+    expect(body.undated).toEqual([{ workPackageId: billing, name: 'Billing' }]);
+    expect(body.workPackages.map((workPackage) => workPackage.workPackageId)).toEqual([platform]);
     expect(body.overlaps).toEqual([]);
   });
 
   it('shows a lengthened booking after a command', async () => {
     const before = (await personLoad('ada')).body as PersonLoadBody;
-    const tree = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const tree = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}/work-items`);
     const leaf = (tree.body as { workItems: { id: string }[] }).workItems.at(0);
-    const read = await h.call('ada', 'GET', `/api/projects/${platform}`);
+    const read = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}`);
     const step = (read.body as { steps: { id: string }[] }).steps.at(0);
     if (leaf === undefined || step === undefined) throw new Error('the plan lost its leaf');
     await expectOk(
-      await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+      await readSpaceReply(h, 'ada', 'POST', `/api/work-packages/${platform}/commands`, {
         commands: [
           {
             kind: 'setEstimate',
@@ -222,7 +238,7 @@ describe('one person', () => {
       }),
     );
     const after = (await personLoad('ada')).body as PersonLoadBody;
-    const endOf = (body: PersonLoadBody) => body.projects.at(0)?.bookings.at(0)?.endsOn;
+    const endOf = (body: PersonLoadBody) => body.workPackages.at(0)?.bookings.at(0)?.endsOn;
     expect(endOf(after)).toBe((await rowDates(platform)).endsOn);
     expect(endOf(after)).not.toBe(endOf(before));
   });
@@ -230,10 +246,14 @@ describe('one person', () => {
   it('follows a start date moved after a warm read', async () => {
     await personLoad('ada');
     await expectOk(
-      await h.call('ada', 'PATCH', `/api/projects/${platform}`, { startDate: '2026-10-12' }),
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${platform}`, {
+        startDate: '2026-10-12',
+      }),
     );
     const body = (await personLoad('ada')).body as PersonLoadBody;
-    const booking = body.projects.find((project) => project.projectId === platform)?.bookings.at(0);
+    const booking = body.workPackages
+      .find((workPackage) => workPackage.workPackageId === platform)
+      ?.bookings.at(0);
     expect({ startsOn: booking?.startsOn, endsOn: booking?.endsOn }).toEqual(
       await rowDates(platform),
     );
@@ -242,21 +262,25 @@ describe('one person', () => {
 
   it('follows a start date cleared after a warm read', async () => {
     await personLoad('ada');
-    await expectOk(await h.call('ada', 'PATCH', `/api/projects/${platform}`, { startDate: null }));
+    await expectOk(
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${platform}`, {
+        startDate: null,
+      }),
+    );
     const body = (await personLoad('ada')).body as PersonLoadBody;
-    expect(body.projects.map((project) => project.projectId)).toEqual([billing]);
-    expect(body.undated).toEqual([{ projectId: platform, name: 'Platform' }]);
+    expect(body.workPackages.map((workPackage) => workPackage.workPackageId)).toEqual([billing]);
+    expect(body.undated).toEqual([{ workPackageId: platform, name: 'Platform' }]);
   });
 
   it('follows an estimate rule changed after a warm read', async () => {
     // An uneven triple first, so switching the method changes the slice's length.
-    const tree = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const tree = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}/work-items`);
     const leaf = (tree.body as { workItems: { id: string }[] }).workItems.at(0);
-    const read = await h.call('ada', 'GET', `/api/projects/${platform}`);
+    const read = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}`);
     const step = (read.body as { steps: { id: string }[] }).steps.at(0);
     if (leaf === undefined || step === undefined) throw new Error('the plan lost its leaf');
     await expectOk(
-      await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+      await readSpaceReply(h, 'ada', 'POST', `/api/work-packages/${platform}/commands`, {
         commands: [
           {
             kind: 'setEstimate',
@@ -269,13 +293,15 @@ describe('one person', () => {
     );
     const before = (await personLoad('ada')).body as PersonLoadBody;
     await expectOk(
-      await h.call('ada', 'PATCH', `/api/projects/${platform}`, {
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${platform}`, {
         estimateMethod: 'pessimistic',
       }),
     );
     const after = (await personLoad('ada')).body as PersonLoadBody;
     const endOf = (body: PersonLoadBody) =>
-      body.projects.find((project) => project.projectId === platform)?.bookings.at(0)?.endsOn;
+      body.workPackages
+        .find((workPackage) => workPackage.workPackageId === platform)
+        ?.bookings.at(0)?.endsOn;
     expect(endOf(after)).toBe((await rowDates(platform)).endsOn);
     expect(endOf(after)).not.toBe(endOf(before));
   });
@@ -310,7 +336,7 @@ describe('one person', () => {
 
 describe('the organization', () => {
   it('reports booked and overlapping workdays per week for its own people only', async () => {
-    const answer = await h.call('ada', 'GET', `/api/people/load?${WEEK}`);
+    const answer = await readSpaceReply(h, 'ada', 'GET', `/api/people/load?${WEEK}`);
     expect(answer.status).toBe(200);
     const body = answer.body as {
       people: { id: string; weeks: { weekOf: string; booked: number; overlapping: number }[] }[];
@@ -330,33 +356,44 @@ describe('the organization', () => {
 describe('shared incoming calendars', () => {
   it('does not reuse isolated load or roll-up entries when a shared chain has no basis', async () => {
     const rollUp = async () => {
-      const answer = await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`);
+      const answer = await readSpaceReply(
+        h,
+        'ada',
+        'GET',
+        `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+      );
       expect(answer.status).toBe(200);
       return (
         answer.body as { rollUps: Record<string, { scheduleError: string | null; dates: unknown }> }
       ).rollUps[billing];
     };
     h.sqlite.run(
-      'UPDATE estimate SET optimistic = 40000000, realistic = 40000000, pessimistic = 40000000 WHERE work_item_id IN (SELECT id FROM work_item WHERE project_id IN (?, ?))',
+      'UPDATE estimate SET optimistic = 40000000, realistic = 40000000, pessimistic = 40000000 WHERE work_item_id IN (SELECT id FROM work_item WHERE work_package_id IN (?, ?))',
       [platform, billing],
     );
     const isolated = (await personLoad('ada')).body as PersonLoadBody;
-    expect(isolated.projects.map((project) => project.projectId)).toContain(billing);
+    expect(isolated.workPackages.map((workPackage) => workPackage.workPackageId)).toContain(
+      billing,
+    );
     const isolatedRollUp = await rollUp();
     expect(isolatedRollUp.scheduleError).toBeNull();
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    const live = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+    const live = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${billing}/work-items`);
     expect(live.status).toBe(200);
     expect((live.body as { scheduleError: string }).scheduleError).toBe('calendar_range');
     const shared = (await personLoad('ada')).body as PersonLoadBody;
-    expect(shared.projects.find((project) => project.projectId === billing)).toBeUndefined();
-    expect(shared.unavailable.find((project) => project.projectId === billing)?.reason).toBe(
-      'calendar_range',
-    );
+    expect(
+      shared.workPackages.find((workPackage) => workPackage.workPackageId === billing),
+    ).toBeUndefined();
+    expect(
+      shared.unavailable.find((workPackage) => workPackage.workPackageId === billing)?.reason,
+    ).toBe('calendar_range');
     expect((await rollUp()).scheduleError).toBe('calendar_range');
     h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
     const restored = (await personLoad('ada')).body as PersonLoadBody;
-    expect(restored.projects.map((project) => project.projectId)).toContain(billing);
+    expect(restored.workPackages.map((workPackage) => workPackage.workPackageId)).toContain(
+      billing,
+    );
     expect((await rollUp()).scheduleError).toBeNull();
   });
 
@@ -364,21 +401,24 @@ describe('shared incoming calendars', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const before = (await personLoad('ada')).body as PersonLoadBody;
     const organization = async () =>
-      (await h.call('ada', 'GET', `/api/people/load?${WEEK}`)).body as {
+      (await readSpaceReply(h, 'ada', 'GET', `/api/people/load?${WEEK}`)).body as {
         people: { id: string; weeks: { booked: number }[] }[];
       };
     expect((await organization()).people[0]?.weeks.map((week) => week.booked)).toEqual([5, 0]);
-    const targetBefore = before.projects.find((project) => project.projectId === billing)
-      ?.bookings[0];
+    const targetBefore = before.workPackages.find(
+      (workPackage) => workPackage.workPackageId === billing,
+    )?.bookings[0];
     expect(targetBefore?.startsOn).toBe('2026-10-08');
-    const targetState = h.sqlite.query('SELECT revision FROM project WHERE id = ?').get(billing);
-    const tree = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const targetState = h.sqlite
+      .query('SELECT revision FROM work_package WHERE id = ?')
+      .get(billing);
+    const tree = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}/work-items`);
     const leaf = (tree.body as { workItems: { id: string }[] }).workItems.at(0);
-    const project = await h.call('ada', 'GET', `/api/projects/${platform}`);
-    const step = (project.body as { steps: { id: string }[] }).steps.at(0);
+    const workPackage = await readSpaceReply(h, 'ada', 'GET', `/api/work-packages/${platform}`);
+    const step = (workPackage.body as { steps: { id: string }[] }).steps.at(0);
     if (leaf === undefined || step === undefined) throw new Error('upstream fixture is incomplete');
     await expectOk(
-      await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+      await readSpaceReply(h, 'ada', 'POST', `/api/work-packages/${platform}/commands`, {
         commands: [
           {
             kind: 'setEstimate',
@@ -391,48 +431,69 @@ describe('shared incoming calendars', () => {
     );
     const after = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      after.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      after.workPackages.find((workPackage) => workPackage.workPackageId === billing)?.bookings[0]
+        ?.startsOn,
     ).toBe('2026-10-12');
     expect((await organization()).people[0]?.weeks.map((week) => week.booked)).toEqual([5, 2]);
-    expect(h.sqlite.query('SELECT revision FROM project WHERE id = ?').get(billing)).toEqual(
+    expect(h.sqlite.query('SELECT revision FROM work_package WHERE id = ?').get(billing)).toEqual(
       targetState,
     );
   });
 
   it('refreshes warm space roll-up and in-progress dates after only upstream work changes', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-    const targetTree = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+    const targetTree = await readSpaceReply(
+      h,
+      'ada',
+      'GET',
+      `/api/work-packages/${billing}/work-items`,
+    );
     const targetLeaf = (targetTree.body as { workItems: { id: string }[] }).workItems.at(0);
     if (targetLeaf === undefined) throw new Error('target fixture has no leaf');
     await expectOk(
-      await h.call('ada', 'POST', `/api/projects/${billing}/commands`, {
+      await readSpaceReply(h, 'ada', 'POST', `/api/work-packages/${billing}/commands`, {
         commands: [{ kind: 'setStatus', workItemId: targetLeaf.id, status: 'in_progress' }],
       }),
     );
     const rollUp = async () => {
-      const answer = await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`);
+      const answer = await readSpaceReply(
+        h,
+        'ada',
+        'GET',
+        `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+      );
       expect(answer.status).toBe(200);
       return (answer.body as { rollUps: Record<string, { dates: { startsOn: string } }> }).rollUps[
         billing
       ];
     };
     const progress = async () => {
-      const answer = await h.call('ada', 'GET', '/api/spaces/all/in-progress');
+      const answer = await readSpaceReply(h, 'ada', 'GET', '/api/spaces/all/in-progress');
       expect(answer.status).toBe(200);
       return (
-        answer.body as { items: { projectId: string; dates: { startsOn: string } }[] }
-      ).items.find((leaf) => leaf.projectId === billing);
+        answer.body as { items: { workPackageId: string; dates: { startsOn: string } }[] }
+      ).items.find((leaf) => leaf.workPackageId === billing);
     };
     expect((await rollUp()).dates.startsOn).toBe('2026-10-08');
     expect((await progress())?.dates.startsOn).toBe('2026-10-08');
-    const sourceTree = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const sourceTree = await readSpaceReply(
+      h,
+      'ada',
+      'GET',
+      `/api/work-packages/${platform}/work-items`,
+    );
     const sourceLeaf = (sourceTree.body as { workItems: { id: string }[] }).workItems.at(0);
-    const sourceProject = await h.call('ada', 'GET', `/api/projects/${platform}`);
-    const sourceStep = (sourceProject.body as { steps: { id: string }[] }).steps.at(0);
+    const sourceWorkPackage = await readSpaceReply(
+      h,
+      'ada',
+      'GET',
+      `/api/work-packages/${platform}`,
+    );
+    const sourceStep = (sourceWorkPackage.body as { steps: { id: string }[] }).steps.at(0);
     if (sourceLeaf === undefined || sourceStep === undefined)
       throw new Error('source fixture incomplete');
     await expectOk(
-      await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+      await readSpaceReply(h, 'ada', 'POST', `/api/work-packages/${platform}/commands`, {
         commands: [
           {
             kind: 'setEstimate',
@@ -446,7 +507,7 @@ describe('shared incoming calendars', () => {
     expect((await rollUp()).dates.startsOn).toBe('2026-10-12');
     expect((await progress())?.dates.startsOn).toBe('2026-10-12');
     await expectOk(
-      await h.call('ada', 'PATCH', `/api/projects/${platform}`, {
+      await readSpaceReply(h, 'ada', 'PATCH', `/api/work-packages/${platform}`, {
         startDate: '2026-10-12',
       }),
     );
@@ -458,36 +519,55 @@ describe('shared incoming calendars', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     expect((await personLoad('ada')).status).toBe(200);
     expect(
-      (await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`)).status,
+      (
+        await readSpaceReply(
+          h,
+          'ada',
+          'GET',
+          `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+        )
+      ).status,
     ).toBe(200);
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [platform],
     );
     const unavailable = (await personLoad('ada')).body as PersonLoadBody;
-    expect(unavailable.projects.find((project) => project.projectId === billing)).toBeUndefined();
-    expect(unavailable.unavailable.map((project) => project.projectId)).toContain(billing);
-    const rollUp = await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`);
+    expect(
+      unavailable.workPackages.find((workPackage) => workPackage.workPackageId === billing),
+    ).toBeUndefined();
+    expect(unavailable.unavailable.map((workPackage) => workPackage.workPackageId)).toContain(
+      billing,
+    );
+    const rollUp = await readSpaceReply(
+      h,
+      'ada',
+      'GET',
+      `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+    );
     expect(rollUp).toMatchObject({
       status: 200,
       body: { rollUps: { [billing]: { kind: 'unavailable' } } },
     });
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 0, schedule_engine = 'fast' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 0, schedule_engine = 'fast' WHERE id = ?",
       [platform],
     );
     const recovered = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      recovered.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      recovered.workPackages.find((workPackage) => workPackage.workPackageId === billing)
+        ?.bookings[0]?.startsOn,
     ).toBe('2026-10-08');
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [billing],
     );
     const targetUnavailable = (await personLoad('ada')).body as PersonLoadBody;
-    expect(targetUnavailable.unavailable.map((project) => project.projectId)).toContain(billing);
+    expect(targetUnavailable.unavailable.map((workPackage) => workPackage.workPackageId)).toContain(
+      billing,
+    );
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 0, schedule_engine = 'fast' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 0, schedule_engine = 'fast' WHERE id = ?",
       [billing],
     );
     expect((await personLoad('ada')).status).toBe(200);
@@ -496,14 +576,24 @@ describe('shared incoming calendars', () => {
   it('refuses a revoked caller for the whole warm load and space request', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     await personLoad('ada');
-    await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`);
+    await readSpaceReply(
+      h,
+      'ada',
+      'GET',
+      `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+    );
     h.sqlite.run(
       "DELETE FROM organization_membership WHERE organization_id = 'org-a' AND user_id = ?",
       [h.userId('ada')],
     );
     expect(await personLoad('ada')).toMatchObject({ status: 403, body: { error: 'not_a_member' } });
     expect(
-      await h.call('ada', 'GET', `/api/spaces/all/roll-ups?projectIds=${billing}`),
+      await readSpaceReply(
+        h,
+        'ada',
+        'GET',
+        `/api/spaces/all/roll-ups?projectIds=${readProjectIds(h, billing)}`,
+      ),
     ).toMatchObject({ status: 403, body: { error: 'not_a_member' } });
   });
 
@@ -511,12 +601,14 @@ describe('shared incoming calendars', () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     const shared = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      shared.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      shared.workPackages.find((workPackage) => workPackage.workPackageId === billing)?.bookings[0]
+        ?.startsOn,
     ).toBe('2026-10-08');
     h.sqlite.run("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
     const isolated = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      isolated.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      isolated.workPackages.find((workPackage) => workPackage.workPackageId === billing)
+        ?.bookings[0]?.startsOn,
     ).toBe('2026-10-05');
   });
 
@@ -620,12 +712,13 @@ describe('shared incoming calendars', () => {
     billing = await plan('ada', 'Billing', 'pe-a', 2);
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [platform],
     );
     const before = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      before.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      before.workPackages.find((workPackage) => workPackage.workPackageId === billing)?.bookings[0]
+        ?.startsOn,
     ).toBe('2026-10-08');
     const reads = await new SavedPlanCaptureRepository({
       openConnection: () => openConnection(h.databasePath()),
@@ -645,14 +738,20 @@ describe('shared incoming calendars', () => {
     const connection = openConnection(h.databasePath());
     try {
       const inputHash = scheduleInputHash(input);
-      const generation = allocateGeneration(connection.db, platform, '18+0.1.0', inputHash, 1);
+      const generation = allocateGeneration(
+        connection.db,
+        platform,
+        contractVersionOf('0.1.0'),
+        inputHash,
+        1,
+      );
       connection.db
         .insert(optimizedScheduleCache)
         .values({
-          projectId: platform,
+          workPackageId: platform,
           inputHash,
           generation,
-          contractVersion: '18+0.1.0',
+          contractVersion: contractVersionOf('0.1.0'),
           budgetMs: 60000,
           objective: 'pri',
           status: 'ok',
@@ -676,29 +775,30 @@ describe('shared incoming calendars', () => {
     }
     const after = (await personLoad('ada')).body as PersonLoadBody;
     expect(
-      after.projects.find((project) => project.projectId === billing)?.bookings[0]?.startsOn,
+      after.workPackages.find((workPackage) => workPackage.workPackageId === billing)?.bookings[0]
+        ?.startsOn,
     ).toBe('2026-10-09');
   });
 
   it('keeps overlapping target chains on one side of a concurrent upstream write', async () => {
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     // eslint-disable-next-line @typescript-eslint/unbound-method -- the spy forwards to the repository receiver.
-    const original = WorkItemRepository.prototype.listByProject;
+    const original = WorkItemRepository.prototype.listByWorkPackage;
     let moved = false;
-    const interrupted = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
-      async function (this: WorkItemRepository, projectId) {
-        const rows = await original.call(this, projectId);
-        if (projectId === platform && !moved) {
+    const interrupted = spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+      async function (this: WorkItemRepository, workPackageId) {
+        const rows = await original.call(this, workPackageId);
+        if (workPackageId === platform && !moved) {
           moved = true;
           const writer = openDatabase(h.databasePath());
           try {
             writer.run('BEGIN');
             writer.run(
-              "UPDATE project SET start_date = '2026-10-12', revision = revision + 1 WHERE id = ?",
+              "UPDATE work_package SET start_date = '2026-10-12', revision = revision + 1 WHERE id = ?",
               [platform],
             );
             writer.run(
-              "UPDATE project SET start_date = '2026-10-19', revision = revision + 1 WHERE id = ?",
+              "UPDATE work_package SET start_date = '2026-10-19', revision = revision + 1 WHERE id = ?",
               [billing],
             );
             writer.run('COMMIT');
@@ -714,8 +814,9 @@ describe('shared incoming calendars', () => {
         .body as PersonLoadBody;
       const dates = (body: PersonLoadBody) =>
         [platform, billing].map(
-          (projectId) =>
-            body.projects.find((project) => project.projectId === projectId)?.bookings[0]?.startsOn,
+          (workPackageId) =>
+            body.workPackages.find((workPackage) => workPackage.workPackageId === workPackageId)
+              ?.bookings[0]?.startsOn,
         );
       expect(moved).toBe(true);
       expect(dates(captured)).toEqual(['2026-10-05', '2026-10-08']);

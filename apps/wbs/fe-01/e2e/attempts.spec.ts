@@ -1,29 +1,43 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
+import { patchWorkPackage as patchWorkPackageShape } from '@wbs/contracts';
 
+import { expect, type Locator, type Page, test } from './ordinary-test';
+import { createOrdinaryHeaders } from './plan-fixture';
 import { seedStepReadings } from './step-readings-seed';
 
 /**
  * `step-node-attempts` D7 in a browser, over the ordinary e2e servers' real
  * be-01: the step card's `Start attempt`, `End attempt` and `Remove`, each one
  * journalled act the plan's Undo takes back verbatim, the attempt times printed
- * in the project's zone, and the Timezone section of Project settings.
+ * in the work package's zone, and the Timezone section of Work package settings.
  *
  * The captures are the UI acceptance record: every new control and state at
  * 1280 and 375, light and dark, kept in `test-results` for review by eye.
  */
 
-/** The project's zone, written the way Settings writes it. */
-async function setProjectZone(page: Page, projectId: string, timezone: string): Promise<void> {
+/** The work package's zone, written the way Settings writes it. */
+async function setWorkPackageZone(
+  page: Page,
+  workPackageId: string,
+  timezone: string,
+): Promise<void> {
   await page.evaluate(
-    async ({ id, zone }) => {
-      const response = await fetch(`/api/projects/${id}`, {
+    async ({ requestHeaders, fixtureInput }) => {
+      const { id, zone } = fixtureInput;
+
+      const response = await fetch(`/api/work-packages/${id}`, {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          ...Object.fromEntries(requestHeaders.patchWorkPackage),
+          ...{ 'content-type': 'application/json' },
+        },
         body: JSON.stringify({ timezone: zone }),
       });
       if (!response.ok) throw new Error(`PATCH zone failed: ${String(response.status)}`);
     },
-    { id: projectId, zone: timezone },
+    {
+      requestHeaders: { patchWorkPackage: createOrdinaryHeaders(patchWorkPackageShape) },
+      fixtureInput: { id: workPackageId, zone: timezone },
+    },
   );
 }
 
@@ -73,11 +87,11 @@ test.describe('attempts on the step card, in a browser (step-node-attempts D7)',
   // The wide captures are taken at 1280, the narrow ones at 375 below.
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test('starts, ends and undoes an attempt, printed in the project zone', async ({
+  test('starts, ends and undoes an attempt, printed in the work package zone', async ({
     page,
   }, testInfo) => {
-    const { projectId } = await seedStepReadings(page);
-    await setProjectZone(page, projectId, 'Europe/Kyiv');
+    const { workPackageId } = await seedStepReadings(page);
+    await setWorkPackageZone(page, workPackageId, 'Europe/Kyiv');
     await page.reload();
     await expect(page.getByLabel('Name of 040')).toBeVisible();
 
@@ -150,8 +164,8 @@ test.describe('attempts on the step card, in a browser (step-node-attempts D7)',
   test('captures the attempt surfaces in dark and at 375px, and their ink clears its surface', async ({
     page,
   }, testInfo) => {
-    const { projectId } = await seedStepReadings(page);
-    await setProjectZone(page, projectId, 'Europe/Kyiv');
+    const { workPackageId } = await seedStepReadings(page);
+    await setWorkPackageZone(page, workPackageId, 'Europe/Kyiv');
     await page.reload();
     await expect(page.getByLabel('Name of 040')).toBeVisible();
 
@@ -191,8 +205,8 @@ test.describe('attempts on the step card, in a browser (step-node-attempts D7)',
     await page.mouse.move(0, 0);
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      await page.getByRole('button', { name: 'Project settings' }).click();
-      const settings = page.getByRole('dialog', { name: 'Project settings' });
+      await page.getByRole('button', { name: 'Work package settings' }).click();
+      const settings = page.getByRole('dialog', { name: 'Work package settings' });
       await settings.getByRole('tab', { name: 'Timezone' }).click();
       const zone = settings.getByRole('combobox', { name: 'Timezone' });
       await expect(zone).toHaveValue('Europe/Kyiv');

@@ -48,7 +48,7 @@ describe('canonical shared people backup', () => {
     ).toBe(DIGEST);
   });
 
-  it('orders organization and project IDs ordinally without locale-dependent collation', () => {
+  it('orders organization and work package IDs ordinally without locale-dependent collation', () => {
     const saved = readSharedPeopleBackup({
       ...backup,
       organizations: ['ä', 'Z', 'a'].map((organizationId) => ({
@@ -61,6 +61,7 @@ describe('canonical shared people backup', () => {
         organizationId: 'a',
       })),
     });
+    if (saved.version !== 1) throw new Error('historical fixture lost generation1');
     expect(saved.organizations.map((organization) => organization.organizationId)).toEqual([
       'Z',
       'a',
@@ -104,7 +105,7 @@ describe('canonical shared people backup', () => {
   it('preserves v1 validation before producing any digest', () => {
     const malformed: unknown[] = [
       null,
-      { ...backup, version: 2 },
+      { ...backup, version: 3 },
       { ...backup, extra: true },
       { ...backup, organizations: [...backup.organizations, backup.organizations[0]] },
       { ...backup, ranks: [...backup.ranks, backup.ranks[0]] },

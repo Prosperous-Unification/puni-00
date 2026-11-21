@@ -1,7 +1,7 @@
 import { expect, it } from 'bun:test';
 
 import { SubscriptionMap } from '../service/subscription-map';
-import { grantingAccess } from '../testing/project-access';
+import { grantingAccess } from '../testing/work-package-access';
 import type { UnexpectedBackendFailure } from './unexpected-backend-failure';
 import { handleWsMessage } from './ws.controller';
 
@@ -23,7 +23,7 @@ for (const kind of ['forward', 'resume'] as const) {
           ? { subscription: 'presence', message: { write: true } }
           : {
               type: 'resume',
-              resume_points: { 'project:00000000-0000-4000-8000-0000000000aa': 0 },
+              resume_points: { 'work-package:00000000-0000-4000-8000-0000000000aa': 0 },
             },
       socket: {
         send: (frame) => {
@@ -67,7 +67,10 @@ it('closed connection suppresses a late successful replay', async () => {
     resolveRequest = resolve;
   });
   const handling = handleWsMessage({
-    frame: { type: 'resume', resume_points: { 'project:00000000-0000-4000-8000-0000000000aa': 0 } },
+    frame: {
+      type: 'resume',
+      resume_points: { 'work-package:00000000-0000-4000-8000-0000000000aa': 0 },
+    },
     socket: {
       send: (frame) => {
         sent.push(frame);
@@ -85,7 +88,7 @@ it('closed connection suppresses a late successful replay', async () => {
   });
   cancellation.abort();
   resolveRequest({
-    'project:00000000-0000-4000-8000-0000000000aa': {
+    'work-package:00000000-0000-4000-8000-0000000000aa': {
       status: 'replaying',
       events: [{ seq: 1, message: { late: true } }],
     },

@@ -15,7 +15,7 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { endLeasesOfUncredentialed } from './claim';
 import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
-import { roleIn } from './organization';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import { machineCredential, person, personOrganization } from './schema';
@@ -65,7 +65,7 @@ export class ConsentCredentialRepository implements ConsentCredentials {
   ): Promise<'minted' | ConsentMintRefusal> {
     return writeImmediately(this.db, this.gate, (tx) => {
       if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-      if (roleIn(tx, organizationId, userId) === null) return 'not_a_member';
+      if (readMembershipIn(tx, organizationId, userId) === null) return 'not_a_member';
       const agent = tx
         .select({ id: person.id })
         .from(person)

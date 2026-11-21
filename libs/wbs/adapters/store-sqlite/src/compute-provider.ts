@@ -1,4 +1,3 @@
-import { resourceRuntimeHostJobUse } from '@wbs/contracts';
 import {
   type AuditedAct,
   authorize,
@@ -32,6 +31,7 @@ import type { Gate } from './gate';
 import { writeImmediately } from './immediate-write';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
+import { readStoredHostJob } from './resource-runtime-identities';
 import {
   computeProvider,
   type ComputeProviderRow,
@@ -583,7 +583,10 @@ function hostJobsOf(
     .orderBy(asc(resourceHostJobRecord.registeredAt), asc(resourceHostJobRecord.useId))
     .all()
     .map((row) => {
-      const use = resourceRuntimeHostJobUse.assert(JSON.parse(row.declaration));
+      // Proof: resource-host-reading-codec-call.
+      // Injected fault failed `reads tagged host-job identity as recorded provider observations`; restored GREEN.
+      // Evidence scope: required persisted decoder/framing dependency; response-schema refusal, not admission bypass.
+      const use = readStoredHostJob(row.declaration);
       return {
         useId: row.useId,
         label: use.label,

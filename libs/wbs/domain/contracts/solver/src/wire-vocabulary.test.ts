@@ -36,7 +36,7 @@ import {
  * in the type, and until this existed each site erased it with a structural
  * cast (`as { members: Set<string> }`) that also quietly dropped `readonly`
  * from the real `Vocabulary`. Under `--build` those were twelve TS2352s and
- * this project's `typecheck` target had been red on the branch for as long as
+ * this work package's `typecheck` target had been red on the branch for as long as
  * this file has existed, invisible behind a green `bun test`: the suite runs
  * the source, not the checker.
  */
@@ -118,7 +118,7 @@ describe('the wire vocabularies come from the schema, not from prose', () => {
   /**
    * Four of the eight vocabularies have no schema because they have no table
    * yet. They are here so rule (b) can attribute a table tuple to its table:
-   * without them a `projectId, inputHash, objective` run overlaps the wire sets
+   * without them a `workPackageId, inputHash, objective` run overlaps the wire sets
    * on `objective` alone and gets attributed to the wire.
    */
   it('knows the four table and DTO vocabularies that have no schema yet', () => {
@@ -237,12 +237,12 @@ describe('rules (b) and (c), and the tags themselves', () => {
   });
 
   it('allows a partial mention — a subset is legal', () => {
-    const text = 'It carries `projectId`, `inputHash` and `contractVersion`.';
+    const text = 'It carries `workPackageId`, `inputHash` and `contractVersion`.';
     expect(checkArtifact(text, 'f.md', allVocabularies(schema))).toEqual([]);
   });
 
   it('rejects a run mixing a vocabulary with a name that is not in it', () => {
-    const text = 'It carries `projectId`, `inputHash`, `contractVersion` and `smuggled`.';
+    const text = 'It carries `workPackageId`, `inputHash`, `contractVersion` and `smuggled`.';
     const only = must(
       checkArtifact(text, 'f.md', allVocabularies(schema))[0],
       'the only divergence',

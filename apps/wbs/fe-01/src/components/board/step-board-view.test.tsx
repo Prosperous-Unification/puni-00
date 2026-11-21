@@ -7,7 +7,7 @@ import {
   createDeliveredPlan,
   type DeliveredPlanStore,
 } from '@/modules/plan-feed/delivered-plan-store';
-import type { ProjectRuntime } from '@/modules/project/contract';
+import type { WorkPackageRuntime } from '@/modules/work-package/contract';
 import { planRead, workItemView } from '@/testing/views';
 
 import { StepBoardView } from './step-board-view';
@@ -34,20 +34,20 @@ function publish(plan: DeliveredPlanStore, delivery: Partial<PlanFeedDelivery>):
 
 function runtime(plan: DeliveredPlanStore) {
   const reread = vi.fn(() => Promise.resolve(true));
-  const project: Pick<ProjectRuntime, 'projectId' | 'plan' | 'isCurrent' | 'reread'> = {
-    projectId: 'p1',
+  const workPackage: Pick<WorkPackageRuntime, 'workPackageId' | 'plan' | 'isCurrent' | 'reread'> = {
+    workPackageId: 'p1',
     plan,
     isCurrent: () => true,
     reread,
   };
-  return { project, reread };
+  return { workPackage, reread };
 }
 
 describe('StepBoardView', () => {
   it('loads, then draws cards from the selected runtime plan', () => {
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     expect(screen.getByText('Loading board…')).toBeDefined();
 
     publish(plan, {
@@ -72,8 +72,8 @@ describe('StepBoardView', () => {
 
   it('renders all three columns in order with counts and separate work-item status', () => {
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       tree: {
         generation: 1,
@@ -131,8 +131,8 @@ describe('StepBoardView', () => {
 
   it('shows a first tree failure and retries through the current runtime', () => {
     const plan = createDeliveredPlan();
-    const { project, reread } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage, reread } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       staleResources: ['tree'],
       treeFailure: { cause: new Error('engine_unavailable') },
@@ -148,8 +148,8 @@ describe('StepBoardView', () => {
 
   it('shows a stale warning when the feed marks tree stale without a failure cause', () => {
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     publish(plan, { staleResources: ['tree'] });
     expect(screen.getByRole('alert').textContent).toContain(
       'This plan may be out of date — the last refresh failed.',
@@ -157,14 +157,14 @@ describe('StepBoardView', () => {
     expect(screen.queryByText('Loading board…')).toBeNull();
   });
 
-  it('distinguishes an empty project from work with no project steps', () => {
+  it('distinguishes an empty work package from work with no work package steps', () => {
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
+    const { workPackage } = runtime(plan);
     const onReturnToPlan = vi.fn();
-    render(<StepBoardView project={project} onReturnToPlan={onReturnToPlan} />);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={onReturnToPlan} />);
     publish(plan, { tree: { generation: 1, value: planRead() } });
     expect(screen.getByText('No work items')).toBeDefined();
-    expect(screen.queryByText('No project steps')).toBeNull();
+    expect(screen.queryByText('No work package steps')).toBeNull();
 
     publish(plan, {
       tree: {
@@ -172,15 +172,15 @@ describe('StepBoardView', () => {
         value: planRead({ workItems: [workItemView({ id: 'leaf', name: 'Build' })] }),
       },
     });
-    expect(screen.getByText('No project steps')).toBeDefined();
+    expect(screen.getByText('No work package steps')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Return to Plan' }));
     expect(onReturnToPlan).toHaveBeenCalledOnce();
   });
 
   it('keeps last delivered cards visibly stale after a failed read and shows disconnection', () => {
     const plan = createDeliveredPlan();
-    const { project, reread } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage, reread } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     publish(plan, {
       tree: {
         generation: 1,
@@ -226,8 +226,8 @@ describe('StepBoardView', () => {
 
   it('does not combine separately delivered newer steps with an older tree', () => {
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
-    render(<StepBoardView project={project} onReturnToPlan={vi.fn()} />);
+    const { workPackage } = runtime(plan);
+    render(<StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />);
     const leaf = workItemView({ id: 'leaf', name: 'Build' });
     publish(plan, {
       tree: {
@@ -272,10 +272,10 @@ describe('StepBoardView', () => {
   it('sends invalid delivered progress to the visible app error boundary', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const plan = createDeliveredPlan();
-    const { project } = runtime(plan);
+    const { workPackage } = runtime(plan);
     render(
       <AppFaultBoundary>
-        <StepBoardView project={project} onReturnToPlan={vi.fn()} />
+        <StepBoardView workPackage={workPackage} onReturnToPlan={vi.fn()} />
       </AppFaultBoundary>,
     );
     publish(plan, {

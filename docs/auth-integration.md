@@ -123,7 +123,7 @@ Drive the flow through fe-01, not directly through the callback:
    2026-08-24 verification, **Continue with SSO** today).
 2. Sign in at Keycloak and confirm the browser returns to `/` with no token in
    JavaScript storage.
-3. Confirm `GET /api/projects` returns 200 with the HttpOnly cookie and a
+3. Confirm `GET /api/work-packages` returns 200 with the HttpOnly cookie and a
    `wss://<app-origin>/ws` connection opens.
 4. Read the access cookie from the automation browser's privileged cookie jar
    (not page JavaScript) and send it as `Authorization: Bearer` to standalone
@@ -188,18 +188,25 @@ tenant must emit `prod:` instead; WBS matches the environment prefix exactly and
 would otherwise issue a session with no scopes. The Action writes the same role
 array to both claims; each app ignores values for the other app segment.
 
-A scopeless session is not a rejected one. The prefix mismatch is silent at
-sign-in: the OIDC callback still issues the `__Host-` cookies, and reading is
-open to every authenticated account by design, so the user lands on a working
-board and can list and open their own projects and receive WebSocket events.
-Only the scope-guarded routes refuse them: mutations return
-`403 insufficient_scope`, and so do the routes that ask for `read` explicitly
-(the solution reader and the project export route). A wrong prefix
-therefore reads as "the app is up but nothing saves", not as a login failure —
-check the emitted group values before chasing a write bug. A missing claim is
-different: it is a refused session, not a scopeless one. The callback answers
-`/?auth_error=groups_claim_missing` and issues no session, because `/api`
-refuses a groups-less token as a machine bearer.
+A scopeless session can still complete sign-in: the OIDC callback issues the
+`__Host-` cookies, but the session gains no credential scopes. Mutations return
+`403 insufficient_scope`, as do routes that explicitly require `read`, including
+the solution reader and the work package export route. Check the emitted group
+values before chasing a write bug.
+
+Basic work package list and detail routes require a signed-in account, rather
+than the credential's `read` scope. After organization isolation is activated,
+they still check the bound organization, current membership and effective
+`package.read` permission: unreadable work packages are omitted from lists and
+their detail reads answer the same 404 as an absent package. Browser WebSocket
+access also requires the credential's `read` scope, and work package subscriptions
+recheck access through be-01 using the socket's own credential and organization
+binding. Sign-in alone therefore does not establish
+resource access; see [organization activation](runbook-organization-activation.md).
+
+A missing groups claim is different from an empty scope set. The callback
+answers `/?auth_error=groups_claim_missing` and issues no session, because
+`/api` refuses a groups-less token as a machine bearer.
 
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in

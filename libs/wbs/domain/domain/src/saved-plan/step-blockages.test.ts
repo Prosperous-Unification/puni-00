@@ -1,10 +1,27 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'bun:test';
 
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from './canonical-plan-input';
+import { projectSavedPlanInput } from './comparison-input';
 import { diffPlans } from './diff-plans';
-import { normalisePlanInputForward } from './normalise-plan-input';
+import { readLegacySavedPlanInput11 } from './legacy-input11';
+import { normalisePlanInputForward as normaliseLegacyBody } from './normalise-plan-input';
+import { canonicalisePlanInputV12 } from './versioned-plan-input';
+const normalisePlanInputForward = (body: Record<string, unknown>, version: number) => {
+  const { workPackage: ignoredCurrentParent, ...fields } = body;
+  const project = readLegacySavedPlanInput11(
+    JSON.parse(
+      readFileSync(new URL('./fixtures/constructed-input11-local.txt', import.meta.url), 'utf8'),
+    ),
+  ).workPackage;
+  const normalized = normaliseLegacyBody({ ...fields, project }, version);
+  if (typeof normalized !== 'object' || normalized === null || Array.isArray(normalized))
+    throw new Error('legacy normalizer returned no object');
+  // Boundary: the actual normalizer returned an object; indexed values remain unknown.
+  return normalized as Record<string, unknown>;
+};
 import { planFixtureRows } from './plan-fixture';
 
 const fact = { workItemId: 'w2', stepId: 's1', blockedAt: -3 };
@@ -18,7 +35,7 @@ describe('saved direct step blockage', () => {
     expect(hash(capture)).not.toBe(
       hash(canonicalisePlanInput({ ...planFixtureRows, stepBlockages: [] })),
     );
-    expect(capture.schemaVersion).toBe(9);
+    expect('schemaVersion' in capture).toBe(false);
     expect(capture.stepBlockages).toEqual(facts);
     expect(
       canonicalisePlanInput({ ...planFixtureRows, stepBlockages: [...facts].reverse() }),
@@ -42,13 +59,17 @@ describe('saved direct step blockage', () => {
     expect(omitted).toEqual([fact]);
     const body = { ...legacy, schemaVersion: 6 };
     const bytes = JSON.stringify(body);
-    expect(normalisePlanInputForward(body, 6).stepBlockages).toEqual([]);
+    expect(normalisePlanInputForward(body, 6)['stepBlockages']).toEqual([]);
     expect(JSON.stringify(body)).toBe(bytes);
   });
 
   it('compares additions, removals and time changes by owner and step', () => {
     const side = (stepBlockages: readonly (typeof fact)[]) => ({
-      input: canonicalisePlanInput({ ...planFixtureRows, stepBlockages }),
+      comparison: { kind: 'captured' as const },
+      ...projectSavedPlanInput(
+        canonicalisePlanInputV12({ ...planFixtureRows, stepBlockages }, { kind: 'local' }),
+        12,
+      ),
       schedule: { present: false as const, absentReason: 'pending' },
     });
     expect(diffPlans(side([]), side([fact])).input).toEqual([

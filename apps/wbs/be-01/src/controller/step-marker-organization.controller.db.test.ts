@@ -45,9 +45,9 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const projectId = (answer.body as { project: { id: string } }).project.id;
+  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
   if (
     h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
       ?.state === 'activated'
@@ -57,52 +57,65 @@ async function create(username: string, name: string): Promise<string> {
       username,
       'package-manager',
       'work_package',
-      projectId,
+      workPackageId,
     );
-  return projectId;
+  return workPackageId;
 }
 
-async function firstStep(username: string, projectId: string): Promise<string> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function firstStep(username: string, workPackageId: string): Promise<string> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const steps = (answer.body as { steps: { id: string }[] }).steps;
   const step = steps.at(0);
-  if (step === undefined) throw new Error('the project started with no step');
+  if (step === undefined) throw new Error('the work package started with no step');
   return step.id;
 }
 
-async function marker(username: string, projectId: string, id: string): Promise<string> {
-  const answer = await h.call(username, 'POST', `/api/projects/${projectId}/calendar-markers`, {
-    markerId: id,
-    date: '2026-10-01',
-    name: 'Launch',
-  });
+async function marker(username: string, workPackageId: string, id: string): Promise<string> {
+  const answer = await h.call(
+    username,
+    'POST',
+    `/api/work-packages/${workPackageId}/calendar-markers`,
+    {
+      markerId: id,
+      date: '2026-10-01',
+      name: 'Launch',
+    },
+  );
   if (answer.status !== 201) throw new Error(`marker refused: ${JSON.stringify(answer)}`);
   return id;
 }
 
-/** Every step and marker route addressed at `projectId`, with a writer's body. */
-function routes(projectId: string, stepId: string, markerId: string): [string, string, unknown?][] {
+/** Every step and marker route addressed at `workPackageId`, with a writer's body. */
+function routes(
+  workPackageId: string,
+  stepId: string,
+  markerId: string,
+): [string, string, unknown?][] {
   return [
-    ['POST', `/api/projects/${projectId}/steps`, { name: 'Review' }],
-    ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { name: 'Renamed' }],
-    ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { allowancePercent: 10 }],
-    ['DELETE', `/api/projects/${projectId}/steps/${stepId}?cascade=true`],
-    ['GET', `/api/projects/${projectId}/calendar-markers`],
+    ['POST', `/api/work-packages/${workPackageId}/steps`, { name: 'Review' }],
+    ['PATCH', `/api/work-packages/${workPackageId}/steps/${stepId}`, { name: 'Renamed' }],
+    ['PATCH', `/api/work-packages/${workPackageId}/steps/${stepId}`, { allowancePercent: 10 }],
+    ['DELETE', `/api/work-packages/${workPackageId}/steps/${stepId}?cascade=true`],
+    ['GET', `/api/work-packages/${workPackageId}/calendar-markers`],
     [
       'POST',
-      `/api/projects/${projectId}/calendar-markers`,
+      `/api/work-packages/${workPackageId}/calendar-markers`,
       { markerId: MARKER, date: '2026-10-02', name: 'Beta' },
     ],
-    ['PATCH', `/api/projects/${projectId}/calendar-markers/${markerId}`, { name: 'Moved' }],
-    ['DELETE', `/api/projects/${projectId}/calendar-markers/${markerId}`],
+    [
+      'PATCH',
+      `/api/work-packages/${workPackageId}/calendar-markers/${markerId}`,
+      { name: 'Moved' },
+    ],
+    ['DELETE', `/api/work-packages/${workPackageId}/calendar-markers/${markerId}`],
   ];
 }
 
 /** What the foreign organization holds, to show a refused call changed none of it. */
 async function foreignState(): Promise<Answer[]> {
   return [
-    await h.call('grace', 'GET', `/api/projects/${foreign}`),
-    await h.call('grace', 'GET', `/api/projects/${foreign}/calendar-markers`),
+    await h.call('grace', 'GET', `/api/work-packages/${foreign}`),
+    await h.call('grace', 'GET', `/api/work-packages/${foreign}/calendar-markers`),
   ];
 }
 
@@ -111,20 +124,20 @@ describe('before activation', () => {
     h.close();
     h = OrganizationHarness.openComposed();
     await h.register('ada');
-    const projectId = await create('ada', 'Legacy combined');
-    const stepId = await firstStep('ada', projectId);
+    const workPackageId = await create('ada', 'Legacy combined');
+    const stepId = await firstStep('ada', workPackageId);
     h.sqlite.run(
       "CREATE TRIGGER allowance_refused BEFORE UPDATE OF allowance_bps ON step BEGIN SELECT RAISE(ABORT, 'allowance refused'); END",
     );
     expect(
       (
-        await h.call('ada', 'PATCH', `/api/projects/${projectId}/steps/${stepId}`, {
+        await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}/steps/${stepId}`, {
           name: 'Rolled back',
           allowancePercent: 10,
         })
       ).status,
     ).toBe(500);
-    const found = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+    const found = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
     expect(
       (found.body as { steps: { id: string; name: string }[] }).steps.find(
         (candidate) => candidate.id === stepId,
@@ -143,12 +156,15 @@ describe('before activation', () => {
     const step = await firstStep('ada', theirs);
     await marker('ada', theirs, MARKER);
     expect(
-      (await h.call('grace', 'PATCH', `/api/projects/${theirs}/steps/${step}`, { name: 'Shared' }))
-        .status,
+      (
+        await h.call('grace', 'PATCH', `/api/work-packages/${theirs}/steps/${step}`, {
+          name: 'Shared',
+        })
+      ).status,
     ).toBe(200);
-    expect((await h.call('grace', 'GET', `/api/projects/${theirs}/calendar-markers`)).status).toBe(
-      200,
-    );
+    expect(
+      (await h.call('grace', 'GET', `/api/work-packages/${theirs}/calendar-markers`)).status,
+    ).toBe(200);
   });
 });
 
@@ -157,7 +173,7 @@ describe('after activation', () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', '/api/projects/' + own, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', '/api/work-packages/' + own, { restricted: true })).status,
     ).toBe(200);
     const step = await firstStep('ada', own);
     const before = foreignState();
@@ -167,7 +183,7 @@ describe('after activation', () => {
     }
     expect(h.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
     expect(await foreignState()).toEqual(await before);
-    expect(h.sqlite.query('SELECT owner_id FROM project WHERE id = ?').get(own)).toEqual({
+    expect(h.sqlite.query('SELECT owner_id FROM work_package WHERE id = ?').get(own)).toEqual({
       owner_id: h.userId('ada'),
     });
   });
@@ -177,11 +193,11 @@ describe('after activation', () => {
     h.bind('nell', 'org-a');
     const step = await firstStep('ada', own);
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     expect(
       (
-        await h.call('nell', 'PATCH', `/api/projects/${own}/steps/${step}`, {
+        await h.call('nell', 'PATCH', `/api/work-packages/${own}/steps/${step}`, {
           allowancePercent: 15,
         })
       ).status,
@@ -196,10 +212,10 @@ describe('after activation', () => {
     h.bind('nell', 'org-a');
     const step = await firstStep('ada', own);
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
-    const path = `/api/projects/${own}/steps/${step}`;
+    const path = `/api/work-packages/${own}/steps/${step}`;
     expect(
       await h.call('nell', 'PATCH', path, { name: 'Recovered', allowancePercent: 15 }),
     ).toMatchObject({
@@ -208,7 +224,7 @@ describe('after activation', () => {
     });
     expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(0);
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Taken' })).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${own}/steps`, { name: 'Taken' })).status,
     ).toBe(200);
     expect(
       (await h.call('nell', 'PATCH', path, { name: 'Taken', allowancePercent: 20 })).status,
@@ -222,7 +238,7 @@ describe('after activation', () => {
       (await h.call('nell', 'PATCH', path, { name: 'Must roll back', allowancePercent: 20 }))
         .status,
     ).toBe(500);
-    const after = await h.call('ada', 'GET', `/api/projects/${own}`);
+    const after = await h.call('ada', 'GET', `/api/work-packages/${own}`);
     expect(
       (
         after.body as { steps: { id: string; name: string; allowancePercent: number }[] }
@@ -236,7 +252,7 @@ describe('after activation', () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
@@ -247,11 +263,11 @@ describe('after activation', () => {
       "CREATE TRIGGER marker_refused BEFORE INSERT ON calendar_marker BEGIN SELECT RAISE(ABORT, 'marker refused'); END",
     );
     expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+      (await h.call('nell', 'POST', `/api/work-packages/${own}/steps`, { name: 'Refused' })).status,
     ).toBe(500);
     expect(
       (
-        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+        await h.call('nell', 'POST', `/api/work-packages/${own}/calendar-markers`, {
           markerId: MARKER,
           date: '2026-10-02',
           name: 'Refused',
@@ -261,31 +277,34 @@ describe('after activation', () => {
     expect(
       h.sqlite
         .query<{ id: string }, [string, string]>(
-          'SELECT id FROM step WHERE project_id = ? AND name = ?',
+          'SELECT id FROM step WHERE work_package_id = ? AND name = ?',
         )
         .all(own, 'Refused'),
     ).toEqual([]);
-    expect((await h.call('ada', 'GET', `/api/projects/${own}/calendar-markers`)).body).toEqual({
-      markers: [],
-    });
+    expect((await h.call('ada', 'GET', `/api/work-packages/${own}/calendar-markers`)).body).toEqual(
+      {
+        markers: [],
+      },
+    );
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
     expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
   });
 
-  it('refuses other writers on a restricted project and records no ordinary creator write', async () => {
+  it('refuses other writers on a restricted work package and records no ordinary creator write', async () => {
     h.member('org-a', 'nell', 'member', ['project-contributor']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     const step = await firstStep('ada', own);
     for (const writer of ['nell', 'vic']) {
       expect(
-        (await h.call(writer, 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+        (await h.call(writer, 'POST', `/api/work-packages/${own}/steps`, { name: 'Refused' }))
+          .status,
       ).toBe(404);
       expect(
         (
-          await h.call(writer, 'POST', `/api/projects/${own}/calendar-markers`, {
+          await h.call(writer, 'POST', `/api/work-packages/${own}/calendar-markers`, {
             markerId: MARKER,
             date: '2026-10-02',
             name: 'Refused',
@@ -294,7 +313,7 @@ describe('after activation', () => {
       ).toBe(404);
       expect(
         (
-          await h.call(writer, 'PATCH', `/api/projects/${own}/steps/${step}`, {
+          await h.call(writer, 'PATCH', `/api/work-packages/${own}/steps/${step}`, {
             allowancePercent: 15,
           })
         ).status,
@@ -304,11 +323,11 @@ describe('after activation', () => {
       h.userId('nell'),
     ]);
     expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+      (await h.call('nell', 'POST', `/api/work-packages/${own}/steps`, { name: 'Refused' })).status,
     ).toBe(404);
     expect(
       (
-        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+        await h.call('nell', 'POST', `/api/work-packages/${own}/calendar-markers`, {
           markerId: MARKER,
           date: '2026-10-02',
           name: 'Refused',
@@ -316,11 +335,11 @@ describe('after activation', () => {
       ).status,
     ).toBe(404);
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Creator' })).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${own}/steps`, { name: 'Creator' })).status,
     ).toBe(200);
     expect(
       (
-        await h.call('ada', 'POST', `/api/projects/${own}/calendar-markers`, {
+        await h.call('ada', 'POST', `/api/work-packages/${own}/calendar-markers`, {
           markerId: MARKER,
           date: '2026-10-02',
           name: 'Creator',
@@ -333,12 +352,15 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
       h.userId('ada'),
     ]);
-    expect((await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'No' })).status).toBe(
-      403,
-    );
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }))
-        .status,
+      (await h.call('ada', 'POST', `/api/work-packages/${own}/steps`, { name: 'No' })).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.call('ada', 'PATCH', `/api/work-packages/${own}/steps/${step}`, {
+          allowancePercent: 15,
+        })
+      ).status,
     ).toBe(403);
   });
 
@@ -346,15 +368,15 @@ describe('after activation', () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('nell')]);
     expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'No' })).status,
+      (await h.call('nell', 'POST', `/api/work-packages/${own}/steps`, { name: 'No' })).status,
     ).toBe(403);
     expect(
       (
-        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+        await h.call('nell', 'POST', `/api/work-packages/${own}/calendar-markers`, {
           markerId: MARKER,
           date: '2026-10-02',
           name: 'No',
@@ -368,11 +390,11 @@ describe('after activation', () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     revokeAfterResolution = true;
     expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Revoked' })).status,
+      (await h.call('nell', 'POST', `/api/work-packages/${own}/steps`, { name: 'Revoked' })).status,
     ).toBe(403);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
     expect(h.sqlite.query("SELECT id FROM step WHERE name = 'Revoked'").all()).toEqual([]);
@@ -382,19 +404,19 @@ describe('after activation', () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${own}/steps`, { name: 'Review' })).status,
     ).toBe(200);
     await marker('ada', own, MARKER);
     expect(
-      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
     expect(
-      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
+      (await h.call('nell', 'POST', `/api/work-packages/${own}/steps`, { name: 'Review' })).status,
     ).toBe(409);
     expect(
       (
-        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+        await h.call('nell', 'POST', `/api/work-packages/${own}/calendar-markers`, {
           markerId: MARKER,
           date: '2026-10-03',
           name: 'Duplicate',
@@ -403,7 +425,7 @@ describe('after activation', () => {
     ).toBe(409);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
   });
-  it('answers 404 alike for a foreign and an absent project on every step and marker route', async () => {
+  it('answers 404 alike for a foreign and an absent work package on every step and marker route', async () => {
     const before = await foreignState();
     const absent = routes('missing', foreignStep, foreignMarker);
     for (const [at, [method, path, body]] of routes(
@@ -422,39 +444,44 @@ describe('after activation', () => {
     expect(await foreignState()).toEqual(before);
   });
 
-  it("refuses the foreign step and marker under the caller's own project path", async () => {
+  it("refuses the foreign step and marker under the caller's own work package path", async () => {
     const before = await foreignState();
     expect(
       (
-        await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${foreignStep}`, {
+        await h.call('ada', 'PATCH', `/api/work-packages/${own}/steps/${foreignStep}`, {
           name: 'Taken',
         })
       ).status,
     ).toBe(404);
     expect(
-      (await h.call('ada', 'DELETE', `/api/projects/${own}/steps/${foreignStep}?cascade=true`))
+      (await h.call('ada', 'DELETE', `/api/work-packages/${own}/steps/${foreignStep}?cascade=true`))
         .status,
     ).toBe(404);
     expect(
       (
-        await h.call('ada', 'PATCH', `/api/projects/${own}/calendar-markers/${foreignMarker}`, {
-          name: 'Taken',
-        })
+        await h.call(
+          'ada',
+          'PATCH',
+          `/api/work-packages/${own}/calendar-markers/${foreignMarker}`,
+          {
+            name: 'Taken',
+          },
+        )
       ).status,
     ).toBe(404);
     expect(
-      (await h.call('ada', 'DELETE', `/api/projects/${own}/calendar-markers/${foreignMarker}`))
+      (await h.call('ada', 'DELETE', `/api/work-packages/${own}/calendar-markers/${foreignMarker}`))
         .status,
     ).toBe(404);
     expect(await foreignState()).toEqual(before);
   });
 
-  it('refuses an allowance edit of a foreign step or project, changing nothing', async () => {
+  it('refuses an allowance edit of a foreign step or work package, changing nothing', async () => {
     const before = await foreignState();
     for (const [path, body] of [
-      [`/api/projects/${foreign}/steps/${foreignStep}`, { allowancePercent: 25 }],
-      [`/api/projects/${own}/steps/${foreignStep}`, { allowancePercent: 25 }],
-      [`/api/projects/${own}/steps/${foreignStep}`, { name: 'Taken', allowancePercent: 25 }],
+      [`/api/work-packages/${foreign}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/work-packages/${own}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/work-packages/${own}/steps/${foreignStep}`, { name: 'Taken', allowancePercent: 25 }],
     ] as const) {
       expect(await h.call('ada', 'PATCH', path, body)).toEqual({
         status: 404,
@@ -476,13 +503,15 @@ describe('after activation', () => {
     }
   });
 
-  it('lets a member write steps and markers of the own project', async () => {
+  it('lets a member write steps and markers of the own work package', async () => {
     expect(
-      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
+      (await h.call('ada', 'POST', `/api/work-packages/${own}/steps`, { name: 'Review' })).status,
     ).toBe(200);
     const step = await firstStep('ada', own);
     expect(
-      await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }),
+      await h.call('ada', 'PATCH', `/api/work-packages/${own}/steps/${step}`, {
+        allowancePercent: 15,
+      }),
     ).toMatchObject({
       status: 200,
       body: { step: { estimateUnit: 'workdays' as const, id: step, allowancePercent: 15 } },
@@ -490,7 +519,7 @@ describe('after activation', () => {
     await marker('ada', own, MARKER);
     expect(
       (
-        await h.call('ada', 'PATCH', `/api/projects/${own}/calendar-markers/${MARKER}`, {
+        await h.call('ada', 'PATCH', `/api/work-packages/${own}/calendar-markers/${MARKER}`, {
           name: 'Go',
         })
       ).status,
@@ -500,14 +529,14 @@ describe('after activation', () => {
   it('answers a foreign marker id collision only with 409 and leaves that marker alone', async () => {
     const before = await foreignState();
     expect(
-      await h.call('ada', 'POST', `/api/projects/${own}/calendar-markers`, {
+      await h.call('ada', 'POST', `/api/work-packages/${own}/calendar-markers`, {
         markerId: foreignMarker,
         date: '2026-11-01',
         name: 'Mine',
       }),
     ).toEqual({ status: 409, body: { error: 'taken', field: 'markerId' } });
     expect(await foreignState()).toEqual(before);
-    expect(await h.call('ada', 'GET', `/api/projects/${own}/calendar-markers`)).toEqual({
+    expect(await h.call('ada', 'GET', `/api/work-packages/${own}/calendar-markers`)).toEqual({
       status: 200,
       body: { markers: [] },
     });
@@ -539,14 +568,14 @@ for (const cascade of [false, true])
   it(`keeps sparse removal references private from viewers and foreign organizations (cascade=${String(cascade)})`, async () => {
     const step = await firstStep('ada', own);
     h.sqlite.run(
-      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('sparse-leaf',?,'Leaf',1,0)",
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('sparse-leaf',?,'Leaf',1,0)",
       [own],
     );
     h.sqlite.run('INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,1)', [
       'sparse-leaf',
       step,
     ]);
-    const path = `/api/projects/${own}/steps/${step}?cascade=${String(cascade)}`;
+    const path = `/api/work-packages/${own}/steps/${step}?cascade=${String(cascade)}`;
     expect(await h.call('vic', 'DELETE', path)).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },

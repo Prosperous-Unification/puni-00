@@ -1,0 +1,1348 @@
+{
+  "date": "2026-11-19",
+  "scope": "Project protected-step usage read with actual same-owner authority, readable-child privacy before count/cap, complete semantic census, and both Source adapters.",
+  "qualification": "Root authored; Astra review remains pending at the recorded account usage limit. Full original entity/PUNI/Bun goal remains active and incomplete. No parent catalogue task is marked done.",
+  "source": {
+    "path": "/tmp/puni-catalogue-project-usage-boundary-live-v1/source-pins.json",
+    "sha256": "0d407f12783dd8589ca36bd78a3ad5f3f5ea71b5d1a247890825d915cdffa32e",
+    "bytes": 5206820,
+    "mode": 384
+  },
+  "first": {
+    "receipt": {
+      "path": "/tmp/puni-catalogue-project-usage-first-live-v1/projectUsage/native.receipt.json",
+      "sha256": "6af3dcd07192660cbb87edecdea3c4e6efcb57d179543adead81d56d12f26fee",
+      "bytes": 1521,
+      "mode": 384
+    },
+    "log": {
+      "path": "/tmp/puni-catalogue-project-usage-first-live-v1/projectUsage/native.log",
+      "sha256": "6715cd606d1d420f4fc255ed0edab4426d1fcebc46da8b640219d1d9676e04c3",
+      "bytes": 56995,
+      "mode": 384
+    },
+    "validation": {
+      "path": "/tmp/puni-catalogue-project-usage-first-live-v1/projectUsage/native.validation.json",
+      "sha256": "36b0c016284569c62b7d4e1bde7b58a38fc8783cbdb434c6180c8cf23825ad91",
+      "bytes": 2006,
+      "mode": 384
+    },
+    "exitCode": 1
+  },
+  "firstObserved": "Four real mounted owners reach missing-route404 after healthy premises;498assertions. Production code follows this RED.",
+  "controls": {
+    "firstImplemented4": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-source-live-v2/projectUsage/native.receipt.json",
+        "sha256": "a414e8d8a11b6b56ccb1932e34cb043ec995d29c32bd89e8187987833bb5f6c8",
+        "bytes": 1521,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-source-live-v2/projectUsage/native.log",
+        "sha256": "492260b03dd4388dc4770b237752a6b632c9bba8622b11d0cdcb63bf5143c6a0",
+        "bytes": 696,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-source-live-v2/projectUsage/native.validation.json",
+        "sha256": "03b66ae20a0d1d33e4962b8134ddd9737807840ae9fdf91d1fa8bad6fca5f937",
+        "bytes": 2007,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "new5": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/projectUsage/native.receipt.json",
+        "sha256": "ef898d3f5a5a72237779794b873909f0c3c33c83e108edf651317a545f2492b3",
+        "bytes": 1522,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/projectUsage/native.log",
+        "sha256": "8f50c35278bfda5e88bb7b55919f740e34e93bef695ce11923ca155f2ab4f90a",
+        "bytes": 1566,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/projectUsage/native.validation.json",
+        "sha256": "67aa4c28bf4afc35bbf11022c9058f5146fa54c44fa37a593e41815910d1c04a",
+        "bytes": 2008,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "source10": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/usageReadLifetime/native.receipt.json",
+        "sha256": "c1c87ac45bec1c175defa263016b1fda4964f8ad055c781a31ba056a26940f01",
+        "bytes": 1521,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/usageReadLifetime/native.log",
+        "sha256": "a372f386245aaf2b28c98b67047960503245aea945ed1b1b0e81629c937544aa",
+        "bytes": 765,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/usageReadLifetime/native.validation.json",
+        "sha256": "0f27086a66257462585b7f4dfc70bc46ad513faeabce9430fc0dfd1b8b319e73",
+        "bytes": 2022,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "factsAndPure39": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/usageFacts/native.receipt.json",
+        "sha256": "f66978f2f4fd8d0c7e5292e837d739ad19bde0179dd5371e5ce7d032a644d33c",
+        "bytes": 1505,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/usageFacts/native.log",
+        "sha256": "e516ebc7eff47875bb66510fa0620831ef4cc2773ec5abc4c6b853870eb96c01",
+        "bytes": 3537,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/usageFacts/native.validation.json",
+        "sha256": "f50a691574210807158925a2e0b6695327f741388afdaa5f03eb6edb212e4ebb",
+        "bytes": 2005,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "browser19": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/catalogueClientThreads/native.receipt.json",
+        "sha256": "e3f561bf9bc1379530582887bc09bf62d9329f2c0eebbf2f85dd41d91ac637e6",
+        "bytes": 1476,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/catalogueClientThreads/native.log",
+        "sha256": "4687d4a5e0927b7af5cae01d9e07a89c5c554a01fbc82dabe999f198fcecc6b2",
+        "bytes": 3342,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/catalogueClientThreads/native.validation.json",
+        "sha256": "d6bb9ab76c365e70806b8b7af318041e3e6a80df9456f64cbb76aa8f099ad7b7",
+        "bytes": 2041,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "mcp134": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/mcpCurrent/native.receipt.json",
+        "sha256": "7d031f224a50baeb4dbd19d30a4b3f8d7d6d322e43e0be4c696a2ebc157361d8",
+        "bytes": 1773,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/mcpCurrent/native.log",
+        "sha256": "0452cc4af3f54ea02a100f8b6f8bdd97c711e770ffeb4398e847c04bc7ac4ff8",
+        "bytes": 14708,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-owners-live-v2/mcpCurrent/native.validation.json",
+        "sha256": "bb345905f52753909d044fb9051d0b55ecb97bf27c6b99e47f6fe8e4f04e832e",
+        "bytes": 2003,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "routes3": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/routeInventories/native.receipt.json",
+        "sha256": "77c234ecb8ac16aef19f00da0acb1bbd05d13873d51838a70785ebfe07a594ee",
+        "bytes": 1621,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/routeInventories/native.log",
+        "sha256": "d9fc3bbfbe4eb0782e9c0129d410a6d4dc31d2f04712080501ccc78ada8e6e91",
+        "bytes": 491,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/routeInventories/native.validation.json",
+        "sha256": "d32df0e4b201db17aeb30156eb17afb2e192f6941f7c5f6c40671dad492956a7",
+        "bytes": 2022,
+        "mode": 384
+      },
+      "exitCode": 0
+    },
+    "backendTypes": {
+      "receipt": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/backendTypes/native.receipt.json",
+        "sha256": "cfb399222bf9fef45bbea60bdcae0025dbe3278e165ee263bf38c4c2ca769b0b",
+        "bytes": 1377,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/backendTypes/native.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-catalogue-project-usage-clients-live-v1/backendTypes/native.validation.json",
+        "sha256": "944dab3e260165aaceee23ae2a80ae9bf1a96dfda4708351dd8d5529a0430e77",
+        "bytes": 2008,
+        "mode": 384
+      },
+      "exitCode": 0
+    }
+  },
+  "counts": {
+    "usageCases": 5,
+    "usageAssertionsAtOwnersEpoch": 545,
+    "sourceCases": 10,
+    "sourceAssertions": 251,
+    "persistedAndPureCases": 39,
+    "persistedAndPureAssertions": 972,
+    "browserCases": 19,
+    "mcpCases": 134,
+    "mcpAssertions": 929,
+    "mcpFiltered": 1,
+    "mcpTools": 94
+  },
+  "proofPlan": {
+    "path": "/tmp/puni-project-usage-proof-plan-v1/plan.json",
+    "sha256": "594f447ec4bb5b87e9a1417c26c6764153b5c7e2fffb65043e8f2d443dc9e241",
+    "bytes": 26092,
+    "mode": 384
+  },
+  "proofEngine": {
+    "path": "/tmp/puni-project-usage-proofs-engine-root-v1.ts",
+    "sha256": "78a7bd9ddd87b6e6c4aeee6ca96c200383dbd5e32d4164ec372dbd93fa400e32",
+    "bytes": 9403,
+    "mode": 384
+  },
+  "proofs": [
+    {
+      "id": "USAGE_PERMISSION",
+      "observed": "Bypassing project denial reaches foreign-step lookup, returning404 instead of the required visible shell403;1fail23assertions.",
+      "credit": "Read admission order only. This first oracle did not publish metadata or certify the remaining permission matrix.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_permission-v1/plan.json",
+        "sha256": "c8ec0c4f90008518794d0ba7fa06a0c7982e5c8082160e0a26b8805dc3bad48d",
+        "bytes": 8520,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/baseline/native.receipt.json",
+          "sha256": "6ff604d60639e9b27fb55a3695a8096a333a2f5209e0bf23931a846ce9c91c78",
+          "bytes": 1563,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/baseline/native.log",
+          "sha256": "2c7d2810e7571ae80994ead5943e7ad40a393d2ffe7b84217a4f183d073336c7",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/baseline/native.validation.json",
+          "sha256": "e1080074cbfb0c4f5d5de8f3f487bea279d84bc9e69da2c2932498c202ad3390",
+          "bytes": 690,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/fault/native.receipt.json",
+          "sha256": "e6af2cc7a94da3006bf1d5871cd6cdc80cfdef8d4aa293995072cf139193ea7c",
+          "bytes": 1558,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/fault/native.log",
+          "sha256": "d1762f6ab1bef1d7585793353d53a4ca6eae3e0bcedb8b5e97ca0986cc1946dd",
+          "bytes": 1630,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/fault/native.validation.json",
+          "sha256": "790e88588c5ca7f3edd578c2853e74db1978a489118567e84812ab3fd979a035",
+          "bytes": 685,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_permission-v1/restored.json",
+        "sha256": "f90a6866fb53fd4c935a4576599c4872ea74dce0b29fa768e803fa2ce41e7092",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/after/native.receipt.json",
+          "sha256": "a5fa8f0f36c7306a300f4228f2990cd8f0ba899c00022cb004d40d3a4d478d6a",
+          "bytes": 1557,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/after/native.log",
+          "sha256": "c9395a6b1f6d12a4bb4af07a357568ffedab49fca28f2f45e1d89524e57b5a2f",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_permission-v1/after/native.validation.json",
+          "sha256": "8dd7e920cc06315b510061f7f1ebd1413a30f2c0488bd26c1e7e990026eea7bb",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_STEP",
+      "observed": "Bypassing any-type project reachability admits the first foreign step as200/count0 instead of404;1fail27assertions.",
+      "credit": "First foreign-step oracle; later unreachable-own and absent cases are normal coverage.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_step-v1/plan.json",
+        "sha256": "1b0c937fb19826ac06100a19b325210edcf82d724750eeb5c02199244b39f0e5",
+        "bytes": 8420,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/baseline/native.receipt.json",
+          "sha256": "29f8f37948f8a43641e748b848e5ab502366b46b98ed2df2bd0a29f87321bac3",
+          "bytes": 1551,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/baseline/native.log",
+          "sha256": "7b546445d9c3fe45afe6036dc27764f7d48acbbd2e649fc26fe362c3559d472c",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/baseline/native.validation.json",
+          "sha256": "2c31ead0433136002dd50b7a0f8948591dd36920265169b0ad16ee328905d217",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/fault/native.receipt.json",
+          "sha256": "cfb6c76f26b1368ef73dac93cb9fa6b3036d42704c7f10f035ecfb38b0b0cccb",
+          "bytes": 1546,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/fault/native.log",
+          "sha256": "8d7d73319b4d157f55c3e78e739f24fd545f76a455fdf59f762c7d90327d8ff0",
+          "bytes": 2041,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/fault/native.validation.json",
+          "sha256": "d175b5aa1425cc4d849b41e2fee68a8862651a8963378122a03512aea5dbd72f",
+          "bytes": 673,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_step-v1/restored.json",
+        "sha256": "d38ef5de97fe7d7ebfe2d21e107e5130a6b95ece8312c3b9b107946019b933fd",
+        "bytes": 487,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/after/native.receipt.json",
+          "sha256": "144fe01c03cd12aa46a67a52e5354ae6bf4e03379234de4b9f2f12d6453ec6ee",
+          "bytes": 1545,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/after/native.log",
+          "sha256": "4e7874d979e6dbfacfaa8cf4fab77cdd8a7e97411d54362967668992eed47aaa",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_step-v1/after/native.validation.json",
+          "sha256": "9bceb226fd8633e2a303f16d1df37b066e621ca7a3768a32f977cc7b6cbd560d",
+          "bytes": 672,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_QUERY",
+      "observed": "Bypassing raw stepId cardinality lets repeated query collapse to200/count0 instead of400;1fail32assertions.",
+      "credit": "Actual repeated query only; missing/empty remain admitted by the existing schema.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_query-v1/plan.json",
+        "sha256": "b4300f7a60b7e734b435f3658885af31cb89d98ffdb9ba5c6aa815262b83de15",
+        "bytes": 3486,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/baseline/native.receipt.json",
+          "sha256": "b26b48befa71835af4beee222caa4cc69e9df085d355eb3cd392a1272cdb89b0",
+          "bytes": 1553,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/baseline/native.log",
+          "sha256": "bef3f6fd6748a022bba99911705f1cd2b3c44ca0887859e689db5db18ebf4a25",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/baseline/native.validation.json",
+          "sha256": "484dd134e4064303229ab43984ead735694324a83a55d9fa26e75e4fbba00d86",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/fault/native.receipt.json",
+          "sha256": "d9b460d579bb4fa3925903ff5fb46c337eeeac5c17e8fff28134ec02861f3026",
+          "bytes": 1548,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/fault/native.log",
+          "sha256": "2adb42ba16c345ac4f5e0ce466a16b9dbfd02f10de6270ded079d5c028a7cc82",
+          "bytes": 2280,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/fault/native.validation.json",
+          "sha256": "52c88f45c43e3a00a3dad853143463005381886d66eb40ed29b19b49bb2001da",
+          "bytes": 675,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_query-v1/restored.json",
+        "sha256": "da89ecd8995d79acf4ac4a27e953790790a3ca87d5c78d17d613ab933cb0855e",
+        "bytes": 484,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/after/native.receipt.json",
+          "sha256": "b618f2e0779b394318f18a0bf8f2c8fd469a355657a6be07fe43d1070321a737",
+          "bytes": 1547,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/after/native.log",
+          "sha256": "8d1cc0b7c983d40ebe698b3738161e9e5d6734b1f2fa578811fe55752bf450c4",
+          "bytes": 310,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_query-v1/after/native.validation.json",
+          "sha256": "3314255efc9e3f2478a685de899410eaac7ebd70afbe353286640af769c70aee",
+          "bytes": 674,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_PRIVACY",
+      "observed": "Omitting package.read selection returns count402 instead of201 and private names/IDs as the first200pairs;1fail426assertions.",
+      "credit": "The actual hidden-child fixture; not every credential/cap/restriction variation.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/plan.json",
+        "sha256": "9968b5084d0e93a95b7271f04c3f68f69a9bc5fe33adffd55ee3cbc1e6a60041",
+        "bytes": 3595,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/baseline/native.receipt.json",
+          "sha256": "f41745ec72bab36962b9cb2648e33fb8360f9e5f4f936f853a42dbbc5a25ce31",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/baseline/native.log",
+          "sha256": "92a226eace1357baed8dec831e78833b7c68a870463cf7bc5708f5dbc4b1a52e",
+          "bytes": 323,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/baseline/native.validation.json",
+          "sha256": "bca826048ebb7077087013b8b45c2cf0a1a92939293005a6e4ce78d00c4e22a2",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/fault/native.receipt.json",
+          "sha256": "011515de26b30b5a7f6f4a8e8ae692066f8a208601d39156b559b9f1f4d10a9d",
+          "bytes": 1565,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/fault/native.log",
+          "sha256": "e9f3b16dfc384ea714a3ac2c7cc1ac3b4ffe25bb2ea524ccd81b74be81af02d3",
+          "bytes": 76069,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/fault/native.validation.json",
+          "sha256": "844d7a153c2c23cc7fa3bd622aab8c412c3b19d95e12939004cc36b85e218f13",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/restored.json",
+        "sha256": "935c1142f660819420cd24fb143f46a7c1ee87347f96c01846b3c284ceba22a7",
+        "bytes": 491,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/after/native.receipt.json",
+          "sha256": "5e3be66b364921b44eb08bb18c514c4ad4477826510e97d09b88c73806e189dd",
+          "bytes": 1563,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/after/native.log",
+          "sha256": "9cfd241c291bd9be07b4f4d580ccd37329417437a9f820baa918b23ba36dd632",
+          "bytes": 323,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_privacy-v1/after/native.validation.json",
+          "sha256": "b93f7a18be8b49343214a3e3b70b4a49a38e3eb69ca112f9bd4799eedadf0008",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_PROJECT",
+      "observed": "Omitting actual project selection returns count2 instead of1 and includes the independently readable sibling-project leaf;1fail27assertions.",
+      "credit": "Current addressed-project boundary on real rows.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_project-v1/plan.json",
+        "sha256": "99d4107ee28606b88d06fdf18e78aaa8ab62268a065143228d462a53ed22bf6c",
+        "bytes": 3616,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/baseline/native.receipt.json",
+          "sha256": "bfedb6722941a8a0047049be64592a912d37341262f4b44c102ad1c2c791f5c2",
+          "bytes": 1576,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/baseline/native.log",
+          "sha256": "f824def078dc909220311d8e7ce5a139b1e9b076c997589b4664fd8d4be350bc",
+          "bytes": 329,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/baseline/native.validation.json",
+          "sha256": "a1f0a72700a31bef708beb5f71bc4c56e44e46f467ba1a6758e7e46d9672c3e0",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/fault/native.receipt.json",
+          "sha256": "f338b90740ce6fab58115c697e252b025109455494c4a584da55fb91a5114aa6",
+          "bytes": 1571,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/fault/native.log",
+          "sha256": "d3b60a8d485c773e806c963992a1deda4805053471260861d776fd55561e85c3",
+          "bytes": 2479,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/fault/native.validation.json",
+          "sha256": "bf7520493ffbec80e428c84dca10cb00386313136cd5285f04c20f308710313a",
+          "bytes": 679,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_project-v1/restored.json",
+        "sha256": "12da61c055d3b903da9cd4480513b9e52904ed244e82fc49f750a8a750d7c238",
+        "bytes": 491,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/after/native.receipt.json",
+          "sha256": "ea6ae89ea50ffab8eb341cc9906861a544bc3154cfd280ff0cb5570ca486e9b9",
+          "bytes": 1570,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/after/native.log",
+          "sha256": "3e9edab3e59a446597a3f6cbaafc8f4d64e90b7c9c8409b423f86d89d1764afc",
+          "bytes": 329,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_project-v1/after/native.validation.json",
+          "sha256": "46acbe121da1145875f90f1818ce7d77631f42e40f8f90c310936ce387b92547",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_CAP_ORDER",
+      "observed": "Adding a200pair truncation before privacy selection loses every readable pair: count0 instead of201;1fail426assertions.",
+      "credit": "This early-cap fault only; validates count and response ordering relative to private first200pairs.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/plan.json",
+        "sha256": "61eaafe7ced746719e54deb5fb2dcb802e6499d41fcf551e3048473f0f3b97a0",
+        "bytes": 3564,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/baseline/native.receipt.json",
+          "sha256": "aa2889b986f5832ebd3d335c6be4dfc371f62019bd099938ef3b927073fa0fa6",
+          "bytes": 1573,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/baseline/native.log",
+          "sha256": "b21707cc3ec04c021a4603c772e7866529ec6b07a52e21b4b512a0a1b3445da4",
+          "bytes": 323,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/baseline/native.validation.json",
+          "sha256": "0725d2bf20c94cef9d39a2ae65c01fe671f9698f75539637bf20b27cbc380ae6",
+          "bytes": 688,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/fault/native.receipt.json",
+          "sha256": "ad20c38485213cf7916caf617e70da74b54da10769b8b19695938fcb06e9627c",
+          "bytes": 1569,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/fault/native.log",
+          "sha256": "a0b1195de93acedf5ecf7b7bdfef6f26fb08a499d2035f36ab24884f53e08faf",
+          "bytes": 52085,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/fault/native.validation.json",
+          "sha256": "f10dd3d068243874488b022f12d09666158904cec40648b39fcc8bb3ab6592b4",
+          "bytes": 684,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/restored.json",
+        "sha256": "6e8128e6bcb4a6270f4f2ba5aa7af72c98ff34ed12744fb0ac5f9caca825812d",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/after/native.receipt.json",
+          "sha256": "dcf88bf9223d50f1db4b8a9030e378135117987053d97e5acdbdba805a2189e9",
+          "bytes": 1567,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/after/native.log",
+          "sha256": "735e0050652815bb9beb7be715fba163c9eb80aa2fccf93a60c8d54deeeebe3b",
+          "bytes": 323,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_cap_order-v1/after/native.validation.json",
+          "sha256": "d9160299da873eda019e9dbd2bc6ac258990764968a64fc98db0f6b3a9b6e09a",
+          "bytes": 682,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_BINDINGS",
+      "observed": "Removing only one matching binding keeps another and reports count0 instead of1 despite the real estimate;1fail27assertions.",
+      "credit": "Redundant binding usage distinction; no real binding write occurs.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/plan.json",
+        "sha256": "d629d607d2338df69f4aa9e9dc05a20d6310fd299e658df2b22baa5163077fa5",
+        "bytes": 3595,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/baseline/native.receipt.json",
+          "sha256": "193cb8d04f8ffa92479b3479167530e399fe18f2ed6b245151d1e05935fea057",
+          "bytes": 1578,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/baseline/native.log",
+          "sha256": "09e491dbdada2bd6a33fd2238f80b999937d4cc8c2d9463e21c535a943cf643c",
+          "bytes": 329,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/baseline/native.validation.json",
+          "sha256": "1f467df5596a2c05276e38c2f3bc0ebb27277cf1de160debb7df342a57be52ad",
+          "bytes": 686,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/fault/native.receipt.json",
+          "sha256": "52c8ca3e45de089c5e6fb0aae0443413e62c3b8a125248caf33819ef72f40a00",
+          "bytes": 1573,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/fault/native.log",
+          "sha256": "21d6b58ad3776cbec8c21db55c1bb042286b8cc82d08c47183e0af49fab49372",
+          "bytes": 2232,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/fault/native.validation.json",
+          "sha256": "d4c49a6ef6f3432acad720bd82f5d8f84a9681987ba54f6a72344789c3435c97",
+          "bytes": 681,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/restored.json",
+        "sha256": "7615b81d1fc202e19f617a53560b41870c320a9652b170dd595be379b4683838",
+        "bytes": 492,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/after/native.receipt.json",
+          "sha256": "83b7d16e8aecfcf47fb32e18f6845a5ac689f47b766c380327463bcf9eb2510b",
+          "bytes": 1572,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/after/native.log",
+          "sha256": "8553b26f860e466fd31b6f37111ac50142eb9510d35da39501130e2aa8f972a6",
+          "bytes": 329,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_bindings-v1/after/native.validation.json",
+          "sha256": "4bf66ae2341d83b17ffe34ee486c33ab1dfe7e0f174aa133ac30d0964462d5e8",
+          "bytes": 680,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_COMPLETE_VALIDATION",
+      "observed": "Prefiltering packages/facts before semantic projection silently skips a persisted ordinary parent estimate outside the selected project, changing healthy refusal500to200;1fail25assertions.",
+      "credit": "Complete semantic census on the actual malformed parent specimen. All13families have normal capture coverage, not separate omission proofs.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/plan.json",
+        "sha256": "f452737af3d0beb06d7423d40f73a4a9a05bd6dcd38b848118648d59cac27965",
+        "bytes": 3934,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/baseline/native.receipt.json",
+          "sha256": "1fbb428630daaa8881af42c9abaeb88bede354e661b82a086d6aa23fb71c311a",
+          "bytes": 1603,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/baseline/native.log",
+          "sha256": "332b6bfcb18c330eb4a8f13ec648e9d977e9516bf7afabfca13d6ad63481d8a2",
+          "bytes": 1070,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/baseline/native.validation.json",
+          "sha256": "c378c4c360e24ab57d12875f350dbe8fb4e0c4b47854e23a150cf1c4d0ae6cdb",
+          "bytes": 709,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/fault/native.receipt.json",
+          "sha256": "b87c8ff1a68526d4f1cf6d40eca68c2ab938438f3046532d55fe3f8ec16373cc",
+          "bytes": 1597,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/fault/native.log",
+          "sha256": "5df15442a6103cc5f896f8a5b61af5b871ac70a0dcf96c61a7e8ed0aecc2840c",
+          "bytes": 1718,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/fault/native.validation.json",
+          "sha256": "2af80446733d79ee8c3cbec7a1ec887d3bb5bec8b618d3dbe70eb088293d75e5",
+          "bytes": 703,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/restored.json",
+        "sha256": "7134fab364c9445a979c8d3ab666a838e095084cef0fe47aefa2ac779b9b3f98",
+        "bytes": 503,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/after/native.receipt.json",
+          "sha256": "66e0f41fe9da881c054bd32d8e01a653993bf0c44b3d372d2c212d5061158d25",
+          "bytes": 1597,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/after/native.log",
+          "sha256": "6bf6de8ecc2384391ed45789c9c79346358cb13970c482a5550ef05f060c2e60",
+          "bytes": 1070,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_complete_validation-v1/after/native.validation.json",
+          "sha256": "ee20eb06abc8d3bdfc686b690b063e2e137fbdb2ab9785a6676ec0fed2467170",
+          "bytes": 703,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_RESPONSE_CAP",
+      "observed": "Removing the new response200pair bound makes the real browser decoder accept201pairs as success;1selectedfailed/18skipped.",
+      "credit": "Actual shared response decoder cap only.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/plan.json",
+        "sha256": "cba58b16c5b4368ab137fc34253d72a436f2d622d93171068ad06e85340b7371",
+        "bytes": 4720,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/baseline/native.receipt.json",
+          "sha256": "7f716840d5755dabd630ec8910e1b53f3b458cf7fbf924acbd9ae579754d2a1d",
+          "bytes": 1574,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/baseline/native.log",
+          "sha256": "2a5c088cf028d95ac871c5af6bdef3ab6b9bc8c4affc2fddf6ba953f07435485",
+          "bytes": 3272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/baseline/native.validation.json",
+          "sha256": "554c00c680f1b97e10a92c162fafec660da2b32984c07571eaf95db7ad638da6",
+          "bytes": 695,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/fault/native.receipt.json",
+          "sha256": "fe32857bcc3c39b07db5f74f874d6ce11f4c77f03c3cec858962af3c80e5f6f2",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/fault/native.log",
+          "sha256": "ebffd8d11bc0ae4202c75eddaa1681ea639013aa6bae4d2ec02154dcbdd07ad6",
+          "bytes": 4434,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/fault/native.validation.json",
+          "sha256": "815019f30185c01c4c05d5d2c9112043c1b25af5dcd5ffeae9507c92008cd6a3",
+          "bytes": 689,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/restored.json",
+        "sha256": "3a81ae2484160a40d8016aae1d271c66cd3c16f7ff73352dabac4181c12eda41",
+        "bytes": 490,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/after/native.receipt.json",
+          "sha256": "1a608613037d3fc42123a3af88576ca395f20fabc984ee1f2da9d0a687fd862c",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/after/native.log",
+          "sha256": "797e5a662588bcf09f0964b510aa94c52e7c47bc2a6fc0b8c7a3fbeea336642e",
+          "bytes": 3272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_cap-v1/after/native.validation.json",
+          "sha256": "6673470f778d1b9c9aec43425abd1cdb851ec266e8effeda18f06b441773c191",
+          "bytes": 689,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_RESPONSE_COUNT",
+      "observed": "Removing the new nonnegative count bound makes the real browser decoder accept count-1 as success;1selectedfailed/18skipped.",
+      "credit": "Count lower bound only, not maximum/safe integer/relational consistency.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/plan.json",
+        "sha256": "e5cb14d1a9e76019a16f31ad45946322250c6328e4ffcfe6b0cd061321141ce8",
+        "bytes": 4737,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/baseline/native.receipt.json",
+          "sha256": "333f819bf060e802ecc1bba17a46ec14da99736a7b8f70179f24768201dc9cbf",
+          "bytes": 1574,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/baseline/native.log",
+          "sha256": "1494d3b8544c1be0c8c842a6c439f6d3c013694955ee0298f361b8effc5a9c90",
+          "bytes": 3272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/baseline/native.validation.json",
+          "sha256": "0c088650be1c8405b4850955140f2a1a2a94a80473c4ffef56df181f58894401",
+          "bytes": 699,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/fault/native.receipt.json",
+          "sha256": "0c31d25594ddd593271d4c4f70596e25891ec5564ceaf279e2525f53b227c4b1",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/fault/native.log",
+          "sha256": "29b4282e79375400d7271f35dc677d981c06514842f46b022140a1a69583ad2b",
+          "bytes": 4430,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/fault/native.validation.json",
+          "sha256": "4365b9dce55d71186ed149760b397b515e69cd5b92f4434a74e860a86b1a0b9f",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/restored.json",
+        "sha256": "a8d6e062930dd193a4b66bd76b32c63a6894065f0b76c1d484a5626e228e5eb8",
+        "bytes": 492,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/after/native.receipt.json",
+          "sha256": "68455f5ea45a6f96121421cad626158c3362cb01d5b0892aa9606ff7df1bf12d",
+          "bytes": 1568,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/after/native.log",
+          "sha256": "80988406d363fdeb5a3597fe572467f2898dad612d98abfef57b3bb1c48b46f6",
+          "bytes": 3272,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_response_count-v1/after/native.validation.json",
+          "sha256": "8db9c140be3b938dc87d316b3289ede2f5e414be8184afd026516828012ffd26",
+          "bytes": 693,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    {
+      "id": "USAGE_LOAN",
+      "observed": "Removing both new readUsage assertOpen dependency calls lets expired ordinary and repair loans resolve in both actual Memory and SQLite Sources;4fail86assertions.",
+      "credit": "Whole new-method loan dependency, not entry versus post-await separately; normal controls include a fresh live loan.",
+      "plan": {
+        "path": "/tmp/puni-project-usage-proof-usage_loan-v1/plan.json",
+        "sha256": "dc265ab9f6de462366ecc53efd678df5679d563d84c4f7505ad06c97d4702da6",
+        "bytes": 3873,
+        "mode": 384
+      },
+      "baseline": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/baseline/native.receipt.json",
+          "sha256": "fca3db5eff07df60d1ee9e63e295dbcc52621298efcbcb426ee0d6f3a8877017",
+          "bytes": 1583,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/baseline/native.log",
+          "sha256": "f818ab97568537f315d280e9801838bdcbf2f2538ef89a75aefe8298172beb8d",
+          "bytes": 461,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/baseline/native.validation.json",
+          "sha256": "048ef75bda39f6fe2becb206c2b8599b7ce483ddf37eeff84e84ad418b72a611",
+          "bytes": 678,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "fault": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/fault/native.receipt.json",
+          "sha256": "224ffe210931822b440eb2e7770e3d29970e6ae3324e6b9566c5167ea02c0c09",
+          "bytes": 1578,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/fault/native.log",
+          "sha256": "0bfd185753b3787b2a1f9397662ff24664c5bf531e7584f78cff808dec9c5e5e",
+          "bytes": 4082,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/fault/native.validation.json",
+          "sha256": "14889fd65809106a0474b60459a474f78988002818f58abba8bcc91e58f93c4c",
+          "bytes": 673,
+          "mode": 384
+        },
+        "exitCode": 1
+      },
+      "restored": {
+        "path": "/tmp/puni-project-usage-proof-usage_loan-v1/restored.json",
+        "sha256": "f0546c4bb58d47491da40be3392e2f8a4417726cd944ed049bf7aa6cf55b8ce2",
+        "bytes": 493,
+        "mode": 384
+      },
+      "after": {
+        "receipt": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/after/native.receipt.json",
+          "sha256": "14d7eca06d5417826b7b324e6c100900b075734bb8e7681cfe4aa40a342afa09",
+          "bytes": 1577,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/after/native.log",
+          "sha256": "b2a4009226437cd3e37fef0f7eb141fd03d15c443cf76f8753e24b90d62a3cb2",
+          "bytes": 461,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-project-usage-proof-usage_loan-v1/after/native.validation.json",
+          "sha256": "91d9036b5438e54996d781c401f3fe4e60157ae887ee7d8247f2b316c5a72f9b",
+          "bytes": 672,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    }
+  ],
+  "implementation": "Required readUsage port returns detached full-organization scalar/relational captures with actual chains/direct types/13factfamilies/both external endpoints. Shared pure projector validates complete semantic facts before explicit read selection and uses all requested-step bindings removed in a pure comparison. Existing unbind caller selects no read filter and retains complete census. Project purpose admits actual same-organization target/current grants and visible child-shell policy before step reachability, then selects actual project and current package.read. Empty projects return count0 without materialization. Shared HTTP shape and generated browser/MCP clients preserve required singleton query and responsecap.",
+  "corrections": [
+    "Unexecuted v1 source staging corrected retained StepFactKind and unused imports before publication.",
+    "Initial backend and library force builds overlapped shared build-info output. Both known terminal; initial library exit0 retained as historical only, not relied on as isolated build qualification. Backend exit2 identified stale literal route inventories; subsequent fresh isolated backend build passes after updates. Future compiler roots run serially.",
+    "First MCP current run133pass1fail/1networkfilter: independent expected names used wrong binary order readProjectSteps before readProjectStepUsage. Literal order corrected;134pass929assertions after.",
+    "Removed a newly introduced duplicate-definition check from the join-free primary-key SQLite read; actual primary key guarantees that uniqueness. Existing unbind code unchanged.",
+    "Added a real readable sibling-project estimate before finite proofs; this adds one normal assertion to the first usage case beyond the545assertions at the earlier five-case epoch."
+  ],
+  "remainingGuardQualifications": [
+    "No independent current-context/concurrent-revocation/malformed-collaborator-null/source-fault or every scalar guard proof follows.",
+    "The new Memory read definition-map identity coherence and endpoint-specific absent-target checks still need their own necessity controls; inherited lower decoders retain their recorded earlier proof epochs.",
+    "Loan proof covers both new assertions as one dependency, not post-await versus admission separately; public read/closed Source and detached snapshot tests are normal coverage.",
+    "All13fact families and both relationship directions run normally through the new SQLite capture/projector; no independent per-family read omission proof is claimed.",
+    "Full format/lint/build/secrets/migration/integration/host-gate and actual full network MCP remain unverified."
+  ],
+  "remainingOriginalScope": [
+    "SC22 revision-bound manifest and offline Burokrat consumer.",
+    "Full editable settings UI and thirteen-family applicability/history/import/scheduler/migration rollout qualification.",
+    "Protected CLI PAXsource, complete Bun/PUNI client script closure, Astra follow-up, clean integration and full exact-SHA gates."
+  ],
+  "afterControls": {
+    "source": {
+      "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/source-pins.json",
+      "sha256": "11ee537c122a1bc1c768deb2fe9c3d4ec7a47a6c4f87112a9c895aa0f9ef5e3f",
+      "bytes": 5207093,
+      "mode": 384
+    },
+    "commands": {
+      "globalCatalogueHttp": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/globalCatalogueHttp/native.receipt.json",
+          "sha256": "a1e2370ad222b3e5289a71609a91cdf81a9fe36949247cfecd27d4511fd7cf55",
+          "bytes": 1508,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/globalCatalogueHttp/native.validation.json",
+          "sha256": "61f433f5ffc8045ebcafd9777dfcfc1a0c5bb6f03617e7f06c5a8e696d3df0db",
+          "bytes": 2035,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/globalCatalogueHttp/native.log",
+          "sha256": "9850121bdfedb39f2a65f26936cce5e0754fc52f73890535e6955f9e168ee202",
+          "bytes": 4416,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "usageReadLifetime": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageReadLifetime/native.receipt.json",
+          "sha256": "87db8ab191f9fb99ac61c1b90693904e12320d1ec5e6975b9773f435c5164afe",
+          "bytes": 1525,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageReadLifetime/native.validation.json",
+          "sha256": "a945e7fb34315ee8cf60f6178eb383f36208ada0e8ef3b4c4fde145a42a0f1e3",
+          "bytes": 2028,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageReadLifetime/native.log",
+          "sha256": "909ad461882e725e971f38f710093f3d1168ada59a01ee500fedd81409db7f1a",
+          "bytes": 765,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "usageFacts": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageFacts/native.receipt.json",
+          "sha256": "0791a9836dbe4df84a8f47a0e2dc934f7d7eb185bbf2759f78546fcbb6f8ff49",
+          "bytes": 1507,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageFacts/native.validation.json",
+          "sha256": "70a5d78dca2c96a628aa6490ffcc714ac557eea8fd198917cb81bdb6b3228a5f",
+          "bytes": 2008,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/usageFacts/native.log",
+          "sha256": "d36a17a4b78febf261fcc32aeb27db309a8949176f090b2a0d5e5bc194a13008",
+          "bytes": 3536,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "backendTypes": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/backendTypes/native.receipt.json",
+          "sha256": "4ed61e8ce5de5bc4408aa8e8a914dda649157c9b150e7e83d8c18de28b3258e8",
+          "bytes": 1379,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/backendTypes/native.validation.json",
+          "sha256": "f23cbecd7d903696809fb44dcc0dd5591d0deb45e4b5f7720e3dcca009f5cb6d",
+          "bytes": 2011,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/backendTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "clientTypes": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/clientTypes/native.receipt.json",
+          "sha256": "dc3945d66bc577e6652b2e49e471b4e11e3043683293dc29f9f5b082e72ceac9",
+          "bytes": 1416,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/clientTypes/native.validation.json",
+          "sha256": "20b1be01243139e22db8c499a8f4879ddfcd9af868135a0daa12b889796cca7c",
+          "bytes": 2008,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/clientTypes/native.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "mcpCurrent": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/mcpCurrent/native.receipt.json",
+          "sha256": "6b9bcbc5837d19284aaebd16c06ac444888fa3a78678163014a6d73927f4c629",
+          "bytes": 1777,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/mcpCurrent/native.validation.json",
+          "sha256": "184197a990c2769bbccf3ac7292afcf7c6b8e2e253090a1c801a66e85fe565dd",
+          "bytes": 2009,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/mcpCurrent/native.log",
+          "sha256": "424340459cb72efb4a94da1fd5614a36733bf238b8856c248dca759ee8685f71",
+          "bytes": 14720,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "catalogueClientThreads": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/catalogueClientThreads/native.receipt.json",
+          "sha256": "1897bf463a26d8d036bc138b9059f209b21e8f5e238f7ba70d221286a41eb50c",
+          "bytes": 1478,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/catalogueClientThreads/native.validation.json",
+          "sha256": "bc612f641095c6608580519b3b12451177f506e4e1562f8ca7decb8d553b0bf5",
+          "bytes": 2044,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/catalogueClientThreads/native.log",
+          "sha256": "e62ee50e1db9d233ca508e0e775ee0722f75a62ad8c5e9c00e70d9fc008b2ff1",
+          "bytes": 3587,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "contractsBoot": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/contractsBoot/native.receipt.json",
+          "sha256": "a500f81e21cf0007b1b6f937574fe658bebed491b04fe03a81413e3b1b66410a",
+          "bytes": 1426,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/contractsBoot/native.validation.json",
+          "sha256": "ebd86b6ae8be8aebb9cb34e09dc2ec270f28ad3332d073b5b5dd15e0e9a70e5e",
+          "bytes": 2016,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/contractsBoot/native.log",
+          "sha256": "df65ec890197a9bb6d1305542878604dd2f29aab396aca28777455c7c54c2e06",
+          "bytes": 419,
+          "mode": 384
+        },
+        "exitCode": 0
+      },
+      "allSpecs": {
+        "receipt": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/allSpecs/native.receipt.json",
+          "sha256": "bba9141e313ff6fcceb1f870afac79bb62578c3b0d25b15e3a54d567cfeb8d8d",
+          "bytes": 1340,
+          "mode": 384
+        },
+        "validation": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/allSpecs/native.validation.json",
+          "sha256": "2e2b96ae98dc342c5f51ca61fd9368488432d5f012d27e1e0de7b86edf8a7fac",
+          "bytes": 2004,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-catalogue-project-usage-evidence-live-v1/allSpecs/native.log",
+          "sha256": "ba5e1b734ed5a371ea36fe431076dea70b26220d0359790927b1b52624f921af",
+          "bytes": 336872,
+          "mode": 384
+        },
+        "exitCode": 0
+      }
+    },
+    "counts": {
+      "globalHttpCases": 30,
+      "globalHttpAssertions": 1681,
+      "sourceCases": 10,
+      "sourceAssertions": 251,
+      "persistedAndPureCases": 39,
+      "persistedAndPureAssertions": 972,
+      "browserCases": 19,
+      "mcpCases": 134,
+      "mcpAssertions": 929,
+      "mcpFiltered": 1,
+      "mcpTools": 94,
+      "contractsBootCases": 2,
+      "contractsBootAssertions": 7,
+      "contractsBootMegabytes": 377,
+      "contractsBootBoundMegabytes": 500,
+      "openSpecItems": 343
+    },
+    "qualification": "All originals restored before these checks. Compiler roots ran serially. These are targeted current product checks, not full format/lint/build/host-gate or whole-goal qualification. Final publication changes documentation only."
+  }
+}

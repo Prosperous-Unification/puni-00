@@ -1,6 +1,6 @@
 /**
  * The most people a plan may claim are at work on one thing at once — the
- * ceiling on both a work item's parallelism and a project's capacity for a team.
+ * ceiling on both a work item's parallelism and a work package's capacity for a team.
  *
  * A product limit, honest about being one: above a thousand people on one work
  * item, or a thousand of one team on one plan, the number is not a plan. It is
@@ -9,8 +9,8 @@
  * all.
  *
  * It lives in `libs/wbs/domain/domain` because **three** boundaries now state it — a work
- * item's parallelism, a team's size (until `capacity-per-project` removed that
- * route), and a project's capacity for a team — and fe-01 reads the number back
+ * item's parallelism, a team's size (until `capacity-per-work-package` removed that
+ * route), and a work package's capacity for a team — and fe-01 reads the number back
  * out of be-01's own refusal code rather than holding a fourth copy. Two copies
  * agreed by luck; the third is where they would have drifted, and a refusal
  * saying `at most 1000` beside a route that takes 500 is a refusal nobody can

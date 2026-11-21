@@ -25,7 +25,7 @@ function isUnknownArray(value: unknown): value is unknown[] {
 }
 
 /**
- * The five bands a request is asking this project's ladder to become.
+ * The five bands a request is asking this work package's ladder to become.
  *
  * **Hand-parsed rather than declared through an Elysia schema**, which is
  * {@link capacityOf}'s reasoning and `workItemController`'s before it: the
@@ -87,7 +87,7 @@ export function ladderOf(body: unknown): PriorityBand[] {
   // `libs/wbs/domain/domain/src/priority-band.ts`.
   //
   // Proof: this call deleted, and `refuses a ladder whose first band does not
-  // start at 1` failed on `status: 200` with the project's ladder coming back
+  // start at 1` failed on `status: 200` with the workPackage's ladder coming back
   // starting at 5 — every priority from 1 to 4 resolving to a band that does not
   // hold it. Three more ladder cases went red with it. Watched 2026-08-14.
   const problem = priorityLadderProblem(bands);

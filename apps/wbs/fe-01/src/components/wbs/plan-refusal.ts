@@ -16,11 +16,14 @@ import {
 
 type RefusalOf<O extends WbsOperationId> = WbsRefusalFor<O>;
 
-function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
+function readCatalogRefusal(
+  refusal: RefusalOf<'getApiPeople'> | RefusalOf<'getApiProjects'>,
+): string {
   switch (refusal.error) {
     case 'invalid_query':
     case 'invalid_params':
     case 'invalid_body':
+    case 'invalid_json':
     case 'unauthenticated':
     case 'organization_context_changed':
     case 'no_active_organization':
@@ -35,6 +38,32 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
 
 function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
   switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_json':
+    case 'invalid_body':
+    case 'unauthenticated':
+    case 'invalid_origin':
+    case 'insufficient_scope':
+    case 'organization_context_changed':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'sso_required':
+    case 'reauthentication_required':
+    case 'forbidden':
+    case 'name_taken':
+    case 'abbreviation_taken':
+    case 'abbreviation_exhausted':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
+function workPackageCreateCode(refusal: RefusalOf<'postApiWorkPackages'>): string {
+  switch (refusal.error) {
+    case 'project_required':
+    case 'not_found':
     case 'invalid_query':
     case 'invalid_params':
     case 'unauthenticated':
@@ -57,7 +86,7 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
   }
 }
 
-function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): string {
+function workPackageOpenCode(refusal: RefusalOf<'postApiWorkPackagesByIdOpened'>): string {
   switch (refusal.error) {
     case 'invalid_query':
     case 'invalid_params':
@@ -77,7 +106,7 @@ function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): strin
   }
 }
 
-function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
+function workPackageReadCode(refusal: RefusalOf<'getApiWorkPackagesById'>): string {
   switch (refusal.error) {
     case 'invalid_body':
     case 'invalid_query':
@@ -95,7 +124,7 @@ function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
   }
 }
 
-function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
+function workPackagePatchCode(refusal: RefusalOf<'patchApiWorkPackagesById'>): string {
   switch (refusal.error) {
     case 'invalid_query':
     case 'invalid_params':
@@ -109,6 +138,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'bad_budget_factor':
+    case 'not_overridable_here':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
     case 'invalid_abbreviation':
@@ -126,7 +156,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
   }
 }
 
-function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): string {
+function treeReadCode(refusal: RefusalOf<'getApiWorkPackagesByIdWork-items'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -146,7 +176,7 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
   }
 }
 
-function claimsReadCode(refusal: RefusalOf<'getApiProjectsByIdClaims'>): string {
+function claimsReadCode(refusal: RefusalOf<'getApiWorkPackagesByIdClaims'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -165,7 +195,7 @@ function claimsReadCode(refusal: RefusalOf<'getApiProjectsByIdClaims'>): string 
   }
 }
 
-function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-history'>): string {
+function claimHistoryReadCode(refusal: RefusalOf<'getApiWorkPackagesByIdClaim-history'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -186,7 +216,7 @@ function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-histor
 
 // Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
 // Proof: omitting replay_provenance_unavailable threw for both older-history writer tests; observed RED/GREEN, 2026-11-09.
-function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
+function historyCode(refusal: RefusalOf<'postApiWorkPackagesByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -201,6 +231,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'nothing_to_undo':
     case 'replay_provenance_unavailable':
     case 'stale_undo':
+    // Proof: omitting this arm failed both real undo/redo client writer tests at the code projection (verification-step-definition-ui-20261120.json). Grouped codes fall through.
+    case 'step_nodes_in_use':
     case 'organization_context_changed':
     case 'no_active_organization':
     case 'not_a_member':
@@ -216,7 +248,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   }
 }
 
-function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>): string {
+function markerListCode(refusal: RefusalOf<'getApiWorkPackagesByIdCalendar-markers'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -239,7 +271,7 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
   }
 }
 
-function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers'>): string {
+function markerWriteCode(refusal: RefusalOf<'postApiWorkPackagesByIdCalendar-markers'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -265,7 +297,7 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
 }
 
 function markerRemoveCode(
-  refusal: RefusalOf<'deleteApiProjectsByIdCalendar-markersByMarkerId'>,
+  refusal: RefusalOf<'deleteApiWorkPackagesByIdCalendar-markersByMarkerId'>,
 ): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -289,11 +321,9 @@ function markerRemoveCode(
   }
 }
 
-function stepWriteCode(
-  refusal: RefusalOf<'postApiProjectsByIdSteps'> | RefusalOf<'patchApiProjectsByIdStepsByStepId'>,
-): string {
+/** Refusals of explicit package values; definitions and bindings have scoped catalogue owners. */
+function stepWriteCode(refusal: RefusalOf<'patchWorkPackageStepValues'>): string {
   switch (refusal.error) {
-    case 'name_required':
     case 'invalid_query':
     case 'invalid_params':
     case 'unauthenticated':
@@ -307,54 +337,9 @@ function stepWriteCode(
     case 'forbidden':
     case 'not_found':
     case 'invalid_json':
-    case 'taken':
     case 'invalid_body':
-    case 'invalid_estimate_unit':
     case 'estimates_present':
-    case 'invalid_allowance':
-    case 'invalid_code':
-    case 'reserved_code':
-    case 'code_taken':
-      // fe-01 sends no code yet, so the last three cannot arrive from the step
-      // header; named so a caller that does send one reads the refusal.
-      return refusal.error;
-    // Proof: omitting this arm made the typed step-write cycle refusal throw
-    // at the default instead of returning dependency_cycle in plan-writer.test.ts.
-    case 'dependency_cycle':
-      return refusal.error;
     case 'calendar_range':
-      // An allowance edit that would place the plan past the supported calendar.
-      return refusal.error;
-    default:
-      return unreachable(refusal);
-  }
-}
-
-function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>): string {
-  switch (refusal.error) {
-    case 'invalid_query':
-    case 'invalid_params':
-    case 'unauthenticated':
-    case 'invalid_origin':
-    case 'insufficient_scope':
-    case 'organization_context_changed':
-    case 'no_active_organization':
-    case 'not_a_member':
-    case 'sso_required':
-    case 'reauthentication_required':
-    case 'forbidden':
-    case 'not_found':
-    case 'invalid_body':
-    case 'in_use':
-    case 'referenced_by_dependency':
-    case 'dependency_cycle':
-    case 'step_blockage_inactive':
-      // Proof: omitting this arm made the plan writer's disabled-admission
-      // cases throw `Unexpected response variant: object` instead of reporting
-      // the refusal; watched in plan-writer.test.ts, 2026-10-14.
-      return refusal.error;
-    // Proof: removing this case failed the writer's step-removal sparse refusal (2026-10-17).
-    case 'referenced_by_step_parallel':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -365,7 +350,7 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
  * Proof: removing the organization-context arm made the plan writer's context
  * refusal throw instead of render once, in plan-writer.test.ts; watched 2026-10-13.
  */
-function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string {
+function commandCode(refusal: RefusalOf<'postApiWorkPackagesByIdCommands'>): string {
   switch (refusal.error) {
     case 'invalid_params':
     case 'invalid_query':
@@ -470,7 +455,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'cascade_must_be_true_or_false':
     case 'startNoEarlierThanReason_must_be_at_most_200_characters':
     case 'too_many_commands':
-    case 'project_required':
+    case 'work_package_required':
     case 'unknown_ref':
     case 'missing_id':
     case 'duplicate_ref':
@@ -488,6 +473,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'forbidden':
     case 'not_found':
     case 'unknown_step':
+    // Proof: without these command arms, all four typed step catalogue batch refusal word cases throw at unreachable (2026-11-18). Grouped codes fall through.
+    case 'step_not_resolved':
+    case 'step_nodes_in_use':
+    case 'type_conflict':
     case 'unknown_dependency':
     case 'unknown_metric':
     case 'unknown_measure':
@@ -519,14 +508,14 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'not_a_parent':
     case 'node_on_parent':
     case 'descendant_step_on_leaf':
-    case 'project_deleting':
+    case 'work_package_deleting':
     case 'duplicate_dependency':
     case 'unsupported_relationship_type':
     case 'too_large':
     case 'taken':
     case 'in_use':
     case 'calendar_range':
-    case 'deadline_before_project_start':
+    case 'deadline_before_work_package_start':
     case 'readiness_after_progress':
     case 'cannot_hold_done':
     case 'no_steps':
@@ -608,7 +597,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'resources_exhausted':
       return refusal.error;
     // Resources (`wbs-resources`): the row's Resources panel sends `setDemand`
-    // and the project settings' Resources section sends the directory's three
+    // and the work package settings' Resources section sends the directory's three
     // resource commands, `setResourceCapacity` and a provider reference (1.5,
     // `compute-providers` slice 5); the sentences are in {@link PLAN_REFUSALS}.
     case 'kind_is_immutable':
@@ -663,7 +652,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
   }
 }
 
-function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizationRetry'>): string {
+function optimizationRetryCode(
+  refusal: RefusalOf<'postApiWorkPackagesByIdOptimizationRetry'>,
+): string {
   // The 409 arm is the only refusal in this file that answers with `code`
   // rather than `error`: it carries the variant's `state` beside it, because
   // "why can this not be retried" is a fact about the schedule rather than
@@ -721,8 +712,8 @@ function measuresReadCode(refusal: RefusalOf<'getApiMeasures'>): string {
   }
 }
 
-/** The project resources read's refusals (`wbs-resources` 1.5), each its own word. */
-function resourcesReadCode(refusal: RefusalOf<'getApiProjectsByIdResources'>): string {
+/** The work package resources read's refusals (`wbs-resources` 1.5), each its own word. */
+function resourcesReadCode(refusal: RefusalOf<'getApiWorkPackagesByIdResources'>): string {
   switch (refusal.error) {
     case 'invalid_query':
     case 'invalid_params':
@@ -749,47 +740,47 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
     case 'getApiServices':
     case 'getApiWork-item-types':
     case 'getApiExternal-systems':
+    case 'getApiWorkPackages':
     case 'getApiProjects':
-      return directoryReadCode(problem.refusal);
+      return readCatalogRefusal(problem.refusal);
     case 'postApiProjects':
       return projectCreateCode(problem.refusal);
-    case 'postApiProjectsByIdOpened':
-      return projectOpenCode(problem.refusal);
-    case 'getApiProjectsById':
-      return projectReadCode(problem.refusal);
-    case 'patchApiProjectsById':
-      return projectPatchCode(problem.refusal);
-    case 'getApiProjectsByIdWork-items':
+    case 'postApiWorkPackages':
+      return workPackageCreateCode(problem.refusal);
+    case 'postApiWorkPackagesByIdOpened':
+      return workPackageOpenCode(problem.refusal);
+    case 'getApiWorkPackagesById':
+      return workPackageReadCode(problem.refusal);
+    case 'patchApiWorkPackagesById':
+      return workPackagePatchCode(problem.refusal);
+    case 'getApiWorkPackagesByIdWork-items':
       return treeReadCode(problem.refusal);
-    case 'postApiProjectsByIdCommands':
+    case 'postApiWorkPackagesByIdCommands':
     case 'postApiDirectoryCommands':
       return commandCode(problem.refusal);
-    case 'postApiProjectsByIdUndo':
-    case 'postApiProjectsByIdRedo':
+    case 'postApiWorkPackagesByIdUndo':
+    case 'postApiWorkPackagesByIdRedo':
       return historyCode(problem.refusal);
-    case 'getApiProjectsByIdCalendar-markers':
+    case 'getApiWorkPackagesByIdCalendar-markers':
       return markerListCode(problem.refusal);
-    case 'getApiProjectsByIdClaims':
+    case 'getApiWorkPackagesByIdClaims':
       return claimsReadCode(problem.refusal);
-    case 'getApiProjectsByIdClaim-history':
+    case 'getApiWorkPackagesByIdClaim-history':
       return claimHistoryReadCode(problem.refusal);
-    case 'postApiProjectsByIdCalendar-markers':
-    case 'patchApiProjectsByIdCalendar-markersByMarkerId':
+    case 'postApiWorkPackagesByIdCalendar-markers':
+    case 'patchApiWorkPackagesByIdCalendar-markersByMarkerId':
       return markerWriteCode(problem.refusal);
-    case 'deleteApiProjectsByIdCalendar-markersByMarkerId':
+    case 'deleteApiWorkPackagesByIdCalendar-markersByMarkerId':
       return markerRemoveCode(problem.refusal);
-    case 'postApiProjectsByIdSteps':
-    case 'patchApiProjectsByIdStepsByStepId':
+    case 'patchWorkPackageStepValues':
       return stepWriteCode(problem.refusal);
-    case 'deleteApiProjectsByIdStepsByStepId':
-      return stepRemoveCode(problem.refusal);
-    case 'postApiProjectsByIdOptimizationRetry':
+    case 'postApiWorkPackagesByIdOptimizationRetry':
       return optimizationRetryCode(problem.refusal);
     case 'getApiTimezones':
       return timezonesReadCode(problem.refusal);
     case 'getApiMeasures':
       return measuresReadCode(problem.refusal);
-    case 'getApiProjectsByIdResources':
+    case 'getApiWorkPackagesByIdResources':
       return resourcesReadCode(problem.refusal);
     default:
       return unreachable(problem);
@@ -827,7 +818,7 @@ export function isOptimizationRetryRefusal(thrown: unknown): boolean {
   const problem = thrown.problem;
   return (
     problem.kind === 'refusal' &&
-    problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+    problem.operation === 'postApiWorkPackagesByIdOptimizationRetry' &&
     'code' in problem.refusal &&
     problem.refusal.code === 'not-retryable'
   );
@@ -901,11 +892,17 @@ export const INVALID_REFUSAL =
  */
 export const PLAN_REFUSALS: RefusalWords = {
   sentences: {
+    not_overridable_here:
+      'Budget factors belong to the project. Change the project settings instead.',
+    project_required: 'Choose a project before creating a work package.',
     organization_context_changed: 'Your organization changed. Reload before making another change.',
     engine_unavailable: 'Optimized scheduling is unavailable in this runtime.',
     not_found:
       'That change could not be completed: its target is no longer here — someone may have deleted it.',
     forbidden: 'That change could not be completed: this plan is not yours to change.',
+    step_not_resolved: 'That step does not apply to this row. Nothing was changed.',
+    type_conflict:
+      'This row has conflicting types. Choose one type before changing its step values.',
     // Reachable bare — the dependency **picker** takes one entry through `run`,
     // where the typed list composes its own sentence and keeps the word instead.
     cycle: 'That dependency could not be added: it would make a loop.',
@@ -953,9 +950,10 @@ export const PLAN_REFUSALS: RefusalWords = {
     // watched 2026-10-12.
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
-    external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
+    external_dependencies_inactive:
+      'Dependencies between work packages are not enabled on this server.',
     replay_provenance_unavailable: 'Undo and redo are unavailable for this older history entry.',
-    project_deleting: 'This project is being deleted. Nothing was changed.',
+    work_package_deleting: 'This work package is being deleted. Nothing was changed.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',
@@ -1002,7 +1000,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     // its code` (capacity-limit-words.test.ts) read the fallback carrying
     // `capacity_limit`; watched 2026-10-22.
     capacity_limit:
-      'Organization limit: your projects together would state more units of that resource than your organization may. Lower another project’s capacity first. Nothing was changed.',
+      'Organization limit: your work packages together would state more units of that resource than your organization may. Lower another work package’s capacity first. Nothing was changed.',
     // A resource's compute provider reference (`compute-providers` P3): the
     // settings' Resources section offers only the organization's own
     // instances, so each is reachable when the list moved under an open picker.
@@ -1121,12 +1119,35 @@ export const PLAN_REFUSALS: RefusalWords = {
 export const refusalSentence = (thrown: unknown): string => {
   if (thrown instanceof WbsRequestError) {
     const problem = thrown.problem;
+    if (
+      problem.kind === 'refusal' &&
+      (problem.operation === 'postApiWorkPackagesByIdCommands' ||
+        problem.operation === 'postApiDirectoryCommands' ||
+        // Proof: omitting both history routes lost affected-row sentences in both real undo/redo client writer tests; exact restore passed.
+        problem.operation === 'postApiWorkPackagesByIdUndo' ||
+        problem.operation === 'postApiWorkPackagesByIdRedo')
+    ) {
+      const protectedSteps = stepNodesSentence(problem.refusal);
+      if (protectedSteps !== null) return protectedSteps;
+    }
+    if (problem.kind === 'refusal' && problem.operation === 'postApiProjects') {
+      if (problem.refusal.error === 'forbidden')
+        return 'You do not have permission to create a project in this organization.';
+      if (problem.refusal.error === 'name_taken')
+        return 'A project with that name already exists. Choose another name.';
+    }
+    if (
+      problem.kind === 'refusal' &&
+      problem.operation === 'postApiWorkPackages' &&
+      problem.refusal.error === 'not_found'
+    )
+      return 'That project is no longer available. Choose another project.';
     // Proof: bypassing this arm hid the compatible-client instruction in the mounted real HTTP plan test (2026-10-23).
     if (problem.kind === 'failure' && problem.failure.code === 'dependency_incompatible')
       return failureMessage(problem.failure);
     if (
       problem.kind === 'refusal' &&
-      problem.operation === 'postApiProjectsByIdOptimizationRetry' &&
+      problem.operation === 'postApiWorkPackagesByIdOptimizationRetry' &&
       'code' in problem.refusal &&
       problem.refusal.code === 'not-retryable' &&
       problem.refusal.state === 'boundary-infeasible'
@@ -1152,7 +1173,7 @@ export function limitSentence(thrown: unknown): string | null {
   if (!(thrown instanceof WbsRequestError) || thrown.problem.kind !== 'refusal') return null;
   const problem = thrown.problem;
   if (
-    problem.operation !== 'postApiProjectsByIdCommands' &&
+    problem.operation !== 'postApiWorkPackagesByIdCommands' &&
     problem.operation !== 'postApiDirectoryCommands'
   )
     return null;
@@ -1172,7 +1193,7 @@ export function limitSentence(thrown: unknown): string | null {
 export function claimRefusalSentence(thrown: unknown): string | null {
   if (!(thrown instanceof WbsRequestError) || thrown.problem.kind !== 'refusal') return null;
   const problem = thrown.problem;
-  if (problem.operation !== 'postApiProjectsByIdCommands') return null;
+  if (problem.operation !== 'postApiWorkPackagesByIdCommands') return null;
   return claimDetailSentence(problem.refusal);
 }
 
@@ -1223,11 +1244,11 @@ function claimDetailSentence(refusal: BatchRefusal): string | null {
 }
 
 /**
- * A refused command batch. The project and the directory commands routes
+ * A refused command batch. The work package and the directory commands routes
  * answer one refusal union (`batchRefusals` in the contract), so either
  * route's body is this type.
  */
-export type BatchRefusal = RefusalOf<'postApiProjectsByIdCommands'>;
+export type BatchRefusal = RefusalOf<'postApiWorkPackagesByIdCommands'>;
 
 /**
  * The organization-limit sentence of a refused batch body, or null for any
@@ -1247,6 +1268,21 @@ function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): strin
   }
 }
 
+/** Names the server's bounded protected pairs and keeps the full count visible when the list is capped. */
+function stepNodesSentence(
+  refusal: BatchRefusal | RefusalOf<'postApiWorkPackagesByIdUndo'>,
+): string | null {
+  if (refusal.error !== 'step_nodes_in_use') return null;
+  const pairs = refusal.pairs
+    .map((pair) => `${pair.name} / ${pair.stepId} (${pair.facts.join(', ')})`)
+    .join('; ');
+  const cap =
+    refusal.pairs.length < refusal.count
+      ? ` Showing the first ${String(refusal.pairs.length)}.`
+      : '';
+  return `This change would detach ${String(refusal.count)} protected step${refusal.count === 1 ? '' : 's'}: ${pairs}.${cap} Nothing was changed.`;
+}
+
 /**
  * The sentence for a refused batch body, for a surface that reads the reply
  * rather than catching a thrown {@link WbsRequestError}: the limit sentences
@@ -1254,6 +1290,7 @@ function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): strin
  */
 export function batchRefusalSentence(refusal: BatchRefusal, resourceName?: string): string {
   return (
+    stepNodesSentence(refusal) ??
     batchLimitSentence(refusal, resourceName) ??
     claimDetailSentence(refusal) ??
     sentenceForRefusal(PLAN_REFUSALS, refusal.error)

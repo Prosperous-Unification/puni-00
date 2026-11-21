@@ -63,7 +63,7 @@ describe('statusOffersOf', () => {
     expect(statusOffersOf(done, true)).toEqual(['in_progress', 'unknown']);
   });
 
-  it('offers neither In progress nor Done in a project with no steps', () => {
+  it('offers neither In progress nor Done in a work package with no steps', () => {
     expect(statusOffersOf(leaf(), false)).toEqual(['draft', 'ready', 'on_hold', 'blocked']);
   });
 

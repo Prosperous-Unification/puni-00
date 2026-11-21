@@ -30,18 +30,22 @@ export function inMemoryStepBlockages(
     owner: WorkItem,
     step: Step,
   ): Promise<void> => {
-    // Proof: project guard removed; cross-project fixture negative failed; watched 2026-10-13.
-    if (step.projectId !== owner.projectId)
+    // Proof: work package guard removed; cross-work-package fixture negative failed; watched 2026-10-13.
+    if (step.workPackageId !== owner.workPackageId)
       throw new Error('step blockage has an invalid step reference');
     // Proof: leaf guard removed; parent-owner fixture negatives failed; watched 2026-10-13.
-    if ((await workItems.listByProject(owner.projectId)).some((row) => row.parentId === owner.id))
+    if (
+      (await workItems.listByWorkPackage(owner.workPackageId)).some(
+        (row) => row.parentId === owner.id,
+      )
+    )
       throw new Error('step blockage owner is not a leaf');
     // Proof: time guard removed; malformed timestamp fixture negative failed; watched 2026-10-13.
     if (!Number.isSafeInteger(blockage.blockedAt))
       throw new Error('step blockage has an invalid blocked time');
   };
   const read = async (
-    projectId: string,
+    workPackageId: string,
     ids?: readonly string[],
   ): Promise<StoredStepBlockage[]> => {
     const selected: { blockage: StoredStepBlockage; position: number }[] = [];
@@ -50,7 +54,7 @@ export function inMemoryStepBlockages(
       const owner = await workItems.findById(blockage.workItemId);
       // Proof: owner guard removed independently in read/set/transfer; named reference negatives failed; watched 2026-10-13.
       if (owner === null) throw new Error('step blockage has an invalid work-item reference');
-      if (owner.projectId !== projectId) continue;
+      if (owner.workPackageId !== workPackageId) continue;
       const step = await steps.findById(blockage.stepId);
       // Proof: step guard removed independently in read/set/transfer; missing-step negatives failed; watched 2026-10-13.
       if (step === null) throw new Error('step blockage has an invalid step reference');
@@ -67,8 +71,8 @@ export function inMemoryStepBlockages(
       .map(({ blockage }) => ({ ...blockage }));
   };
   return {
-    listByProject: (projectId) => read(projectId),
-    listByWorkItems: (projectId, ids) => read(projectId, ids),
+    listByWorkPackage: (workPackageId) => read(workPackageId),
+    listByWorkItems: (workPackageId, ids) => read(workPackageId, ids),
     async set(blockage, _stamp) {
       const step = await steps.findById(blockage.stepId);
       // Proof: step guard removed independently in read/set/transfer; missing-step negatives failed; watched 2026-10-13.

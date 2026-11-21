@@ -1,0 +1,1494 @@
+{
+  "schema": "puni-installer-clients-v119",
+  "recordedAt": "2026-11-21T17:14:10.467Z",
+  "classification": "progress",
+  "parent": {
+    "path": "/tmp/puni-goal-continuation-20261121-v118.json",
+    "sha256": "f772f7838a4b1c3714dd6853cb0383ea3e98c4d914d5eff3aacacd0207447985",
+    "bytes": 32920,
+    "mode": 384
+  },
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/build.test.ts",
+      "sha256": "33fe3425a5aa555038ee9b554811bd3cd9c11f792f3162d42cd1c890c007a8f4",
+      "bytes": 57751,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/install.ts",
+      "sha256": "9f13be13a142dcf7c76f78c102d2676bbc623b07982f5e4fe8bdbb7bfa8d8dc7",
+      "bytes": 13237,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/twilight-structure/twilight-burokrat/cli/src/packaging/installed-current.test.ts",
+      "sha256": "e704cd50b232b507d2bb60c643c155d20afadcaf0aa84b05eeb89f17970e7db3",
+      "bytes": 155260,
+      "mode": 436
+    }
+  ],
+  "checks": [
+    {
+      "name": "current-package-full-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-full-v119.receipt.json",
+        "sha256": "f029251f9ca57f8fc57abfea7f499adc1b47ce0c59a71e708934ea7c90bf936d",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-full-v119.log",
+        "sha256": "1faa2a2ebbe8ee2bfae4c323ed6e69db37d92388f196be4a9b7710c2075e518e",
+        "bytes": 678,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-full-v119.validation.json",
+        "sha256": "6b0312314af5e3536db8dff80cd948e76a1d63b6f93cb403baa530013210369d",
+        "bytes": 482,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-physical-full-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-physical-full-v119.receipt.json",
+        "sha256": "936b5fd1d18866427bfe091523bfb8409ef0b4f8de88f00bae94f435f554049d",
+        "bytes": 1388,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-physical-full-v119.log",
+        "sha256": "6e72484c215ed028982c38015c0f62199d24e8abe91db6e291bdc31268449fba",
+        "bytes": 13839,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-physical-full-v119.validation.json",
+        "sha256": "3fa234e27b46babfff3b5d97ee0edcc7e7fa9549044926d0aeac314309f9a555",
+        "bytes": 506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installed-aliases-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installed-aliases-v119.receipt.json",
+        "sha256": "01af483d2eb1b91669550bedb714098cbbf48b51d087e77c135e6341fdd780a7",
+        "bytes": 1324,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installed-aliases-v119.log",
+        "sha256": "c9b3efc108262d00cd7f50ddfdb8190353b8be6e2ac206c36300eec49d34a388",
+        "bytes": 860,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installed-aliases-v119.validation.json",
+        "sha256": "13a4c96ac0b8e8045466198a93db62d71a5c690b8787b5aa6fb6563682a1501d",
+        "bytes": 492,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-client-install-owner-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-owner-v119.receipt.json",
+        "sha256": "8c5c805156ba9c0c62756cff25b5927893e9d65d8c2bf9a30f24abd70c2240cb",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-owner-v119.log",
+        "sha256": "756a7b322c4ad73191bd1abe3be33b4d69d20e0b35d9760f4ef23ec712967bd4",
+        "bytes": 237,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-owner-v119.validation.json",
+        "sha256": "c917d6d13bef13825d04b6b9108d38e1c664a00832fd0a8121daa7b6f581d097",
+        "bytes": 498,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-forge-slice-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.receipt.json",
+        "sha256": "ceb599c8e44bbc8bf35730d407385792ac9d838b43883908bbd6eeb58810e91a",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.log",
+        "sha256": "c1d4244e4350c0ae28e817397fda61d662022565990d0dc868db3408c141fb39",
+        "bytes": 417,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.validation.json",
+        "sha256": "1c8717a8127ed1e0a41c58c67fb00d434b80ee5ee1430d2ef109374b992d5337",
+        "bytes": 482,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-development-native-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-native-v119.receipt.json",
+        "sha256": "87836085be5032e077a4ae96cf0c32c7310a65a5a402dd9f7570501fed1e6189",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-native-v119.log",
+        "sha256": "2ff99c0b1be38ddb607241477684b8a998d657a7299607d1faeac4d3bd31020b",
+        "bytes": 412,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-native-v119.validation.json",
+        "sha256": "a98849e33ecf8cca20d4a14161193ff7a2eb07163e0795f32fde46297c068e38",
+        "bytes": 496,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-final-lint-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-lint-v119.receipt.json",
+        "sha256": "907e8e6eecf030c7b137b77465e3dba3567b718f696aa207e83d3f498ca00cb8",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-lint-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-lint-v119.validation.json",
+        "sha256": "f1538746667fae1e5290870bd26a2f40d58dd78d501c5c2f34dd3d2cfde16471",
+        "bytes": 490,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-final-types-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-types-v119.receipt.json",
+        "sha256": "57e1e8b87210b636d08c31eca4429c51195f55cc6f72baf39d718a246135fb20",
+        "bytes": 1326,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-types-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-types-v119.validation.json",
+        "sha256": "ce1e870b7b659899500581b5b0805bd1aa39a4683706babf5515ba2cdcdf2f3c",
+        "bytes": 492,
+        "mode": 384
+      }
+    },
+    {
+      "name": "proposal-frozen-install-v119",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/proposal-frozen-install-v119.receipt.json",
+        "sha256": "45c38c5e3ba9c4cff9b227e2508a1fc5be6e9cd71007db252c46a50c9ab77a2b",
+        "bytes": 1295,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/proposal-frozen-install-v119.log",
+        "sha256": "14a67ba6335f7cfa9a3a4e1fd04c2c9de0d1751e216d523da63c5375f5d36096",
+        "bytes": 2772,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/proposal-frozen-install-v119.validation.json",
+        "sha256": "f235f1faa235312a2bb1fb805dadfe6597a25eade2a573ba13bbf747d046238b",
+        "bytes": 489,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-faults-v119c",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119c.receipt.json",
+        "sha256": "1c3f7b9c17a05c332987807d3b5d5dff60b4f11b80d6a365d2cffb16ba4160aa",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119c.log",
+        "sha256": "e0d144738878546722f01d23585575a19170f57a58d82ae6ce642c5f6fed5984",
+        "bytes": 33,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119c.validation.json",
+        "sha256": "56dfd734b9f58a10e41be1f6ec8b2e387c024d3f242320a1c7a7fa0f5db7f734",
+        "bytes": 491,
+        "mode": 384
+      }
+    }
+  ],
+  "receipts": [
+    {
+      "name": "client-fixture-final-types-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-types-v119.receipt.json",
+        "sha256": "57e1e8b87210b636d08c31eca4429c51195f55cc6f72baf39d718a246135fb20",
+        "bytes": 1326,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-types-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-client-install-owner-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-owner-v119.receipt.json",
+        "sha256": "8c5c805156ba9c0c62756cff25b5927893e9d65d8c2bf9a30f24abd70c2240cb",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-owner-v119.log",
+        "sha256": "756a7b322c4ad73191bd1abe3be33b4d69d20e0b35d9760f4ef23ec712967bd4",
+        "bytes": 237,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-development-native-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-native-v119.receipt.json",
+        "sha256": "87836085be5032e077a4ae96cf0c32c7310a65a5a402dd9f7570501fed1e6189",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-native-v119.log",
+        "sha256": "2ff99c0b1be38ddb607241477684b8a998d657a7299607d1faeac4d3bd31020b",
+        "bytes": 412,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-unsupported-link-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c-restored.receipt.json",
+        "sha256": "d81c93bc55f7ef3e40fc70747556b7b87d930bc2242227c84509e5ce2f0fb2ae",
+        "bytes": 1529,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c-restored.log",
+        "sha256": "e764da23893aa25ad361d5274e99e2f2e42d45bc5562991e7d86657f88c5d13a",
+        "bytes": 288,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-development-slice-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-slice-v119.receipt.json",
+        "sha256": "5c615300bce13d93c8ec5dc458e446ea973451c3eeab290b08efeb7404c266b5",
+        "bytes": 1332,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-development-slice-v119.log",
+        "sha256": "731c71aa67b8fc76c15963ee33c7e4a8af9dbbaab2949e27f2fbef2c55e1681b",
+        "bytes": 873,
+        "mode": 384
+      }
+    },
+    {
+      "name": "proposal-frozen-install-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/proposal-frozen-install-v119.receipt.json",
+        "sha256": "45c38c5e3ba9c4cff9b227e2508a1fc5be6e9cd71007db252c46a50c9ab77a2b",
+        "bytes": 1295,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/proposal-frozen-install-v119.log",
+        "sha256": "14a67ba6335f7cfa9a3a4e1fd04c2c9de0d1751e216d523da63c5375f5d36096",
+        "bytes": 2772,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-hook-metadata-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119b.receipt.json",
+        "sha256": "e489529504cdcfc28b6612cab0ec468b1e74138e7492ce262822b714ffd1a43f",
+        "bytes": 1502,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119b.log",
+        "sha256": "9b5a1205aa3529d2b99dd32694e4a1862002c89ce6143e9cc2d0da99fa553648",
+        "bytes": 961,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-final-format-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-format-v119.receipt.json",
+        "sha256": "e933192667c8fcfa9e244ceec396ea6c760845b1b884cf95ca08142b0341bebd",
+        "bytes": 1290,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-format-v119.log",
+        "sha256": "fc026151bac9180ac935caba40bdc6b102d429d0babb3aa7e6a6e2ddfdc42673",
+        "bytes": 208,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-full-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-full-v119.receipt.json",
+        "sha256": "478e4d2e3aa75126060cc7460bd4edfad817af55f6b0fdfa19e4c00289927cb6",
+        "bytes": 1370,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-full-v119.log",
+        "sha256": "9a5a84b729c421adaee3b15b30a06abc8e4277a99eae7db336d8d4b8e034e99e",
+        "bytes": 88852,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-format-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-format-v119.receipt.json",
+        "sha256": "6b3c286135e8b8aaadd0e1d7add8afd64148b8a562d7ea8b463c7a709652ef09",
+        "bytes": 1278,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-format-v119.log",
+        "sha256": "996704f1f6ed073e3b31a9f79ce944780651bc408676920871c02204ff1332d9",
+        "bytes": 196,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-hook-metadata-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c.receipt.json",
+        "sha256": "9bff6915e4871eb89d2077f91ee886bf8392ee2704d729f4a300f530c21cbbc0",
+        "bytes": 1502,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c.log",
+        "sha256": "7073d505d0b222869ee5a0bac5374d331ebce72e871fd8a1efa0720ef95cab91",
+        "bytes": 961,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-faults-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119.receipt.json",
+        "sha256": "c7c59bd4c3dc28def64bfd09fe168b3b9d3beddca9408777f2147a1d011400f1",
+        "bytes": 1271,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119.log",
+        "sha256": "73cbebcd8aac0d5e82e5151b9d97f46fb33f68058677a1f8c9c8ffe298aae992",
+        "bytes": 1368,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-metadata-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119b.receipt.json",
+        "sha256": "2970f52396f300869db2427fd1dad471c5268f8fe5d41dbdfc689369d943dbb9",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119b.log",
+        "sha256": "be5aeebc8985f51abfccbd7a47cb91b74fad1fccf37f9ece45aa1499955c9a37",
+        "bytes": 971,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-physical-full-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-physical-full-v119.receipt.json",
+        "sha256": "936b5fd1d18866427bfe091523bfb8409ef0b4f8de88f00bae94f435f554049d",
+        "bytes": 1388,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-physical-full-v119.log",
+        "sha256": "6e72484c215ed028982c38015c0f62199d24e8abe91db6e291bdc31268449fba",
+        "bytes": 13839,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-metadata-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119.receipt.json",
+        "sha256": "1a9de3d9c3fc27b4b45c5d591af3a918777f63f6cdf75a8519b93ab11bd406f5",
+        "bytes": 1515,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119.log",
+        "sha256": "90f19125e81968af208efa4fd3ad444a4e3d0f336d87513cbdb5697d239939d5",
+        "bytes": 981,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-ordinary-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c.receipt.json",
+        "sha256": "45d9cf51e121e49d833b0b4f8685feb92719170b104f88bb6f9325a0d79d5493",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c.log",
+        "sha256": "ee6b5b0d43009cbe4417c59a18159d61ba2ef4338c7b6afb6e9cd3cdf471ca56",
+        "bytes": 971,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-dependency-metadata-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119b.receipt.json",
+        "sha256": "53fde6cfea469ce86de19849a7006b81f9bb26d95c8bac9315ee58cbc3532f26",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119b.log",
+        "sha256": "f3fcff530280f05680699450fc2b5d871305f7a7400c84ae6e87475f8bf6bf7e",
+        "bytes": 973,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-lint-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-lint-v119.receipt.json",
+        "sha256": "0e99d2d7ddf9876f32a37584e3e5c5846ce1733bc97831bd3f6fb26796c9ec78",
+        "bytes": 1273,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-lint-v119.log",
+        "sha256": "b44e336c5ce78c42880f99aa714dc010800c0c266198802ba4dbcd0fe623f9f4",
+        "bytes": 2950,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-metadata-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119b-restored.receipt.json",
+        "sha256": "f92ff0f3d221f4a2ed13e91101c2606cd7ab5478efc0624c009c713b6ebfda85",
+        "bytes": 1535,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119b-restored.log",
+        "sha256": "33035277f1995a86c122817fd3f24c7b25e5d8bd1150e6b06bf8772273fb87ec",
+        "bytes": 290,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installed-aliases-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installed-aliases-v119.receipt.json",
+        "sha256": "01af483d2eb1b91669550bedb714098cbbf48b51d087e77c135e6341fdd780a7",
+        "bytes": 1324,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installed-aliases-v119.log",
+        "sha256": "c9b3efc108262d00cd7f50ddfdb8190353b8be6e2ac206c36300eec49d34a388",
+        "bytes": 860,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-metadata-path-alias-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119b.receipt.json",
+        "sha256": "a39d728f007cbff1307b2b10f4d60062de960743ca4fafe440ab03ae74c31084",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119b.log",
+        "sha256": "ae08f05a25b0f890b565200cfb9d91e77537a82a8803f8369603930a4b0a287f",
+        "bytes": 973,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-full-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-full-v119.receipt.json",
+        "sha256": "f029251f9ca57f8fc57abfea7f499adc1b47ce0c59a71e708934ea7c90bf936d",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-full-v119.log",
+        "sha256": "1faa2a2ebbe8ee2bfae4c323ed6e69db37d92388f196be4a9b7710c2075e518e",
+        "bytes": 678,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fixtures-after-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fixtures-after-v119.receipt.json",
+        "sha256": "5875be5c258ed0c6b5cf55c98ac84f5cbf4c8a0efbeb6f721ce6a009666913dd",
+        "bytes": 1494,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fixtures-after-v119.log",
+        "sha256": "19f93721a6f1770c632f3adee2dab7d555fad6830a0cc0d233a5187136109c7d",
+        "bytes": 791,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-client-install-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-v119.receipt.json",
+        "sha256": "1f01cce4cca2b2c5b1d3696dd248a4a528ccb5e6658acf09c14190389c0df3d4",
+        "bytes": 1636,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-v119.log",
+        "sha256": "44d0d04bf6b55a75d81d70e8efb27af8d78507aa6f35c35694517bedaffadd99",
+        "bytes": 189,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-hook-metadata-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c-restored.receipt.json",
+        "sha256": "1f047f94224d27dfd14aceade8de7c6e846fd3462036686cb8b8ed57ca82d15e",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c-restored.log",
+        "sha256": "f223f26fcdebbc6107308323856634b1fe8d75cc0080c6a523194f8a5b6ffe12",
+        "bytes": 285,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-dependency-metadata-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c.receipt.json",
+        "sha256": "baec4393a7bdc7fa1538e0a6d6fa5a98195e4c0354f1301653d7dfefd558ec4a",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c.log",
+        "sha256": "c93fc542b30259e4ada92d7aa8cd75a5d95a7ed691cff5b7841a6e98e3536629",
+        "bytes": 973,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-metadata-path-alias-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c.receipt.json",
+        "sha256": "7a326d52edc241a8a31d4defd90f3a137c1cb4606ee5fea2e58788f0e5949f03",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c.log",
+        "sha256": "971feff1163beddd63881880155e6aa205eca6f29cc8bd3be9e2654f33f5c35b",
+        "bytes": 973,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-client-caller-init-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-caller-init-v119.receipt.json",
+        "sha256": "a300319b7e8323c8a1307d05589e63b7817126ee1e78d3c58a3afd3e1aa29988",
+        "bytes": 1398,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-client-caller-init-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-faults-v119c.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119c.receipt.json",
+        "sha256": "1c3f7b9c17a05c332987807d3b5d5dff60b4f11b80d6a365d2cffb16ba4160aa",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119c.log",
+        "sha256": "e0d144738878546722f01d23585575a19170f57a58d82ae6ce642c5f6fed5984",
+        "bytes": 33,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-faults-v119b.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119b.receipt.json",
+        "sha256": "f5c5c427ab196d04c62517e0c27c7636728bfa1f07c527e28cc195acd2b4f149",
+        "bytes": 1272,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-faults-v119b.log",
+        "sha256": "e0d144738878546722f01d23585575a19170f57a58d82ae6ce642c5f6fed5984",
+        "bytes": 33,
+        "mode": 384
+      }
+    },
+    {
+      "name": "forge-physical-source-probe-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/forge-physical-source-probe-v119.receipt.json",
+        "sha256": "26b5f2798e530b5d02bd38abe3f83ed0309044d8f14689ad13aa7dfdcf600429",
+        "bytes": 1506,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/forge-physical-source-probe-v119.log",
+        "sha256": "6887abfbed5ed1b220dd93011d5c11adaa2e58b6a1c1aa4f97cfb2592fe29480",
+        "bytes": 520,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-metadata-path-alias-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c-restored.receipt.json",
+        "sha256": "8998f24dac316828eb44e628b3a1218c9953f60d1c7a0a7dc3886c479b884273",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c-restored.log",
+        "sha256": "579bc09cafa0f17fc05bfa00d8fec233feb1bcecef884d8d02d48c0d25db2cf3",
+        "bytes": 291,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-unsupported-link-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119b.receipt.json",
+        "sha256": "d39ed6c3fd643b85cd55a6b2d52fd6d63f58a15e805b789c911be85079ffc050",
+        "bytes": 1511,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119b.log",
+        "sha256": "f11416fd7effa1dc351890472337506bff4fcbb0a30a628e9e17c10914fd6efa",
+        "bytes": 967,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-selection-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-selection-v119.receipt.json",
+        "sha256": "aab5363a083436f9938ea92ad43764a0a2da7509341e8ec4de67210f5bde40ea",
+        "bytes": 1477,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-selection-v119.log",
+        "sha256": "fc1598c899fbc7469a9a050a08db70b6b702a4327551cb3f249e3e91aba616d0",
+        "bytes": 327,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-unsupported-link-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119b-restored.receipt.json",
+        "sha256": "768442114e221f69e1fbb6fc0674a4cb005e305b8229d40bce61fd38bfbc2a5c",
+        "bytes": 1529,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119b-restored.log",
+        "sha256": "ed7c3286331e676562ae666eb4cea71325f5cd1181bcfdc4f7630546a066c95f",
+        "bytes": 288,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-metadata-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c-restored.receipt.json",
+        "sha256": "01c28bbbde4cda816c511cb9c9e64395d049985bc1cee32a2d860dc7f8882edc",
+        "bytes": 1535,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c-restored.log",
+        "sha256": "a405c125a4be0eb15fbcc60af320128e8b4a29ba0ab24e2f02085de6ae3b9f49",
+        "bytes": 290,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-unsupported-link-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c.receipt.json",
+        "sha256": "d350298e4ab80e4eb5c361f027beda7b533488c2ba75a41de1c5668ba43ec3cd",
+        "bytes": 1511,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c.log",
+        "sha256": "1cf836ef3bdffac2ecaf079944f9899539dd6bade1b7faaae7da5ada7287abcc",
+        "bytes": 967,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fixtures-before-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fixtures-before-v119.receipt.json",
+        "sha256": "1cff0397237f458e420302fd970690987f6f09b1ba926b469e8c7a1c02aa5146",
+        "bytes": 1477,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fixtures-before-v119.log",
+        "sha256": "12ab291607dce5a73982175b9fbaf7fdb6d341295a074cb95911a534dc52df9c",
+        "bytes": 5775,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-final-lint-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-lint-v119.receipt.json",
+        "sha256": "907e8e6eecf030c7b137b77465e3dba3567b718f696aa207e83d3f498ca00cb8",
+        "bytes": 1282,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-final-lint-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-dependency-metadata-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c-restored.receipt.json",
+        "sha256": "f3c3286702d287f6176c1fe3059f8af910414fffa066f1e6f19be53240ca8f40",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c-restored.log",
+        "sha256": "05f0b18a7da9a383da22eaa8f62d5d3d6d2a5725bec920886a0e047a2c27ed4f",
+        "bytes": 291,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-lint-fix-v119.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-lint-fix-v119.receipt.json",
+        "sha256": "013981e096eead2fc25465cb52962418c687a1e0c5a8494504b0019979162f58",
+        "bytes": 1285,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-lint-fix-v119.log",
+        "sha256": "de6f634a58041b404ae4c92b85e329537aa0476fd9b77b848f0bba3f6b0f3edc",
+        "bytes": 1794,
+        "mode": 384
+      }
+    },
+    {
+      "name": "retained-forge-slice-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.receipt.json",
+        "sha256": "ceb599c8e44bbc8bf35730d407385792ac9d838b43883908bbd6eeb58810e91a",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.log",
+        "sha256": "c1d4244e4350c0ae28e817397fda61d662022565990d0dc868db3408c141fb39",
+        "bytes": 417,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-metadata-v119c.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c.receipt.json",
+        "sha256": "3e89e312ec07f6de65c333d6bedeaa69a259c1b03edc76ea13683dd73bd8424a",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c.log",
+        "sha256": "6467d5f82d9275181a7d040356e114be068bed8fc3820ac55a5c48fba9a91d75",
+        "bytes": 971,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-ordinary-v119c-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c-restored.receipt.json",
+        "sha256": "5a098fb8373af96f5163e69cea9caf525a7810c0ac953ec6be48e6ab642d286c",
+        "bytes": 1535,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c-restored.log",
+        "sha256": "8dc514bb886f1f8dc02e444304bfd0c2d23923e420808cfcdd95ac0820ef2ee8",
+        "bytes": 290,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-metadata-path-alias-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119b-restored.receipt.json",
+        "sha256": "96df50d555cc86ea57c2a555bb6bfaccd88f120adde85b97f55ea64714e0a855",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119b-restored.log",
+        "sha256": "60dad03e9ae49578d85ebd84f0dce154ced2d8b09dbc8f5c422478a0ae6810c5",
+        "bytes": 291,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-fixture-types-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-types-v119.receipt.json",
+        "sha256": "9d3311cd3eab6787a021cdf760627fee0b0bf3269b599699d5492b5f0d435ebb",
+        "bytes": 1314,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-fixture-types-v119.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-hook-metadata-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119b-restored.receipt.json",
+        "sha256": "36f2e7ce8396f1e60f2f62bce26b2dfeb674458e2bafd1a128328d755bbaeb60",
+        "bytes": 1520,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119b-restored.log",
+        "sha256": "7acbb747f841b73d727dbcf4787ad04389b4617e217b0374f3931edcdcd7cedc",
+        "bytes": 285,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-package-retain-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-retain-v119.receipt.json",
+        "sha256": "42415d48a689dd2231b476b3007814fbc2167a99b5303417281503bbdc73dab2",
+        "bytes": 1264,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-package-retain-v119.log",
+        "sha256": "6201a3536921569eade182bd892cddaf840148be0ba1dcb6b9bc807c6afa43fd",
+        "bytes": 194,
+        "mode": 384
+      }
+    },
+    {
+      "name": "client-budget-format-v119.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-budget-format-v119.receipt.json",
+        "sha256": "b854934b82353227ca1235017dd5c8012a5a5ff7ffd5158a82c176725a966a10",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/client-budget-format-v119.log",
+        "sha256": "c44b6d0c042b83538e7278046770340e6413ba9bfcbb8d2c6966a6130ed6dcb0",
+        "bytes": 60,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-ordinary-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119b-restored.receipt.json",
+        "sha256": "968a752609e12ca5fad4afaac39a688734fc4b3d51a8f2f59ec7f3ed0b4afa00",
+        "bytes": 1535,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119b-restored.log",
+        "sha256": "d7c61fc91ccad238e3099252d070dc5bbf9080a2ccdaf54e5858a41b4db57504",
+        "bytes": 290,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-dependency-metadata-v119b-restored.receipt.json",
+      "exit": 0,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119b-restored.receipt.json",
+        "sha256": "628bb092b03a35d9b9aa262ebd9bc5e9191ba484ee559df747acf051dd31906c",
+        "bytes": 1538,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119b-restored.log",
+        "sha256": "ddb5feb72ecaeaeefb2efc3c1f89f2ab393c1a0d44103bfde738d4a8c186c2bb",
+        "bytes": 291,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-installer-fault-duplicate-ordinary-v119b.receipt.json",
+      "exit": 1,
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119b.receipt.json",
+        "sha256": "e7656ca19e9a12f2f9abbf71cc42bbbb008a35253b31c20fc2affadf83f5fb33",
+        "bytes": 1517,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119b.log",
+        "sha256": "94baac787384141c942f311f63753f6eee37b757558975c5a52d288903490974",
+        "bytes": 971,
+        "mode": 384
+      }
+    }
+  ],
+  "faults": [
+    {
+      "name": "duplicate-metadata",
+      "negative": {
+        "name": "current-installer-fault-duplicate-metadata-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c.receipt.json",
+          "sha256": "3e89e312ec07f6de65c333d6bedeaa69a259c1b03edc76ea13683dd73bd8424a",
+          "bytes": 1517,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c.log",
+          "sha256": "6467d5f82d9275181a7d040356e114be068bed8fc3820ac55a5c48fba9a91d75",
+          "bytes": 971,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-duplicate-metadata-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c-restored.receipt.json",
+          "sha256": "01c28bbbde4cda816c511cb9c9e64395d049985bc1cee32a2d860dc7f8882edc",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-metadata-v119c-restored.log",
+          "sha256": "a405c125a4be0eb15fbcc60af320128e8b4a29ba0ab24e2f02085de6ae3b9f49",
+          "bytes": 290,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    },
+    {
+      "name": "duplicate-ordinary",
+      "negative": {
+        "name": "current-installer-fault-duplicate-ordinary-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c.receipt.json",
+          "sha256": "45d9cf51e121e49d833b0b4f8685feb92719170b104f88bb6f9325a0d79d5493",
+          "bytes": 1517,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c.log",
+          "sha256": "ee6b5b0d43009cbe4417c59a18159d61ba2ef4338c7b6afb6e9cd3cdf471ca56",
+          "bytes": 971,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-duplicate-ordinary-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c-restored.receipt.json",
+          "sha256": "5a098fb8373af96f5163e69cea9caf525a7810c0ac953ec6be48e6ab642d286c",
+          "bytes": 1535,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-duplicate-ordinary-v119c-restored.log",
+          "sha256": "8dc514bb886f1f8dc02e444304bfd0c2d23923e420808cfcdd95ac0820ef2ee8",
+          "bytes": 290,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    },
+    {
+      "name": "metadata-path-alias",
+      "negative": {
+        "name": "current-installer-fault-metadata-path-alias-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c.receipt.json",
+          "sha256": "7a326d52edc241a8a31d4defd90f3a137c1cb4606ee5fea2e58788f0e5949f03",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c.log",
+          "sha256": "971feff1163beddd63881880155e6aa205eca6f29cc8bd3be9e2654f33f5c35b",
+          "bytes": 973,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-metadata-path-alias-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c-restored.receipt.json",
+          "sha256": "8998f24dac316828eb44e628b3a1218c9953f60d1c7a0a7dc3886c479b884273",
+          "bytes": 1538,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-metadata-path-alias-v119c-restored.log",
+          "sha256": "579bc09cafa0f17fc05bfa00d8fec233feb1bcecef884d8d02d48c0d25db2cf3",
+          "bytes": 291,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    },
+    {
+      "name": "unsupported-link",
+      "negative": {
+        "name": "current-installer-fault-unsupported-link-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c.receipt.json",
+          "sha256": "d350298e4ab80e4eb5c361f027beda7b533488c2ba75a41de1c5668ba43ec3cd",
+          "bytes": 1511,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c.log",
+          "sha256": "1cf836ef3bdffac2ecaf079944f9899539dd6bade1b7faaae7da5ada7287abcc",
+          "bytes": 967,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-unsupported-link-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c-restored.receipt.json",
+          "sha256": "d81c93bc55f7ef3e40fc70747556b7b87d930bc2242227c84509e5ce2f0fb2ae",
+          "bytes": 1529,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-unsupported-link-v119c-restored.log",
+          "sha256": "e764da23893aa25ad361d5274e99e2f2e42d45bc5562991e7d86657f88c5d13a",
+          "bytes": 288,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    },
+    {
+      "name": "dependency-metadata",
+      "negative": {
+        "name": "current-installer-fault-dependency-metadata-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c.receipt.json",
+          "sha256": "baec4393a7bdc7fa1538e0a6d6fa5a98195e4c0354f1301653d7dfefd558ec4a",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c.log",
+          "sha256": "c93fc542b30259e4ada92d7aa8cd75a5d95a7ed691cff5b7841a6e98e3536629",
+          "bytes": 973,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-dependency-metadata-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c-restored.receipt.json",
+          "sha256": "f3c3286702d287f6176c1fe3059f8af910414fffa066f1e6f19be53240ca8f40",
+          "bytes": 1538,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-dependency-metadata-v119c-restored.log",
+          "sha256": "05f0b18a7da9a383da22eaa8f62d5d3d6d2a5725bec920886a0e047a2c27ed4f",
+          "bytes": 291,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    },
+    {
+      "name": "hook-metadata",
+      "negative": {
+        "name": "current-installer-fault-hook-metadata-v119c",
+        "exit": 1,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c.receipt.json",
+          "sha256": "9bff6915e4871eb89d2077f91ee886bf8392ee2704d729f4a300f530c21cbbc0",
+          "bytes": 1502,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c.log",
+          "sha256": "7073d505d0b222869ee5a0bac5374d331ebce72e871fd8a1efa0720ef95cab91",
+          "bytes": 961,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      },
+      "restored": {
+        "name": "current-installer-fault-hook-metadata-v119c-restored",
+        "exit": 0,
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c-restored.receipt.json",
+          "sha256": "1f047f94224d27dfd14aceade8de7c6e846fd3462036686cb8b8ed57ca82d15e",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-hook-metadata-v119c-restored.log",
+          "sha256": "f223f26fcdebbc6107308323856634b1fe8d75cc0080c6a523194f8a5b6ffe12",
+          "bytes": 285,
+          "mode": 384
+        },
+        "wrapperValidation": "absent for the recorded failed expected-outcome wrapper"
+      }
+    }
+  ],
+  "faultPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-plan-v119c.json",
+    "sha256": "f6af1ceb09d45e236fec529efc7f82b325a0abc1da6055332dbba4f985b59ebb",
+    "bytes": 18957,
+    "mode": 384
+  },
+  "faultState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-installer-fault-state-v119c.json",
+    "sha256": "d076c328fad6c0a5bbfe3e3bf8287fdaf58ca73d88c7f6a90bafd22dca5a24ad",
+    "bytes": 1511,
+    "mode": 384
+  },
+  "bridges": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/client-source-bridge-v119.json",
+      "sha256": "2573c4a20c90ec81afa158daf879fb5c48740d13ed1e6e1685a4c4dac36103e6",
+      "bytes": 2123,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/retained-forge-slice-v119.json",
+      "sha256": "4c6edae03e245d5703ffc67e1498d6c2ed91147310cf1ba44b49938c6065087a",
+      "bytes": 348,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/retained-development-slice-v119.json",
+      "sha256": "aba1713492a556f2931d2ff0acb85b69c21815807320fd7cae33b9d9e6afc7a1",
+      "bytes": 208,
+      "mode": 384
+    }
+  ],
+  "dependencySetup": {
+    "plan": {
+      "path": "/tmp/puni-combined-proposal-v1/control/proposal-dependency-install-plan-v119.json",
+      "sha256": "df8d4711e9c663976003ef1b2c59d11571b00d9109ff79b183861976335e0843",
+      "bytes": 815,
+      "mode": 384
+    },
+    "state": {
+      "path": "/tmp/puni-combined-proposal-v1/control/proposal-dependency-install-state-v119.json",
+      "sha256": "df88e6962dfeaf24e9ccf3e1348eff171135cdaa798afed74a326ad234cae35c",
+      "bytes": 944,
+      "mode": 384
+    }
+  },
+  "localArchive": {
+    "root": "/tmp/puni-current-package-v119",
+    "archive": "/tmp/puni-current-package-v119/puni-0.4.0.tgz",
+    "sha256": "3958406dc9964ecb352dd6d0452865b33f088899cc93a4a39aedd4df987d794c",
+    "bytes": 186200820,
+    "originalArchive": "/tmp/puni captured package integration eaUYFO/packed/puni-0.4.0.tgz",
+    "originalProducer": "/tmp/puni captured package integration eaUYFO",
+    "manifestSha256": "a655841ca243e679ecfeb37acaa5f25c11a4cfa9dbdb55a2c68c86c795424f1a",
+    "qualification": "Read-only copy of actual Bun-produced archive during the stable full package suite. Full-suite result and independent current-profile admission are separate prerequisites before readiness claims.",
+    "fixtureScope": {
+      "kind": "controlled integration fixture",
+      "mutexSubstitution": {
+        "source": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "original": "/home/puni1/.cache/wbs-heavy-work.lock",
+        "replacement": "/tmp/puni captured package integration eaUYFO/controlled native mutex"
+      },
+      "productionQualified": false,
+      "qualification": "Actual build/pack/add from one captured test commit. The test substitutes only its fixed canonical mutex literal. This retained local artifact and its client are not publication, default cutover or real-host mutex qualification."
+    },
+    "pin": {
+      "path": "/tmp/puni-current-package-v119/puni-0.4.0.tgz",
+      "sha256": "3958406dc9964ecb352dd6d0452865b33f088899cc93a4a39aedd4df987d794c",
+      "bytes": 186200820,
+      "mode": 436
+    }
+  },
+  "localClient": {
+    "destination": "/tmp/puni-current-client-v119",
+    "entrypoint": "/tmp/puni-current-client-v119/consumer/node_modules/puni/dist/puni.mjs",
+    "executable": "/tmp/puni-current-client-v119/consumer/node_modules/.bin/puni",
+    "setup": "/tmp/puni-current-client-control-v119",
+    "archiveSha256": "3958406dc9964ecb352dd6d0452865b33f088899cc93a4a39aedd4df987d794c",
+    "profileSha256": "a655841ca243e679ecfeb37acaa5f25c11a4cfa9dbdb55a2c68c86c795424f1a",
+    "originalProducer": "/tmp/puni captured package integration eaUYFO",
+    "selection": {
+      "schemaVersion": 2,
+      "installationDirectory": "/tmp/puni-current-client-v119",
+      "archive": {
+        "path": "authenticated-puni.tgz",
+        "sha256": "3958406dc9964ecb352dd6d0452865b33f088899cc93a4a39aedd4df987d794c"
+      },
+      "entrypoint": "consumer/node_modules/puni/dist/puni.mjs",
+      "sourceSelection": {
+        "kind": "committed",
+        "revision": "10e55d8851cff8681e3a4baac0caae78164ffe48",
+        "tree": "8f816074666097fb1d2aa66f1376d79c859c117e"
+      }
+    },
+    "qualification": "Real packaged PUNI install-puni provisions the fresh fully tested local archive under Bun/Git-only PATH; not public/default installation.",
+    "fixtureScope": {
+      "kind": "controlled integration fixture",
+      "mutexSubstitution": {
+        "source": "libs/shared/adapters/heavy-lock/src/queue.ts",
+        "original": "/home/puni1/.cache/wbs-heavy-work.lock",
+        "replacement": "/tmp/puni captured package integration eaUYFO/controlled native mutex"
+      },
+      "productionQualified": false,
+      "qualification": "Actual build/pack/add from one captured test commit. The test substitutes only its fixed canonical mutex literal. This retained local artifact and its client are not publication, default cutover or real-host mutex qualification."
+    },
+    "evidence": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-client-install-v119.json",
+      "sha256": "fa74981b1b490218c0c7975ed37824cb8a15b3e9a70e117fba8ba28fb7de89b0",
+      "bytes": 1783,
+      "mode": 384
+    }
+  },
+  "fixtureScope": {
+    "kind": "controlled integration fixture",
+    "mutexSubstitution": {
+      "source": "libs/shared/adapters/heavy-lock/src/queue.ts",
+      "original": "/home/puni1/.cache/wbs-heavy-work.lock",
+      "replacement": "/tmp/puni captured package integration eaUYFO/controlled native mutex"
+    },
+    "productionQualified": false,
+    "qualification": "Actual build/pack/add from one captured test commit. The test substitutes only its fixed canonical mutex literal. This retained local artifact and its client are not publication, default cutover or real-host mutex qualification."
+  },
+  "verification": {
+    "fullPackage": {
+      "pass": 4,
+      "fail": 0,
+      "assertions": 507,
+      "elapsedSeconds": 355.15
+    },
+    "installerSourceAndForge": {
+      "pass": 119,
+      "fail": 0,
+      "assertions": 1198,
+      "elapsedSeconds": 120.24
+    },
+    "currentLocalInstallerCases": {
+      "pass": 7,
+      "fail": 0,
+      "assertions": 137
+    },
+    "currentSelectedRecord": {
+      "pass": 1,
+      "fail": 0,
+      "assertions": 13
+    },
+    "retainedForgeSlice": {
+      "pass": 1,
+      "fail": 0,
+      "assertions": 16
+    },
+    "retainedDevelopmentAndMcpSlice": {
+      "pass": 1,
+      "fail": 0,
+      "assertions": 81
+    },
+    "freshInstalledAliases": {
+      "pass": 8,
+      "fail": 0,
+      "assertions": 34
+    },
+    "finiteAdmissionControls": 6,
+    "restoredControls": 6,
+    "typeRoots": 3,
+    "lintOwners": 3,
+    "frozenPackagesInstalled": 1523,
+    "productionQualified": false
+  },
+  "observedProgress": [
+    "The current178MiB profile requires four full selection checks before frozen install. A27.329s real installed diagnostic and the literal original Forge assertion slice show the20s observer was too short. Only that test observer increases to60s; the production20s stop grace is unchanged. The aggregate600s package owner now finishes355.15s,4/0/507assertions.",
+    "Seven local installer cases previously stopped at their healthy0.3 metadata premise. A separate current schema3/0.4 fixture now carries canonical node_modules, exact role/closure/assets/source identities and the actual Bun launcher; each case completes real Bun add/import before its archive negative. Seven cases pass137assertions; the current schema2 selected-source record case passes13.",
+    "Six production boundary faults separately skip archive admission for duplicate metadata/ordinary paths, a path alias and a link, or exact metadata equality for dependency/hooks. Each reaches its forbidden child marker after the real healthy premise; all pass after exact bytes/mode restoration. These prove admission-call/metadata boundaries, not each parser subguard in isolation.",
+    "The initial broad119-case run is105pass14fail because node_modules physically resolves into another checkout. Frozen Bun installation inside the isolated proposal preserves package/lock/config bytes, keeps the original symlink separately, and installs1523packages with scripts ignored. Source2 code and its exact package profiles remain byte-identical. The actual compiled ArkType dependencies resolve to in-root2.2.3/0.0.8/0.56.2 packages; the broad suite then passes119/0,1198assertions including native TERM/restart, compiler/config/package/source/runtime mutation and unknown-profile refusal cases.",
+    "The actual complete fresh build/pack/add passes every later controlled client and tamper tail. Its exact archive is retained at/tmp/puni-current-package-v119/puni-0.4.0.tgz; a real packaged puni d install-puni provisions it separately with its required schema2 record. All eight requested spellings then perform real plan-reference/template/authority operations under Bun/Git-only PATH, poisoned startup and absent original producer/output."
+  ],
+  "limits": [
+    "All9 original requirements remain. Full package tests use controlled mutex-literal substitution; retained bytes are a local integration fixture, not a production release/default installation or real-host heavy-lock proof. The original protected source trees, history and production mutex remain unchanged.",
+    "Browser/Performance tests use actual Vite/Playwright with controlled mini BE/GW services and synthetic performance observations. Development callers use a controlled Nx producer. Real WBS browser/performance, all four actual Nx clients and the entire client-surface migration are still open.",
+    "The first retained development slice omitted its Git repository precondition and failed after52assertions; corrected exact source slice passes81. The first new finite attempt failed at unexpected destination allocation before its child-marker assertion and is excluded from that named witness. Only the order of the two assertions changes; neither is removed. Final six physical-environment pairs reach the required marker.",
+    "Whole-file formatting exposed18 lint errors, then11 after autofix. Four synchronous test helpers lose unnecessary async wrappers/awaits, seven equivalent terminal-failure predicates use optional access, and three-owner lint/types pass. Production installer changes are proof comments/import ordering only; its safety conditions and behavior remain.",
+    "Physical dependency installation used --frozen-lockfile --ignore-scripts and is not the full canonical gate installation. A frozen real-host exact-SHA clean h2/h4 gate, full repository/build/secrets/migration checks and formal Astra review remain required. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified; no premature retry or substitute.",
+    "Prior V118 timed-out full package attempts remain failed historical evidence. This turn supersedes those readiness refusals only for the current controlled full package case and current local installer/alias operations. Publication, global/default cutover, merge and deployment remain unperformed.",
+    "All WBS entity/settings/spaces/catalogue/13fact/15history/Source/API/UI/move/delete/SC17 obligations and the V116 census snapshot (803sites/583unresolved; refresh required) remain intact. Green CLI integration is not complete goal acceptance."
+  ]
+}

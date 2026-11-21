@@ -37,7 +37,33 @@ const sourcePath = operand.narrow((value) =>
 );
 
 /**
- * Proof: independently removing all 52 closed-object guards, 293 required-field guards and
+ * Workflow inputs retain the pure grammar's refusal of flag-shaped filenames.
+ * Proof: removing the flag predicate failed the manifest-file and workflow-file transport negatives.
+ */
+const workflowPath = operand.narrow((value) => !value.startsWith('-'));
+/**
+ * Proof: independently omitting either closed shape, kind literal or required source field
+ * failed the corresponding workflow applicability refusal; all six faults were restored.
+ */
+const workflowCatalogue = type.or(
+  type({ '+': 'reject', kind: '"steps"', steps }),
+  type({ '+': 'reject', kind: '"manifest"', file: workflowPath }),
+);
+
+/**
+ * The original version1 wire shape remains accepted and normalizes only after validation.
+ * Proof: omitting closedness, command literal, file or steps independently failed legacy
+ * transport negatives; omitting normalization failed the original version1 round trip.
+ */
+const legacyWorkflowRequest = type({
+  '+': 'reject',
+  command: '"validate workflow-binding"',
+  file: operand,
+  steps,
+});
+
+/**
+ * Historical proof before the manifest extension: independently removing all 52 closed-object guards, 293 required-field guards and
  * 75 selection literals across this schema/envelope failed the corresponding transport
  * refusal oracle (420 injected faults, restored). The tests derive requests from installed grammar.
  */
@@ -51,7 +77,14 @@ const payload = type.or(
   }),
   type({ '+': 'reject', command: '"validate-plan-tasks"', planReference: operand, tasks: operand }),
   type({ '+': 'reject', command: '"validate-record"', kind: operand, record: operand }),
-  type({ '+': 'reject', command: '"validate workflow-binding"', file: operand, steps }),
+  type({
+    '+': 'reject',
+    command: '"validate workflow-binding"',
+    // Proof: independently making file or catalogue optional failed the required workflow inputs refusal.
+    file: workflowPath,
+    catalogue: workflowCatalogue,
+  }),
+  legacyWorkflowRequest,
   type({ '+': 'reject', command: '"validate"', kind: operand, record: operand }),
   type({
     '+': 'reject',
@@ -499,6 +532,17 @@ export function decodeRequest(source: string | Uint8Array): Invocation {
   // JSON omits undefined-valued properties; Optique returns them as own properties. Restore
   // that typed contract only after the closed shape has refused malformed values.
   switch (request.command) {
+    case 'validate workflow-binding':
+      return 'steps' in request
+        ? {
+            ...checked,
+            request: {
+              command: request.command,
+              file: request.file,
+              catalogue: { kind: 'steps', steps: request.steps },
+            },
+          }
+        : { ...checked, request };
     case 'check':
       return {
         ...checked,

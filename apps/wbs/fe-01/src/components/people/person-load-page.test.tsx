@@ -26,7 +26,7 @@ const booking = (workItemId: string, startsOn: string, endsOn: string) => ({
 
 const load = (overrides: Record<string, unknown> = {}) => ({
   person: { id: 'pe-a', name: 'Ana' },
-  projects: [],
+  workPackages: [],
   overlaps: [],
   undated: [],
   unavailable: [],
@@ -49,23 +49,23 @@ describe('the person load page', () => {
     ]);
   });
 
-  it('draws one lane per project and hatches the bookings be-01 names in an overlap', async () => {
+  it('draws one lane per work package and hatches the bookings be-01 names in an overlap', async () => {
     stubServer({
       [ROUTE]: [
         () =>
           answer(
             200,
             load({
-              projects: [
+              workPackages: [
                 {
-                  projectId: 'p',
+                  workPackageId: 'p',
                   rank: 1,
                   name: 'Platform',
                   engine: 'fast',
                   bookings: [booking('w1', '2026-10-05', '2026-10-07')],
                 },
                 {
-                  projectId: 'q',
+                  workPackageId: 'q',
                   rank: 2,
                   name: 'Billing',
                   engine: 'optimized',
@@ -77,8 +77,8 @@ describe('the person load page', () => {
                   startsOn: '2026-10-05',
                   endsOn: '2026-10-06',
                   bookings: [
-                    { projectId: 'p', workItemId: 'w1', stepId: 'dev' },
-                    { projectId: 'q', workItemId: 'w2', stepId: 'dev' },
+                    { workPackageId: 'p', workItemId: 'w1', stepId: 'dev' },
+                    { workPackageId: 'q', workItemId: 'w2', stepId: 'dev' },
                   ],
                 },
               ],
@@ -107,16 +107,16 @@ describe('the person load page', () => {
           answer(
             200,
             load({
-              projects: [
+              workPackages: [
                 {
-                  projectId: 'p',
+                  workPackageId: 'p',
                   rank: 1,
                   name: 'Platform',
                   engine: 'fast',
                   bookings: [booking('w1', '2026-10-05', '2026-10-07')],
                 },
                 {
-                  projectId: 'q',
+                  workPackageId: 'q',
                   rank: 2,
                   name: 'Billing',
                   engine: 'fast',
@@ -135,15 +135,15 @@ describe('the person load page', () => {
     expect(bars.map((bar) => bar.getAttribute('data-overlapping'))).toEqual(['false', 'false']);
   });
 
-  it('names undated and unreadable projects', async () => {
+  it('names undated and unreadable work packages', async () => {
     stubServer({
       [ROUTE]: [
         () =>
           answer(
             200,
             load({
-              undated: [{ projectId: 'u', name: 'Someday' }],
-              unavailable: [{ projectId: 'c', name: 'Loop', reason: 'cycle' }],
+              undated: [{ workPackageId: 'u', name: 'Someday' }],
+              unavailable: [{ workPackageId: 'c', name: 'Loop', reason: 'cycle' }],
             }),
           ),
       ],
@@ -155,7 +155,7 @@ describe('the person load page', () => {
     ).toBeDefined();
   });
 
-  it('explains a missing dependency calendar instead of hiding the affected project', async () => {
+  it('explains a missing dependency calendar instead of hiding the affected work package', async () => {
     stubServer({
       [ROUTE]: [
         () =>
@@ -163,7 +163,7 @@ describe('the person load page', () => {
             200,
             load({
               unavailable: [
-                { projectId: 'p', name: 'Platform', reason: 'dependency_calendar_missing' },
+                { workPackageId: 'p', name: 'Platform', reason: 'dependency_calendar_missing' },
               ],
             }),
           ),
@@ -172,7 +172,7 @@ describe('the person load page', () => {
     renderPage();
     expect(
       await screen.findByText(
-        'Platform could not be read: a connected project has no scheduling calendar.',
+        'Platform could not be read: a connected work package has no scheduling calendar.',
       ),
     ).toBeDefined();
   });
@@ -183,7 +183,9 @@ describe('the person load page', () => {
         () =>
           answer(
             200,
-            load({ unavailable: [{ projectId: 'x', name: 'Mystery', reason: 'solver_melted' }] }),
+            load({
+              unavailable: [{ workPackageId: 'x', name: 'Mystery', reason: 'solver_melted' }],
+            }),
           ),
       ],
     });

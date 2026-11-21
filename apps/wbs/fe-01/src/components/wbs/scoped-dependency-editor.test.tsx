@@ -6,13 +6,13 @@ import { ScopedDependencyEditor } from './typed-dependency-editor';
 it('customizes remote coordinates without local rows or a shared step catalogue', async () => {
   const onSave = vi.fn().mockResolvedValue('landed');
   const source = {
-    projectId: 'remote',
+    workPackageId: 'remote',
     scope: 'node' as const,
     workItemId: 'remote-row',
     stepId: 'remote-dev',
   };
   const target = {
-    projectId: 'local',
+    workPackageId: 'local',
     scope: 'node' as const,
     workItemId: 'local-row',
     stepId: 'local-dev',
@@ -67,7 +67,7 @@ it('a retired removal completion cannot cancel a replacement editor session', as
       }),
   );
   const oldCancel = vi.fn();
-  const endpoint = { projectId: 'local', scope: 'whole' as const, workItemId: 'row' };
+  const endpoint = { workPackageId: 'local', scope: 'whole' as const, workItemId: 'row' };
   const model = {
     heading: 'Local',
     preferredKey: 'whole',

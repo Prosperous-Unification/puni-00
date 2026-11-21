@@ -66,7 +66,7 @@ function createFixture(runtime: 'bun' | 'node' = 'bun') {
 it('reconciles exact discovered identities with caller evidence and required ownership metadata', () => {
   const f = createFixture(),
     inventory = checkInventory(f.sites, f.manifest);
-  expect(inventory.scope).toBe('entrypoint-package-nx-github');
+  expect(inventory.scope).toBe('entrypoint-package-nx-github-compose-docker');
   expect(inventory.entries).toHaveLength(2);
   expect(inventory.compliance).toEqual({ kind: 'bun-compatible' });
 });

@@ -5,7 +5,7 @@ import { link, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { dirname, join } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
-import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-project-dependency-activation';
+import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import * as storeConnections from '@wbs/store-sqlite/db';
 import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import * as migrationSets from '@wbs/store-sqlite/migration-set';

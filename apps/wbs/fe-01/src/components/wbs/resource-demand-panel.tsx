@@ -2,7 +2,11 @@ import { Button, CONTROL_HEIGHT, Input } from '@ui/saas-01';
 import { useEffect, useRef, useState } from 'react';
 
 import { unitsWords } from '@/lib/compute-provider-words';
-import { type DemandStatement, type ProjectResourcesView, WbsRequestError } from '@/lib/wbs-api';
+import {
+  type DemandStatement,
+  WbsRequestError,
+  type WorkPackageResourcesView,
+} from '@/lib/wbs-api';
 
 import {
   Modal,
@@ -22,12 +26,12 @@ import {
 } from './plan-refusal';
 import { demandSummary, type RowDemand } from './resource-demand-words';
 
-type CatalogResource = ProjectResourcesView['resources'][number];
+type CatalogResource = WorkPackageResourcesView['resources'][number];
 
 /**
  * Where the directory's resources stand for the open panel. Every arm is a
  * rendered state: `loading` before the read answers, `failed` with the
- * refusal's sentence and a retry, `ready` with the catalog and this project's
+ * refusal's sentence and a retry, `ready` with the catalog and this work package's
  * stated capacities.
  */
 type Catalog =
@@ -49,8 +53,8 @@ export interface DemandPanelRow {
 
 export interface DemandPanelProps {
   row: DemandPanelRow;
-  /** The project's resources read (`readProjectResources`); rejects with be-01's code. */
-  read: () => Promise<ProjectResourcesView>;
+  /** The work package's resources read (`readWorkPackageResources`); rejects with be-01's code. */
+  read: () => Promise<WorkPackageResourcesView>;
   /**
    * Sends the changed demands as one batch through the plan's writer, so the
    * plan's Undo takes the edit back whole ({@link demandWriteOutcome}).
@@ -174,11 +178,12 @@ function draftOf(resources: readonly CatalogResource[], demands: readonly RowDem
   );
 }
 
-/** What the project states of one resource, in words beside its box. */
+/** What the work package states of one resource, in words beside its box. */
 function capacityWords(resource: CatalogResource, stated: number | undefined): string {
-  if (stated === undefined) return 'Unstated by this project: nothing waits for it.';
-  if (stated === 0) return 'This project states none: dates ignore it and no claim can hold it.';
-  return `This project states ${unitsWords(stated, resource.unitLabel)}.`;
+  if (stated === undefined) return 'Unstated by this work package: nothing waits for it.';
+  if (stated === 0)
+    return 'This work package states none: dates ignore it and no claim can hold it.';
+  return `This work package states ${unitsWords(stated, resource.unitLabel)}.`;
 }
 
 /**
@@ -192,7 +197,7 @@ function capacityWords(resource: CatalogResource, stated: number | undefined): s
  * A modal and not an in-cell editor, as the Measures panel is: a phone reaches
  * it from the row's menu, and a list of resources with a box each is not a
  * cell. Resources themselves are created, renamed and removed in the
- * project settings' Resources section.
+ * work package settings' Resources section.
  */
 export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps) {
   const [catalog, setCatalog] = useState<Catalog>({ kind: 'loading' });
@@ -302,8 +307,8 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
           <ModalTitle>{title}</ModalTitle>
           <ModalDescription>
             {row.name === '' ? 'This work item' : row.name} — what it holds while any of its steps
-            runs. Rows needing more than the project states wait for each other, and a claim holds
-            these units until it is released.
+            runs. Rows needing more than the work package states wait for each other, and a claim
+            holds these units until it is released.
           </ModalDescription>
         </ModalHeader>
         {catalog.kind === 'loading' && (
@@ -334,7 +339,7 @@ export function DemandPanel({ row, read, write, onOpenChange }: DemandPanelProps
             className="bg-muted/50 text-muted-foreground rounded-md p-3 text-sm"
           >
             This directory holds no resources yet. Add a host’s RAM, a staging environment or agent
-            slots in Project settings → Resources, then state here what this work needs.
+            slots in Work package settings → Resources, then state here what this work needs.
           </p>
         )}
         {uncertain && (

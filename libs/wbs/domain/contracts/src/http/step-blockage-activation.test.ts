@@ -1,17 +1,15 @@
 import { expect, test } from 'bun:test';
 
 import { documentFromShapes } from './document-from-shapes';
-import { importProject } from './import-shapes';
+import { importWorkPackage } from './import-shapes';
 import { validateSchema } from './schema-shape';
-import { removeStep } from './step-shapes';
-import { applyProjectCommands, redoProject, undoProject } from './work-item-shapes';
+import { applyWorkPackageCommands, redoWorkPackage, undoWorkPackage } from './work-item-shapes';
 
 for (const endpoint of [
-  importProject,
-  applyProjectCommands,
-  undoProject,
-  redoProject,
-  removeStep,
+  importWorkPackage,
+  applyWorkPackageCommands,
+  undoWorkPackage,
+  redoWorkPackage,
 ]) {
   test(`${endpoint.operationId} declares inactive blockage writer refusal`, async () => {
     const validations = await Promise.all(

@@ -3,7 +3,7 @@ import type { CapacityMode } from './stored-vocabularies';
 import type { ScopedTypedDependency } from './typed-dependency';
 
 /**
- * One project's optimization question over a captured reduced component.
+ * One work package's optimization question over a captured reduced component.
  * Starts and finishes cover every component slice exactly: local values are
  * the movement/comparison origin, foreign values are fixed boundary evidence.
  * Original authored selectors survive reduction in relationships. Core owns
@@ -11,11 +11,11 @@ import type { ScopedTypedDependency } from './typed-dependency';
  */
 export interface ConnectedOptimizationStage {
   readonly kind: 'connected-stage';
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly mode: CapacityMode;
   readonly originOrdinal: number;
-  readonly projects: readonly {
-    readonly projectId: string;
+  readonly workPackages: readonly {
+    readonly workPackageId: string;
     readonly rank: number;
     readonly anchorOrdinal: number | null;
   }[];

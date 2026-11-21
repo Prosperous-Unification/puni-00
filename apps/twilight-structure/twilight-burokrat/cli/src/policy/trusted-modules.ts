@@ -154,15 +154,26 @@ export function puniModuleNames(modulesRoot: string): string[] {
   return collectModuleNames(modulesRoot, [
     ...buildModuleNames(modulesRoot),
     '@playwright/test',
-    'nx', '@nx/js', '@nx/workspace',
-    '@swc-node/register', '@swc/core', '@swc/core-linux-x64-gnu',
+    'nx',
+    '@nx/js',
+    '@nx/workspace',
+    '@swc-node/register',
+    '@swc/core',
+    '@swc/core-linux-x64-gnu',
     '@nx/nx-linux-x64-gnu',
-    '@vitejs/plugin-react', '@tailwindcss/vite',
-    '@rolldown/binding-linux-x64-gnu', '@tailwindcss/oxide-linux-x64-gnu',
+    '@vitejs/plugin-react',
+    '@tailwindcss/vite',
+    '@rolldown/binding-linux-x64-gnu',
+    '@tailwindcss/oxide-linux-x64-gnu',
     'lightningcss-linux-x64-gnu',
-    '@elysiajs/openapi', '@elysiajs/opentelemetry',
-    '@opentelemetry/sdk-node', '@opentelemetry/exporter-trace-otlp-proto', '@opentelemetry/sdk-trace-base',
-    '@aws-sdk/client-s3', 'mmdb-lib', 'whoiser',
+    '@elysiajs/openapi',
+    '@elysiajs/opentelemetry',
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/exporter-trace-otlp-proto',
+    '@opentelemetry/sdk-trace-base',
+    '@aws-sdk/client-s3',
+    'mmdb-lib',
+    'whoiser',
   ]);
 }
 
@@ -209,13 +220,24 @@ function collectModuleNames(modulesRoot: string, roots: readonly string[]): stri
   return [...names].sort();
 }
 
-/** Installed metadata paths that Bun pack always omits; these are never compiler/runtime inputs. */
+/** Observed metadata absent from the supported Bun pack transport; these are never compiler/runtime inputs. */
 const omittedPackageMetadata = new Set([
   'elysia/bunfig.toml',
   'exact-mirror/bunfig.toml',
   'memoirist/bunfig.toml',
   'isexe/.npmignore',
   'stackback/.npmignore',
+  // Proof: pax-closure-fault-transport-1..10-v117c separately retained each of these ten paths; actual Bun pack then changed the copied closure identity in `PUNI runtime closure keeps its selected byte identity through actual Bun pack`. Each restored control passed.
+  '@protobufjs/inquire/.npmignore',
+  '@protobufjs/pool/.npmignore',
+  '@protobufjs/utf8/.npmignore',
+  'require-directory/.npmignore',
+  'wcwidth/.npmignore',
+  'delayed-stream/.npmignore',
+  'clone/.npmignore',
+  'is-arrayish/.npmignore',
+  '@elysiajs/opentelemetry/bunfig.toml',
+  '@elysiajs/openapi/bunfig.toml',
 ]);
 
 /**
@@ -376,6 +398,7 @@ function isCopiedModulePath(modulesRoot: string, source: string, path: string): 
     !relative(source, path).split('/').includes('node_modules') &&
     // Proof: retaining Bun-only metadata broke the packed-command closure digest; the
     // canonical-copy test first failed because elysia/bunfig.toml remained present.
+    // Proof: pax-closure-fault-npmignore-scope/bunfig-scope-v117c broadened this to basenames; `canonical release copies omit metadata that Bun pack cannot transport` lost independently retained TypeScript metadata and failed. Restored controls passed; no global filename exemption.
     !omittedPackageMetadata.has(relative(modulesRoot, path))
   );
 }

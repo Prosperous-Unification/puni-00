@@ -59,7 +59,17 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     bunScript("new (require('bun:sqlite').Database)(process.env.DB_PATH).close()", { DB_PATH: db });
     bunScript(BACKEND_TASK_SCRIPT, { DB_PATH: db, PUNI_TASK: 'migrate' });
     bunScript(
-      "const d = new (require('bun:sqlite').Database)(process.env.DB_PATH); d.run(\"INSERT INTO users (id, username, created_at) VALUES ('u1', 'f11', 0)\"); d.run(\"INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'f11-known', 'u1', 0)\"); d.close()",
+      String.raw`
+const { Database } = require('bun:sqlite');
+const store = new Database(process.env.DB_PATH);
+try {
+  store.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'f11', 'x', 0)");
+  store.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-f11', 'F11', 1, 0)");
+  store.run("INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'f11-known', 'u1', 0)");
+  store.run("CREATE TABLE report_history (label TEXT NOT NULL)");
+  store.run("INSERT INTO report_history VALUES ('first'), ('second')");
+} finally { store.close(); }
+`,
       { DB_PATH: db },
     );
     const exported = parseSqliteReport(
@@ -73,7 +83,10 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     expect(exported.path).toBe(join(root, 'export.sqlite'));
     expect(exported.integrity).toEqual(['ok']);
     expect(exported.migrations.length).toBeGreaterThan(0);
-    expect(exported.counts['project']).toBe(1);
+    expect(exported.counts['work_package']).toBe(1);
+    expect(exported.counts['work_package_organization']).toBe(1);
+    expect(exported.counts['organization']).toBe(1);
+    expect(exported.counts['report_history']).toBe(2);
     expect(exported.known).toEqual({ 'f11-known': true, 'f11-absent': false });
     expect(() => {
       assertExportSound(exported);

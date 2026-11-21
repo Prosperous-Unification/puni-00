@@ -1,6 +1,5 @@
-import { expect, type Page, test } from '@playwright/test';
-
 import { measureInk } from './measure-ink';
+import { expect, type Page, test } from './ordinary-test';
 import { expectAnchoredColumn } from './signed-out-column';
 
 /**
@@ -197,4 +196,99 @@ test.describe('the signed-out word mark (F-125)', () => {
         expect(Math.abs(top - anchor), `${state}: the word mark moved`).toBeLessThanOrEqual(0.5);
     });
   }
+});
+
+import { listWorkPackages, readPasswordSession } from '@wbs/contracts';
+
+import {
+  openIndependentOrdinaryContext,
+  openOrdinaryContext,
+  ordinaryReply,
+  readOrdinaryFixture,
+} from './ordinary-context';
+import { createOrdinaryHeaders } from './plan-fixture';
+
+test('native server logout revokes only the independent organization session', async ({
+  browser,
+  playwright,
+}) => {
+  const fixture = readOrdinaryFixture();
+  const resourceUrl = fixture.appOrigin + listWorkPackages.path;
+  const resourceHeaders = Object.fromEntries(createOrdinaryHeaders(listWorkPackages));
+  const closes: (() => Promise<void>)[] = [];
+  let primary: { cause: unknown } | null = null;
+  try {
+    const saved = await openOrdinaryContext(browser);
+    closes.push(() => saved.close());
+    const before = await ordinaryReply(
+      await saved.request.get(fixture.appOrigin + '/api/auth/me'),
+      readPasswordSession.responses[0].schema,
+      200,
+      'Saved ordinary session before native subject logout',
+    );
+    expect(before.user?.id).toBe(fixture.accountId);
+    const subject = await openIndependentOrdinaryContext(browser);
+    closes.push(() => subject.close());
+    await ordinaryReply(
+      await subject.request.get(resourceUrl, { headers: resourceHeaders }),
+      listWorkPackages.responses[0].schema,
+      200,
+      'Independent organization session before native server logout',
+    );
+    const access = (await subject.cookies(fixture.appOrigin)).filter(
+      (cookie) => cookie.name === '__Host-wbs_access',
+    );
+    const subjectAccess = access.at(0);
+    if (access.length !== 1 || subjectAccess === undefined || subjectAccess.value === '')
+      throw new Error('Native logout control requires one actual subject credential');
+    const probe = await playwright.request.newContext({
+      baseURL: fixture.appOrigin,
+      storageState: { cookies: [], origins: [] },
+      extraHTTPHeaders: {
+        authorization: 'Bearer ' + subjectAccess.value,
+        origin: fixture.appOrigin,
+      },
+    });
+    closes.push(() => probe.dispose());
+    const admitted = await ordinaryReply(
+      await probe.get('/api/auth/me'),
+      readPasswordSession.responses[0].schema,
+      200,
+      'Independent native credential before server logout',
+    );
+    expect(admitted.user?.id).toBe(fixture.accountId);
+    const logout = await probe.post('/api/auth/logout');
+    expect(logout.status()).toBe(204);
+    expect(await logout.text()).toBe('');
+    const revoked = await subject.request.get(resourceUrl, { headers: resourceHeaders });
+    expect(revoked.status()).toBe(403);
+    expect(await revoked.json()).toEqual({ error: 'no_active_organization' });
+    await ordinaryReply(
+      await saved.request.get(resourceUrl, { headers: resourceHeaders }),
+      listWorkPackages.responses[0].schema,
+      200,
+      'Saved ordinary organization session after independent native server logout',
+    );
+  } catch (cause) {
+    primary = { cause };
+  }
+  const cleanup: unknown[] = [];
+  for (const close of closes.reverse()) {
+    try {
+      await close();
+    } catch (cause) {
+      cleanup.push(cause);
+    }
+  }
+  if (primary !== null) {
+    if (cleanup.length !== 0)
+      throw new AggregateError(
+        [primary.cause, ...cleanup],
+        'Native logout control and cleanup failed',
+        { cause: primary.cause },
+      );
+    throw primary.cause;
+  }
+  if (cleanup.length !== 0)
+    throw new AggregateError(cleanup, 'Native logout control cleanup failed');
 });

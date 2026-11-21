@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { fakeProjectApi } from '../testing/fake-project-api';
+import { fakeWorkPackageApi } from '../testing/fake-work-package-api';
 import { createPlanRefresh, resourcesFor } from './plan-refresh';
 import { type ClaimsRead, type ClaimView, type PlanRead, WbsRequestError } from './wbs-api';
 
@@ -15,8 +15,8 @@ function held<T>() {
 }
 
 async function setup() {
-  const api = fakeProjectApi();
-  const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+  const api = fakeWorkPackageApi();
+  const owner = createPlanRefresh({ workPackageId: 'p1', routes: api, monotonicNow: () => 0 });
   expect((await owner.initialize()).status).toBe('installed');
   return { api, owner };
 }
@@ -56,7 +56,7 @@ describe('plan refresh obligations', () => {
       return Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'getApiProjectsByIdWork-items',
+          operation: 'getApiWorkPackagesByIdWork-items',
           refusal: { error: 'engine_unavailable', engine: 'optimized' },
         }),
       );
@@ -76,7 +76,7 @@ describe('plan refresh obligations', () => {
   });
 
   it('starts unsequenced baseline reads only after its tree anchor', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const before = await api.tree('p1');
     const anchor = held<PlanRead>();
     api.tree = () => anchor.promise;
@@ -85,7 +85,7 @@ describe('plan refresh obligations', () => {
       markers += 1;
       return Promise.resolve([]);
     };
-    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    const owner = createPlanRefresh({ workPackageId: 'p1', routes: api, monotonicNow: () => 0 });
     const ready = owner.initialize();
     expect(markers).toBe(0);
     anchor.resolve(before);
@@ -297,9 +297,9 @@ describe('claims as a refresh resource', () => {
   };
 
   async function claimsSetup() {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     let now = 0;
-    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => now });
+    const owner = createPlanRefresh({ workPackageId: 'p1', routes: api, monotonicNow: () => now });
     expect((await owner.initialize()).status).toBe('installed');
     const reads: string[] = [];
     const tree = api.tree.bind(api);
@@ -307,11 +307,11 @@ describe('claims as a refresh resource', () => {
     const teams = api.listTeams.bind(api);
     const markers = api.listCalendarMarkers.bind(api);
     const claims = api.readClaims.bind(api);
-    api.tree = (projectId) => (reads.push('tree'), tree(projectId));
-    api.steps = (projectId) => (reads.push('steps'), steps(projectId));
+    api.tree = (workPackageId) => (reads.push('tree'), tree(workPackageId));
+    api.steps = (workPackageId) => (reads.push('steps'), steps(workPackageId));
     api.listTeams = () => (reads.push('directory'), teams());
-    api.listCalendarMarkers = (projectId) => (reads.push('markers'), markers(projectId));
-    api.readClaims = (projectId) => (reads.push('claims'), claims(projectId));
+    api.listCalendarMarkers = (workPackageId) => (reads.push('markers'), markers(workPackageId));
+    api.readClaims = (workPackageId) => (reads.push('claims'), claims(workPackageId));
     return {
       api,
       owner,
@@ -325,8 +325,8 @@ describe('claims as a refresh resource', () => {
   it('reads claims alone for a heartbeat and installs readAt beside the monotonic instant', async () => {
     const { api, owner, reads, setNow } = await claimsSetup();
     const read = api.readClaims.bind(api);
-    api.readClaims = async (projectId) => {
-      const answer = await read(projectId);
+    api.readClaims = async (workPackageId) => {
+      const answer = await read(workPackageId);
       setNow(4_200);
       return { ...answer, readAt: 777_000, claims: [claim] };
     };
@@ -397,7 +397,7 @@ describe('claims as a refresh resource', () => {
   });
 
   it('reads claims during an initialize whose anchor fails', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     const anchor = held<PlanRead>();
     api.tree = () => anchor.promise;
     let claimsReads = 0;
@@ -405,7 +405,7 @@ describe('claims as a refresh resource', () => {
       claimsReads += 1;
       return Promise.resolve({ readAt: 0, claims: [] });
     };
-    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    const owner = createPlanRefresh({ workPackageId: 'p1', routes: api, monotonicNow: () => 0 });
     const ready = owner.initialize();
     const claims = owner.invalidate({ resources: ['claims'] });
     anchor.reject(new Error('offline'));
@@ -438,13 +438,13 @@ describe('claims as a refresh resource', () => {
   });
 
   it('anchors the baseline without claims when the claims read is refused', async () => {
-    const api = fakeProjectApi();
+    const api = fakeWorkPackageApi();
     let claimsReads = 0;
     api.readClaims = () => {
       claimsReads += 1;
       return Promise.reject(new Error('not_found'));
     };
-    const owner = createPlanRefresh({ projectId: 'p1', routes: api, monotonicNow: () => 0 });
+    const owner = createPlanRefresh({ workPackageId: 'p1', routes: api, monotonicNow: () => 0 });
     expect((await owner.initialize()).status).toBe('installed');
     await vi.waitFor(() => {
       expect(owner.getSnapshot().staleResources).toEqual(['claims']);
@@ -454,4 +454,32 @@ describe('claims as a refresh resource', () => {
     expect(owner.getSnapshot().claims.installed).toBeNull();
     owner.dispose();
   });
+});
+
+it('refreshes one tree and step group for a committed catalogue change without reloading unrelated resources', async () => {
+  const { api, owner } = await setup();
+  const reads: string[] = [];
+  const tree = api.tree.bind(api),
+    steps = api.steps.bind(api),
+    teams = api.listTeams.bind(api);
+  const markers = api.listCalendarMarkers.bind(api),
+    claims = api.readClaims.bind(api);
+  api.tree = (id) => (reads.push('tree'), tree(id));
+  api.steps = (id) => (reads.push('steps'), steps(id));
+  api.listTeams = () => (reads.push('directory'), teams());
+  api.listCalendarMarkers = (id) => (reads.push('markers'), markers(id));
+  api.readClaims = (id) => (reads.push('claims'), claims(id));
+  try {
+    const baseline = owner.getSnapshot().baseline;
+    if (baseline === null)
+      throw new Error('initialized catalogue refresh fixture lacks its actual baseline');
+    const observed = await owner.invalidate({
+      resources: resourcesFor('step_catalogue_changed'),
+      seq: baseline.seq + 1,
+    });
+    expect(observed.status).toBe('installed');
+    expect(reads.sort()).toEqual(['steps', 'tree']);
+  } finally {
+    owner.dispose();
+  }
 });

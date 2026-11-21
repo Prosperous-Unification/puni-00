@@ -14,9 +14,9 @@ import {
 
 import type { Context } from '../execute-command';
 import { createLaunch } from '../startup';
+import { admitArchiveMembers, readArchive } from './archive';
 import { createPackageMetadata } from './metadata';
 import { createSelectedSelectionRecord, verifyPuniSelection } from './selection';
-import { admitArchiveMembers, readArchive } from './archive';
 
 interface Request {
   readonly command: 'install-puni';
@@ -47,6 +47,9 @@ function exists(path: string): boolean {
 /** Require the exact current producer bytes, rejecting duplicate/alternate JSON semantics before install. */
 function readMetadata(bytes: Uint8Array, bunVersion: string): void {
   const expected = createPackageMetadata(bunVersion);
+  // Proof: current-installer-faults-v119b bypassed this equality independently for dependency
+  // and hook metadata; each current-profile test reached its forbidden child marker. Exact
+  // source/mode restoration passed both controls after a real healthy install prerequisite.
   if (!Buffer.from(bytes).equals(expected))
     throw new InstallRefusal('archive is not a dependency-free hook-free current PUNI package');
 }
@@ -121,6 +124,10 @@ export async function runInstallPuni(request: Request, context: Context): Promis
           throw new InstallRefusal('archive must be outside the caller repository');
         const retained = readArchive(archive);
         if (hash(retained) !== selected.sha256) throw new InstallRefusal('archive digest mismatch');
+        // Proof: current-installer-faults-v119b skipped this admission call separately for
+        // duplicate metadata/ordinary paths, a path alias and a link. Each own current-profile
+        // refusal test reached its forbidden child marker; exact restoration passed all four.
+        // This proves the admission-call boundary, not independent removal of parser subguards.
         admitArchiveMembers(retained);
         const entries = await new Bun.Archive(retained).files([
           'package/package.json',
@@ -219,8 +226,14 @@ export async function runInstallPuni(request: Request, context: Context): Promis
           });
         const beforeSelection = cancellation();
         if (beforeSelection !== undefined) return await cancel(beforeSelection);
-        if(verified.profileVersion!=='0.4.0')throw new Error('current PUNI installation requires the selected-source profile');
-        const selectionBytes = createSelectedSelectionRecord(destination, selected.sha256, verified.entrypoint,verified.sourceSelection);
+        if (verified.profileVersion !== '0.4.0')
+          throw new Error('current PUNI installation requires the selected-source profile');
+        const selectionBytes = createSelectedSelectionRecord(
+          destination,
+          selected.sha256,
+          verified.entrypoint,
+          verified.sourceSelection,
+        );
         await verifyPuniSelection(selectionBytes, hash(selectionBytes), destination);
         const beforeRecord = cancellation();
         if (beforeRecord !== undefined) return await cancel(beforeRecord);

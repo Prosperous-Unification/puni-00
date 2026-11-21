@@ -41,7 +41,7 @@ export function ffStartWeightUnits(predecessor: Slice, successor: Slice): number
  * tag constraints permit it — both libraries are `scope:shared` +
  * `runtime:isomorphic`. Worth knowing while reading:
  * `@nx/enforce-module-boundaries` is **skipped** in the gate this repository
- * runs (`No cached ProjectGraph is available`), so it would not have caught a
+ * runs (`No cached WorkPackageGraph is available`), so it would not have caught a
  * bad edge, and this one is argued rather than lint-approved.
  */
 

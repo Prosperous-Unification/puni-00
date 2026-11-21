@@ -1,19 +1,19 @@
 import { openDatabase, openDrizzle } from '../db';
 import { OPEN } from '../gate';
-import { ProjectRepository } from '../project';
+import { WorkPackageRepository } from '../work-package';
 
 /**
- * The full-table scans `ProjectRepository.findCrossReferences` would run over
+ * The full-table scans `WorkPackageRepository.findCrossReferences` would run over
  * `work_item` or `dependency` in the database at `path`, read from SQLite's
  * `EXPLAIN QUERY PLAN` for the statement the repository actually issues.
  *
  * Every alias the arms give either table is checked. A covering-index scan of
- * the small `project` table is not reported: the parent arm probes
- * `work_item_siblings` once per other project through it.
+ * the small `workPackage` table is not reported: the parent arm probes
+ * `work_item_siblings` once per other work package through it.
  */
 export async function crossReferenceScans(path: string): Promise<string[]> {
   const queries: { sql: string; params: unknown[] }[] = [];
-  const logged = new ProjectRepository(
+  const logged = new WorkPackageRepository(
     openDrizzle(path, { logQuery: (sql, params) => queries.push({ sql, params }) }),
     OPEN,
   );
@@ -22,7 +22,7 @@ export async function crossReferenceScans(path: string): Promise<string[]> {
   if (query === undefined) throw new Error('findCrossReferences issued no statement');
   const raw = openDatabase(path);
   try {
-    // Parameters arrive as drizzle logged them: the project and organization ids.
+    // Parameters arrive as drizzle logged them: the work package and organization ids.
     const plan = raw
       .query<{ detail: string }, string[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
       .all(...(query.params as string[]));

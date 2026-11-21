@@ -1,0 +1,674 @@
+{
+  "schema": "puni-current-capture-fixtures-verification-v115",
+  "recordedAt": "2026-11-21T14:36:17.622Z",
+  "goalStatus": "active",
+  "classification": "progress",
+  "previousGoal": {
+    "path": "/tmp/puni-goal-continuation-20261121-v114.json",
+    "sha256": "18259cc304a6238dff83a523480c777ef848313f2d28789682ba1277aef285b1",
+    "bytes": 16895,
+    "mode": 384
+  },
+  "previousState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-final-state-v114.json",
+    "sha256": "3c02e88c90e43401b8105ee455c4b0395706480c4593ec83dea4176f7e17039f",
+    "bytes": 233336,
+    "mode": 384
+  },
+  "baselineSourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-input-source-audit-v114.json",
+    "sha256": "ce7186d2357528f8dd38615fd75c515e771cb21d7eaf937972bbd5154cb8e23f",
+    "bytes": 1709122,
+    "mode": 384
+  },
+  "before": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-before-v115.json",
+      "sha256": "c8eb3793bf8090e97abc647ff639f105cc8f07caddc46da5b11028de11369352",
+      "bytes": 242684,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-capture-settings-before-v115.json",
+      "sha256": "3bd0d749afcb3b5b4c700689cb0a49a6d7f840681750c7011522086f8b8e77ce",
+      "bytes": 27450,
+      "mode": 384
+    }
+  ],
+  "changedSources": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/settings.ts",
+      "sha256": "5be76611e97be67225ff6fd83097ee45e5615ad83fa5820779d673e108ed0a25",
+      "bytes": 20575,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+      "sha256": "9dd1ebea91d0eef820b628e2ac5d479fd63e37c4f55c9b0e55b869932243715f",
+      "bytes": 159078,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+      "sha256": "71cb0f683534d31c352f2078e196f676323c1feed51bbc2dcf57e0622a08d868",
+      "bytes": 31272,
+      "mode": 436
+    }
+  ],
+  "verification": {
+    "cohort": {
+      "pass": 204,
+      "fail": 0,
+      "assertions": 1249,
+      "files": 5,
+      "observation": 110,
+      "savedCapture": 29,
+      "priorEpochMemoDatabase": 65
+    },
+    "typeRoots": 3,
+    "lintOwners": 3,
+    "negativeProcesses": 5,
+    "runtimeNegatives": 2,
+    "fixtureNegatives": 3,
+    "performance": {
+      "workPackages": 30,
+      "rowsPerPackage": 300,
+      "chunk": 20,
+      "boundsMs": {
+        "space": 120,
+        "warm": 400
+      },
+      "samples": [
+        {
+          "name": "current-capture-performance-v115",
+          "exitCode": 1,
+          "spaceMs": 20.5,
+          "coldMs": 1503.4,
+          "warmMs": 477.8,
+          "coldPresentations": 20,
+          "warmPresentations": 0
+        },
+        {
+          "name": "current-capture-profile-v115",
+          "exitCode": 0,
+          "spaceMs": 25.4,
+          "coldMs": 1285,
+          "warmMs": 350.4,
+          "coldPresentations": 20,
+          "warmPresentations": 0
+        },
+        {
+          "name": "current-capture-performance-recheck-v115",
+          "exitCode": 0,
+          "spaceMs": 18,
+          "coldMs": 1160.9,
+          "warmMs": 329.2,
+          "coldPresentations": 20,
+          "warmPresentations": 0
+        }
+      ],
+      "status": "variable-local-native-no-host-acceptance"
+    }
+  },
+  "checks": [
+    {
+      "name": "current-capture-fixtures-final-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/read-epoch.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/testing/space-roll-up.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/db.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-final-v115.receipt.json",
+        "sha256": "afd13713350f1b1d4dba952efc28de8f8471a7e7d829bef5dd2b160b5f8ae489",
+        "bytes": 1652,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-final-v115.log",
+        "sha256": "5e503ee328a9cdc1e9f9ef709c530f8ae1d59a3d0a8fa3eeb1fc90227352483f",
+        "bytes": 21899,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-types-final-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-current-capture-fixture-types-v115.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-types-final-v115.receipt.json",
+        "sha256": "e03598c0d1818eb8c693ede30589f584d5d4ea79d6d3f2f716e881543fcac429",
+        "bytes": 1361,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-types-final-v115.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-lint-final-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/settings.ts",
+          "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-final-v115.receipt.json",
+        "sha256": "a3f57c78b34d96d1f43237224cb199ec8d938e07abc0a32e215637a3edb56840",
+        "bytes": 1497,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-final-v115.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-faults-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-current-capture-fixture-faults-v115.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-faults-v115.receipt.json",
+        "sha256": "96a93507fb23e7a52c37654a339db3882564691760469bfe81156c70e0818907",
+        "bytes": 1296,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-faults-v115.log",
+        "sha256": "12553b9fb745302f45f295c9f473521a3069e025133367c1c98d9f69cde74713",
+        "bytes": 750,
+        "mode": 384
+      }
+    }
+  ],
+  "proofs": [
+    {
+      "name": "current-capture-fault-nonzoned-selection-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "--test-name-pattern=reads scoped solution-table and retained legacy slugs",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-nonzoned-selection-v115.receipt.json",
+        "sha256": "0a7914d43fefca95b7aacb32cf3b5cde1f529062ed0d13cfa7dfd63608f1d18b",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-nonzoned-selection-v115.log",
+        "sha256": "3fc8c1b8a4aa4034417e62093ea52ff609778caf68c944f868bc1d54ddd5773f",
+        "bytes": 4278,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fault-unknown-key-retention-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "--test-name-pattern=reads scoped solution-table and retained legacy slugs",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-unknown-key-retention-v115.receipt.json",
+        "sha256": "19fc981295249b98e1c6f34d5e2a4cc2d6d6a0b66613c58a95e30de8404f11bd",
+        "bytes": 1468,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-unknown-key-retention-v115.log",
+        "sha256": "ff4901ba2140ff6c0da072013f554b38048da96a4d0b7f97459aaa0d2c4ef4ea",
+        "bytes": 840,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fault-observation-retention-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "--test-name-pattern=retains observation fixture files after reported lower-owner uncertainty",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-observation-retention-v115.receipt.json",
+        "sha256": "fa336c64475f4f8b284a5872accdb36cd2d5683939ea2c35fcdb28aa3510205b",
+        "bytes": 1487,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-observation-retention-v115.log",
+        "sha256": "f3190755df4e27561ebf6df394dd5d1eddf78686f09c8ea4f8b77b4843017707",
+        "bytes": 808,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fault-capture-retention-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "--test-name-pattern=retains capture fixture files after reported lower-owner uncertainty",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-capture-retention-v115.receipt.json",
+        "sha256": "0e13a7904fc334b513681ec8fa21f6c11b2322fdc0d5b4ded532b4badc21e100",
+        "bytes": 1469,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-capture-retention-v115.log",
+        "sha256": "66c51065da8784262f1943359f6c39221941004bef341f0851044ae0066831e6",
+        "bytes": 849,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fault-capture-reentry-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "--test-name-pattern=retains capture fixture files after reported lower-owner uncertainty",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 120000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-capture-reentry-v115.receipt.json",
+        "sha256": "8e3fa079d385e1c70664dc05563b94a4ad4303866bb47002d12cf48f8e1b1e5c",
+        "bytes": 1465,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fault-capture-reentry-v115.log",
+        "sha256": "f96567401ca4b9736eccfa805a4a04ba8ebac53fb7192cb4f49b7dee11ff5f30",
+        "bytes": 812,
+        "mode": 384
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "name": "current-capture-fixtures-first-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-first-v115.receipt.json",
+        "sha256": "745c00ba1e66298fa7544be1bae4ad06bae6b72e71a1cfa588c9ac29fa76cdd6",
+        "bytes": 1438,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-first-v115.log",
+        "sha256": "ae8151350b53f0076e2b18633284ddbdb014ab10859d452be4e69ba9cee7df13",
+        "bytes": 158130,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixtures-v2-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-v2-v115.receipt.json",
+        "sha256": "70e12a3d0acb87008ecdce3d2c9338be358c86e0e0f90adf7b1baa221520239e",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixtures-v2-v115.log",
+        "sha256": "a967ad1d8f0ecce05a6a26a115363725018318b37431a4112154ba9e7796cbde",
+        "bytes": 31952,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-types-v115",
+      "exitCode": 2,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-current-capture-fixture-types-v115.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-types-v115.receipt.json",
+        "sha256": "374e16cf37e6152dbf21dc3062c7b200a0c8a10105990b47659058a926953631",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-types-v115.log",
+        "sha256": "dfe71d104e31f98f3e6ad6e12ded55c1bda8795414b25a6331e35383c573a6d7",
+        "bytes": 406,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-lint-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-v115.receipt.json",
+        "sha256": "8589e7493d3f4aadc739d9af016ed47d5339a3deb36ec5880f155d04bed69b15",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-v115.log",
+        "sha256": "4bc0c30adce18a431ef01dc3724be7023fe8196e6b3ca423c296322b3f04445f",
+        "bytes": 475,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-capture-fixture-lint-v2-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-sqlite/src/work-package-observation.db.test.ts",
+          "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-v2-v115.receipt.json",
+        "sha256": "c85b9dabe0cca649a5fc1488d2d273573042b0af12c33b5e13738430f2381ba9",
+        "bytes": 1437,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-lint-v2-v115.log",
+        "sha256": "d1a9ce5f587e4a6f9281184f8e6a0300332d514434ff6dff97e4219539be53a2",
+        "bytes": 641,
+        "mode": 384
+      }
+    }
+  ],
+  "performanceChecks": [
+    {
+      "name": "current-capture-performance-v115",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-performance-v115.receipt.json",
+        "sha256": "afce81d6f7aa535499711de5819a8fde02583e3214818093d1f0516fdd709183",
+        "bytes": 1349,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-performance-v115.log",
+        "sha256": "21cf3e462bc1d81c84e2221672e6d2705e773dd2071d7e4e36f0cff40a98445f",
+        "bytes": 977,
+        "mode": 384
+      },
+      "timing": {
+        "spaceMs": 20.5,
+        "coldMs": 1503.4,
+        "warmMs": 477.8,
+        "coldPresentations": 20,
+        "warmPresentations": 0
+      }
+    },
+    {
+      "name": "current-capture-profile-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "--preload",
+          "/tmp/puni-rollup-performance-profile-v2.ts",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-profile-v115.receipt.json",
+        "sha256": "b75a46971057f15ba2e9cec76dcf4bce1c8f3eb9649bb4ff40e6c5cb1a89c268",
+        "bytes": 1413,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-profile-v115.log",
+        "sha256": "91501daecb70378d462a8985e14caa1663a0dbb52e45558f40dbe7f5e2144c34",
+        "bytes": 3549,
+        "mode": 384
+      },
+      "timing": {
+        "spaceMs": 25.4,
+        "coldMs": 1285,
+        "warmMs": 350.4,
+        "coldPresentations": 20,
+        "warmPresentations": 0
+      }
+    },
+    {
+      "name": "current-capture-performance-recheck-v115",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/space-roll-up-performance.db.test.ts",
+          "--timeout120000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-performance-recheck-v115.receipt.json",
+        "sha256": "b6fa9f33c07cc4a79b3f17abcfb55fe8c263666f35b3aa998cbe4e7e6ab871f0",
+        "bytes": 1365,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-capture-performance-recheck-v115.log",
+        "sha256": "e123a5316669763564dcb542757159492d7f3ba5aaee7670f6024f4e43d7ff93",
+        "bytes": 382,
+        "mode": 384
+      },
+      "timing": {
+        "spaceMs": 18,
+        "coldMs": 1160.9,
+        "warmMs": 329.2,
+        "coldPresentations": 20,
+        "warmPresentations": 0
+      }
+    }
+  ],
+  "proofPlan": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-faults-plan-v115.json",
+    "sha256": "53efcdf967d6c4dcb11d1ca71354363b37d49d8a032bdd00878aec8915400294",
+    "bytes": 283721,
+    "mode": 384
+  },
+  "proofState": {
+    "path": "/tmp/puni-combined-proposal-v1/control/current-capture-fixture-faults-state-v115.json",
+    "sha256": "84f6f27243ea7a2c69896a5293153c408cbeb99d0e494b3915af57d040ffd8cd",
+    "bytes": 3871,
+    "mode": 384
+  },
+  "privateSources": [
+    {
+      "path": "/tmp/puni-current-observation-fixture-v115.ts",
+      "sha256": "b3099a8228be925c723889d764ab965a26a2cd998f0d71cb4444069d63b65082",
+      "bytes": 2934,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-observation-settings-v115.ts",
+      "sha256": "be285447a8f046a642053e0fbbfe63cc97a536db5945efb3c3642d5d05433f9c",
+      "bytes": 4136,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-observation-corrections-v115.ts",
+      "sha256": "7babc740b1baf5b1733b5249543b45a09e26c174a4387882b99b138c980df9c7",
+      "bytes": 1475,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-capture-custody-tests-v115.ts",
+      "sha256": "e42062ff81088e35f1821296d06596a89656379d65d473a60ffde152c760db36",
+      "bytes": 2610,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-capture-fixture-faults-v115.ts",
+      "sha256": "4220ea68e48449690bea315c1a3dbcd0e563fbfcd8d76be2fcfdb9c85861ddf3",
+      "bytes": 5052,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-capture-fixture-types-v115.json",
+      "sha256": "0d84784b31cad428156ae6c241e72b8742dd717a2349d6bca04548bd50f13437",
+      "bytes": 750,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-current-capture-checkpoint-v115.ts",
+      "sha256": "85d86a313d71aed9e9e1807e2f9c270847ebd611dc468361de7007d670a60d50",
+      "bytes": 23589,
+      "mode": 436
+    }
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "qualification": [
+    "Current observation/capture fixtures use actual116,report/E37/private117 and actual additive118/119 via the existing helper. The ordinary pending117 guard is unchanged; no legacy step table is recreated. Real shared definitions/bindings and explicit package values replace obsolete per-package step setup. All parent task and original requirement scope remains open.",
+    "The runtime WorkPackage projection previously decoded timezone even though that DTO excludes it; an actual restored fixture exposed the regression. SQL now omits only known timezone rows from that purpose and its mapper returns only PERT/budget fields. Explicit timezoneOf/full zoned reads remain strict and unknown keys remain selected and rejected. No fallback,sanitized snapshot or removed domain validation is introduced.",
+    "Initial diagnostic137cases had27pass110fail: uppercase DEV rejected by real current code grammar and an unsupported estimateMethod setting_value key in a fixture. The supported method/rounding fields remain owned work_package columns; timezone is its current own-scope override. These fixture mistakes are corrected without relaxing validators.",
+    "Expanded139case diagnostic had130pass9fail. Two failures exposed the same non-zoned timezone regression; one expected the old per-package rename instead of a shared definition rename; six expected pre_catalogue metadata for rows newly authored after117. Current post-transition metadata is now catalogue/empty aliases. Exact stored body strings,headers,hash strings and declared future schema99 remain unchanged. No historical bytes/hashes or real pre-transition records are rewritten.",
+    "The connected history version expectation12 becomes13 only for a newly captured current catalogue input,matching its actual type and leaf-step payload. Supported frozen inputs/schedules and historical hashes are untouched. This is not a historic golden repin or a complete all15-history guarantee.",
+    "Final204/0 covers upgraded observation110/capture29 and prior native/current memo65,1249assertions,5files. Three touched roots typecheck/lint. This is broader scoped evidence,not all Source owners,all13fact families,all15historic guarantees,SC17/move/delete,documents17/18,complete API/UI or installed artifacts.",
+    "Five finite negatives fail at their selected own oracles: two real runtime projection controls,three fixture-only recorded-uncertainty controls. The fixture controls set a modeled lower-owner uncertainty flag after actual acquisition/settlement; they do not prove a real native leak,actual close-failure classification or all init/rollback states. Each original process stops/reaps/closes before exact restoration; final parsed-source bridges differ only by comments/formatting.",
+    "The18 historical selected builder-read interruption hooks remain. They are not an exhaustive inventory of current SQL reads,raw all/get calls or nested transaction reads. Current snapshot/capture obligations and independent negative proofs remain in the full original scope.",
+    "Actual local timing varies at unchanged30packages×300rows/chunk20 and120/400ms bounds: first plain477.8ms fails,profile350.4ms passes,latest plain is recorded independently. No sample is discarded,no bound relaxed,no source changed between these timing runs. The profile observes only20cold cross-reference/work-item captures,not warm recapture. Host noise versus remaining warm-cost margin is not fully resolved; no robust coverage/browser/calibrated h2/h4 performance acceptance follows from a passing local sample.",
+    "The profile wrapper expected a failure but observed a pass,so it has a valid terminal native0 receipt and intentionally lacks success-wrapper validation. Other earlier expected0 diagnostics that returned1/2 remain failures. Final204/0 and final type/lint are independent authoritative checks.",
+    "CLI runtime/source remains unchanged this turn. Its last proper-native parser82/0 and combined244/0 are prior scoped evidence; installed PUNI/aliases/assets/four Nx clients and exhaustive Bun embedding remain incomplete. User status questions did not authorize a newly specified full WBS web-app rebrand; no full branding acceptance is claimed.",
+    "All9 original requirements remain verbatim,including separate WBS/settings/catalogue/current/historical/API/UI/Source/CLI/inventory/builds/secrets/migrations/Astra/exactSHAhostgates/delivery obligations. No public commit,push,PRupdate,merge,deploy,activation,hostgate,dependencyinstall,newagent,Astra retry or protectedPAX/history/default rewrite occurs. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified."
+  ]
+}

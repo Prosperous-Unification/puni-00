@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import type { BunExecutionToolkit } from './policy/toolkit';
+import { type BunExecutionToolkit, resolveToolkitModules } from './policy/toolkit';
 
 function isWithin(root: string, path: string): boolean {
   const offset = relative(root, path);
@@ -41,12 +41,10 @@ export function assertInstalledPlacement(
   for (const role of Object.keys(toolkit.roleBytes))
     assertExternal(candidate, join(toolkit.directory, role), role);
   // Proof: placement-closure-target; the injected fault fails refuses candidate-targeted trusted-node-modules; restoration passes.
-  const closure = assertExternal(
-    candidate,
-    join(toolkit.directory, 'trusted-node-modules'),
-    'runtime closure',
-  );
+  // Proof: canonical-layout-fault-physical-placement-v118 skipped physical candidate containment after verified schema3 bytes; both source-kind symlink controls admitted and failed. Restored controls passed.
+  const closure = assertExternal(candidate, resolveToolkitModules(toolkit), 'runtime closure');
   // Proof: placement-closure-ancestor; the injected fault fails refuses a closure ancestor containing the candidate; restoration passes.
+  // Proof: canonical-layout-fault-ancestor-placement-v118 disabled this predicate; both verified schema3 source-kind ancestor controls admitted and failed. Restored controls passed.
   if (isWithin(closure, candidate))
     throw new Error('runtime closure overlaps the candidate repository');
 }

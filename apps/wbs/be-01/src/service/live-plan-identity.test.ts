@@ -1,15 +1,16 @@
+import { createLegacyWorkPackageFixture } from '@wbs/core/testing/legacy-work-package-fixture';
 import type { Scheduled } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
+import type { Step, StoredDependency, WorkItem, WorkPackage, WriteStamp } from '../repository';
 import { STEP_POSITION_STEP } from '../repository';
-import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
+import { createTestServices } from '../testing/harness';
 import { workItemRow } from '../testing/work-item-fixture';
+import { workPackageRow } from '../testing/work-package-fixture';
 import captured from './fixtures/live-plan-2026-08-09.json';
 
 /**
- * A real project's `/work-items` response, captured from a running be-01 on
+ * A real work package's `/work-items` response, captured from a running be-01 on
  * 2026-08-09, replayed through the service that answers it.
  *
  * The engine underneath was rewritten to plan in slices, and the change
@@ -43,7 +44,7 @@ interface CapturedPlan {
   /** Narrow, not `EstimateMethod`: this capture is PERT, and the first test says so. */
   estimateMethod: 'pert';
   startDate: string;
-  projectRevision: number;
+  workPackageRevision: number;
 }
 
 // The boundary: a file captured from a live server, read as the fixture it is.
@@ -52,11 +53,11 @@ interface CapturedPlan {
 // of something else.
 const plan = captured as unknown as CapturedPlan;
 
-const PROJECT_ID = 'live-project';
+const WORK_PACKAGE_ID = 'live-work-package';
 const capturedRows = plan.workItems;
 /**
  * The stamp every replayed write carries. The capture predates a write recording
- * who made it, so the project's own owner stands in for the actor and the instant
+ * who made it, so the work package's own owner stands in for the actor and the instant
  * is fixed — the replay is a claim about the engine, not about either.
  */
 const STAMP: WriteStamp = { at: 1, by: 'owner' };
@@ -73,9 +74,9 @@ function stepsInPlan(): string[] {
 }
 
 /**
- * The captured project, rebuilt behind the service, and read back through it.
+ * The captured work package, rebuilt behind the service, and read back through it.
  *
- * `extraSteps` is the interesting knob: the live project's steps are not in the
+ * `extraSteps` is the interesting knob: the live work package's steps are not in the
  * response, only the ones its estimates name. A step nobody has estimated adds a
  * zero-length slice to every leaf, and the claim is that it changes nothing —
  * which is the rule an unestimated `Dev` in front of an estimated `QA` rests on.
@@ -83,37 +84,40 @@ function stepsInPlan(): string[] {
 async function replay(extraSteps: readonly string[]) {
   const {
     service,
-    stores: { projects, workItems, estimates, dependencies },
-  } = inMemoryServices();
+    stores: { workPackages, workItems, estimates, dependencies },
+  } = createTestServices(
+    (await createLegacyWorkPackageFixture('owner', 'backend-unit-legacy', 'backend-unit-parent'))
+      .source,
+  );
 
-  const project: Project = projectRow({
-    id: PROJECT_ID,
+  const workPackage: WorkPackage = workPackageRow({
+    id: WORK_PACKAGE_ID,
     name: 'The captured plan',
-    ownerId: 'owner',
+    projectId: 'backend-unit-parent',
     estimateMethod: plan.estimateMethod,
     // The arithmetic this capture was taken under: a step's figure reached the
     // schedule as the fraction the method produced. `estimate-weights-and-rounding`
-    // made `ceil` the default for every project and left `exact` as the arm an
+    // made `ceil` the default for every work package and left `exact` as the arm an
     // oracle replays on.
     estimateRounding: 'exact',
     startDate: plan.startDate,
-    revision: plan.projectRevision,
+    revision: plan.workPackageRevision,
   });
   const steps: Step[] = [...stepsInPlan(), ...extraSteps].map((id, place) => ({
     id,
-    projectId: PROJECT_ID,
+    workPackageId: WORK_PACKAGE_ID,
     name: `Step ${String(place)}`,
     code: `step-${String(place)}`,
     position: (place + 1) * STEP_POSITION_STEP,
     allowancePercent: 0,
     estimateUnit: 'workdays' as const,
   }));
-  await projects.create(project, steps, STAMP);
+  await workPackages.create(workPackage, steps, STAMP);
 
   for (const row of capturedRows) {
     const stored: WorkItem = workItemRow({
       id: row.id,
-      projectId: PROJECT_ID,
+      workPackageId: WORK_PACKAGE_ID,
       parentId: row.parentId,
       position: row.position,
       name: row.name,
@@ -141,7 +145,7 @@ async function replay(extraSteps: readonly string[]) {
     for (const predecessorId of row.dependsOn) {
       const edge: StoredDependency = {
         id: `${predecessorId}->${row.id}`,
-        projectId: PROJECT_ID,
+        workPackageId: WORK_PACKAGE_ID,
         predecessorId,
         successorId: row.id,
       };
@@ -149,8 +153,8 @@ async function replay(extraSteps: readonly string[]) {
     }
   }
 
-  const tree = await service.tree(PROJECT_ID);
-  if (tree === null) throw new Error('the captured project vanished');
+  const tree = await service.tree(WORK_PACKAGE_ID);
+  if (tree === null) throw new Error('the captured work package vanished');
   return tree;
 }
 
@@ -190,7 +194,7 @@ describe('a captured live plan, through the slice engine', () => {
     }
   });
 
-  it('answers the same with a step nobody has estimated added to the project', async () => {
+  it('answers the same with a step nobody has estimated added to the work package', async () => {
     // A step nobody has sized is zero schedule time, so a second step changes
     // what the plan is computed in and must change nothing about the answer —
     // under either reach, because a zero-time last slice finishes where the

@@ -9,14 +9,14 @@ export const ORGANIZATION_LIMIT_BOUNDS = { least: 0, most: 1_000_000 } as const;
 export interface OrganizationLimitValues {
   readonly maxAgentPersons: number;
   readonly maxConcurrentClaims: number;
-  /** Applied to each resource separately: the sum of its stated units over the organization's projects (L2). */
+  /** Applied to each resource separately: the sum of its stated units over the organization's work packages (L2). */
   readonly maxCapacityUnitsPerResource: number;
 }
 
 /** Where an organization's effective caps came from: its own row, or the deployment default. */
 export type OrganizationLimitsSource = 'default' | 'organization';
 
-/** The units of one resource the organization's projects state, summed (L5). */
+/** The units of one resource the organization's work packages state, summed (L5). */
 export interface ResourceCapacityUsage {
   readonly resourceId: string;
   readonly name: string;
@@ -28,7 +28,7 @@ export interface ResourceCapacityUsage {
  * What an organization holds against each cap (L5): its persons of kind
  * `agent`, its bound claims (distinct work item, person and run triples holding
  * at least one claim row) and, per resource with at least one stated
- * capacity, the stated units summed over its projects, in resource-id order.
+ * capacity, the stated units summed over its work packages, in resource-id order.
  */
 export interface OrganizationLimitUsage {
   readonly agentPersons: number;
@@ -87,8 +87,8 @@ export function refuseLimit(request: LimitCrossed): LimitCrossed | null {
 
 /**
  * A capacity statement past the organization's cap (L2, L9): the resource,
- * the cap, the units its **other** projects state (`declared`) and the units
- * this project would state (`asked`).
+ * the cap, the units its **other** work packages state (`declared`) and the units
+ * this work package would state (`asked`).
  */
 export interface CapacityLimitCrossed {
   readonly resourceId: string;
@@ -98,10 +98,10 @@ export interface CapacityLimitCrossed {
 }
 
 /**
- * Whether a project raising its statement of `resourceId` from `held` units
+ * Whether a work package raising its statement of `resourceId` from `held` units
  * (0 when unstated) to `asked` crosses the organization's cap: {@link refuseLimit}
- * over `declared + asked`, `declared` being every other project's units, so
- * the project's own statement is replaced rather than counted twice. A
+ * over `declared + asked`, `declared` being every other work package's units, so
+ * the work package's own statement is replaced rather than counted twice. A
  * statement that does not raise (`asked <= held`: restating, lowering, a 0
  * where nothing was stated) is never refused, even above a lowered cap (L11).
  *
@@ -113,7 +113,7 @@ export interface CapacityLimitCrossed {
  * property failed in organization-limits.test.ts (11 pass, 2 fail), and
  * `applies lowering and restating under a cap lowered below them` with one
  * more in capacity-limit.controller.db.test.ts (10 pass, 2 fail); with `held`
- * added to `declared`, `replaces the project’s own units rather than counting
+ * added to `declared`, `replaces the workPackage’s own units rather than counting
  * them twice` and the property failed (11 pass, 2 fail).
  */
 export function refuseCapacityStatement(request: {

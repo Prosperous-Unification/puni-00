@@ -59,7 +59,7 @@ export interface MenuAction {
  * `data-fact` is about **the thing on screen** and opens at once
  * (`tool-hints-wait` is the change that split them, and `hint.ts` holds both
  * attributes). A row's ⋯ is a hint; the schedule cue is a fact, because what
- * it explains is the project's own state rather than the button's job.
+ * it explains is the work package's own state rather than the button's job.
  *
  * A union rather than two optional fields, so a trigger cannot carry both:
  * `HintLayer` resolves a node with both to the fact and the hint would be

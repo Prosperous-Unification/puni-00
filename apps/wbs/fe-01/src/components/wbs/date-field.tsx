@@ -36,7 +36,7 @@ export interface DateFieldProps extends PassedThrough, Hintable, Factable {
    * and sends nothing. That is not a gap; see the class note above for why the
    * undo that would close it cannot be reached from a browser.
    *
-   * Optional because the toolbar's project start date has no editor lifecycle
+   * Optional because the toolbar's work package start date has no editor lifecycle
    * to report: it is always on screen, and leaving it is not closing it. The
    * table's earliest-start cell is the caller this exists for — it mounts this
    * component only while a cell is being edited, and this is what unmounts it.
@@ -51,7 +51,7 @@ export interface DateFieldProps extends PassedThrough, Hintable, Factable {
  * **The fault it exists for.** A native date input fires `change` on *every*
  * segment that completes, so typing a year digit by digit fires four of them:
  * `0002-08-17`, `0020-08-17`, `0202-08-17`, `2026-08-17`. Each one was
- * committed, each commit refetched the project, and the controlled `value`
+ * committed, each commit refetched the work package, and the controlled `value`
  * re-rendered the box from the server's answer mid-word — so the year segment
  * reset under the caret and the remaining digits were lost. A plan typed into
  * on 2026-08-09 was saved starting in **year 0002**, and one intermediate year
@@ -228,11 +228,11 @@ export function DateField({ value, commit, onExit, onKeyDown, onFocus, ...rest }
           // left for a blur to commit. A flag suppressing that blur instead was
           // written first and deleted: with the editor unmounted on the way out
           // there is no blur to suppress at all, and on the field that *does*
-          // stay on screen — the toolbar's project start date — the flag was
+          // stay on screen — the toolbar's work package start date — the flag was
           // unreachable behind this line. A check that could not fail.
           //
           // Proof: this line removed, `e2e/keyboard.spec.ts`'s `Escape puts the
-          // project start date back, and leaving it does not send the abandoned
+          // work package start date back, and leaving it does not send the abandoned
           // day` failed on `expected "2026-09-09" to be "2026-06-01"`.
           // Watched in Chromium, 2026-08-09.
           //

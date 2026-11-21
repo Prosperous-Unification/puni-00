@@ -36,6 +36,6 @@ const EXEMPT_OPERATIONS = new Set([
  * and therefore require admission even without organization-resource policy.
  */
 export function requiresDependencyOperation(operationId: string): boolean {
-  // Proof: disabling coverage admitted ENABLED /api/projects,200 instead of409 and failed the pinned operation matrix in dependency-client.test.ts.
+  // Proof: disabling coverage admitted ENABLED /api/work-packages,200 instead of409 and failed the pinned operation matrix in dependency-client.test.ts.
   return !EXEMPT_OPERATIONS.has(operationId);
 }

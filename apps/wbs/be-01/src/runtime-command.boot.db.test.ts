@@ -84,7 +84,7 @@ test('boot audit excludes a second connection commit between marker and history 
   const commitAuthority = () => {
     writer.db.transaction((transaction) => {
       transaction.run(
-        "INSERT INTO runtime_authority (organization_id,project_id,person_id,owner_id,generation) VALUES ('org','project','person','owner',1)",
+        "INSERT INTO runtime_authority (organization_id,work_package_id,person_id,owner_id,generation) VALUES ('org','work_package','person','owner',1)",
       );
       transaction.run('UPDATE runtime_ledger SET authority_count=authority_count+1 WHERE id=1');
     });
@@ -145,7 +145,7 @@ test('boot audit excludes a second connection commit between marker and history 
     expect(
       await writer.stores.runtimeCommands.readAuthority({
         organizationId: 'org',
-        projectId: 'project',
+        workPackageId: 'work_package',
         personId: 'person',
       }),
     ).toEqual({ ownerId: 'owner', generation: 1 });

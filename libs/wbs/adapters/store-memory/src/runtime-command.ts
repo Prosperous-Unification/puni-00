@@ -12,6 +12,8 @@ import {
   parseRuntimeLedger,
   parseRuntimeScope,
   parseStoredRuntimeAcceptance,
+  parseStoredRuntimeAcceptance2,
+  readRuntimeAcceptanceScope,
 } from '@wbs/core/ports/runtime-command-records';
 
 /** Cloneable permanent history owned by one memory source, separate from live claims. */
@@ -39,7 +41,7 @@ export function memoryRuntimeTable(): MemoryRuntimeTable {
 }
 const keyScope = (scope: RuntimeScope) => {
   const scoped = parseRuntimeScope(scope);
-  return JSON.stringify([scoped.organizationId, scoped.projectId, scoped.personId]);
+  return JSON.stringify([scoped.organizationId, scoped.workPackageId, scoped.personId]);
 };
 const keyRecord = (scope: RuntimeScope, id: string) => JSON.stringify([keyScope(scope), id]);
 
@@ -49,9 +51,9 @@ function parseScopeKey(key: string): RuntimeScope {
   // Proof: F1-03 removed tuple validation; an extra scope-key position passed the count-preserving audit.
   if (!Array.isArray(parts) || parts.length !== 3) throw new Error('invalid runtime scope key');
   const slots: readonly unknown[] = parts;
-  const [organizationId, projectId, personId] = slots;
+  const [organizationId, workPackageId, personId] = slots;
   // Proof: F1-04 bypassed scoped-ID validation; a numeric retained organization ID passed inspection.
-  const scope = parseRuntimeScope({ organizationId, projectId, personId });
+  const scope = parseRuntimeScope({ organizationId, workPackageId, personId });
   // Proof: F1-05 removed canonical matching; a whitespace alias passed audit and hid the original scope.
   if (JSON.stringify(parts) !== key) throw new Error('runtime scope key identity mismatch');
   return scope;
@@ -103,7 +105,8 @@ export function inMemoryRuntimeCommands(table: MemoryRuntimeTable): RuntimeComma
     for (const [key, stored] of table.acceptances) {
       const accepted = parseStoredRuntimeAcceptance(stored);
       // Proof: F1-11 omitted lookup correspondence; a malformed acceptance key passed audit and became false absence.
-      if (key !== keyRecord(accepted.scope, accepted.commandId))
+      // Proof: runtime-memory-raw-address-reader omitted legacy address projection; the strict key reader refused the valid retained record; 'memory reads original runtime1 grant under the current scope key' failed and restored GREEN.
+      if (key !== keyRecord(readRuntimeAcceptanceScope(accepted), accepted.commandId))
         throw new Error('runtime acceptance lookup identity mismatch');
       // Proof: F1-12 omitted the installation comparison; a receipt for another ledger passed inspection.
       if (accepted.receipt.ledgerId !== ledger.ledgerId)
@@ -184,7 +187,9 @@ export function inMemoryRuntimeCommands(table: MemoryRuntimeTable): RuntimeComma
     insertAcceptance: (accepted) =>
       Promise.resolve().then(() => {
         inspectState();
-        parseStoredRuntimeAcceptance(accepted);
+        // Proof: the raw read union admitted historical1 past insertion; each memory historical-insertion control requires the version2 diagnostic and zero effects.
+        // Proof: runtime-memory-current-only-insert bypassed current-only memory insertion decoding; 'memory current-only insertion refuses old tag around current grant fields before effects' failed and restored GREEN.
+        parseStoredRuntimeAcceptance2(accepted);
         // Proof: P18 omitted the pin comparison; wrong-ledger accepted-record insertion resolved.
         if (accepted.receipt.ledgerId !== table.ledger.ledgerId)
           throw new Error('runtime acceptance ledger mismatch');

@@ -45,7 +45,7 @@ export interface BudgetKey {
  * Why a budget cannot be set or cleared in a measure (design D35, D36), in
  * the order checked:
  *
- * - `unknown_measure` (404): no definition of the project's organization;
+ * - `unknown_measure` (404): no definition of the work package's organization;
  * - `scheduling_measure_budget` (409): the scheduling measure (`time`), whose
  *   bound is a deadline the solver reads, not a budget;
  * - `scale_mismatch` (409): a fraction on an integer measure.
@@ -62,7 +62,7 @@ export type BudgetDecision =
 
 /**
  * Whether a budget in `key` may be set with `figures`, or cleared (null), on a
- * project whose organization holds `definitions` (null when no organization
+ * work package whose organization holds `definitions` (null when no organization
  * owns it: the seeded four of design D19). A derived measure
  * (`agent_minutes`) may hold a budget: nobody types its facts, but they are
  * spent all the same.
@@ -123,10 +123,10 @@ export interface BudgetReading {
   held?: number;
 }
 
-/** Everything {@link readBudgets} folds, all of one project. */
+/** Everything {@link readBudgets} folds, all of one work package. */
 export interface BudgetReads {
   readonly rows: readonly { readonly id: string; readonly parentId: string | null }[];
-  /** The definitions the project's figures are in (`definitionsOrUnowned`). */
+  /** The definitions the work package's figures are in (`definitionsOrUnowned`). */
   readonly definitions: readonly MeasureDefinition[];
   readonly budgets: readonly StoredBudget[];
   /** Every fact, the derived `agent_minutes` ones included (design D20). */
@@ -134,7 +134,7 @@ export interface BudgetReads {
   readonly estimates: readonly StoredMeasureEstimate[];
   /** Every attempt; only running ones hold. */
   readonly attempts: readonly NodeAttempt[];
-  /** The project's budget factor (design D38). */
+  /** The work package's budget factor (design D38). */
   readonly factor: number;
   /** Rows and keys whose money **facts** mix bases: no spend can be summed there (design D44). */
   readonly mixedFacts: ReadonlyMap<string, ReadonlyMap<string, MixedRateCards>>;
@@ -201,7 +201,9 @@ export function readBudgets(reads: BudgetReads): BudgetRead {
   const definitionOf = (key: string): MeasureDefinition => {
     const found = definitions.find((each) => each.key === key);
     if (found === undefined)
-      throw new Error(`a budget or trio names ${key}, which no definition of its project holds`);
+      throw new Error(
+        `a budget or trio names ${key}, which no definition of its work package holds`,
+      );
     return found;
   };
   const parentOf = new Map(rows.map((row) => [row.id, row.parentId] as const));

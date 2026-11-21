@@ -76,7 +76,7 @@ describe('deriveNumbers', () => {
     // tenth child sorts second — ['010.1','010.10','010.2'] sorted byte-wise
     // yields 010.1, 010.10, 010.2 — which is why a tenth child widens the group.
     //
-    // It holds for a project with no frozen number and is **not** promised
+    // It holds for a work package with no frozen number and is **not** promised
     // where one has moved (ADR 0023); `treeOrder` is what readers sort by.
     const kids = Array.from({ length: 10 }, (_, i) => `k${String(i)}`);
     const numbers = deriveNumbers([
@@ -96,7 +96,7 @@ describe('deriveNumbers', () => {
     expect([...treeOrdered].sort()).toEqual(treeOrdered);
   });
 
-  it('refuses a work item whose parent is not in the project', () => {
+  it('refuses a work item whose parent is not in the work package', () => {
     // An unreachable work item would otherwise be handed back with no number at
     // all, and the caller would render a row with an empty first column rather
     // than learn its tree is broken.
@@ -237,7 +237,7 @@ describe('deriveNumbers around frozen labels', () => {
         return place(id, null, (i + 1) * 10);
       });
       // Two frozen work items could be dealt the same label by the generator,
-      // which is a project the writer cannot produce; skip those draws rather
+      // which is a work package the writer cannot produce; skip those draws rather
       // than assert about them.
       const dealt = group.flatMap((each) =>
         each.frozenNumber === null ? [] : [each.frozenNumber],

@@ -1,7 +1,7 @@
 import type { StepNodeGraph, StepNodeGraphEdge } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { type NodeReadingInputs, nodeReadingsOf, projectNodeReadings } from './node-readings';
+import { type NodeReadingInputs, nodeReadingsOf, workPackageNodeReadings } from './node-readings';
 
 const stepNode = (workItemId: string, stepId: string, at: number) =>
   ({ kind: 'step', ref: { workItemId, stepId }, at }) as const;
@@ -74,7 +74,7 @@ describe('nodeReadingsOf', () => {
     expect(read).toEqual(new Map([['a', {}]]));
   });
 
-  it('projects a stored authored cycle without inventing a proxy root', () => {
+  it('work packages a stored authored cycle without inventing a proxy root', () => {
     const back: StepNodeGraphEdge = {
       ...edge(['a', 1], ['a', 0], 'workflow'),
       type: 'FS',
@@ -89,7 +89,7 @@ describe('nodeReadingsOf', () => {
 
   it('converges roots around a stored legacy cycle and preserves running barriers', () => {
     const cycle = [edge(['a', 1], ['b', 0], 'legacy'), edge(['b', 1], ['a', 0], 'legacy')];
-    const projection = projectNodeReadings(
+    const projection = workPackageNodeReadings(
       inputs(cycle, {
         stated: [],
         blocked: [{ workItemId: 'a', stepId: 'dev' }],
@@ -102,7 +102,7 @@ describe('nodeReadingsOf', () => {
     });
     expect(projection.causes.get('b')?.['qa']).toEqual([{ kind: 'step', nodeId: 'sn1.a.dev' }]);
     expect(
-      projectNodeReadings(
+      workPackageNodeReadings(
         inputs(cycle, {
           stated: [],
           blocked: [{ workItemId: 'a', stepId: 'dev' }],
@@ -114,7 +114,7 @@ describe('nodeReadingsOf', () => {
 
   it('propagates a direct row hold around a cycle and into downstream nodes', () => {
     const original = inputs();
-    const projection = projectNodeReadings({
+    const projection = workPackageNodeReadings({
       ...original,
       stated: [],
       graph: {
@@ -143,7 +143,7 @@ describe('nodeReadingsOf', () => {
 
   it('converges an external root through a silent cycle and into downstream work', () => {
     const original = inputs();
-    const projection = projectNodeReadings({
+    const projection = workPackageNodeReadings({
       ...original,
       stated: [],
       blocked: [{ workItemId: 'c', stepId: 'dev' }],
@@ -192,7 +192,7 @@ describe('nodeReadingsOf', () => {
 
 describe('step blockage projection', () => {
   it('propagates direct roots through workflow and legacy edges without changing waiting', () => {
-    const projection = projectNodeReadings(
+    const projection = workPackageNodeReadings(
       inputs([edge(['a', 1], ['b', 0], 'legacy')], {
         stated: [],
         blocked: [{ workItemId: 'a', stepId: 'dev' }],
@@ -212,7 +212,7 @@ describe('step blockage projection', () => {
       provenance: 'authored',
       relationshipId: 'r1',
     };
-    const projection = projectNodeReadings(
+    const projection = workPackageNodeReadings(
       inputs([authored], {
         blocked: [{ workItemId: 'a', stepId: 'qa' }],
         statusOf: new Map([
@@ -227,7 +227,7 @@ describe('step blockage projection', () => {
 
   it('stops incoming propagation at statements and running attempts', () => {
     for (const runningAttempt of [false, true]) {
-      const projection = projectNodeReadings(
+      const projection = workPackageNodeReadings(
         inputs([edge(['a', 0], ['b', 0], 'legacy')], {
           blocked: [{ workItemId: 'a', stepId: 'dev' }],
           stated: runningAttempt ? [] : [{ workItemId: 'b', stepId: 'dev', state: 'in_progress' }],
@@ -241,7 +241,7 @@ describe('step blockage projection', () => {
 
   it('propagates FS SS and FF as informational causes', () => {
     for (const type of ['FS', 'SS', 'FF'] as const) {
-      const projection = projectNodeReadings(
+      const projection = workPackageNodeReadings(
         inputs(
           [
             {
@@ -259,7 +259,7 @@ describe('step blockage projection', () => {
   });
 
   it('traverses held stepless boundaries without exposing a public step', () => {
-    const projection = projectNodeReadings(
+    const projection = workPackageNodeReadings(
       inputs([], {
         graph: {
           nodes: [{ kind: 'boundary', workItemId: 'a', at: 0 }, stepNode('b', 'dev', 0)],
@@ -278,7 +278,7 @@ describe('step blockage projection', () => {
   });
 
   it('deduplicates roots through a diamond and sorts independent roots', () => {
-    const projection = projectNodeReadings(
+    const projection = workPackageNodeReadings(
       inputs([edge(['a', 0], ['b', 1], 'legacy'), edge(['a', 1], ['b', 1], 'legacy')], {
         stated: [],
         blocked: [
@@ -296,7 +296,7 @@ describe('step blockage projection', () => {
   it('refuses duplicate node identities even at distinct graph positions', () => {
     const original = inputs();
     expect(() =>
-      projectNodeReadings({
+      workPackageNodeReadings({
         ...original,
         graph: {
           ...original.graph,
@@ -309,7 +309,7 @@ describe('step blockage projection', () => {
   it('refuses distinct step identities sharing one graph position', () => {
     const original = inputs();
     expect(() =>
-      projectNodeReadings({
+      workPackageNodeReadings({
         ...original,
         graph: {
           ...original.graph,
@@ -320,20 +320,20 @@ describe('step blockage projection', () => {
   });
 
   it('refuses missing legacy endpoints even when their successor is done', () => {
-    expect(() => projectNodeReadings(inputs([edge(['gone', 0], ['a', 0], 'legacy')]))).toThrow(
+    expect(() => workPackageNodeReadings(inputs([edge(['gone', 0], ['a', 0], 'legacy')]))).toThrow(
       /gone#0.*no.*node/,
     );
   });
 
   it('refuses an absent successor before projecting any visible node', () => {
-    expect(() => projectNodeReadings(inputs([edge(['a', 0], ['gone', 0], 'legacy')]))).toThrow(
+    expect(() => workPackageNodeReadings(inputs([edge(['a', 0], ['gone', 0], 'legacy')]))).toThrow(
       /gone#0.*no.*node/,
     );
   });
 
   it('refuses blockage outside the graph instead of silently dropping it', () => {
     expect(() =>
-      projectNodeReadings(
+      workPackageNodeReadings(
         inputs([], {
           blocked: [{ workItemId: 'a', stepId: 'gone' }],
         }),
@@ -344,7 +344,7 @@ describe('step blockage projection', () => {
 
 it('retains known parent progress outside the leaf node projection', () => {
   const original = inputs();
-  const projected = projectNodeReadings({
+  const projected = workPackageNodeReadings({
     ...original,
     holdOf: new Map([...original.holdOf, ['parent', null]]),
     statusOf: new Map([...original.statusOf, ['parent', 'in_progress']]),
@@ -356,12 +356,12 @@ it('retains known parent progress outside the leaf node projection', () => {
 
 it('refuses unknown progress owners and steps without hiding them as parent compatibility', () => {
   expect(() =>
-    projectNodeReadings(
+    workPackageNodeReadings(
       inputs([], { stated: [{ workItemId: 'gone', stepId: 'dev', state: 'done' }] }),
     ),
   ).toThrow(/progress.*unknown work item/);
   expect(() =>
-    projectNodeReadings(
+    workPackageNodeReadings(
       inputs([], { stated: [{ workItemId: 'a', stepId: 'gone', state: 'done' }] }),
     ),
   ).toThrow(/progress.*unknown step/);

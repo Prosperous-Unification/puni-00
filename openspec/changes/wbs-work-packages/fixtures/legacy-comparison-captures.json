@@ -1,0 +1,76 @@
+{
+  "parent": "7bdb31fd592eba83e696f570fbf9d2e1d9f26ebf",
+  "qualification": "Actual published input+schedule writers and engines execute over the SAME original local/connected capture fixture. Not a live DB/deployment proof.",
+  "records": [
+    {
+      "kind": "local",
+      "target": "P",
+      "input": {
+        "version": 9,
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-local-input9.txt",
+        "sha256": "be60f70f10990c2d56405bb4468b771f9b85a2fa84813513a43f9263d447b831",
+        "bytes": 1224
+      },
+      "schedule": {
+        "version": 1,
+        "algorithmId": "slice-leveling-v4",
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-local-schedule1.txt",
+        "sha256": "a37ec3eeab4d60f26e7c1f80bc904ec0ca222897b8d7d025cc27eabebbf1d98e",
+        "bytes": 672
+      }
+    },
+    {
+      "kind": "connected",
+      "target": "B",
+      "input": {
+        "version": 10,
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-connected-input10.txt",
+        "sha256": "5dda35134b353fc4a52ee5f405ac53b9f0cd2582e90375f8973c2e31f02bc222",
+        "bytes": 3569
+      },
+      "schedule": {
+        "version": 2,
+        "algorithmId": "connected-selection-v1:slice-leveling-v4",
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-schedule2-connected.txt",
+        "sha256": "d46887cd42f3d704f727e20405a1517ceefb052e08661f640ccb61551cb1791f",
+        "bytes": 5932
+      }
+    },
+    {
+      "kind": "ready",
+      "target": "B",
+      "input": {
+        "version": 10,
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-ready-input10.txt",
+        "sha256": "e97d92c554e2024ac0267f8bf5a1c27ecff3de250a9dc9be662bf90518f0eede",
+        "bytes": 3579
+      },
+      "schedule": {
+        "version": 2,
+        "algorithmId": "connected-selection-v1:slice-leveling-v4",
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-ready-schedule2.txt",
+        "sha256": "26cee877d35b95aa1ed6a45a174ea1e6957cb6b3d426c79cf992f6d26b99d21c",
+        "bytes": 14054
+      },
+      "qualification": "Actual published deriveConnectedPlan+captureConnectedHistory using controlled observer port (18+0.4.0, ready baseline-equal candidate or boundary certificate), not a live Python run."
+    },
+    {
+      "kind": "certificate",
+      "target": "B",
+      "input": {
+        "version": 10,
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-certificate-input10.txt",
+        "sha256": "23d765b5deb484bc08af7c2cd2ba36a75ac2ef8b524a4a6bb77cfc33216e4409",
+        "bytes": 3567
+      },
+      "schedule": {
+        "version": 2,
+        "algorithmId": "connected-selection-v1:slice-leveling-v4",
+        "path": "openspec/changes/wbs-work-packages/fixtures/legacy-comparison-certificate-schedule2.txt",
+        "sha256": "cceef1818c625aeee3ae526b069159cc863f6f7557b76e3a210ac8a228b2e0f1",
+        "bytes": 9752
+      },
+      "qualification": "Actual published deriveConnectedPlan+captureConnectedHistory using controlled observer port (18+0.4.0, ready baseline-equal candidate or boundary certificate), not a live Python run."
+    }
+  ]
+}

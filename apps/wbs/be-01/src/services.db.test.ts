@@ -1,3 +1,7 @@
+import { seedLegacyProject } from './testing/project-fixture';
+import { refusingSpaceRead } from './testing/space-fixture';
+import { refusingWorkPackageObservation } from './testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,7 +44,6 @@ import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration } from './repository/optimization-generation';
-import { ProjectRepository } from './repository/project';
 import { SavedPlanRepository } from './repository/saved-plan';
 import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
 import { scheduleInputHash } from './repository/schedule-input-hash';
@@ -52,11 +55,13 @@ import {
 } from './repository/schema';
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
+import { WorkPackageRepository } from './repository/work-package';
 import { nodeDigest } from './runtime/bun-runtime';
 import { BACKEND_DEPENDENCY_CAPABILITY } from './runtime/dependency-support';
 import { optimizerWiring } from './service/optimizer-wiring';
 import { buildServices, type ServicesOptions } from './services';
-import { projectRow } from './testing/project-fixture';
+import { refusingProjectRead } from './testing/project-fixture';
+import { workPackageRow } from './testing/work-package-fixture';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 
@@ -101,6 +106,7 @@ afterEach(async () => {
 });
 
 function bootstrap(
+  legacyOrganizationId: string | null,
   optimizer?: {
     solverVersion: string;
     budgetMs: number;
@@ -117,6 +123,7 @@ function bootstrap(
   dirs.push(dir);
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  if (legacyOrganizationId !== null) seedLegacyProject(path, legacyOrganizationId, PROJECT_ID);
   const source = openSqliteSource({
     dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -158,7 +165,18 @@ function bootstrap(
         },
       }
     : source;
+  const packageObservationFactory: {
+    calls: number;
+    configured?: Pick<SqliteSource, 'createWorkPackageObservation'>;
+  } = { calls: 0 };
   const services = buildServices({
+    createSpaceRead: () => refusingSpaceRead,
+    projectRead: refusingProjectRead,
+    createWorkPackageObservation: (configured) => {
+      packageObservationFactory.calls++;
+      packageObservationFactory.configured = configured;
+      return refusingWorkPackageObservation;
+    },
     commandAccess: localCommandAccess,
     clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
     source: installedSource,
@@ -189,7 +207,7 @@ function bootstrap(
     optimizer,
   });
   if (services.optimizer !== undefined) optimizers.push(services.optimizer);
-  return { db, path, services, pushUrls, source };
+  return { db, path, services, pushUrls, source, packageObservationFactory };
 }
 
 function captureSharedDisplay(source: SqliteSource, organizationId: string) {
@@ -213,8 +231,8 @@ function captureSharedDisplay(source: SqliteSource, organizationId: string) {
   });
 }
 
-async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
-  projectId: string;
+async function seedWorkPackage(db: ReturnType<typeof openDrizzle>): Promise<{
+  workPackageId: string;
   ownerId: string;
 }> {
   const ownerId = crypto.randomUUID();
@@ -227,16 +245,16 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
     },
     { at: 1, by: ownerId },
   );
-  const projectId = crypto.randomUUID();
-  const project = await new ProjectRepository(db, OPEN).create(
-    projectRow({
-      id: projectId,
-      ownerId,
+  const workPackageId = crypto.randomUUID();
+  const workPackage = await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({
+      id: workPackageId,
+      projectId: PROJECT_ID,
     }),
     [
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         name: 'Dev',
         position: 10,
         code: 'dev',
@@ -246,15 +264,16 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
     ],
     { at: 1, by: ownerId },
   );
-  if (typeof project === 'string') throw new Error(`fixture project creation refused: ${project}`);
-  return { projectId: project.id, ownerId };
+  if (typeof workPackage === 'string')
+    throw new Error(`fixture work package creation refused: ${workPackage}`);
+  return { workPackageId: workPackage.id, ownerId };
 }
 
 function seedSharedLifecycle(
   path: string,
   activate = true,
   omitOwnershipFor?: string,
-  threeProjects = false,
+  threeWorkPackages = false,
 ): void {
   const seed = openDatabase(path);
   try {
@@ -263,6 +282,9 @@ function seedSharedLifecycle(
     );
     seed.run(
       "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)",
+    );
+    seed.run(
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('lifecycle-parent','org-a','Lifecycle parent',1)",
     );
     if (activate)
       seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
@@ -276,39 +298,43 @@ function seedSharedLifecycle(
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
     );
-    for (const [index, projectId] of ['A', 'B', ...(threeProjects ? ['C'] : [])].entries()) {
+    for (const [index, workPackageId] of [
+      'A',
+      'B',
+      ...(threeWorkPackages ? ['C'] : []),
+    ].entries()) {
       seed.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding)
-         VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [projectId, projectId],
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
+         VALUES (?, ?, 'lifecycle-parent', 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [workPackageId, workPackageId],
       );
-      if (projectId !== omitOwnershipFor) {
+      if (workPackageId !== omitOwnershipFor) {
         seed.run(
-          "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
-          [projectId],
+          "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+          [workPackageId],
         );
         seed.run(
-          "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
-          [projectId, index * 10],
+          "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+          [workPackageId, index * 10],
         );
       }
-      seed.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${projectId}-step`,
-        projectId,
-        `${projectId}-step`,
+      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
+        `${workPackageId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
       ]);
-      seed.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        projectId,
-        projectId,
-        projectId,
+      seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
+        workPackageId,
+        workPackageId,
+        workPackageId,
       ]);
       seed.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-        [projectId, `${projectId}-step`],
+        [workPackageId, `${workPackageId}-step`],
       );
       seed.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
-        projectId,
-        `${projectId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
         'ana',
       ]);
     }
@@ -320,7 +346,7 @@ function seedSharedLifecycle(
 function seedAnotherSharedPair(
   path: string,
   organizationId = 'org-z',
-  projectIds: readonly [string, string] = ['C', 'D'],
+  workPackageIds: readonly [string, string] = ['C', 'D'],
   personId = 'zoe',
 ): void {
   const seed = openDatabase(path);
@@ -329,42 +355,48 @@ function seedAnotherSharedPair(
       organizationId,
       organizationId,
     ]);
+    const projectId = organizationId + '-fixture-parent';
+    seed.run('INSERT INTO project(id,organization_id,name,created_at) VALUES(?,?,?,1)', [
+      projectId,
+      organizationId,
+      projectId,
+    ]);
     seed.run('INSERT INTO person (id, name) VALUES (?, ?)', [personId, personId]);
     seed.run(
       'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
       [personId, organizationId, personId],
     );
-    for (const [index, projectId] of projectIds.entries()) {
+    for (const [index, workPackageId] of workPackageIds.entries()) {
       seed.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding)
-         VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [projectId, projectId],
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
+         VALUES (?, ?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [workPackageId, workPackageId, projectId],
       );
-      seed.run('INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)', [
-        projectId,
-        organizationId,
-      ]);
       seed.run(
-        "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, 'ada')",
-        [projectId, organizationId, index * 10],
+        'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
+        [workPackageId, organizationId],
       );
-      seed.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${projectId}-step`,
-        projectId,
-        `${projectId}-step`,
+      seed.run(
+        "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, 'ada')",
+        [workPackageId, organizationId, index * 10],
+      );
+      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
+        `${workPackageId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
       ]);
-      seed.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        projectId,
-        projectId,
-        projectId,
+      seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
+        workPackageId,
+        workPackageId,
+        workPackageId,
       ]);
       seed.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-        [projectId, `${projectId}-step`],
+        [workPackageId, `${workPackageId}-step`],
       );
       seed.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
-        projectId,
-        `${projectId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
         personId,
       ]);
     }
@@ -381,10 +413,10 @@ function lifecycleTables(
     'organization',
     'person',
     'person_organization',
-    'project',
-    'project_organization',
-    'project_rank',
-    'project_access',
+    'work_package',
+    'work_package_organization',
+    'work_package_rank',
+    'work_package_access',
     'step',
     'work_item',
     'estimate',
@@ -430,7 +462,7 @@ async function seedReadyRetirement(
 }> {
   const contractVersion = contractVersionOf('0.4.0');
   db.run(
-    sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
   );
   const captured = await services.workItems.optimizationInput('A');
   if (captured.kind !== 'scheduled') throw new Error('shared retirement input unavailable');
@@ -463,7 +495,7 @@ async function seedReadyRetirement(
   const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
   db.insert(optimizedScheduleCache)
     .values({
-      projectId: 'A',
+      workPackageId: 'A',
       inputHash,
       objective: 'pri',
       contractVersion,
@@ -501,7 +533,7 @@ function seedLifecycleSlot(
   objective: 'pri' | 'time' = 'pri',
 ) {
   const slot = {
-    projectId: 'A',
+    workPackageId: 'A',
     contractVersion,
     generation,
     objective,
@@ -530,7 +562,7 @@ async function sharedOutcomeWrite(
 ): Promise<OptimizationOutcomeWrite> {
   const contractVersion = contractVersionOf('0.4.0');
   db.run(
-    sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
   );
   const captured = await services.workItems.optimizationInput('A');
   if (captured.kind !== 'scheduled') throw new Error('outcome fixture input unavailable');
@@ -625,7 +657,7 @@ async function enqueueSelectedOutcome(
   seedSharedLifecycle(path);
   db.run(
     sql.raw(
-      "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+      "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('long', 'A', 20, 'long')",
     ),
   );
   db.run(
@@ -634,7 +666,7 @@ async function enqueueSelectedOutcome(
     ),
   );
   db.run(
-    sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+    sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
   );
   const captured = await services.workItems.optimizationInput('A');
   if (captured.kind !== 'scheduled') throw new Error('installed child input unavailable');
@@ -648,7 +680,7 @@ async function enqueueSelectedOutcome(
   );
   db.insert(solverQueue)
     .values({
-      projectId: 'A',
+      workPackageId: 'A',
       contractVersion,
       generation,
       objective: 'pri',
@@ -661,20 +693,26 @@ async function enqueueSelectedOutcome(
 
 function seedOtherLifecycleSlot(
   db: ReturnType<typeof openDrizzle>,
-  projectId: string,
+  workPackageId: string,
   admittedDeadlineAt: number,
 ): void {
   const contractVersion = contractVersionOf('0.4.0');
-  const generation = allocateGeneration(db, projectId, contractVersion, `${projectId}-input`, 1);
+  const generation = allocateGeneration(
+    db,
+    workPackageId,
+    contractVersion,
+    `${workPackageId}-input`,
+    1,
+  );
   db.insert(solverSlot)
     .values({
-      projectId,
+      workPackageId,
       contractVersion,
       generation,
       objective: 'pri',
       budgetMs: 1000,
-      ownerId: `own-${projectId}`,
-      attemptToken: `release-${projectId}`,
+      ownerId: `own-${workPackageId}`,
+      attemptToken: `release-${workPackageId}`,
       lifecycle: 'running',
       pid: 4243,
       startedAt: 1,
@@ -689,6 +727,7 @@ describe('buildServices', () => {
   it("records B when the installed outcome owner selects A's moved schedule", async () => {
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -706,13 +745,13 @@ describe('buildServices', () => {
     await optimizer.drain();
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(2);
     expect(captures).toBe(2);
     expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('already-recorded');
     await optimizer.drain();
-    expect(await events.rangeSince('project:B', -1)).toHaveLength(1);
+    expect(await events.rangeSince('work-package:B', -1)).toHaveLength(1);
     expect(pushUrls).toHaveLength(2);
     expect(captures).toBe(3);
   });
@@ -726,6 +765,7 @@ describe('buildServices', () => {
     const releaseDelivery = signal();
     const delivered: string[] = [];
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -736,7 +776,7 @@ describe('buildServices', () => {
         delivered.push(url);
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('outcome push body must be JSON text');
-        if (!payload.includes('"subscription":"project:B"'))
+        if (!payload.includes('"subscription":"workPackage:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -764,21 +804,21 @@ describe('buildServices', () => {
       ]);
       await Bun.sleep(400);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const replay = await events.rangeSince('project:B', -1);
+      const replay = await events.rangeSince('work-package:B', -1);
       expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       expect(
         db
           .select({ attemptToken: solverSlot.attemptToken })
           .from(solverSlot)
-          .where(sql`project_id = 'A'`)
+          .where(sql`work_package_id = 'A'`)
           .all(),
       ).toEqual([{ attemptToken: write.claim.attemptToken }]);
       const second = openDatabase(path);
       try {
         second.run('PRAGMA busy_timeout = 50');
-        second.run("UPDATE project SET name = 'outcome second writer' WHERE id = 'B'");
+        second.run("UPDATE work_package SET name = 'outcome second writer' WHERE id = 'B'");
       } finally {
         second.close();
       }
@@ -790,7 +830,7 @@ describe('buildServices', () => {
       expect(stopSettled).toBe(false);
       releaseDelivery.resolve();
       await stopping;
-      expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
       expect(delivered).toHaveLength(2);
     } finally {
       releaseDelivery.resolve();
@@ -804,6 +844,7 @@ describe('buildServices', () => {
     const boundTokens: string[] = [];
     const pushed: { subscription: string; seq: number; message: { type: string } }[] = [];
     const { db, path, services } = bootstrap(
+      'http-fixture-legacy',
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -814,7 +855,7 @@ describe('buildServices', () => {
               ...db
                 .select({ attemptToken: solverSlot.attemptToken })
                 .from(solverSlot)
-                .where(sql`project_id = 'A'`)
+                .where(sql`work_package_id = 'A'`)
                 .all()
                 .map(({ attemptToken }) => attemptToken),
             );
@@ -839,14 +880,14 @@ describe('buildServices', () => {
           !('type' in pushedEvent.message) ||
           typeof pushedEvent.message.type !== 'string'
         )
-          throw new Error('outcome push was not a recorded project event');
+          throw new Error('outcome push was not a recorded work package event');
         pushed.push({
           subscription: pushedEvent.subscription,
           seq: pushedEvent.seq,
           message: { type: pushedEvent.message.type },
         });
         if (
-          pushedEvent.subscription === 'project:A' &&
+          pushedEvent.subscription === 'work-package:A' &&
           pushedEvent.message.type === 'schedule_optimized'
         ) {
           outcomeEntered.resolve();
@@ -876,22 +917,22 @@ describe('buildServices', () => {
       // this mounted child assertion fail before held outcome transport ended.
       expect(mounted.editEpoch.get('B')).toBe(1);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const outcome = await events.rangeSince('project:A', -1);
-      const recipient = await events.rangeSince('project:B', -1);
+      const outcome = await events.rangeSince('work-package:A', -1);
+      const recipient = await events.rangeSince('work-package:B', -1);
       expect(outcome.map(({ seq }) => seq)).toEqual([0]);
       expect(outcome[0]?.message).toMatchObject({ type: 'schedule_optimized' });
       expect(recipient.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       expect(pushed).toEqual([
-        { subscription: 'project:A', seq: 0, message: { type: 'schedule_optimized' } },
+        { subscription: 'work-package:A', seq: 0, message: { type: 'schedule_optimized' } },
       ]);
       for (let attempt = 0; attempt < 100; attempt += 1) {
         if (
           db
             .select()
             .from(solverSlot)
-            .where(sql`project_id = 'A'`)
+            .where(sql`work_package_id = 'A'`)
             .all().length === 0 &&
           !mounted.editEpoch.has('B') &&
           mounted.inFlight.size <= 1
@@ -905,14 +946,14 @@ describe('buildServices', () => {
         db
           .select()
           .from(solverSlot)
-          .where(sql`project_id = 'A'`)
+          .where(sql`work_package_id = 'A'`)
           .all(),
       ).toEqual([]);
       expect(mounted.editEpoch.has('B')).toBe(false);
       const second = openDatabase(path);
       try {
         second.run('PRAGMA busy_timeout = 50');
-        second.run("UPDATE project SET name = 'outcome second writer' WHERE id = 'B'");
+        second.run("UPDATE work_package SET name = 'outcome second writer' WHERE id = 'B'");
       } finally {
         second.close();
       }
@@ -929,11 +970,11 @@ describe('buildServices', () => {
       // Proof: republishing the recorded row inserted another A sequence;
       // preserving the original push keeps A then B at their recorded seq 0.
       expect(pushed).toEqual([
-        { subscription: 'project:A', seq: 0, message: { type: 'schedule_optimized' } },
-        { subscription: 'project:B', seq: 0, message: { type: 'elsewhere_changed' } },
+        { subscription: 'work-package:A', seq: 0, message: { type: 'schedule_optimized' } },
+        { subscription: 'work-package:B', seq: 0, message: { type: 'elsewhere_changed' } },
       ]);
-      expect(await events.rangeSince('project:A', -1)).toEqual(outcome);
-      expect(await events.rangeSince('project:B', -1)).toEqual(recipient);
+      expect(await events.rangeSince('work-package:A', -1)).toEqual(outcome);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(recipient);
     } finally {
       releaseOutcome.resolve();
     }
@@ -947,6 +988,7 @@ describe('buildServices', () => {
       const deliveryEntered = signal();
       const releaseRejected = signal();
       const { db, path, services } = bootstrap(
+        'http-fixture-legacy',
         {
           solverVersion: '0.4.0',
           budgetMs: 1000,
@@ -1002,8 +1044,8 @@ describe('buildServices', () => {
       }
       expect(launches).toHaveLength(1);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const outcome = await events.rangeSince('project:A', -1);
-      const recipient = await events.rangeSince('project:B', -1);
+      const outcome = await events.rangeSince('work-package:A', -1);
+      const recipient = await events.rangeSince('work-package:B', -1);
       expect(outcome.map(({ seq }) => seq)).toEqual([0]);
       expect(outcome[0]?.message).toMatchObject({ type: 'schedule_optimized' });
       expect(recipient.map(({ seq }) => seq)).toEqual([0]);
@@ -1012,7 +1054,7 @@ describe('buildServices', () => {
         db
           .select()
           .from(solverSlot)
-          .where(sql`project_id = 'A'`)
+          .where(sql`work_package_id = 'A'`)
           .all(),
       ).toEqual([]);
       // Proof: omitting onChildError lost the modeled synchronous/rejected
@@ -1029,7 +1071,7 @@ describe('buildServices', () => {
   });
 
   it('stores an eligible H1 outcome silently while current shared input is H2', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -1044,12 +1086,12 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('stored');
     await optimizer.drain();
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('records selected-budget eviction after the complete installed outcome mutation', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('eviction fixture must not launch')),
@@ -1060,12 +1102,12 @@ describe('buildServices', () => {
     const oldest = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND budget_ms = 1000`)
       .get();
     if (oldest === undefined) throw new Error('selected budget fixture row absent');
     db.update(optimizedScheduleCache)
       .set({ createdAt: 3 })
-      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND budget_ms = 1000`)
       .run();
     db.insert(optimizedScheduleCache)
       .values({ ...oldest, budgetMs: 2000, createdAt: 3 })
@@ -1074,11 +1116,11 @@ describe('buildServices', () => {
       { ...oldest, objective: 'time' as const, budgetMs: 4000, createdAt: 4 },
       { ...oldest, contractVersion: 'other-contract', budgetMs: 5000, createdAt: 5 },
       { ...oldest, inputHash: 'other-input', budgetMs: 6000, createdAt: 6 },
-      { ...oldest, projectId: 'B', budgetMs: 7000, createdAt: 7 },
+      { ...oldest, workPackageId: 'B', budgetMs: 7000, createdAt: 7 },
       { ...oldest, objective: 'time' as const, createdAt: 0 },
       { ...oldest, contractVersion: 'other-contract', createdAt: 0 },
       { ...oldest, inputHash: 'other-input', createdAt: 0 },
-      { ...oldest, projectId: 'B', createdAt: 0 },
+      { ...oldest, workPackageId: 'B', createdAt: 0 },
     ];
     db.insert(optimizedScheduleCache).values(dimensions).run();
     const bound = source.bindLivePlans({
@@ -1102,7 +1144,7 @@ describe('buildServices', () => {
       });
     const before = await captureOrganization();
     const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
-    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE work_package_id = 'A'`);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
@@ -1123,13 +1165,13 @@ describe('buildServices', () => {
         before: before.observation,
         after: after.observation,
         directCauses: ['A'],
-      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+      }).projections.find(({ workPackageId }) => workPackageId === 'A')?.bookingsChanged,
     ).toBe(true);
     const budgets = db
       .select({ budgetMs: optimizedScheduleCache.budgetMs })
       .from(optimizedScheduleCache)
       .where(
-        sql`project_id = 'A' AND objective = 'pri' AND contract_version = ${selected.contractVersion} AND input_hash = ${selected.inputHash}`,
+        sql`work_package_id = 'A' AND objective = 'pri' AND contract_version = ${selected.contractVersion} AND input_hash = ${selected.inputHash}`,
       )
       .all()
       .map(({ budgetMs }) => budgetMs)
@@ -1139,10 +1181,10 @@ describe('buildServices', () => {
     // Proof: skipping enforceLiveBudgetBound left the selected 1000 row in
     // place, so this installed B event was [] instead of the expected seq 0.
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ seq, message }) => [seq, message],
       ),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(budgets).toEqual([2000, 3000]);
     // Proof: removing any full-key delete predicate erased its same-budget
     // foreign sentinel; removing budgetMs deleted every matching budget.
@@ -1153,7 +1195,7 @@ describe('buildServices', () => {
           .from(optimizedScheduleCache)
           .where(
             sql`
-        project_id = ${dimension.projectId}
+        work_package_id = ${dimension.workPackageId}
         AND objective = ${dimension.objective}
         AND contract_version = ${dimension.contractVersion}
         AND input_hash = ${dimension.inputHash}
@@ -1168,7 +1210,7 @@ describe('buildServices', () => {
 
   it('records selected-display eviction when an installed stale observation advances generation', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -1181,11 +1223,11 @@ describe('buildServices', () => {
     expect(selected.selectedStart).not.toBe(selected.fastStart);
     const oldSlot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
     db.run(
-      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'A'`,
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE work_package_id = 'A'`,
     );
     db.insert(solverQueue)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         contractVersion: selected.contractVersion,
         generation: selected.generation,
         objective: 'time',
@@ -1227,7 +1269,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input,
       enabled: true,
@@ -1241,27 +1283,31 @@ describe('buildServices', () => {
         before: before.observation,
         after: after.observation,
         directCauses: ['A'],
-      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+      }).projections.find(({ workPackageId }) => workPackageId === 'A')?.bookingsChanged,
     ).toBe(true);
     expect(observed.generation).toBe(selected.generation + 1);
     expect(observed.variants.pri.state).toBe('idle');
     expect(
       db.all(
-        sql`SELECT generation, input_hash FROM optimization_generation WHERE project_id = 'A'`,
+        sql`SELECT generation, input_hash FROM optimization_generation WHERE work_package_id = 'A'`,
       ),
     ).toEqual([{ generation: selected.generation + 1, input_hash: inputHash }]);
     expect(
-      db.all(sql.raw("SELECT input_hash FROM optimized_schedule_cache WHERE project_id = 'A'")),
+      db.all(
+        sql.raw("SELECT input_hash FROM optimized_schedule_cache WHERE work_package_id = 'A'"),
+      ),
     ).not.toContainEqual({
       input_hash: selected.inputHash,
     });
-    expect(db.all(sql`SELECT generation FROM solver_queue WHERE project_id = 'A'`)).toEqual([]);
+    expect(db.all(sql`SELECT generation FROM solver_queue WHERE work_package_id = 'A'`)).toEqual(
+      [],
+    );
     const retainedSlots = db.all<{
       attempt_token: string;
       generation: number;
       cancel_requested_at: number | null;
     }>(
-      sql`SELECT attempt_token, generation, cancel_requested_at FROM solver_slot WHERE project_id = 'A'`,
+      sql`SELECT attempt_token, generation, cancel_requested_at FROM solver_slot WHERE work_package_id = 'A'`,
     );
     expect(
       retainedSlots.map(({ attempt_token, generation }) => ({ attempt_token, generation })),
@@ -1274,16 +1320,16 @@ describe('buildServices', () => {
     expect(typeof retainedSlots[0]?.cancel_requested_at).toBe('number');
     expect(launches).toBe(0);
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ seq, message }) => [seq, message],
       ),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(3);
   });
 
   it('reuses an equal-hash selected observation without changing cache, queue or recipients', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -1299,7 +1345,7 @@ describe('buildServices', () => {
     const pri = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri'`)
       .get();
     if (pri === undefined) throw new Error('equal-hash PRI row absent');
     db.insert(optimizedScheduleCache)
@@ -1309,7 +1355,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input: captured.input,
       enabled: true,
@@ -1318,7 +1364,7 @@ describe('buildServices', () => {
     expect(observed.generation).toBe(selected.generation);
     expect(observed.variants.pri.state).toBe('ready');
     expect(lifecycleTables(db)).toEqual(before);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toEqual([]);
     expect(launches).toBe(0);
   });
@@ -1326,6 +1372,7 @@ describe('buildServices', () => {
   it('skips whole-organization fan-out captures on a pure equal-hash cache hit', async () => {
     let captures = 0;
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -1343,7 +1390,7 @@ describe('buildServices', () => {
     const pri = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri'`)
       .get();
     if (pri === undefined) throw new Error('cache-hit PRI row absent');
     db.insert(optimizedScheduleCache)
@@ -1353,7 +1400,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     captures = 0;
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input: captured.input,
       enabled: true,
@@ -1364,14 +1411,14 @@ describe('buildServices', () => {
   });
 
   it('keeps an old unselected cache removal silent during installed generation observation', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('unselected observation reached launcher')),
     });
     seedSharedLifecycle(path);
     const selected = await seedReadyRetirement(db, services, 3);
-    db.run(sql`UPDATE project SET schedule_objective = 'time' WHERE id = 'A'`);
+    db.run(sql`UPDATE work_package SET schedule_objective = 'time' WHERE id = 'A'`);
     db.run(sql`UPDATE estimate SET realistic = 2 WHERE work_item_id = 'A'`);
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('unselected H2 input unavailable');
@@ -1380,18 +1427,19 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'time',
       input,
       enabled: true,
     });
     await optimizer.drain();
     expect(observed.generation).toBe(selected.generation + 1);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
   });
 
   it('refuses an installed generation observation without borrowed capture before eviction', async () => {
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -1413,7 +1461,7 @@ describe('buildServices', () => {
     expect(
       await rejectedMessage(
         optimizer.readPlan({
-          projectId: 'A',
+          workPackageId: 'A',
           objective: 'pri',
           input: captured.input,
           enabled: true,
@@ -1426,7 +1474,7 @@ describe('buildServices', () => {
 
   it('rolls back generation, cache, queue, slot cancellation and events on the second observation recipient', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -1438,11 +1486,11 @@ describe('buildServices', () => {
     const selected = await seedReadyRetirement(db, services, 3);
     const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
     db.run(
-      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'A'`,
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE work_package_id = 'A'`,
     );
     db.insert(solverQueue)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         contractVersion: selected.contractVersion,
         generation: selected.generation,
         objective: 'time',
@@ -1459,16 +1507,16 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_observation_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second observation recipient event'); END`),
     );
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
       await rejectedMessage(
-        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+        optimizer.readPlan({ workPackageId: 'A', objective: 'pri', input, enabled: true }),
       ),
-    ).toContain('project:C');
+    ).toContain('work-package:C');
     // Proof: splitting COMMIT after generation allocation left g2/cache and
     // queue deletion plus slot cancellation despite the second event fault.
     expect(lifecycleTables(db)).toEqual(before);
@@ -1476,23 +1524,23 @@ describe('buildServices', () => {
     expect(launches).toBe(0);
     db.run(sql.raw('DROP TRIGGER reject_second_observation_recipient'));
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input,
       enabled: true,
     });
     await optimizer.drain();
     expect(observed.generation).toBe(selected.generation + 1);
-    expect(db.all(sql`SELECT attempt_token FROM solver_slot WHERE project_id = 'A'`)).toEqual([
+    expect(db.all(sql`SELECT attempt_token FROM solver_slot WHERE work_package_id = 'A'`)).toEqual([
       { attempt_token: slot.attemptToken },
     ]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
-    expect((await events.rangeSince('project:C', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:C', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('waits for a held source writer before returning the installed generation and pair', async () => {
-    const { db, path, services, source } = bootstrap({
+    const { db, path, services, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('held observation reached launcher')),
@@ -1502,7 +1550,7 @@ describe('buildServices', () => {
     const pri = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri'`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri'`)
       .get();
     if (pri === undefined) throw new Error('held observation PRI absent');
     db.insert(optimizedScheduleCache)
@@ -1515,7 +1563,7 @@ describe('buildServices', () => {
     const writer = source.gate.enter(async () => {
       db.run(sql.raw('BEGIN IMMEDIATE'));
       db.run(
-        sql`UPDATE optimization_generation SET input_hash = 'uncommitted' WHERE project_id = 'A'`,
+        sql`UPDATE optimization_generation SET input_hash = 'uncommitted' WHERE work_package_id = 'A'`,
       );
       entered.resolve();
       await release.promise;
@@ -1526,7 +1574,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     let settled = false;
     const reading = optimizer
-      .readPlan({ projectId: 'A', objective: 'pri', input: captured.input, enabled: true })
+      .readPlan({ workPackageId: 'A', objective: 'pri', input: captured.input, enabled: true })
       .then((answer) => {
         settled = true;
         return answer;
@@ -1542,14 +1590,14 @@ describe('buildServices', () => {
     expect(observed.generation).toBe(selected.generation);
     expect(observed.variants.pri.state).toBe('ready');
     expect(
-      db.all(sql`SELECT input_hash FROM optimization_generation WHERE project_id = 'A'`),
+      db.all(sql`SELECT input_hash FROM optimization_generation WHERE work_package_id = 'A'`),
     ).toEqual([{ input_hash: selected.inputHash }]);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
   });
 
   it('keeps absent, disabled, empty and zero-duration observation branches idle and silent', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -1564,12 +1612,12 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const before = lifecycleTables(db);
     const asks = [
-      { projectId: 'absent', input: captured.input, enabled: true },
-      { projectId: 'A', input: captured.input, enabled: true },
-      { projectId: 'A', input: captured.input, enabled: false },
-      { projectId: 'A', input: { ...captured.input, slices: [] }, enabled: true },
+      { workPackageId: 'absent', input: captured.input, enabled: true },
+      { workPackageId: 'A', input: captured.input, enabled: true },
+      { workPackageId: 'A', input: captured.input, enabled: false },
+      { workPackageId: 'A', input: { ...captured.input, slices: [] }, enabled: true },
       {
-        projectId: 'A',
+        workPackageId: 'A',
         input: {
           ...captured.input,
           slices: captured.input.slices.map((slice) => ({ ...slice, days: 0 })),
@@ -1593,6 +1641,7 @@ describe('buildServices', () => {
     let armed = false;
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -1615,7 +1664,7 @@ describe('buildServices', () => {
     armed = true;
     expect(
       await rejectedMessage(
-        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+        optimizer.readPlan({ workPackageId: 'A', objective: 'pri', input, enabled: true }),
       ),
     ).toContain('observation after-capture failed');
     expect(captures).toBe(2);
@@ -1623,7 +1672,7 @@ describe('buildServices', () => {
     expect(pushUrls).toEqual([]);
     armed = false;
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input,
       enabled: true,
@@ -1631,7 +1680,9 @@ describe('buildServices', () => {
     await optimizer.drain();
     expect(observed.generation).toBe(selected.generation + 1);
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(({ seq }) => seq),
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
+        ({ seq }) => seq,
+      ),
     ).toEqual([0]);
   });
 
@@ -1640,6 +1691,7 @@ describe('buildServices', () => {
     const releaseDelivery = signal();
     const pushed: string[] = [];
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -1650,7 +1702,7 @@ describe('buildServices', () => {
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('observation push body is not JSON');
         pushed.push(payload);
-        if (!payload.includes('"subscription":"project:B"'))
+        if (!payload.includes('"subscription":"workPackage:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -1667,7 +1719,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     try {
       const observed = await Promise.race([
-        optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+        optimizer.readPlan({ workPackageId: 'A', objective: 'pri', input, enabled: true }),
         Bun.sleep(1000).then(() => {
           throw new Error('observation decision waited for recipient transport');
         }),
@@ -1676,14 +1728,14 @@ describe('buildServices', () => {
       expect(observed.generation).toBe(selected.generation + 1);
       expect(observed.variants.pri.state).toBe('idle');
       const events = new DrizzleEventLogStore(db, OPEN);
-      const original = await events.rangeSince('project:B', -1);
+      const original = await events.rangeSince('work-package:B', -1);
       expect(original.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       const writer = openDatabase(path);
       try {
         writer.run('PRAGMA busy_timeout = 50');
-        writer.run("UPDATE project SET name = 'observation second writer' WHERE id = 'B'");
+        writer.run("UPDATE work_package SET name = 'observation second writer' WHERE id = 'B'");
       } finally {
         writer.close();
       }
@@ -1695,9 +1747,9 @@ describe('buildServices', () => {
       expect(stopped).toBe(false);
       releaseDelivery.resolve();
       await stopping;
-      expect(await events.rangeSince('project:B', -1)).toEqual(original);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(original);
       expect(
-        pushed.filter((payload) => payload.includes('"subscription":"project:B"')),
+        pushed.filter((payload) => payload.includes('"subscription":"workPackage:B"')),
       ).toHaveLength(1);
     } finally {
       releaseDelivery.resolve();
@@ -1710,6 +1762,7 @@ describe('buildServices', () => {
       const deliveryEntered = signal();
       const releaseDelivery = signal();
       const { db, path, services } = bootstrap(
+        null,
         {
           solverVersion: '0.4.0',
           budgetMs: 1000,
@@ -1744,7 +1797,7 @@ describe('buildServices', () => {
       if (optimizer === undefined) throw new Error('optimizer was not installed');
       try {
         const observed = await Promise.race([
-          optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true }),
+          optimizer.readPlan({ workPackageId: 'A', objective: 'pri', input, enabled: true }),
           Bun.sleep(1000).then(() => {
             throw new Error('observation delivery replaced its committed decision');
           }),
@@ -1752,7 +1805,7 @@ describe('buildServices', () => {
         expect(observed.generation).toBe(selected.generation + 1);
         expect(observed.variants.pri.state).toBe('idle');
         const events = new DrizzleEventLogStore(db, OPEN);
-        const originalRows = await events.rangeSince('project:B', -1);
+        const originalRows = await events.rangeSince('work-package:B', -1);
         expect(originalRows.map(({ seq }) => seq)).toEqual([0]);
         if (mode === 'rejected') {
           await deliveryEntered.promise;
@@ -1767,7 +1820,7 @@ describe('buildServices', () => {
         } else {
           await optimizer.drain();
         }
-        expect(await events.rangeSince('project:B', -1)).toEqual(originalRows);
+        expect(await events.rangeSince('work-package:B', -1)).toEqual(originalRows);
         // Proof: omitting onChildError lost this modeled synchronous/rejected
         // observation delivery report while generation and B's event stayed committed.
         // Rethrowing changed the settled drain into a rejection.
@@ -1790,6 +1843,7 @@ describe('buildServices', () => {
     let inputHash = '';
     const contractVersion = contractVersionOf('0.4.0');
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -1814,7 +1868,7 @@ describe('buildServices', () => {
         sourceDb
           .insert(optimizedScheduleCache)
           .values({
-            projectId: 'A',
+            workPackageId: 'A',
             inputHash,
             objective: 'pri',
             contractVersion,
@@ -1830,7 +1884,7 @@ describe('buildServices', () => {
     );
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('postcommit input unavailable');
@@ -1840,7 +1894,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     armed = true;
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input,
       enabled: true,
@@ -1850,14 +1904,14 @@ describe('buildServices', () => {
     expect(observed.variants.pri.state).toBe('idle');
     expect(
       db.all(
-        sql`SELECT status FROM optimized_schedule_cache WHERE project_id = 'A' AND objective = 'pri'`,
+        sql`SELECT status FROM optimized_schedule_cache WHERE work_package_id = 'A' AND objective = 'pri'`,
       ),
     ).toEqual([{ status: 'failed' }]);
   });
 
   it('replaces an older failed marker through installed Retry before selected fan-out', async () => {
     const launches: ReservedSpawnRequest[] = [];
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: (request) => {
@@ -1867,11 +1921,11 @@ describe('buildServices', () => {
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     db.run(
       sql.raw(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('long', 'A', 20, 'long')",
       ),
     );
     db.run(
@@ -1887,7 +1941,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -1927,9 +1981,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-a',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         inputHash,
         input,
@@ -1945,27 +1998,27 @@ describe('buildServices', () => {
         before: before.observation,
         after: after.observation,
         directCauses: ['A'],
-      }).projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged,
+      }).projections.find(({ workPackageId }) => workPackageId === 'A')?.bookingsChanged,
     ).toBe(true);
     expect(launches).toHaveLength(1);
     const replaced = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
       .all();
     expect(replaced).toHaveLength(1);
     expect(replaced[0]?.status).toBe('ok');
     expect(replaced[0]?.createdAt).toBeGreaterThan(1);
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ seq, message }) => [seq, message],
       ),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(2);
   });
 
   it('rolls back selected-budget eviction and outcome rows after the second recipient insert fails', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('rollback fixture must not launch')),
@@ -1975,14 +2028,14 @@ describe('buildServices', () => {
     const oldest = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND budget_ms = 1000`)
       .get();
     if (oldest === undefined) throw new Error('rollback selected budget absent');
     db.insert(optimizedScheduleCache)
       .values({ ...oldest, budgetMs: 2000, createdAt: 2 })
       .run();
     const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
-    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+    db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE work_package_id = 'A'`);
     const write: OptimizationOutcomeWrite = {
       claim: { ...slot, budgetMs: 3000, ownerId: 'own-1' },
       inputHash: selected.inputHash,
@@ -1993,13 +2046,13 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_eviction_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second eviction recipient event'); END`),
     );
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(installedOutcomeStore(optimizer).storeOutcome(write))).toContain(
-      'project:C',
+      'work-package:C',
     );
     // Proof: splitting COMMIT after raw outcome/eviction left the 3000 row,
     // old selected-row deletion and outcome event despite C insert failure.
@@ -2009,13 +2062,13 @@ describe('buildServices', () => {
     expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('stored');
     await optimizer.drain();
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
-    expect((await events.rangeSince('project:C', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:C', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('keeps unselected and Fast-equivalent budget eviction silent for recipients', async () => {
     for (const mode of ['unselected', 'fast-equivalent'] as const) {
-      const { db, path, services, pushUrls } = bootstrap({
+      const { db, path, services, pushUrls } = bootstrap(null, {
         solverVersion: '0.4.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('silent eviction fixture must not launch')),
@@ -2023,19 +2076,19 @@ describe('buildServices', () => {
       seedSharedLifecycle(path);
       const selected = await seedReadyRetirement(db, services, mode === 'fast-equivalent' ? 0 : 3);
       if (mode === 'unselected')
-        db.run(sql`UPDATE project SET schedule_objective = 'time' WHERE id = 'A'`);
+        db.run(sql`UPDATE work_package SET schedule_objective = 'time' WHERE id = 'A'`);
       else expect(selected.selectedStart).toBe(selected.fastStart);
       const oldest = db
         .select()
         .from(optimizedScheduleCache)
-        .where(sql`project_id = 'A' AND budget_ms = 1000`)
+        .where(sql`work_package_id = 'A' AND budget_ms = 1000`)
         .get();
       if (oldest === undefined) throw new Error('silent eviction old row absent');
       db.insert(optimizedScheduleCache)
         .values({ ...oldest, budgetMs: 2000, createdAt: 2 })
         .run();
       const slot = seedLifecycleSlot(db, selected.contractVersion, selected.generation);
-      db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE project_id = 'A'`);
+      db.run(sql`UPDATE solver_slot SET budget_ms = 3000 WHERE work_package_id = 'A'`);
       const optimizer = services.optimizer;
       if (optimizer === undefined) throw new Error('optimizer was not installed');
       expect(
@@ -2050,13 +2103,13 @@ describe('buildServices', () => {
       await optimizer.drain();
       // Proof: forced fan-out on a stored result would invent B for a
       // nonselected or Fast-equivalent eviction despite unchanged display.
-      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
       expect(pushUrls).toHaveLength(1);
       expect(
         db
           .select({ budgetMs: optimizedScheduleCache.budgetMs })
           .from(optimizedScheduleCache)
-          .where(sql`project_id = 'A' AND objective = 'pri'`)
+          .where(sql`work_package_id = 'A' AND objective = 'pri'`)
           .all()
           .map(({ budgetMs }) => budgetMs)
           .sort((left, right) => left - right),
@@ -2065,18 +2118,18 @@ describe('buildServices', () => {
   });
 
   it('replaces a genuinely corrupt older marker through installed Retry', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: completedSelectedChild,
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     db.run(
       sql.raw(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('long', 'A', 20, 'long')",
       ),
     );
     db.run(
@@ -2092,7 +2145,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -2112,9 +2165,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-a',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         inputHash,
         input,
@@ -2127,7 +2179,7 @@ describe('buildServices', () => {
     const replaced = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
       .all();
     expect(replaced).toHaveLength(1);
     expect(replaced[0]?.status).toBe('ok');
@@ -2136,15 +2188,16 @@ describe('buildServices', () => {
     expect(replaced[0]?.resultJson).not.toBe('{malformed');
     expect(replaced[0]?.createdAt).toBeGreaterThan(1);
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ seq, message }) => [seq, message],
       ),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('keeps accepted Retry admission but rolls back failed-marker replacement after event insertion fails', async () => {
     const logs: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       { solverVersion: '0.4.0', budgetMs: 1000, spawn: completedSelectedChild },
       undefined,
       undefined,
@@ -2162,13 +2215,13 @@ describe('buildServices', () => {
     db.run(
       sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('retry-bob','org-a','work_package','A','user','bob','package-manager','route',1)`,
     );
-    db.run(sql`UPDATE project SET restricted = 1 WHERE id = 'A'`);
+    db.run(sql`UPDATE work_package SET restricted = 1 WHERE id = 'A'`);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     db.run(
       sql.raw(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('long', 'A', 20, 'long')",
       ),
     );
     db.run(
@@ -2184,7 +2237,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -2198,14 +2251,14 @@ describe('buildServices', () => {
       .run();
     db.run(
       sql.raw(`CREATE TRIGGER reject_retry_replacement_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:B'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:B'
       BEGIN SELECT RAISE(ABORT, 'injected Retry replacement recipient event'); END`),
     );
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
       await optimizer.retry({
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         inputHash,
         input,
@@ -2213,7 +2266,6 @@ describe('buildServices', () => {
           principal: { id: 'bob' },
           organizationId: 'org-a',
           actorId: 'bob',
-          role: 'super_admin' as const,
         },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
@@ -2221,7 +2273,7 @@ describe('buildServices', () => {
     const retained = db
       .select()
       .from(optimizedScheduleCache)
-      .where(sql`project_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
+      .where(sql`work_package_id = 'A' AND objective = 'pri' AND budget_ms = 1000`)
       .all();
     expect(retained).toHaveLength(1);
     // Proof: splitting the outcome owner's commit before B event recording
@@ -2229,14 +2281,14 @@ describe('buildServices', () => {
     expect(retained[0]?.status).toBe('failed');
     expect(retained[0]?.createdAt).toBe(1);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect(await events.rangeSince('project:A', -1)).toEqual([]);
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:A', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(db.all(sql.raw('SELECT * FROM event_sequencer'))).toEqual([]);
     expect(
       db
         .select()
         .from(solverSlot)
-        .where(sql`project_id = 'A'`)
+        .where(sql`work_package_id = 'A'`)
         .all(),
     ).toEqual([]);
     expect(pushUrls).toEqual([]);
@@ -2247,21 +2299,21 @@ describe('buildServices', () => {
   });
 
   it('records empty-booking availability loss from an admitted selected outcome at unchanged canonical input', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     db.run(
       sql`UPDATE estimate SET optimistic = 0, realistic = 0, pessimistic = 0 WHERE work_item_id = 'A'`,
     );
     db.run(
       sql.raw(
-        "INSERT INTO work_item (id, project_id, position, name) VALUES ('long', 'A', 20, 'long')",
+        "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('long', 'A', 20, 'long')",
       ),
     );
     db.run(
@@ -2331,39 +2383,39 @@ describe('buildServices', () => {
     if (current === null) throw new Error('canonical input disappeared');
     expect(scheduleInputHash(current)).toBe(inputHash);
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ message }) => message,
       ),
-    ).toEqual([{ type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]);
+    ).toEqual([{ type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]);
     const projected = compareSharedPeopleFanout({
       before: before.observation,
       after: after.observation,
       directCauses: ['A'],
     });
-    expect(projected.projections.find(({ projectId }) => projectId === 'A')).toMatchObject({
+    expect(projected.projections.find(({ workPackageId }) => workPackageId === 'A')).toMatchObject({
       before: { availability: 'available', bookings: [] },
       after: { availability: 'calendar_range', bookings: [] },
       bookingsChanged: false,
       availabilityChanged: true,
     });
-    expect(before.observation.projects.find(({ projectId }) => projectId === 'A')?.inputHash).toBe(
-      inputHash,
-    );
     expect(
-      after.observation.projects.find(({ projectId }) => projectId === 'A')?.inputHash,
+      before.observation.workPackages.find(({ workPackageId }) => workPackageId === 'A')?.inputHash,
+    ).toBe(inputHash);
+    expect(
+      after.observation.workPackages.find(({ workPackageId }) => workPackageId === 'A')?.inputHash,
     ).toBeNull();
     expect(pushUrls).toHaveLength(2);
   });
 
   it('keeps a nonselected objective and repeated or stale outcomes silent for B', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
     seedSharedLifecycle(path);
     const write = await sharedOutcomeWrite(db, services);
-    db.run(sql`UPDATE project SET schedule_objective = 'time' WHERE id = 'A'`);
+    db.run(sql`UPDATE work_package SET schedule_objective = 'time' WHERE id = 'A'`);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const installed = installedOutcomeStore(optimizer);
@@ -2376,12 +2428,12 @@ describe('buildServices', () => {
       }),
     ).toBe('superseded');
     await optimizer.drain();
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('keeps a stale selected token silent before cache and fan-out writes', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -2403,7 +2455,7 @@ describe('buildServices', () => {
   });
 
   it('rolls back a selected outcome, all recipients and sequences when the second event insert fails', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -2413,13 +2465,13 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     db.run(
       sql.raw(`CREATE TRIGGER reject_second_outcome_recipient
-      BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C'
+      BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C'
       BEGIN SELECT RAISE(ABORT, 'injected second outcome recipient event'); END`),
     );
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(installedOutcomeStore(optimizer).storeOutcome(write))).toContain(
-      'params: project:C,0',
+      'params: work package:C,0',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -2427,14 +2479,15 @@ describe('buildServices', () => {
     expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('stored');
     await optimizer.drain();
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
-    expect((await events.rangeSince('project:C', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:C', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('rolls back the stored outcome when borrowed post-write capture fails', async () => {
     let armed = false;
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -2460,6 +2513,7 @@ describe('buildServices', () => {
 
   it('refuses a selected outcome without borrowed capture before any cache or event write', async () => {
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -2484,7 +2538,7 @@ describe('buildServices', () => {
   it('waits for a held source writer before storing and capturing an optimized outcome', async () => {
     const writerEntered = signal();
     const releaseWriter = signal();
-    const { db, path, services, source, pushUrls } = bootstrap({
+    const { db, path, services, source, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -2524,12 +2578,12 @@ describe('buildServices', () => {
     expect(await storing).toBe('stored');
     await optimizer.drain();
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(pushUrls).toHaveLength(2);
   });
 
   it('rejects malformed active outcome ownership before any durable write', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -2537,13 +2591,13 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     const write = await sharedOutcomeWrite(db, services);
     // Deliberate trusted-state corruption: production forbids unmapping a live root.
-    db.run(sql.raw('DROP TRIGGER project_organization_frozen_delete'));
-    db.run(sql`DELETE FROM project_organization WHERE resource_id = 'A'`);
+    db.run(sql.raw('DROP TRIGGER work_package_organization_frozen_delete'));
+    db.run(sql`DELETE FROM work_package_organization WHERE resource_id = 'A'`);
     const before = lifecycleTables(db);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(installedOutcomeStore(optimizer).storeOutcome(write))).toContain(
-      'active project A lacks organization ownership',
+      'active work package A lacks organization ownership',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -2551,7 +2605,7 @@ describe('buildServices', () => {
 
   for (const mode of ['legacy', 'isolated'] as const) {
     it(`retains only the own outcome event for ${mode} organization mode`, async () => {
-      const { db, path, services, pushUrls } = bootstrap({
+      const { db, path, services, pushUrls } = bootstrap(null, {
         solverVersion: '0.4.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
@@ -2565,8 +2619,8 @@ describe('buildServices', () => {
       expect(await installedOutcomeStore(optimizer).storeOutcome(write)).toBe('stored');
       await optimizer.drain();
       const events = new DrizzleEventLogStore(db, OPEN);
-      expect(await events.rangeSince('project:A', -1)).toHaveLength(1);
-      expect(await events.rangeSince('project:B', -1)).toEqual([]);
+      expect(await events.rangeSince('work-package:A', -1)).toHaveLength(1);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
       expect(pushUrls).toHaveLength(1);
     });
   }
@@ -2574,7 +2628,7 @@ describe('buildServices', () => {
   it('keeps installed initial observation and reservation status-only while both children are held', async () => {
     const releaseChildren = signal();
     const launched: ReservedSpawnRequest[] = [];
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: async (request) => {
@@ -2598,7 +2652,7 @@ describe('buildServices', () => {
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('status-only input unavailable');
@@ -2607,7 +2661,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     try {
       const observed = await optimizer.readPlan({
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         input: captured.input,
         enabled: true,
@@ -2621,7 +2675,7 @@ describe('buildServices', () => {
         after: after.observation,
         directCauses: ['A'],
       });
-      expect(comparison.projections.map(({ projectId }) => projectId)).toEqual(['A', 'B']);
+      expect(comparison.projections.map(({ workPackageId }) => workPackageId)).toEqual(['A', 'B']);
       for (const projection of comparison.projections)
         expect(projection.after).toEqual(projection.before);
       expect(
@@ -2632,7 +2686,7 @@ describe('buildServices', () => {
       // Proof: forcing an event for this real status-only admission changed
       // B's empty range and sequencer to seq 0 while its display stayed Fast.
       expect(comparison.recipients).toEqual([]);
-      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
       expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
       expect(pushUrls).toEqual([]);
       expect(launched.map(({ objective }) => objective).sort()).toEqual(['pri', 'time']);
@@ -2643,14 +2697,14 @@ describe('buildServices', () => {
   });
 
   it('keeps capacity enqueue status-only for the installed shared display', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('capacity enqueue must not launch')),
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('capacity input unavailable');
@@ -2658,7 +2712,7 @@ describe('buildServices', () => {
     for (let seat = 1; seat <= 4; seat++)
       db.insert(solverSlot)
         .values({
-          projectId: 'A',
+          workPackageId: 'A',
           contractVersion: contractVersionOf('0.4.0'),
           generation: seat,
           objective: 'time',
@@ -2676,7 +2730,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const observed = await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input: captured.input,
       enabled: true,
@@ -2688,7 +2742,7 @@ describe('buildServices', () => {
         .select()
         .from(solverQueue)
         .all()
-        .map(({ projectId, objective }) => [projectId, objective]),
+        .map(({ workPackageId, objective }) => [workPackageId, objective]),
     ).toEqual([['A', 'pri']]);
     const after = await captureSharedDisplay(source, 'org-a');
     const comparison = compareSharedPeopleFanout({
@@ -2699,7 +2753,7 @@ describe('buildServices', () => {
     for (const projection of comparison.projections)
       expect(projection.after).toEqual(projection.before);
     expect(comparison.recipients).toEqual([]);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
     expect(pushUrls).toEqual([]);
     await optimizer.drain();
@@ -2707,7 +2761,7 @@ describe('buildServices', () => {
 
   it('keeps accepted Retry status-only for the shared display while its child is held', async () => {
     const releaseChild = signal();
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: async () => {
@@ -2730,7 +2784,7 @@ describe('buildServices', () => {
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('Retry status input unavailable');
@@ -2739,7 +2793,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -2761,9 +2815,8 @@ describe('buildServices', () => {
             principal: { id: 'ada' },
             organizationId: 'org-a',
             actorId: 'ada',
-            role: 'member' as const,
           },
-          projectId: 'A',
+          workPackageId: 'A',
           objective: 'pri',
           inputHash,
           input: captured.input,
@@ -2778,7 +2831,7 @@ describe('buildServices', () => {
       for (const projection of comparison.projections)
         expect(projection.after).toEqual(projection.before);
       expect(comparison.recipients).toEqual([]);
-      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
       expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
       expect(pushUrls).toEqual([]);
     } finally {
@@ -2789,7 +2842,7 @@ describe('buildServices', () => {
 
   it('keeps valid installed FIFO dequeue status-only while its child is held', async () => {
     const releaseChild = signal();
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: async () => {
@@ -2812,7 +2865,7 @@ describe('buildServices', () => {
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('FIFO status input unavailable');
@@ -2821,7 +2874,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         contractVersion,
         generation,
         objective: 'pri',
@@ -2846,7 +2899,7 @@ describe('buildServices', () => {
       for (const projection of comparison.projections)
         expect(projection.after).toEqual(projection.before);
       expect(comparison.recipients).toEqual([]);
-      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+      expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
       expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
       expect(pushUrls).toEqual([]);
     } finally {
@@ -2856,14 +2909,14 @@ describe('buildServices', () => {
   });
 
   it('consumes an invalid FIFO head without changing the installed shared display', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap({
+    const { db, path, services, pushUrls, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('invalid FIFO head must not launch')),
     });
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('invalid FIFO input unavailable');
@@ -2871,7 +2924,7 @@ describe('buildServices', () => {
     allocateGeneration(db, 'A', contractVersion, scheduleInputHash(captured.input), 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         contractVersion,
         generation: 99,
         objective: 'pri',
@@ -2895,14 +2948,14 @@ describe('buildServices', () => {
     for (const projection of comparison.projections)
       expect(projection.after).toEqual(projection.before);
     expect(comparison.recipients).toEqual([]);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
   it('records a victim shared-person event when initial admission reclaims its last expired slot', async () => {
     let launches = 0;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -2913,28 +2966,28 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     const expired = seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: requester.projectId,
+      workPackageId: requester.workPackageId,
       objective: 'pri',
       input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
       enabled: true,
@@ -2948,16 +3001,17 @@ describe('buildServices', () => {
         .where(sql`attempt_token = ${expired.attemptToken}`)
         .all(),
     ).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('refuses initial reclaim without the borrowed capture capability before deleting its victim', async () => {
     let observed = false;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -2979,21 +3033,21 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
@@ -3003,7 +3057,7 @@ describe('buildServices', () => {
     expect(
       await rejectedMessage(
         optimizer.readPlan({
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           objective: 'pri',
           input: captured.input,
           enabled: true,
@@ -3019,7 +3073,7 @@ describe('buildServices', () => {
 
   it('captures two foreign victim organizations before initial reservation reclaims either', async () => {
     let launches = 0;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -3037,41 +3091,41 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
     expect(await services.optimizationLifecycle.beginDrain('E', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: requester.projectId,
+      workPackageId: requester.workPackageId,
       objective: 'pri',
       input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
       enabled: true,
     });
     await optimizer.drain();
     expect(launches).toBe(0);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id IN ('A', 'C')"))).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'E'"))).toEqual([{ id: 'E' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id IN ('A', 'C')"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'E'"))).toEqual([{ id: 'E' }]);
     expect(
       db
         .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
         .from(solverSlot)
-        .where(sql`project_id = 'E'`)
+        .where(sql`work_package_id = 'E'`)
         .all(),
     ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
     const events = new DrizzleEventLogStore(db, OPEN);
@@ -3080,13 +3134,15 @@ describe('buildServices', () => {
       ['D', 'C'],
     ])
       expect(
-        (await events.rangeSince(`project:${recipient}`, -1)).map(({ seq, message }) => [
+        (await events.rangeSince(`work-package:${recipient}`, -1)).map(({ seq, message }) => [
           seq,
           message,
         ]),
-      ).toEqual([[0, { type: 'elsewhere_changed', projectId: recipient, causeProjectId: cause }]]);
+      ).toEqual([
+        [0, { type: 'elsewhere_changed', workPackageId: recipient, causeWorkPackageId: cause }],
+      ]);
     expect(
-      (await events.rangeSince(`project:${requester.projectId}`, -1)).filter(
+      (await events.rangeSince(`work-package:${requester.workPackageId}`, -1)).filter(
         ({ message }) =>
           typeof message === 'object' &&
           message !== null &&
@@ -3094,12 +3150,12 @@ describe('buildServices', () => {
           message.type === 'elsewhere_changed',
       ),
     ).toEqual([]);
-    expect(await events.rangeSince('project:F', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:F', -1)).toEqual([]);
   });
 
-  it('addresses a selected contract retired by initial global reclaim without deleting its project', async () => {
+  it('addresses a selected contract retired by initial global reclaim without deleting its work package', async () => {
     let launches = 0;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -3118,53 +3174,54 @@ describe('buildServices', () => {
     expect(
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
     ).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: requester.projectId,
+      workPackageId: requester.workPackageId,
       objective: 'pri',
       input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
       enabled: true,
     });
     await optimizer.drain();
     expect(launches).toBe(0);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     expect(
       db
         .select()
         .from(solverSlot)
-        .where(sql`project_id = 'A'`)
+        .where(sql`work_package_id = 'A'`)
         .all(),
     ).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('commits reclaimed victim fan-out when the requester closes before reservation', async () => {
-    const requesterRef: { projectId?: string } = {};
+    const requesterRef: { workPackageId?: string } = {};
     let closed = false;
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -3178,9 +3235,9 @@ describe('buildServices', () => {
       false,
       (answer, sourceDb) => {
         if (typeof answer !== 'object' || answer === null || !('kind' in answer)) return;
-        if (answer.kind === 'observed' && requesterRef.projectId !== undefined)
+        if (answer.kind === 'observed' && requesterRef.workPackageId !== undefined)
           sourceDb.run(
-            sql`UPDATE project SET optimization_enabled = 0 WHERE id = ${requesterRef.projectId}`,
+            sql`UPDATE work_package SET optimization_enabled = 0 WHERE id = ${requesterRef.workPackageId}`,
           );
         if (answer.kind === 'closed') closed = true;
       },
@@ -3188,23 +3245,23 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
-    requesterRef.projectId = requester.projectId;
+    const requester = await seedWorkPackage(db);
+    requesterRef.workPackageId = requester.workPackageId;
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requesterRef.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requesterRef.workPackageId}, 'org-x')`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: requesterRef.projectId,
+      workPackageId: requesterRef.workPackageId,
       objective: 'pri',
       input: captured.input,
       enabled: true,
@@ -3213,11 +3270,11 @@ describe('buildServices', () => {
     expect(closed).toBe(true);
     expect(launches).toBe(0);
     expect(db.select().from(solverSlot).all()).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     // Proof: dropping the committed envelopes on a closed admission made this
     // installed gateway call disappear even though B's event row committed.
     expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
@@ -3225,12 +3282,13 @@ describe('buildServices', () => {
 
   for (const fault of ['after-capture', 'event-insert'] as const) {
     it(`restores initial reclaim and the whole populated victim when ${fault} fails`, async () => {
-      const requesterRef: { projectId?: string } = {};
+      const requesterRef: { workPackageId?: string } = {};
       let before: ReturnType<typeof lifecycleTables> | undefined;
       let armed = false;
       let victimCaptures = 0;
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
+        null,
         {
           solverVersion: '0.4.0',
           budgetMs: 1000,
@@ -3250,7 +3308,7 @@ describe('buildServices', () => {
         (answer, sourceDb) => {
           if (
             before === undefined &&
-            requesterRef.projectId !== undefined &&
+            requesterRef.workPackageId !== undefined &&
             typeof answer === 'object' &&
             answer !== null &&
             'kind' in answer &&
@@ -3260,7 +3318,7 @@ describe('buildServices', () => {
             if (fault === 'event-insert')
               sourceDb.run(
                 sql.raw(
-                  "CREATE TRIGGER fail_initial_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'initial event-insert fault after first victim'); END",
+                  "CREATE TRIGGER fail_initial_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'initial event-insert fault after first victim'); END",
                 ),
               );
             armed = true;
@@ -3275,23 +3333,23 @@ describe('buildServices', () => {
         seedOtherLifecycleSlot(db, 'C', 1001);
         expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
       }
-      const requester = await seedProject(db);
-      requesterRef.projectId = requester.projectId;
+      const requester = await seedWorkPackage(db);
+      requesterRef.workPackageId = requester.workPackageId;
       db.run(
         sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
       );
       db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requesterRef.projectId}, 'org-x')`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requesterRef.workPackageId}, 'org-x')`,
       );
       db.run(
-        sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.projectId}`,
+        sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.workPackageId}`,
       );
       const captured = await services.workItems.optimizationInput('B');
       if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
       const optimizer = services.optimizer;
       if (optimizer === undefined) throw new Error('optimizer was not installed');
       const ask = {
-        projectId: requesterRef.projectId,
+        workPackageId: requesterRef.workPackageId,
         objective: 'pri' as const,
         input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
         enabled: true,
@@ -3309,12 +3367,14 @@ describe('buildServices', () => {
       await optimizer.drain();
       const events = new DrizzleEventLogStore(db, OPEN);
       expect(
-        (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-      ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+        (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+      ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
       if (fault === 'event-insert')
         expect(
-          (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
-        ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
+          (await events.rangeSince('work-package:D', -1)).map(({ seq, message }) => [seq, message]),
+        ).toEqual([
+          [0, { type: 'elsewhere_changed', workPackageId: 'D', causeWorkPackageId: 'C' }],
+        ]);
     });
   }
 
@@ -3329,6 +3389,7 @@ describe('buildServices', () => {
         },
       });
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -3367,28 +3428,28 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const reading = optimizer.readPlan({
-      projectId: requester.projectId,
+      workPackageId: requester.workPackageId,
       objective: 'pri',
       input: captured.input,
       enabled: true,
@@ -3410,7 +3471,7 @@ describe('buildServices', () => {
       const liveTokens = db
         .select({ attemptToken: solverSlot.attemptToken })
         .from(solverSlot)
-        .where(sql`project_id = ${requester.projectId}`)
+        .where(sql`work_package_id = ${requester.workPackageId}`)
         .all()
         .map(({ attemptToken }) => attemptToken)
         .sort();
@@ -3420,24 +3481,24 @@ describe('buildServices', () => {
       const second = openDatabase(path);
       try {
         second.run('PRAGMA busy_timeout = 50');
-        second.run("UPDATE project SET name = 'second writer entered' WHERE id = 'B'");
+        second.run("UPDATE work_package SET name = 'second writer entered' WHERE id = 'B'");
       } finally {
         second.close();
       }
-      expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+      expect(db.all(sql.raw("SELECT name FROM work_package WHERE id = 'B'"))).toEqual([
         { name: 'second writer entered' },
       ]);
-      expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+      expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const replay = await events.rangeSince('project:B', -1);
+      const replay = await events.rangeSince('work-package:B', -1);
       expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       expect(pushUrls).toHaveLength(1);
       releaseDelivery.resolve();
       for (const { finish } of launches) finish();
       await optimizer.stop();
-      expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
     } finally {
       releaseDelivery.resolve();
       for (const { finish } of launches) finish();
@@ -3446,7 +3507,7 @@ describe('buildServices', () => {
 
   it('records a foreign victim event when an installed Retry reclaims its expired last slot', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -3457,31 +3518,37 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -3501,9 +3568,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -3511,17 +3577,17 @@ describe('buildServices', () => {
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(2);
   });
 
   it('addresses selected contract retirement during Retry when local input facts stay equal', async () => {
     let launches = 0;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -3540,31 +3606,37 @@ describe('buildServices', () => {
         selected.contractVersion,
       ),
     ).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -3584,9 +3656,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -3594,16 +3665,16 @@ describe('buildServices', () => {
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('captures all Retry victim organizations across the adjusted failure-marker cutoff', async () => {
     let launches = 0;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -3619,35 +3690,41 @@ describe('buildServices', () => {
     seedOtherLifecycleSlot(db, 'C', markerAt - 1);
     const futureDeadline = markerAt + 100_000;
     seedOtherLifecycleSlot(db, 'E', futureDeadline);
-    for (const projectId of ['A', 'C', 'E'])
-      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
-        1,
-      );
-    const requester = await seedProject(db);
+    for (const workPackageId of ['A', 'C', 'E'])
+      expect(
+        await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
+      ).toBe(1);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -3667,9 +3744,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -3677,13 +3753,13 @@ describe('buildServices', () => {
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(launches).toBe(0);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id IN ('A', 'C')"))).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'E'"))).toEqual([{ id: 'E' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id IN ('A', 'C')"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'E'"))).toEqual([{ id: 'E' }]);
     expect(
       db
         .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
         .from(solverSlot)
-        .where(sql`project_id = 'E'`)
+        .where(sql`work_package_id = 'E'`)
         .all(),
     ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
     const events = new DrizzleEventLogStore(db, OPEN);
@@ -3692,14 +3768,16 @@ describe('buildServices', () => {
       ['D', 'C'],
     ])
       expect(
-        (await events.rangeSince(`project:${recipient}`, -1)).map(({ seq, message }) => [
+        (await events.rangeSince(`work-package:${recipient}`, -1)).map(({ seq, message }) => [
           seq,
           message,
         ]),
-      ).toEqual([[0, { type: 'elsewhere_changed', projectId: recipient, causeProjectId: cause }]]);
-    expect(await events.rangeSince('project:F', -1)).toEqual([]);
+      ).toEqual([
+        [0, { type: 'elsewhere_changed', workPackageId: recipient, causeWorkPackageId: cause }],
+      ]);
+    expect(await events.rangeSince('work-package:F', -1)).toEqual([]);
     expect(
-      (await events.rangeSince(`project:${requester.projectId}`, -1)).filter(
+      (await events.rangeSince(`work-package:${requester.workPackageId}`, -1)).filter(
         ({ message }) =>
           typeof message === 'object' &&
           message !== null &&
@@ -3710,7 +3788,7 @@ describe('buildServices', () => {
   });
 
   it('records explicit-grant Retry and victim fan-out without recovery audit', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('recovery fixture reached launcher')),
@@ -3718,7 +3796,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
@@ -3726,26 +3804,32 @@ describe('buildServices', () => {
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -3761,7 +3845,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
       await optimizer.retry({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -3769,21 +3853,20 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'super_admin' as const,
         },
       }),
     ).toMatchObject({ kind: 'accepted', generation });
     await optimizer.drain();
     expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('commits explicit-grant capacity-queued Retry and reclaimed victim event without recovery audit', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('queued recovery fixture reached launcher')),
@@ -3791,7 +3874,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
@@ -3799,26 +3882,32 @@ describe('buildServices', () => {
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -3833,7 +3922,7 @@ describe('buildServices', () => {
     for (let slotGeneration = 2; slotGeneration <= 5; slotGeneration++)
       db.insert(solverSlot)
         .values({
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           contractVersion,
           generation: slotGeneration,
           objective: 'time',
@@ -3852,7 +3941,7 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(
       await optimizer.retry({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -3860,20 +3949,21 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'super_admin' as const,
         },
       }),
     ).toMatchObject({ kind: 'accepted', generation, state: 'retrying' });
     await optimizer.drain();
     expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     expect(
-      db.all(sql`SELECT objective FROM solver_queue WHERE project_id = ${requester.projectId}`),
+      db.all(
+        sql`SELECT objective FROM solver_queue WHERE work_package_id = ${requester.workPackageId}`,
+      ),
     ).toEqual([{ objective: 'pri' }]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
@@ -3887,6 +3977,7 @@ describe('buildServices', () => {
       let victimCaptures = 0;
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
+        null,
         {
           solverVersion: '0.4.0',
           budgetMs: 1000,
@@ -3910,7 +4001,7 @@ describe('buildServices', () => {
         seedOtherLifecycleSlot(db, 'C', 1001);
         expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
       }
-      const requester = await seedProject(db);
+      const requester = await seedWorkPackage(db);
       db.run(
         sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
       );
@@ -3918,26 +4009,32 @@ describe('buildServices', () => {
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
       );
       db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
       );
       db.run(
         sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
       );
       db.run(
-        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
       );
       db.run(
-        sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+        sql`UPDATE work_package SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
       );
       const captured = await services.workItems.optimizationInput('B');
       if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
       const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
       const inputHash = scheduleInputHash(input);
       const contractVersion = contractVersionOf('0.4.0');
-      const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+      const generation = allocateGeneration(
+        db,
+        requester.workPackageId,
+        contractVersion,
+        inputHash,
+        1,
+      );
       db.insert(optimizedScheduleCache)
         .values({
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           inputHash,
           objective: 'pri',
           contractVersion,
@@ -3953,7 +4050,7 @@ describe('buildServices', () => {
         for (let slotGeneration = 2; slotGeneration <= 5; slotGeneration++)
           db.insert(solverSlot)
             .values({
-              projectId: requester.projectId,
+              workPackageId: requester.workPackageId,
               contractVersion,
               generation: slotGeneration,
               objective: 'time',
@@ -3971,14 +4068,14 @@ describe('buildServices', () => {
       if (fault !== 'after-capture')
         db.run(
           sql.raw(
-            "CREATE TRIGGER fail_retry_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'Retry second-event fault'); END",
+            "CREATE TRIGGER fail_retry_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'Retry second-event fault'); END",
           ),
         );
       const before = lifecycleTables(db);
       const optimizer = services.optimizer;
       if (optimizer === undefined) throw new Error('optimizer was not installed');
       const ask = {
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri' as const,
         inputHash,
         input,
@@ -4002,16 +4099,20 @@ describe('buildServices', () => {
       await optimizer.drain();
       if (fault === 'second-event-insert-queued')
         expect(
-          db.all(sql`SELECT objective FROM solver_queue WHERE project_id = ${requester.projectId}`),
+          db.all(
+            sql`SELECT objective FROM solver_queue WHERE work_package_id = ${requester.workPackageId}`,
+          ),
         ).toEqual([{ objective: 'pri' }]);
       const events = new DrizzleEventLogStore(db, OPEN);
       expect(
-        (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-      ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+        (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+      ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
       if (fault !== 'after-capture')
         expect(
-          (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
-        ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
+          (await events.rangeSince('work-package:D', -1)).map(({ seq, message }) => [seq, message]),
+        ).toEqual([
+          [0, { type: 'elsewhere_changed', workPackageId: 'D', causeWorkPackageId: 'C' }],
+        ]);
       expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     });
   }
@@ -4027,6 +4128,7 @@ describe('buildServices', () => {
       } = {};
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
+        null,
         {
           solverVersion: '0.4.0',
           budgetMs: 1000,
@@ -4041,7 +4143,7 @@ describe('buildServices', () => {
             throw new Error('closed Retry fixture lacks requester');
           if (lateState === 'closed')
             closure.db.run(
-              sql`UPDATE project SET optimization_enabled = 0 WHERE id = ${closure.requesterId}`,
+              sql`UPDATE work_package SET optimization_enabled = 0 WHERE id = ${closure.requesterId}`,
             );
           else {
             if (closure.contractVersion === undefined || closure.generation === undefined)
@@ -4049,7 +4151,7 @@ describe('buildServices', () => {
             closure.db
               .insert(solverSlot)
               .values({
-                projectId: closure.requesterId,
+                workPackageId: closure.requesterId,
                 contractVersion: closure.contractVersion,
                 generation: closure.generation,
                 objective: 'pri',
@@ -4072,8 +4174,8 @@ describe('buildServices', () => {
       seedSharedLifecycle(path);
       seedLifecycleSlot(db);
       expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-      const requester = await seedProject(db);
-      closure.requesterId = requester.projectId;
+      const requester = await seedWorkPackage(db);
+      closure.requesterId = requester.workPackageId;
       db.run(
         sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
       );
@@ -4081,28 +4183,34 @@ describe('buildServices', () => {
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
       );
       db.run(
-        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+        sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
       );
       db.run(
         sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
       );
       db.run(
-        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+        sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
       );
       db.run(
-        sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+        sql`UPDATE work_package SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
       );
       const captured = await services.workItems.optimizationInput('B');
       if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
       const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
       const inputHash = scheduleInputHash(input);
       const contractVersion = contractVersionOf('0.4.0');
-      const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+      const generation = allocateGeneration(
+        db,
+        requester.workPackageId,
+        contractVersion,
+        inputHash,
+        1,
+      );
       closure.contractVersion = contractVersion;
       closure.generation = generation;
       db.insert(optimizedScheduleCache)
         .values({
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           inputHash,
           objective: 'pri',
           contractVersion,
@@ -4118,7 +4226,7 @@ describe('buildServices', () => {
       if (optimizer === undefined) throw new Error('optimizer was not installed');
       armed = true;
       const ask = {
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri' as const,
         inputHash,
         input,
@@ -4140,19 +4248,19 @@ describe('buildServices', () => {
           db
             .select({ attemptToken: solverSlot.attemptToken })
             .from(solverSlot)
-            .where(sql`project_id = ${requester.projectId}`)
+            .where(sql`work_package_id = ${requester.workPackageId}`)
             .all(),
         ).toEqual([{ attemptToken: 'competing-token' }]);
-      expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+      expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const originalEvents = await events.rangeSince('project:B', -1);
+      const originalEvents = await events.rangeSince('work-package:B', -1);
       expect(originalEvents.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
       await optimizer.retry(ask);
       await optimizer.drain();
-      expect(await events.rangeSince('project:B', -1)).toEqual(originalEvents);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(originalEvents);
       expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
     });
   }
@@ -4168,6 +4276,7 @@ describe('buildServices', () => {
         },
       });
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -4206,7 +4315,7 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
@@ -4214,26 +4323,32 @@ describe('buildServices', () => {
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-x', 'ada', 'super_admin', 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET restricted = 1, optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -4248,7 +4363,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     const asking = optimizer.retry({
-      projectId: requester.projectId,
+      workPackageId: requester.workPackageId,
       objective: 'pri',
       inputHash,
       input,
@@ -4256,7 +4371,6 @@ describe('buildServices', () => {
         principal: { id: 'ada' },
         organizationId: 'org-x',
         actorId: 'ada',
-        role: 'super_admin' as const,
       },
     });
     try {
@@ -4278,29 +4392,29 @@ describe('buildServices', () => {
       const storedTokens = db
         .select({ attemptToken: solverSlot.attemptToken })
         .from(solverSlot)
-        .where(sql`project_id = ${requester.projectId}`)
+        .where(sql`work_package_id = ${requester.workPackageId}`)
         .all();
       expect(storedTokens).toEqual([{ attemptToken: launches[0]?.request.admission.attemptToken }]);
       const second = openDatabase(path);
       try {
         second.run('PRAGMA busy_timeout = 50');
-        second.run("UPDATE project SET name = 'Retry second writer entered' WHERE id = 'B'");
+        second.run("UPDATE work_package SET name = 'Retry second writer entered' WHERE id = 'B'");
       } finally {
         second.close();
       }
-      expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+      expect(db.all(sql.raw("SELECT name FROM work_package WHERE id = 'B'"))).toEqual([
         { name: 'Retry second writer entered' },
       ]);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const replay = await events.rangeSince('project:B', -1);
+      const replay = await events.rangeSince('work-package:B', -1);
       expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+        [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
       ]);
       expect(pushUrls).toHaveLength(1);
       releaseDelivery.resolve();
       for (const { finish } of launches) finish();
       await optimizer.stop();
-      expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
     } finally {
       releaseDelivery.resolve();
       for (const { finish } of launches) finish();
@@ -4311,6 +4425,7 @@ describe('buildServices', () => {
     let captureCalls = 0;
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -4326,31 +4441,37 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -4372,7 +4493,7 @@ describe('buildServices', () => {
     ] as const) {
       expect(
         await optimizer.retry({
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           objective: 'pri',
           inputHash,
           input,
@@ -4380,7 +4501,6 @@ describe('buildServices', () => {
             principal: { id: actorId },
             organizationId,
             actorId,
-            role: 'super_admin' as const,
           },
         }),
       ).toEqual({ kind: reason });
@@ -4391,7 +4511,7 @@ describe('buildServices', () => {
     }
     db.update(optimizationGeneration)
       .set({ inputHash: 'persisted-stale-input' })
-      .where(sql`project_id = ${requester.projectId}`)
+      .where(sql`work_package_id = ${requester.workPackageId}`)
       .run();
     const mismatchedGeneration = lifecycleTables(db);
     expect(
@@ -4400,9 +4520,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -4413,7 +4532,7 @@ describe('buildServices', () => {
     expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([]);
     db.update(optimizationGeneration)
       .set({ inputHash })
-      .where(sql`project_id = ${requester.projectId}`)
+      .where(sql`work_package_id = ${requester.workPackageId}`)
       .run();
     expect(lifecycleTables(db)).toEqual(before);
     expect(
@@ -4422,9 +4541,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash: 'stale-input',
         input,
@@ -4435,7 +4553,7 @@ describe('buildServices', () => {
 
     db.insert(solverSlot)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         contractVersion,
         generation,
         objective: 'pri',
@@ -4457,9 +4575,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -4468,11 +4585,11 @@ describe('buildServices', () => {
     expect(lifecycleTables(db)).toEqual(withLiveSlot);
     expect(captureCalls).toBe(captureBefore);
     db.delete(solverSlot)
-      .where(sql`project_id = ${requester.projectId}`)
+      .where(sql`work_package_id = ${requester.workPackageId}`)
       .run();
 
     db.delete(optimizedScheduleCache)
-      .where(sql`project_id = ${requester.projectId}`)
+      .where(sql`work_package_id = ${requester.workPackageId}`)
       .run();
     const withoutFailure = lifecycleTables(db);
     expect(
@@ -4481,9 +4598,8 @@ describe('buildServices', () => {
           principal: { id: 'ada' },
           organizationId: 'org-x',
           actorId: 'ada',
-          role: 'member' as const,
         },
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         objective: 'pri',
         inputHash,
         input,
@@ -4497,6 +4613,7 @@ describe('buildServices', () => {
 
   it('rejects installed eligible Retry when the borrowed fan-out capability is absent', async () => {
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -4509,31 +4626,37 @@ describe('buildServices', () => {
     seedSharedLifecycle(path);
     seedLifecycleSlot(db);
     expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
-    const requester = await seedProject(db);
+    const requester = await seedWorkPackage(db);
     db.run(
       sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
     );
     db.run(
-      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+      sql`INSERT INTO work_package_organization (resource_id, organization_id) VALUES (${requester.workPackageId}, 'org-x')`,
     );
     db.run(
       sql`INSERT OR IGNORE INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-x','ada','member',1)`,
     );
     db.run(
-      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.projectId},'user','ada','package-manager','route',1)`,
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('requester-ada','org-x','work_package',${requester.workPackageId},'user','ada','package-manager','route',1)`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.workPackageId}`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
     const contractVersion = contractVersionOf('0.4.0');
-    const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
+    const generation = allocateGeneration(
+      db,
+      requester.workPackageId,
+      contractVersion,
+      inputHash,
+      1,
+    );
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: requester.projectId,
+        workPackageId: requester.workPackageId,
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -4555,9 +4678,8 @@ describe('buildServices', () => {
             principal: { id: 'ada' },
             organizationId: 'org-x',
             actorId: 'ada',
-            role: 'member' as const,
           },
-          projectId: requester.projectId,
+          workPackageId: requester.workPackageId,
           objective: 'pri',
           inputHash,
           input,
@@ -4569,53 +4691,53 @@ describe('buildServices', () => {
   });
 
   it('installs direct optimization lifecycle without a solver runtime', () => {
-    const { services } = bootstrap();
+    const { services } = bootstrap('http-fixture-legacy');
     expect(services.optimizationLifecycle).toBeDefined();
     expect(services.optimizer).toBeUndefined();
   });
 
-  it('finishes a marked shared project with its old bridge and surviving cause', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+  it('finishes a marked shared work package with its old bridge and surviving cause', async () => {
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('finished');
-    const downstream = await events.rangeSince('project:B', -1);
+    const downstream = await events.rangeSince('work-package:B', -1);
     expect(downstream.map(({ seq, message }) => [seq, message])).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
     ]);
-    expect(await events.rangeSince('project:A', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:A', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('absent');
-    expect(await events.rangeSince('project:B', -1)).toEqual(downstream);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual(downstream);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('releases the last counted child through the installed owner and records the old cause', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
     const slot = seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     expect(
       await services.optimizationLifecycle.releaseSlot({ ...slot, attemptToken: 'stale-A' }),
     ).toEqual({ released: false, retirement: 'waiting', deletion: 'waiting' });
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
       released: true,
       retirement: 'finished',
       deletion: 'finished',
     });
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('keeps ordinary exact-slot release silent for the installed shared display', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap();
+    const { db, path, services, pushUrls, source } = bootstrap(null);
     seedSharedLifecycle(path);
     const slot = seedLifecycleSlot(db);
     const before = await captureSharedDisplay(source, 'org-a');
@@ -4625,7 +4747,7 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.releaseSlot(slot)).toMatchObject({
       released: true,
     });
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     const after = await captureSharedDisplay(source, 'org-a');
     const comparison = compareSharedPeopleFanout({
       before: before.observation,
@@ -4635,7 +4757,7 @@ describe('buildServices', () => {
     for (const projection of comparison.projections)
       expect(projection.after).toEqual(projection.before);
     expect(comparison.recipients).toEqual([]);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
@@ -4654,7 +4776,7 @@ describe('buildServices', () => {
           controller.close();
         },
       });
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () =>
@@ -4676,7 +4798,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'time',
       input: captured.input,
       enabled: true,
@@ -4687,9 +4809,9 @@ describe('buildServices', () => {
     await optimizer.drain();
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
   });
 
   it('routes a cancelled child through the composed release only after kill and exit', async () => {
@@ -4708,7 +4830,7 @@ describe('buildServices', () => {
         },
       });
     let killed = false;
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () =>
@@ -4733,29 +4855,29 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     await optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'time',
       input: captured.input,
       enabled: true,
     });
     await bound.promise;
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     await killedChild.promise;
     expect(db.select().from(solverSlot).all()).toHaveLength(1);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     finishChild(143);
     await optimizer.drain();
     expect(killed).toBe(true);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   }, 12000);
 
   it('restores the exact last slot and populated graph when release event recording fails', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
     const slot = seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
@@ -4764,14 +4886,14 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_release_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'project:B'
+         WHEN NEW.subscription = 'work_package:B'
          BEGIN SELECT RAISE(ABORT, 'last-slot event failed'); END`,
       );
     } finally {
       failure.close();
     }
     expect(await rejectedMessage(services.optimizationLifecycle.releaseSlot(slot))).toContain(
-      'project:B',
+      'work-package:B',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -4787,14 +4909,14 @@ describe('buildServices', () => {
       deletion: 'finished',
     });
     expect(
-      (await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).map(
+      (await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).map(
         ({ seq, message }) => [seq, message],
       ),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('retires only the selected contract after its exact last-slot release', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('retirement fixture must not launch')),
@@ -4815,11 +4937,11 @@ describe('buildServices', () => {
       retirement: 'finished',
       deletion: 'open',
     });
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
@@ -4827,7 +4949,7 @@ describe('buildServices', () => {
     const deliveryEntered = signal();
     const releaseDelivery = signal();
     const calls: string[] = [];
-    const { db, path, services } = bootstrap(undefined, undefined, (url) => {
+    const { db, path, services } = bootstrap(null, undefined, undefined, (url) => {
       calls.push(url);
       deliveryEntered.resolve();
       return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -4842,17 +4964,17 @@ describe('buildServices', () => {
     });
     await deliveryEntered.promise;
     const events = new DrizzleEventLogStore(db, OPEN);
-    const replay = await events.rangeSince('project:B', -1);
+    const replay = await events.rangeSince('work-package:B', -1);
     expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
     ]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     expect(settled).toBe(false);
     const second = openDatabase(path);
     let writerFailure: unknown;
     try {
       second.run('PRAGMA busy_timeout = 50');
-      second.run("UPDATE project SET name = 'writer entered' WHERE id = 'B'");
+      second.run("UPDATE work_package SET name = 'writer entered' WHERE id = 'B'");
     } catch (cause) {
       writerFailure = cause;
     } finally {
@@ -4866,19 +4988,19 @@ describe('buildServices', () => {
       deletion: 'finished',
     });
     expect(calls).toHaveLength(1);
-    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
     expect(await services.optimizationLifecycle.releaseSlot(slot)).toEqual({
       released: false,
       retirement: 'absent',
       deletion: 'absent',
     });
-    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
   });
 
   it('rolls back last-slot deletion and token when after-capture fails', async () => {
     let captures = 0;
     let failRelease = false;
-    const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, () => {
       if (failRelease && ++captures === 2) throw new Error('release after-capture failed');
     });
     seedSharedLifecycle(path);
@@ -4903,6 +5025,7 @@ describe('buildServices', () => {
   it('uses the installed release for an initial preflight refusal after reservation', async () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -4928,28 +5051,29 @@ describe('buildServices', () => {
     );
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
     const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
-    await optimizer.readPlan({ projectId: 'A', objective: 'pri', input, enabled: true });
+    await optimizer.readPlan({ workPackageId: 'A', objective: 'pri', input, enabled: true });
     await optimizer.drain();
     expect(armed).toBe(false);
     expect(db.select().from(solverSlot).all()).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('uses the installed release for a Retry preflight refusal after admission', async () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -4976,7 +5100,7 @@ describe('buildServices', () => {
     );
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
@@ -4986,7 +5110,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         inputHash,
         objective: 'pri',
         contractVersion,
@@ -5005,9 +5129,8 @@ describe('buildServices', () => {
         principal: { id: 'ada' },
         organizationId: 'org-a',
         actorId: 'ada',
-        role: 'member' as const,
       },
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       inputHash,
       input,
@@ -5016,17 +5139,18 @@ describe('buildServices', () => {
     await optimizer.drain();
     expect(armed).toBe(false);
     expect(db.select().from(solverSlot).all()).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('uses the installed release for a stale queued seat before another dequeue', async () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5053,13 +5177,13 @@ describe('buildServices', () => {
     );
     seedSharedLifecycle(path);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
     const contractVersion = contractVersionOf('0.4.0');
     const generation = allocateGeneration(db, 'A', contractVersion, 'stale-queue-input', 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'A',
+        workPackageId: 'A',
         contractVersion,
         generation,
         objective: 'pri',
@@ -5075,16 +5199,16 @@ describe('buildServices', () => {
     expect(armed).toBe(false);
     expect(db.select().from(solverQueue).all()).toEqual([]);
     expect(db.select().from(solverSlot).all()).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('records a foreign victim event when the installed FIFO dequeue reclaims a drained slot', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('dequeue fixture reached launcher')),
@@ -5093,7 +5217,7 @@ describe('buildServices', () => {
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('queued comparison input unavailable');
@@ -5102,7 +5226,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'B',
+        workPackageId: 'B',
         contractVersion,
         generation,
         objective: 'pri',
@@ -5117,7 +5241,7 @@ describe('buildServices', () => {
     await optimizer.stop();
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1))
+      (await events.rangeSince('work-package:B', -1))
         .filter(
           ({ message }) =>
             typeof message === 'object' &&
@@ -5126,11 +5250,11 @@ describe('buildServices', () => {
             message.type === 'elsewhere_changed',
         )
         .map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('records a populated final-drain event through installed startup reconciliation', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('startup reconciliation must not launch')),
@@ -5142,16 +5266,16 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('records a populated final-drain event through the installed periodic reconciliation tick', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('periodic reconciliation must not launch')),
@@ -5178,11 +5302,11 @@ describe('buildServices', () => {
     if (tick === undefined) throw new Error('reconciliation interval was not installed');
     tick();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
@@ -5190,10 +5314,11 @@ describe('buildServices', () => {
     const errors: unknown[] = [];
     const mounted: {
       db?: ReturnType<typeof openDrizzle>;
-      beforeProjectSweep?: ReturnType<typeof lifecycleTables>;
+      beforeWorkPackageSweep?: ReturnType<typeof lifecycleTables>;
     } = {};
     let armed = false;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5201,13 +5326,16 @@ describe('buildServices', () => {
       },
       () => {
         const active = mounted.db;
-        if (!armed || active === undefined || mounted.beforeProjectSweep !== undefined) return;
-        const aGone = active.all(sql.raw("SELECT id FROM project WHERE id = 'A'")).length === 0;
-        const cPresent = active.all(sql.raw("SELECT id FROM project WHERE id = 'C'")).length === 1;
+        if (!armed || active === undefined || mounted.beforeWorkPackageSweep !== undefined) return;
+        const aGone =
+          active.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'")).length === 0;
+        const cPresent =
+          active.all(sql.raw("SELECT id FROM work_package WHERE id = 'C'")).length === 1;
         const bRecorded =
-          active.all(sql.raw("SELECT id FROM event_log WHERE subscription = 'project:B'"))
+          active.all(sql.raw("SELECT id FROM event_log WHERE subscription = 'work_package:B'"))
             .length === 1;
-        if (aGone && cPresent && bRecorded) mounted.beforeProjectSweep = lifecycleTables(active);
+        if (aGone && cPresent && bRecorded)
+          mounted.beforeWorkPackageSweep = lifecycleTables(active);
       },
     );
     mounted.db = db;
@@ -5215,13 +5343,13 @@ describe('buildServices', () => {
     seedAnotherSharedPair(path);
     seedLifecycleSlot(db);
     seedOtherLifecycleSlot(db, 'C', 1001);
-    for (const projectId of ['A', 'C'])
-      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
-        1,
-      );
+    for (const workPackageId of ['A', 'C'])
+      expect(
+        await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
+      ).toBe(1);
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
+        "CREATE TRIGGER fail_reconcile_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'reconcile second-event fault'); END",
       ),
     );
     const optimizer = services.optimizer;
@@ -5236,31 +5364,31 @@ describe('buildServices', () => {
     optimizer.start();
     await optimizer.stop();
     expect(errors.some((error) => String(error).includes('INSERT INTO event_log'))).toBe(true);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     // C's earlier generation sweep committed its expired slot. The failing
-    // project sweep must preserve C's populated graph, not undo that prior turn.
-    expect(db.all(sql.raw("SELECT * FROM solver_slot WHERE project_id = 'C'"))).toEqual([]);
-    if (mounted.beforeProjectSweep === undefined)
-      throw new Error('later C project-sweep snapshot was not reached');
-    expect(lifecycleTables(db)).toEqual(mounted.beforeProjectSweep);
+    // work package sweep must preserve C's populated graph, not undo that prior turn.
+    expect(db.all(sql.raw("SELECT * FROM solver_slot WHERE work_package_id = 'C'"))).toEqual([]);
+    if (mounted.beforeWorkPackageSweep === undefined)
+      throw new Error('later C work-package-sweep snapshot was not reached');
+    expect(lifecycleTables(db)).toEqual(mounted.beforeWorkPackageSweep);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
-    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(await events.rangeSince('work-package:D', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
 
     db.run(sql.raw('DROP TRIGGER fail_reconcile_second_event'));
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([]);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'C'"))).toEqual([]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(
-      (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
+      (await events.rangeSince('work-package:D', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'D', causeWorkPackageId: 'C' }]]);
     expect(pushUrls).toHaveLength(2);
   });
 
-  it('keeps a future-deadline counted child while retiring a different expired project', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+  it('keeps a future-deadline counted child while retiring a different expired work package', async () => {
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('deadline reconciliation must not launch')),
@@ -5270,31 +5398,31 @@ describe('buildServices', () => {
     seedLifecycleSlot(db);
     seedOtherLifecycleSlot(db, 'C', 1001);
     db.run(
-      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE project_id = 'C'`,
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${Date.now() + 60_000} WHERE work_package_id = 'C'`,
     );
-    for (const projectId of ['A', 'C'])
-      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
-        1,
-      );
+    for (const workPackageId of ['A', 'C'])
+      expect(
+        await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
+      ).toBe(1);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
-    expect(db.all(sql.raw("SELECT project_id FROM solver_slot WHERE project_id = 'C'"))).toEqual([
-      { project_id: 'C' },
-    ]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
+    expect(
+      db.all(sql.raw("SELECT work_package_id FROM solver_slot WHERE work_package_id = 'C'")),
+    ).toEqual([{ work_package_id: 'C' }]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
     ]);
-    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:D', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('addresses selected contract retirement during startup reconciliation', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('selected reconciliation must not launch')),
@@ -5314,19 +5442,19 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     const after = await services.workItems.optimizationInput('A');
     if (after.kind !== 'scheduled') throw new Error('selected reconciliation removed A');
     expect(scheduleInputHash(after.input)).toBe(selected.inputHash);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
     ]);
     expect(pushUrls).toHaveLength(1);
   });
 
-  it('observes selected retirement before project deletion in separate startup sweeps', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+  it('observes selected retirement before work package deletion in separate startup sweeps', async () => {
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('ordered reconciliation must not launch')),
@@ -5340,13 +5468,13 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
     ).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
-      [1, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
+      [1, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
     ]);
     expect(pushUrls).toHaveLength(2);
   });
@@ -5356,6 +5484,7 @@ describe('buildServices', () => {
     let armed = false;
     let removedMarker = false;
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5366,10 +5495,10 @@ describe('buildServices', () => {
         if (mounted.db === undefined) throw new Error('capture preceded mounted database');
         removedMarker = true;
         mounted.db.run(
-          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE project_id = 'C'`,
+          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE work_package_id = 'C'`,
         );
         mounted.db.run(
-          sql`UPDATE project SET optimization_delete_pending_at = NULL WHERE id = 'C'`,
+          sql`UPDATE work_package SET optimization_delete_pending_at = NULL WHERE id = 'C'`,
         );
       },
     );
@@ -5378,33 +5507,33 @@ describe('buildServices', () => {
     seedAnotherSharedPair(path);
     seedLifecycleSlot(db);
     seedOtherLifecycleSlot(db, 'C', 1001);
-    for (const projectId of ['A', 'C'])
-      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
-        1,
-      );
+    for (const workPackageId of ['A', 'C'])
+      expect(
+        await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
+      ).toBe(1);
     armed = true;
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
     expect(removedMarker).toBe(true);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
-    expect(db.all(sql.raw("SELECT project_id FROM solver_slot WHERE project_id = 'C'"))).toEqual([
-      { project_id: 'C' },
-    ]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'C'"))).toEqual([{ id: 'C' }]);
+    expect(
+      db.all(sql.raw("SELECT work_package_id FROM solver_slot WHERE work_package_id = 'C'")),
+    ).toEqual([{ work_package_id: 'C' }]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
     ]);
-    expect(await events.rangeSince('project:D', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:D', -1)).toEqual([]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('waits for a held source writer before enumerating reconciliation targets', async () => {
     const writerEntered = signal();
     const releaseWriter = signal();
-    const { db, path, services, source } = bootstrap({
+    const { db, path, services, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('enumeration fixture must not launch')),
@@ -5423,7 +5552,7 @@ describe('buildServices', () => {
       db.run(sql.raw('BEGIN IMMEDIATE'));
       try {
         db.run(
-          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE project_id = 'A'`,
+          sql`UPDATE optimization_generation SET admission_state = 'open' WHERE work_package_id = 'A'`,
         );
         writerEntered.resolve();
         await releaseWriter.promise;
@@ -5447,21 +5576,23 @@ describe('buildServices', () => {
     await heldWriter;
     await reconciling;
     expect(settledBeforeRelease).toBe(false);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     expect(
-      db.all(sql.raw("SELECT project_id FROM optimization_generation WHERE project_id = 'A'")),
+      db.all(
+        sql.raw("SELECT work_package_id FROM optimization_generation WHERE work_package_id = 'A'"),
+      ),
     ).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
-  it('gates project enumeration separately after an empty generation phase', async () => {
+  it('gates work package enumeration separately after an empty generation phase', async () => {
     const writerEntered = signal();
     const releaseWriter = signal();
-    const { db, path, services, source } = bootstrap({
+    const { db, path, services, source } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
-      spawn: () => Promise.reject(new Error('project enumeration must not launch')),
+      spawn: () => Promise.reject(new Error('work package enumeration must not launch')),
     });
     seedSharedLifecycle(path);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
@@ -5475,7 +5606,9 @@ describe('buildServices', () => {
         holder.promise = originalEnter(async () => {
           db.run(sql.raw('BEGIN IMMEDIATE'));
           try {
-            db.run(sql`UPDATE project SET optimization_delete_pending_at = NULL WHERE id = 'A'`);
+            db.run(
+              sql`UPDATE work_package SET optimization_delete_pending_at = NULL WHERE id = 'A'`,
+            );
             writerEntered.resolve();
             await releaseWriter.promise;
           } finally {
@@ -5499,13 +5632,13 @@ describe('buildServices', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
     const settledBeforeRelease = settled;
     releaseWriter.resolve();
-    if (holder.promise === undefined) throw new Error('project phase holder did not start');
+    if (holder.promise === undefined) throw new Error('work package phase holder did not start');
     await holder.promise;
     await reconciling;
     expect(settledBeforeRelease).toBe(false);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('releases the sweep writer before held delivery and waits for delivery on stop', async () => {
@@ -5513,6 +5646,7 @@ describe('buildServices', () => {
     const releaseDelivery = signal();
     const pushes: string[] = [];
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5540,29 +5674,30 @@ describe('buildServices', () => {
     });
     await Promise.race([stopping, new Promise<void>((resolve) => setTimeout(resolve, 150))]);
     expect(stopped).toBe(false);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const second = openDatabase(path);
     try {
-      second.run("UPDATE project SET name = 'writer advanced' WHERE id = 'B'");
+      second.run("UPDATE work_package SET name = 'writer advanced' WHERE id = 'B'");
     } finally {
       second.close();
     }
-    expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+    expect(db.all(sql.raw("SELECT name FROM work_package WHERE id = 'B'"))).toEqual([
       { name: 'writer advanced' },
     ]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(stopped).toBe(false);
     releaseDelivery.resolve();
     await stopping;
     expect(pushes).toHaveLength(1);
     expect(stopped).toBe(true);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
   });
 
   it('refuses a pending startup sweep without the borrowed lifecycle capture capability', async () => {
     const errors: unknown[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5595,6 +5730,7 @@ describe('buildServices', () => {
     const deliveryEntered = signal();
     const releaseDelivery = signal();
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5644,7 +5780,7 @@ describe('buildServices', () => {
     await optimizer.stop();
     expect(sweeps).toBe(3);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(pushUrls).toHaveLength(0);
   });
 
@@ -5653,6 +5789,7 @@ describe('buildServices', () => {
     let captures = 0;
     const errors: unknown[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5684,9 +5821,9 @@ describe('buildServices', () => {
     armed = false;
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(pushUrls).toHaveLength(1);
   });
 
@@ -5696,6 +5833,7 @@ describe('buildServices', () => {
     let armed = false;
     let held = false;
     const { db, path, services, pushUrls, source } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5728,19 +5866,19 @@ describe('buildServices', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 100));
     expect(stopped).toBe(false);
     expect(secondTurnEntered).toBe(false);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     releaseCapture.resolve();
     await stopping;
     await secondTurn;
     expect(secondTurnEntered).toBe(true);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ seq }) => seq)).toEqual([0]);
+    expect((await events.rangeSince('work-package:B', -1)).map(({ seq }) => seq)).toEqual([0]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('uses a later FIFO entry cutoff after consuming an invalid head', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('later FIFO fixture reached launcher')),
@@ -5754,10 +5892,10 @@ describe('buildServices', () => {
     seedOtherLifecycleSlot(db, 'C', futureDeadline);
     expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
     db.run(
-      sql`UPDATE solver_slot SET admitted_deadline_at = ${now + 30_000} WHERE project_id = 'A'`,
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${now + 30_000} WHERE work_package_id = 'A'`,
     );
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('later FIFO input unavailable');
@@ -5767,7 +5905,7 @@ describe('buildServices', () => {
     db.insert(solverQueue)
       .values([
         {
-          projectId: 'A',
+          workPackageId: 'A',
           contractVersion,
           generation: 99,
           objective: 'pri',
@@ -5776,7 +5914,7 @@ describe('buildServices', () => {
           enqueuedAt: 1,
         },
         {
-          projectId: 'B',
+          workPackageId: 'B',
           contractVersion,
           generation,
           objective: 'pri',
@@ -5791,17 +5929,17 @@ describe('buildServices', () => {
     optimizer.start();
     await optimizer.stop();
     expect(db.select().from(solverQueue).all()).toEqual([]);
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     expect(
       db
         .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
         .from(solverSlot)
-        .where(sql`project_id = 'C'`)
+        .where(sql`work_package_id = 'C'`)
         .all(),
     ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1))
+      (await events.rangeSince('work-package:B', -1))
         .filter(
           ({ message }) =>
             typeof message === 'object' &&
@@ -5810,11 +5948,12 @@ describe('buildServices', () => {
             message.type === 'elsewhere_changed',
         )
         .map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('rejects missing borrowed FIFO capture before touching an old slot', async () => {
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5839,6 +5978,7 @@ describe('buildServices', () => {
   it('rejects malformed old-slot organization before FIFO capture', async () => {
     const captures: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5851,7 +5991,7 @@ describe('buildServices', () => {
     try {
       corrupt.run('PRAGMA foreign_keys = OFF');
       corrupt.run(
-        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
+        "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
       );
     } finally {
       corrupt.close();
@@ -5861,7 +6001,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain(
-      'project A has malformed organization ownership',
+      'work package A has malformed organization ownership',
     );
     expect(captures).toEqual([]);
     expect(lifecycleTables(db)).toEqual(before);
@@ -5871,6 +6011,7 @@ describe('buildServices', () => {
   it('rejects missing active old-slot organization before FIFO capture', async () => {
     const captures: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -5886,7 +6027,7 @@ describe('buildServices', () => {
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain(
-      'active project A lacks organization ownership',
+      'active work package A lacks organization ownership',
     );
     expect(captures).toEqual([]);
     expect(lifecycleTables(db)).toEqual(before);
@@ -5894,7 +6035,7 @@ describe('buildServices', () => {
   });
 
   it('delivers reclaimed victim fan-out when dequeue retains a capacity-blocked head', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('capacity-blocked dequeue reached launcher')),
@@ -5903,7 +6044,7 @@ describe('buildServices', () => {
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('blocked FIFO input unavailable');
@@ -5912,7 +6053,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'B',
+        workPackageId: 'B',
         contractVersion,
         generation,
         objective: 'pri',
@@ -5924,7 +6065,7 @@ describe('buildServices', () => {
     for (let slotGeneration = 2; slotGeneration <= 5; slotGeneration++)
       db.insert(solverSlot)
         .values({
-          projectId: 'B',
+          workPackageId: 'B',
           contractVersion,
           generation: slotGeneration,
           objective: 'time',
@@ -5943,17 +6084,17 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     expect(db.select().from(solverQueue).all()).toHaveLength(1);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('delivers reclaimed victim fan-out when dequeue consumes a closed head and returns empty', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('closed dequeue reached launcher')),
@@ -5962,7 +6103,7 @@ describe('buildServices', () => {
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('closed FIFO input unavailable');
@@ -5971,7 +6112,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'B',
+        workPackageId: 'B',
         contractVersion,
         generation,
         objective: 'pri',
@@ -5980,22 +6121,22 @@ describe('buildServices', () => {
         enqueuedAt: 1,
       })
       .run();
-    db.run(sql`UPDATE project SET optimization_enabled = 0 WHERE id = 'B'`);
+    db.run(sql`UPDATE work_package SET optimization_enabled = 0 WHERE id = 'B'`);
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     expect(db.select().from(solverQueue).all()).toEqual([]);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('addresses selected contract retirement during FIFO dequeue with unchanged victim input hash', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('selected dequeue reached launcher')),
@@ -6012,7 +6153,7 @@ describe('buildServices', () => {
       ),
     ).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('selected FIFO input unavailable');
@@ -6020,7 +6161,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'B', selected.contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'B',
+        workPackageId: 'B',
         contractVersion: selected.contractVersion,
         generation,
         objective: 'pri',
@@ -6033,13 +6174,13 @@ describe('buildServices', () => {
     if (optimizer === undefined) throw new Error('optimizer was not installed');
     optimizer.start();
     await optimizer.stop();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
     const retired = await services.workItems.optimizationInput('A');
     if (retired.kind !== 'scheduled') throw new Error('retired FIFO input unavailable');
     expect(scheduleInputHash(retired.input)).toBe(selected.inputHash);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1))
+      (await events.rangeSince('work-package:B', -1))
         .filter(
           ({ message }) =>
             typeof message === 'object' &&
@@ -6048,12 +6189,12 @@ describe('buildServices', () => {
             message.type === 'elsewhere_changed',
         )
         .map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
   });
 
   it('rolls back the full FIFO loop and two victim events when the second insert fails', async () => {
     let launches = 0;
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => {
@@ -6068,12 +6209,12 @@ describe('buildServices', () => {
     seedOtherLifecycleSlot(db, 'C', 1001);
     const futureDeadline = Date.now() + 100_000;
     seedOtherLifecycleSlot(db, 'E', futureDeadline);
-    for (const projectId of ['A', 'C', 'E'])
-      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
-        1,
-      );
+    for (const workPackageId of ['A', 'C', 'E'])
+      expect(
+        await services.optimizationLifecycle.beginDrain(workPackageId, { at: 2, by: 'ada' }),
+      ).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('rollback FIFO input unavailable');
@@ -6083,7 +6224,7 @@ describe('buildServices', () => {
     db.insert(solverQueue)
       .values([
         {
-          projectId: 'A',
+          workPackageId: 'A',
           contractVersion,
           generation: 99,
           objective: 'pri',
@@ -6092,7 +6233,7 @@ describe('buildServices', () => {
           enqueuedAt: 0,
         },
         {
-          projectId: 'B',
+          workPackageId: 'B',
           contractVersion,
           generation,
           objective: 'pri',
@@ -6104,7 +6245,7 @@ describe('buildServices', () => {
       .run();
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_fifo_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'FIFO second-event fault'); END",
+        "CREATE TRIGGER fail_fifo_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'work_package:B') = 1 BEGIN SELECT RAISE(ABORT, 'FIFO second-event fault'); END",
       ),
     );
     const before = lifecycleTables(db);
@@ -6121,7 +6262,7 @@ describe('buildServices', () => {
       db
         .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
         .from(solverSlot)
-        .where(sql`project_id = 'E'`)
+        .where(sql`work_package_id = 'E'`)
         .all(),
     ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
     const events = new DrizzleEventLogStore(db, OPEN);
@@ -6130,7 +6271,7 @@ describe('buildServices', () => {
       ['D', 'C'],
     ])
       expect(
-        (await events.rangeSince(`project:${recipient}`, -1))
+        (await events.rangeSince(`work-package:${recipient}`, -1))
           .filter(
             ({ message }) =>
               typeof message === 'object' &&
@@ -6139,8 +6280,10 @@ describe('buildServices', () => {
               message.type === 'elsewhere_changed',
           )
           .map(({ seq, message }) => [seq, message]),
-      ).toEqual([[0, { type: 'elsewhere_changed', projectId: recipient, causeProjectId: cause }]]);
-    expect(await events.rangeSince('project:F', -1)).toEqual([]);
+      ).toEqual([
+        [0, { type: 'elsewhere_changed', workPackageId: recipient, causeWorkPackageId: cause }],
+      ]);
+    expect(await events.rangeSince('work-package:F', -1)).toEqual([]);
     const afterFirstPump = lifecycleTables(db);
     await pumpInstalledQueue(optimizer);
     expect(lifecycleTables(db)).toEqual(afterFirstPump);
@@ -6159,6 +6302,7 @@ describe('buildServices', () => {
         },
       });
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -6182,7 +6326,7 @@ describe('buildServices', () => {
         pushUrls.push(url);
         const payload = request?.body;
         if (typeof payload !== 'string') throw new Error('FIFO push body must be JSON text');
-        if (!payload.includes('"subscription":"project:B"'))
+        if (!payload.includes('"subscription":"workPackage:B"'))
           return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -6193,7 +6337,7 @@ describe('buildServices', () => {
     seedLifecycleSlot(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     db.run(
-      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'C'`,
+      sql`UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'C'`,
     );
     const captured = await services.workItems.optimizationInput('C');
     if (captured.kind !== 'scheduled') throw new Error('held FIFO input unavailable');
@@ -6202,7 +6346,7 @@ describe('buildServices', () => {
     const generation = allocateGeneration(db, 'C', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
-        projectId: 'C',
+        workPackageId: 'C',
         contractVersion,
         generation,
         objective: 'pri',
@@ -6217,12 +6361,14 @@ describe('buildServices', () => {
     // delivery rejection after the gateway's modeled 400. Transport failure
     // must not replace the committed queue decision or shutdown result.
     const installed = optimizer as unknown as {
-      options: { deliverCommitted: (events: readonly { projectId: string }[]) => Promise<void> };
+      options: {
+        deliverCommitted: (events: readonly { workPackageId: string }[]) => Promise<void>;
+      };
     };
     const actualDeliver = installed.options.deliverCommitted;
     installed.options.deliverCommitted = async (events) => {
       await actualDeliver(events);
-      if (events.some(({ projectId }) => projectId === 'B'))
+      if (events.some(({ workPackageId }) => workPackageId === 'B'))
         throw new Error('FIFO delivery rejected after commit');
     };
     const pumping = beginInstalledQueuePump(optimizer);
@@ -6250,26 +6396,26 @@ describe('buildServices', () => {
         db
           .select({ attemptToken: solverSlot.attemptToken })
           .from(solverSlot)
-          .where(sql`project_id = 'C'`)
+          .where(sql`work_package_id = 'C'`)
           .all(),
       ).toEqual([{ attemptToken: launches[0]?.admission.attemptToken }]);
       const second = openDatabase(path);
       try {
         second.run('PRAGMA busy_timeout = 50');
-        second.run("UPDATE project SET name = 'FIFO second writer entered' WHERE id = 'B'");
+        second.run("UPDATE work_package SET name = 'FIFO second writer entered' WHERE id = 'B'");
       } finally {
         second.close();
       }
-      expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+      expect(db.all(sql.raw("SELECT name FROM work_package WHERE id = 'B'"))).toEqual([
         { name: 'FIFO second writer entered' },
       ]);
       const events = new DrizzleEventLogStore(db, OPEN);
-      const original = (await events.rangeSince('project:B', -1))[0];
+      const original = (await events.rangeSince('work-package:B', -1))[0];
       expect(original.seq).toBe(0);
       expect(original.message).toEqual({
         type: 'elsewhere_changed',
-        projectId: 'B',
-        causeProjectId: 'A',
+        workPackageId: 'B',
+        causeWorkPackageId: 'A',
       });
       childDone.resolve();
       for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -6277,7 +6423,7 @@ describe('buildServices', () => {
           db
             .select()
             .from(solverSlot)
-            .where(sql`project_id = 'C'`)
+            .where(sql`work_package_id = 'C'`)
             .all().length === 0
         )
           break;
@@ -6287,7 +6433,7 @@ describe('buildServices', () => {
         db
           .select()
           .from(solverSlot)
-          .where(sql`project_id = 'C'`)
+          .where(sql`work_package_id = 'C'`)
           .all(),
       ).toEqual([]);
       let stopSettled = false;
@@ -6298,7 +6444,7 @@ describe('buildServices', () => {
       expect(stopSettled).toBe(false);
       releaseDelivery.resolve();
       await Promise.all([pumping, stopping]);
-      expect((await events.rangeSince('project:B', -1))[0]).toEqual(original);
+      expect((await events.rangeSince('work-package:B', -1))[0]).toEqual(original);
       expect(pushUrls.length).toBeGreaterThan(0);
     } finally {
       releaseDelivery.resolve();
@@ -6306,13 +6452,13 @@ describe('buildServices', () => {
     }
   });
 
-  it('removes a populated project graph while retaining shared and bystander rows', async () => {
-    const { db, path, services } = bootstrap();
+  it('removes a populated work package graph while retaining shared and bystander rows', async () => {
+    const { db, path, services } = bootstrap(null);
     seedSharedLifecycle(path);
     const seeded = openDatabase(path);
     try {
       seeded.run(
-        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('A-child', 'A', 'A', 10, 'child')",
+        "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('A-child', 'A', 'A', 10, 'child')",
       );
       seeded.run(
         "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('A-child', 'A-step', 2, 2, 2)",
@@ -6321,16 +6467,16 @@ describe('buildServices', () => {
         "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('A-child', 'A-step', 'ana')",
       );
       seeded.run(
-        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('A-edge', 'A', 'A', 'A-child')",
+        "INSERT INTO dependency (id, work_package_id, predecessor_id, successor_id) VALUES ('A-edge', 'A', 'A', 'A-child')",
       );
       seeded.run(
-        "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('A-typed-edge', 'A', 'A', 'whole', 'A-child', 'whole', 'FS')",
+        "INSERT INTO typed_dependency (id, work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('A-typed-edge', 'A', 'A', 'whole', 'A-child', 'whole', 'FS')",
       );
       seeded.run(
-        "INSERT INTO project_access (user_id, project_id, last_opened_at) VALUES ('ada', 'A', 2)",
+        "INSERT INTO work_package_access (user_id, work_package_id, last_opened_at) VALUES ('ada', 'A', 2)",
       );
       seeded.run(
-        "INSERT INTO project_access (user_id, project_id, last_opened_at) VALUES ('ada', 'B', 2)",
+        "INSERT INTO work_package_access (user_id, work_package_id, last_opened_at) VALUES ('ada', 'B', 2)",
       );
       seeded.run(
         "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('A-child', 'A-step', 2, 2)",
@@ -6342,28 +6488,28 @@ describe('buildServices', () => {
         "INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('A-child', 'A-step', 'hours_actual', 4, 2)",
       );
       seeded.run(
-        "INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, created_at) VALUES ('A-command', 'A', 'ada', 1, 'fixture', '{}', '{}', '{}', 2)",
+        "INSERT INTO command_journal (id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, created_at) VALUES ('A-command', 'A', 'ada', 1, 'fixture', '{}', '{}', '{}', 2)",
       );
       seeded.run(
-        "INSERT INTO plan_event (id, project_id, user_id, kind, label, before, after, created_at) VALUES ('A-history', 'A', 'ada', 'fixture', 'saved', '{}', '{}', 2)",
+        "INSERT INTO plan_event (id, work_package_id, user_id, kind, label, before, after, created_at) VALUES ('A-history', 'A', 'ada', 'fixture', 'saved', '{}', '{}', 2)",
       );
       seeded.run(
-        "INSERT INTO saved_plan (id, project_id, name, created_by, created_by_id, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason) VALUES ('A-saved', 'A', 'saved', 'ada', 'ada', 2, 1, 2, 'hash', 'unavailable')",
+        "INSERT INTO saved_plan (id, work_package_id, name, created_by, created_by_id, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason) VALUES ('A-saved', 'A', 'saved', 'ada', 'ada', 2, 1, 2, 'hash', 'unavailable')",
       );
       seeded.run(
         "INSERT INTO saved_plan_body (saved_plan_id, kind, bytes) VALUES ('A-saved', 'input', '{}')",
       );
       seeded.run(
-        "INSERT INTO calendar_marker (id, project_id, date, name, created_at) VALUES ('A-marker', 'A', '2026-10-05', 'marker', 2)",
+        "INSERT INTO calendar_marker (id, work_package_id, date, name, created_at) VALUES ('A-marker', 'A', '2026-10-05', 'marker', 2)",
       );
       seeded.run(
-        "INSERT INTO project_priority_band (project_id, rank, starts_at, label, default_value) VALUES ('A', 0, 1, 'Critical', 1)",
+        "INSERT INTO work_package_priority_band (work_package_id, rank, starts_at, label, default_value) VALUES ('A', 0, 1, 'Critical', 1)",
       );
       seeded.run(
         "INSERT INTO space (id, organization_id, name, revision, created_at, created_by) VALUES ('space-a', 'org-a', 'Space', 0, 2, 'ada')",
       );
       seeded.run(
-        "INSERT INTO space_project (space_id, project_id, organization_id, position, created_at, created_by) VALUES ('space-a', 'A', 'org-a', 10, 2, 'ada')",
+        "INSERT INTO space_work_package (space_id, work_package_id, organization_id, position, created_at, created_by) VALUES ('space-a', 'A', 'org-a', 10, 2, 'ada')",
       );
       seeded.run("INSERT INTO service_team (id, name) VALUES ('team-a', 'Team A')");
       seeded.run("INSERT INTO service (id, name) VALUES ('service-a', 'Service A')");
@@ -6394,13 +6540,13 @@ describe('buildServices', () => {
         "INSERT INTO work_item_external_ref (id, work_item_id, system_id, url, position) VALUES ('A-ref', 'A-child', 'system-a', 'https://example.invalid/a', 10)",
       );
       seeded.run(
-        "INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('A', 'team-a', 1)",
+        "INSERT INTO work_package_team_capacity (work_package_id, service_team_id, size) VALUES ('A', 'team-a', 1)",
       );
       seeded.run(
-        "INSERT INTO project_solution (project_id, organization_id, slug, url) VALUES ('A', 'org-a', 'a', 'https://example.invalid/a')",
+        "INSERT INTO work_package_solution (work_package_id, organization_id, slug, url) VALUES ('A', 'org-a', 'a', 'https://example.invalid/a')",
       );
       seeded.run(
-        "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('audit-a', 'org-a', 'ada', 'restricted_project_recovery', 'project', 'A', '{}', 2)",
+        "INSERT INTO organization_audit (id, organization_id, actor_id, action, subject_kind, subject_id, detail, created_at) VALUES ('audit-a', 'org-a', 'ada', 'restricted_work_package_recovery', 'work_package', 'A', '{}', 2)",
       );
     } finally {
       seeded.close();
@@ -6428,8 +6574,8 @@ describe('buildServices', () => {
       db.all(sql.raw(`SELECT * FROM "${table}"`)),
     ]);
     const bystander = [
-      'project',
-      'project_access',
+      'work_package',
+      'work_package_access',
       'step',
       'work_item',
       'estimate',
@@ -6438,15 +6584,15 @@ describe('buildServices', () => {
       table,
       db.all(
         sql.raw(
-          `SELECT * FROM "${table}" WHERE ${table === 'project' ? 'id' : table === 'step' || table === 'work_item' || table === 'project_access' ? 'project_id' : 'work_item_id'} = 'B'`,
+          `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
         ),
       ),
     ]);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('finished');
     for (const table of [
-      'project',
-      'project_access',
+      'work_package',
+      'work_package_access',
       'step',
       'work_item',
       'estimate',
@@ -6461,18 +6607,18 @@ describe('buildServices', () => {
       'saved_plan',
       'saved_plan_body',
       'calendar_marker',
-      'project_priority_band',
-      'space_project',
+      'work_package_priority_band',
+      'space_work_package',
       'work_item_team',
       'work_item_service',
       'work_item_tag',
       'work_item_work_item_type',
       'work_item_external_ref',
-      'project_team_capacity',
-      'project_solution',
+      'work_package_team_capacity',
+      'work_package_solution',
     ]) {
       const column =
-        table === 'project'
+        table === 'work_package'
           ? 'id'
           : table === 'saved_plan_body'
             ? 'saved_plan_id'
@@ -6487,7 +6633,7 @@ describe('buildServices', () => {
                 table === 'work_item_work_item_type' ||
                 table === 'work_item_external_ref'
               ? 'work_item_id'
-              : 'project_id';
+              : 'work_package_id';
       const scope =
         column === 'work_item_id'
           ? "IN ('A', 'A-child')"
@@ -6500,20 +6646,22 @@ describe('buildServices', () => {
       retainedTables.map((table) => [table, db.all(sql.raw(`SELECT * FROM "${table}"`))]),
     ).toEqual(retained);
     expect(
-      ['project', 'project_access', 'step', 'work_item', 'estimate', 'assignment'].map((table) => [
-        table,
-        db.all(
-          sql.raw(
-            `SELECT * FROM "${table}" WHERE ${table === 'project' ? 'id' : table === 'step' || table === 'work_item' || table === 'project_access' ? 'project_id' : 'work_item_id'} = 'B'`,
+      ['work_package', 'work_package_access', 'step', 'work_item', 'estimate', 'assignment'].map(
+        (table) => [
+          table,
+          db.all(
+            sql.raw(
+              `SELECT * FROM "${table}" WHERE ${table === 'work_package' ? 'id' : table === 'step' || table === 'work_item' || table === 'work_package_access' ? 'work_package_id' : 'work_item_id'} = 'B'`,
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     ).toEqual(bystander);
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
 
   it('rolls back earlier populated cleanup when a later step removal fails', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
     const before = lifecycleTables(db);
@@ -6521,8 +6669,8 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_after_work_items BEFORE DELETE ON step
-         WHEN OLD.project_id = 'A'
-           AND NOT EXISTS (SELECT 1 FROM work_item WHERE project_id = 'A')
+         WHEN OLD.work_package_id = 'A'
+           AND NOT EXISTS (SELECT 1 FROM work_item WHERE work_package_id = 'A')
          BEGIN SELECT RAISE(ABORT, 'step cleanup after work items failed'); END`,
       );
     } finally {
@@ -6536,8 +6684,8 @@ describe('buildServices', () => {
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
 
-  it('keeps another project’s empty plan rows when a populated neighbor finishes', async () => {
-    const { db, path, services } = bootstrap();
+  it('keeps another work package’s empty plan rows when a populated neighbor finishes', async () => {
+    const { db, path, services } = bootstrap(null);
     seedSharedLifecycle(path);
     const bystander = openDatabase(path);
     try {
@@ -6547,14 +6695,14 @@ describe('buildServices', () => {
     }
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('finished');
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'B'"))).toHaveLength(1);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'B'"))).toHaveLength(1);
     expect(db.all(sql.raw("SELECT id FROM work_item WHERE id = 'B'"))).toHaveLength(1);
     expect(db.all(sql.raw("SELECT id FROM step WHERE id = 'B-step'"))).toHaveLength(1);
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
 
   it('restores populated deletion when a later recipient event insert fails', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path, true, undefined, true);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
     const before = lifecycleTables(db);
@@ -6562,14 +6710,14 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_later_populated_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'project:C'
+         WHEN NEW.subscription = 'work_package:C'
          BEGIN SELECT RAISE(ABORT, 'later populated event failed'); END`,
       );
     } finally {
       failure.close();
     }
     expect(await rejectedMessage(services.optimizationLifecycle.finishDrain('A'))).toContain(
-      'project:C',
+      'work-package:C',
     );
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
@@ -6582,20 +6730,20 @@ describe('buildServices', () => {
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('finished');
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(
-      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
-    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      (await events.rangeSince('work-package:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }]]);
     expect(
-      (await events.rangeSince('project:C', -1)).map(({ seq, message }) => [seq, message]),
+      (await events.rangeSince('work-package:C', -1)).map(({ seq, message }) => [seq, message]),
     ).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'A' }],
-      [1, { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'B' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'A' }],
+      [1, { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'B' }],
     ]);
   });
 
   it('restores populated deletion when after-capture fails', async () => {
     let captures = 0;
     let failFinish = false;
-    const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, () => {
       if (failFinish && ++captures === 2) throw new Error('populated after-capture fault');
     });
     seedSharedLifecycle(path, true, undefined, true);
@@ -6614,7 +6762,7 @@ describe('buildServices', () => {
   it('releases the writer before held populated deletion delivery and preserves replay', async () => {
     const deliveryEntered = signal();
     const releaseDelivery = signal();
-    const { db, path, services, pushUrls } = bootstrap(undefined, undefined, (url) => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, undefined, (url) => {
       pushUrls.push(url);
       deliveryEntered.resolve();
       return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
@@ -6627,7 +6775,7 @@ describe('buildServices', () => {
     let writerFailure: unknown;
     try {
       second.run('PRAGMA busy_timeout = 50');
-      second.run("UPDATE project SET name = 'writer entered' WHERE id = 'B'");
+      second.run("UPDATE work_package SET name = 'writer entered' WHERE id = 'B'");
     } catch (cause) {
       writerFailure = cause;
     } finally {
@@ -6636,20 +6784,20 @@ describe('buildServices', () => {
     }
     expect(await finishing).toBe('finished');
     expect(writerFailure).toBeUndefined();
-    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM work_package WHERE id = 'A'"))).toEqual([]);
     expect(pushUrls).toHaveLength(1);
     const events = new DrizzleEventLogStore(db, OPEN);
-    const replay = await events.rangeSince('project:B', -1);
+    const replay = await events.rangeSince('work-package:B', -1);
     expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
     ]);
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('absent');
-    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
     expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
   });
 
   it('keeps absent and open lifecycle outcomes silent', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
     const events = new DrizzleEventLogStore(db, OPEN);
     expect(await services.optimizationLifecycle.beginDrain('missing', { at: 2, by: 'ada' })).toBe(
@@ -6657,17 +6805,17 @@ describe('buildServices', () => {
     );
     expect(await services.optimizationLifecycle.finishDrain('missing')).toBe('absent');
     expect(await services.optimizationLifecycle.finishDrain('A')).toBe('open');
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
-  it('keeps an unranked-project drain begin silent without displayed displacement', async () => {
-    const { db, path, services, pushUrls } = bootstrap();
+  it('keeps an unranked-work-package drain begin silent without displayed displacement', async () => {
+    const { db, path, services, pushUrls } = bootstrap(null);
     seedSharedLifecycle(path);
-    db.run(sql`DELETE FROM project_rank WHERE project_id = 'A'`);
+    db.run(sql`DELETE FROM work_package_rank WHERE work_package_id = 'A'`);
     const before = lifecycleTables(db);
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(0);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toEqual([]);
     expect(lifecycleTables(db).find(([table]) => table === 'event_sequencer')).toEqual(
       before.find(([table]) => table === 'event_sequencer'),
@@ -6676,7 +6824,7 @@ describe('buildServices', () => {
 
   for (const mode of ['legacy', 'isolated'] as const) {
     it(`keeps ${mode} direct lifecycle changes silent`, async () => {
-      const { db, path, services, pushUrls } = bootstrap();
+      const { db, path, services, pushUrls } = bootstrap(null);
       seedSharedLifecycle(path, mode !== 'legacy');
       const settings = openDatabase(path);
       try {
@@ -6686,7 +6834,7 @@ describe('buildServices', () => {
         settings.close();
       }
       const contractVersion = '7+0.3.0';
-      db.run(sql`UPDATE project SET optimization_enabled = 1 WHERE id = 'A'`);
+      db.run(sql`UPDATE work_package SET optimization_enabled = 1 WHERE id = 'A'`);
       allocateGeneration(db, 'A', contractVersion, 'mode-silence', 1);
       const events = new DrizzleEventLogStore(db, OPEN);
       expect(
@@ -6695,37 +6843,37 @@ describe('buildServices', () => {
       expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe(
         'finished',
       );
-      expect(await events.rangeSince('project:B', -1)).toEqual([]);
+      expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
       expect(pushUrls).toEqual([]);
     });
   }
 
-  it('refuses a present active project with missing ownership before capture or drain writes', async () => {
+  it('refuses a present active work package with missing ownership before capture or drain writes', async () => {
     const captures: string[] = [];
-    const { db, path, services, pushUrls } = bootstrap(undefined, (organizationId) => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, (organizationId) => {
       captures.push(organizationId);
     });
     seedSharedLifecycle(path, true, 'A');
     const before = db.all<{ optimization_delete_pending_at: number | null }>(
-      sql`SELECT optimization_delete_pending_at FROM project WHERE id = 'A'`,
+      sql`SELECT optimization_delete_pending_at FROM work_package WHERE id = 'A'`,
     );
     expect(before).toHaveLength(1);
     expect(
       await rejectedMessage(services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })),
-    ).toContain('active project A lacks organization ownership');
+    ).toContain('active work package A lacks organization ownership');
     expect(captures).toEqual([]);
     expect(
       db.all<{ optimization_delete_pending_at: number | null }>(
-        sql`SELECT optimization_delete_pending_at FROM project WHERE id = 'A'`,
+        sql`SELECT optimization_delete_pending_at FROM work_package WHERE id = 'A'`,
       ),
     ).toEqual(before);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1)).toEqual([]);
+    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
   it('throws for a trusted owner mapping to a missing organization before capture', async () => {
     const captures: string[] = [];
-    const { db, path, services, pushUrls } = bootstrap(undefined, (organizationId) => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, (organizationId) => {
       captures.push(organizationId);
     });
     seedSharedLifecycle(path, true, 'A');
@@ -6733,7 +6881,7 @@ describe('buildServices', () => {
     try {
       corrupt.run('PRAGMA foreign_keys = OFF');
       corrupt.run(
-        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
+        "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
       );
     } finally {
       corrupt.close();
@@ -6741,21 +6889,21 @@ describe('buildServices', () => {
     const before = lifecycleTables(db);
     expect(
       await rejectedMessage(services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })),
-    ).toContain('project A has malformed organization ownership');
+    ).toContain('work package A has malformed organization ownership');
     expect(captures).toEqual([]);
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
   });
 
-  it('cannot store conflicting organization ownership for one project', () => {
-    const { path } = bootstrap();
+  it('cannot store conflicting organization ownership for one work package', () => {
+    const { path } = bootstrap(null);
     seedSharedLifecycle(path);
     const duplicate = openDatabase(path);
     try {
       duplicate.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
       expect(() =>
         duplicate.run(
-          "INSERT INTO project_organization (resource_id, organization_id) VALUES ('A', 'org-b')",
+          "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('A', 'org-b')",
         ),
       ).toThrow();
     } finally {
@@ -6766,6 +6914,7 @@ describe('buildServices', () => {
   it('rejects missing installed capture before observing or writing a lifecycle change', async () => {
     const captures: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       undefined,
       (organizationId) => {
         captures.push(organizationId);
@@ -6785,7 +6934,7 @@ describe('buildServices', () => {
 
   it('rolls back the marker when the after-capture fails', async () => {
     let captures = 0;
-    const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+    const { db, path, services, pushUrls } = bootstrap(null, undefined, () => {
       captures += 1;
       if (captures === 2) throw new Error('after-capture fault');
     });
@@ -6800,7 +6949,7 @@ describe('buildServices', () => {
   });
 
   it('retires a selected ready contract at an unchanged shared input hash', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('retirement fixture must not launch')),
@@ -6820,23 +6969,23 @@ describe('buildServices', () => {
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, siblingVersion),
     ).toBe(0);
     expect(await services.optimizationLifecycle.finishDrain('A', siblingVersion)).toBe('finished');
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
     ).toBe(0);
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
-    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
     ]);
     const after = await services.workItems.optimizationInput('A');
-    if (after.kind !== 'scheduled') throw new Error('retirement removed the project');
+    if (after.kind !== 'scheduled') throw new Error('retirement removed the work package');
     expect(scheduleInputHash(after.input)).toBe(inputHash);
     expect(pushUrls).toHaveLength(1);
   });
 
   it('keeps equal-display selected retirement silent', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('equal-display fixture must not launch')),
@@ -6853,12 +7002,12 @@ describe('buildServices', () => {
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
     ).toBe(0);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
   it('rolls back a later recipient event failure with selected contract retirement', async () => {
-    const { db, path, services, pushUrls } = bootstrap({
+    const { db, path, services, pushUrls } = bootstrap(null, {
       solverVersion: '0.4.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('rollback fixture must not launch')),
@@ -6878,7 +7027,7 @@ describe('buildServices', () => {
     try {
       failure.run(
         `CREATE TRIGGER fail_later_lifecycle_event BEFORE INSERT ON event_log
-         WHEN NEW.subscription = 'project:C'
+         WHEN NEW.subscription = 'work_package:C'
          BEGIN SELECT RAISE(ABORT, 'later lifecycle event failed'); END`,
       );
     } finally {
@@ -6886,7 +7035,7 @@ describe('buildServices', () => {
     }
     expect(
       await rejectedMessage(services.optimizationLifecycle.finishDrain('A', contractVersion)),
-    ).toContain('project:C');
+    ).toContain('work-package:C');
     expect(lifecycleTables(db)).toEqual(before);
     expect(pushUrls).toEqual([]);
     const restored = openDatabase(path);
@@ -6897,11 +7046,11 @@ describe('buildServices', () => {
     }
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
     const events = new DrizzleEventLogStore(db, OPEN);
-    expect((await events.rangeSince('project:B', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:B', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' },
     ]);
-    expect((await events.rangeSince('project:C', -1)).map(({ message }) => message)).toEqual([
-      { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'A' },
+    expect((await events.rangeSince('work-package:C', -1)).map(({ message }) => message)).toEqual([
+      { type: 'elsewhere_changed', workPackageId: 'C', causeWorkPackageId: 'A' },
     ]);
   });
 
@@ -6910,6 +7059,7 @@ describe('buildServices', () => {
     const releaseDelivery = signal();
     const calls: string[] = [];
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -6933,7 +7083,7 @@ describe('buildServices', () => {
     let writerFailure: unknown;
     try {
       second.run('PRAGMA busy_timeout = 50');
-      second.run("UPDATE project SET name = 'writer entered' WHERE id = 'B'");
+      second.run("UPDATE work_package SET name = 'writer entered' WHERE id = 'B'");
     } catch (cause) {
       writerFailure = cause;
     } finally {
@@ -6947,6 +7097,7 @@ describe('buildServices', () => {
 
   it('keeps the committed event replayable after transport refusal', async () => {
     const { db, path, services } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -6962,31 +7113,31 @@ describe('buildServices', () => {
     ).toBe(0);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
     const events = new DrizzleEventLogStore(db, OPEN);
-    const replay = await events.rangeSince('project:B', -1);
+    const replay = await events.rangeSince('work-package:B', -1);
     expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
-      [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      [0, { type: 'elsewhere_changed', workPackageId: 'B', causeWorkPackageId: 'A' }],
     ]);
-    expect(db.all<{ id: string }>(sql`SELECT id FROM project WHERE id = 'A'`)).toHaveLength(1);
+    expect(db.all<{ id: string }>(sql`SELECT id FROM work_package WHERE id = 'A'`)).toHaveLength(1);
     expect(
-      db.all<{ project_id: string }>(
-        sql`SELECT project_id FROM optimization_generation WHERE project_id = 'A' AND contract_version = ${contractVersion}`,
+      db.all<{ work_package_id: string }>(
+        sql`SELECT work_package_id FROM optimization_generation WHERE work_package_id = 'A' AND contract_version = ${contractVersion}`,
       ),
     ).toEqual([]);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('absent');
-    expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual(replay);
   });
 
   it('retains the old shared bridge while an admitted child still holds the drain', async () => {
-    const { db, path, services, pushUrls, source } = bootstrap();
+    const { db, path, services, pushUrls, source } = bootstrap(null);
     seedSharedLifecycle(path);
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '17+0.3.0', 1, 'old', 1)",
+        "INSERT INTO optimization_generation (work_package_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '17+0.3.0', 1, 'old', 1)",
       );
       seed.run(
         `INSERT INTO solver_slot
-         (project_id, contract_version, generation, objective, budget_ms, owner_id,
+         (work_package_id, contract_version, generation, objective, budget_ms, owner_id,
           attempt_token, lifecycle, pid, started_at, heartbeat_at, admitted_deadline_at)
          VALUES ('A', '17+0.3.0', 1, 'pri', 60000, 'worker', 'token', 'running', 4242, 1, 1, 60001)`,
       );
@@ -7007,34 +7158,37 @@ describe('buildServices', () => {
       expect(projection.after).toEqual(projection.before);
     expect(comparison.recipients).toEqual([]);
     expect(
-      db.all<{ id: string }>(sql`SELECT id FROM project WHERE id = 'A'`).map(({ id }) => id),
+      db.all<{ id: string }>(sql`SELECT id FROM work_package WHERE id = 'A'`).map(({ id }) => id),
     ).toEqual(['A']);
     expect(
-      db.all<{ project_id: string }>(
-        sql`SELECT project_id FROM project_rank WHERE project_id = 'A'`,
+      db.all<{ work_package_id: string }>(
+        sql`SELECT work_package_id FROM work_package_rank WHERE work_package_id = 'A'`,
       ),
     ).toHaveLength(1);
     expect(
       db.all<{ resource_id: string }>(
-        sql`SELECT resource_id FROM project_organization WHERE resource_id = 'A'`,
+        sql`SELECT resource_id FROM work_package_organization WHERE resource_id = 'A'`,
       ),
     ).toHaveLength(1);
-    expect(await events.rangeSince('project:B', -1)).toEqual([]);
+    expect(await events.rangeSince('work-package:B', -1)).toEqual([]);
     expect(db.all(sql`SELECT subscription FROM event_sequencer`)).toEqual([]);
     expect(pushUrls).toEqual([]);
   });
 
   for (const direction of ['execute', 'undo', 'redo'] as const) {
     it(`expires the scoped ${direction} grant after commit while delivery is held`, async () => {
-      const { db, path, services } = bootstrap();
-      const { ownerId } = await seedProject(db);
-      const projects = new ProjectRepository(db, OPEN);
+      const { db, path, services } = bootstrap('http-fixture-legacy');
+      const { ownerId } = await seedWorkPackage(db);
+      const workPackages = new WorkPackageRepository(db, OPEN);
       const upstream = 'grant-upstream';
       const downstream = 'grant-downstream';
       const stepId = 'grant-step';
       const raw = openDatabase(path);
       raw.run(
         "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('grant-org', 'Grant', 1, 1)",
+      );
+      raw.run(
+        "INSERT INTO project(id,organization_id,name,created_at) VALUES('grant-fixture-project','grant-org','Grant parent',1)",
       );
       raw.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
       raw.run(
@@ -7045,13 +7199,17 @@ describe('buildServices', () => {
         "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('grant-lifetime','grant-org','organization','grant-org','user',?,'project-contributor','route',1)",
         [ownerId],
       );
-      for (const [position, projectId] of [upstream, downstream].entries()) {
-        await projects.createInOrganization(
-          projectRow({ id: projectId, ownerId, name: projectId }),
+      for (const [position, workPackageId] of [upstream, downstream].entries()) {
+        await workPackages.createInOrganization(
+          workPackageRow({
+            id: workPackageId,
+            projectId: 'grant-fixture-project',
+            name: workPackageId,
+          }),
           [
             {
-              id: `${stepId}-${projectId}`,
-              projectId,
+              id: `${stepId}-${workPackageId}`,
+              workPackageId,
               name: 'Step',
               position: 10,
               code: 'step',
@@ -7061,37 +7219,37 @@ describe('buildServices', () => {
           ],
           { at: 1, by: ownerId },
           'grant-org',
+          { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
         );
         raw.run(
-          'INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
-          [projectId, 'grant-org', position * 10, ownerId],
+          'INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+          [workPackageId, 'grant-org', position * 10, ownerId],
         );
         raw.run(
-          "UPDATE project SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
-          [projectId],
+          "UPDATE work_package SET start_date = '2026-10-05', estimate_rounding = 'exact' WHERE id = ?",
+          [workPackageId],
         );
-        raw.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-          projectId,
-          projectId,
-          projectId,
-        ]);
+        raw.run(
+          'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
+          [workPackageId, workPackageId, workPackageId],
+        );
         raw.run(
           'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-          [projectId, `${stepId}-${projectId}`],
+          [workPackageId, `${stepId}-${workPackageId}`],
         );
       }
       raw.run("INSERT INTO person (id, name) VALUES ('grant-ana', 'Ana')");
       raw.run(
         "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('grant-ana', 'grant-org', 'Ana')",
       );
-      for (const projectId of [upstream, downstream])
+      for (const workPackageId of [upstream, downstream])
         raw.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
-          projectId,
-          `${stepId}-${projectId}`,
+          workPackageId,
+          `${stepId}-${workPackageId}`,
           'grant-ana',
         ]);
-      const project = await projects.findById(upstream);
-      if (project === null) throw new Error('upstream grant fixture disappeared');
+      const workPackage = await workPackages.findById(upstream);
+      if (workPackage === null) throw new Error('upstream grant fixture disappeared');
       const retained: { admission?: EditAdmission } = {};
       let hold = false;
       let release!: () => void;
@@ -7117,7 +7275,10 @@ describe('buildServices', () => {
             if (!hold) return;
             const writer = openDatabase(path);
             try {
-              writer.run('UPDATE project SET name = ? WHERE id = ?', ['writer entered', upstream]);
+              writer.run('UPDATE work_package SET name = ? WHERE id = ?', [
+                'writer entered',
+                upstream,
+              ]);
             } finally {
               writer.close();
             }
@@ -7183,7 +7344,7 @@ describe('buildServices', () => {
       try {
         // Proof: awaiting post-commit delivery before runner.finally expired the
         // grant let this retained batch admission authorize writes after release.
-        expect(retained.admission?.admits(project, ownerId)).toBe(false);
+        expect(retained.admission?.admits(workPackage, ownerId)).toBe(false);
       } finally {
         release();
       }
@@ -7192,23 +7353,23 @@ describe('buildServices', () => {
     });
   }
   it('saves an idle optimized capture without admitting solver state', async () => {
-    const { db, path, services } = bootstrap({
+    const { db, path, services } = bootstrap('http-fixture-legacy', {
       solverVersion: '2.4',
       budgetMs: 12_345,
       spawn: () => {
         throw new Error('captured scheduling admitted a solver process');
       },
     });
-    const { projectId, ownerId } = await seedProject(db);
-    await new ProjectRepository(db, OPEN).update(
-      projectId,
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await new WorkPackageRepository(db, OPEN).update(
+      workPackageId,
       { optimizationEnabled: true, scheduleEngine: 'optimized', scheduleObjective: 'pri' },
       { at: 2, by: ownerId },
     );
     await new WorkItemRepository(db, OPEN).insert(
       {
         id: 'captured-work',
-        projectId,
+        workPackageId,
         parentId: null,
         position: 10,
         name: 'Captured work',
@@ -7246,7 +7407,7 @@ describe('buildServices', () => {
     });
 
     const saved = await savedPlans.save({
-      projectId,
+      workPackageId,
       name: 'idle optimized capture',
       createdBy: 'owner',
       createdById: ownerId,
@@ -7268,19 +7429,19 @@ describe('buildServices', () => {
     //
     // Proof: `buffer: replayBuffer` in `services.ts` replaced with a freshly
     // constructed `new ReplayBuffer(...)` and only this test failed.
-    const { db, services, pushUrls } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
+    const { db, services, pushUrls } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
 
     // Delivery is accepted by the injected transport; the assertion below
     // proves recording fills the shared buffer independently of gateway I/O.
-    await services.workItems.create(projectId, ownerId, {
+    await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Strip',
     });
     expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
 
-    const subscription = `project:${projectId}`;
+    const subscription = `work-package:${workPackageId}`;
     const fromBuffer = await services.replay.replay({ [subscription]: -1 });
     expect(fromBuffer[subscription]).toMatchObject({ status: 'replaying' });
 
@@ -7303,14 +7464,14 @@ describe('buildServices', () => {
     //
     // Proof: `broadcast: announcements` deleted from `services.ts` and only
     // this test and the sequence case below failed.
-    const { db, services } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
+    const { db, services } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
 
-    const subscription = `project:${projectId}`;
+    const subscription = `work-package:${workPackageId}`;
     const log = new DrizzleEventLogStore(db, OPEN);
     const before = await log.latestSeq(subscription);
 
-    const written = await services.calendarMarkers.create(projectId, ownerId, {
+    const written = await services.calendarMarkers.create(workPackageId, ownerId, {
       date: '2026-03-02',
       name: 'Freeze',
     });
@@ -7327,16 +7488,16 @@ describe('buildServices', () => {
     });
   });
 
-  it('advances the project sequence once per successful marker write and not at all for a refused one', async () => {
+  it('advances the work package sequence once per successful marker write and not at all for a refused one', async () => {
     // The other half of the defect. An event is a client's instruction to
-    // re-read and the project's `seq` is what a resuming client counts from, so
+    // re-read and the work package's `seq` is what a resuming client counts from, so
     // a write that advanced it twice would make a second reader replay a change
     // it already has, and one that advanced it on a refusal would make every
     // reader refetch a list nothing touched.
-    const { db, services } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
+    const { db, services } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
 
-    const subscription = `project:${projectId}`;
+    const subscription = `work-package:${workPackageId}`;
     const log = new DrizzleEventLogStore(db, OPEN);
     const seq = () => log.latestSeq(subscription);
     const start = await seq();
@@ -7344,7 +7505,7 @@ describe('buildServices', () => {
     const markerId = crypto.randomUUID();
     expect(
       (
-        await services.calendarMarkers.create(projectId, ownerId, {
+        await services.calendarMarkers.create(workPackageId, ownerId, {
           id: markerId,
           date: '2026-03-02',
           name: 'Freeze',
@@ -7353,25 +7514,25 @@ describe('buildServices', () => {
     ).toBe(true);
     expect(await seq()).toBe(start + 1);
 
-    expect((await services.calendarMarkers.rename(projectId, markerId, ownerId, 'Thaw')).ok).toBe(
-      true,
-    );
+    expect(
+      (await services.calendarMarkers.rename(workPackageId, markerId, ownerId, 'Thaw')).ok,
+    ).toBe(true);
     expect(await seq()).toBe(start + 2);
 
     expect(
-      (await services.calendarMarkers.recolor(projectId, markerId, ownerId, '#3366cc')).ok,
+      (await services.calendarMarkers.recolor(workPackageId, markerId, ownerId, '#3366cc')).ok,
     ).toBe(true);
     expect(await seq()).toBe(start + 3);
 
-    // Refused *after* the project gate passed, which is the interesting half:
+    // Refused *after* the work package gate passed, which is the interesting half:
     // the store decides a marker's existence inside its own transaction, and
     // the announcement is downstream of that answer rather than of the gate.
     expect(
-      await services.calendarMarkers.rename(projectId, crypto.randomUUID(), ownerId, 'Nobody'),
+      await services.calendarMarkers.rename(workPackageId, crypto.randomUUID(), ownerId, 'Nobody'),
     ).toEqual({ ok: false, reason: 'not_found', about: 'marker' });
     expect(await seq()).toBe(start + 3);
 
-    expect((await services.calendarMarkers.remove(projectId, markerId, ownerId)).ok).toBe(true);
+    expect((await services.calendarMarkers.remove(workPackageId, markerId, ownerId)).ok).toBe(true);
     expect(await seq()).toBe(start + 4);
 
     // Exactly four events in that window and every one of them a marker change:
@@ -7391,7 +7552,7 @@ describe('buildServices', () => {
     // TASK-279 AC #4, and the assertion the browser QA finding needs to stay
     // fixed in both directions.
     //
-    // A marker write must move the project's `seq` — that is the whole defect
+    // A marker write must move the work package's `seq` — that is the whole defect
     // this task was filed for, and the case above proves the event is recorded.
     // But `seq` is read inside `tree()` beside the plan the client is about to
     // redraw, so making it move is only half a fix: an implementation that
@@ -7408,15 +7569,15 @@ describe('buildServices', () => {
     // inside an object, which is the same object to `toEqual` and a different
     // response to a client diffing text or hashing the body; `JSON.stringify`
     // is here for that one.
-    const { db, services } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
+    const { db, services } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
 
     // **Three items, not one.** An empty tree is equal to itself whatever the
     // marker writes did, and a one-item tree is equal to itself under any
     // reordering there is — so the claim above about a reordered tree would be
     // untrue of a fixture with fewer than two rows. A parent and two children
     // give both a sibling order and a depth to lose (round-3 Gemini review).
-    const strip = await services.workItems.create(projectId, ownerId, {
+    const strip = await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Strip',
@@ -7425,11 +7586,12 @@ describe('buildServices', () => {
     const parentId = strip.ok ? strip.value.id : null;
     for (const name of ['Sand', 'Prime']) {
       expect(
-        (await services.workItems.create(projectId, ownerId, { parentId, afterId: null, name })).ok,
+        (await services.workItems.create(workPackageId, ownerId, { parentId, afterId: null, name }))
+          .ok,
       ).toBe(true);
     }
 
-    // `tree` answers `null` for a project it cannot find. Narrowed here rather
+    // `tree` answers `null` for a work package it cannot find. Narrowed here rather
     // than asserted away, because a `null` slipping through would make every
     // equality below hold vacuously — the one way this case could pass while
     // reading nothing at all.
@@ -7438,9 +7600,10 @@ describe('buildServices', () => {
       { kind: 'engine_unavailable' } | null
     >;
     const treeOf = async (): Promise<Tree> => {
-      const tree = await services.workItems.tree(projectId);
+      const tree = await services.workItems.tree(workPackageId);
       expect(tree).not.toBeNull();
-      if (tree === null || 'kind' in tree) throw new Error('the seeded project answered no tree');
+      if (tree === null || 'kind' in tree)
+        throw new Error('the seeded work package answered no tree');
       return tree;
     };
 
@@ -7469,7 +7632,7 @@ describe('buildServices', () => {
 
     expect(
       (
-        await services.calendarMarkers.create(projectId, ownerId, {
+        await services.calendarMarkers.create(workPackageId, ownerId, {
           id: markerId,
           date: '2026-03-02',
           name: 'Freeze',
@@ -7479,37 +7642,37 @@ describe('buildServices', () => {
     const created = await treeOf();
     unchangedExceptSeq(created, baseline);
 
-    expect((await services.calendarMarkers.rename(projectId, markerId, ownerId, 'Thaw')).ok).toBe(
-      true,
-    );
+    expect(
+      (await services.calendarMarkers.rename(workPackageId, markerId, ownerId, 'Thaw')).ok,
+    ).toBe(true);
     const renamed = await treeOf();
     unchangedExceptSeq(renamed, created);
 
     expect(
-      (await services.calendarMarkers.recolor(projectId, markerId, ownerId, '#3366cc')).ok,
+      (await services.calendarMarkers.recolor(workPackageId, markerId, ownerId, '#3366cc')).ok,
     ).toBe(true);
     const recoloured = await treeOf();
     unchangedExceptSeq(recoloured, renamed);
 
-    expect((await services.calendarMarkers.remove(projectId, markerId, ownerId)).ok).toBe(true);
+    expect((await services.calendarMarkers.remove(workPackageId, markerId, ownerId)).ok).toBe(true);
     unchangedExceptSeq(await treeOf(), recoloured);
   });
 
   it('returns engine unavailable from the real service graph without an optimizer adapter', async () => {
-    const { db, services } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
-    await services.workItems.create(projectId, ownerId, {
+    const { db, services } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Must not receive Fast dates',
     });
-    await new ProjectRepository(db, OPEN).update(
-      projectId,
+    await new WorkPackageRepository(db, OPEN).update(
+      workPackageId,
       { optimizationEnabled: true, scheduleEngine: 'optimized' },
       { at: 2, by: ownerId },
     );
 
-    const tree = await services.workItems.tree(projectId);
+    const tree = await services.workItems.tree(workPackageId);
 
     expect(tree).toEqual({
       kind: 'engine_unavailable',
@@ -7520,10 +7683,10 @@ describe('buildServices', () => {
   });
 
   it('commits a batch and durably announces one unavailable plan without a Fast tree', async () => {
-    const { db, services } = bootstrap();
-    const { projectId, ownerId } = await seedProject(db);
-    await new ProjectRepository(db, OPEN).update(
-      projectId,
+    const { db, services } = bootstrap('http-fixture-legacy');
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await new WorkPackageRepository(db, OPEN).update(
+      workPackageId,
       { optimizationEnabled: true, scheduleEngine: 'optimized' },
       { at: 1, by: ownerId },
     );
@@ -7535,7 +7698,7 @@ describe('buildServices', () => {
       announcements: services.announcements,
     });
 
-    const applied = await runner.run(projectId, ownerId, [
+    const applied = await runner.run(workPackageId, ownerId, [
       {
         kind: 'createWorkItem',
         ref: 'created',
@@ -7547,15 +7710,17 @@ describe('buildServices', () => {
 
     expect(applied.ok).toBe(true);
     expect(
-      (await new WorkItemRepository(db, OPEN).listByProject(projectId)).map((row) => row.name),
+      (await new WorkItemRepository(db, OPEN).listByWorkPackage(workPackageId)).map(
+        (row) => row.name,
+      ),
     ).toEqual(['Committed before publication']);
-    expect(await services.workItems.tree(projectId)).toEqual({
+    expect(await services.workItems.tree(workPackageId)).toEqual({
       kind: 'engine_unavailable',
       error: 'engine_unavailable',
       engine: 'optimized',
     });
     const events = await new DrizzleEventLogStore(db, OPEN).rangeSince(
-      subscriptionFor(projectId),
+      subscriptionFor(workPackageId),
       -1,
     );
     expect(events.map((event) => event.message)).toEqual([
@@ -7565,7 +7730,7 @@ describe('buildServices', () => {
       events.some((event) => (event.message as { type?: unknown }).type === 'tree_replaced'),
     ).toBe(false);
 
-    const refused = await runner.run(projectId, ownerId, [
+    const refused = await runner.run(workPackageId, ownerId, [
       {
         kind: 'setEstimate',
         workItemId: 'missing',
@@ -7575,19 +7740,19 @@ describe('buildServices', () => {
     ]);
     expect(refused.ok).toBe(false);
     expect(
-      await new DrizzleEventLogStore(db, OPEN).rangeSince(subscriptionFor(projectId), -1),
+      await new DrizzleEventLogStore(db, OPEN).rangeSince(subscriptionFor(workPackageId), -1),
     ).toHaveLength(1);
   });
 
   it('builds one available optimizer whose first enabled read launches both release-keyed variants', async () => {
     // This is the process graph, not an OptimizationCoordinator unit test. The
-    // child process is the external boundary; SQLite admission, project gating,
+    // child process is the external boundary; SQLite admission, work package gating,
     // plan reading and request composition are real. Proof: leave
     // `optimizerWiring(undefined)` in services.ts and the setting write refuses
     // `optimizer_unavailable`; wire availability without the reader and no
     // launch arrives here.
     const spawned: ReservedSpawnRequest[] = [];
-    const { db, services } = bootstrap({
+    const { db, services } = bootstrap('http-fixture-legacy', {
       solverVersion: '0.4.0',
       budgetMs: 60_000,
       spawn: (request) => {
@@ -7608,20 +7773,20 @@ describe('buildServices', () => {
         });
       },
     });
-    const { projectId, ownerId } = await seedProject(db);
-    await services.workItems.create(projectId, ownerId, {
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
     });
 
     expect(
-      await services.projects.update(projectId, ownerId, {
+      await services.workPackages.update(workPackageId, ownerId, {
         optimizationEnabled: true,
         scheduleEngine: 'fast',
       }),
     ).toHaveProperty('ok', true);
-    await services.workItems.tree(projectId);
+    await services.workItems.tree(workPackageId);
     await services.optimizer?.drain();
 
     expect(spawned.map((request) => request.objective)).toEqual(['pri', 'time']);
@@ -7642,7 +7807,7 @@ describe('buildServices', () => {
     const legacyContract = '7+0.3.0';
     const currentSolver = readRuntimeSolverVersion('development');
     const spawned: ReservedSpawnRequest[] = [];
-    const { db, services } = bootstrap({
+    const { db, services } = bootstrap('http-fixture-legacy', {
       solverVersion: currentSolver,
       budgetMs: 60_000,
       spawn: (request) => {
@@ -7663,20 +7828,20 @@ describe('buildServices', () => {
         });
       },
     });
-    const { projectId, ownerId } = await seedProject(db);
-    await services.workItems.create(projectId, ownerId, {
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
     });
-    const input = await services.workItems.scheduleInput(projectId);
-    if (input === null) throw new Error('seeded project has no schedule input');
+    const input = await services.workItems.scheduleInput(workPackageId);
+    if (input === null) throw new Error('seeded work package has no schedule input');
     const inputHash = scheduleInputHash(input);
-    const generation = allocateGeneration(db, projectId, legacyContract, inputHash, 1);
+    const generation = allocateGeneration(db, workPackageId, legacyContract, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values(
         (['pri', 'time'] as const).map((objective) => ({
-          projectId,
+          workPackageId,
           inputHash,
           objective,
           contractVersion: legacyContract,
@@ -7691,12 +7856,12 @@ describe('buildServices', () => {
       .run();
 
     expect(
-      await services.projects.update(projectId, ownerId, {
+      await services.workPackages.update(workPackageId, ownerId, {
         optimizationEnabled: true,
         scheduleEngine: 'fast',
       }),
     ).toHaveProperty('ok', true);
-    await services.workItems.tree(projectId);
+    await services.workItems.tree(workPackageId);
     await services.optimizer?.drain();
 
     expect(currentSolver).toBe('0.4.0');
@@ -7717,7 +7882,7 @@ describe('buildServices', () => {
   it('returns a live plan read while its newly admitted solver is still unresolved', async () => {
     const entered = signal();
     const release = signal();
-    const { db, services } = bootstrap({
+    const { db, services } = bootstrap('http-fixture-legacy', {
       solverVersion: readRuntimeSolverVersion('development'),
       budgetMs: 60_000,
       spawn: async () => {
@@ -7739,20 +7904,20 @@ describe('buildServices', () => {
         };
       },
     });
-    const { projectId, ownerId } = await seedProject(db);
-    await services.workItems.create(projectId, ownerId, {
+    const { workPackageId, ownerId } = await seedWorkPackage(db);
+    await services.workItems.create(workPackageId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
     });
     expect(
-      await services.projects.update(projectId, ownerId, {
+      await services.workPackages.update(workPackageId, ownerId, {
         optimizationEnabled: true,
         scheduleEngine: 'optimized',
       }),
     ).toHaveProperty('ok', true);
 
-    const treePromise = services.workItems.tree(projectId);
+    const treePromise = services.workItems.tree(workPackageId);
     await entered.promise;
     let tree: Awaited<typeof treePromise>;
     try {
@@ -7768,12 +7933,16 @@ describe('buildServices', () => {
 });
 
 describe('shared-person replay closure (6l)', () => {
-  const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
+  const ELSEWHERE_B = {
+    type: 'elsewhere_changed',
+    workPackageId: 'B',
+    causeWorkPackageId: 'A',
+  } as const;
   const READY_DRAIN = {
     solverVersion: '0.4.0',
     budgetMs: 1000,
     spawn: () => Promise.reject(new Error('replay closure fixture must not launch')),
-  } satisfies Parameters<typeof bootstrap>[0];
+  } satisfies Parameters<typeof bootstrap>[1];
 
   /** A second composition over the same file, with its own source and empty replay buffer. */
   function coldComposition(path: string) {
@@ -7783,6 +7952,9 @@ describe('shared-person replay closure (6l)', () => {
     });
     sources.push(source);
     return buildServices({
+      createSpaceRead: () => refusingSpaceRead,
+      projectRead: refusingProjectRead,
+      createWorkPackageObservation: () => refusingWorkPackageObservation,
       commandAccess: localCommandAccess,
       clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
       source,
@@ -7814,7 +7986,7 @@ describe('shared-person replay closure (6l)', () => {
   it('commit before push replays from a cold composition', async () => {
     const deliveryEntered = signal();
     const releaseDelivery = signal();
-    const { db, path, services } = bootstrap(READY_DRAIN, undefined, () => {
+    const { db, path, services } = bootstrap(null, READY_DRAIN, undefined, () => {
       deliveryEntered.resolve();
       return releaseDelivery.promise.then(() => Response.json({ delivered_to_sockets: 0 }));
     });
@@ -7826,12 +7998,12 @@ describe('shared-person replay closure (6l)', () => {
       // returns: what a crash between commit and push leaves behind.
       await deliveryEntered.promise;
       const cold = coldComposition(path);
-      expect(cold.replayBuffer.covers('project:B', 0)).toBe(false);
+      expect(cold.replayBuffer.covers('work-package:B', 0)).toBe(false);
       // Proof (2026-10-11): replacing the orchestrator's log fallback with an
       // empty list (memory-only replay) made this cold resume answer `denied`
       // `out_of_range` instead (`.local/6l-memory-only-red.log`, 1 pass, 3 fail).
-      expect(await cold.replay.replay({ 'project:B': -1 })).toEqual({
-        'project:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
+      expect(await cold.replay.replay({ 'work-package:B': -1 })).toEqual({
+        'work-package:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
       });
     } finally {
       releaseDelivery.resolve();
@@ -7841,7 +8013,7 @@ describe('shared-person replay closure (6l)', () => {
 
   it('pushRecorded preserves sequence', async () => {
     const pushed: unknown[] = [];
-    const { db, path, services } = bootstrap(READY_DRAIN, undefined, (_url, init) => {
+    const { db, path, services } = bootstrap(null, READY_DRAIN, undefined, (_url, init) => {
       if (typeof init?.body !== 'string') throw new Error('push body must be serialized JSON');
       pushed.push(JSON.parse(init.body));
       return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
@@ -7849,19 +8021,19 @@ describe('shared-person replay closure (6l)', () => {
     seedSharedLifecycle(path);
     const contractVersion = await commitDrainFanout(db, services);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
-    const events = await new DrizzleEventLogStore(db, OPEN).rangeSince('project:B', -1);
+    const events = await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:B', -1);
     // Proof (2026-10-11): making `pushRecorded` record the event again before
     // pushing wrote a second durable row at seq 1, failing this assertion and
     // every cold replay case (`.local/6l-second-sequence-red.log`, 0 pass, 4 fail).
     expect(events.map(({ seq, message }) => [seq, message])).toEqual([[0, ELSEWHERE_B]]);
     expect(
-      pushed.filter((body) => (body as { subscription: string }).subscription === 'project:B'),
-    ).toEqual([{ subscription: 'project:B', seq: 0, message: ELSEWHERE_B }]);
-    expect(sequencerOf(db, 'project:B')).toEqual([{ next_seq: 1 }]);
+      pushed.filter((body) => (body as { subscription: string }).subscription === 'work-package:B'),
+    ).toEqual([{ subscription: 'work-package:B', seq: 0, message: ELSEWHERE_B }]);
+    expect(sequencerOf(db, 'work-package:B')).toEqual([{ next_seq: 1 }]);
   });
 
   it('push failure retains durable event', async () => {
-    const { db, path, services } = bootstrap(READY_DRAIN, undefined, () =>
+    const { db, path, services } = bootstrap(null, READY_DRAIN, undefined, () =>
       Promise.reject(new Error('gateway unreachable')),
     );
     seedSharedLifecycle(path);
@@ -7871,21 +8043,21 @@ describe('shared-person replay closure (6l)', () => {
     // with a fabricated seq-0 record made this cold resume answer `replaying`
     // with no events, because the log never held the pushed event
     // (`.local/6l-skip-insert-red.log`, 0 pass, 4 fail).
-    expect(await coldComposition(path).replay.replay({ 'project:B': -1 })).toEqual({
-      'project:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
+    expect(await coldComposition(path).replay.replay({ 'work-package:B': -1 })).toEqual({
+      'work-package:B': { status: 'replaying', events: [{ seq: 0, message: ELSEWHERE_B }] },
     });
-    expect(sequencerOf(db, 'project:B')).toEqual([{ next_seq: 1 }]);
+    expect(sequencerOf(db, 'work-package:B')).toEqual([{ next_seq: 1 }]);
   });
 
   it('expired replay requires snapshot', async () => {
-    const { db, path, services } = bootstrap(READY_DRAIN);
+    const { db, path, services } = bootstrap(null, READY_DRAIN);
     seedSharedLifecycle(path);
     const contractVersion = await commitDrainFanout(db, services);
     expect(await services.optimizationLifecycle.finishDrain('A', contractVersion)).toBe('finished');
     const log = new DrizzleEventLogStore(db, OPEN);
     const later = { type: 'calendar_markers_changed' } as const;
-    await log.recordEvent('project:B', later, 3);
-    await log.recordEvent('project:B', later, 4);
+    await log.recordEvent('work-package:B', later, 3);
+    await log.recordEvent('work-package:B', later, 4);
     // The bounded replay sweep's own count rule, keeping the newest two.
     expect(await log.pruneBeyond(2)).toBeGreaterThan(0);
     const cold = coldComposition(path);
@@ -7893,11 +8065,11 @@ describe('shared-person replay closure (6l)', () => {
     // (`false &&`) made this expired resume answer `replaying` with only seq
     // 1–2, a hole the client could not see, instead of the snapshot-required
     // refusal; only this case failed (`.local/6l-guard-off-red.log`, 3 pass, 1 fail).
-    expect(await cold.replay.replay({ 'project:B': -1 })).toEqual({
-      'project:B': { status: 'denied', reason: 'out_of_range' },
+    expect(await cold.replay.replay({ 'work-package:B': -1 })).toEqual({
+      'work-package:B': { status: 'denied', reason: 'out_of_range' },
     });
-    expect(await cold.replay.replay({ 'project:B': 0 })).toEqual({
-      'project:B': {
+    expect(await cold.replay.replay({ 'work-package:B': 0 })).toEqual({
+      'work-package:B': {
         status: 'replaying',
         events: [
           { seq: 1, message: later },
@@ -7911,13 +8083,13 @@ describe('shared-person replay closure (6l)', () => {
 // Proof: forcing COMMIT instead of UOW error rollback failed all four graph/
 // journal/event assertions below; restored passing controls also check sparse state
 // exactly (watched 2026-10-17).
-describe('installed project drain sparse policy rollback', () => {
+describe('installed work package drain sparse policy rollback', () => {
   for (const operation of ['finish', 'last-release'] as const) {
     for (const fault of ['after-capture', 'event-insert'] as const) {
       it(`${operation} restores sparse policy, graph, journal and events after ${fault}`, async () => {
         let captures = 0;
         let armed = false;
-        const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+        const { db, path, services, pushUrls } = bootstrap(null, undefined, () => {
           if (fault === 'after-capture' && armed && ++captures === 2)
             throw new Error('sparse drain after-capture fault');
         });
@@ -7925,13 +8097,13 @@ describe('installed project drain sparse policy rollback', () => {
         const seed = openDatabase(path);
         try {
           seed.run(
-            "INSERT INTO step (id,project_id,name,position) VALUES ('A-policy-step','A','Second target policy',20)",
+            "INSERT INTO step (id,work_package_id,name,position) VALUES ('A-policy-step','A','Second target policy',20)",
           );
           seed.run(
             "INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES ('A','A-step',1),('A','A-policy-step',4),('B','B-step',4)",
           );
           seed.run(
-            "INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES ('sparse-history','A','ada',1,'fixture','{}','{}','{}',2)",
+            "INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES ('sparse-history','A','ada',1,'fixture','{}','{}','{}',2)",
           );
         } finally {
           seed.close();
@@ -7949,7 +8121,7 @@ describe('installed project drain sparse policy rollback', () => {
         try {
           if (fault === 'event-insert')
             failure.run(
-              "CREATE TRIGGER fail_sparse_drain_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C' BEGIN SELECT RAISE(ABORT, 'sparse drain event fault'); END",
+              "CREATE TRIGGER fail_sparse_drain_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:C' BEGIN SELECT RAISE(ABORT, 'sparse drain event fault'); END",
             );
         } finally {
           failure.close();
@@ -7960,7 +8132,7 @@ describe('installed project drain sparse policy rollback', () => {
             : services.optimizationLifecycle.releaseSlot(slot);
         armed = true;
         expect(await rejectedMessage(finish())).toContain(
-          fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C',
+          fault === 'after-capture' ? 'sparse drain after-capture fault' : 'work-package:C',
         );
         armed = false;
         expect(lifecycleTables(db)).toEqual(before);
@@ -7982,16 +8154,16 @@ describe('installed project drain sparse policy rollback', () => {
             : { released: true, retirement: 'finished', deletion: 'finished' },
         );
         expect(db.all(sql.raw('SELECT * FROM step_parallel'))).toEqual(bystander);
-        expect(db.all(sql.raw("SELECT id FROM command_journal WHERE project_id = 'A'"))).toEqual(
-          [],
-        );
+        expect(
+          db.all(sql.raw("SELECT id FROM command_journal WHERE work_package_id = 'A'")),
+        ).toEqual([]);
         expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
       });
     }
   }
 });
 
-describe('installed external project deletion safety', () => {
+describe('installed external work package deletion safety', () => {
   async function addExternal(
     db: ReturnType<typeof openDrizzle>,
     predecessor = 'A',
@@ -8000,10 +8172,10 @@ describe('installed external project deletion safety', () => {
     await new TypedDependencyRepository(db, OPEN).add(
       {
         id: `${predecessor}-${successor}`,
-        projectId: successor,
+        workPackageId: successor,
         type: 'FS',
-        predecessor: { projectId: predecessor, workItemId: predecessor, scope: 'whole' },
-        successor: { projectId: successor, workItemId: successor, scope: 'whole' },
+        predecessor: { workPackageId: predecessor, workItemId: predecessor, scope: 'whole' },
+        successor: { workPackageId: successor, workItemId: successor, scope: 'whole' },
       },
       { at: 1, by: 'ada' },
     );
@@ -8011,7 +8183,7 @@ describe('installed external project deletion safety', () => {
 
   for (const boundary of ['installed', 'raw'] as const) {
     it(`refuses referenced predecessor before drain writes at ${boundary} boundary`, async () => {
-      const { db, path, services, pushUrls } = bootstrap();
+      const { db, path, services, pushUrls } = bootstrap(null);
       seedSharedLifecycle(path);
       seedDependencyAuthority(path);
       const slot = seedLifecycleSlot(db);
@@ -8037,7 +8209,7 @@ describe('installed external project deletion safety', () => {
 
   for (const endpoint of ['A', 'B']) {
     it(`refuses new relationships while ${endpoint} is delete pending`, async () => {
-      const { db, path, services } = bootstrap();
+      const { db, path, services } = bootstrap(null);
       seedSharedLifecycle(path);
       seedDependencyAuthority(path);
       expect(await services.optimizationLifecycle.beginDrain(endpoint, { at: 2, by: 'ada' })).toBe(
@@ -8045,14 +8217,14 @@ describe('installed external project deletion safety', () => {
       );
       const before = lifecycleTables(db);
       expect(await rejectedMessage(addExternal(db))).toContain(
-        `project ${endpoint} is pending deletion`,
+        `work package ${endpoint} is pending deletion`,
       );
       expect(lifecycleTables(db)).toEqual(before);
     });
   }
 
   it('retires a referenced predecessor contract without deleting its relationship', async () => {
-    const { db, path, services } = bootstrap();
+    const { db, path, services } = bootstrap(null);
     seedSharedLifecycle(path);
     seedDependencyAuthority(path);
     const slot = seedLifecycleSlot(db);
@@ -8074,7 +8246,7 @@ describe('installed external project deletion safety', () => {
 
   for (const finalizer of ['finish', 'release', 'reclaim'] as const) {
     it(`refuses late predecessor references before the first finalizer cleanup via ${finalizer}`, async () => {
-      const { db, path, services } = bootstrap();
+      const { db, path, services } = bootstrap(null);
       seedSharedLifecycle(path);
       seedDependencyAuthority(path);
       const slot = finalizer === 'finish' ? undefined : seedLifecycleSlot(db);
@@ -8084,7 +8256,7 @@ describe('installed external project deletion safety', () => {
       // Maintenance corruption bypasses authoring admission to exercise finalization independently.
       db.run(
         sql.raw(
-          "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
+          "INSERT INTO external_dependency (id, organization_id, predecessor_work_package_id, successor_work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
         ),
       );
       db.run(
@@ -8111,6 +8283,7 @@ describe('installed external project deletion safety', () => {
   it('keeps late-reference drain state intact during installed startup reconciliation', async () => {
     const logLines: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
+      null,
       {
         solverVersion: '0.4.0',
         budgetMs: 1000,
@@ -8128,7 +8301,7 @@ describe('installed external project deletion safety', () => {
     expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
     db.run(
       sql.raw(
-        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
+        "INSERT INTO external_dependency (id, organization_id, predecessor_work_package_id, successor_work_package_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('late', 'org-a', 'A', 'B', 'A', 'whole', 'B', 'whole', 'FS')",
       ),
     );
     const before = lifecycleTables(db);
@@ -8142,7 +8315,7 @@ describe('installed external project deletion safety', () => {
   });
 
   it('rolls back successor cleanup on late failure then deletes only owned incoming links', async () => {
-    const { db, path, services } = bootstrap();
+    const { db, path, services } = bootstrap(null);
     seedSharedLifecycle(path);
     seedDependencyAuthority(path);
     await addExternal(db);
@@ -8153,7 +8326,7 @@ describe('installed external project deletion safety', () => {
     const predecessor = db.all(sql.raw("SELECT * FROM work_item WHERE id = 'A'"));
     db.run(
       sql.raw(
-        "CREATE TRIGGER fail_external_cleanup BEFORE DELETE ON step WHEN OLD.project_id = 'B' BEGIN SELECT RAISE(ABORT, 'late cleanup fault'); END",
+        "CREATE TRIGGER fail_external_cleanup BEFORE DELETE ON step WHEN OLD.work_package_id = 'B' BEGIN SELECT RAISE(ABORT, 'late cleanup fault'); END",
       ),
     );
     expect(await rejectedMessage(services.optimizationLifecycle.finishDrain('B'))).toContain(
@@ -8165,4 +8338,15 @@ describe('installed external project deletion safety', () => {
     expect(db.all(sql.raw('SELECT id FROM external_dependency'))).toEqual([{ id: 'C-D' }]);
     expect(db.all(sql.raw("SELECT * FROM work_item WHERE id = 'A'"))).toEqual(predecessor);
   });
+});
+
+it('creates the sole package observation once from the post-bind factory', () => {
+  const fixture = bootstrap('factory-org');
+  expect(fixture.packageObservationFactory.calls).toBe(1);
+  const configured = fixture.packageObservationFactory.configured;
+  if (configured === undefined) throw Error('package observation factory was not invoked');
+  const configuredFactory: unknown = Reflect.get(configured, 'createWorkPackageObservation');
+  const originalFactory: unknown = Reflect.get(fixture.source, 'createWorkPackageObservation');
+  expect(configuredFactory).not.toBe(originalFactory);
+  expect(fixture.services.workPackageObservation).toBe(refusingWorkPackageObservation);
 });

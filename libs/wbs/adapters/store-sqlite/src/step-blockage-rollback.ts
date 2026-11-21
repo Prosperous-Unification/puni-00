@@ -62,7 +62,7 @@ export function removeSavedStepBlockages(db: Drizzle, candidate: unknown): numbe
 
 /**
  * Restores every column verbatim into an empty table, atomically. Foreign keys
- * and the migration's ownership triggers refuse missing/cross-project steps,
+ * and the migration's ownership triggers refuse missing/cross-work-package steps,
  * missing owners and parent-owned facts before the transaction can commit.
  */
 export function restoreStepBlockages(db: Drizzle, candidate: unknown): number {

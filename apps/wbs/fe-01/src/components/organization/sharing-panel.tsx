@@ -29,18 +29,19 @@ type View =
   | { kind: 'ready'; sharedPeople: boolean; sharingAvailable: boolean; canSwitch: boolean };
 
 const SHARED_WORDS =
-  'People are shared across projects: each project is scheduled around the work its people have in the projects ranked above it.';
+  'People are shared across work packages: each work package is scheduled around the work its people have in the work packages ranked above it.';
 const ISOLATED_WORDS =
-  'Each project schedules its people as if it had them alone. A person booked in two projects at once shows as an overlap on their load.';
-const UNAVAILABLE_WORDS = 'Sharing people across projects is not available in this release yet.';
+  'Each work package schedules its people as if it had them alone. A person booked in two work packages at once shows as an overlap on their load.';
+const UNAVAILABLE_WORDS =
+  'Sharing people across work packages is not available in this release yet.';
 const SUPER_ADMIN_WORDS = 'Only a super-admin can change whether people are shared.';
 
 /**
- * Whether the active organization shares its people across projects
- * (`share-people-across-projects`, ADR 0034), and the switch. Any member reads
+ * Whether the active organization shares its people across work packages
+ * (`share-people-across-work-packages`, ADR 0034), and the switch. Any member reads
  * it; the server lets only a super-admin switch it. A switch moves the dates
- * of every project in the organization, so it asks for a confirmation, and
- * switching back restores each project's own dates. Only a caller the server
+ * of every work package in the organization, so it asks for a confirmation, and
+ * switching back restores each work package's own dates. Only a caller the server
  * says may switch (`canSwitch`) is offered the switch; everyone else reads why
  * not. A release that cannot run shared people says so instead of offering a
  * switch it would refuse; an organization already shared can always be
@@ -101,8 +102,8 @@ export function SharingPanel({
           setConfirming(false);
           setMessage(
             reply.body.sharedPeople
-              ? 'People are now shared across projects.'
-              : 'Each project now schedules its people alone.',
+              ? 'People are now shared across work packages.'
+              : 'Each work package now schedules its people alone.',
           );
           await refresh();
           return;
@@ -155,8 +156,8 @@ export function SharingPanel({
               className="border-destructive/40 bg-destructive/5 flex flex-col gap-3 rounded-md border p-3"
             >
               <p className="text-sm font-medium">
-                This moves the dates of every project in the organization. Switching back restores
-                them.
+                This moves the dates of every work package in the organization. Switching back
+                restores them.
               </p>
               <p className={ROW_ACTIONS_CLASS}>
                 <Button
@@ -205,7 +206,7 @@ export function SharingPanel({
                 setConfirming(true);
               }}
             >
-              {view.sharedPeople ? 'Stop sharing people' : 'Share people across projects'}
+              {view.sharedPeople ? 'Stop sharing people' : 'Share people across work packages'}
             </Button>
           )}
         </>

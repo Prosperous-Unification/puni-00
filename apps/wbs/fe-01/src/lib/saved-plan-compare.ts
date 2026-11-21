@@ -50,6 +50,7 @@ const CATEGORY_RANK: Record<PlanDiffCategoryView, number> = {
   priority: 15,
   'priority-bands': 16,
   ownership: 17,
+  'retired-field': 17.5,
   'service-assignment': 18,
   capacity: 19,
   type: 20,

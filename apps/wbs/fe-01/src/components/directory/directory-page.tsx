@@ -181,9 +181,9 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  *
  * It renders its own {@link AppHeader}, which is the contract
  * `openspec/changes/directory-page/` pins — the account and the navigation come
- * from router context, and the project controls stay in `ProjectPage`, which
+ * from router context, and the work package controls stay in `WorkPackagePage`, which
  * owns the picker's list, its selection and the rename in progress. A header
- * drawn once above both routes would have to reach back into the project page
+ * drawn once above both routes would have to reach back into the work package page
  * for state it does not hold, and the two pages disagree about what the bar
  * carries.
  *
@@ -191,7 +191,7 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  * arrival, after each of its own writes, and when the window is focused or the
  * tab becomes visible again. A change somebody else makes while it sits open
  * and focused is therefore seen on the next of those rather than the moment it
- * happens — a stated cost. `directory_changed` reaching open projects is
+ * happens — a stated cost. `directory_changed` reaching open work packages is
  * `directory-crud`'s job and not this page's.
  *
  * **Nothing here is optimistic.** Every write re-reads and both panels redraw
@@ -291,7 +291,7 @@ export function DirectoryPage({
    * directory, so a draft left standing over a value that has just come back
    * would hold the box at what this browser typed and hide what be-01 answered.
    *
-   * One function, because since `capacity-per-project` the name is the only
+   * One function, because since `capacity-per-work-package` the name is the only
    * draft this page holds: the size box that made this two — `forgetDraft` for a
    * commit and `forgetNameDraft` for Escape, identical by then — moved to the
    * plan's own `TeamsPanel` with the number it edits.
@@ -314,7 +314,7 @@ export function DirectoryPage({
     `sizeShown` and `commitSize` lived here, with C3's whole argument about what
     an empty box and a non-finite draft mean. They are in
     `components/wbs/teams-panel.tsx` now, because the number is one plan's rather
-    than the deployment's — `capacity-per-project`, Dany 2026-08-13, design.md D5.
+    than the deployment's — `capacity-per-work-package`, Dany 2026-08-13, design.md D5.
     The two local decisions and both of their watched negatives moved with them.
   */
 
@@ -658,9 +658,9 @@ export function DirectoryPage({
                         />
                         {/*
                         No size box. How many of a team are at work at once is a
-                        fact about one **plan** since `capacity-per-project`
+                        fact about one **plan** since `capacity-per-work-package`
                         (Dany, 2026-08-13: "The global number should not matter,
-                        only per project capacity configuration matters"), and
+                        only per work package capacity configuration matters"), and
                         this page has no plan — a box here could only have meant
                         "the plan you last had open", which reads as global and is
                         not. It is the `Teams` dialog in the plan's own toolbar.
@@ -1060,11 +1060,11 @@ export function DirectoryPage({
               a confirmation whose confirm cannot be reached is a dead end.
             */}
             <div className="flex max-h-64 flex-col gap-3 overflow-y-auto text-sm">
-              {confirming.usage.projects.map((project) => (
-                <div key={project.id} className="flex flex-col gap-1">
-                  <h3 className="font-semibold">{project.name}</h3>
+              {confirming.usage.workPackages.map((workPackage) => (
+                <div key={workPackage.id} className="flex flex-col gap-1">
+                  <h3 className="font-semibold">{workPackage.name}</h3>
                   <ul className="flex flex-col gap-1">
-                    {project.workItems.map((workItem) => (
+                    {workPackage.workItems.map((workItem) => (
                       <li key={workItem.id}>
                         <span className="font-medium">
                           {workItem.number} {workItem.name}
@@ -1079,13 +1079,15 @@ export function DirectoryPage({
                                 // service alike and says which of the two
                                 // nowhere, so the sentence takes it from here.
                                 removing: confirming.kind,
-                                // Named out of the **same project**, which is
+                                // Named out of the **same work package**, which is
                                 // the only list a row id in this payload can
-                                // mean: two projects may each hold a row
+                                // mean: two work packages may each hold a row
                                 // numbered `010`, and resolving across all of
                                 // them would name the wrong one.
                                 rowNamed: (id) => {
-                                  const named = project.workItems.find((each) => each.id === id);
+                                  const named = workPackage.workItems.find(
+                                    (each) => each.id === id,
+                                  );
                                   return named === undefined
                                     ? null
                                     : `${named.number} ${named.name}`;

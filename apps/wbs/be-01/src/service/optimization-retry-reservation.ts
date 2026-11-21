@@ -1,6 +1,6 @@
 import type {
   CommittedFanoutDelivery,
-  CommittedProjectEvent,
+  CommittedWorkPackageEvent,
 } from '@wbs/core/ports/committed-fanout';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
@@ -37,15 +37,15 @@ export function createRetryReservationOwner(
       if (capture?.resolveLifecycleOwner === undefined)
         throw new Error('Retry reservation lacks borrowed ownership and capture');
       const ownership = new Map<string, string>();
-      for (const { projectId } of db
-        .select({ projectId: solverSlot.projectId })
+      for (const { workPackageId } of db
+        .select({ workPackageId: solverSlot.workPackageId })
         .from(solverSlot)
         .all()) {
         // Proof: retaining only the first old-slot organization lost D's
         // durable C-cause event in the mounted three-organization Retry test.
-        if (ownership.has(projectId)) continue;
-        const owner = await capture.resolveLifecycleOwner(projectId);
-        if (owner.kind === 'scoped') ownership.set(projectId, owner.organizationId);
+        if (ownership.has(workPackageId)) continue;
+        const owner = await capture.resolveLifecycleOwner(workPackageId);
+        if (owner.kind === 'scoped') ownership.set(workPackageId, owner.organizationId);
       }
       const before = new Map<string, CapturedFanout>();
       for (const organizationId of new Set(ownership.values()))
@@ -53,17 +53,17 @@ export function createRetryReservationOwner(
 
       const finished = new Set<string>();
       const decision = db.transaction((tx) =>
-        retryMutationIn(tx, ask, preflight, ({ projectId }) => finished.add(projectId)),
+        retryMutationIn(tx, ask, preflight, ({ workPackageId }) => finished.add(workPackageId)),
       );
       // Proof: injecting COMMIT/BEGIN after this mutation and before event
       // recording left deleted A/C, X's PRI queue and recovery audit after
       // the second real event insert failed; the full rollback snapshot failed.
-      const envelopes: CommittedProjectEvent[] = [];
+      const envelopes: CommittedWorkPackageEvent[] = [];
       for (const [organizationId, oldObservation] of before) {
         // Proof: omitting these actual finished causes lost B's event when
         // Retry retired A's selected contract but A's local facts stayed equal.
         const causes = [...finished].filter(
-          (projectId) => ownership.get(projectId) === organizationId,
+          (workPackageId) => ownership.get(workPackageId) === organizationId,
         );
         const after = await capture.capture(organizationId);
         // Proof: omitting this record call let installed Retry delete A

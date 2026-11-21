@@ -1,0 +1,808 @@
+{
+  "schema": "puni-mounted-entity-api-verification-v1",
+  "recordedAt": "2026-11-21T03:36:44.140Z",
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v97.json",
+    "sha256": "497de63c4f125988d1feba524a3be69c4a37e084a2e147192fe2d2babb99b9ae",
+    "bytes": 17825,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/entity-mounted-api-before-v1.json",
+    "sha256": "884a016c348837c48631a6d4de0325cf6b4f6b753450f2442e20320fd2453bfd",
+    "bytes": 316896,
+    "mode": 384
+  },
+  "changes": [
+    {
+      "relative": "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "previous": {
+        "sha256": "4e188e511edd111aa52e9c9a8c85eefa85c3c113406e217d40d3567f7cafa80c",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-harness.ts",
+        "sha256": "42c2d825cb026d4062d0bdcdefa8f15c6d080299befe08af671bcbf087d8f149",
+        "bytes": 73385,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+      "previous": {
+        "sha256": "8d585265e1cedbd325a5ca806b2346014d5b4db15cf60ddc986b0b6cb23ef3cb",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+        "sha256": "6f4a753fc8fdafd26a91108c77c246085b4543a4dc6e6b3246d48b555e43f774",
+        "bytes": 3444,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/testing/booted-browser-process.ts",
+      "previous": {
+        "sha256": "47bba94f96e8b672324b94003b2ddeb7ef76758222d15579a50f83f9ac8267fc",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/booted-browser-process.ts",
+        "sha256": "54d3578ddc41fccccf397c7bf8ec2601f5f8e40b25e90b28334f72e432a93174",
+        "bytes": 10062,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+      "previous": {
+        "sha256": "84f6fd486ca33d9f2896f26f537cacf849870ec11be54bc91167234657676f34",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+        "sha256": "2ae94095617824479349748f531d1d2568a6e757b2b8c572b192f997d5b2977c",
+        "bytes": 27991,
+        "mode": 436
+      }
+    },
+    {
+      "relative": "apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+      "previous": {
+        "sha256": "f6f64301385a77832931471b777b963e987b629ef599d273098887985c8ced7c",
+        "mode": 436
+      },
+      "current": {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+        "sha256": "67b8a9b5d810e54b46a7fd8a727ed31f3ee2f8bf61912502d150e9dc8c0d94ff",
+        "bytes": 3313,
+        "mode": 436
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "next-api-openspec-status-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@fission-ai/openspec/bin/openspec.js",
+          "status",
+          "--change",
+          "wbs-step-catalogue",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:23:04.303Z",
+      "endedAt": "2026-11-21T03:23:04.437Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/next-api-openspec-status-v1.receipt.json",
+        "sha256": "417f629eba229748f8be8f9373a2e09332998af5363165cd0eb87a2ec787f456",
+        "bytes": 1360,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/next-api-openspec-status-v1.log",
+        "sha256": "d3fe371986bf3491ce1424c6e084ec63c648318a8772c2b7f9ff4af04ecc05d3",
+        "bytes": 3409,
+        "mode": 384
+      }
+    },
+    {
+      "name": "next-api-openspec-apply-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@fission-ai/openspec/bin/openspec.js",
+          "instructions",
+          "apply",
+          "--change",
+          "wbs-step-catalogue",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:23:19.640Z",
+      "endedAt": "2026-11-21T03:23:19.787Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/next-api-openspec-apply-v1.receipt.json",
+        "sha256": "9178b9753b5c3a2623e244a6661b023b3fbd9f10414e901ad85df195150be9da",
+        "bytes": 1380,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/next-api-openspec-apply-v1.log",
+        "sha256": "685452c67938c6e295a762660a63a8bc5ba769c94892e49b4a5307e4a0eb6c39",
+        "bytes": 35501,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-mounted-api-cohort-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-move.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-global-step-catalogue.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-package-step-values.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:24:00.741Z",
+      "endedAt": "2026-11-21T03:25:08.754Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mounted-api-cohort-v1.receipt.json",
+        "sha256": "3deefc3af685fb3fe71318ba9f92afbce1455d2bb734d94502e4d5687d11fc8c",
+        "bytes": 2121,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mounted-api-cohort-v1.log",
+        "sha256": "0f800312ff658be5d5cc6b7c16d30f3fe6838c38ff554deaa43ce584b95cc17b",
+        "bytes": 155182,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-default-fixture-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "--test-name-pattern",
+          "default .* organization fixture uses the actual current catalogue migration",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:25:50.741Z",
+      "endedAt": "2026-11-21T03:25:53.522Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-default-fixture-red-v1.receipt.json",
+        "sha256": "47423d9733b084434890ac23af11b97d68d8cf032407460e3d25fef65387adbc",
+        "bytes": 1498,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-default-fixture-red-v1.log",
+        "sha256": "d3c1a5b238a8da5ffcaaf647a121723703ba00f1879580c9ad17630c4c5bcd1f",
+        "bytes": 2647,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-default-fixture-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:26:13.676Z",
+      "endedAt": "2026-11-21T03:26:18.918Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-default-fixture-green-v1.receipt.json",
+        "sha256": "2b6c37474fe44995fd07dd9f44e4bf233cef67cdf0e35b3f743b7d42ab5b4794",
+        "bytes": 1387,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-default-fixture-green-v1.log",
+        "sha256": "1584b92888ce15b4d94eba572c735cc68aacda43ac3eb7dd85a8ec18e8acac59",
+        "bytes": 595,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-mounted-api-cohort-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-move.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-global-step-catalogue.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-package-step-values.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/current-step-tree.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/catalogue-import.controller.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:26:38.687Z",
+      "endedAt": "2026-11-21T03:28:48.076Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mounted-api-cohort-v2.receipt.json",
+        "sha256": "313e85746f0cef0ee9d9d9c3eed92b06313756ac44f8f3fb6e13666a47532d0f",
+        "bytes": 2120,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mounted-api-cohort-v2.log",
+        "sha256": "fdeca28232bb065cd4ce355873d8f76564563bcd967d675c26aa590f33dfb40f",
+        "bytes": 75880,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-project-timezone-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:29:43.948Z",
+      "endedAt": "2026-11-21T03:30:04.698Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-project-timezone-v1.receipt.json",
+        "sha256": "fb048fe71b1f7cd9b6f3de215e1ebe4e6c6748e16c0066352670b9d9972fe64c",
+        "bytes": 1525,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-project-timezone-v1.log",
+        "sha256": "4f9cc7ae5f858fa23058a5a89e21bee8366cf82b8cd59e818d40f1e357b82a94",
+        "bytes": 3540,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-types-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-entity-api-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:30:10.597Z",
+      "endedAt": "2026-11-21T03:30:16.424Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-v1.receipt.json",
+        "sha256": "68c7f5992f9cae84c40b6fe11844d1bbe8808230717e8eb3c82cdf8cc4ea4927",
+        "bytes": 1316,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "apps/wbs/be-01/src/testing/booted-browser-process.ts",
+          "apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/work-package.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:30:45.280Z",
+      "endedAt": "2026-11-21T03:30:45.698Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-format-v1.receipt.json",
+        "sha256": "5e3a14912311ad55aafdb0e6a610af789b76cf7e07579249730a59483dbc771e",
+        "bytes": 1616,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-format-v1.log",
+        "sha256": "a7209cee4e126ad0ef5d307b65572df5c3296bb6783ed0875b86f32c8ed26aa1",
+        "bytes": 359,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-project-timezone-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:31:21.295Z",
+      "endedAt": "2026-11-21T03:31:44.231Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-project-timezone-final-v2.receipt.json",
+        "sha256": "66f051482183751ca481d166921f4112047316cda0e9b0c7400173487a246e15",
+        "bytes": 1537,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-project-timezone-final-v2.log",
+        "sha256": "f9e77b3b5ff61aafd53f52919f12197ac2cdebfff71d482f26d5f77804fafb7e",
+        "bytes": 2795,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-types-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-entity-api-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:31:22.569Z",
+      "endedAt": "2026-11-21T03:31:29.760Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-final-v2.receipt.json",
+        "sha256": "447707a9d293cb9e3d486627ee646e2e6bc0037ae23973cee3430d121d055035",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-lint-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "apps/wbs/be-01/src/testing/booted-browser-process.ts",
+          "apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/work-package.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:31:22.578Z",
+      "endedAt": "2026-11-21T03:31:28.908Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-lint-v1.receipt.json",
+        "sha256": "30c0afcf8091b5ea3c95ea1add196cae66ed609581b1779118b1c1c59dd895a1",
+        "bytes": 1590,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-lint-v1.log",
+        "sha256": "a2d2beb05801d518581ab4b2e4a574017c25176c729d9428aaca44c158bdd6b8",
+        "bytes": 273,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-contracts-mcp-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts",
+          "./apps/wbs/be-01/src/openapi/openapi-document.test.ts",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:31:22.558Z",
+      "endedAt": "2026-11-21T03:31:30.635Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-contracts-mcp-v1.receipt.json",
+        "sha256": "e42c9e3490bb276f57df88abe09f8fe412e7d9f6751f43f161228d28862f0be5",
+        "bytes": 1464,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-contracts-mcp-v1.log",
+        "sha256": "d64d12bc365ba7acf68a9cf6b95dba7379ba1a18914ec743c26724034fdeca57",
+        "bytes": 24722,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-import-sort-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "--fix",
+          "apps/wbs/be-01/src/testing/organization-harness.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:32:27.163Z",
+      "endedAt": "2026-11-21T03:32:31.635Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-import-sort-v1.receipt.json",
+        "sha256": "c4f85fa3dacd806216913367f62955a4c27849da4fc3da1ed1c282f58ed8e084",
+        "bytes": 1334,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-import-sort-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-mcp-document-generate-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+          "apps/wbs/mcp-01/src/openapi.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:32:28.453Z",
+      "endedAt": "2026-11-21T03:32:31.026Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mcp-document-generate-v1.receipt.json",
+        "sha256": "3d38e49f0c9b90e19e125f25f977fa6412fb3f3cb3afeac63e7fb72179db96e0",
+        "bytes": 1326,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-mcp-document-generate-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-contracts-mcp-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/domain/contracts/src/http/contracts-boot-memory.test.ts",
+          "./apps/wbs/be-01/src/openapi/openapi-document.test.ts",
+          "./apps/wbs/mcp-01/src/openapi-tools.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:32:48.750Z",
+      "endedAt": "2026-11-21T03:32:54.873Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-contracts-mcp-v2.receipt.json",
+        "sha256": "fcb9e488205d8b2dc4be168def0a64af6def79865b362eb1f885f67d2031567e",
+        "bytes": 1463,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-contracts-mcp-v2.log",
+        "sha256": "47d5ef89da6fa4722711bf8e0f957b3ed3d01a4621d89915a33d65832b804379",
+        "bytes": 6183,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-source-audit-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-shared-step-retirement-audit-v37.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:33:38.681Z",
+      "endedAt": "2026-11-21T03:33:43.744Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-source-audit-v1.receipt.json",
+        "sha256": "60e016dc7bf1e69f1ae5a7bb3ca10946d673ee433680c57b9d80bfbf03ff45f3",
+        "bytes": 1275,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-source-audit-v1.log",
+        "sha256": "9c43890836f47d0a8a6a3e1b588e557726fa9289314f707d7804099caff69ec6",
+        "bytes": 275,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-mounted-final-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package.controller.db.test.ts",
+          "./apps/wbs/be-01/src/controller/work-package-move.controller.db.test.ts",
+          "./apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "--timeout",
+          "60000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 480000
+      },
+      "startedAt": "2026-11-21T03:34:04.708Z",
+      "endedAt": "2026-11-21T03:34:48.542Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-mounted-final-v3.receipt.json",
+        "sha256": "2cc7bde3902c9cbd90391ec6734f11986ebe06cb37132fab651dabf9dbaa98a4",
+        "bytes": 1608,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-mounted-final-v3.log",
+        "sha256": "0ba7a0870b93a04980459bb5d803f6888d97a01c5b9def7afa898d69d79a87a6",
+        "bytes": 7768,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-types-final-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-entity-api-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:34:05.947Z",
+      "endedAt": "2026-11-21T03:34:12.723Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-final-v3.receipt.json",
+        "sha256": "11cfa5b2f8da985d15040ef1735b27373aff1f1cc821a2d8a04120336a5aad63",
+        "bytes": 1328,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-types-final-v3.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "entity-api-lint-final-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "apps/wbs/be-01/src/testing/organization-catalogue-fixture.db.test.ts",
+          "apps/wbs/be-01/src/testing/booted-browser-process.ts",
+          "apps/wbs/be-01/src/controller/project.controller.db.test.ts",
+          "apps/wbs/be-01/src/controller/work-package.controller.db.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T03:34:05.957Z",
+      "endedAt": "2026-11-21T03:34:11.905Z",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-lint-final-v2.receipt.json",
+        "sha256": "e5f92011481e95edf1d170e262af705faf3402b5a48c27f8dd20fbb52e533c53",
+        "bytes": 1600,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/entity-api-lint-final-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    }
+  ],
+  "verification": {
+    "initial": {
+      "pass": 100,
+      "fail": 80,
+      "assertions": 2082,
+      "tests": 180,
+      "files": 10
+    },
+    "afterDefault": {
+      "pass": 141,
+      "fail": 39,
+      "assertions": 2607,
+      "tests": 180,
+      "files": 10
+    },
+    "mounted": {
+      "pass": 48,
+      "fail": 0,
+      "assertions": 569,
+      "tests": 48,
+      "files": 4
+    },
+    "contracts": {
+      "pass": 48,
+      "fail": 0,
+      "assertions": 470,
+      "tests": 48,
+      "files": 3
+    },
+    "compilerEntries": 305,
+    "lintFiles": 5,
+    "contractsShapeLoadMb": 375,
+    "contractsShapeLoadLimitMb": 500,
+    "sourceAuditFiles": 6088
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/shared-step-retirement-audit-v37.json",
+    "sha256": "eb38107abb9677abfdbbe6370d74088719604ddf8ad39f6a259c4e5f3ed1c56b",
+    "bytes": 1875341,
+    "mode": 384
+  },
+  "generatedDocument": {
+    "before": {
+      "path": "apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "202f9a181100d680b76a37cf946184364c518cf1e5266b3ff2d5d14b364de073",
+      "bytes": 4255826,
+      "mode": 436
+    },
+    "after": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/mcp-01/src/openapi.json",
+      "sha256": "2905c4d2d5ad1e5ab9cf07d63bdbaf799ef1f0b53c01d8f717a5faa75c16f95f",
+      "bytes": 4590275,
+      "mode": 436
+    },
+    "emitter": "apps/wbs/be-01/src/openapi/emit-openapi-cli.ts",
+    "status": "Ignored same-checkout build artifact regenerated by the existing production target command; runtime still requires its artifact and never generates validators at startup."
+  },
+  "guardScope": "No new production safety predicate or bypass. Default fresh fixture migration now delegates to the existing actual report/backup/atomic-apply owner. The ordinary pending-cutover refusal and public Source interfaces are unchanged. Both default fixture cases failed at that real refusal before cutover wiring changed. Existing source-close and retained-directory negatives still pass.",
+  "currentBehavior": [
+    "Standalone/composed organization fixtures and booted-browser fixtures migrate the exclusively owned empty database through the same existing catalogue fixture helper; explicit migration injection remains available.",
+    "Combined project/package creation retains its real grants, allocator, machine caps, ownership and visibility assertions. Empty catalogues create no Dev/QA definitions or values; configured catalogue identities, order, units and exact allowances reach the birth reply and current read.",
+    "Timezone tests create their parent through the actual project route and verify the explicit package override in setting_value; current zone validation and combined patch behavior remain.",
+    "Actual move authorization, opacity, concurrent authority replacement, incident refusal and current parent semantics remain verified through the mounted Source."
+  ],
+  "failuresRetained": [
+    "Initial ten-file cohort:100pass80fail. Ordinary migration cannot apply pending catalogue cutover; older creation/export/space fixtures also require migration.",
+    "After only default fixture integration:141pass39fail. Subsequent project/booted/timezone fixes are verified by the final48-case four-file mounted cohort, not a claim that the original ten-file cohort is wholly green.",
+    "First updated timezone persistence assertion still queried the removed work_package.timezone column; current real storage is scoped setting_value. First project/timezone cohort was22pass1fail; corrected final cohort passes.",
+    "First five-file lint found one import ordering error; actual lint autofix sorted it and final lint passes.",
+    "First contracts/MCP cohort:30pass18fail against a stale ignored generated document. Running the existing emitter, without editing source descriptors or bypassing artifact reads, produces the final48pass0fail."
+  ],
+  "remainingOriginalCohort": [
+    {
+      "path": "apps/wbs/be-01/src/controller/work-package.controller.test.ts",
+      "baselineFailures": 5,
+      "next": "Preserve uncoded historical guarantees through genuine predecessor evidence; author catalogue steps where a current fixture needs them; migrate empty-catalogue expectations and current export fields."
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/work-package-organization.controller.db.test.ts",
+      "baselineFailures": 16,
+      "next": "Use actual explicit parent creation/ownership, authored catalogue facts and current scoped permissions; preserve retry recovery and corruption negatives."
+    },
+    {
+      "path": "apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts",
+      "baselineFailures": 13,
+      "next": "Replace obsolete package membership arrangements with actual project/people/team space contents while preserving access, ordering, removal, rollback, rollup and WIP guarantees."
+    }
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "limits": [
+    "Parent catalogue/entity tasks remain open. Not the full API, MCP, UI, Source, scheduler, history, script inventory, CLI, installed package or host gate certificate.",
+    "Prior core2124/0 and Memory793/0 evidence remains referenced; those suites were not rerun because no core/Memory runtime source changed in this slice.",
+    "Original fifteen historical obligations remain open as an aggregate, including independent SQL late/prelude proofs and full uncoded reconciliation.",
+    "Astra remains unavailable until the recorded2026-11-22 10:09AM, timezone unspecified. No retry, substitute or new agent.",
+    "Older empty catalogue-retired-sqlite-certificate-v1 receipt custody remains unresolved; this slice did not restart any SQLite Source certification actor.",
+    "No public commit, push, PR update, host gate, merge, deployment, installation or activation in this slice. Failed and deliberate mounted fixture directories are retained under the private RAM owner receipts."
+  ],
+  "goalStatus": "active",
+  "protectedArchive": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/packaging/archive.ts",
+    "sha256": "d14cd6bd54c847ff231e4d7d97248a2df0dd1ea198532ddc54484e443878cbd0",
+    "bytes": 8770,
+    "mode": 436
+  }
+}

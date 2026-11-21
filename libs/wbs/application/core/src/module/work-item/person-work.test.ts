@@ -36,7 +36,7 @@ function reads(over: Partial<PersonWorkReads> = {}): PersonWorkReads {
   return {
     person: KAT,
     rows,
-    stepIds: ['plan', 'review'],
+    leafSteps: new Map(['w-1', 'w-2', 'w-3', 'w-090'].map((id) => [id, ['plan', 'review']])),
     assignments: [],
     claims: [],
     ...over,
@@ -44,6 +44,18 @@ function reads(over: Partial<PersonWorkReads> = {}): PersonWorkReads {
 }
 
 describe('findPersonWork', () => {
+  it('refuses a package step absent from the addressed leaf', () => {
+    const own = new Map(reads().leafSteps);
+    own.set('w-1', ['plan']);
+    expect(() =>
+      findPersonWork(
+        reads({
+          leafSteps: own,
+          assignments: [{ workItemId: 'w-1', stepId: 'review', personId: 'kat' }],
+        }),
+      ),
+    ).toThrow('step review is not a step of this leaf w-1');
+  });
   it('lists three assignments and one claim with their ids and numbers (the spec scenario)', () => {
     const work = findPersonWork(
       reads({
@@ -164,6 +176,6 @@ describe('findPersonWork', () => {
       findPersonWork(
         reads({ assignments: [{ workItemId: 'w-1', stepId: 'gone', personId: 'kat' }] }),
       ),
-    ).toThrow('step gone is not a step of this project');
+    ).toThrow('step gone is not a step of this leaf w-1');
   });
 });

@@ -256,7 +256,7 @@ export interface CreatablePickerProps {
    */
   'data-hint'?: string;
   /**
-   * The same, for words about the reader's own project rather than about the
+   * The same, for words about the reader's own work package rather than about the
    * box — an inherited team and the row it came from. Drawn at once; a
    * `data-hint` waits. See {@link FACT_ATTRIBUTE}.
    */
@@ -325,7 +325,7 @@ export interface CreatablePickerProps {
  * asked for on 2026-08-06.
  *
  * Filtering is a case-insensitive substring, the same rule the dependency and
- * project pickers use; three pickers side by side that filter differently is a
+ * work package pickers use; three pickers side by side that filter differently is a
  * surprise with nothing to gain from it.
  *
  * **Order is not the order given, and that is the whole of
@@ -333,7 +333,7 @@ export interface CreatablePickerProps {
  * pressing Enter used to bind `claire qa billing`, because the list was the
  * directory's own order and Enter took the first line of it. The directory
  * being global is not the fault — `service_team`'s own comment says every
- * project draws from one list on purpose — the fault is that a name typed in
+ * work package draws from one list on purpose — the fault is that a name typed in
  * full lost to a name it merely sits inside, silently, on a control whose
  * choice levels the plan against that team's capacity.
  *

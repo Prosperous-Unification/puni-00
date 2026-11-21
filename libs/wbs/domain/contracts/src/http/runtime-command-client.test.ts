@@ -5,7 +5,7 @@ import { fetchTransport } from './client-fetch';
 import { runtimeCommandShapes } from './runtime-command-shapes';
 
 const request = {
-  params: { id: 'project' },
+  params: { id: 'work_package' },
   body: {
     schemaVersion: 1 as const,
     commandId: 'c',
@@ -17,9 +17,9 @@ const request = {
   headers: { authorization: 'Bearer injected' },
 };
 const receipt = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   ledgerId: 'ledger',
-  scope: { organizationId: 'org', projectId: 'project', personId: 'person' },
+  scope: { organizationId: 'org', workPackageId: 'work_package', personId: 'person' },
   commandId: 'c',
   requestDigest: 'a'.repeat(64),
   actorId: 'actor',
@@ -27,7 +27,7 @@ const receipt = {
 };
 for (const [label, response] of [
   ['malformed JSON', () => new Response('{', { status: 200 })],
-  ['wrong version', () => Response.json({ ...receipt, schemaVersion: 2 })],
+  ['wrong version', () => Response.json({ ...receipt, schemaVersion: 3 })],
   ['missing authority', () => Response.json({ ...receipt, acceptance: { kind: 'authority' } })],
   [
     'unsafe generation',
@@ -98,7 +98,7 @@ test('accepts only a complete validated receipt through the existing fetch trans
 
 test('command responses cannot substitute an authority receipt or omit exact write claim fields', async () => {
   const commandRequest = {
-    params: { id: 'project' },
+    params: { id: 'work_package' },
     body: {
       schemaVersion: 1 as const,
       commandId: 'c',
@@ -206,7 +206,7 @@ for (const [label, applied] of [
               createWriteRequest(Math.min(200, Math.max(1, applied.length))),
             )
           : await client.lookupRuntimeReceipt({
-              params: { id: 'project', commandId: 'c' },
+              params: { id: 'work_package', commandId: 'c' },
               query: { personId: 'person', expectedLedgerId: 'ledger' },
             });
       expect(reply).toMatchObject({
@@ -238,7 +238,7 @@ for (const length of [1, 200]) {
         operation === 'applyRuntimeCommands'
           ? await client.applyRuntimeCommands(createWriteRequest(length))
           : await client.lookupRuntimeReceipt({
-              params: { id: 'project', commandId: 'c' },
+              params: { id: 'work_package', commandId: 'c' },
               query: { personId: 'person', expectedLedgerId: 'ledger' },
             });
       expect(reply).toMatchObject({ kind: 'success', body });
@@ -247,7 +247,7 @@ for (const length of [1, 200]) {
 }
 function createWriteRequest(length: number) {
   return {
-    params: { id: 'project' },
+    params: { id: 'work_package' },
     body: {
       schemaVersion: 1 as const,
       commandId: 'c',
@@ -281,7 +281,7 @@ test('lookup preserves complete authority and claim receipt variants', async () 
     );
     expect(
       await client.lookupRuntimeReceipt({
-        params: { id: 'project', commandId: 'c' },
+        params: { id: 'work_package', commandId: 'c' },
         query: { personId: 'person', expectedLedgerId: 'ledger' },
       }),
     ).toMatchObject({ kind: 'success', body });

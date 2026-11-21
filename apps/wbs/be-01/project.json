@@ -64,7 +64,13 @@
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/agents/**/*",
         "{workspaceRoot}/apps/twilight-structure/twilight-dash/cli/src/clock.ts",
         "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/src/contracts/**/*",
-        "mcpAgentRuntime"
+        "mcpAgentRuntime",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-save1.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/shared-people-save2.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*",
+        "{workspaceRoot}/libs/shared/**/*"
       ],
       "options": {
         "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
@@ -80,7 +86,17 @@
         "cwd": "apps/wbs/be-01"
       },
       "dependsOn": ["prepare-mcp-document"],
-      "inputs": ["default", "^production", "mcpAgentRuntime"]
+      "inputs": [
+        "default",
+        "^production",
+        "mcpAgentRuntime",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/legacy-shared-people-save1.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/shared-people-save2.json",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures",
+        "{workspaceRoot}/openspec/changes/wbs-work-packages/fixtures/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*",
+        "{workspaceRoot}/libs/shared/**/*"
+      ]
     },
     "test:store": {
       "executor": "nx:run-commands",

@@ -773,7 +773,11 @@ describe('Burokrat verified parent runtime', () => {
               rule: 'MOD-INDEX',
               policy: { repository: selected, rulePolicy: './missing-policy.json' },
             }
-          : { command: 'validate workflow-binding', file: './missing-binding.json', steps: ['a'] };
+          : {
+              command: 'validate workflow-binding',
+              file: './missing-binding.json',
+              catalogue: { kind: 'steps', steps: ['a'] },
+            };
       const execution = await invokeRequest(request, selected, { installedDirectory: local });
       expect(execution).toMatchObject({ kind: 'threw', stdout: '', stderr: '', launches: [] });
       if (execution.kind !== 'threw') throw new Error('candidate-local runtime unexpectedly ran');

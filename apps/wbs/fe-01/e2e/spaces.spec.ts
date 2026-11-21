@@ -1,5 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
-
+import { expect, type Page, test } from './ordinary-test';
 import { LONG_NAME, stubSpacesApi } from './spaces-stub';
 
 /**
@@ -20,15 +19,15 @@ async function openSpaces(page: Page): Promise<void> {
 
 /**
  * Opens the space `s` once its rows, roll-ups and add picker have drawn, and
- * moves the long-named project up, so the outcome sentence quoting its name
+ * moves the long-named work package up, so the outcome sentence quoting its name
  * is drawn too.
  */
 async function openSpace(page: Page): Promise<void> {
   await page.goto('/spaces/s');
   await expect(page.getByRole('img', { name: /^Website relaunch: / })).toBeVisible();
   await expect(page.getByLabel('Add a project')).toBeVisible();
-  await page.getByRole('button', { name: `Move ${LONG_NAME} up` }).click();
-  await expect(page.getByText(`Moved ${LONG_NAME} up.`)).toBeVisible();
+  await page.getByRole('button', { name: `Move Project ${LONG_NAME} up` }).click();
+  await expect(page.getByText(`Moved Project ${LONG_NAME} up.`)).toBeVisible();
 }
 
 /** Every control `main` offers, each named for a failure message. */
@@ -81,7 +80,7 @@ for (const width of [1280, 375]) {
         );
         expect(sideways).toBe(0);
         // `main` is the scroller, so a row wider than the phone widens it and
-        // not the document. The Projects table is the one region allowed to
+        // not the document. The Work packages table is the one region allowed to
         // scroll sideways, inside its own card.
         // Proof: 2026-10-12, dropping `[overflow-wrap:anywhere]` from
         // `LINK_CLASS` failed this on `/spaces` at 375px: received 164; and

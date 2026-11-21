@@ -96,10 +96,10 @@ const PLANS = {
   },
 } as const satisfies Record<string, PlanLiteral>;
 
-function requestOf(plan: PlanLiteral, projectId: string, ownerId: string): SavedPlanWrite {
+function requestOf(plan: PlanLiteral, workPackageId: string, ownerId: string): SavedPlanWrite {
   return {
     id: plan.id,
-    projectId,
+    workPackageId,
     name: plan.name,
     createdBy: 'History Writer',
     createdById: ownerId,
@@ -109,11 +109,12 @@ function requestOf(plan: PlanLiteral, projectId: string, ownerId: string): Saved
   };
 }
 
-function expectedOf(plan: PlanLiteral, projectId: string, ownerId: string): StoredSavedPlan {
+function expectedOf(plan: PlanLiteral, workPackageId: string, ownerId: string): StoredSavedPlan {
   return {
+    stepIdentity: { kind: 'catalogue', aliases: [] },
     header: {
       id: plan.id,
-      projectId,
+      workPackageId,
       name: plan.name,
       createdBy: 'History Writer',
       createdById: ownerId,
@@ -135,12 +136,12 @@ function expectedOf(plan: PlanLiteral, projectId: string, ownerId: string): Stor
 async function writePlan(
   port: SavedPlanStore,
   plan: PlanLiteral,
-  projectId: string,
+  workPackageId: string,
   ownerId: string,
 ) {
   const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
   const outcome = await port.write(
-    requestOf(plan, projectId, ownerId),
+    requestOf(plan, workPackageId, ownerId),
     (holding, incomingBytes) => {
       observations.push({ holding: { ...holding }, incomingBytes });
       return Promise.resolve(null);
@@ -175,14 +176,14 @@ async function assertSetup(
   fixture: HistoryBatchFixture,
   plan: PlanLiteral,
 ): Promise<StoredSavedPlan> {
-  const projectId = fixture.seed.projectIds[0];
+  const workPackageId = fixture.seed.workPackageIds[0];
   const ownerId = fixture.seed.ownerIds[1];
-  const expected = expectedOf(plan, projectId, ownerId);
-  const written = await writePlan(fixture.port, plan, projectId, ownerId);
+  const expected = expectedOf(plan, workPackageId, ownerId);
+  const written = await writePlan(fixture.port, plan, workPackageId, ownerId);
   expect({
     written,
     stored: await fixture.port.readOf(plan.id),
-    lists: await Promise.all(fixture.seed.projectIds.map((id) => fixture.port.listOf(id))),
+    lists: await Promise.all(fixture.seed.workPackageIds.map((id) => fixture.port.listOf(id))),
   }).toEqual({
     written: {
       observations: [{ holding: { plans: 0, bytes: 0 }, incomingBytes: plan.bytes }],
@@ -223,7 +224,7 @@ async function assertBatchCase(
       : decision === 'commit'
         ? PLANS.interleavedCommit
         : PLANS.interleavedRollback;
-  const projectId = fixture.seed.projectIds[0];
+  const workPackageId = fixture.seed.workPackageIds[0];
   const ownerId = fixture.seed.ownerIds[1];
   let attempt: Awaited<ReturnType<typeof writePlan>> | undefined;
   let bounded: BoundedWrite | undefined;
@@ -233,7 +234,7 @@ async function assertBatchCase(
   let settlementFailure: unknown;
   await fixture.scenario.begin();
   await fixture.scenario.entered;
-  const write = writePlan(fixture.port, attemptLiteral, projectId, ownerId);
+  const write = writePlan(fixture.port, attemptLiteral, workPackageId, ownerId);
   try {
     bounded = await observeWrite(write);
     if (bounded.kind === 'settled') attempt = bounded.value;
@@ -272,8 +273,8 @@ async function assertBatchCase(
   attempt ??= await write;
 
   const attempted =
-    admission === 'independent-write' ? expectedOf(attemptLiteral, projectId, ownerId) : null;
-  const projectA = [attempted, prewritten]
+    admission === 'independent-write' ? expectedOf(attemptLiteral, workPackageId, ownerId) : null;
+  const workPackageA = [attempted, prewritten]
     .filter((plan): plan is StoredSavedPlan => plan !== null)
     .sort((left, right) => right.header.createdAt - left.header.createdAt);
   const expectedHolding =
@@ -285,7 +286,7 @@ async function assertBatchCase(
     attempt,
     prewritten: prewritten === null ? null : await fixture.port.readOf(prewritten.header.id),
     attempted: await fixture.port.readOf(attemptLiteral.id),
-    lists: await Promise.all(fixture.seed.projectIds.map((id) => fixture.port.listOf(id))),
+    lists: await Promise.all(fixture.seed.workPackageIds.map((id) => fixture.port.listOf(id))),
   }).toEqual({
     bounded: {
       kind: 'settled',
@@ -306,7 +307,7 @@ async function assertBatchCase(
         : { observations: [], outcome: { outcome: 'snapshot_busy' } },
     prewritten,
     attempted,
-    lists: [projectA.map(({ header }) => header), []],
+    lists: [workPackageA.map(({ header }) => header), []],
   });
 }
 

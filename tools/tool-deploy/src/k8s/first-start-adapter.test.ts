@@ -65,7 +65,7 @@ for (const fault of [
     const path = join(root, 'wbs.sqlite');
     const db = new Database(path);
     db.run(
-      "CREATE TABLE __drizzle_migrations (name TEXT, created_at INTEGER); INSERT INTO __drizzle_migrations VALUES ('20261014140000_add_step_blockage_activation',1); CREATE TABLE project (name TEXT); INSERT INTO project VALUES ('known'); CREATE TABLE command_journal (payload TEXT,inverse TEXT,preconditions TEXT); CREATE TABLE step_blockage (id INTEGER)",
+      "CREATE TABLE __drizzle_migrations (name TEXT, created_at INTEGER); INSERT INTO __drizzle_migrations VALUES ('20261014140000_add_step_blockage_activation',1); CREATE TABLE work_package (name TEXT); INSERT INTO work_package VALUES ('known'); CREATE TABLE command_journal (payload TEXT,inverse TEXT,preconditions TEXT); CREATE TABLE step_blockage (id INTEGER)",
     );
     const sql = readFileSync(
       join(backend, 'drizzle/20261014140000_add_step_blockage_activation/migration.sql'),
@@ -291,7 +291,7 @@ for (const fault of [
       namespaces: request.namespaces,
       stateDir: root,
       overlay: '',
-      anonymousProjectsStatus: 200,
+      anonymousWorkPackagesStatus: 200,
       rolloutTimeoutSeconds: 1,
       jobTimeoutSeconds: 1,
       drainTimeoutMs: 1,

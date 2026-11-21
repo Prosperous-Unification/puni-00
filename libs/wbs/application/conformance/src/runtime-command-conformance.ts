@@ -1,8 +1,12 @@
-import type { Source, StoredRuntimeAcceptance, TransactionalStores } from '@wbs/core';
+import type { Source, StoredRuntimeAcceptance2, TransactionalStores } from '@wbs/core';
 import { expect, it } from 'bun:test';
 
-/** Opaque historical scope intentionally has no dependency on current project/person existence. */
-export const RUNTIME_SCOPE = { organizationId: 'org', projectId: 'project', personId: 'person' };
+/** Opaque retained scope intentionally has no dependency on current work-package/person existence. */
+export const RUNTIME_SCOPE = {
+  organizationId: 'org',
+  workPackageId: 'work_package',
+  personId: 'person',
+};
 export const RUNTIME_CLAIM = {
   claimId: 'claim',
   workItemId: 'work',
@@ -11,19 +15,19 @@ export const RUNTIME_CLAIM = {
   execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
 };
 
-/** Raw persistence fixture; this does not claim application admission occurred. */
+/** Current2 raw persistence fixture; this does not claim application admission occurred. */
 export function runtimeAcceptanceFixture(
   ledgerId: string,
   commandId = 'command',
-): StoredRuntimeAcceptance {
+): StoredRuntimeAcceptance2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     scope: RUNTIME_SCOPE,
     commandId,
     canonicalRequest: '["authority",1]',
     requestDigest: 'a'.repeat(64),
     receipt: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       ledgerId,
       scope: RUNTIME_SCOPE,
       commandId,
@@ -221,7 +225,7 @@ export function runtimeRecordConformance(
         };
         const scopes: (typeof RUNTIME_SCOPE)[] = [];
         if (boundary === 'ID types') {
-          for (const field of ['organizationId', 'projectId', 'personId']) {
+          for (const field of ['organizationId', 'workPackageId', 'personId']) {
             for (const invalid of [new Uint8Array([1, 2]), 42, null, undefined, true, '']) {
               const scope = { ...RUNTIME_SCOPE };
               Reflect.set(scope, field, invalid);

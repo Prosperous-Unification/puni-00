@@ -6,7 +6,7 @@ import { fakeDirectoryApi, KAT, PLATFORM } from '@/modules/directory/fake-direct
 
 import { createDirectoryManagement } from './directory-management.feature';
 
-const USED: DirectoryUsage = { projects: [], members: [{ id: 'p1', name: 'Kat' }] };
+const USED: DirectoryUsage = { workPackages: [], members: [{ id: 'p1', name: 'Kat' }] };
 
 const over = (api: ReturnType<typeof fakeDirectoryApi>) =>
   createDirectoryManagement(createDirectory(api, () => true));

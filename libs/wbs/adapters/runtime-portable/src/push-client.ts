@@ -67,7 +67,7 @@ export class PushClient implements PushTransport {
     // Serialised once, outside the retry loop. The payload does not change
     // between attempts, and the dominant one is `tree_replaced` carrying a whole
     // plan — so a gateway that is down made be-01 stringify every row of the
-    // project six times over about a minute.
+    // work package six times over about a minute.
     const body = JSON.stringify(payload);
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       overall.throwIfAborted();

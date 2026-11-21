@@ -1,16 +1,21 @@
-import type { Decision, Scope, UnitOfWork } from '@wbs/core';
-import type { TransactionalStores } from '@wbs/core';
+import type { Decision, Scope, TransactionalStores, UnitOfWork } from '@wbs/core';
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import {
+  assertSqliteWriteUsable,
+  clearSqliteWriteFailure,
+  recordSqliteWriteFailure,
+  retainSqliteWriteFailure,
+} from './sqlite-write-state';
 import { translateStepBlockageFailure } from './step-blockage-activation';
 
 /** Fresh admitted scopes retain one run's lifetime; repair has only surviving base stores. */
 export interface SqliteScopeFactory {
   createScope(lifetime: ReadSnapshotLifetime): Scope<TransactionalStores>;
-  createRepairScope(): Scope<TransactionalStores>;
+  createRepairScope(lifetime: ReadSnapshotLifetime): Scope<TransactionalStores>;
 }
 
 /**
@@ -39,6 +44,7 @@ export function sqliteUnitOfWork(
     ): Promise<T> {
       onRun?.();
       return gate.enter(async () => {
+        assertSqliteWriteUsable(db);
         db.run(sql.raw('BEGIN IMMEDIATE'));
         let decision: Decision<T, TransactionalStores>;
         try {
@@ -52,10 +58,12 @@ export function sqliteUnitOfWork(
             lifetime.expire();
           }
           // Proof: unconditional COMMIT injected; sparse override refused-batch read lost its original fact (sqlite-rollback.txt), 2026-10-15.
+          assertSqliteWriteUsable(db);
           db.run(sql.raw(decision.commit ? 'COMMIT' : 'ROLLBACK'));
         } catch (cause) {
+          const primary = retainSqliteWriteFailure(db, cause);
           try {
-            // Proof: rollback omitted; inactive raw owner cascade retained an earlier project name/revision write (2026-10-14).
+            // Proof: rollback omitted; inactive raw owner cascade retained an earlier work package name/revision write (2026-10-14).
             db.run(sql.raw('ROLLBACK'));
           } catch (rollbackCause) {
             // Both, and not the second one alone: the rollback failing is the
@@ -64,12 +72,19 @@ export function sqliteUnitOfWork(
             // being told what the batch was doing when it became so. `cause` is
             // the rollback's failure — the one this `catch` is holding — and
             // the batch's own is the first arm of the aggregate.
-            throw new AggregateError([cause, rollbackCause], 'batch and rollback failed', {
-              cause: rollbackCause,
-            });
+            const failure = new AggregateError(
+              [primary, rollbackCause],
+              'batch and rollback failed',
+              {
+                cause: rollbackCause,
+              },
+            );
+            recordSqliteWriteFailure(db, failure);
+            throw failure;
           }
+          clearSqliteWriteFailure(db);
           // Proof: translation omitted; real inactive owner cascade rejected as DrizzleQueryError instead of StepBlockageInactive (2026-10-14).
-          throw translateStepBlockageFailure(cause);
+          throw translateStepBlockageFailure(primary);
         }
         // **Outside the transaction's own catch**, deliberately (D28): the
         // repair below is a separate surviving act on a closed transaction, so
@@ -80,7 +95,15 @@ export function sqliteUnitOfWork(
         // Public stores would deadlock while this run still holds the turn;
         // the expired transaction scope would retain obsolete read authority.
         if (!decision.commit && decision.afterRollback !== undefined) {
-          await decision.afterRollback(scopes.createRepairScope());
+          const repairLifetime = createReadSnapshotLifetime();
+          try {
+            await decision.afterRollback(scopes.createRepairScope(repairLifetime));
+            assertSqliteWriteUsable(db);
+          } catch (cause: unknown) {
+            throw retainSqliteWriteFailure(db, cause);
+          } finally {
+            repairLifetime.expire();
+          }
         }
         return decision.value;
       });

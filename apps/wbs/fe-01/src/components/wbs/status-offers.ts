@@ -45,7 +45,7 @@ const hasSpoken = (row: StatusRow): boolean => Object.keys(row.progress).length 
  *
  * - Draft and Ready only where no leaf has a step that has spoken
  *   (`readiness_after_progress`), and some leaf would change.
- * - In progress and Done only in a project with steps (`no_steps`); on an
+ * - In progress and Done only in a work package with steps (`no_steps`); on an
  *   unfinished parent, In progress only while a leaf beneath is unstarted, as
  *   that is the leaf it starts.
  * - On hold and Blocked never on a row reading done (`cannot_hold_done`), and

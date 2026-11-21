@@ -1,9 +1,9 @@
 import type {
   PersonView,
   PlanRead,
-  ProjectListEntry,
   SliceView,
   WorkItemView,
+  WorkPackageListEntry,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 
@@ -82,7 +82,7 @@ export function sliceView(overrides: Partial<SliceView> = {}): SliceView {
     latestFinish: 0,
     float: 0,
     critical: false,
-    boundBy: 'projectStart',
+    boundBy: 'workPackageStart',
     resourcePredecessorId: null,
     capacityTeamId: null,
     width: 1,
@@ -129,7 +129,7 @@ export function planRead(overrides: Partial<PlanRead> = {}): PlanRead {
     estimateRounding: 'ceil',
     depReach: 'whole-item',
     startDate: null,
-    projectRevision: 0,
+    workPackageRevision: 0,
     undoable: false,
     redoable: false,
     ...overrides,
@@ -137,20 +137,23 @@ export function planRead(overrides: Partial<PlanRead> = {}): PlanRead {
 }
 
 /**
- * One row of the project picker's list.
+ * One row of the work package picker's list.
  *
- * `ownerName`, `startDate` and `createdAt` were added to
- * {@link ProjectListEntry} after two suites wrote this literal out, and both
+ * The creator name, `startDate` and `createdAt` are required by
+ * {@link WorkPackageListEntry} after two suites wrote this literal out, and both
  * copies still lacked all three — a list entry production cannot produce.
  */
-export function projectListEntry(overrides: Partial<ProjectListEntry> = {}): ProjectListEntry {
+export function workPackageListEntry(
+  overrides: Partial<WorkPackageListEntry> = {},
+): WorkPackageListEntry {
   return {
+    projectId: 'fixture-project',
     id: 'p1',
     name: 'Rewire the shed',
     restricted: false,
     abbreviation: 'PLAN',
     lastOpenedAt: null,
-    ownerName: 'kat',
+    createdByName: 'kat',
     startDate: null,
     createdAt: 1,
     ...overrides,

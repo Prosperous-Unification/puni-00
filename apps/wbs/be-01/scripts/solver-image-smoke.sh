@@ -401,7 +401,7 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
 done
 [ -S "$socket_path" ]
 
-# Proof: removing only the launcher's project.scripts entry leaves the direct
+# Proof: removing only the launcher's work package.scripts entry leaves the direct
 # wbs-solver check green and makes this authenticated real-container bind fail.
 docker run --rm "${client_pull[@]}" "${container_bound[@]}" --name "$caller_name" \
   --volume "$socket_directory:/run/wbs-solver:ro" \

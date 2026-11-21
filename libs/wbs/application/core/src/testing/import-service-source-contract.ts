@@ -10,16 +10,18 @@ import {
 import { createImportService } from '../module/plan-import/composition';
 import type { ImportService } from '../module/plan-import/plan-import.feature';
 import { clockOf } from '../ports/clock';
-import { CREATOR_ADMISSION } from '../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../ports/external-dependency-authoring';
 import { LEGACY_ACCESS } from '../ports/organization-access';
-import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-import type { ProjectStore } from '../ports/project-store';
-import type { NewProject } from '../ports/project-store';
+import type { PlanExportReader } from '../ports/plan-export-reader';
+import type { SettingStore, SettingTarget, SettingWrite } from '../ports/setting-store';
 import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
+import type { Broadcaster, WorkPackageEvent } from '../ports/work-package-event';
+import type { NewWorkPackage } from '../ports/work-package-store';
+import type { WorkPackageStore } from '../ports/work-package-store';
 import { createLocalDependencyContext } from '../service/dependency-context';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { localCommandAccess } from './organization-access-fixture';
@@ -54,12 +56,41 @@ function importService(
     batchServices: (scope, broadcast) =>
       servicesOver(scope.stores, {
         dependencyContext: createLocalDependencyContext(scope.stores),
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock,
         broadcast,
         scheduler: fastScheduler,
       }),
   });
+}
+
+interface RecordedSettingWrite {
+  readonly target: SettingTarget;
+  readonly change: SettingWrite;
+}
+
+/** Observes calls while retaining the actual admitted catalog and its transaction capability. */
+function recordingSettingsWrites(
+  source: Source<TransactionalStores>,
+  writes: RecordedSettingWrite[],
+): UnitOfWork<TransactionalStores> {
+  return {
+    run: (act) =>
+      source.uow.run((scope) => {
+        const stored = scope.stores.settings;
+        const settings: SettingStore = {
+          readTarget: stored.readTarget.bind(stored),
+          packageIds: (target) => stored.packageIds(target),
+          touchPackages: (target, stamp) => stored.touchPackages(target, stamp),
+          capture: (target) => stored.capture(target),
+          write: (target, change, stamp) => {
+            writes.push(structuredClone({ target, change }));
+            return stored.write(target, change, stamp);
+          },
+        };
+        return act({ ...scope, stores: { ...scope.stores, settings } });
+      }),
+  };
 }
 
 interface Deferred<T> {
@@ -77,11 +108,29 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve };
 }
 
-function projectFixture(id: string, name: string): NewProject {
+/**
+ * Fails at a missed actual stage rather than waiting on an already settled import.
+ * Proof: creation and publisher omission faults failed immediately at their named stages
+ * without timeout; import-stage-faults-qualified-v1 records both restored native runs.
+ */
+async function beforeImportSettles<Value>(
+  stage: Promise<Value>,
+  importing: Promise<unknown>,
+  label: string,
+): Promise<Value> {
+  return await Promise.race([
+    stage,
+    importing.then(() => {
+      throw new Error('import settled before ' + label);
+    }),
+  ]);
+}
+
+function workPackageFixture(id: string, name: string, projectId: string): NewWorkPackage {
   return {
     id,
     name,
-    ownerId: ACTOR,
+    projectId,
     restricted: false,
     estimateMethod: 'pert',
     depReach: 'whole-item',
@@ -98,19 +147,21 @@ function heldBroadcaster(
   publishing: Deferred<undefined>,
   continuePublishing: Promise<void>,
 ): RecordingBroadcaster {
-  const published: { projectId: string; event: ProjectEvent }[] = [];
+  const published: { workPackageId: string; event: WorkPackageEvent }[] = [];
   let held = false;
   return {
     published,
-    async publish(projectId, event) {
-      published.push({ projectId, event });
+    async publish(workPackageId, event) {
+      published.push({ workPackageId, event });
       if (held) return;
       held = true;
       publishing.resolve(undefined);
       await continuePublishing;
     },
-    latestSeq: (projectId) =>
-      Promise.resolve(published.filter((entry) => entry.projectId === projectId).length - 1),
+    latestSeq: (workPackageId) =>
+      Promise.resolve(
+        published.filter((entry) => entry.workPackageId === workPackageId).length - 1,
+      ),
   };
 }
 
@@ -244,56 +295,6 @@ function roundTripFixture(): PlanDocumentImport {
   return document;
 }
 
-async function exportDocument(
-  source: Source<TransactionalStores>,
-  projectId: string,
-): Promise<PlanDocument> {
-  const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
-  const broadcast = recordingBroadcaster();
-  const graph = servicesOver(source.stores, {
-    dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
-    clock,
-    broadcast,
-    scheduler: fastScheduler,
-  });
-  const [project, tree] = await Promise.all([
-    source.stores.projects.findById(projectId),
-    graph.workItems.tree(projectId),
-  ]);
-  if (project === null) throw new Error(`imported project disappeared: ${projectId}`);
-  if (tree === null || 'kind' in tree) throw new Error(`imported project cannot be exported`);
-  const timezone = await source.stores.projects.timezoneOf(projectId);
-  if (timezone === null) throw new Error(`imported project has no timezone: ${projectId}`);
-  const exported = await new PlanDocumentService({
-    directory: source.stores.directory,
-    stepParallels: source.stores.stepParallels,
-    markers: graph.calendarMarkers,
-    clock,
-    resourceFacts: {
-      resourceCapacitiesOf: (id) => source.stores.resourceCapacity.listFor(id),
-      demandsOf: (id) => source.stores.demands.listByProject(id),
-    },
-    measureFacts: {
-      measureDefinitionsOf: (id) => source.stores.measures.definitionsFor(id),
-      measuresOf: (id) => source.stores.measures.listByProject(id),
-      measureEstimatesOf: (id) => source.stores.measureEstimates.listByProject(id),
-      budgetsOf: (id) => source.stores.budgets.listByProject(id),
-    },
-  }).export({ ...project, timezone }, tree, LEGACY_ACCESS);
-  if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
-  return exported.value;
-}
-
-async function exportProject(
-  source: Source<TransactionalStores>,
-  projectId: string,
-): Promise<PlanDocumentImport> {
-  const classified = await classifyPlanDocument(await exportDocument(source, projectId));
-  if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
-  return classified.value;
-}
-
 function authoredSnapshot(document: PlanDocumentImport): unknown {
   const aliases = new Map<string, string>();
   const alias = (kind: string, id: string, name: string): void => {
@@ -332,7 +333,7 @@ function authoredSnapshot(document: PlanDocumentImport): unknown {
 type LaterFault = { kind: 'refused' } | { kind: 'thrown'; cause: Error };
 
 interface AdmittedImportState {
-  projectId: string;
+  workPackageId: string;
   rowIds: string[];
   teamId: string;
 }
@@ -351,17 +352,19 @@ function faultedUnitOfWork(
         const patch: WorkItemStore['patch'] = async (id, changes, stamp) => {
           if (faulted) return stored.patch(id, changes, stamp);
           faulted = true;
-          const project = (await scope.stores.projects.list()).find(
+          const workPackage = (await scope.stores.workPackages.list()).find(
             ({ name }) => name === 'Portable plan',
           );
           const team = (await scope.stores.directory.listTeams()).find(
             ({ name }) => name === 'Billing',
           );
-          if (project === undefined || team === undefined)
-            throw new Error('import did not create its project and team before the later write');
+          if (workPackage === undefined || team === undefined)
+            throw new Error(
+              'import did not create its work package and team before the later write',
+            );
           admitted.resolve({
-            projectId: project.id,
-            rowIds: (await stored.listByProject(project.id)).map(({ id: rowId }) => rowId),
+            workPackageId: workPackage.id,
+            rowIds: (await stored.listByWorkPackage(workPackage.id)).map(({ id: rowId }) => rowId),
             teamId: team.id,
           });
           await continueWrite;
@@ -369,10 +372,13 @@ function faultedUnitOfWork(
           return { ok: false, reason: 'unknown_tag' };
         };
         const workItems: WorkItemStore = {
-          listByProject: (projectId) => stored.listByProject(projectId),
-          listUpdateInstants: (projectId) => stored.listUpdateInstants(projectId),
-          listByIds: (projectId, ids) => stored.listByIds(projectId, ids),
-          listPlacements: (projectId, ids) => stored.listPlacements(projectId, ids),
+          listTreeByWorkPackage: (workPackageId) => stored.listTreeByWorkPackage(workPackageId),
+          resolveStepOrders: (workPackageId, projection) =>
+            stored.resolveStepOrders(workPackageId, projection),
+          listByWorkPackage: (workPackageId) => stored.listByWorkPackage(workPackageId),
+          listUpdateInstants: (workPackageId) => stored.listUpdateInstants(workPackageId),
+          listByIds: (workPackageId, ids) => stored.listByIds(workPackageId, ids),
+          listPlacements: (workPackageId, ids) => stored.listPlacements(workPackageId, ids),
           findById: (id) => stored.findById(id),
           insert: (workItem, respaced, stamp) => stored.insert(workItem, respaced, stamp),
           patch,
@@ -401,27 +407,26 @@ function heldSolutionUnitOfWork(
       if (current === 2) secondStarted.resolve(undefined);
       return source.uow.run(async (scope) => {
         if (current !== 1) return act(scope);
-        const stored = scope.stores.projects;
+        const stored = scope.stores.workPackages;
         let held = false;
-        const projects: ProjectStore = {
-          async create(project, steps, stamp) {
+        const workPackages: WorkPackageStore = {
+          async createWithSteps(...args) {
             if (!held) {
               held = true;
               creationHeld.resolve(undefined);
               await continueCreate;
             }
-            return stored.create(project, steps, stamp);
+            return stored.createWithSteps(...args);
           },
-          createInOrganization: (project, steps, stamp, organizationId) =>
-            stored.createInOrganization(project, steps, stamp, organizationId),
+          create: (workPackage, steps, stamp) => stored.create(workPackage, steps, stamp),
+          createInOrganization: (workPackage, steps, stamp, organizationId, creatorGrant) =>
+            stored.createInOrganization(workPackage, steps, stamp, organizationId, creatorGrant),
           findById: (id) => stored.findById(id),
           findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
           editInOrganization: (id, patch, stamp, organizationId, editor) =>
             stored.editInOrganization(id, patch, stamp, organizationId, editor),
-          admitEditInOrganization: (projectId, organizationId, actorId, detail, role) =>
-            stored.admitEditInOrganization(projectId, organizationId, actorId, detail, role),
-          findCrossReferences: (projectId, organizationId) =>
-            stored.findCrossReferences(projectId, organizationId),
+          findCrossReferences: (workPackageId, organizationId) =>
+            stored.findCrossReferences(workPackageId, organizationId),
           listForInOrganization: (userId, organizationId) =>
             stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
@@ -429,30 +434,77 @@ function heldSolutionUnitOfWork(
             stored.findBySolutionSlugInOrganization(slug, organizationId),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
-          recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
-          recordOpenInOrganization: (projectId, stamp, organizationId) =>
-            stored.recordOpenInOrganization(projectId, stamp, organizationId),
+          recordOpen: (workPackageId, stamp) => stored.recordOpen(workPackageId, stamp),
+          recordOpenInOrganization: (workPackageId, stamp, organizationId) =>
+            stored.recordOpenInOrganization(workPackageId, stamp, organizationId),
+          recordReadableOpenInOrganization: (...args) =>
+            stored.recordReadableOpenInOrganization(...args),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
-          stepsOf: (projectId) => stored.stepsOf(projectId),
-          setStepAllowance: (projectId, stepId, percent, stamp) =>
-            stored.setStepAllowance(projectId, stepId, percent, stamp),
-          stepAllowanceRevisions: (projectId) => stored.stepAllowanceRevisions(projectId),
-          timezoneOf: (projectId) => stored.timezoneOf(projectId),
-          setTimezone: (projectId, timezone, stamp) =>
-            stored.setTimezone(projectId, timezone, stamp),
+          stepsOf: (workPackageId) => stored.stepsOf(workPackageId),
+          setStepUnit: (...args) => stored.setStepUnit(...args),
+          setStepAllowance: (workPackageId, stepId, percent, stamp) =>
+            stored.setStepAllowance(workPackageId, stepId, percent, stamp),
+          stepAllowanceRevisions: (workPackageId) => stored.stepAllowanceRevisions(workPackageId),
+          timezoneOf: (workPackageId) => stored.timezoneOf(workPackageId),
+          setTimezone: (workPackageId, timezone, stamp) =>
+            stored.setTimezone(workPackageId, timezone, stamp),
         };
-        return act({ stores: { ...scope.stores, projects } });
+        return act({ stores: { ...scope.stores, workPackages } });
       });
     },
   };
 }
 
 /** Runs the import-directory contract against one real source implementation. */
-export function importServiceSourceContract(
-  openSource: () => Promise<Source<TransactionalStores>>,
+export function importServiceSourceContract<TSource extends Source<TransactionalStores>>(
+  openSource: () => Promise<TSource>,
+  projectId: string,
+  planExportsOf: (source: TSource) => PlanExportReader,
+  holdingProjectId: string,
 ) {
+  async function exportDocument(source: TSource, workPackageId: string): Promise<PlanDocument> {
+    const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
+    const graph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
+      admission: LEGACY_EDIT_ADMISSION,
+      clock,
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    const captured = await graph.workItems.exportWithin(
+      workPackageId,
+      LEGACY_ACCESS,
+      planExportsOf(source),
+    );
+    if (
+      captured.kind === 'not_found' ||
+      captured.kind === 'access_refused' ||
+      captured.kind === 'engine_unavailable'
+    )
+      throw new Error('imported work package export capture refused: ' + captured.kind);
+    const serializer = new PlanDocumentService({ clock });
+    const exported =
+      captured.kind === 'connected'
+        ? serializer.exportConnectedCaptured(
+            captured.workPackage,
+            captured.tree,
+            captured.observation,
+          )
+        : serializer.exportCaptured(captured.workPackage, captured.tree, captured.document);
+    if (!exported.ok) throw new Error('imported work package export refused: ' + exported.error);
+    return exported.value;
+  }
+  async function exportWorkPackage(
+    source: TSource,
+    workPackageId: string,
+  ): Promise<PlanDocumentImport> {
+    const classified = await classifyPlanDocument(await exportDocument(source, workPackageId));
+    if (!classified.ok) throw new Error('exported work package refused at ' + classified.path);
+    return classified.value;
+  }
+
   describe('ImportService admitted writes', () => {
-    async function ownedSource(): Promise<Source<TransactionalStores>> {
+    async function ownedSource(): Promise<TSource> {
       const source = await openSource();
       if ((await source.stores.users.findById(ACTOR)) !== null) return source;
       const created = await source.stores.users.create(
@@ -463,16 +515,67 @@ export function importServiceSourceContract(
       return source;
     }
 
+    for (const mode of ['omitted', 'false'] as const) {
+      it(`refuses unknown catalogue codes without authoring consent (${mode})`, async () => {
+        const source = await ownedSource();
+        try {
+          const target = await source.stores.settings.readTarget(
+            { level: 'project', id: projectId },
+            null,
+          );
+          if (target === null) throw new Error('Actual import destination is absent');
+          const organizationId = target.chain.organizationId;
+          const before = await source.stores.stepCatalogue.readCatalogue(organizationId);
+          if (before === null) throw new Error('Actual organization catalogue is absent');
+          expect(before).toEqual({ definitions: [], bindings: [] });
+          const manifest = await source.stores.stepCatalogue.readManifest(
+            organizationId,
+            projectId,
+          );
+          const announcements = recordingBroadcaster();
+          const service = importService(source, { announcements });
+          const refused =
+            mode === 'omitted'
+              ? await service.import(
+                  planDocumentFixture(),
+                  { kind: 'legacy', actorId: ACTOR },
+                  projectId,
+                )
+              : await service.import(
+                  planDocumentFixture(),
+                  { kind: 'legacy', actorId: ACTOR },
+                  projectId,
+                  { defineMissing: false },
+                );
+          expect(refused).toEqual({ ok: false, code: 'unknown_step_codes', codes: ['impl', 'qa'] });
+          expect(await source.stores.stepCatalogue.readCatalogue(organizationId)).toEqual(before);
+          expect(await source.stores.stepCatalogue.readManifest(organizationId, projectId)).toEqual(
+            manifest,
+          );
+          expect(await source.stores.workPackages.list()).toEqual([]);
+          expect(await source.stores.directory.listTeams()).toEqual([]);
+          expect(announcements.published).toEqual([]);
+        } finally {
+          await source.close();
+        }
+      });
+    }
+
     it('reuses an existing tag by name', async () => {
       const source = await ownedSource();
       try {
         await source.stores.directory.addTag({ id: 'held-tag', name: 'Release' }, STAMP);
         const document = planDocumentFixture();
 
-        const imported = await importService(source).import(document, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          document,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
 
         expect(imported).toMatchObject({
           ok: true,
@@ -519,7 +622,16 @@ export function importServiceSourceContract(
         const beforeBytes = JSON.stringify(before);
         const document = planDocumentFixture();
 
-        await importService(source).import(document, { kind: 'legacy', actorId: ACTOR });
+        const imported = await importService(source).import(
+          document,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
+        expect(imported).toMatchObject({ ok: true, rows: 1 });
+        if (!imported.ok)
+          throw new Error('Person preservation requires an actual successful import');
+        expect(await source.stores.workPackages.findById(imported.workPackageId)).not.toBeNull();
 
         const after = (await source.stores.directory.listPeople()).find(
           ({ id }) => id === added.person.id,
@@ -535,7 +647,12 @@ export function importServiceSourceContract(
       try {
         const document = planDocumentFixture();
 
-        await importService(source).import(document, { kind: 'legacy', actorId: ACTOR });
+        await importService(source).import(
+          document,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
 
         const team = (await source.stores.directory.listTeams()).find(
           ({ name }) => name === 'Billing',
@@ -560,11 +677,11 @@ export function importServiceSourceContract(
     it('leaves off a solution slug already held inside admission', async () => {
       const source = await ownedSource();
       try {
-        await source.stores.projects.create(
+        await source.stores.workPackages.create(
           {
-            id: 'held-project',
+            id: 'held-work-package',
             name: 'Held solution',
-            ownerId: ACTOR,
+            projectId,
             restricted: false,
             estimateMethod: 'pert',
             depReach: 'whole-item',
@@ -584,10 +701,15 @@ export function importServiceSourceContract(
           url: 'https://example.test/imported',
         };
 
-        const imported = await importService(source).import(document, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          document,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
 
         expect(imported).toMatchObject({ ok: true, solutionRef: 'left-off' });
       } finally {
@@ -595,7 +717,7 @@ export function importServiceSourceContract(
       }
     });
 
-    it('stores exact project settings, nondefault step order, capacity, bands, and marker', async () => {
+    it('stores exact work package settings, nondefault step order, capacity, bands, and marker', async () => {
       const source = await ownedSource();
       try {
         const document = planDocumentFixture();
@@ -651,27 +773,53 @@ export function importServiceSourceContract(
           },
         ];
 
-        const imported = await importService(source).import(document, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          document,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`valid import refused at ${JSON.stringify(imported)}`);
-        const project = await source.stores.projects.findById(imported.projectId);
-        const steps = await source.stores.projects.stepsOf(imported.projectId);
+        const workPackage = await source.stores.workPackages.findById(imported.workPackageId);
+        const steps = await source.stores.workPackages.stepsOf(imported.workPackageId);
         const teams = await source.stores.directory.listTeams();
         const billing = teams.find(({ name }) => name === 'Billing');
         if (billing === undefined) throw new Error('imported capacity team was not stored');
 
-        expect(steps.map(({ name, position }) => ({ name, position }))).toEqual([
-          { name: 'Discover', position: 10 },
-          { name: 'Build', position: 30 },
-          { name: 'Verify', position: 70 },
+        expect(
+          steps.map(({ name, code, estimateUnit, allowancePercent }) => ({
+            name,
+            code,
+            estimateUnit,
+            allowancePercent,
+          })),
+        ).toEqual([
+          { name: 'Discover', code: 'discover', estimateUnit: 'workdays', allowancePercent: 0 },
+          { name: 'Build', code: 'build', estimateUnit: 'workdays', allowancePercent: 0 },
+          { name: 'Verify', code: 'verify', estimateUnit: 'workdays', allowancePercent: 0 },
         ]);
-        expect(project).toEqual({
-          id: imported.projectId,
+        const target = await source.stores.settings.readTarget(
+          { level: 'project', id: projectId },
+          null,
+        );
+        if (target === null) throw new Error('import destination is absent');
+        const catalogue = await source.stores.stepCatalogue.readCatalogue(
+          target.chain.organizationId,
+        );
+        if (catalogue === null) throw new Error('import destination catalogue is absent');
+        expect(catalogue.definitions.map(({ code, position }) => ({ code, position }))).toEqual([
+          { code: 'discover', position: 10 },
+          { code: 'build', position: 30 },
+          { code: 'verify', position: 70 },
+        ]);
+        expect(workPackage).toEqual({
+          id: imported.workPackageId,
           name: 'Exact imported plan',
           abbreviation: 'EXA',
-          ownerId: ACTOR,
+          projectId,
           restricted: true,
           estimateMethod: 'pessimistic',
           depReach: 'anchor-slice',
@@ -679,7 +827,8 @@ export function importServiceSourceContract(
           estimateRounding: 'round',
           startDate: '2026-09-14',
           solutionRef: null,
-          revision: 0,
+          // The document's explicit UTC override is one settings write.
+          revision: 1,
           createdAt: STAMP.at,
           optimizationEnabled: false,
           scheduleEngine: 'optimized',
@@ -687,29 +836,29 @@ export function importServiceSourceContract(
           // The export carries no budget factor (`wbs-measure-budgets` D38).
           budgetFactor: 1,
         });
-        expect(await source.stores.priorityBands.listFor(imported.projectId)).toEqual([
+        expect(await source.stores.priorityBands.listFor(imported.workPackageId)).toEqual([
           { startsAt: 1, defaultValue: 10, label: 'Critical' },
           { startsAt: 21, defaultValue: 30, label: 'High' },
           { startsAt: 41, defaultValue: 50, label: 'Medium' },
           { startsAt: 61, defaultValue: 70, label: 'Low' },
           { startsAt: 81, defaultValue: 90, label: 'Lowest' },
         ]);
-        expect(await source.stores.capacity.listFor(imported.projectId)).toEqual([
+        expect(await source.stores.capacity.listFor(imported.workPackageId)).toEqual([
           { serviceTeamId: billing.id, size: 2 },
         ]);
-        const markers = await source.stores.calendarMarkers.listFor(imported.projectId);
+        const markers = await source.stores.calendarMarkers.listFor(imported.workPackageId);
         const marker = markers.at(0);
         if (marker === undefined) throw new Error('imported calendar marker was not stored');
         expect(markers).toHaveLength(1);
         expect(marker.id).not.toBe('file-marker');
         expect({
-          projectId: marker.projectId,
+          workPackageId: marker.workPackageId,
           date: marker.date,
           name: marker.name,
           color: marker.color,
           createdAt: marker.createdAt,
         }).toEqual({
-          projectId: imported.projectId,
+          workPackageId: imported.workPackageId,
           date: '2026-09-21',
           name: 'Release train',
           color: '#f70100',
@@ -720,7 +869,7 @@ export function importServiceSourceContract(
       }
     });
 
-    it('stores a fresh complete tree without changing rows that own the file ids', async () => {
+    it('stores a fresh complete tree while reusing catalogue codes and preserving rows that own the file ids', async () => {
       const source = await ownedSource();
       try {
         const document = planDocumentFixture();
@@ -799,37 +948,50 @@ export function importServiceSourceContract(
             assignees: {},
           },
         );
-        await source.stores.projects.create(
-          {
-            id: 'source-project',
-            name: 'Rows holding file ids',
-            ownerId: ACTOR,
-            restricted: false,
-            estimateMethod: 'pert',
-            depReach: 'whole-item',
-            pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-            estimateRounding: 'ceil',
-            startDate: null,
-            solutionRef: null,
-            revision: 0,
-            createdAt: STAMP.at,
-          },
-          document.steps.map(({ id, name, position, allowancePercent }) => ({
-            id,
-            projectId: 'source-project',
-            name,
-            position,
-            code: suggestStepCode(name, new Set()),
-            allowancePercent,
-            estimateUnit: 'workdays' as const,
-          })),
-          STAMP,
+        const holdingTarget = await source.stores.settings.readTarget(
+          { level: 'project', id: holdingProjectId },
+          null,
         );
+        if (holdingTarget === null) throw new Error('holding project is absent');
+        for (const step of document.steps) {
+          const defined = await source.stores.stepCatalogue.defineAndBindStep(
+            holdingTarget.chain.organizationId,
+            {
+              id: step.id,
+              code: step.code ?? suggestStepCode(step.name, new Set()),
+              name: step.name.trim(),
+              position: step.position,
+              defaultEstimateUnit: step.estimateUnit,
+              defaultAllowancePercent: step.allowancePercent,
+            },
+            {
+              bindingId: 'holding-' + step.id,
+              scopeKind: 'project',
+              scopeId: holdingProjectId,
+              workItemTypeId: null,
+              position: step.position,
+            },
+            STAMP,
+          );
+          if (!defined.ok)
+            throw new Error('holding definition refused: ' + JSON.stringify(defined));
+        }
+        const born = await source.stores.workPackages.createWithSteps(
+          workPackageFixture('source-work-package', 'Rows holding file ids', holdingProjectId),
+          STAMP,
+          { kind: 'legacy' },
+        );
+        if (typeof born === 'string') throw new Error('holding package refused: ' + born);
+        const holdingSteps = await source.stores.workPackages.stepsOf('source-work-package');
+        const heldDefinitions = (
+          await source.stores.stepCatalogue.readCatalogue(holdingTarget.chain.organizationId)
+        )?.definitions;
+        if (heldDefinitions === undefined) throw new Error('holding catalogue is absent');
         await source.stores.subtrees.insertSubtree(
           {
             rows: document.workItems.map(({ id, parentId, position, name }) => ({
               id,
-              projectId: 'source-project',
+              workPackageId: 'source-work-package',
               parentId,
               position,
               name: `Original ${name}`,
@@ -865,23 +1027,28 @@ export function importServiceSourceContract(
           },
           STAMP,
         );
-        const originals = await source.stores.workItems.listByProject('source-project');
+        const originals = await source.stores.workItems.listByWorkPackage('source-work-package');
 
-        const imported = await importService(source).import(document, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          document,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`valid import refused at ${JSON.stringify(imported)}`);
         const [rows, steps, estimates, actuals, progress, measures, dependencies, assigned] =
           await Promise.all([
-            source.stores.workItems.listByProject(imported.projectId),
-            source.stores.projects.stepsOf(imported.projectId),
-            source.stores.estimates.listByProject(imported.projectId),
-            source.stores.actuals.listByProject(imported.projectId),
-            source.stores.progress.listByProject(imported.projectId),
-            source.stores.measures.listByProject(imported.projectId),
-            source.stores.dependencies.listByProject(imported.projectId),
-            source.stores.directory.assignmentsInProject(imported.projectId),
+            source.stores.workItems.listByWorkPackage(imported.workPackageId),
+            source.stores.workPackages.stepsOf(imported.workPackageId),
+            source.stores.estimates.listByWorkPackage(imported.workPackageId),
+            source.stores.actuals.listByWorkPackage(imported.workPackageId),
+            source.stores.progress.listByWorkPackage(imported.workPackageId),
+            source.stores.measures.listByWorkPackage(imported.workPackageId),
+            source.stores.dependencies.listByWorkPackage(imported.workPackageId),
+            source.stores.directory.assignmentsInWorkPackage(imported.workPackageId),
           ]);
         const importedRoot = rows.find(({ name }) => name === 'Ship');
         const importedLeaf = rows.find(({ name }) => name === 'Build release');
@@ -918,8 +1085,10 @@ export function importServiceSourceContract(
         )
           throw new Error('imported directory is incomplete');
 
-        expect(await source.stores.workItems.listByProject('source-project')).toEqual(originals);
-        expect(imported.projectId).not.toBe('source-project');
+        expect(await source.stores.workItems.listByWorkPackage('source-work-package')).toEqual(
+          originals,
+        );
+        expect(imported.workPackageId).not.toBe('source-work-package');
         expect(billing.id).not.toBe('team-1');
         expect(release.id).not.toBe('tag-1');
         expect(billingApi.id).not.toBe('service-1');
@@ -929,8 +1098,14 @@ export function importServiceSourceContract(
         expect(rows.map(({ id }) => id)).not.toContain('row-1');
         expect(rows.map(({ id }) => id)).not.toContain('row-2');
         expect(rows.map(({ id }) => id)).not.toContain('row-3');
-        expect(steps.map(({ id }) => id)).not.toContain('step-1');
-        expect(steps.map(({ id }) => id)).not.toContain('step-2');
+        expect(steps.map(({ id }) => id)).toEqual(document.steps.map(({ id }) => id));
+        expect(await source.stores.workPackages.stepsOf('source-work-package')).toEqual(
+          holdingSteps,
+        );
+        expect(
+          (await source.stores.stepCatalogue.readCatalogue(holdingTarget.chain.organizationId))
+            ?.definitions,
+        ).toEqual(heldDefinitions);
         expect(importedLeaf.externalRefs.map(({ id }) => id)).not.toContain('external-ref-2a');
         expect(importedLeaf.externalRefs.map(({ id }) => id)).not.toContain('external-ref-2b');
         expect(importedRoot).toMatchObject({
@@ -1031,7 +1206,7 @@ export function importServiceSourceContract(
         expect(dependencies).toEqual([
           {
             id: dependency.id,
-            projectId: imported.projectId,
+            workPackageId: imported.workPackageId,
             predecessorId: importedLeaf.id,
             successorId: importedSuccessor.id,
           },
@@ -1051,11 +1226,16 @@ export function importServiceSourceContract(
           { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
         ]);
         const imports = importService(source);
-        const admitted = await imports.import(document, { kind: 'legacy', actorId: ACTOR });
+        const admitted = await imports.import(
+          document,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
         expect(admitted.ok).toBe(true);
         if (!admitted.ok) return;
-        const rows = await source.stores.workItems.listByProject(admitted.projectId);
-        const steps = await source.stores.projects.stepsOf(admitted.projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(admitted.workPackageId);
+        const steps = await source.stores.workPackages.stepsOf(admitted.workPackageId);
         const owner = rows.find(({ name }) => name === 'Ship');
         const step = steps.find(({ name }) => name === 'Build');
         expect(owner).toBeDefined();
@@ -1064,26 +1244,31 @@ export function importServiceSourceContract(
           throw new Error('missing imported owner or step');
         expect(owner.id).not.toBe('row-1');
         expect(step.id).not.toBe('step-1');
-        expect(await source.stores.blockages.listByProject(admitted.projectId)).toEqual([
+        expect(await source.stores.blockages.listByWorkPackage(admitted.workPackageId)).toEqual([
           { workItemId: owner.id, stepId: step.id, blockedAt: -17 },
         ]);
-        const exported = await exportDocument(source, admitted.projectId);
+        const exported = await exportDocument(source, admitted.workPackageId);
         expect(exported.stepBlockages).toEqual([
           { workItemId: owner.id, stepId: step.id, blockedAt: -17 },
         ]);
         const classified = await classifyPlanDocument(exported);
         expect(classified.ok).toBe(true);
         if (!classified.ok) return;
-        const copied = await imports.import(classified.value, { kind: 'legacy', actorId: ACTOR });
+        const copied = await imports.import(
+          classified.value,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
         expect(copied.ok).toBe(true);
         if (!copied.ok) return;
-        const copiedFacts = await source.stores.blockages.listByProject(copied.projectId);
+        const copiedFacts = await source.stores.blockages.listByWorkPackage(copied.workPackageId);
         expect(copiedFacts).toHaveLength(1);
         expect(copiedFacts[0]?.blockedAt).toBe(-17);
         expect(copiedFacts[0]?.workItemId).not.toBe(owner.id);
-        expect(copiedFacts[0]?.stepId).not.toBe(step.id);
+        expect(copiedFacts[0]?.stepId).toBe(step.id);
         await source.stores.blockages.remove(owner.id, step.id, STAMP);
-        const unblocked = await exportDocument(source, admitted.projectId);
+        const unblocked = await exportDocument(source, admitted.workPackageId);
         expect(unblocked.slices).toEqual(exported.slices);
         expect(unblocked.scheduleError).toEqual(exported.scheduleError);
         expect(
@@ -1114,12 +1299,17 @@ export function importServiceSourceContract(
         if (row === undefined) throw new Error('missing fixture row');
         row.progress = { 'step-1': 'done' };
         document.stepBlockages = [{ workItemId: row.id, stepId: 'step-1', blockedAt: -17 }];
-        const imported = await importService(source).import(document, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          document,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-        const exported = await exportDocument(source, imported.projectId);
+        const exported = await exportDocument(source, imported.workPackageId);
         expect(exported.stepBlockages).toHaveLength(1);
         expect(exported.stepBlockages[0]?.blockedAt).toBe(-17);
         expect(Object.values(exported.workItems[0]?.progress ?? {})).toContain('done');
@@ -1147,7 +1337,7 @@ export function importServiceSourceContract(
                     ...scope.stores,
                     blockages: {
                       ...scope.stores.blockages,
-                      listByProject: (id) => scope.stores.blockages.listByProject(id),
+                      listByWorkPackage: (id) => scope.stores.blockages.listByWorkPackage(id),
                       listByWorkItems: (id, ids) => scope.stores.blockages.listByWorkItems(id, ids),
                       remove: (owner, step, stamp) =>
                         scope.stores.blockages.remove(owner, step, stamp),
@@ -1164,14 +1354,16 @@ export function importServiceSourceContract(
               ),
           };
           const thrown: unknown = await importService(source, { uow, announcements })
-            .import(document, { kind: 'legacy', actorId: ACTOR })
+            .import(document, { kind: 'legacy', actorId: ACTOR }, projectId, {
+              defineMissing: true,
+            })
             .catch((cause: unknown) => cause);
           expect(thrown).toBeInstanceOf(Error);
           expect(String(thrown)).toMatch(
             mode === 'refused' ? /refused its blockage/ : /second blockage write/,
           );
           expect(written).toBe(mode === 'refused' ? 1 : 2);
-          expect(await source.stores.projects.list()).toEqual([]);
+          expect(await source.stores.workPackages.list()).toEqual([]);
           expect(await source.stores.directory.listTeams()).toEqual([]);
           expect(announcements.published).toEqual([]);
         } finally {
@@ -1195,17 +1387,32 @@ export function importServiceSourceContract(
             uow: faultedUnitOfWork(source, fault, admitted, release.promise),
           });
           const settled = service
-            .import(planDocumentFixture(), { kind: 'legacy', actorId: ACTOR })
+            .import(planDocumentFixture(), { kind: 'legacy', actorId: ACTOR }, projectId, {
+              defineMissing: true,
+            })
             .then(
               (outcome) => ({ kind: 'returned' as const, outcome }),
               (cause: unknown) => ({ kind: 'threw' as const, cause }),
             );
 
-          const visible = await admitted.promise;
+          let visible: AdmittedImportState;
+          try {
+            visible = await Promise.race([
+              admitted.promise,
+              settled.then((terminal) => {
+                if (terminal.kind === 'threw') throw terminal.cause;
+                throw new Error(
+                  'import settled before its held late write: ' + JSON.stringify(terminal),
+                );
+              }),
+            ]);
+          } finally {
+            release.resolve(undefined);
+            await settled;
+          }
+          const terminal = await settled;
           expect(visible.rowIds).toHaveLength(1);
           expect(visible.teamId).not.toBe('team-1');
-          release.resolve(undefined);
-          const terminal = await settled;
           if (fault.kind === 'refused') {
             expect(terminal).toEqual({
               kind: 'returned',
@@ -1222,8 +1429,10 @@ export function importServiceSourceContract(
           expect(
             (await source.stores.directory.listTeams()).some(({ name }) => name === 'Billing'),
           ).toBe(false);
-          expect(await source.stores.projects.findById(visible.projectId)).toBeNull();
-          expect(await source.stores.workItems.listByProject(visible.projectId)).toEqual([]);
+          expect(await source.stores.workPackages.findById(visible.workPackageId)).toBeNull();
+          expect(await source.stores.workItems.listByWorkPackage(visible.workPackageId)).toEqual(
+            [],
+          );
           expect(announcements.published).toEqual([]);
         } finally {
           await source.close();
@@ -1253,26 +1462,39 @@ export function importServiceSourceContract(
           url: 'https://example.test/solutions/second',
         };
 
-        const first = service.import(firstDocument, { kind: 'legacy', actorId: ACTOR });
-        await creationHeld.promise;
-        const second = service.import(secondDocument, { kind: 'legacy', actorId: ACTOR });
-        await secondStarted.promise;
-        release.resolve(undefined);
+        const first = service.import(firstDocument, { kind: 'legacy', actorId: ACTOR }, projectId, {
+          defineMissing: true,
+        });
+        let second: ReturnType<ImportService['import']> | undefined;
+        try {
+          await beforeImportSettles(creationHeld.promise, first, 'current package creation');
+          second = service.import(secondDocument, { kind: 'legacy', actorId: ACTOR }, projectId, {
+            defineMissing: true,
+          });
+          await beforeImportSettles(secondStarted.promise, second, 'second writer admission');
+        } finally {
+          release.resolve(undefined);
+          await Promise.allSettled(second === undefined ? [first] : [first, second]);
+        }
         const [firstOutcome, secondOutcome] = await Promise.all([first, second]);
         if (!firstOutcome.ok || !secondOutcome.ok)
           throw new Error('valid concurrent import was refused');
 
         expect(firstOutcome.solutionRef).toBe('kept');
         expect(secondOutcome.solutionRef).toBe('left-off');
-        expect(firstOutcome.projectId).not.toBe(secondOutcome.projectId);
-        expect(await source.stores.projects.findById(firstOutcome.projectId)).toMatchObject({
-          name: 'First concurrent import',
-          solutionRef: {
-            slug: 'shared-free-solution',
-            url: 'https://example.test/solutions/first',
+        expect(firstOutcome.workPackageId).not.toBe(secondOutcome.workPackageId);
+        expect(await source.stores.workPackages.findById(firstOutcome.workPackageId)).toMatchObject(
+          {
+            name: 'First concurrent import',
+            solutionRef: {
+              slug: 'shared-free-solution',
+              url: 'https://example.test/solutions/first',
+            },
           },
-        });
-        expect(await source.stores.projects.findById(secondOutcome.projectId)).toMatchObject({
+        );
+        expect(
+          await source.stores.workPackages.findById(secondOutcome.workPackageId),
+        ).toMatchObject({
           name: 'Second concurrent import',
           solutionRef: null,
         });
@@ -1281,21 +1503,21 @@ export function importServiceSourceContract(
       }
     });
 
-    it('publishes directory, project, and tree refreshes without writing history', async () => {
+    it('publishes directory, work package, and tree refreshes without writing history', async () => {
       const source = await ownedSource();
       try {
-        const existingProjectId = 'existing-subscriber-project';
-        await source.stores.projects.create(
-          projectFixture(existingProjectId, 'Existing subscriber'),
+        const existingWorkPackageId = 'existing-subscriber-work-package';
+        await source.stores.workPackages.create(
+          workPackageFixture(existingWorkPackageId, 'Existing subscriber', projectId),
           [],
           STAMP,
         );
-        const published: { projectId: string; event: ProjectEvent }[] = [];
+        const published: { workPackageId: string; event: WorkPackageEvent }[] = [];
         const subscriberReads: string[][] = [];
         const announcements: Broadcaster = {
-          async publish(projectId, event) {
-            published.push({ projectId, event });
-            if (projectId === existingProjectId && event.type === 'directory_changed') {
+          async publish(workPackageId, event) {
+            published.push({ workPackageId, event });
+            if (workPackageId === existingWorkPackageId && event.type === 'directory_changed') {
               subscriberReads.push(
                 (await source.stores.directory.listTeams()).map(({ name }) => name),
               );
@@ -1307,32 +1529,35 @@ export function importServiceSourceContract(
         const imported = await importService(source, { announcements }).import(
           planDocumentFixture(),
           { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
         );
         if (!imported.ok) throw new Error(`valid import refused at ${JSON.stringify(imported)}`);
 
         expect(subscriberReads).toEqual([['Billing']]);
         expect(
           published
-            .filter(({ projectId }) => projectId === imported.projectId)
+            .filter(({ workPackageId }) => workPackageId === imported.workPackageId)
             .map(({ event }) => event.type),
-        ).toEqual(['directory_changed', 'project_settings_changed', 'tree_replaced']);
+        ).toEqual(['directory_changed', 'work_package_settings_changed', 'tree_replaced']);
         expect(
           published.find(
-            ({ projectId, event }) =>
-              projectId === imported.projectId && event.type === 'project_settings_changed',
+            ({ workPackageId, event }) =>
+              workPackageId === imported.workPackageId &&
+              event.type === 'work_package_settings_changed',
           ),
         ).toEqual({
-          projectId: imported.projectId,
+          workPackageId: imported.workPackageId,
           event: {
-            type: 'project_settings_changed',
+            type: 'work_package_settings_changed',
             optimizationEnabled: false,
             scheduleEngine: 'fast',
             scheduleObjective: 'pri',
           },
         });
         const tree = published.find(
-          ({ projectId, event }) =>
-            projectId === imported.projectId && event.type === 'tree_replaced',
+          ({ workPackageId, event }) =>
+            workPackageId === imported.workPackageId && event.type === 'tree_replaced',
         );
         if (tree?.event.type !== 'tree_replaced')
           throw new Error('import did not announce its tree');
@@ -1342,12 +1567,12 @@ export function importServiceSourceContract(
         for (const personId of [null, 'import-agent'])
           expect(
             await source.stores.journal.entriesFor({
-              projectId: imported.projectId,
+              workPackageId: imported.workPackageId,
               userId: ACTOR,
               personId,
             }),
           ).toEqual([]);
-        expect(await source.stores.planEvents.listFor(imported.projectId, {})).toEqual([]);
+        expect(await source.stores.planEvents.listFor(imported.workPackageId, {})).toEqual([]);
       } finally {
         await source.close();
       }
@@ -1359,24 +1584,31 @@ export function importServiceSourceContract(
         const publishing = deferred<undefined>();
         const release = deferred<undefined>();
         const announcements = heldBroadcaster(publishing, release.promise);
-        const importing = importService(source, { announcements }).import(planDocumentFixture(), {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
-        await publishing.promise;
-
-        const ordinary = source.uow.run(async (scope) => {
-          await scope.stores.projects.create(
-            projectFixture('ordinary-project', 'Ordinary write'),
-            [],
-            STAMP,
-          );
-          return { commit: true, value: undefined };
-        });
-        await ordinary;
-        expect(await source.stores.projects.findById('ordinary-project')).not.toBeNull();
-
-        release.resolve(undefined);
+        const importing = importService(source, { announcements }).import(
+          planDocumentFixture(),
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
+        try {
+          await beforeImportSettles(publishing.promise, importing, 'post-commit publication');
+          const ordinary = source.uow.run(async (scope) => {
+            await scope.stores.workPackages.create(
+              workPackageFixture('ordinary-work-package', 'Ordinary write', projectId),
+              [],
+              STAMP,
+            );
+            return { commit: true, value: undefined };
+          });
+          await ordinary;
+          expect(await source.stores.workPackages.findById('ordinary-work-package')).not.toBeNull();
+        } finally {
+          release.resolve(undefined);
+          await Promise.allSettled([importing]);
+        }
         const imported = await importing;
         expect(imported.ok).toBe(true);
       } finally {
@@ -1411,14 +1643,19 @@ export function importServiceSourceContract(
           const classified = await classifyPlanDocument(file);
           if (!classified.ok) throw new Error(`version ${String(version)} refused`);
 
-          const imported = await importService(source).import(classified.value, {
-            kind: 'legacy',
-            actorId: ACTOR,
-          });
+          const imported = await importService(source).import(
+            classified.value,
+            {
+              kind: 'legacy',
+              actorId: ACTOR,
+            },
+            projectId,
+            { defineMissing: true },
+          );
           if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-          const exported = await exportDocument(source, imported.projectId);
+          const exported = await exportDocument(source, imported.workPackageId);
 
-          expect(exported.document.version).toBe(11);
+          expect(exported.document.version).toBe(15);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1460,12 +1697,17 @@ export function importServiceSourceContract(
         ]);
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
-        const imported = await importService(source).import(classified.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          classified.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-        const exported = await exportDocument(source, imported.projectId);
+        const exported = await exportDocument(source, imported.workPackageId);
         const build = exported.workItems.find(({ name }) => name === 'Build release');
         const verify = exported.workItems.find(({ name }) => name === 'Verify release');
         const buildStep = exported.steps.find(({ code }) => code === 'impl');
@@ -1477,7 +1719,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(11);
+        expect(exported.document.version).toBe(15);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1518,12 +1760,17 @@ export function importServiceSourceContract(
         Reflect.set(leaf, 'hold', 'blocked');
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
-        const imported = await importService(source).import(classified.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          classified.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-        const exported = await exportDocument(source, imported.projectId);
+        const exported = await exportDocument(source, imported.workPackageId);
         expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
           readiness: 'ready',
           hold: 'blocked',
@@ -1543,7 +1790,9 @@ export function importServiceSourceContract(
     it('re-imports its own export of a leaf held and then marked done (add-work-item-statuses)', async () => {
       const source = await ownedSource();
       try {
+        const service = importService(source);
         const file = roundTripFixture();
+        file.settings.restricted = false;
         file.document.version = 6;
         const leaf = file.workItems.find(
           (row) => !file.workItems.some((child) => child.parentId === row.id),
@@ -1552,21 +1801,26 @@ export function importServiceSourceContract(
         Reflect.set(leaf, 'hold', 'on_hold');
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
-        const imported = await importService(source).import(classified.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await service.import(
+          classified.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
 
         const graph = servicesOver(source.stores, {
           dependencyContext: createLocalDependencyContext(source.stores),
-          admission: CREATOR_ADMISSION,
+          admission: LEGACY_EDIT_ADMISSION,
           clock: clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() }),
           broadcast: recordingBroadcaster(),
           scheduler: fastScheduler,
         });
-        const tree = await graph.workItems.tree(imported.projectId);
-        if (tree === null || 'kind' in tree) throw new Error('imported project has no tree');
+        const tree = await graph.workItems.tree(imported.workPackageId);
+        if (tree === null || 'kind' in tree) throw new Error('imported work package has no tree');
         const held = tree.workItems.find(({ name }) => name === leaf.name);
         if (held === undefined) throw new Error('imported leaf is missing');
         for (const step of tree.steps) {
@@ -1574,20 +1828,26 @@ export function importServiceSourceContract(
           if (!marked.ok) throw new Error(`cannot mark ${step.id} done`);
         }
 
-        const exported = await exportDocument(source, imported.projectId);
+        const exported = await exportDocument(source, imported.workPackageId);
         expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
           hold: 'on_hold',
         });
         const again = await classifyPlanDocument(exported);
         expect(again.ok).toBe(true);
         if (!again.ok) return;
-        const reimported = await importService(source).import(again.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const reimported = await service.import(
+          again.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!reimported.ok) throw new Error(`re-import refused at ${JSON.stringify(reimported)}`);
-        const reread = await graph.workItems.tree(reimported.projectId);
-        if (reread === null || 'kind' in reread) throw new Error('re-imported project has no tree');
+        const reread = await graph.workItems.tree(reimported.workPackageId);
+        if (reread === null || 'kind' in reread)
+          throw new Error('re-imported work package has no tree');
         expect(reread.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
           status: 'done',
           hold: 'on_hold',
@@ -1597,7 +1857,7 @@ export function importServiceSourceContract(
       }
     });
 
-    it('refuses a missing typed step before any project write', async () => {
+    it('refuses a missing typed step before any work package write', async () => {
       const source = await ownedSource();
       try {
         const file = roundTripFixture();
@@ -1610,17 +1870,21 @@ export function importServiceSourceContract(
             type: 'FS',
           },
         ]);
-        const before = await source.stores.projects.list();
+        const before = await source.stores.workPackages.list();
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
         expect(
-          await importService(source).import(classified.value, { kind: 'legacy', actorId: ACTOR }),
+          await importService(source).import(
+            classified.value,
+            { kind: 'legacy', actorId: ACTOR },
+            projectId,
+          ),
         ).toMatchObject({
           ok: false,
           code: 'invalid_typed_dependency',
           path: 'typedDependencies[0].predecessor.step',
         });
-        expect(await source.stores.projects.list()).toEqual(before);
+        expect(await source.stores.workPackages.list()).toEqual(before);
       } finally {
         await source.close();
       }
@@ -1643,18 +1907,24 @@ export function importServiceSourceContract(
             type: 'FS',
           },
         ]);
-        const before = await source.stores.projects.list();
+        const before = await source.stores.workPackages.list();
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
         expect(
-          await importService(source).import(classified.value, { kind: 'legacy', actorId: ACTOR }),
+          await importService(source).import(
+            classified.value,
+            { kind: 'legacy', actorId: ACTOR },
+            projectId,
+            { defineMissing: true },
+          ),
         ).toMatchObject({
           ok: false,
           code: 'invalid_typed_dependency',
-          path: 'typedDependencies',
+          path: 'typedDependencies[0]',
+          detail: 'cycle',
         });
-        expect(await source.stores.projects.list()).toEqual(before);
+        expect(await source.stores.workPackages.list()).toEqual(before);
       } finally {
         await source.close();
       }
@@ -1680,14 +1950,19 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
-        const imported = await importService(source).import(classified.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
-        if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
-          1,
+        const imported = await importService(source).import(
+          classified.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
         );
+        if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
+        expect(
+          (await exportDocument(source, imported.workPackageId)).typedDependencies,
+        ).toHaveLength(1);
       } finally {
         await source.close();
       }
@@ -1740,17 +2015,22 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
-        const imported = await importService(source).import(classified.value, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await importService(source).import(
+          classified.value,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok)
           throw new Error(
             `import refused at ${JSON.stringify(imported)}: ${JSON.stringify(imported)}`,
           );
-        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
-          2,
-        );
+        expect(
+          (await exportDocument(source, imported.workPackageId)).typedDependencies,
+        ).toHaveLength(2);
       } finally {
         await source.close();
       }
@@ -1841,31 +2121,40 @@ export function importServiceSourceContract(
             ? [relationship, { ...relationship, id: 'also-bad' }]
             : [relationship],
         );
-        const before = await source.stores.projects.list();
+        const before = await source.stores.workPackages.list();
         const classified = await classifyPlanDocument(file);
         const refusal = classified.ok
-          ? await importService(source).import(classified.value, { kind: 'legacy', actorId: ACTOR })
+          ? await importService(source).import(
+              classified.value,
+              { kind: 'legacy', actorId: ACTOR },
+              projectId,
+              { defineMissing: true },
+            )
           : classified;
         expect(refusal).toMatchObject({ ok: false, code: 'invalid_typed_dependency' });
-        expect(await source.stores.projects.list()).toEqual(before);
+        expect(await source.stores.workPackages.list()).toEqual(before);
       } finally {
         await source.close();
       }
     });
 
-    it('refuses a version-3 file with a duplicate step code, writing no project', async () => {
+    it('refuses a version-3 file with a duplicate step code, writing no work package', async () => {
       const source = await ownedSource();
       try {
-        const before = await source.stores.projects.list();
+        const before = await source.stores.workPackages.list();
         const duplicated = roundTripFixture();
         const verify = duplicated.steps.at(2);
         if (verify === undefined) throw new Error('round-trip fixture lacks its third step');
         verify.code = 'impl';
 
-        const refused = await importService(source).import(duplicated, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const refused = await importService(source).import(
+          duplicated,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+        );
 
         expect(refused).toMatchObject({
           ok: false,
@@ -1873,7 +2162,7 @@ export function importServiceSourceContract(
           path: 'steps[2].code',
           detail: 'impl',
         });
-        expect(await source.stores.projects.list()).toEqual(before);
+        expect(await source.stores.workPackages.list()).toEqual(before);
       } finally {
         await source.close();
       }
@@ -1882,6 +2171,7 @@ export function importServiceSourceContract(
     it('round-trips resources, their capacities and demands (wbs-resources)', async () => {
       const source = await ownedSource();
       try {
+        const service = importService(source);
         const file = roundTripFixture();
         file.document.version = 10;
         file.directory.resources = [
@@ -1898,17 +2188,22 @@ export function importServiceSourceContract(
           { workItemId: 'row-build', resourceId: 'res-ram', units: 4 },
           { workItemId: 'row-verify', resourceId: 'res-stage', units: 1 },
         ];
-        const imported = await importService(source).import(file, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await service.import(
+          file,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused at ${JSON.stringify(imported)}`);
-        const exported = await exportDocument(source, imported.projectId);
+        const exported = await exportDocument(source, imported.workPackageId);
         const resourceName = new Map(
           exported.directory.resources.map(({ id, name }) => [id, name]),
         );
         const rowName = new Map(exported.workItems.map(({ id, name }) => [id, name]));
-        expect(exported.document.version).toBe(11);
+        expect(exported.document.version).toBe(15);
         expect(
           exported.directory.resources.map(({ name, kind, unitLabel }) => ({
             name,
@@ -1941,9 +2236,11 @@ export function importServiceSourceContract(
           { row: 'Verify release', resource: 'staging', units: 1 },
         ]);
         // A second import of the export reuses both resources by name.
-        const again = await importService(source).import(
-          await exportProject(source, imported.projectId),
+        const again = await service.import(
+          await exportWorkPackage(source, imported.workPackageId),
           { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
         );
         if (!again.ok) throw new Error(`re-import refused at ${JSON.stringify(again)}`);
         expect((await source.stores.directory.listResources()).map(({ name }) => name)).toEqual([
@@ -1955,14 +2252,14 @@ export function importServiceSourceContract(
       }
     });
 
-    it('refuses a resource the directory holds under another kind, writing no project', async () => {
+    it('refuses a resource the directory holds under another kind, writing no work package', async () => {
       const source = await ownedSource();
       try {
         await source.stores.directory.addResource(
           { id: 'held-stage', name: 'staging', kind: 'divisible', unitLabel: 'env' },
           STAMP,
         );
-        const before = await source.stores.projects.list();
+        const before = await source.stores.workPackages.list();
         const file = roundTripFixture();
         file.document.version = 10;
         file.directory.resources = [
@@ -1970,10 +2267,15 @@ export function importServiceSourceContract(
         ];
         file.demands = [{ workItemId: 'row-verify', resourceId: 'res-stage', units: 1 }];
 
-        const refused = await importService(source).import(file, {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const refused = await importService(source).import(
+          file,
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
 
         expect(refused).toEqual({
           ok: false,
@@ -1981,7 +2283,7 @@ export function importServiceSourceContract(
           path: 'directory.resources[0].kind',
           detail: 'kind_is_immutable',
         });
-        expect(await source.stores.projects.list()).toEqual(before);
+        expect(await source.stores.workPackages.list()).toEqual(before);
       } finally {
         await source.close();
       }
@@ -2027,19 +2329,39 @@ export function importServiceSourceContract(
       return file;
     }
 
+    async function setDestinationFactor(source: TSource, factor: number) {
+      const target = await source.stores.settings.readTarget(
+        { level: 'project', id: projectId },
+        null,
+      );
+      if (target === null) throw new Error('actual import destination project is absent');
+      expect(
+        await source.stores.settings.write(target, { key: 'budgetFactor', value: factor }, STAMP),
+      ).toEqual({ ok: true });
+      return target;
+    }
+
     it('round-trips a version-11 plan’s trios, budgets and factor byte for byte (wbs-measure-budgets)', async () => {
       const source = await ownedSource();
       try {
+        await setDestinationFactor(source, 2.5);
         const service = importService(source);
-        const imported = await service.import(measuredFixture(), {
-          kind: 'legacy',
-          actorId: ACTOR,
-        });
+        const imported = await service.import(
+          measuredFixture(),
+          {
+            kind: 'legacy',
+            actorId: ACTOR,
+          },
+          projectId,
+          { defineMissing: true },
+        );
         if (!imported.ok) throw new Error(`import refused: ${JSON.stringify(imported)}`);
-        const first = await exportProject(source, imported.projectId);
-        const again = await service.import(first, { kind: 'legacy', actorId: ACTOR });
+        const first = await exportWorkPackage(source, imported.workPackageId);
+        const again = await service.import(first, { kind: 'legacy', actorId: ACTOR }, projectId, {
+          defineMissing: true,
+        });
         if (!again.ok) throw new Error(`re-import refused: ${JSON.stringify(again)}`);
-        const second = await exportProject(source, again.projectId);
+        const second = await exportWorkPackage(source, again.workPackageId);
         const rowName = new Map(first.workItems.map(({ id, name }) => [id, name]));
         expect({
           version: first.document.version,
@@ -2058,7 +2380,7 @@ export function importServiceSourceContract(
             holdPerAttempt,
           })),
         }).toEqual({
-          version: 11,
+          version: 15,
           factor: 2.5,
           definitions: ['tokens', 'agent_minutes'],
           // The single-point trio stays `row-build`'s legacy token estimate.
@@ -2082,10 +2404,12 @@ export function importServiceSourceContract(
       }
     });
 
-    it('refuses a defined measure under legacy access, writing no project', async () => {
+    it('imports a defined measure into its actual legacy organization and refuses incompatible shapes without writes', async () => {
       const source = await ownedSource();
       try {
-        const before = await source.stores.projects.list();
+        await setDestinationFactor(source, 2.5);
+        const before = await source.stores.workPackages.list();
+        const service = importService(source);
         const defined = measuredFixture();
         defined.measureDefinitions.push({
           key: 'gpu_minutes',
@@ -2112,36 +2436,201 @@ export function importServiceSourceContract(
         if (tokens === undefined) throw new Error('measured fixture lost its tokens definition');
         tokens.unit = 'kilotokens';
 
-        expect([
-          await importService(source).import(defined, { kind: 'legacy', actorId: ACTOR }),
-          await importService(source).import(reshaped, { kind: 'legacy', actorId: ACTOR }),
-        ]).toEqual([
-          {
-            ok: false,
-            code: 'source_refused',
-            path: 'measureDefinitions[2].key',
-            detail: 'unknown_measure',
-          },
-          {
-            ok: false,
-            code: 'source_refused',
-            path: 'measureDefinitions[0].unit',
-            detail: 'measure_shape_mismatch',
-          },
-        ]);
-        expect(await source.stores.projects.list()).toEqual(before);
+        // Historical unknown_measure control assumed an unowned destination. The explicit parent now names the actual legacy organization.
+        const imported = await service.import(
+          defined,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
+        expect(imported.ok).toBe(true);
+        if (!imported.ok)
+          throw new Error('defined measure import refused: ' + JSON.stringify(imported));
+        const definitions = await source.stores.measures.definitionsFor(imported.workPackageId);
+        if (definitions === null)
+          throw new Error('actual legacy organization has no definition catalog');
+        const storedDefinition = definitions.find((definition) => definition.key === 'gpu_minutes');
+        expect(storedDefinition).toBeDefined();
+        if (storedDefinition === undefined) throw new Error('new measure definition disappeared');
+        const { id: definitionId, ...definitionFields } = storedDefinition;
+        expect(definitionId.length).toBeGreaterThan(0);
+        expect(definitionFields).toEqual(defined.measureDefinitions[2]);
+        const exported = await exportDocument(source, imported.workPackageId);
+        const anyWorkItemId: unknown = expect.any(String);
+        expect(exported.budgets).toContainEqual<unknown>({
+          workItemId: anyWorkItemId,
+          measure: 'gpu_minutes',
+          cap: 10,
+          policy: 'advisory',
+          holdPerAttempt: null,
+        });
+        const afterSuccess = structuredClone(await source.stores.workPackages.list());
+        const definitionsAfterSuccess = structuredClone(definitions);
+        expect(afterSuccess).toHaveLength(before.length + 1);
+        expect(
+          await service.import(reshaped, { kind: 'legacy', actorId: ACTOR }, projectId, {
+            defineMissing: true,
+          }),
+        ).toEqual({
+          ok: false,
+          code: 'source_refused',
+          path: 'measureDefinitions[0].unit',
+          detail: 'measure_shape_mismatch',
+        });
+        expect(await source.stores.workPackages.list()).toEqual(afterSuccess);
+        expect(await source.stores.measures.definitionsFor(imported.workPackageId)).toEqual(
+          definitionsAfterSuccess,
+        );
       } finally {
         await source.close();
       }
     });
 
+    for (const mode of ['equal', 'mismatched'] as const) {
+      it(`preserves actual destination settings and sibling for ${mode} version-11 factor`, async () => {
+        const source = await ownedSource();
+        let primary: { cause: unknown } | null = null;
+        try {
+          const target = await setDestinationFactor(source, 2.5);
+          const organization = await source.stores.settings.readTarget(
+            { level: 'organization', id: target.chain.organizationId },
+            null,
+          );
+          if (organization === null)
+            throw new Error('actual import destination organization is absent');
+          // Populate the destination catalogue before this factor-only observation;
+          // new bindings would legitimately advance the sibling revision.
+          for (const [index, step] of measuredFixture().steps.entries()) {
+            const code = step.code ?? suggestStepCode(step.name, new Set());
+            const defined = await source.stores.stepCatalogue.defineAndBindStep(
+              target.chain.organizationId,
+              {
+                id: 'factor-definition-' + String(index),
+                code,
+                name: step.name,
+                position: step.position,
+                defaultEstimateUnit: step.estimateUnit,
+                defaultAllowancePercent: step.allowancePercent,
+              },
+              {
+                bindingId: 'factor-binding-' + String(index),
+                scopeKind: 'project',
+                scopeId: projectId,
+                workItemTypeId: null,
+                position: (index + 1) * 10,
+              },
+              STAMP,
+            );
+            if (!defined.ok)
+              throw new Error('factor fixture catalogue refused: ' + JSON.stringify(defined));
+          }
+          const siblingId = 'factor-sibling';
+          await source.stores.workPackages.create(
+            workPackageFixture(siblingId, 'Factor sibling', projectId),
+            [],
+            STAMP,
+          );
+          const sibling = await source.stores.workPackages.findById(siblingId);
+          if (sibling === null) throw new Error('actual import destination sibling is absent');
+          expect(sibling.budgetFactor).toBe(2.5);
+          const projectBefore = structuredClone(await source.stores.settings.capture(target));
+          const organizationBefore = structuredClone(
+            await source.stores.settings.capture(organization),
+          );
+          const packagesBefore = structuredClone(await source.stores.workPackages.list());
+          expect(projectBefore.values.filter(({ key }) => key === 'budgetFactor')).toEqual([
+            { scope: { level: 'project', id: projectId }, key: 'budgetFactor', value: 2.5 },
+          ]);
+          const writes: RecordedSettingWrite[] = [];
+          const announcements = recordingBroadcaster();
+          const document = measuredFixture();
+          document.settings.budgetFactor = mode === 'equal' ? 2.5 : 3.5;
+          const imported = await importService(source, {
+            uow: recordingSettingsWrites(source, writes),
+            announcements,
+          }).import(document, { kind: 'legacy', actorId: ACTOR }, projectId, {
+            defineMissing: true,
+          });
+          if (mode === 'mismatched') {
+            expect(imported).toEqual({
+              ok: false,
+              code: 'import_settings_conflict',
+              key: 'budgetFactor',
+            });
+            expect(await source.stores.workPackages.list()).toEqual(packagesBefore);
+            expect(announcements.published).toEqual([]);
+          } else {
+            expect(imported.ok).toBe(true);
+            if (!imported.ok)
+              throw new Error('equal factor import refused: ' + JSON.stringify(imported));
+            const importedPackage = await source.stores.workPackages.findById(
+              imported.workPackageId,
+            );
+            if (importedPackage === null) throw new Error('equal factor import package is absent');
+            expect(importedPackage.budgetFactor).toBe(2.5);
+            expect(await source.stores.workPackages.list()).toHaveLength(packagesBefore.length + 1);
+            const importedTarget = await source.stores.settings.readTarget(
+              { level: 'work_package', id: imported.workPackageId },
+              target.chain.organizationId,
+            );
+            if (importedTarget === null) throw new Error('equal factor import target is absent');
+            expect(
+              (await source.stores.settings.capture(importedTarget)).values.filter(
+                ({ key }) => key === 'budgetFactor',
+              ),
+            ).toEqual(projectBefore.values.filter(({ key }) => key === 'budgetFactor'));
+            expect(
+              announcements.published.filter(
+                ({ workPackageId, event }) =>
+                  workPackageId === imported.workPackageId &&
+                  event.type === 'work_package_settings_changed',
+              ),
+            ).toHaveLength(1);
+            expect(
+              announcements.published.filter(
+                ({ workPackageId, event }) =>
+                  workPackageId === siblingId && event.type === 'work_package_settings_changed',
+              ),
+            ).toEqual([]);
+          }
+          expect(await source.stores.settings.capture(target)).toEqual(projectBefore);
+          expect(await source.stores.settings.capture(organization)).toEqual(organizationBefore);
+          expect(await source.stores.workPackages.findById(siblingId)).toEqual(sibling);
+          expect(
+            writes.filter(({ target: writtenTarget }) => writtenTarget.kind !== 'work_package'),
+          ).toEqual([]);
+        } catch (cause) {
+          primary = { cause };
+        }
+        let closure: { cause: unknown } | null = null;
+        try {
+          await source.close();
+        } catch (cause) {
+          closure = { cause };
+        }
+        if (primary !== null && closure !== null)
+          throw new AggregateError(
+            [primary.cause, closure.cause],
+            'import factor contract and source close failed',
+            { cause: primary.cause },
+          );
+        if (primary !== null) throw primary.cause;
+        if (closure !== null) throw closure.cause;
+      });
+    }
+
     it('round trips every authored input while storing leaf values only', async () => {
       const source = await ownedSource();
       try {
         const service = importService(source);
-        const seeded = await service.import(roundTripFixture(), { kind: 'legacy', actorId: ACTOR });
+        const seeded = await service.import(
+          roundTripFixture(),
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
         if (!seeded.ok) throw new Error(`round-trip seed refused at ${JSON.stringify(seeded)}`);
-        const exported = await exportProject(source, seeded.projectId);
+        const exported = await exportWorkPackage(source, seeded.workPackageId);
         const directoryBefore = {
           teams: await source.stores.directory.listTeams(),
           people: await source.stores.directory.listPeople(),
@@ -2151,11 +2640,16 @@ export function importServiceSourceContract(
           systems: await source.stores.directory.listExternalSystems(),
         };
 
-        const restored = await service.import(exported, { kind: 'legacy', actorId: ACTOR });
+        const restored = await service.import(
+          exported,
+          { kind: 'legacy', actorId: ACTOR },
+          projectId,
+          { defineMissing: true },
+        );
         if (!restored.ok)
           throw new Error(`round-trip restore refused at ${JSON.stringify(restored)}`);
         expect(restored.solutionRef).toBe('left-off');
-        const reexported = await exportProject(source, restored.projectId);
+        const reexported = await exportWorkPackage(source, restored.workPackageId);
         expect({
           teams: await source.stores.directory.listTeams(),
           people: await source.stores.directory.listPeople(),
@@ -2165,17 +2659,17 @@ export function importServiceSourceContract(
           systems: await source.stores.directory.listExternalSystems(),
         }).toEqual(directoryBefore);
 
-        const rows = await source.stores.workItems.listByProject(restored.projectId);
+        const rows = await source.stores.workItems.listByWorkPackage(restored.workPackageId);
         const parent = rows.find(({ name }) => name === 'Release');
         const build = rows.find(({ name }) => name === 'Build release');
         const verify = rows.find(({ name }) => name === 'Verify release');
         if (parent === undefined || build === undefined || verify === undefined)
           throw new Error('round-trip hierarchy is incomplete');
         const [estimates, actuals, progress, measures] = await Promise.all([
-          source.stores.estimates.listByProject(restored.projectId),
-          source.stores.actuals.listByProject(restored.projectId),
-          source.stores.progress.listByProject(restored.projectId),
-          source.stores.measures.listByProject(restored.projectId),
+          source.stores.estimates.listByWorkPackage(restored.workPackageId),
+          source.stores.actuals.listByWorkPackage(restored.workPackageId),
+          source.stores.progress.listByWorkPackage(restored.workPackageId),
+          source.stores.measures.listByWorkPackage(restored.workPackageId),
         ]);
         // Proof: admitting exported parent roll-ups made each source table name
         // the parent here. The second export still matched because its roll-up

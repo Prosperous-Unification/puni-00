@@ -3,21 +3,24 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Scope, Source, TransactionalStores } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
+import { seedLegacyPackageParent as seedMemoryPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
+import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent as seedSqlitePackageParent } from './testing/legacy-package-parent';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
@@ -29,16 +32,28 @@ const STORES: readonly {
   readonly open: () => {
     source: Source<TransactionalStores>;
     isMemory: boolean;
+    seedParent: () => void;
     dispose: () => void;
   };
 }[] = [
   {
     name: 'memory',
-    open: () => ({
-      source: openMemorySourceFixture().source,
-      isMemory: true,
-      dispose: () => undefined,
-    }),
+    open: () => {
+      const fixture = openMemorySourceFixture();
+      return {
+        source: fixture.source,
+        isMemory: true,
+        seedParent: () => {
+          seedMemoryPackageParent(fixture, {
+            organizationId: 'fixture-legacy-org',
+            projectId: 'fixture-project',
+            creator: F,
+          });
+          fixture.setPackageCreationMembers('fixture-legacy-org', [F, G]);
+        },
+        dispose: () => undefined,
+      };
+    },
   },
   {
     name: 'sqlite',
@@ -52,6 +67,19 @@ const STORES: readonly {
           dbPath,
         }),
         isMemory: false,
+        seedParent: () => {
+          seedSqlitePackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+          const sqlite = openDatabase(dbPath);
+          try {
+            for (const id of [F, G])
+              sqlite.run(
+                "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES(?,?,'member',1)",
+                ['fixture-legacy-org', id],
+              );
+          } finally {
+            sqlite.close();
+          }
+        },
         dispose: () => {
           rmSync(folder, { recursive: true, force: true });
         },
@@ -67,9 +95,9 @@ const STORES: readonly {
  * and `B`'s Review, unassigned, is claimed by `claire`.
  */
 async function seeded(store: (typeof STORES)[number]) {
-  const { source, isMemory, dispose } = store.open();
+  const { source, isMemory, seedParent, dispose } = store.open();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -82,13 +110,20 @@ async function seeded(store: (typeof STORES)[number]) {
       { at: 1, by: id },
     );
   }
-  const created = expectCreated(await graph.projects.create('Assignees', F));
-  const projectId = created.project.id;
+  seedParent();
+  const created = expectCreated(await graph.workPackages.create('Assignees', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
   if (isMemory) {
-    // The memory source keeps a project's steps apart from the step table its progress reads.
+    // The memory source keeps a work package's steps apart from the step table its progress reads.
     for (const step of created.steps) {
       await source.stores.steps.add(
-        { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
+        {
+          id: step.id,
+          workPackageId,
+          name: step.name,
+          allowancePercent: 0,
+          estimateUnit: 'workdays',
+        },
         { at: 1, by: F },
       );
     }
@@ -116,7 +151,7 @@ async function seeded(store: (typeof STORES)[number]) {
         dependencyContext: createLocalDependencyContext(scope.stores),
       }),
   });
-  const tree = await runner.run(projectId, F, [
+  const tree = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: null, parentRef: 'P', afterId: null },
     {
@@ -178,7 +213,7 @@ async function seeded(store: (typeof STORES)[number]) {
     if (id === undefined) throw new Error(`no work item ${ref}`);
     return id;
   };
-  const prior = await runner.run(projectId, F, [
+  const prior = await runner.run(workPackageId, F, [
     { kind: 'setAssignee', workItemId: idOf('A'), stepId: review, personId: 'ada' },
     { kind: 'setAssignee', workItemId: idOf('D1'), stepId: review, personId: 'bob' },
     { kind: 'setAssignee', workItemId: idOf('C'), stepId: dev, personId: 'bob' },
@@ -215,12 +250,12 @@ async function seeded(store: (typeof STORES)[number]) {
       .toSorted();
   };
   const entries = async () =>
-    (await source.stores.journal.entriesFor({ projectId, userId: F, personId: null })).length;
+    (await source.stores.journal.entriesFor({ workPackageId, userId: F, personId: null })).length;
   const close = async () => {
     await source.close();
     dispose();
   };
-  return { graph, runner, projectId, dev, review, idOf, assignments, entries, claire, close };
+  return { graph, runner, workPackageId, dev, review, idOf, assignments, entries, claire, close };
 }
 
 const BEFORE = ['A:review:ada', 'C:dev:bob', 'D1:review:bob'];
@@ -228,12 +263,13 @@ const BEFORE = ['A:review:ada', 'C:dev:bob', 'D1:review:bob'];
 for (const store of STORES) {
   describe(`assignSubtree on the ${store.name} store`, () => {
     it('assigns Review on all five leaves in one entry, and undo restores the two that existed', async () => {
-      const { runner, projectId, review, idOf, assignments, entries, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, assignments, entries, close } =
+        await seeded(store);
       try {
         expect(await assignments()).toEqual(BEFORE);
         const before = await entries();
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
           ]),
         ).toMatchObject({ ok: true, results: [{ index: 0, kind: 'assignSubtree' }] });
@@ -248,9 +284,9 @@ for (const store of STORES) {
           'D1:review:kat',
           'D2:review:kat',
         ]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(BEFORE);
-        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toHaveLength(6);
       } finally {
         await close();
@@ -258,11 +294,11 @@ for (const store of STORES) {
     });
 
     it('lists the claimed step it took from its holder, and undo leaves the claim', async () => {
-      const { graph, runner, projectId, review, idOf, assignments, claire, close } =
+      const { graph, runner, workPackageId, review, idOf, assignments, claire, close } =
         await seeded(store);
       try {
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
           ]),
         ).toMatchObject({
@@ -282,10 +318,10 @@ for (const store of STORES) {
           ],
         });
         expect(await assignments()).toContain('B:review:kat');
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(BEFORE);
         expect(
-          await graph.workItems.personWorkWithin(projectId, { kind: 'legacy' }, 'claire'),
+          await graph.workItems.personWorkWithin(workPackageId, { kind: 'legacy' }, 'claire'),
         ).toMatchObject({ assignments: [], claims: [{ workItemId: idOf('B'), stepId: review }] });
       } finally {
         await close();
@@ -293,22 +329,22 @@ for (const store of STORES) {
     });
 
     it('lists no step assigned to its own holder, nor one whose assignee did not change', async () => {
-      const { runner, projectId, review, idOf, claire, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, claire, close } = await seeded(store);
       try {
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'claire' },
           ]),
         ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
         // claire is now B's assignee and holder; giving B to her again changes nothing.
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: 'claire' },
           ]),
         ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
         // Taken from her, the entry names her as the assignee before.
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: null },
           ]),
         ).toMatchObject({
@@ -328,7 +364,7 @@ for (const store of STORES) {
         });
         // Cleared again, the step held by claire has the same assignee as before: not listed.
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('B'), stepId: review, personId: null },
           ]),
         ).toMatchObject({ ok: true, results: [{ reassignedClaimedSteps: [] }] });
@@ -338,17 +374,17 @@ for (const store of STORES) {
     });
 
     it('lists only a claim on the step it assigns: not a subtree claim, not another step', async () => {
-      const { runner, projectId, dev, review, idOf, claire, close } = await seeded(store);
+      const { runner, workPackageId, dev, review, idOf, claire, close } = await seeded(store);
       try {
         // claire also holds the subtree D and A's Dev; neither is a claim on a leaf's Review.
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'claimWorkItem', workItemId: idOf('D'), personId: 'claire' },
             { kind: 'claimWorkItem', workItemId: idOf('A'), personId: 'claire', steps: [dev] },
           ]),
         ).toMatchObject({ ok: true });
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
           ]),
         ).toMatchObject({
@@ -367,15 +403,15 @@ for (const store of STORES) {
     });
 
     it('clears the step on every leaf with null, and undo puts each back', async () => {
-      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, assignments, close } = await seeded(store);
       try {
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('D'), stepId: review, personId: null },
           ]),
         ).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(['A:review:ada', 'C:dev:bob']);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(BEFORE);
       } finally {
         await close();
@@ -383,15 +419,15 @@ for (const store of STORES) {
     });
 
     it('assigns the item itself when it is a leaf', async () => {
-      const { runner, projectId, dev, idOf, assignments, close } = await seeded(store);
+      const { runner, workPackageId, dev, idOf, assignments, close } = await seeded(store);
       try {
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('C'), stepId: dev, personId: 'kat' },
           ]),
         ).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(['A:review:ada', 'C:dev:kat', 'D1:review:bob']);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(BEFORE);
       } finally {
         await close();
@@ -399,7 +435,8 @@ for (const store of STORES) {
     });
 
     it('refuses unknown_step and unknown_person as setAssignee does, writing nothing', async () => {
-      const { runner, projectId, review, idOf, assignments, entries, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, assignments, entries, close } =
+        await seeded(store);
       try {
         const before = await entries();
         for (const [command, reason] of [
@@ -408,7 +445,7 @@ for (const store of STORES) {
         ] as const) {
           for (const kind of ['setAssignee', 'assignSubtree'] as const)
             expect(
-              await runner.run(projectId, F, [{ kind, workItemId: idOf('P'), ...command }]),
+              await runner.run(workPackageId, F, [{ kind, workItemId: idOf('P'), ...command }]),
             ).toMatchObject({ ok: false, at: 0, kind, reason });
         }
         expect(await assignments()).toEqual(BEFORE);
@@ -451,21 +488,21 @@ for (const store of STORES) {
     // undo its leaves moved on since (the same split claim-command.test.ts states).
     const onRevisions = store.name === 'sqlite' ? it : it.skip;
     onRevisions('refuses a stale undo once another account changed one of its leaves', async () => {
-      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, assignments, close } = await seeded(store);
       try {
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
           ]),
         ).toMatchObject({ ok: true });
         expect(
-          await runner.run(projectId, G, [
+          await runner.run(workPackageId, G, [
             { kind: 'setAssignee', workItemId: idOf('D2'), stepId: review, personId: 'ada' },
           ]),
         ).toMatchObject({ ok: true });
         const moved = await assignments();
         expect(moved).toContain('D2:review:ada');
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
         // All or none: no leaf goes back while one of them has moved on.
         expect(await assignments()).toEqual(moved);
       } finally {
@@ -476,16 +513,16 @@ for (const store of STORES) {
 
   describe(`claimWorkItem with assign on the ${store.name} store`, () => {
     it('assigns the claimant to the steps it claims, and undo restores prior assignments', async () => {
-      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      const { runner, workPackageId, review, idOf, assignments, close } = await seeded(store);
       try {
         // Both steps can be held together when Review is already underway.
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'setProgress', workItemId: idOf('C'), stepId: review, state: 'in_progress' },
           ]),
         ).toMatchObject({ ok: true });
         expect(
-          await runner.run(projectId, F, [
+          await runner.run(workPackageId, F, [
             { kind: 'claimWorkItem', workItemId: idOf('C'), personId: 'claire', assign: true },
           ]),
         ).toMatchObject({ ok: true });
@@ -495,7 +532,7 @@ for (const store of STORES) {
           'C:review:claire',
           'D1:review:bob',
         ]);
-        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
         expect(await assignments()).toEqual(BEFORE);
       } finally {
         await close();

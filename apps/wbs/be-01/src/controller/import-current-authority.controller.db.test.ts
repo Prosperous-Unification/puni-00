@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { type LegacyDocumentDependency12, MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
 import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contracts/dependency-claim';
 import { ImportedPlanResource } from '@wbs/core/module/plan-import/imported-plan.resource';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
@@ -57,6 +57,15 @@ async function openHarness() {
   await harness.register('ada');
   for (const id of ['org-a', 'org-b']) {
     harness.organization(id);
+    harness.sqlite.run(
+      'INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES(?,?,?,?,1)',
+      [
+        id === 'org-a' ? 'import-parent-a' : 'import-parent-b',
+        id,
+        'Import parent',
+        harness.userId('ada'),
+      ],
+    );
     harness.member(id, 'ada', 'super_admin', ['org-super-admin']);
   }
   harness.activate();
@@ -84,18 +93,21 @@ async function openHarness() {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const created = await request('POST', '/api/projects', { name: 'Plan' });
+  const created = await request('POST', '/api/work-packages', {
+    projectId: 'import-parent-a',
+    name: 'Plan',
+  });
   expect(created.status).toBe(200);
-  const project = harness.sqlite.query<{ id: string }, []>('SELECT id FROM project').get();
-  if (project === null) throw new Error('fixture project is absent');
+  const workPackage = harness.sqlite.query<{ id: string }, []>('SELECT id FROM work_package').get();
+  if (workPackage === null) throw new Error('fixture work package is absent');
   const step = harness.sqlite
     .query<{ id: string }, []>('SELECT id FROM step ORDER BY position LIMIT 1')
     .get();
   if (step === null) throw new Error('fixture step is absent');
-  const path = `/api/projects/${project.id}`;
+  const path = `/api/work-packages/${workPackage.id}`;
   const commands = [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Row' }];
   expect((await request('POST', `${path}/commands`, { commands })).status).toBe(200);
-  return { request, path, stepId: step.id, projectId: project.id, cookie };
+  return { request, path, stepId: step.id, workPackageId: workPackage.id, cookie };
 }
 
 /** Snapshots every application table after the deliberate authority mutation. */
@@ -121,7 +133,7 @@ const operations = ['mounted', 'direct', 'mounted-external'] as const;
 function createExternalDocument() {
   const document = planDocumentFixture();
   document.document.version = 12;
-  document.typedDependencies = [
+  const typedDependencies: LegacyDocumentDependency12[] = [
     {
       id: 'external',
       type: 'FS',
@@ -141,7 +153,11 @@ function createExternalDocument() {
     },
   ];
   // HTTP v12 carries attempts keyed by step; the application fixture stores an array.
-  return { ...document, workItems: document.workItems.map((row) => ({ ...row, attempts: {} })) };
+  return {
+    ...document,
+    typedDependencies,
+    workItems: document.workItems.map((row) => ({ ...row, attempts: {} })),
+  };
 }
 describe('current import authority on the process writer', () => {
   for (const fault of faults)
@@ -190,12 +206,18 @@ describe('current import authority on the process writer', () => {
           operation === 'direct'
             ? harness
                 .publicImports()
-                .import(planDocumentFixture(), { kind: 'human', principal, expectedAccess: access })
-            : fixture.request(
-                'POST',
-                '/api/projects/import',
-                operation === 'mounted-external' ? createExternalDocument() : planDocumentFixture(),
-              );
+                .import(
+                  planDocumentFixture(),
+                  { kind: 'human', principal, expectedAccess: access },
+                  'import-parent-a',
+                )
+            : fixture.request('POST', '/api/work-packages/import', {
+                projectId: 'import-parent-a',
+                document:
+                  operation === 'mounted-external'
+                    ? createExternalDocument()
+                    : planDocumentFixture(),
+              });
         if (operation !== 'direct') await ready;
         await attempted;
         afterWriterAttempt = undefined;
@@ -229,6 +251,7 @@ describe('current import authority on the process writer', () => {
               "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
               [userId],
             );
+            harness.grant('org-a', 'ada', 'project-viewer', 'project', 'import-parent-a');
             error = 'forbidden';
           } else if (fault === 'sso') {
             harness.sqlite.run(
@@ -274,7 +297,7 @@ describe('current import authority on the process writer', () => {
                       link: true,
                     }
                   : fault === 'demotion'
-                    ? { error, permission: 'organization.create_project' }
+                    ? { error, permission: 'project.manage_packages' }
                     : { error },
             );
           } else
@@ -416,26 +439,37 @@ for (const kind of ['machine', 'consent'] as const)
       const pushesBefore = observedPushes;
       refusingObservations = true;
       expect(
-        await harness.publicImports().import(planDocumentFixture(), {
-          kind: 'human',
-          principal,
-          expectedAccess: {
-            principal: { id: principal.id },
-            kind: 'scoped',
-            scope: {
-              cap: CONTRIBUTOR_CAP,
-              organizationId: 'org-a',
-              userId: principal.id,
-              role: 'member',
+        await harness.publicImports().import(
+          planDocumentFixture(),
+          {
+            kind: 'human',
+            principal,
+            expectedAccess: {
+              principal: { id: principal.id },
+              kind: 'scoped',
+              scope: {
+                cap: CONTRIBUTOR_CAP,
+                organizationId: 'org-a',
+                userId: principal.id,
+              },
             },
           },
-        }),
+          'import-parent-a',
+        ),
       ).toEqual({ ok: false, refusal: 'organization_context_changed' });
       expect(snapshotTables()).toEqual(before);
       expect(observedCaptures).toBe(capturesBefore);
       expect(observedPushes).toBe(pushesBefore);
     });
   }
+
+/** A real credential project grant keeps cap refusals distinct from an invisible destination. */
+function grantCredentialImportProject(credentialId: string): void {
+  harness.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('credential-import-project','org-a','project','import-parent-a','machine_credential',?,'project-manager','route',1)",
+    [credentialId],
+  );
+}
 
 for (const kind of ['machine', 'consent'] as const)
   for (const operation of ['import'] as const)
@@ -448,6 +482,7 @@ for (const kind of ['machine', 'consent'] as const)
         personId: 'agent',
         issuedBy: harness.userId('ada'),
       });
+      grantCredentialImportProject(credential.id);
       const principal = await harness.authenticatedMachinePrincipal(credential.key);
       if (kind === 'consent') {
         harness.sqlite.run(
@@ -480,12 +515,16 @@ for (const kind of ['machine', 'consent'] as const)
       };
       const imports = harness.publicImports();
       expect(
-        await imports.import(planDocumentFixture(), {
-          kind: 'human',
-          principal,
-          expectedAccess: access,
-        }),
-      ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
+        await imports.import(
+          planDocumentFixture(),
+          {
+            kind: 'human',
+            principal,
+            expectedAccess: access,
+          },
+          'import-parent-a',
+        ),
+      ).toMatchObject({ ok: false, code: 'forbidden', permission: 'project.manage_packages' });
       let release!: () => void;
       let entered!: () => void;
       const ready = new Promise<void>((resolve) => {
@@ -501,11 +540,15 @@ for (const kind of ['machine', 'consent'] as const)
       const attempted = new Promise<void>((resolve) => {
         afterWriterAttempt = resolve;
       });
-      const pending = imports.import(planDocumentFixture(), {
-        kind: 'human',
-        principal,
-        expectedAccess: access,
-      });
+      const pending = imports.import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal,
+          expectedAccess: access,
+        },
+        'import-parent-a',
+      );
       await attempted;
       afterWriterAttempt = undefined;
       try {
@@ -566,21 +609,24 @@ for (const kind of ['machine', 'consent'] as const)
       captures = observedCaptures,
       pushes = observedPushes;
     expect(
-      await harness.publicImports().import(planDocumentFixture(), {
-        kind: 'human',
-        principal,
-        expectedAccess: {
-          kind: 'scoped',
-          principal: { id: principal.id },
-          scope: {
-            cap: CONTRIBUTOR_CAP,
-            organizationId: 'org-a',
-            userId: principal.id,
-            role: 'member',
+      await harness.publicImports().import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal,
+          expectedAccess: {
+            kind: 'scoped',
+            principal: { id: principal.id },
+            scope: {
+              cap: CONTRIBUTOR_CAP,
+              organizationId: 'org-a',
+              userId: principal.id,
+            },
           },
         },
-      }),
-    ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
+        'import-parent-a',
+      ),
+    ).toMatchObject({ ok: false, code: 'forbidden', permission: 'project.manage_packages' });
     expect(snapshotTables()).toEqual(before);
     expect(observedCaptures).toBe(captures);
     expect(observedPushes).toBe(pushes);
@@ -610,20 +656,23 @@ for (const fault of ['absent-table', 'unreadable-table', 'source', 'revocation']
     const pushesBefore = observedPushes;
     const failure = await harness
       .publicImports()
-      .import(planDocumentFixture(), {
-        kind: 'human',
-        principal,
-        expectedAccess: {
-          principal: { id: principal.id },
-          kind: 'scoped',
-          scope: {
-            cap: CONTRIBUTOR_CAP,
-            organizationId: 'org-a',
-            userId: principal.id,
-            role: 'member',
+      .import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal,
+          expectedAccess: {
+            principal: { id: principal.id },
+            kind: 'scoped',
+            scope: {
+              cap: CONTRIBUTOR_CAP,
+              organizationId: 'org-a',
+              userId: principal.id,
+            },
           },
         },
-      })
+        'import-parent-a',
+      )
       .then(
         () => null,
         (cause: unknown) => cause,
@@ -666,7 +715,11 @@ test('direct import compares current kind, organization and principal identity w
     expect(
       await harness
         .publicImports()
-        .import(planDocumentFixture(), { kind: 'human', principal, expectedAccess: expected }),
+        .import(
+          planDocumentFixture(),
+          { kind: 'human', principal, expectedAccess: expected },
+          'import-parent-a',
+        ),
     ).toEqual({ ok: false, refusal: 'organization_context_changed' });
     expect(snapshotTables()).toEqual(before);
     expect(observedCaptures).toBe(capturesBefore);
@@ -682,7 +735,11 @@ test('explicit legacy import refuses after durable activation', async () => {
   expect(
     await harness
       .publicImports()
-      .import(planDocumentFixture(), { kind: 'legacy', actorId: harness.userId('ada') }),
+      .import(
+        planDocumentFixture(),
+        { kind: 'legacy', actorId: harness.userId('ada') },
+        'import-parent-a',
+      ),
   ).toEqual({
     ok: false,
     refusal: 'no_active_organization',
@@ -700,7 +757,11 @@ test('missing trusted activation state throws instead of reopening legacy import
   const pushesBefore = observedPushes;
   const failure = await harness
     .publicImports()
-    .import(planDocumentFixture(), { kind: 'legacy', actorId: harness.userId('ada') })
+    .import(
+      planDocumentFixture(),
+      { kind: 'legacy', actorId: harness.userId('ada') },
+      'import-parent-a',
+    )
     .then(
       () => null,
       (cause: unknown) => cause,
@@ -712,34 +773,45 @@ test('missing trusted activation state throws instead of reopening legacy import
   expect(observedPushes).toBe(pushesBefore);
 });
 
-test('malformed trusted membership throws before direct import effects', async () => {
+test('malformed trusted grant catalogue throws before direct import effects', async () => {
   const fixture = await openHarness();
   const cookieValue = decodeURIComponent(fixture.cookie.slice(fixture.cookie.indexOf('=') + 1));
   const principal = await harness.authenticatedCommandPrincipal('ada', cookieValue);
   harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-  harness.sqlite.run("UPDATE organization_membership SET role='broken' WHERE user_id=?", [
-    principal.id,
-  ]);
+  try {
+    const corrupted = harness.sqlite
+      .query(
+        "INSERT INTO access_role_permission(role_id,permission) SELECT DISTINCT role_id,'broken.permission' FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+      )
+      .run(principal.id);
+    expect(corrupted.changes).toBeGreaterThan(0);
+  } finally {
+    harness.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+  }
   const before = snapshotTables();
   const capturesBefore = observedCaptures;
   const pushesBefore = observedPushes;
   const failure = await harness
     .publicImports()
-    .import(planDocumentFixture(), {
-      kind: 'human',
-      principal,
-      expectedAccess: {
-        principal: { id: principal.id },
-        kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+    .import(
+      planDocumentFixture(),
+      {
+        kind: 'human',
+        principal,
+        expectedAccess: {
+          principal: { id: principal.id },
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id },
+        },
       },
-    })
+      'import-parent-a',
+    )
     .then(
       () => null,
       (cause: unknown) => cause,
     );
   expect(failure).toBeInstanceOf(Error);
-  expect(String(failure)).toContain('malformed role');
+  expect(String(failure)).toContain('not in the permission vocabulary');
   expect(snapshotTables()).toEqual(before);
   expect(observedCaptures).toBe(capturesBefore);
   expect(observedPushes).toBe(pushesBefore);
@@ -750,15 +822,19 @@ test('direct import refuses a scoped expectation while current authority is lega
   await harness.register('ada');
   const principal = await harness.authenticatedCommandPrincipal('ada', '');
   expect(
-    await harness.publicImports().import(planDocumentFixture(), {
-      kind: 'human',
-      principal,
-      expectedAccess: {
-        principal: { id: principal.id },
-        kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+    await harness.publicImports().import(
+      planDocumentFixture(),
+      {
+        kind: 'human',
+        principal,
+        expectedAccess: {
+          principal: { id: principal.id },
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id },
+        },
       },
-    }),
+      'import-parent-a',
+    ),
   ).toEqual({ ok: false, refusal: 'organization_context_changed' });
 });
 
@@ -793,10 +869,16 @@ test('mounted machine import refuses revocation queued after request resolution'
       resolved,
     );
   };
-  const pending = harness.callWith(grant, 'POST', '/api/projects/import', planDocumentFixture(), {
-    [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
-    [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
-  });
+  const pending = harness.callWith(
+    grant,
+    'POST',
+    '/api/work-packages/import',
+    { projectId: 'import-parent-a', document: planDocumentFixture() },
+    {
+      [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
+      [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
+    },
+  );
   await ready;
   try {
     harness.sqlite.run('UPDATE machine_credential SET revoked_at=1 WHERE id=?', [credential.id]);
@@ -822,7 +904,12 @@ test('mounted machine import refuses revocation queued after request resolution'
 test('valid mounted import retains the installed production composition', async () => {
   const fixture = await openHarness();
   expect(
-    (await fixture.request('POST', '/api/projects/import', planDocumentFixture())).status,
+    (
+      await fixture.request('POST', '/api/work-packages/import', {
+        projectId: 'import-parent-a',
+        document: planDocumentFixture(),
+      })
+    ).status,
   ).toBe(201);
 });
 
@@ -838,15 +925,19 @@ test('direct read scope refuses before writer admission', async () => {
   const pushesBefore = observedPushes;
   const turns = writerTurns;
   expect(
-    await harness.publicImports().import(planDocumentFixture(), {
-      kind: 'human',
-      principal,
-      expectedAccess: {
-        principal: { id: principal.id },
-        kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+    await harness.publicImports().import(
+      planDocumentFixture(),
+      {
+        kind: 'human',
+        principal,
+        expectedAccess: {
+          principal: { id: principal.id },
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id },
+        },
       },
-    }),
+      'import-parent-a',
+    ),
   ).toEqual({ ok: false, error: 'insufficient_scope' });
   expect(writerTurns).toBe(turns);
   expect(snapshotTables()).toEqual(before);
@@ -878,20 +969,23 @@ for (const table of [
       const pushes = observedPushes;
       const failure = await harness
         .publicImports()
-        .import(planDocumentFixture(), {
-          kind: 'human',
-          principal,
-          expectedAccess: {
-            principal: { id: principal.id },
-            kind: 'scoped',
-            scope: {
-              cap: null,
-              organizationId: 'org-a',
-              userId: principal.id,
-              role: 'super_admin',
+        .import(
+          planDocumentFixture(),
+          {
+            kind: 'human',
+            principal,
+            expectedAccess: {
+              principal: { id: principal.id },
+              kind: 'scoped',
+              scope: {
+                cap: null,
+                organizationId: 'org-a',
+                userId: principal.id,
+              },
             },
           },
-        })
+          'import-parent-a',
+        )
         .then(
           () => null,
           (cause: unknown) => cause,
@@ -914,10 +1008,11 @@ test('machine import keeps the credential cap despite expected uncapped super-ad
     personId: 'agent',
     issuedBy: harness.userId('ada'),
   });
+  grantCredentialImportProject(credential.id);
   const principal = await harness.authenticatedMachinePrincipal(credential.key);
-  const create = Reflect.get(ImportedPlanResource.prototype, 'createProject');
+  const create = Reflect.get(ImportedPlanResource.prototype, 'createWorkPackage');
   const observed: unknown[] = [];
-  spyOn(ImportedPlanResource.prototype, 'createProject').mockImplementation(function (
+  spyOn(ImportedPlanResource.prototype, 'createWorkPackage').mockImplementation(function (
     this: ImportedPlanResource,
     ...args
   ) {
@@ -925,16 +1020,20 @@ test('machine import keeps the credential cap despite expected uncapped super-ad
     return create.apply(this, args);
   });
   expect(
-    await harness.publicImports().import(planDocumentFixture(), {
-      kind: 'human',
-      principal,
-      expectedAccess: {
-        principal: { id: principal.id },
-        kind: 'scoped',
-        scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+    await harness.publicImports().import(
+      planDocumentFixture(),
+      {
+        kind: 'human',
+        principal,
+        expectedAccess: {
+          principal: { id: principal.id },
+          kind: 'scoped',
+          scope: { cap: null, organizationId: 'org-a', userId: principal.id },
+        },
       },
-    }),
-  ).toMatchObject({ ok: false, code: 'forbidden', permission: 'organization.create_project' });
+      'import-parent-a',
+    ),
+  ).toMatchObject({ ok: false, code: 'forbidden', permission: 'project.manage_packages' });
   expect(observed).toEqual([]);
 });
 
@@ -946,6 +1045,10 @@ test('mounted legacy request queued across activation cannot retain legacy autho
   });
   await harness.register('ada');
   harness.organization('org-a');
+  harness.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES('import-parent-a','org-a','Import parent',?,1)",
+    [harness.userId('ada')],
+  );
   harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   let release!: () => void;
   let entered!: () => void;
@@ -962,7 +1065,10 @@ test('mounted legacy request queued across activation cannot retain legacy autho
   const attempted = new Promise<void>((resolve) => {
     afterWriterAttempt = resolve;
   });
-  const pending = harness.call('ada', 'POST', '/api/projects/import', planDocumentFixture());
+  const pending = harness.call('ada', 'POST', '/api/work-packages/import', {
+    projectId: 'import-parent-a',
+    document: planDocumentFixture(),
+  });
   await attempted;
   afterWriterAttempt = undefined;
   try {
@@ -1018,15 +1124,19 @@ for (const fault of [
     const pushes = observedPushes;
     const failure = await harness
       .publicImports()
-      .import(planDocumentFixture(), {
-        kind: 'human',
-        principal,
-        expectedAccess: {
-          principal: { id: principal.id },
-          kind: 'scoped',
-          scope: { cap: null, organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+      .import(
+        planDocumentFixture(),
+        {
+          kind: 'human',
+          principal,
+          expectedAccess: {
+            principal: { id: principal.id },
+            kind: 'scoped',
+            scope: { cap: null, organizationId: 'org-a', userId: principal.id },
+          },
         },
-      })
+        'import-parent-a',
+      )
       .then(
         () => null,
         (cause: unknown) => cause,

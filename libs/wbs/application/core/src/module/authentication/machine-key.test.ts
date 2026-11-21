@@ -1,5 +1,6 @@
+import * as credentialAdmission from '@wbs/domain';
 import { inMemoryUsers, memoryUserTable } from '@wbs/store-memory/auth-fixture';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, spyOn } from 'bun:test';
 
 import { clockOf } from '../../ports/clock';
 import type { LastUseOutcome, MachineCredentials } from '../../ports/machine-credentials';
@@ -35,6 +36,7 @@ async function credentialsFor(
   accountId: string,
   touched: LastUseOutcome = 'recorded',
   audience = `${ROOT}/org/org-a`,
+  accountIsMember = true,
 ) {
   const { key, secret } = newMachineKey(CREDENTIAL);
   const digest = await digestMachineSecret(secret);
@@ -56,7 +58,7 @@ async function credentialsFor(
                 personId: 'claire',
                 source: 'oidc',
                 boundAccountId: accountId,
-                boundAccountRole: 'member',
+                boundAccountIsMember: accountIsMember,
                 revokedAt: null,
                 expiresAt: null,
                 trustedIssuerId: 'ti-1',
@@ -77,7 +79,7 @@ async function credentialsFor(
               personId: 'claire',
               source: 'api_key',
               boundAccountId: accountId,
-              boundAccountRole: 'member',
+              boundAccountIsMember: accountIsMember,
               revokedAt: null,
               expiresAt: null,
               trustedIssuerId: null,
@@ -339,4 +341,116 @@ describe('AuthService.admitMachineProof with a trusted-issuer assertion', () => 
     ).toMatchObject({ source: 'oidc' });
     expect(verified).toEqual([ROOT]);
   });
+});
+
+describe('role-free machine account and membership ordering', () => {
+  for (const kind of ['api_key', 'oidc'] as const) {
+    it(`throws for a missing ${kind} account before a nonmember refusal`, async () => {
+      const { key, credentials } = await credentialsFor('missing-account', 'recorded', ROOT, false);
+      const auth = service(
+        { credentials, now: () => NOW },
+        inMemoryUsers(),
+        trustedIssuersFor(ROOT).trusted,
+      );
+      const presented =
+        kind === 'api_key' ? { kind, key } : { kind, assertion: 'header.payload.sig' };
+      expect(auth.admitMachineProof(presented, ROOT)).rejects.toThrow(/missing account/);
+    });
+  }
+
+  it('refuses a nonmember grant before reading its absent account', async () => {
+    const { credentials } = await credentialsFor('missing-account', 'recorded', ROOT, false);
+    const auth = service({ credentials, now: () => NOW });
+    expect(
+      await auth.admitMachineGrant({
+        credentialId: CREDENTIAL,
+        personId: 'claire',
+        organizationId: 'org-a',
+        runId: null,
+      }),
+    ).toBe('unknown_identity');
+  });
+});
+
+it('retains the verified machine grant run before credential lookup awaits', async () => {
+  const { credentials } = await credentialsFor('dany-id');
+  const auth = service({ credentials, now: () => NOW }, usersWithDany());
+  const grant = {
+    credentialId: CREDENTIAL,
+    personId: 'claire',
+    organizationId: 'org-a',
+    runId: 'original-run',
+  };
+  const pending = auth.admitMachineGrant(grant);
+  grant.runId = 'substituted-run';
+  const admitted = await pending;
+  expect(admitted).toMatchObject({
+    id: 'dany-id',
+    authentication: {
+      kind: 'machine',
+      credentialId: CREDENTIAL,
+      personId: 'claire',
+      runId: 'original-run',
+    },
+  });
+});
+
+it('throws when trusted machine admission returns a nonmember actor', async () => {
+  const { credentials } = await credentialsFor('dany-id', 'recorded', ROOT, false);
+  const admitted: credentialAdmission.MachineAdmission = {
+    kind: 'admitted',
+    proofExpiresAt: null,
+    actor: {
+      credentialId: CREDENTIAL,
+      organizationId: 'org-a',
+      accountId: 'dany-id',
+      personId: 'claire',
+      accountIsMember: false,
+      scopes: ['read', 'write'],
+    },
+  };
+  const brokenAdmission = spyOn(credentialAdmission, 'admitMachineCredential').mockReturnValue(
+    admitted,
+  );
+  try {
+    const pending = service({ credentials, now: () => NOW }, usersWithDany()).admitMachineGrant({
+      credentialId: CREDENTIAL,
+      organizationId: 'org-a',
+      personId: 'claire',
+      runId: null,
+    });
+    const failure = await pending.then(
+      () => null,
+      (failure: unknown) => failure,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure instanceof Error ? failure.message : failure).toContain(
+      'was admitted without membership',
+    );
+  } finally {
+    brokenAdmission.mockRestore();
+  }
+});
+
+it('keeps later machine authentication independent of a previously returned scope array', async () => {
+  const { credentials } = await credentialsFor('dany-id');
+  const auth = service({ credentials, now: () => NOW }, usersWithDany());
+  const grant = {
+    credentialId: CREDENTIAL,
+    organizationId: 'org-a',
+    personId: 'claire',
+    runId: null,
+  };
+  const first = await auth.admitMachineGrant(grant);
+  if (first === 'unknown_identity') throw new Error('healthy machine authentication refused');
+  // Exercise JavaScript alias ownership, then repair the fixture even with the deliberately shared-array mutant.
+  const exposed = first.scopes as ('read' | 'write')[];
+  try {
+    exposed.pop();
+    const second = await auth.admitMachineGrant(grant);
+    if (second === 'unknown_identity') throw new Error('later machine authentication refused');
+    expect(second.scopes).toEqual(['read', 'write']);
+  } finally {
+    exposed.splice(0, exposed.length, 'read', 'write');
+  }
 });

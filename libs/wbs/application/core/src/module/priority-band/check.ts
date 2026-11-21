@@ -17,7 +17,7 @@ export function installPriorityBand(requirements: PriorityBandRequirements): Pri
   const bag = DiBag.createBuilder()
     .withInstalledModules([priorityBandModule])
     .withServices({
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       priorityBandStore: DiBag.createProvider(() => requirements.bands, {

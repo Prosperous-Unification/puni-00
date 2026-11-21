@@ -256,7 +256,7 @@ describe('workdaysBetween', () => {
 
   it('is zero for a date at or before the start', () => {
     // A constraint may only ever push a work item later, so a date before the
-    // project's start is not a negative offset dragging the tree backwards.
+    // work package's start is not a negative offset dragging the tree backwards.
     expect(workdaysBetween(MONDAY, THURSDAY)).toBe(0);
     expect(workdaysBetween(THURSDAY, THURSDAY)).toBe(0);
   });
@@ -307,13 +307,13 @@ describe('deadlineOffsetOf', () => {
     expect(deadlineOffsetOf(START_MONDAY, MONDAY)).toEqual({ kind: 'offset', offset: 5 });
   });
 
-  it("takes the project's day zero from nextWorkday, not from the stored start", () => {
+  it("takes the work package's day zero from nextWorkday, not from the stored start", () => {
     // A plan stored as starting on a Saturday begins on the Monday, because
     // that is what `addWorkdays(start, 0)` names. So a Sunday deadline — one
     // calendar day AFTER that stored start — still falls before the axis.
     expect(addWorkdays(SATURDAY, 0)).toBe(MONDAY);
     expect(deadlineOffsetOf(SATURDAY, MONDAY)).toEqual({ kind: 'offset', offset: 0 });
-    expect(deadlineOffsetOf(SATURDAY, SUNDAY)).toEqual({ kind: 'before-project-start' });
+    expect(deadlineOffsetOf(SATURDAY, SUNDAY)).toEqual({ kind: 'before-work-package-start' });
   });
 
   // WATCHED RED W3. Substituting `workdaysBetween` for `deadlineOffsetOf` —
@@ -322,7 +322,7 @@ describe('deadlineOffsetOf', () => {
   //
   //   `grants a weekend deadline …`  expected { kind: 'offset', offset: 4 }
   //                                  received { kind: 'offset', offset: 5 }
-  //   `refuses to turn a deadline …` expected { kind: 'before-project-start' }
+  //   `refuses to turn a deadline …` expected { kind: 'before-work-package-start' }
   //                                  received { kind: 'offset', offset: 0 }
   //
   // The second is the one that matters and the one a weekend-only test cannot
@@ -340,10 +340,10 @@ describe('deadlineOffsetOf', () => {
   });
 
   it('never turns a deadline before the plan into offset zero', () => {
-    // There is no number for "before the project starts", and 0 is the worst
+    // There is no number for "before the work package starts", and 0 is the worst
     // available lie: it is the tightest deadline on the axis.
-    expect(deadlineOffsetOf(MONDAY, FRIDAY)).toEqual({ kind: 'before-project-start' });
-    expect(deadlineOffsetOf(MONDAY, SATURDAY)).toEqual({ kind: 'before-project-start' });
+    expect(deadlineOffsetOf(MONDAY, FRIDAY)).toEqual({ kind: 'before-work-package-start' });
+    expect(deadlineOffsetOf(MONDAY, SATURDAY)).toEqual({ kind: 'before-work-package-start' });
     expect(workdaysBetween(MONDAY, FRIDAY)).toBe(0);
   });
 

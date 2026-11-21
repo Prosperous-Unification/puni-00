@@ -1,0 +1,24 @@
+{
+  "format": "shared-people-save",
+  "version": 2,
+  "organizations": [
+    {
+      "organizationId": "org-a",
+      "mode": "isolated"
+    },
+    {
+      "organizationId": "org-z",
+      "mode": "shared"
+    }
+  ],
+  "ranks": [
+    {
+      "workPackageId": "a1",
+      "organizationId": "org-a",
+      "position": 3,
+      "createdAt": 1,
+      "updatedAt": 2,
+      "createdBy": "ada"
+    }
+  ]
+}

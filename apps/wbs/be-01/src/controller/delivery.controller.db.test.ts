@@ -18,20 +18,20 @@ let revokeDuringRead: boolean;
 let failReader: boolean;
 let readerSignals: (AbortSignal | undefined)[];
 let holdReads: Promise<void> | null;
-const url = 'https://github.com/puni/project/pull/12';
+const url = 'https://github.com/puni/work-package/pull/12';
 async function create(username: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name: 'Delivery plan' });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name: 'Delivery plan' });
   expect(answer.status).toBe(200);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
 }
-async function linked(project: string, name: string): Promise<string> {
-  const answer = await h.call('ada', 'POST', `/api/projects/${project}/commands`, {
+async function linked(workPackage: string, name: string): Promise<string> {
+  const answer = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [{ kind: 'createWorkItem', name, parentId: null, afterId: null }],
   });
   expect(answer.status).toBe(200);
   const id = (answer.body as { results: { id?: string }[] }).results[0]?.id;
   if (id === undefined) throw new Error('work item missing');
-  const patched = await h.call('ada', 'POST', `/api/projects/${project}/commands`, {
+  const patched = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, {
     commands: [
       {
         kind: 'patchWorkItem',
@@ -43,13 +43,13 @@ async function linked(project: string, name: string): Promise<string> {
   expect(patched).toMatchObject({ status: 200 });
   return id;
 }
-async function readWork(project: string, id: string) {
-  const answer = await h.call('ada', 'GET', `/api/projects/${project}/work-items/${id}`);
+async function readWork(workPackage: string, id: string) {
+  const answer = await h.call('ada', 'GET', `/api/work-packages/${workPackage}/work-items/${id}`);
   expect(answer.status).toBe(200);
   return (answer.body as { workItem: { externalRefs: { id: string }[] } }).workItem;
 }
-function path(project = own, id = work, ref = reference): string {
-  return `/api/projects/${project}/work-items/${id}/refs/${ref}/delivery`;
+function path(workPackage = own, id = work, ref = reference): string {
+  return `/api/work-packages/${workPackage}/work-items/${id}/refs/${ref}/delivery`;
 }
 /** The 200 body the route answers for `served`, with the server clock's instant. */
 const anyInstant: unknown = expect.any(String);
@@ -83,7 +83,7 @@ async function setup(delivery?: DeliveryReader, deliveryLimits?: Partial<Deliver
   foreign = await create('grace');
   work = await linked(own, 'Tracked');
   sibling = await linked(own, 'Sibling');
-  elsewhere = await linked(other, 'Other project');
+  elsewhere = await linked(other, 'Other work package');
   reference = (await readWork(own, work)).externalRefs[0]?.id ?? '';
   siblingReference = (await readWork(own, sibling)).externalRefs[0]?.id ?? '';
   expect(reference).not.toBe('');
@@ -193,7 +193,7 @@ describe('authorized saved-reference delivery', () => {
   });
   it('preserves an unavailable schedule refusal before provider reads', async () => {
     h.sqlite.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
       [own],
     );
     expect(await h.call('ada', 'GET', path())).toEqual({
@@ -221,7 +221,7 @@ describe('authorized saved-reference delivery', () => {
   it('composes the public GitHub adapter when no reader is injected', async () => {
     h.close();
     await setup();
-    const patched = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+    const patched = await h.call('ada', 'POST', `/api/work-packages/${own}/commands`, {
       commands: [
         {
           kind: 'patchWorkItem',

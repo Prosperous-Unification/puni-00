@@ -94,6 +94,18 @@ function paxPath(bytes: Uint8Array): string | undefined {
   return path;
 }
 
+/** A local PAX regular-file path needs an overriding identity only when no UTF8 USTAR
+ * name (100 bytes) or slash-separated prefix/name pair (155/100 bytes) can represent it.
+ * Such physical headers are lossy placeholders, not additional member identities. */
+function requiresPaxPath(path: string): boolean {
+  // Proof: pax-closure-fault-utf8-width-v117c counted characters and rejected the valid UTF8 boundary; prefix-width/name-width faults separately broke their positive controls. Restored controls passed. short-physical-v117 forced this classifier true and admitted forbidden short physical aliases.
+  const bytes = new TextEncoder().encode(path);
+  if (bytes.length <= 100) return false;
+  for (let index = 0; index < bytes.length && index <= 155; index++)
+    if (bytes[index] === 47 && bytes.length - index - 1 <= 100) return false;
+  return true;
+}
+
 interface ArchivePath {
   isFile: boolean;
   readonly children: Map<string, ArchivePath>;
@@ -127,7 +139,9 @@ function admitArchivePath(root: ArchivePath, path: string, directory: boolean): 
 /**
  * Admit the retained gzip tar's physical metadata before Bun can install it. Support only
  * canonical regular/directory members and unambiguous local PAX path/timestamps; reject links,
- * GNU/global extensions, duplicates and metadata aliases. Bun.Archive remains the payload
+ * GNU/global extensions, effective duplicates and metadata aliases. Required long regular-file
+ * PAX paths may reuse canonical physical fallback names, including an ordinary member name;
+ * all other physical identities remain unique. Bun.Archive remains the payload
  * decoder after this raw gate. This is a fixed PUNI profile, not an arbitrary tar extractor.
  */
 export function admitArchiveMembers(bytes: Uint8Array): void {
@@ -184,16 +198,21 @@ export function admitArchiveMembers(bytes: Uint8Array): void {
     if (directory && size !== 0) throw new Error('PUNI tar directory has payload bytes');
     const original = pathOf(headerPath, directory),
       selected = pathOf(pending?.path ?? headerPath, directory);
+    // Proof: pax-closure-fault-regular-only-v117c dropped the file-kind dependency; repeated long/mixed directory headers no longer refused. Restored controls passed.
+    const isPaxFallback = !directory && pending?.path !== undefined && requiresPaxPath(selected);
     pending = undefined;
     // Proof: local-install-unique-members; replacing this whole predicate with false made
     // `owns local PUNI installation archive admission: duplicate-ordinary` fail because
     // its destination existed; the selected canonical after-control passed.
-    if (raw.has(original) || effective.has(selected))
+    // Proof: pax-closure-fault-effective-v117 omitted effective-name uniqueness and admitted a repeated long effective name. Restored control passed.
+    if ((!isPaxFallback && raw.has(original)) || effective.has(selected))
       throw new Error('PUNI tar member is duplicated');
-    raw.add(original);
+    // Proof: placeholder-record-v117b tracked fallback names and rejected the mixed reverse-order positive. ordinary-history-v117c cleared prior raw names and admitted distinct short-PAX aliases across a placeholder. Restored controls passed; pure ordinary duplicates remain protected independently by effective identity.
+    if (!isPaxFallback) raw.add(original);
     admitArchivePath(paths, selected, directory);
     effective.set(selected, directory);
     for (const identity of ['package/package.json', 'package/dist/puni.mjs']) {
+      // Proof: pax-closure-fault-critical-alias-v117c ignored raw critical identities; both metadata/main long-placeholder aliases admitted. Restored controls passed.
       if (original === identity || selected === identity) {
         if (directory || original !== selected)
           throw new Error('PUNI tar identity has a path alias');

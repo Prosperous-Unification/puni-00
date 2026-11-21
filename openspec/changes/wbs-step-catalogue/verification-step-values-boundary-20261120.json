@@ -1,0 +1,765 @@
+{
+  "schema": "puni-step-values-boundary-v1",
+  "recordedAt": "2026-11-20T02:13:25.290Z",
+  "scope": "Retained package unit/allowance fake boundary prerequisite for obsolete definition client cutover; old add/rename/remove surface remains.",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+      "sha256": "195b90b01d7f84e90866dfd734512b2a0d92fdd42f5c4487dba78288876bac0c",
+      "bytes": 90313,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/step-values-boundary.test.ts",
+      "sha256": "60e0a84b06331da9112f763be628c218f1511bfd5a672786d1e5ccb81d2e66cc",
+      "bytes": 4045,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+      "sha256": "1574059e9afafa0a639ec65fbe3d0f080d576026a5118fb3c067b579fea84d00",
+      "bytes": 72745,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/tasks.md",
+      "sha256": "1b07d0166ddc765d9188903a2e035f25da16470fc287e3eced4cf7156cd5d1df",
+      "bytes": 29788,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verify.md",
+      "sha256": "0564904418eda7d706495b9f468dab69e9351f7e52a7554527fc1b82f299fc44",
+      "bytes": 171595,
+      "mode": 436
+    }
+  ],
+  "behavior": [
+    "RefusingApi retained setStepUnit/setStepAllowance now use current patchWorkPackageStepValues for operation identity, preflight and client transport. Exact allowance percent converts to admitted integer request basis points, then normalized callback percentage; foreign and absent facade units refuse before stated mutation.",
+    "The response remains the existing Step DTO with allowancePercent, optional code/unit compatibility and current response validation. No new response representation or direct count property on thrown fake Error is introduced.",
+    "An EstimateUnitConflict answer becomes the current modeled409wire refusal; malformed count is rejected by the shared decoder before a screen can read it. Current success projection and legitimate0/1000allowance boundaries remain.",
+    "The private fake allowance check was duplicated behind the newly validated facade and its old omission proof became vacuous. Remove that duplicate/obsolete proof and document the admitted private callback boundary. An independent rounded-admission fault now fails the unchanged actual fake invalid-allowance/no-state-change test."
+  ],
+  "verification": {
+    "selectedTests": 347,
+    "sourceFiles": 16,
+    "newBoundaryTests": 12,
+    "checks": [
+      {
+        "name": "step-values-boundary-final-tests-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-combined.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-tests-v1.receipt.json",
+          "sha256": "daa2473d382e757d038f5bcbc647e6312cf889a5f5208cf6dba357581910828c",
+          "bytes": 1450,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-tests-v1.log",
+          "sha256": "1c63d99d4a8740adf7254e210c768026b2d69ca06a48e077bdd8d4b1b1989614",
+          "bytes": 64056,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-types-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-types-v1.receipt.json",
+          "sha256": "e349722551def814ae188efa1b01e31c0869dd253470a47240450239c33f96ba",
+          "bytes": 1422,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-lint-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/step-values-boundary.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-lint-v1.receipt.json",
+          "sha256": "549cf361913d38493d4bf175b6d37b6a2ea9e0042ba84a71fb05b08944bafd32",
+          "bytes": 1499,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-openspec-v1",
+        "exit": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-openspec-v1.receipt.json",
+          "sha256": "41e594706a61bed90e3dc99d7b2cd42b59db45a602b3879e52f168a1d65e7269",
+          "bytes": 1373,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-openspec-v1.log",
+          "sha256": "7f7fe10f62783000daf96d82654ebf8e25b0c5ab9b472c42d08eb730b8348160",
+          "bytes": 346018,
+          "mode": 384
+        }
+      }
+    ],
+    "attempts": [
+      {
+        "name": "step-values-boundary-baseline-v2",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-combined.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-baseline-v2.receipt.json",
+          "sha256": "ca4a0c94075bf9d52f9d0c12ce870e5ff0bcbc3764c9bdd3fdd0994883f29f8f",
+          "bytes": 1444,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-baseline-v2.log",
+          "sha256": "879e81caf3011c4f8aa616771a5bf8faa9cc1b28068812e53fec890c7b6959c2",
+          "bytes": 64054,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-fake-control-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-boundary.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/testing/fake-work-package-api.test.ts",
+            "src/testing/step-values-boundary.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fake-control-v1.receipt.json",
+          "sha256": "f37ec231a1a73f74bcc5be6cf12ef652fadb510c73547d7b7640c1064bcabd55",
+          "bytes": 1552,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fake-control-v1.log",
+          "sha256": "2e3f288f840a90c9735530c6486c2a8d0cae85553b7cf5d6c82934eeb42886db",
+          "bytes": 5222,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-lint-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/step-values-boundary.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-lint-v1.receipt.json",
+          "sha256": "549cf361913d38493d4bf175b6d37b6a2ea9e0042ba84a71fb05b08944bafd32",
+          "bytes": 1499,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-openspec-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@fission-ai/openspec/bin/openspec.js",
+            "validate",
+            "--all",
+            "--json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-openspec-v1.receipt.json",
+          "sha256": "41e594706a61bed90e3dc99d7b2cd42b59db45a602b3879e52f168a1d65e7269",
+          "bytes": 1373,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-openspec-v1.log",
+          "sha256": "7f7fe10f62783000daf96d82654ebf8e25b0c5ab9b472c42d08eb730b8348160",
+          "bytes": 346018,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-tests-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-combined.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-tests-v1.receipt.json",
+          "sha256": "daa2473d382e757d038f5bcbc647e6312cf889a5f5208cf6dba357581910828c",
+          "bytes": 1450,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-tests-v1.log",
+          "sha256": "1c63d99d4a8740adf7254e210c768026b2d69ca06a48e077bdd8d4b1b1989614",
+          "bytes": 64056,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-types-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "apps/wbs/fe-01/tsconfig.app.json",
+            "apps/wbs/fe-01/tsconfig.spec.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-types-v1.receipt.json",
+          "sha256": "e349722551def814ae188efa1b01e31c0869dd253470a47240450239c33f96ba",
+          "bytes": 1422,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-final-write-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/step-values-boundary.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts",
+            "openspec/changes/wbs-step-catalogue/tasks.md",
+            "openspec/changes/wbs-step-catalogue/verify.md"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-write-v1.receipt.json",
+          "sha256": "532b185effdbbf37c05b7875dd4354e968f9ecbd6f8d05602f81b7ee4801726b",
+          "bytes": 1608,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-final-write-v1.log",
+          "sha256": "0acb02c224ad1c8acc109e0c860574c1e88af8d83010d5a5af37da2ecdb4f286",
+          "bytes": 282,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-green-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-boundary.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-green-v1.receipt.json",
+          "sha256": "7abd105c42a65c3a42ba040f74aea37ac72ff98c173e17dae093c2a0869c415e",
+          "bytes": 1438,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-green-v1.log",
+          "sha256": "bbec0797a18ad3778ebe9897fbda27a0225ddb528f8601650889ecc2e547f0fb",
+          "bytes": 40366,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-lint-fix-v1",
+        "exitCode": 0,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "--max-warnings=0",
+            "apps/wbs/fe-01/src/testing/refusing-api.ts",
+            "apps/wbs/fe-01/src/testing/step-values-boundary.test.ts",
+            "apps/wbs/fe-01/src/testing/fake-work-package-api.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-lint-fix-v1.receipt.json",
+          "sha256": "6cfa0c63bec7b4645aaa8d2d33bcf5033c64675077a1dc03cfd4d3ab9060a390",
+          "bytes": 1510,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-lint-fix-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-red-v1",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-boundary.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/testing/step-values-boundary.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-red-v1.receipt.json",
+          "sha256": "d4f4e60ca46bd2fb76b2253937d6da863c89ae01f9e9eb32c6e458eabdc15f9c",
+          "bytes": 1483,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-red-v1.log",
+          "sha256": "01d05799f2fc517e92c7a01466fc76c650d55ffdf621d1989af8e03d4149c97f",
+          "bytes": 7658,
+          "mode": 384
+        }
+      },
+      {
+        "name": "step-values-boundary-red-v2",
+        "exitCode": 1,
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/vitest/vitest.mjs",
+            "run",
+            "--config",
+            "/tmp/puni-step-values-boundary.config.mjs",
+            "--pool",
+            "threads",
+            "--reporter",
+            "verbose",
+            "src/testing/step-values-boundary.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-red-v2.receipt.json",
+          "sha256": "9831a8cd87b1060494d3095366988d5eb961a5007de47e96c7ded8f24c167716",
+          "bytes": 1483,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-red-v2.log",
+          "sha256": "991e5bb702d5b1fdcb10d0e56b80b7ac2a5d74da6ac881bab8f02b887ab98c36",
+          "bytes": 6738,
+          "mode": 384
+        }
+      }
+    ],
+    "formatQualification": "Source formatting preceded native final checks. Final six-path format receipt is associated in the continuation state after evidence serialization."
+  },
+  "proofs": {
+    "manifests": [
+      {
+        "path": "/tmp/puni-step-values-boundary-proofs-v1/effects.json",
+        "sha256": "9ce2c5db0e9cd5f21873546e2edaa41c84873be58ae69c362a1a92de575c8ae9",
+        "bytes": 7810,
+        "mode": 384
+      },
+      {
+        "path": "/tmp/puni-step-values-boundary-proofs-v2/effects.json",
+        "sha256": "45a493048cda3c0a9b71c3a39419c659d3cab4ee946347e7c23a0cbb44e35cf2",
+        "bytes": 1960,
+        "mode": 384
+      }
+    ],
+    "effects": [
+      {
+        "id": "allowance-refusal",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "      if (allowanceBps === null) throw new RangeError('invalid_allowance');",
+        "to": "",
+        "test": "refuses invalid allowance ",
+        "failures": 4,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v1/allowance-refusal.mutant.txt",
+          "sha256": "5a8368dbfd28db0ab926e2d203e66eb077be7575b3338b4ce06e380d503798fd",
+          "bytes": 89459,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-allowance-refusal-v1.receipt.json",
+          "sha256": "7670ae3f16fe988d1c9aeb80044a8d6ba8afbf90c39d2bb3b11df62604cfffbd",
+          "bytes": 1585,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-allowance-refusal-v1.log",
+          "sha256": "f119b2b9bd0bc4be8d0fe7b6adec1a9555a3bd586a7c2f12b205db9525a937ca",
+          "bytes": 4118,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "exact-allowance",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "      const allowanceBps = allowanceHundredthsOf(allowancePercent);\n      if (allowanceBps === null) throw new RangeError('invalid_allowance');",
+        "to": "      const allowanceBps = Math.round(allowancePercent * 100);",
+        "test": "refuses invalid allowance 12.345 ",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v1/exact-allowance.mutant.txt",
+          "sha256": "4acbd8a5350a24729f7189dc2098f4b3e5c01270c940976df8bb117968d43583",
+          "bytes": 89453,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-exact-allowance-v1.receipt.json",
+          "sha256": "b94e9756ecb75596c9396215fa2de325db6e67e4daa5e87e086e594590e1265b",
+          "bytes": 1588,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-exact-allowance-v1.log",
+          "sha256": "6efee267c4fdcc35c44eeba87f71a750d8dd11a9eb8b6f1ff3cc6bf05459d952",
+          "bytes": 3399,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "encoded-allowance",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "{ params: { id: workPackageId, stepId }, body: { allowanceBps } }",
+        "to": "{ params: { id: workPackageId, stepId }, body: { allowanceBps: 0 } }",
+        "test": "retains exact allowance precision and the existing step response projection",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v1/encoded-allowance.mutant.txt",
+          "sha256": "26af46cc80ff206bb6a8888e944050ebd4a5732d7891a9ea0258b01f763c3e7c",
+          "bytes": 89537,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-encoded-allowance-v1.receipt.json",
+          "sha256": "bba5c3ae3a1a868d090ff31eb50f96e6977b5e9f1463510551270aa33ba55ff8",
+          "bytes": 1634,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-encoded-allowance-v1.log",
+          "sha256": "a2cc0aa6a9355b0ab127ee025be0c8d7bc1ee107f7f642caba1f1ca9bcd23221",
+          "bytes": 3438,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "current-unit-preflight",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "        patchWorkPackageStepValues,\n        { params: { id: workPackageId, stepId }, body: { estimateUnit } },",
+        "to": "        renameStep,\n        { params: { id: workPackageId, stepId }, body: { estimateUnit } },",
+        "test": "refuses a foreign estimate unit before the stated answer mutates",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v1/current-unit-preflight.mutant.txt",
+          "sha256": "37c995ecda0c4d5089e7d3b2c717ad9efc20e00edc23a3ff8a37bb688473b21f",
+          "bytes": 89518,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-current-unit-preflight-v1.receipt.json",
+          "sha256": "72ed4e330fbc7611d8f0402ffe143d60de4c9dbd21ea19bca72b72b5cae4f9eb",
+          "bytes": 1633,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-current-unit-preflight-v1.log",
+          "sha256": "64fd1c0b448dfbe5e87871967971ed01bf1808af7a6664512a05a7d76bf06613",
+          "bytes": 3407,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "required-facade-unit",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "requiredNormalized(prepared.body.estimateUnit)",
+        "to": "prepared.body.estimateUnit",
+        "test": "refuses an absent facade unit even though the HTTP patch has optional fields",
+        "failures": 1,
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v1/required-facade-unit.mutant.txt",
+          "sha256": "35d567107b432d3b65e12c550ea395b78f836ff873de9454b4697400ed9e1c93",
+          "bytes": 89514,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-required-facade-unit-v1.receipt.json",
+          "sha256": "5281ff57d6e2c4f4ab9e046ada52e0fb38a1fbf7bd12bd4a28fedbac6c46ddc6",
+          "bytes": 1641,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-required-facade-unit-v1.log",
+          "sha256": "57f688402f192e0a6c703566e007a90cb7bfa19aad1166ebc443fe6702349e0b",
+          "bytes": 3391,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      },
+      {
+        "id": "actual-fake-allowance",
+        "target": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "from": "      const allowanceBps = allowanceHundredthsOf(allowancePercent);\n      if (allowanceBps === null) throw new RangeError('invalid_allowance');",
+        "to": "      const allowanceBps = Math.round(allowancePercent * 100);",
+        "test": "refuses invalid allowance without changing the step",
+        "failures": 1,
+        "file": "src/testing/fake-work-package-api.test.ts",
+        "canonical": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+          "bytes": 89534,
+          "mode": 436
+        },
+        "mutant": {
+          "path": "/tmp/puni-step-values-boundary-proofs-v2/actual-fake-allowance.mutant.txt",
+          "sha256": "4acbd8a5350a24729f7189dc2098f4b3e5c01270c940976df8bb117968d43583",
+          "bytes": 89453,
+          "mode": 384
+        },
+        "receipt": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-actual-fake-allowance-v1.receipt.json",
+          "sha256": "589e5bc603b2dfcc081373c869c2240d128369748a8d20eac15b35c34d01fc94",
+          "bytes": 1619,
+          "mode": 384
+        },
+        "log": {
+          "path": "/tmp/puni-combined-proposal-v1/control/step-values-boundary-fault-actual-fake-allowance-v1.log",
+          "sha256": "8a43fd3831b4166e8d71b38a9e3c3c91577b7fa0f2566b2eea23ba64cfd875b6",
+          "bytes": 4111,
+          "mode": 384
+        },
+        "restored": true,
+        "exitCode": 1,
+        "selectedFailure": true
+      }
+    ],
+    "independentFaults": 6,
+    "selectedFailures": 9,
+    "productionEmissions": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+        "canonicalSource": "5cb2175e9bc6f0f6f1f208105b9987d6817936a9281e8aac084035a9a13d6131",
+        "current": {
+          "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "sha256": "195b90b01d7f84e90866dfd734512b2a0d92fdd42f5c4487dba78288876bac0c",
+          "bytes": 90313,
+          "mode": 436
+        },
+        "canonicalEmission": "a56b3854816ee47ee1feb2ca6c5e11d04a3a9a69086e54b51dae6386bd930f49",
+        "currentEmission": "a56b3854816ee47ee1feb2ca6c5e11d04a3a9a69086e54b51dae6386bd930f49"
+      }
+    ],
+    "qualification": "All native actors terminal/reaped/descriptors closed before exact restoration. Four local-refusal failures do not assert downstream mutation: lower wire validation still blocks malformed bodies when the local null refusal is omitted. Rounding does admit lossy percentages and fails both facade and actual mutable fake observations. Zeroing encoded request fails normalized mutation precision. Old unit preflight fails no-mutation even though the later current transport rejects hours. Required-unit omission admits absent input. One helper production emission matches canonical after Proof comments and formatting; private fake duplicate removal is the intentional separate behavior change, covered by healthy28and the independent upstream actual fake negative."
+  },
+  "corrections": [
+    "Prior V68 read-only audit wording implying an obsolete response model was inaccurate. Current patchWorkPackageStepValues still returns shared Step DTO allowancePercent; request allowance uses basis points.",
+    "Initial RED incorrectly expected a direct count property on thrown fake Error. Reading actual facade/consumer corrected that oracle before implementation. Corrected RED6fail4pass10cases is retained separately from initial7fail2pass9cases. Malformed count validation has its own case."
+  ],
+  "pending": [
+    "4.1.4a/parent4.1.4 remain unchecked pending review and complete obsolete package definition browser/facade/toolbar/controls/fake/demo/contract cutover. Existing old definitions are not removed by this repair.",
+    "Per-leaf resolution/conflicts/preflight, Playwright/visual, whole frontend/backend/MCP/core/CLI/installed/exactSHAhost/release checks remain. Previous core2062pass29fail not rerun; all15history/all13Source/original9requirements remain open.",
+    "Astra quota unavailable until recordedNovember22,2026 10:09AM timezoneunspecified. No retry/spawn/substitute review. Original protected sources/archive remain unchanged; no public commit/push/PR update/merge/install/deploy."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

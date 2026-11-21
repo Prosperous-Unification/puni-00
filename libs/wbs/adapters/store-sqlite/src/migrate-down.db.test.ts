@@ -31,11 +31,11 @@ const INIT = '20260426171432_talented_smiling_tiger';
 const USERS = '20260804194845_add_users';
 const WBS = '20260805154500_add_wbs_domain';
 const DEPS = '20260806084828_add_dependencies';
-const ACCESS = '20260806160000_add_project_access';
+const ACCESS = '20260806160000_add_work_package_access';
 const METHOD = '20260806170000_add_estimate_method';
 const CAL = '20260806180000_add_calendar_dates';
 const TEAMS = '20260806190000_add_teams_and_assignees';
-// Columns on `project` and `work_item` rather than tables of its own, so it
+// Columns on `workPackage` and `work_item` rather than tables of its own, so it
 // appears in the order and in nothing else this file checks.
 const REVISIONS = '20260807090000_add_revisions';
 // One table of its own, so it reverses ahead of the domain it references.
@@ -53,11 +53,11 @@ const MAX_PARALLEL = '20260812100001_add_max_parallel';
 // A table of its own, and the one whose rollback ordering matters most: its rows
 // were seeded from `service_team.size`, so it has to reverse before the migration
 // that adds that column.
-const PER_PROJECT_CAPACITY = '20260813120000_add_project_team_capacity';
+const PER_WORK_PACKAGE_CAPACITY = '20260813120000_add_work_package_team_capacity';
 // Newest but one now, and a table of its own: `work_item_team` references
 // `work_item` and `service_team`, so it reverses ahead of both.
 const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
-// The newest, and a table of its own again. It references `project` alone and is
+// The newest, and a table of its own again. It references `workPackage` alone and is
 // seeded from a constant rather than from any column, so unlike the capacity
 // table above it has no ordering constraint of its own — its place at the head
 // of the reversal is only that it was applied last.
@@ -70,7 +70,7 @@ const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
 // `work_item_team` applied. Renumbered on the rebase; see verify.md.
 const PRIORITY_BANDS = '20260814110000_add_priority_band';
 /**
- * The newest, and a table of its own again. It references `project` and `users`,
+ * The newest, and a table of its own again. It references `workPackage` and `users`,
  * so it reverses ahead of both — the same place `JOURNAL` sits for the same
  * reason.
  *
@@ -181,7 +181,7 @@ const SOLUTION_REF = '20260824020000_add_solution_ref';
 const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
 const EXTERNAL_REF = '20260830020000_add_external_ref';
 /**
- * The newest, and a column on `project` alone: `dep_reach`, `NOT NULL DEFAULT
+ * The newest, and a column on `workPackage` alone: `dep_reach`, `NOT NULL DEFAULT
  * 'whole-item'`, added by `dep-reach-whole-item`. Additive forward, dropped by
  * its own `down.sql`, so it appears in the order and in nothing else this file
  * checks.
@@ -237,25 +237,25 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
  * The newest, and the optimizer's own: four tables plus one nullable column on
- * `project`. Additive forward and dropped whole by its own `down.sql`, so it
+ * `workPackage`. Additive forward and dropped whole by its own `down.sql`, so it
  * appears in the order and in nothing else this file checks — except that it
  * now **heads** every descending reversal list below, because the newest
  * migration is the first thing any rollback reverses.
  */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 /**
- * The newest: the three project settings the optimizer is steered by, on
- * `project`. Additive forward and dropped column by named column on the way
+ * The newest: the three work package settings the optimizer is steered by, on
+ * `workPackage`. Additive forward and dropped column by named column on the way
  * back, so it now **heads** every descending reversal list below and tails
  * every ascending one — the newest migration is the first thing any rollback
  * reverses.
  */
-const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
 /**
- * The newest: the `(project_id, id)` index that serves
- * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * The newest: the `(work_package_id, id)` index that serves
+ * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -306,7 +306,7 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
-/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+/** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
@@ -419,13 +419,13 @@ function seedEveryRenamedTable(dbPath: string): void {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
     );
     db.run(
-      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+      'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
         " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
     );
-    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
-    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r2', 'p', 'QA', 20)");
+    db.run("INSERT INTO role (id, work_package_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+    db.run("INSERT INTO role (id, work_package_id, name, position) VALUES ('r2', 'p', 'QA', 20)");
     db.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
         " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
     );
     db.run(
@@ -445,7 +445,7 @@ function seedEveryRenamedTable(dbPath: string): void {
     db.run("INSERT INTO person (id, name) VALUES ('pe1', 'Ada')");
     db.run("INSERT INTO assignment (work_item_id, role_id, person_id) VALUES ('w1', 'r1', 'pe1')");
     db.run(
-      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
         " VALUES ('e1', 'p', 'u', 'estimate', 'estimate Strip', 'w1', 'r1'," +
         ' \'{"do":"clear_estimate"}\', \'{"do":"set_estimate"}\', 1000)',
     );
@@ -493,12 +493,12 @@ function tables(dbPath: string): string[] {
   }
 }
 
-/** The `project` table's column names, in declaration order. */
-function projectColumns(dbPath: string): string[] {
+/** The `workPackage` table's column names, in declaration order. */
+function workPackageColumns(dbPath: string): string[] {
   const db = openDatabase(dbPath);
   try {
     return db
-      .query<{ name: string }, []>("SELECT name FROM pragma_table_info('project')")
+      .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_package')")
       .all()
       .map((r) => r.name);
   } finally {
@@ -620,7 +620,7 @@ describe('readMigrationFolders', () => {
       PRIORITY,
       TEAM_SLOTS,
       MAX_PARALLEL,
-      PER_PROJECT_CAPACITY,
+      PER_WORK_PACKAGE_CAPACITY,
       WORK_ITEM_TEAM,
       PRIORITY_BANDS,
       PLAN_EVENT,
@@ -644,7 +644,7 @@ describe('readMigrationFolders', () => {
       SAVED_PLAN,
       CREATED_BY_ID,
       OPTIMIZER_TABLES,
-      PROJECT_SETTINGS,
+      WORK_PACKAGE_SETTINGS,
       CALENDAR_MARKER,
       READ_ORDER_INDEX,
       WORK_ITEM_DEADLINE,
@@ -659,13 +659,13 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_FROZEN,
       TYPED_DEPENDENCY,
       '20260927220000_add_organization_audit',
-      '20260928010000_add_project_solution',
+      '20260928010000_add_work_package_solution',
       '20260928020000_add_email_verification',
       '20260928030000_add_delegation_use',
       '20260928040000_add_email_challenge',
       '20260928200000_add_work_item_status_facts',
       '20260929100000_add_spaces',
-      '20260929180000_add_project_rank',
+      '20260929180000_add_work_package_rank',
       '20261001010000_add_browser_credential_revocations',
       '20261005110000_add_shared_people',
       '20261011120000_add_browser_auth_lifecycle',
@@ -695,9 +695,9 @@ describe('readMigrationFolders', () => {
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022140000_add_resource_provider',
       '20261022140100_widen_organization_audit_compute_providers',
-      '20261022210000_add_project_abbreviations',
+      '20261022210000_add_work_package_abbreviations',
       '20261022211000_add_external_dependencies',
-      '20261022212000_add_cross_project_dependency_activation',
+      '20261022212000_add_cross_work_package_dependency_activation',
       '20261022213000_add_optimization_boundary_certificates',
       '20261023100000_add_claim_lease',
       '20261023140000_add_measure',
@@ -838,7 +838,7 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
-        PER_PROJECT_CAPACITY,
+        PER_WORK_PACKAGE_CAPACITY,
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
         PLAN_EVENT,
@@ -862,7 +862,7 @@ describe('rollbackTo, against a real database', () => {
         SAVED_PLAN,
         CREATED_BY_ID,
         OPTIMIZER_TABLES,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         CALENDAR_MARKER,
         READ_ORDER_INDEX,
         WORK_ITEM_DEADLINE,
@@ -877,13 +877,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_FROZEN,
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
@@ -913,9 +913,9 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022211000_add_external_dependencies',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
         '20261023140000_add_measure',
@@ -957,9 +957,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -989,13 +989,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1010,7 +1010,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -1034,7 +1034,7 @@ describe('rollbackTo, against a real database', () => {
         PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
-        PER_PROJECT_CAPACITY,
+        PER_WORK_PACKAGE_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
@@ -1085,7 +1085,7 @@ describe('rollbackTo, against a real database', () => {
         PRIORITY,
         TEAM_SLOTS,
         MAX_PARALLEL,
-        PER_PROJECT_CAPACITY,
+        PER_WORK_PACKAGE_CAPACITY,
         WORK_ITEM_TEAM,
         PRIORITY_BANDS,
         PLAN_EVENT,
@@ -1109,7 +1109,7 @@ describe('rollbackTo, against a real database', () => {
         SAVED_PLAN,
         CREATED_BY_ID,
         OPTIMIZER_TABLES,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         CALENDAR_MARKER,
         READ_ORDER_INDEX,
         WORK_ITEM_DEADLINE,
@@ -1124,13 +1124,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_FROZEN,
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
@@ -1160,9 +1160,9 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022211000_add_external_dependencies',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
         '20261023140000_add_measure',
@@ -1187,7 +1187,7 @@ describe('rollbackTo, against a real database', () => {
     }
   });
 
-  it('puts every project already on disk onto the whole-item reach, and takes the column away again', () => {
+  it('puts every work package already on disk onto the whole-item reach, and takes the column away again', () => {
     // `dep-reach-whole-item`'s headline, at the layer that actually decides it:
     // the column's default is what carries an **existing** row onto the new
     // rule. So the row is written while the column does not exist yet — rolled
@@ -1203,13 +1203,13 @@ describe('rollbackTo, against a real database', () => {
     // on the August rule, which is the one thing the column default is for.
     //
     // Proof: `down.sql` replaced by a valid statement that does not drop the
-    // column (`UPDATE project SET dep_reach = 'whole-item';`) and this failed on
+    // column (`UPDATE workPackage SET dep_reach = 'whole-item';`) and this failed on
     // `Expected to not contain: "dep_reach"`. Both watched 2026-08-29.
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
       rollbackTo(db.path, FOLDER, SOLUTION_REF);
-      expect(projectColumns(db.path)).not.toContain('dep_reach');
+      expect(workPackageColumns(db.path)).not.toContain('dep_reach');
 
       const before = openDatabase(db.path);
       try {
@@ -1217,7 +1217,7 @@ describe('rollbackTo, against a real database', () => {
           "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'owner', 'x', 1)",
         );
         before.run(
-          "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Rewire the shed', 'u1', 1)",
+          "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Rewire the shed', 'u1', 1)",
         );
       } finally {
         before.close();
@@ -1225,12 +1225,12 @@ describe('rollbackTo, against a real database', () => {
 
       runMigrations(db.path, FOLDER);
 
-      expect(projectColumns(db.path)).toContain('dep_reach');
+      expect(workPackageColumns(db.path)).toContain('dep_reach');
       const after = openDatabase(db.path);
       try {
         expect(
           after
-            .query<{ dep_reach: string }, []>("SELECT dep_reach FROM project WHERE id = 'p1'")
+            .query<{ dep_reach: string }, []>("SELECT dep_reach FROM work_package WHERE id = 'p1'")
             .get(),
         ).toEqual({ dep_reach: 'whole-item' });
       } finally {
@@ -1238,7 +1238,7 @@ describe('rollbackTo, against a real database', () => {
       }
 
       rollbackTo(db.path, FOLDER, SOLUTION_REF);
-      expect(projectColumns(db.path)).not.toContain('dep_reach');
+      expect(workPackageColumns(db.path)).not.toContain('dep_reach');
     } finally {
       db.cleanup();
     }
@@ -1270,9 +1270,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1302,13 +1302,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1323,7 +1323,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -1347,7 +1347,7 @@ describe('rollbackTo, against a real database', () => {
         PLAN_EVENT,
         PRIORITY_BANDS,
         WORK_ITEM_TEAM,
-        PER_PROJECT_CAPACITY,
+        PER_WORK_PACKAGE_CAPACITY,
         MAX_PARALLEL,
         TEAM_SLOTS,
         PRIORITY,
@@ -1368,7 +1368,7 @@ describe('rollbackTo, against a real database', () => {
         'examples',
         'event_log',
         'event_sequencer',
-        'project',
+        'work_package',
         'work_item',
         // `step` since 20260831120000_rename_role_to_step; a rollback all the
         // way to INIT reverses that rename first, so by the time the WBS
@@ -1425,9 +1425,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1457,13 +1457,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1478,7 +1478,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,
@@ -1533,7 +1533,7 @@ describe('rollbackTo, against a real database', () => {
       // empty snapshots and pass on any down.sql that restored the names.
       expect(rowsBefore['role']).toHaveLength(2);
       expect(rowsBefore['estimate']).toHaveLength(1);
-      expect(schemaBefore.map((o) => o.name)).toContain('role_project_name');
+      expect(schemaBefore.map((o) => o.name)).toContain('role_work_package_name');
 
       runMigrations(db.path, FOLDER);
 
@@ -1542,7 +1542,7 @@ describe('rollbackTo, against a real database', () => {
       expect(tables(db.path)).toContain('step');
       expect(tables(db.path)).not.toContain('role');
       expect(appliedNames(db.path)).toContain(RENAME_ROLE_TO_STEP);
-      expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_project_name');
+      expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_work_package_name');
 
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
@@ -1565,9 +1565,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_project_dependency_activation',
+        '20261022212000_add_cross_work_package_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_project_abbreviations',
+        '20261022210000_add_work_package_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1597,13 +1597,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_project_rank',
+        '20260929180000_add_work_package_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_project_solution',
+        '20260928010000_add_work_package_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1618,7 +1618,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_DEADLINE,
         READ_ORDER_INDEX,
         CALENDAR_MARKER,
-        PROJECT_SETTINGS,
+        WORK_PACKAGE_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
         SAVED_PLAN,

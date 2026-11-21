@@ -22,10 +22,10 @@ import type { TeamCapacity } from './capacity-store';
 // Documentation boundary: this type-only name resolves a JSDoc member and emits no JavaScript.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { DirectoryStore } from './directory-store';
-import type { Project } from './project-store';
 import type { ConnectedVariantState, OptimizationVariantState } from './scheduler';
 import type { ElsewhereHolderLabel } from './shared-people-values';
 import type { Step } from './step-store';
+import type { WorkPackage } from './work-package-store';
 
 /**
  * One placed slice as a reader sees it: the engine's own output, under the key
@@ -48,44 +48,44 @@ export interface IdentifiedSlice extends ScheduledSlice {
   id: string;
 }
 
-/** Why a project has no dates, when it has none. `null` is the ordinary case. */
+/** Why a work package has no dates, when it has none. `null` is the ordinary case. */
 export type { ScheduleError } from '@wbs/domain';
 
 export type PlanOptimization = LocalPlanOptimization | ConnectedPlanOptimization;
 
 export interface LocalPlanOptimization extends PlanOptimizationBase {
   readonly scope?: never;
-  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
+  readonly variants: Readonly<Record<WorkPackage['scheduleObjective'], OptimizationVariantState>>;
 }
 
 /** Both objective states belong to the captured fixed boundary named by scope. */
 export interface ConnectedPlanOptimization extends PlanOptimizationBase {
   readonly scope: ConnectedOptimizationScope;
-  readonly variants: Readonly<Record<Project['scheduleObjective'], ConnectedVariantState>>;
+  readonly variants: Readonly<Record<WorkPackage['scheduleObjective'], ConnectedVariantState>>;
 }
 
 export interface PlanOptimizationBase {
   readonly enabled: boolean;
-  readonly engine: Project['scheduleEngine'];
-  readonly objective: Project['scheduleObjective'];
+  readonly engine: WorkPackage['scheduleEngine'];
+  readonly objective: WorkPackage['scheduleObjective'];
   readonly inputHash: string;
   readonly generation: number | null;
   readonly contractVersion: string;
   readonly budgetMs: number;
-  readonly displayed: 'fast' | Project['scheduleObjective'];
+  readonly displayed: 'fast' | WorkPackage['scheduleObjective'];
   /**
-   * Project-relative finishes for the reference and validated alternatives.
+   * WorkPackage-relative finishes for the reference and validated alternatives.
    * `fast` names local Fast on the local arm and the retained pre-selection
    * placement on the connected arm. A variant appears only when materialized.
    *
    * Absolute figures rather than the one delta this shipped as: the cue names
    * all three schedules at once, every difference is taken against Fast, and a
    * delta is that subtraction through the shared workday drift, which the client
-   * already applies to decide "same project deadline". Sending the deltas
+   * already applies to decide "same work package deadline". Sending the deltas
    * instead would put the same fact on the wire twice.
    */
   readonly finishDays: { readonly fast: number } & Readonly<
-    Partial<Record<Project['scheduleObjective'], number>>
+    Partial<Record<WorkPackage['scheduleObjective'], number>>
   >;
   /**
    * Whether a variant places the slices it shares with Fast in the same
@@ -96,10 +96,10 @@ export interface PlanOptimizationBase {
    * a client cannot derive from the numbers on the wire, and two implementations
    * would label the same pair differently.
    */
-  readonly sameOrderAsFast: Readonly<Partial<Record<Project['scheduleObjective'], boolean>>>;
+  readonly sameOrderAsFast: Readonly<Partial<Record<WorkPackage['scheduleObjective'], boolean>>>;
 }
 
-/** A successful project-tree read, including connected placement refusal.
+/** A successful work-package-tree read, including connected placement refusal.
  * Standalone local engine refusal remains outside this contract. */
 export interface PlanTree {
   workItems: NumberedWorkItem[];
@@ -128,15 +128,15 @@ export interface PlanTree {
    */
   waitingForCapacity: number;
   /**
-   * How many work items hold a slice whose person is held by another project.
+   * How many work items hold a slice whose person is held by another work package.
    * Present for ranked bookings (ADR 0034) or checked foreign person
    * predecessors in a connected tree, with {@link elsewhereHolders}.
    */
   waitingElsewhere?: number;
   /**
-   * One label per work item in another project that a slice's
+   * One label per work item in another work package that a slice's
    * `elsewhereHolder` names, so a reader is told whom a bar waits for
-   * without reading that project. Present exactly with `waitingElsewhere`.
+   * without reading that work package. Present exactly with `waitingElsewhere`.
    */
   elsewhereHolders?: ElsewhereHolderLabel[];
   /**
@@ -146,7 +146,7 @@ export interface PlanTree {
    */
   resourceLabels?: { id: string; name: string; unitLabel: string }[];
   /**
-   * Every demand a work item of the project states (`wbs-resources` 1.5), in
+   * Every demand a work item of the work package states (`wbs-resources` 1.5), in
    * work-item then resource-id order, so a row says what it consumes in the
    * same read it is drawn from. Present exactly when there is one, with
    * {@link demandedResources}; set by the tree read alone, never by an export.
@@ -171,10 +171,10 @@ export interface PlanTree {
    */
   slices: IdentifiedSlice[];
   /**
-   * The project's steps, in the order the engine ran the slices in.
+   * The work package's steps, in the order the engine ran the slices in.
    *
    * The same array `slicesOf` was given, carried on the read that produced
-   * the slices rather than left to `/api/projects/:id` — which is a second
+   * the slices rather than left to `/api/work-packages/:id` — which is a second
    * request at a second moment. A chart reads a slice's `stepId` to place its
    * bar and to name its step, and a peer removing a step between the two
    * reads left a client holding slices under a step its own step list no
@@ -192,8 +192,8 @@ export interface PlanTree {
    * the slices in this very payload. `/api/people` answers a different question — who
    * could be assigned — and is still what the pickers read.
    *
-   * Read together with assignments through {@link DirectoryStore.assignmentsInProject},
-   * so the names and assignments share one project-scoped database statement.
+   * Read together with assignments through {@link DirectoryStore.assignmentsInWorkPackage},
+   * so the names and assignments share one work-package-scoped database statement.
    *
    * Typed as the two columns it is, not as a `Person`. The builder has always
    * mapped to `{ id, name }` — "the names, not the whole directory" above is
@@ -205,7 +205,7 @@ export interface PlanTree {
    */
   assignedPeople: { id: string; name: string }[];
   /**
-   * How many of each team this project may have at work at once, for the teams
+   * How many of each team this work package may have at work at once, for the teams
    * it has stated a number about.
    *
    * The same map `slotsOf` was built from, carried on the read that produced
@@ -214,7 +214,7 @@ export interface PlanTree {
    * computed **from** these numbers, and a second request at a second moment
    * could hand a client a number that does not explain the bars beside it.
    *
-   * A team the project has stated nothing about is **absent** rather than
+   * A team the work package has stated nothing about is **absent** rather than
    * present as `null`, exactly as it is absent from `slotsOf`: unstated
    * constrains nothing, and one spelling of it is the rule the column is shaped
    * by. Every team on the plan is in `/api/teams`; this says which of them this
@@ -222,7 +222,7 @@ export interface PlanTree {
    */
   teamCapacities: TeamCapacity[];
   /**
-   * What this project calls its priority numbers — five bands in rank order.
+   * What this work package calls its priority numbers — five bands in rank order.
    *
    * Carried on the read that produced the rows rather than left to a route of
    * its own, which is the argument {@link steps} and {@link teamCapacities}
@@ -233,7 +233,7 @@ export interface PlanTree {
    * over numbers from another paints the wrong label on every row of the plan
    * rather than on one.
    *
-   * Never absent and never empty: a project holding no rows reads as
+   * Never absent and never empty: a work package holding no rows reads as
    * {@link DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
    * without a fallback of its own.
    * `openspec/changes/priority-bands/design.md` D2.
@@ -246,28 +246,28 @@ export interface PlanTree {
    *
    * On the wire for {@link depReach}'s reason: a client that guessed would
    * describe the numbers in front of it with an arithmetic they did not come
-   * from. Both are reported and set through the project patch, never sent per
+   * from. Both are reported and set through the work package patch, never sent per
    * read.
    */
   pertWeights: PertWeights;
   estimateRounding: EstimateRounding;
   /**
-   * How far into a predecessor this project's dependencies reach.
+   * How far into a predecessor this work package's dependencies reach.
    *
    * On the wire so that the **drawing** and the schedule cannot disagree: the
    * chart routes a dependency arrow out of the slice the reach names, and a
    * client that guessed would draw an arrow leaving a slice the engine never
    * joined the edge to. It is reported, never accepted — see
-   * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+   * `docs/adr/0010-a-dependencys-reach-is-a-work-packages-choice.md`.
    */
   depReach: DependencyReach;
   startDate: IsoDate | null;
   /**
-   * The project row's own revision, which moves on its name, restriction,
+   * The work package row's own revision, which moves on its name, restriction,
    * estimate method, start date and steps — and on none of the work items
    * below it, each of which carries its own.
    */
-  projectRevision: number;
+  workPackageRevision: number;
   /** Authored relationships, with stable node addresses for readers. */
   typedDependencies: {
     id: string;

@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { openCompactAccount, openWorkPackageActions } from './ordinary-context';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * The header bar, and the height it hands the table.
@@ -68,8 +68,8 @@ const FIT_WIDTHS = [1280, 1024, 900] as const;
  */
 const LOCAL_USERNAME = 'local-dev';
 
-/** A project name long enough that the entry cannot fit any bound this test allows. */
-const LONG_PROJECT_NAME = 'Rewire the shed and repaint the hall and paint the fence out back';
+/** A work package name long enough that the entry cannot fit any bound this test allows. */
+const LONG_WORK_PACKAGE_NAME = 'Rewire the shed and repaint the hall and paint the fence out back';
 
 /**
  * How far the open listbox reaches, and whether the document scrolls sideways.
@@ -80,14 +80,14 @@ const LONG_PROJECT_NAME = 'Rewire the shed and repaint the hall and paint the fe
  * the shape this guards against — a measurement taken against something with no
  * size at all.
  */
-/** The option for the project this page selected, independent of rival writers. */
-async function selectedProjectOption(page: Page): Promise<Locator> {
-  const projectId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('the picker has no selected project');
-  const option = page.locator(`#project-option-${projectId}`);
+/** The option for the work package this page selected, independent of rival writers. */
+async function selectedWorkPackageOption(page: Page): Promise<Locator> {
+  const workPackageId = await page.evaluate(() => window.localStorage.getItem('wbs.workPackage'));
+  if (workPackageId === null) throw new Error('the picker has no selected work package');
+  const option = page.locator(`#work-package-option-${workPackageId}`);
   // Proof: measuring the first global option instead failed both long-entry
-  // cases in the real four-worker suite: a rival `New project` produced
-  // `entryOverflow 0` while this exact long project was present one row later.
+  // cases in the real four-worker suite: a rival `New workPackage` produced
+  // `entryOverflow 0` while this exact long work package was present one row later.
   await expect(option).toHaveCount(1);
   return option;
 }
@@ -99,7 +99,7 @@ async function measureOpenListbox(page: Page): Promise<{
   nameOverflow: number;
   nameLines: number;
 }> {
-  const option = await selectedProjectOption(page);
+  const option = await selectedWorkPackageOption(page);
   return option.evaluate((entry) => {
     const list = document.querySelector('[role="listbox"]');
     if (list === null) throw new Error('the picker is not open');
@@ -141,29 +141,29 @@ async function measureOpenListbox(page: Page): Promise<{
  * the card is up with no delay a test can smuggle through.
  */
 async function readHoverCard(page: Page): Promise<string> {
-  await (await selectedProjectOption(page)).hover();
+  await (await selectedWorkPackageOption(page)).hover();
   const card = page.locator('[role="tooltip"]').first();
   await expect(card).toBeVisible();
   return (await card.textContent()) ?? '';
 }
 
 /**
- * Registers a throwaway account and opens a project. Nothing in it yet.
+ * Registers a throwaway account and opens a work package. Nothing in it yet.
  *
- * Through {@link createProject}, which leaves the rename a create arms: every
+ * Through {@link createWorkPackage}, which leaves the rename a create arms: every
  * test in this file measures the bar with the **picker** on it, and an armed
  * rename replaces the picker with a name field.
  */
 async function signInWithAProject(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 
 /**
  * Signs the current account out and registers `account` in its place, with a
- * project of its own.
+ * work package of its own.
  *
  * `beforeEach` has already signed one account in, and the picker tests need an
  * account whose **username** is the thing under test. Signing out rather than
@@ -175,16 +175,17 @@ async function switchToAccountWithAProject(
   _leaving: string,
   _account: string,
 ): Promise<void> {
-  await createProject(page);
+  await createWorkPackage(page);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 }
 
-/** Renames the selected project, through the ✎ the bar offers for it. */
-async function renameSelectedProject(page: Page, to: string): Promise<void> {
-  await page.getByRole('button', { name: 'Rename project' }).click();
-  await page.getByLabel('Project name').fill(to);
-  await page.getByLabel('Project name').press('Enter');
-  await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(to);
+/** Renames the selected work package, through the ✎ the bar offers for it. */
+async function renameSelectedWorkPackage(page: Page, to: string): Promise<void> {
+  await openWorkPackageActions(page);
+  await page.getByRole('button', { name: 'Rename work package' }).click();
+  await page.getByLabel('Work package name').fill(to);
+  await page.getByLabel('Work package name').press('Enter');
+  await expect(page.getByRole('combobox', { name: 'Work package' })).toHaveValue(to);
 }
 
 /**
@@ -198,11 +199,11 @@ async function renameSelectedProject(page: Page, to: string): Promise<void> {
 async function openPicker(page: Page): Promise<void> {
   // Blurred directly rather than by clicking the brand: below 1024 the brand is visually
   // hidden (`AppHeader`), and a click aimed at it lands on the page links instead.
-  await page.getByRole('combobox', { name: 'Project' }).evaluate((node) => {
+  await page.getByRole('combobox', { name: 'Work package' }).evaluate((node) => {
     if (node instanceof HTMLElement) node.blur();
   });
-  await page.getByRole('combobox', { name: 'Project' }).click();
-  await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Work package' }).click();
+  await expect(page.getByRole('listbox', { name: 'Work packages' })).toBeVisible();
 }
 
 /** Adds rows until the plan is taller than the window it is being read in. */
@@ -451,7 +452,8 @@ test.describe('the header bar, measured by a browser', () => {
     page,
   }) => {
     const links = page.getByRole('navigation', { name: 'Pages' }).getByRole('link');
-    await expect(links).toHaveCount(3);
+    // Current ordinary sessions mount the actual Organization link beside the three legacy pages.
+    await expect(links).toHaveText(['Plan', 'Directory', 'Spaces', 'Organization']);
 
     await page.setViewportSize({ width: 390, height: 844 });
     const phone = await links.evaluateAll((each) => ({
@@ -461,7 +463,7 @@ test.describe('the header bar, measured by a browser', () => {
     expect(
       phone.heights,
       'Plan, Directory and Spaces stay at their 32px dense-header height on a phone',
-    ).toEqual([44, 44, 44]);
+    ).toEqual([44, 44, 44, 44]);
     expect(phone.pageOverflowX, 'the larger phone targets make the page scroll sideways').toBe(0);
 
     await page.setViewportSize({ width: 768, height: 844 });
@@ -469,7 +471,7 @@ test.describe('the header bar, measured by a browser', () => {
       each.map((link) => Math.round(link.getBoundingClientRect().height)),
     );
     expect(dense, 'the page links stop being dense at the 768px card breakpoint').toEqual([
-      32, 32, 32,
+      32, 32, 32, 32,
     ]);
   });
 
@@ -508,7 +510,7 @@ test.describe('the header bar, measured by a browser', () => {
     const bar = page.getByRole('banner');
 
     // Every one of these is found by step and name, and inside the bar: the
-    // brand, the two pages, the project, who else is here, and the account. The
+    // brand, the two pages, the work package, who else is here, and the account. The
     // account menu has never been opened by a browser before this line — `F`
     // shipped `modal.tsx` with the same gap and said so.
     //
@@ -519,7 +521,7 @@ test.describe('the header bar, measured by a browser', () => {
     await expect(bar.getByRole('heading', { name: 'WBS tool v2' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
-    await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
+    await expect(bar.getByRole('combobox', { name: 'Work package' })).toBeVisible();
     await expect(bar.getByRole('heading', { name: 'Live', exact: true })).toBeVisible();
 
     await bar.getByRole('button', { name: signedInAs }).click();
@@ -561,13 +563,13 @@ test.describe('the header bar, measured by a browser', () => {
 /**
  * The bar against the UI review of 2026-10-13: a picker you can read, a roster
  * that does not clip, two rows on a phone with finger-sized controls, and one
- * row off a project.
+ * row off a work package.
  */
 test.describe('the header bar, read by eye and measured', () => {
   test('keeps the picker readable and the roster unclipped from 900 up (F-011)', async ({
     page,
   }) => {
-    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await renameSelectedWorkPackage(page, LONG_WORK_PACKAGE_NAME);
     // The roster: the section that carries the roster as its fact card. Not `header section`
     // alone — the Saved plans shelf is a section too, and comes first.
     const roster = page.getByRole('banner').locator('section[data-fact]');
@@ -576,7 +578,7 @@ test.describe('the header bar, read by eye and measured', () => {
     for (const width of [1440, 1280, 1024, 900]) {
       await page.setViewportSize({ width, height: 800 });
       const measured = await roster.evaluate((section) => {
-        const picker = document.querySelector('[role="combobox"][aria-label="Project"]');
+        const picker = document.querySelector('[role="combobox"][aria-label="Work package"]');
         if (!(picker instanceof HTMLInputElement)) throw new Error('the bar has no picker');
         const list = section.querySelector('ul');
         // A laid-out list (not the `sr-only` one below 1440): every name on its one visible
@@ -613,20 +615,24 @@ test.describe('the header bar, read by eye and measured', () => {
     expect(read).toEqual([]);
   });
 
-  test('is two rows on a phone, with 44px project controls (F-010, F-041)', async ({ page }) => {
-    await renameSelectedProject(page, LONG_PROJECT_NAME);
+  test('is two rows on a phone, with 44px work package controls (F-010, F-041)', async ({
+    page,
+  }, testInfo) => {
+    await renameSelectedWorkPackage(page, LONG_WORK_PACKAGE_NAME);
     await page.setViewportSize({ width: 375, height: 812 });
     const bar = page.getByRole('banner');
+    // Current closed header has the picker and one actions summary; the old three-control Proof below records the earlier presentation.
     const controls = [
-      bar.getByRole('combobox', { name: 'Project' }),
-      bar.getByRole('button', { name: 'Rename project' }),
-      bar.getByRole('button', { name: 'Create new project' }),
+      bar.getByRole('combobox', { name: 'Work package' }),
+      bar.locator('summary[aria-label="Work package actions"]'),
+      bar.locator('summary[aria-label="Account and organization"]'),
     ];
     const heights: number[] = [];
     for (const control of controls)
       heights.push(Math.round((await control.boundingBox())?.height ?? 0));
     // Proof: on 2026-10-13, before this change, this failed reading [32, 32, 32].
     expect(heights).toEqual([44, 44, 44]);
+    await assertCompactHeader(page, true);
     const height = Math.round((await bar.boundingBox())?.height ?? 0);
     // Two 44px rows, a 4px gap and the bar's padding and border: 101px. Three rows were 137.
     expect(height, 'the phone header is more than two rows').toBeLessThanOrEqual(104);
@@ -636,17 +642,27 @@ test.describe('the header bar, read by eye and measured', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow, 'the phone header scrolls sideways').toBe(0);
+    await openWorkPackageActions(page);
+    for (const name of ['Rename work package', 'Create new work package']) {
+      const control = bar.getByRole('button', { name, exact: true });
+      await expect(control).toBeVisible();
+      expect(await control.evaluate((node) => node.getBoundingClientRect().height)).toBe(44);
+    }
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: testInfo.outputPath('phone-plan-header.png') });
   });
 
-  test('is one row off a project on a phone (F-047)', async ({ page }) => {
+  test('is one row off a work package on a phone (F-047)', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto('/directory');
     const bar = page.getByRole('banner');
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
+    await assertCompactHeader(page, false);
     const height = Math.round((await bar.boundingBox())?.height ?? 0);
     // Proof: on 2026-10-13, before this change, this failed on `Expected: <= 56 · Received:
     // 101` — a second row holding only the account menu.
     expect(height, 'the Directory header kept a second row').toBeLessThanOrEqual(56);
+    await page.screenshot({ path: testInfo.outputPath('phone-directory-header.png') });
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -782,15 +798,15 @@ test.describe('the header bar, read by eye and measured', () => {
 /**
  * The open picker, measured by a browser.
  *
- * jsdom lays nothing out: every one of `project-page.test.tsx`'s assertions
+ * jsdom lays nothing out: every one of `work-package-page.test.tsx`'s assertions
  * about this list would pass with the entry a mile wide, because there is no
  * mile and no width. The bound is a browser's to observe, which is why it is
  * here rather than beside the tests that cover what the entry says.
  */
-test.describe('the open project picker, measured by a browser', () => {
+test.describe('the open work package picker, measured by a browser', () => {
   test('the widest entry be-01 permits stays inside the window', async ({ page }) => {
     await switchToAccountWithAProject(page, signedInAs, LOCAL_USERNAME);
-    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await renameSelectedWorkPackage(page, LONG_WORK_PACKAGE_NAME);
 
     const measured: {
       width: number;
@@ -831,7 +847,7 @@ test.describe('the open project picker, measured by a browser', () => {
   test('a long entry wraps whole and its full text is still readable', async ({ page }) => {
     const owner = LOCAL_USERNAME;
     await switchToAccountWithAProject(page, signedInAs, owner);
-    await renameSelectedProject(page, LONG_PROJECT_NAME);
+    await renameSelectedWorkPackage(page, LONG_WORK_PACKAGE_NAME);
     await page.setViewportSize({ width: 1280, height: 800 });
     await openPicker(page);
 
@@ -846,25 +862,25 @@ test.describe('the open project picker, measured by a browser', () => {
     // Chromium, 2026-08-10.
     expect(nameOverflow, 'the name is the half that clipped; it must show whole').toBe(0);
     // The whole name and the whole meta, which is what makes a truncated
-    // meta survivable: the owner is how two projects of one name are told apart, so
+    // meta survivable: the owner is how two work packages of one name are told apart, so
     // a card carrying the name alone would lose exactly the part that was cut.
     const card = await readHoverCard(page);
-    expect(card).toContain(LONG_PROJECT_NAME);
+    expect(card).toContain(LONG_WORK_PACKAGE_NAME);
     expect(card).toContain(owner);
   });
 
   test('the portalled card follows its option when the listbox scrolls', async ({ page }) => {
     await switchToAccountWithAProject(page, signedInAs, LOCAL_USERNAME);
     // Ten more, so the list is longer than the box it drops from and really
-    // scrolls. `createProject` is the wait: it returns with the picker back on
+    // scrolls. `createWorkPackage` is the wait: it returns with the picker back on
     // the bar, which is one create fully landed — the `waitForResponse` this
     // loop used to pair with the click said less, since the arming lands a
     // reload later than the POST it was watching.
     for (let index = 0; index < 10; index += 1) {
-      await createProject(page);
+      await createWorkPackage(page);
     }
     await openPicker(page);
-    const list = page.getByRole('listbox', { name: 'Projects' });
+    const list = page.getByRole('listbox', { name: 'Work packages' });
     const option = list.getByRole('option').nth(5);
     await option.hover();
     const card = page.getByRole('tooltip').first();
@@ -883,9 +899,9 @@ test.describe('the open project picker, measured by a browser', () => {
         return {
           optionMoved: Math.round(before.y - optionBox.y),
           // The card stands **on** the option's row rather than under it since
-          // `project-picker-flow`: it opens beside the list, so following the
+          // `work-package-picker-flow`: it opens beside the list, so following the
           // option means sharing its top edge. Where it opens sideways is
-          // `e2e/project-picker.spec.ts`'s claim; this one is that it is still
+          // `e2e/work-package-picker.spec.ts`'s claim; this one is that it is still
           // remeasured while the list scrolls under it.
           cardOffset: Math.round(cardBox.y - optionBox.y),
         };
@@ -899,11 +915,11 @@ test.describe('the open project picker, measured by a browser', () => {
     // differ only there.
     const first = 'Twilight Shipyards roadmap 2026 (imported 15 Oct)';
     const second = 'Twilight Shipyards roadmap 2026 (imported 15 Oct, 2)';
-    await renameSelectedProject(page, first);
-    const firstId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
-    await createProject(page);
-    await renameSelectedProject(page, second);
-    const secondId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
+    await renameSelectedWorkPackage(page, first);
+    const firstId = await page.evaluate(() => window.localStorage.getItem('wbs.workPackage'));
+    await createWorkPackage(page);
+    await renameSelectedWorkPackage(page, second);
+    const secondId = await page.evaluate(() => window.localStorage.getItem('wbs.workPackage'));
     if (firstId === null || secondId === null) throw new Error('the imports have no ids');
 
     const measured: {
@@ -931,7 +947,7 @@ test.describe('the open project picker, measured by a browser', () => {
             // How far each name runs past the list's inner edge or past its
             // own box: either is a name the reader does not see whole.
             cutBy: ids.map((id) => {
-              const name = document.querySelector(`#project-option-${id} span`);
+              const name = document.querySelector(`#work-package-option-${id} span`);
               if (name === null) throw new Error(`no name for ${id}`);
               return Math.max(
                 Math.round(name.getBoundingClientRect().right - inner),
@@ -941,7 +957,7 @@ test.describe('the open project picker, measured by a browser', () => {
             // Lines each name is drawn on: wrapping is the answer, but a list
             // narrower than the room beside it makes every name a paragraph.
             lines: ids.map((id) => {
-              const name = document.querySelector(`#project-option-${id} span`);
+              const name = document.querySelector(`#work-package-option-${id} span`);
               if (name === null) throw new Error(`no name for ${id}`);
               return Math.round(
                 name.getBoundingClientRect().height /
@@ -958,7 +974,7 @@ test.describe('the open project picker, measured by a browser', () => {
         },
         [firstId, secondId],
       );
-      const box = page.getByRole('combobox', { name: 'Project' });
+      const box = page.getByRole('combobox', { name: 'Work package' });
       await box.evaluate((node) => {
         if (node instanceof HTMLElement) node.blur();
       });
@@ -1017,12 +1033,12 @@ test.describe('the open project picker, measured by a browser', () => {
     // The date is what tells `Review fixture` from its twin; the owner is the
     // part that gives way when the list is narrow.
     await switchToAccountWithAProject(page, signedInAs, LOCAL_USERNAME);
-    await renameSelectedProject(page, 'Review fixture');
+    await renameSelectedWorkPackage(page, 'Review fixture');
     await page.setViewportSize({ width: 1024, height: 768 });
     await openPicker(page);
 
     const metas = await page
-      .getByRole('listbox', { name: 'Projects' })
+      .getByRole('listbox', { name: 'Work packages' })
       .getByRole('option')
       .evaluateAll((options) =>
         options.map((option) => {
@@ -1063,15 +1079,15 @@ test.describe('the open project picker, measured by a browser', () => {
   test('a short entry is shown whole', async ({ page }) => {
     // The other side of the claim. Without it, "clipped" would be satisfied by
     // a picker that clips everything — including the two-word names most
-    // projects have — and nobody would be told.
+    // work packages have — and nobody would be told.
     await switchToAccountWithAProject(page, signedInAs, LOCAL_USERNAME);
-    await renameSelectedProject(page, 'Shed');
+    await renameSelectedWorkPackage(page, 'Shed');
     await page.setViewportSize({ width: 1280, height: 800 });
     await openPicker(page);
 
     const { entryOverflow } = await measureOpenListbox(page);
 
-    expect(entryOverflow, 'a four-letter project owned by a short name was clipped').toBe(0);
+    expect(entryOverflow, 'a four-letter work package owned by a short name was clipped').toBe(0);
   });
 });
 
@@ -1104,3 +1120,284 @@ test.describe('the open project picker, measured by a browser', () => {
  * reads both — with only `rowsDeep`, `flex-wrap` **and** a brand at `text-2xl`
  * left it green, watched.
  */
+
+test('keeps closed header leaf controls inside their allocated groups without overlap at 900px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  const header = page.getByRole('banner');
+  const measured = await header.evaluate((bar) => {
+    const descriptors = [
+      ['page Plan', 'nav[aria-label="Pages"] a[href="/"]'],
+      ['page Directory', 'nav[aria-label="Pages"] a[href="/directory"]'],
+      ['page Spaces', 'nav[aria-label="Pages"] a[href="/spaces"]'],
+      ['page Organization', 'nav[aria-label="Pages"] a[href="/organization"]'],
+      ['Work package', 'input[role="combobox"][aria-label="Work package"]'],
+      ['Work package actions', 'summary[aria-label="Work package actions"]'],
+      ['view Plan', '[aria-label="Work package view"] button[data-work-package-view-selector]'],
+      ['view Board', '[aria-label="Work package view"] button[data-work-package-view-selector]'],
+      ['Organization summary', 'summary[aria-label^="Organization: "]'],
+      ['Account', 'button[data-hint="This account"][aria-haspopup="menu"]'],
+    ] as const;
+    const rectOf = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+    const controls = descriptors.map(([name, selector]) => {
+      const matches = [...bar.querySelectorAll(selector)].filter((element) =>
+        name === 'view Plan'
+          ? element.textContent.trim() === 'Plan'
+          : name === 'view Board'
+            ? element.textContent.trim() === 'Board'
+            : true,
+      );
+      if (matches.length !== 1)
+        throw new Error(
+          'Expected one closed-header leaf: ' + name + '; found ' + String(matches.length),
+        );
+      const control = matches.at(0);
+      if (control === undefined) throw new Error('The measured header leaf is absent: ' + name);
+      let group = control;
+      while (group.parentElement !== bar) {
+        if (group.parentElement === null)
+          throw new Error('Header leaf has no allocated direct-child group: ' + name);
+        group = group.parentElement;
+      }
+      const style = getComputedStyle(control);
+      return {
+        name,
+        visible:
+          control.checkVisibility() &&
+          style.visibility !== 'hidden' &&
+          style.visibility !== 'collapse' &&
+          style.opacity !== '0',
+        rect: rectOf(control),
+        group: { index: [...bar.children].indexOf(group), rect: rectOf(group) },
+      };
+    });
+    const intersections: { left: string; right: string; width: number; height: number }[] = [];
+    for (const [index, left] of controls.entries()) {
+      for (const right of controls.slice(index + 1)) {
+        const width =
+          Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+        const height =
+          Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+        if (width > 0 && height > 0)
+          intersections.push({ left: left.name, right: right.name, width, height });
+      }
+    }
+    return {
+      wideAccountOpen:
+        bar.querySelector('details[data-header-account][open]:not([data-dismissible])') !== null,
+      openDetailsCount: bar.querySelectorAll('details[open]:not([data-header-account])').length,
+      openAccountMenus: bar.querySelectorAll('[role="menu"]').length,
+      viewport: {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      },
+      header: rectOf(bar),
+      controls,
+      intersections,
+    };
+  });
+  console.log('HEADER_900_CLOSED_LEAF_RECTS ' + JSON.stringify(measured));
+  expect(
+    measured.wideAccountOpen,
+    'the permanent wide account row must stay open outside peer dismissal',
+  ).toBe(true);
+  expect(
+    measured.openDetailsCount,
+    'the header must be measured with its native disclosures closed',
+  ).toBe(0);
+  expect(
+    measured.openAccountMenus,
+    'the account menu must be closed during header measurement',
+  ).toBe(0);
+  expect(measured.controls).toHaveLength(10);
+  for (const control of measured.controls) {
+    expect(control.visible, control.name + ' is not actually visible').toBe(true);
+    expect(control.rect.width, control.name + ' has no measured width').toBeGreaterThan(0);
+    expect(control.rect.height, control.name + ' has no measured height').toBeGreaterThan(0);
+    expect(
+      control.rect.left,
+      control.name + ' leaves the viewport/header on the left',
+    ).toBeGreaterThanOrEqual(Math.max(0, measured.header.left));
+    expect(
+      control.rect.right,
+      control.name + ' leaves the viewport/header on the right',
+    ).toBeLessThanOrEqual(Math.min(measured.viewport.width, measured.header.right));
+    expect(control.rect.top, control.name + ' leaves the header above').toBeGreaterThanOrEqual(
+      measured.header.top,
+    );
+    expect(control.rect.bottom, control.name + ' leaves the header below').toBeLessThanOrEqual(
+      measured.header.bottom,
+    );
+    expect(
+      control.rect.left,
+      control.name + ' overdraws its allocated group on the left',
+    ).toBeGreaterThanOrEqual(control.group.rect.left);
+    expect(
+      control.rect.right,
+      control.name + ' overdraws its allocated group on the right',
+    ).toBeLessThanOrEqual(control.group.rect.right);
+    expect(
+      control.rect.top,
+      control.name + ' overdraws its allocated group above',
+    ).toBeGreaterThanOrEqual(control.group.rect.top);
+    expect(
+      control.rect.bottom,
+      control.name + ' overdraws its allocated group below',
+    ).toBeLessThanOrEqual(control.group.rect.bottom);
+  }
+  expect(
+    measured.intersections,
+    'distinct visible header leaves intersect with positive area',
+  ).toEqual([]);
+});
+
+/** Measures real closed-phone leaves inside their actual allocated header groups. */
+async function assertCompactHeader(page: Page, hasPackage: boolean): Promise<void> {
+  const measured = await page.getByRole('banner').evaluate((bar, packageVisible) => {
+    const descriptors: [string, string][] = [
+      ['page Plan', 'nav[aria-label="Pages"] a[href="/"]'],
+      ['page Directory', 'nav[aria-label="Pages"] a[href="/directory"]'],
+      ['page Spaces', 'nav[aria-label="Pages"] a[href="/spaces"]'],
+      ['page Organization', 'nav[aria-label="Pages"] a[href="/organization"]'],
+      ['Account and organization', 'summary[aria-label="Account and organization"]'],
+    ];
+    if (packageVisible)
+      descriptors.push(
+        ['Work package', 'input[role="combobox"][aria-label="Work package"]'],
+        ['Work package actions', 'summary[aria-label="Work package actions"]'],
+      );
+    const rectOf = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+    const controls = descriptors.map(([name, selector]) => {
+      const matches = [...bar.querySelectorAll(selector)];
+      if (matches.length !== 1) throw new Error('Expected one compact-header leaf: ' + name);
+      const control = matches.at(0);
+      if (control === undefined) throw new Error('Compact header leaf is absent: ' + name);
+      let group = control;
+      while (group.parentElement !== bar) {
+        if (group.parentElement === null)
+          throw new Error('Compact header leaf lacks its allocated group: ' + name);
+        group = group.parentElement;
+      }
+      return {
+        name,
+        visible: control.checkVisibility(),
+        rect: rectOf(control),
+        group: rectOf(group),
+      };
+    });
+    const intersections: { left: string; right: string; width: number; height: number }[] = [];
+    for (const [index, left] of controls.entries())
+      for (const right of controls.slice(index + 1)) {
+        const width =
+          Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+        const height =
+          Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+        if (width > 0 && height > 0)
+          intersections.push({ left: left.name, right: right.name, width, height });
+      }
+    return {
+      viewport: document.documentElement.clientWidth,
+      header: rectOf(bar),
+      controls,
+      intersections,
+    };
+  }, hasPackage);
+  console.log('HEADER_PHONE_CLOSED_LEAF_RECTS ' + JSON.stringify(measured));
+  expect(measured.controls).toHaveLength(hasPackage ? 7 : 5);
+  for (const control of measured.controls) {
+    expect(control.visible, control.name + ' is hidden').toBe(true);
+    expect(control.rect.width).toBeGreaterThan(0);
+    expect(control.rect.height).toBeGreaterThanOrEqual(44);
+    expect(control.rect.left, control.name + ' leaves the viewport/header').toBeGreaterThanOrEqual(
+      Math.max(0, measured.header.left),
+    );
+    expect(control.rect.right, control.name + ' leaves the viewport/header').toBeLessThanOrEqual(
+      Math.min(measured.viewport, measured.header.right),
+    );
+    expect(control.rect.left, control.name + ' leaves its allocated group').toBeGreaterThanOrEqual(
+      control.group.left,
+    );
+    expect(control.rect.right, control.name + ' leaves its allocated group').toBeLessThanOrEqual(
+      control.group.right,
+    );
+    expect(control.rect.top, control.name + ' leaves its allocated group').toBeGreaterThanOrEqual(
+      control.group.top,
+    );
+    expect(control.rect.bottom, control.name + ' leaves its allocated group').toBeLessThanOrEqual(
+      control.group.bottom,
+    );
+    if (control.name === 'Work package') expect(control.rect.width).toBeGreaterThanOrEqual(144);
+  }
+  expect(measured.intersections, 'closed phone header leaves overlap').toEqual([]);
+}
+
+for (const surface of ['Plan', 'Board', 'Directory'] as const) {
+  test(`keeps compact account and organization controls reachable within the phone on ${surface}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    if (surface === 'Directory') await page.goto('/directory');
+    if (surface === 'Board')
+      await page
+        .getByRole('group', { name: 'Work package view' })
+        .getByRole('button', { name: 'Board', exact: true })
+        .click();
+    const trigger = await openCompactAccount(page);
+    const content = page.getByRole('group', { name: 'Account and organization controls' });
+    const bounds = await content.boundingBox();
+    if (bounds === null) throw new Error('The expanded compact account controls are absent');
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
+    const organization = content.locator('summary[aria-label^="Organization: "]');
+    await expect(organization).toBeVisible();
+    const organizationName = await organization.getAttribute('aria-label');
+    if (organizationName === null) throw new Error('The current organization summary is unnamed');
+    await organization.click();
+    await expect(organization.locator('..')).toHaveAttribute('open', '');
+    await expect(
+      organization
+        .locator('..')
+        .getByText(organizationName.slice('Organization: '.length), { exact: true })
+        .first(),
+    ).toBeVisible();
+    const expandedOrganization = await organization
+      .locator('..')
+      .locator(':scope > div')
+      .boundingBox();
+    if (expandedOrganization === null)
+      throw new Error('The expanded organization controls are absent');
+    expect(expandedOrganization.x).toBeGreaterThanOrEqual(0);
+    expect(expandedOrganization.x + expandedOrganization.width).toBeLessThanOrEqual(375);
+    await organization.click();
+    await content.getByRole('button', { name: LOCAL_USERNAME, exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger.locator('..')).toHaveAttribute('open', '');
+    await expect(content.getByRole('button', { name: LOCAL_USERNAME, exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger.locator('..')).not.toHaveAttribute('open', '');
+    await expect(trigger).toBeFocused();
+    await assertCompactHeader(page, surface !== 'Directory');
+  });
+}

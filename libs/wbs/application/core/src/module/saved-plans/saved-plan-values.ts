@@ -1,4 +1,4 @@
-import type { Permission } from '@wbs/domain';
+import type { Permission, StepIdentityRead } from '@wbs/domain';
 import type { PlanDiff, PlanSide } from '@wbs/domain';
 
 import type { SavedComparisonSide } from './saved-plan-comparison';
@@ -13,6 +13,18 @@ export interface SavedPlanReadBody {
   /** The header's hash, which this read recomputed over {@link bytes} and matched. */
   readonly sha256: string;
 }
+
+/** Internal verified meaning; the wire plan remains the exact original bytes and hashes. */
+export interface VerifiedSavedPlan {
+  readonly plan: SavedPlanRead;
+  readonly stepIdentity: StepIdentityRead;
+}
+
+/** Fetching APIs can be absent; corruption never carries unverified identity projection. */
+export type VerifiedSavedPlanOutcome =
+  | { readonly outcome: 'verified'; readonly verified: VerifiedSavedPlan }
+  | { readonly outcome: 'not_found' }
+  | { readonly outcome: 'corrupt'; readonly refusal: SavedPlanIntegrityRefusal };
 
 /**
  * The schedule side of a read — present with its bytes, or absent with a reason.
@@ -34,7 +46,7 @@ export type SavedPlanReadSchedule =
 /** One saved plan, handed back as it was stored. */
 export interface SavedPlanRead {
   readonly id: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly name: string;
   readonly createdBy: string;
   readonly createdAt: number;
@@ -66,7 +78,7 @@ export type SavedPlanCompareOutcome =
       readonly left: SavedComparisonSide;
       readonly right: SavedComparisonSide;
     }
-  | { readonly outcome: 'no_project' }
+  | { readonly outcome: 'no_work_package' }
   | { readonly outcome: 'not_found'; readonly savedPlanId: string }
   | {
       readonly outcome: 'corrupt';
@@ -93,10 +105,10 @@ export type SavedPlanReadOutcome =
   | { readonly outcome: 'corrupt'; readonly refusal: SavedPlanIntegrityRefusal };
 
 /**
- * One row of a project's saved-plan list.
+ * One row of a work package's saved-plan list.
  *
  * **No body and no integrity verdict**, and both absences are deliberate. The
- * list is the index of a project's permanent records: verifying a hundred plans
+ * list is the index of a work package's permanent records: verifying a hundred plans
  * to render a hundred names would read every stored byte on a page nobody asked
  * to open a plan from, and a list is exactly where {@link SavedPlanService.read}
  * has not been called yet. A corrupt plan is therefore listed like any other and
@@ -133,28 +145,29 @@ export interface SavedPlanListEntry {
  * The repository's `SavedPlanTouchOutcome` is the storage layer's three
  * answers; this adds the fourth that only an authorised call can give. They are
  * two different types on purpose: `forbidden` is a fact about an actor and
- * `no_such_plan` is a fact about a row, and the repository is never told who is
- * asking.
+ * `no_such_plan` is a fact about a row. The writer receives explicit retained
+ * admission evidence and rechecks its current authority.
  *
  * `not_found` rather than the repository's `no_such_plan`, because this is the
  * vocabulary `statusForRefusal` already maps for every other route.
  */
 export type SavedPlanTouchResult =
   /**
-   * The `projectId` is carried out rather than left to the caller to look up
-   * (TASK-255). `/api/saved-plans/:id` deliberately does not repeat the project
-   * in its path — a URL that named a project the plan does not belong to and was
+   * The `workPackageId` is carried out rather than left to the caller to look up
+   * (TASK-255). `/api/saved-plans/:id` deliberately does not repeat the work package
+   * in its path — a URL that named a work package the plan does not belong to and was
    * still answered would lie about what it addressed — so the controller has no
    * other honest source for the id it must announce on.
    *
    * It comes from the authorisation read, which already selects
-   * `savedPlan.projectId` to reach the project's owner. Reading it again after
+   * `savedPlan.workPackageId` to reach the work package's owner. Reading it again after
    * the touch would be a second query and, for a delete, a query for a row that
    * is gone; reading it before, separately, would open a window in which the
-   * announced project is not the one that was written.
+   * announced work package is not the one that was written.
    */
-  | { readonly outcome: 'touched'; readonly projectId: string }
+  | { readonly outcome: 'touched'; readonly workPackageId: string }
   | { readonly outcome: 'not_found' }
+  | { readonly outcome: 'no_active_organization' | 'organization_context_changed' }
   | { readonly outcome: 'forbidden'; readonly permission?: Permission }
   /** Another connection held the write lock. Nothing changed; a retry may succeed. */
   | { readonly outcome: 'snapshot_busy' };

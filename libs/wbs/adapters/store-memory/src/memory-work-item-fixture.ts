@@ -2,6 +2,7 @@ import type {
   DirectoryStore,
   ExternalRef,
   FrozenNumber,
+  LabelledWorkItem,
   Repositioned,
   WorkItem,
   WorkItemStore,
@@ -27,6 +28,26 @@ export function memoryWorkItemTables(): MemoryWorkItemTables {
     typesOf: new Map(),
     refsOf: new Map(),
   };
+}
+
+/** Detached rows from actual maps, captured synchronously before any observation can yield. */
+export function readMemoryWorkItemRowsIn(
+  tables: MemoryWorkItemTables,
+  workPackageId: string,
+): LabelledWorkItem[] {
+  const { byId, teamsOf, tagsOf, servicesOf, typesOf, refsOf } = tables;
+  return [...byId.values()]
+    .filter((w) => w.workPackageId === workPackageId)
+    .map((row) =>
+      structuredClone({
+        ...row,
+        teamIds: teamsOf.get(row.id) ?? [],
+        tagIds: tagsOf.get(row.id) ?? [],
+        serviceIds: servicesOf.get(row.id) ?? [],
+        typeIds: typesOf.get(row.id) ?? [],
+        externalRefs: refsOf.get(row.id) ?? [],
+      }),
+    );
 }
 
 /**
@@ -113,30 +134,23 @@ export function inMemoryWorkItems(
   return {
     // This fixture's writes ignore their stamps, so it holds no instant to
     // answer; only work-item pages read this, and they are proved on SQLite.
+    resolveStepOrders() {
+      return Promise.reject(new Error('candidate step orders require an actual catalogue Source'));
+    },
     listUpdateInstants() {
       return Promise.reject(new Error('the in-memory work-item store keeps no update instants'));
     },
-    listByProject(projectId) {
-      return Promise.resolve(
-        [...byId.values()]
-          .filter((w) => w.projectId === projectId)
-          .map((row) =>
-            structuredClone({
-              ...row,
-              teamIds: teamsOf.get(row.id) ?? [],
-              tagIds: tagsOf.get(row.id) ?? [],
-              serviceIds: servicesOf.get(row.id) ?? [],
-              typeIds: typesOf.get(row.id) ?? [],
-              externalRefs: refsOf.get(row.id) ?? [],
-            }),
-          ),
-      );
+    listTreeByWorkPackage(workPackageId) {
+      return this.listByWorkPackage(workPackageId);
     },
-    listByIds(projectId, ids) {
+    listByWorkPackage(workPackageId) {
+      return Promise.resolve(readMemoryWorkItemRowsIn(tables, workPackageId));
+    },
+    listByIds(workPackageId, ids) {
       const requested = new Set(ids);
       return Promise.resolve(
         [...byId.values()]
-          .filter((row) => row.projectId === projectId && requested.has(row.id))
+          .filter((row) => row.workPackageId === workPackageId && requested.has(row.id))
           .map((row) =>
             structuredClone({
               ...row,
@@ -149,12 +163,12 @@ export function inMemoryWorkItems(
           ),
       );
     },
-    listPlacements(projectId, ids) {
+    listPlacements(workPackageId, ids) {
       const requested = new Set(ids);
       const placements: { id: string; afterId: string | null }[] = [];
       let afterId: string | null = null;
       for (const row of byId.values()) {
-        if (row.projectId !== projectId) continue;
+        if (row.workPackageId !== workPackageId) continue;
         if (requested.has(row.id)) placements.push({ id: row.id, afterId });
         afterId = row.id;
       }
@@ -273,7 +287,7 @@ export function inMemoryWorkItems(
       // The service set, whole and deduplicated, only where the patch names the
       // dimension — the real store's write, mirrored. `[]` is written as an
       // empty set rather than a delete so a later read answers the same either
-      // way, which is what `listByProject`'s `?? []` above already means.
+      // way, which is what `listByWorkPackage`'s `?? []` above already means.
       if (wantedServices !== undefined) servicesOf.set(id, [...new Set(wantedServices)]);
       // A tag set is the same whole-replacement relation as services and types.
       // Proof: the complete saved-plan capture case patched `tag-a` through the

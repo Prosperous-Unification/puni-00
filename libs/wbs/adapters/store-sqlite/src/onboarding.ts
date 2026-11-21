@@ -17,6 +17,7 @@ import { writeGrantIn } from './access-grant';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
+import { validateMembershipLabel } from './organization-selection';
 import { loadPublicEmailPolicy } from './public-email-policy';
 import {
   organization,
@@ -288,7 +289,8 @@ function membershipsOf(tx: Transaction, userId: string) {
     .from(organizationMembership)
     .innerJoin(organization, eq(organization.id, organizationMembership.organizationId))
     .where(eq(organizationMembership.userId, userId))
-    .all();
+    .all()
+    .map((row) => ({ ...row, role: validateMembershipLabel(row.role, row.organizationId) }));
 }
 
 /** Only an exact, currently verified, claimable domain routes onboarding. */

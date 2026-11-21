@@ -1,6 +1,7 @@
-import type { RuntimeClaim, RuntimeReceipt } from '@wbs/contracts';
-import type { NewJournalEntry, PlanEvent, StepRemoved, TransactionalStores } from '@wbs/core';
+import type { RuntimeClaim, RuntimeReceipt2 } from '@wbs/contracts';
+import type { NewJournalEntry, PlanEvent, StepUnbindOutcome, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
+import { seedLegacyPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
@@ -34,15 +35,18 @@ const STORE_BINDINGS = [
   'planEvents',
   'priorityBands',
   'progress',
-  'projects',
   'resourceCapacity',
   'runtimeCommands',
+  'settings',
+  'spaces',
+  'stepCatalogue',
   'stepParallels',
   'steps',
   'subtrees',
   'typedDependencies',
   'users',
   'workItems',
+  'workPackages',
 ] as const satisfies readonly (keyof TransactionalStores)[];
 
 it('refuses scoped saved-plan writes without a transactional membership source', async () => {
@@ -64,7 +68,7 @@ it('refuses scoped saved-plan writes without a transactional membership source',
     source.history.savedPlans.write(
       {
         id: 'missing',
-        projectId: 'p1',
+        workPackageId: 'p1',
         name: 'No',
         createdBy: 'writer',
         createdById: 'writer',
@@ -79,16 +83,47 @@ it('refuses scoped saved-plan writes without a transactional membership source',
   await source.close();
 });
 
-async function seededSource(source = openMemorySource()) {
+async function defineProjectStep(
+  stores: Pick<TransactionalStores, 'stepCatalogue'>,
+  id: string,
+  name: string,
+  code: string,
+  position: number,
+  scope = { organizationId: 'fixture-legacy-org', projectId: 'fixture-project' },
+) {
+  const defined = await stores.stepCatalogue.defineAndBindStep(
+    scope.organizationId,
+    { id, name, code, position, defaultAllowancePercent: 0, defaultEstimateUnit: 'workdays' },
+    {
+      bindingId: id + ':binding',
+      scopeKind: 'project',
+      scopeId: scope.projectId,
+      workItemTypeId: null,
+      position,
+    },
+    stamp,
+  );
+  if (!defined.ok) throw new Error('current Source fixture step refused: ' + defined.reason);
+  return defined;
+}
+
+async function seededSource(fixture = openMemorySourceFixture()) {
+  const source = fixture.source;
   await source.stores.users.create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     stamp,
   );
-  await source.stores.projects.create(
+  seedLegacyPackageParent(fixture, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'owner',
+  });
+  await defineProjectStep(source.stores, 'st-1', 'Dev', 'dev', 10);
+  await source.stores.workPackages.create(
     {
       id: 'p1',
       name: 'Before',
-      ownerId: 'owner',
+      projectId: 'fixture-project',
       restricted: false,
       estimateMethod: 'pert',
       depReach: 'whole-item',
@@ -102,26 +137,16 @@ async function seededSource(source = openMemorySource()) {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
     },
-    [
-      {
-        id: 'st-1',
-        projectId: 'p1',
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
+    [],
     stamp,
   );
   return source;
 }
 
-it('commits and rolls back project-seeded blockage facts and cascades removed owners', async () => {
+it('commits and rolls back work-package-seeded blockage facts and cascades removed owners', async () => {
   const source = await seededSource();
   await source.stores.workItems.insert(
-    workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+    workItemRow({ id: 'wi-blocked', workPackageId: 'p1' }),
     [],
     stamp,
   );
@@ -132,29 +157,29 @@ it('commits and rolls back project-seeded blockage facts and cascades removed ow
     return { commit: false, value: undefined };
   });
   // Proof: committing a refused staged batch made this read contain the fact; watched 2026-10-13.
-  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  expect(await source.stores.blockages.listByWorkPackage('p1')).toEqual([]);
   await source.uow.run(async (scope) => {
     expect(await scope.stores.blockages.set(fact, stamp)).toBe('written');
-    expect(await scope.stores.blockages.listByProject('p1')).toEqual([fact]);
+    expect(await scope.stores.blockages.listByWorkPackage('p1')).toEqual([fact]);
     return { commit: true, value: undefined };
   });
   // Proof: omitting MemoryState's blockage-table copy left this read empty; watched 2026-10-13.
-  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  expect(await source.stores.blockages.listByWorkPackage('p1')).toEqual([fact]);
   await source.uow.run(async (scope) => {
     await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
     return { commit: false, value: undefined };
   });
   // Proof: omitting the table copy from MemoryState.replaceWith made the committed
   // remove below leave the original fact; watched 2026-10-13.
-  expect(await source.stores.blockages.listByProject('p1')).toEqual([fact]);
+  expect(await source.stores.blockages.listByWorkPackage('p1')).toEqual([fact]);
   await source.uow.run(async (scope) => {
     await scope.stores.blockages.remove(fact.workItemId, fact.stepId, stamp);
     return { commit: true, value: undefined };
   });
-  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  expect(await source.stores.blockages.listByWorkPackage('p1')).toEqual([]);
   expect(await source.stores.blockages.set(fact, stamp)).toBe('written');
   await source.stores.workItems.remove([fact.workItemId], [], stamp);
-  expect(await source.stores.blockages.listByProject('p1')).toEqual([]);
+  expect(await source.stores.blockages.listByWorkPackage('p1')).toEqual([]);
   await source.close();
 });
 
@@ -175,34 +200,94 @@ function mutateReturned(value: unknown): boolean {
   return false;
 }
 
+function mutateStringArray(value: unknown): boolean {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((entry) => typeof entry !== 'string')
+  )
+    return false;
+  const firstElement: unknown = value[0];
+  if (typeof firstElement !== 'string') return false;
+  value[0] = `${firstElement}:caller-mutation`;
+  return true;
+}
+
 async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   expect(Object.keys(stores).sort()).toEqual([...STORE_BINDINGS]);
+  const spaces = stores.spaces;
+  if (spaces === undefined) throw new Error('memory detachment fixture has no spaces store');
+  const organizationId = 'fixture-legacy-org';
+  const projectId = 'fixture-project';
+  const spaceId = 'detached-member-space';
+  const createdSpace = await spaces.create(
+    { id: 'detached-created-space', organizationId, name: 'Created space' },
+    stamp,
+  );
+  expect(createdSpace.ok).toBeTrue();
+  if (!createdSpace.ok) throw new Error('detachment fixture could not create its space');
+  expect(
+    await spaces.create({ id: spaceId, organizationId, name: 'Member space' }, stamp),
+  ).toMatchObject({ ok: true });
+  expect(await spaces.addProject(organizationId, spaceId, projectId, null, stamp)).toEqual({
+    ok: true,
+    position: 10,
+  });
+  const projectTarget = await stores.settings.readTarget(
+    { level: 'project', id: projectId },
+    organizationId,
+  );
+  if (projectTarget === null)
+    throw new Error('detachment fixture project settings target is absent');
+  expect(projectTarget).toEqual({
+    kind: 'project',
+    chain: { level: 'project', organizationId, spaceId, projectId },
+  });
+  await stores.directory.addWorkItemType({ id: 'detached-type', name: 'Detached type' }, stamp);
+  expect(
+    await stores.settings.write(
+      projectTarget,
+      { key: 'allowedWorkItemTypes', value: ['detached-type'] },
+      stamp,
+    ),
+  ).toEqual({ ok: true });
+  expect(
+    await stores.settings.write(projectTarget, { key: 'budgetFactor', value: 2.5 }, stamp),
+  ).toEqual({ ok: true });
+  const packageTarget = await stores.settings.readTarget(
+    { level: 'work_package', id: 'p1' },
+    organizationId,
+  );
+  if (packageTarget === null)
+    throw new Error('detachment fixture package settings target is absent');
+  expect(packageTarget).toEqual({
+    kind: 'work_package',
+    chain: { level: 'work_package', organizationId, spaceId, projectId, workPackageId: 'p1' },
+    restricted: false,
+  });
+  const readAllowedTypes = async () =>
+    (await stores.settings.capture(packageTarget)).values.find(
+      (entry) => entry.key === 'allowedWorkItemTypes',
+    )?.value;
+  expect(await readAllowedTypes()).toEqual(['detached-type']);
+
   const createdUser = await stores.users.create(
     { id: 'reader', username: 'reader', passwordHash: 'x', createdAt: 2 },
     stamp,
   );
-  const workItem = workItemRow({ id: 'wi-1', projectId: 'p1', name: 'Stored work' });
+  const workItem = workItemRow({ id: 'wi-1', workPackageId: 'p1', name: 'Stored work' });
   await stores.workItems.insert(workItem, [], stamp);
-  const addedStep = await stores.steps.add(
-    {
-      id: 'step-memory',
-      projectId: 'p1',
-      name: 'Stored step',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    stamp,
-  );
+  const addedStep = await defineProjectStep(stores, 'step-memory', 'Stored step', 'stored', 20);
   await stores.dependencies.add(
-    { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+    { id: 'dep-1', workPackageId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
     stamp,
   );
   await stores.typedDependencies.add(
     {
       id: 'typed-1',
-      projectId: 'p1',
-      predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
-      successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
+      workPackageId: 'p1',
+      predecessor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+      successor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-2' },
       type: 'FS',
     },
     stamp,
@@ -268,7 +353,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   await stores.resourceCapacity.set('p1', 'resource-1', 8, stamp);
   await stores.demands.set('wi-1', 'resource-1', 2, stamp);
   const recorded = await stores.eventLog.recordEvent(
-    'project:p1',
+    'work-package:p1',
     { nested: { label: 'stored message' } },
     2,
   );
@@ -276,7 +361,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   await stores.capacity.set('p1', 'team-1', 3, stamp);
   const markerWritten = await stores.calendarMarkers.create({
     id: '10000000-0000-4000-8000-000000000001',
-    projectId: 'p1',
+    workPackageId: 'p1',
     date: '2026-09-10',
     name: 'Stored marker',
     color: null,
@@ -285,7 +370,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   await stores.journal.append(
     {
       id: 'journal-1',
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       personId: null,
       kind: 'rename',
@@ -296,7 +381,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       id: 'plan-event-1',
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       kind: 'rename',
       label: 'Stored event',
@@ -307,11 +392,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       createdAt: 2,
     },
   );
-  const created = await stores.projects.create(
+  const created = await stores.workPackages.create(
     {
       id: 'p2',
-      name: 'Stored project',
-      ownerId: 'owner',
+      name: 'Stored work package',
+      projectId: 'fixture-project',
       restricted: false,
       estimateMethod: 'pert',
       depReach: 'whole-item',
@@ -325,10 +410,10 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     [],
     stamp,
   );
-  const updated = await stores.projects.update('p1', { name: 'Stored update' }, stamp);
+  const updated = await stores.workPackages.update('p1', { name: 'Stored update' }, stamp);
 
   // Raw persistence fixtures exercise detachment, not receiver business acceptance.
-  const runtimeScope = { organizationId: 'org-1', projectId: 'p1', personId: 'person-1' };
+  const runtimeScope = { organizationId: 'org-1', workPackageId: 'p1', personId: 'person-1' };
   const grant = await stores.runtimeCommands.compareAuthority(runtimeScope, null, 'runtime-owner');
   const runtimeClaim: RuntimeClaim = {
     claimId: 'runtime-claim',
@@ -344,8 +429,8 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   };
   await stores.runtimeCommands.insertBinding(runtimeScope, runtimeClaim);
   const ledger = await stores.runtimeCommands.inspectLedger();
-  const runtimeReceipt: RuntimeReceipt = {
-    schemaVersion: 1,
+  const runtimeReceipt: RuntimeReceipt2 = {
+    schemaVersion: 2,
     ledgerId: ledger.ledgerId,
     scope: runtimeScope,
     commandId: 'runtime-command',
@@ -360,7 +445,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
   };
   await stores.runtimeCommands.insertAcceptance({
-    schemaVersion: 1,
+    schemaVersion: 2,
     scope: runtimeScope,
     commandId: runtimeReceipt.commandId,
     canonicalRequest: 'raw detached-value fixture',
@@ -376,6 +461,69 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     readonly reread: () => Promise<unknown>;
     readonly mutate?: (value: unknown) => boolean;
   }[] = [
+    {
+      name: 'space create',
+      returned: createdSpace.space,
+      reread: () => spaces.findIn(organizationId, 'detached-created-space'),
+    },
+    {
+      name: 'space find',
+      returned: await spaces.findIn(organizationId, spaceId),
+      reread: () => spaces.findIn(organizationId, spaceId),
+    },
+    {
+      name: 'space list',
+      returned: await spaces.listIn(organizationId),
+      reread: () => spaces.listIn(organizationId),
+    },
+    {
+      name: 'space member rows',
+      returned: await spaces.membersOf(organizationId, spaceId),
+      reread: () => spaces.membersOf(organizationId, spaceId),
+    },
+    {
+      name: 'space member map',
+      returned: await spaces.membersIn(organizationId),
+      reread: () => spaces.membersIn(organizationId),
+    },
+    {
+      name: 'space member map nested rows',
+      returned: (await spaces.membersIn(organizationId)).get(spaceId),
+      reread: async () => (await spaces.membersIn(organizationId)).get(spaceId),
+    },
+    {
+      name: 'settings project target',
+      returned: await stores.settings.readTarget(
+        { level: 'project', id: projectId },
+        organizationId,
+      ),
+      reread: () => stores.settings.readTarget({ level: 'project', id: projectId }, organizationId),
+    },
+    {
+      name: 'settings package target',
+      returned: await stores.settings.readTarget(
+        { level: 'work_package', id: 'p1' },
+        organizationId,
+      ),
+      reread: () => stores.settings.readTarget({ level: 'work_package', id: 'p1' }, organizationId),
+    },
+    {
+      name: 'settings capture',
+      returned: await stores.settings.capture(packageTarget),
+      reread: () => stores.settings.capture(packageTarget),
+    },
+    {
+      name: 'settings captured allowed type array',
+      returned: await readAllowedTypes(),
+      reread: readAllowedTypes,
+      mutate: mutateStringArray,
+    },
+    {
+      name: 'settings package IDs',
+      returned: await stores.settings.packageIds(projectTarget),
+      reread: () => stores.settings.packageIds(projectTarget),
+      mutate: mutateStringArray,
+    },
     {
       name: 'runtime ledger',
       returned: await stores.runtimeCommands.inspectLedger(),
@@ -431,7 +579,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       reread: async () => (await readRuntimeAcceptance())?.receipt,
       mutate(value) {
         if (value === null || typeof value !== 'object') return false;
-        const acceptance = Reflect.get(value, 'acceptance') as RuntimeReceipt['acceptance'];
+        const acceptance = Reflect.get(value, 'acceptance') as RuntimeReceipt2['acceptance'];
         if (acceptance.kind !== 'write') return false;
         Reflect.set(acceptance.claim.execution, 'sessionId', 'caller-session');
         Reflect.set(acceptance.applied, 0, { index: 0, kind: 'setMeasure' });
@@ -444,34 +592,37 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       reread: () => stores.users.findById('reader'),
     },
     {
-      name: 'step add',
-      returned: addedStep.ok ? addedStep.step : addedStep,
-      reread: () => stores.steps.findById('step-memory'),
+      name: 'step definition',
+      returned: addedStep.definition,
+      reread: async () =>
+        (await stores.stepCatalogue.readCatalogue(organizationId))?.definitions.find(
+          ({ id }) => id === 'step-memory',
+        ),
     },
     {
       name: 'step list',
-      returned: await stores.steps.listByProject('p1'),
-      reread: () => stores.steps.listByProject('p1'),
+      returned: await stores.steps.listByWorkPackage('p1'),
+      reread: () => stores.steps.listByWorkPackage('p1'),
     },
     {
-      name: 'step find',
-      returned: await stores.steps.findById('step-memory'),
-      reread: () => stores.steps.findById('step-memory'),
+      name: 'package step values',
+      returned: await stores.stepCatalogue.readPackage(organizationId, 'p1'),
+      reread: () => stores.stepCatalogue.readPackage(organizationId, 'p1'),
     },
     {
       name: 'step parallelism',
-      returned: await stores.stepParallels.listByProject('p1'),
-      reread: () => stores.stepParallels.listByProject('p1'),
+      returned: await stores.stepParallels.listByWorkPackage('p1'),
+      reread: () => stores.stepParallels.listByWorkPackage('p1'),
     },
     {
       name: 'dependencies',
-      returned: await stores.dependencies.listByProject('p1'),
-      reread: () => stores.dependencies.listByProject('p1'),
+      returned: await stores.dependencies.listByWorkPackage('p1'),
+      reread: () => stores.dependencies.listByWorkPackage('p1'),
     },
     {
       name: 'typed dependencies',
-      returned: await stores.typedDependencies.listByProject('p1'),
-      reread: () => stores.typedDependencies.listByProject('p1'),
+      returned: await stores.typedDependencies.listByWorkPackage('p1'),
+      reread: () => stores.typedDependencies.listByWorkPackage('p1'),
     },
     {
       name: 'directory',
@@ -495,8 +646,8 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       name: 'work item list',
-      returned: await stores.workItems.listByProject('p1'),
-      reread: () => stores.workItems.listByProject('p1'),
+      returned: await stores.workItems.listByWorkPackage('p1'),
+      reread: () => stores.workItems.listByWorkPackage('p1'),
     },
     {
       name: 'work item find',
@@ -505,28 +656,28 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       name: 'actuals',
-      returned: await stores.actuals.listByProject('p1'),
-      reread: () => stores.actuals.listByProject('p1'),
+      returned: await stores.actuals.listByWorkPackage('p1'),
+      reread: () => stores.actuals.listByWorkPackage('p1'),
     },
     {
       name: 'estimates',
-      returned: await stores.estimates.listByProject('p1'),
-      reread: () => stores.estimates.listByProject('p1'),
+      returned: await stores.estimates.listByWorkPackage('p1'),
+      reread: () => stores.estimates.listByWorkPackage('p1'),
     },
     {
       name: 'measures',
-      returned: await stores.measures.listByProject('p1'),
-      reread: () => stores.measures.listByProject('p1'),
+      returned: await stores.measures.listByWorkPackage('p1'),
+      reread: () => stores.measures.listByWorkPackage('p1'),
     },
     {
       name: 'progress',
-      returned: await stores.progress.listByProject('p1'),
-      reread: () => stores.progress.listByProject('p1'),
+      returned: await stores.progress.listByWorkPackage('p1'),
+      reread: () => stores.progress.listByWorkPackage('p1'),
     },
     {
       name: 'claims',
-      returned: await stores.claims.listByProject('p1'),
-      reread: () => stores.claims.listByProject('p1'),
+      returned: await stores.claims.listByWorkPackage('p1'),
+      reread: () => stores.claims.listByWorkPackage('p1'),
     },
     {
       name: 'resource capacities',
@@ -535,23 +686,23 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     },
     {
       name: 'demands',
-      returned: await stores.demands.listByProject('p1'),
-      reread: () => stores.demands.listByProject('p1'),
+      returned: await stores.demands.listByWorkPackage('p1'),
+      reread: () => stores.demands.listByWorkPackage('p1'),
     },
     {
       name: 'attempts',
-      returned: await stores.attempts.listByProject('p1'),
-      reread: () => stores.attempts.listByProject('p1'),
+      returned: await stores.attempts.listByWorkPackage('p1'),
+      reread: () => stores.attempts.listByWorkPackage('p1'),
     },
     {
       name: 'event record',
       returned: recorded,
-      reread: async () => (await stores.eventLog.rangeSince('project:p1', -1))[0],
+      reread: async () => (await stores.eventLog.rangeSince('work-package:p1', -1))[0],
     },
     {
       name: 'event range',
-      returned: await stores.eventLog.rangeSince('project:p1', -1),
-      reread: () => stores.eventLog.rangeSince('project:p1', -1),
+      returned: await stores.eventLog.rangeSince('work-package:p1', -1),
+      reread: () => stores.eventLog.rangeSince('work-package:p1', -1),
     },
     {
       name: 'plan events',
@@ -566,18 +717,27 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     {
       name: 'journal',
       returned: await stores.journal.entriesFor({
-        projectId: 'p1',
+        workPackageId: 'p1',
         userId: 'owner',
         personId: null,
       }),
-      reread: () => stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+      reread: () =>
+        stores.journal.entriesFor({ workPackageId: 'p1', userId: 'owner', personId: null }),
     },
-    { name: 'project create', returned: created, reread: () => stores.projects.findById('p2') },
-    { name: 'project update', returned: updated, reread: () => stores.projects.findById('p1') },
     {
-      name: 'project slug',
-      returned: await stores.projects.findBySolutionSlug('stored-slug'),
-      reread: () => stores.projects.findBySolutionSlug('stored-slug'),
+      name: 'work package create',
+      returned: created,
+      reread: () => stores.workPackages.findById('p2'),
+    },
+    {
+      name: 'work package update',
+      returned: updated,
+      reread: () => stores.workPackages.findById('p1'),
+    },
+    {
+      name: 'work package slug',
+      returned: await stores.workPackages.findBySolutionSlug('stored-slug'),
+      reread: () => stores.workPackages.findBySolutionSlug('stored-slug'),
     },
   ];
 
@@ -614,7 +774,7 @@ describe('the staged memory source', () => {
         batchEntered = resolve;
       });
       const batch = source.uow.run(async (scope) => {
-        await scope.stores.projects.update('p1', { name: 'Staged' }, stamp);
+        await scope.stores.workPackages.update('p1', { name: 'Staged' }, stamp);
         batchEntered();
         await held;
         return { commit, value: undefined };
@@ -622,7 +782,7 @@ describe('the staged memory source', () => {
       await entered;
 
       const save = service.save({
-        projectId: 'p1',
+        workPackageId: 'p1',
         createdBy: 'owner',
         createdById: 'owner',
       });
@@ -669,15 +829,15 @@ describe('the staged memory source', () => {
       now: () => 10,
       quota: {
         mostBytesPerBody: 1024 * 1024,
-        mostPlansPerProject: 1,
-        mostBytesPerProject: 1024 * 1024,
+        mostPlansPerWorkPackage: 1,
+        mostBytesPerWorkPackage: 1024 * 1024,
       },
       scheduler: fastScheduler,
     });
 
     const outcomes = await Promise.all([
-      service.save({ projectId: 'p1', createdBy: 'owner', createdById: 'owner' }),
-      service.save({ projectId: 'p1', createdBy: 'owner', createdById: 'owner' }),
+      service.save({ workPackageId: 'p1', createdBy: 'owner', createdById: 'owner' }),
+      service.save({ workPackageId: 'p1', createdBy: 'owner', createdById: 'owner' }),
     ]);
 
     // Proof: bypassing the history coordinator admitted both competing saves,
@@ -690,24 +850,15 @@ describe('the staged memory source', () => {
     const source = await seededSource();
     const settled = Promise.race([
       source.uow.run(async (scope) => {
-        await scope.stores.steps.add(
-          {
-            id: 'st-2',
-            projectId: 'p1',
-            name: 'QA',
-            allowancePercent: 0,
-            estimateUnit: 'workdays' as const,
-          },
-          stamp,
-        );
+        await defineProjectStep(scope.stores, 'st-2', 'QA', 'qa', 20);
         await scope.stores.directory.addTag({ id: 'tag-1', name: 'urgent' }, stamp);
-        await scope.stores.projects.update('p1', { name: 'Committed' }, stamp);
+        await scope.stores.workPackages.update('p1', { name: 'Committed' }, stamp);
         await scope.stores.typedDependencies.add(
           {
             id: 'committed-typed',
-            projectId: 'p1',
-            predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
-            successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
+            workPackageId: 'p1',
+            predecessor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+            successor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-2' },
             type: 'FS',
           },
           stamp,
@@ -722,14 +873,14 @@ describe('the staged memory source', () => {
     ]);
     // Proof: gating admitted stores made the batch remain `timed-out` here.
     expect(await settled).toBe('applied');
-    expect((await source.stores.steps.listByProject('p1')).map((step) => step.name)).toContain(
+    expect((await source.stores.steps.listByWorkPackage('p1')).map((step) => step.name)).toContain(
       'QA',
     );
     expect((await source.stores.directory.listTags()).map((tag) => tag.name)).toContain('urgent');
-    expect((await source.stores.projects.findById('p1'))?.name).toBe('Committed');
-    expect((await source.stores.typedDependencies.listByProject('p1')).map(({ id }) => id)).toEqual(
-      ['committed-typed'],
-    );
+    expect((await source.stores.workPackages.findById('p1'))?.name).toBe('Committed');
+    expect(
+      (await source.stores.typedDependencies.listByWorkPackage('p1')).map(({ id }) => id),
+    ).toEqual(['committed-typed']);
   });
 
   it('queues public writes behind a held batch', async () => {
@@ -748,7 +899,7 @@ describe('the staged memory source', () => {
       return { commit: true, value: undefined };
     });
     await entered;
-    const publicWrite = source.stores.projects.update('p1', { name: 'After batch' }, stamp);
+    const publicWrite = source.stores.workPackages.update('p1', { name: 'After batch' }, stamp);
     const first = await Promise.race([
       publicWrite.then(() => 'written' as const),
       new Promise<'pending'>((resolve) => {
@@ -770,45 +921,36 @@ describe('the staged memory source', () => {
     let refusedStores: unknown;
     await source.uow.run(async (scope) => {
       refusedStores = scope.stores;
-      await scope.stores.projects.update('p1', { name: 'Refused' }, stamp);
+      await scope.stores.workPackages.update('p1', { name: 'Refused' }, stamp);
       await scope.stores.typedDependencies.add(
         {
           id: 'refused-typed',
-          projectId: 'p1',
-          predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
-          successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
+          workPackageId: 'p1',
+          predecessor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+          successor: { workPackageId: 'p1', scope: 'whole', workItemId: 'wi-2' },
           type: 'FS',
         },
         stamp,
       );
-      await scope.stores.steps.add(
-        {
-          id: 'refused-step',
-          projectId: 'p1',
-          name: 'Refused only',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        stamp,
-      );
+      await defineProjectStep(scope.stores, 'refused-step', 'Refused only', 'refused', 20);
       return { commit: false, value: undefined };
     });
-    expect((await source.stores.projects.findById('p1'))?.name).toBe('Before');
-    expect(await source.stores.typedDependencies.listByProject('p1')).toEqual([]);
+    expect((await source.stores.workPackages.findById('p1'))?.name).toBe('Before');
+    expect(await source.stores.typedDependencies.listByWorkPackage('p1')).toEqual([]);
 
     let committedStores: unknown;
     await source.uow.run(async (scope) => {
       committedStores = scope.stores;
-      await scope.stores.projects.update('p1', { name: 'Committed' }, stamp);
+      await scope.stores.workPackages.update('p1', { name: 'Committed' }, stamp);
       return { commit: true, value: undefined };
     });
     // Proof: reusing the refused staged state made the final assertion receive
     // `["Refused only"]` where the row must be absent.
     expect(refusedStores).not.toBe(committedStores);
-    expect((await source.stores.projects.findById('p1'))?.name).toBe('Committed');
-    expect((await source.stores.steps.listByProject('p1')).map((step) => step.name)).not.toContain(
-      'Refused only',
-    );
+    expect((await source.stores.workPackages.findById('p1'))?.name).toBe('Committed');
+    expect(
+      (await source.stores.steps.listByWorkPackage('p1')).map((step) => step.name),
+    ).not.toContain('Refused only');
   });
 
   for (const boundary of ['public', 'admitted'] as const) {
@@ -826,6 +968,8 @@ describe('the staged memory source', () => {
 
   it('binds subtree writes and public dependency reads to one table', async () => {
     const source = await seededSource();
+    for (const id of ['wi-1', 'wi-2'])
+      await source.stores.workItems.insert(workItemRow({ id, workPackageId: 'p1' }), [], stamp);
     await source.uow.run(async (scope) => {
       await scope.stores.subtrees.insertSubtree(
         {
@@ -839,7 +983,7 @@ describe('the staged memory source', () => {
           demands: [],
           assignments: [],
           dependencies: [
-            { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+            { id: 'dep-1', workPackageId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
           ],
           removedEstimates: [],
           removedActuals: [],
@@ -851,8 +995,8 @@ describe('the staged memory source', () => {
       return { commit: true, value: undefined };
     });
     // Proof: constructing subtrees with a second dependency fixture left this list empty.
-    expect(await source.stores.dependencies.listByProject('p1')).toEqual([
-      { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+    expect(await source.stores.dependencies.listByWorkPackage('p1')).toEqual([
+      { id: 'dep-1', workPackageId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
     ]);
   });
 
@@ -863,11 +1007,16 @@ describe('the staged memory source', () => {
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       stamp,
     );
-    await source.stores.projects.create(
+    seedLegacyPackageParent(fixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: 'owner',
+    });
+    await source.stores.workPackages.create(
       {
         id: 'p1',
         name: 'Before',
-        ownerId: 'owner',
+        projectId: 'fixture-project',
         restricted: false,
         estimateMethod: 'pert',
         depReach: 'whole-item',
@@ -884,7 +1033,7 @@ describe('the staged memory source', () => {
       [
         {
           id: 'st-1',
-          projectId: 'p1',
+          workPackageId: 'p1',
           name: 'Dev',
           position: 10,
           code: 'dev',
@@ -896,7 +1045,7 @@ describe('the staged memory source', () => {
     );
     const entry: NewJournalEntry = {
       id: 'legitimate-entry',
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       personId: null,
       kind: 'rename',
@@ -907,7 +1056,7 @@ describe('the staged memory source', () => {
     };
     const event: PlanEvent = {
       id: 'legitimate-event',
-      projectId: 'p1',
+      workPackageId: 'p1',
       userId: 'owner',
       kind: 'rename',
       label: 'Legitimate rename',
@@ -925,80 +1074,92 @@ describe('the staged memory source', () => {
     expect(await source.stores.planEvents.listFor('p1', {})).toEqual([event]);
     expect(await fixture.independentJournalHistoryFor()).toEqual([]);
     expect(
-      await source.stores.journal.entriesFor({ projectId: 'p1', userId: 'owner', personId: null }),
+      await source.stores.journal.entriesFor({
+        workPackageId: 'p1',
+        userId: 'owner',
+        personId: null,
+      }),
     ).toEqual([{ ...entry, seq: 1, undone: false }]);
     await source.close();
   });
 
   it('refuses saved-plan persistence mutations without their exact target state', async () => {
     const fixture = openMemorySourceFixture();
-    expect(() => {
-      fixture.setSavedPlanByteCounts('missing-plan', 1, 1);
-    }).toThrow('no saved plan missing-plan');
-    expect(() => {
-      fixture.removeSavedPlanBodies('missing-plan');
-    }).toThrow('no saved plan missing-plan');
-    expect(() => {
-      fixture.replaceSavedPlanInputBody('missing-plan', 'changed');
-    }).toThrow('no saved plan missing-plan');
-    expect(() => {
-      fixture.replaceSavedPlanScheduleHash('missing-plan', 'changed');
-    }).toThrow('no saved plan missing-plan');
-    expect(await fixture.source.history.savedPlans.listOf('project-a')).toEqual([]);
+    const source = await seededSource(fixture);
+    try {
+      expect(await source.stores.workPackages.findById('p1')).toMatchObject({
+        id: 'p1',
+        projectId: 'fixture-project',
+      });
+      expect(() => {
+        fixture.setSavedPlanByteCounts('missing-plan', 1, 1);
+      }).toThrow('no saved plan missing-plan');
+      expect(() => {
+        fixture.removeSavedPlanBodies('missing-plan');
+      }).toThrow('no saved plan missing-plan');
+      expect(() => {
+        fixture.replaceSavedPlanInputBody('missing-plan', 'changed');
+      }).toThrow('no saved plan missing-plan');
+      expect(() => {
+        fixture.replaceSavedPlanScheduleHash('missing-plan', 'changed');
+      }).toThrow('no saved plan missing-plan');
+      expect(await fixture.source.history.savedPlans.listOf('p1')).toEqual([]);
 
-    expect(
-      await fixture.source.history.savedPlans.write(
-        {
-          id: 'absent-plan',
-          projectId: 'project-a',
-          name: 'Absent schedule',
-          createdBy: 'creator',
-          createdById: null,
-          createdAt: 1,
-          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
-          schedule: { present: false, absentReason: 'not-requested' },
-        },
-        () => Promise.resolve(null),
-      ),
-    ).toEqual({ outcome: 'written' });
-    expect(() => {
-      fixture.replaceSavedPlanScheduleHash('absent-plan', 'changed');
-    }).toThrow('saved plan absent-plan has no schedule hash');
-    expect(await fixture.source.history.savedPlans.readOf('absent-plan')).toMatchObject({
-      header: { scheduleSha256: null },
-      bodies: { input: 'input', schedule: null },
-    });
-    expect(
-      await fixture.source.history.savedPlans.write(
-        {
-          id: 'present-plan',
-          projectId: 'project-a',
-          name: 'Present schedule',
-          createdBy: 'creator',
-          createdById: null,
-          createdAt: 2,
-          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
-          schedule: {
-            present: true,
-            body: { schemaVersion: 1, bytes: 'schedule', sha256: 'schedule-hash' },
-            inputSha256: 'input-hash',
-            algorithmId: 'scheduler',
+      expect(
+        await fixture.source.history.savedPlans.write(
+          {
+            id: 'absent-plan',
+            workPackageId: 'p1',
+            name: 'Absent schedule',
+            createdBy: 'creator',
+            createdById: null,
+            createdAt: 1,
+            input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+            schedule: { present: false, absentReason: 'not-requested' },
           },
-        },
-        () => Promise.resolve(null),
-      ),
-    ).toEqual({ outcome: 'written' });
-    fixture.removeSavedPlanBodies('present-plan');
-    expect(() => {
+          () => Promise.resolve(null),
+        ),
+      ).toEqual({ outcome: 'written' });
+      expect(() => {
+        fixture.replaceSavedPlanScheduleHash('absent-plan', 'changed');
+      }).toThrow('saved plan absent-plan has no schedule hash');
+      expect(await fixture.source.history.savedPlans.readOf('absent-plan')).toMatchObject({
+        header: { scheduleSha256: null },
+        bodies: { input: 'input', schedule: null },
+      });
+      expect(
+        await fixture.source.history.savedPlans.write(
+          {
+            id: 'present-plan',
+            workPackageId: 'p1',
+            name: 'Present schedule',
+            createdBy: 'creator',
+            createdById: null,
+            createdAt: 2,
+            input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+            schedule: {
+              present: true,
+              body: { schemaVersion: 1, bytes: 'schedule', sha256: 'schedule-hash' },
+              inputSha256: 'input-hash',
+              algorithmId: 'scheduler',
+            },
+          },
+          () => Promise.resolve(null),
+        ),
+      ).toEqual({ outcome: 'written' });
       fixture.removeSavedPlanBodies('present-plan');
-    }).toThrow('saved plan present-plan does not have both bodies');
-    expect(() => {
-      fixture.replaceSavedPlanInputBody('present-plan', 'changed');
-    }).toThrow('saved plan present-plan has no input body');
-    expect(await fixture.source.history.savedPlans.readOf('present-plan')).toMatchObject({
-      bodies: { input: null, schedule: null },
-    });
-    await fixture.source.close();
+      expect(() => {
+        fixture.removeSavedPlanBodies('present-plan');
+      }).toThrow('saved plan present-plan does not have both bodies');
+      expect(() => {
+        fixture.replaceSavedPlanInputBody('present-plan', 'changed');
+      }).toThrow('saved plan present-plan has no input body');
+      expect(await fixture.source.history.savedPlans.readOf('present-plan')).toMatchObject({
+        bodies: { input: null, schedule: null },
+      });
+    } finally {
+      await source.close();
+    }
   });
 });
 
@@ -1009,18 +1170,10 @@ describe('the staged memory source', () => {
  * `inMemoryAttempts`, this case started attempt 1 under the done node.
  */
 it('refuses an attempt start at a node stated done', async () => {
-  const { stores } = openMemorySource();
-  await stores.workItems.insert(workItemRow({ id: 'wi-1', projectId: 'p1' }), [], stamp);
-  await stores.steps.add(
-    {
-      id: 'step-memory',
-      projectId: 'p1',
-      name: 'Stored step',
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    },
-    stamp,
-  );
+  const source = await seededSource();
+  const { stores } = source;
+  await stores.workItems.insert(workItemRow({ id: 'wi-1', workPackageId: 'p1' }), [], stamp);
+  await defineProjectStep(stores, 'step-memory', 'Stored step', 'stored', 20);
   await stores.progress.set(
     { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
     stamp,
@@ -1032,14 +1185,15 @@ it('refuses an attempt start at a node stated done', async () => {
       stamp,
     ),
   ).toEqual({ ok: false, reason: 'node_done' });
-  expect(await stores.attempts.listByProject('p1')).toEqual([]);
+  expect(await stores.attempts.listByWorkPackage('p1')).toEqual([]);
+  await source.close();
 });
 
 it('captures direct blockage detached from later memory writes', async () => {
   const source = await seededSource();
   try {
     await source.stores.workItems.insert(
-      workItemRow({ id: 'wi-blocked', projectId: 'p1' }),
+      workItemRow({ id: 'wi-blocked', workPackageId: 'p1' }),
       [],
       stamp,
     );
@@ -1059,7 +1213,7 @@ it('captures sparse parallel facts detached from later memory writes', async () 
   const source = await seededSource();
   try {
     await source.stores.workItems.insert(
-      workItemRow({ id: 'wi-parallel', projectId: 'p1' }),
+      workItemRow({ id: 'wi-parallel', workPackageId: 'p1' }),
       [],
       stamp,
     );
@@ -1081,7 +1235,7 @@ it('captures demands and resource capacities detached from later memory writes',
   const source = await seededSource();
   try {
     await source.stores.workItems.insert(
-      workItemRow({ id: 'wi-demand', projectId: 'p1' }),
+      workItemRow({ id: 'wi-demand', workPackageId: 'p1' }),
       [],
       stamp,
     );
@@ -1111,62 +1265,115 @@ it('captures sparse parallel facts from the memory epoch before concurrent clear
       await fixture.source.stores.stepParallels.remove(fact.workItemId, fact.stepId, stamp);
     },
   });
-  const source = await seededSource(fixture.source);
+  const source = await seededSource(fixture);
   try {
     await source.stores.workItems.insert(
-      workItemRow({ id: fact.workItemId, projectId: 'p1' }),
+      workItemRow({ id: fact.workItemId, workPackageId: 'p1' }),
       [],
       stamp,
     );
     await source.stores.stepParallels.set(fact, stamp);
     const captured = await source.history.savedPlanCapture.readPlanInput('p1');
     expect(captured?.stepParallels).toEqual([fact]);
-    expect(await source.stores.stepParallels.listByProject('p1')).toEqual([]);
+    expect(await source.stores.stepParallels.listByWorkPackage('p1')).toEqual([]);
   } finally {
     await source.close();
   }
 });
 
-for (const cascade of [false, true])
-  it(`source removal retains sparse facts across mixed rollback (cascade=${String(cascade)})`, async () => {
+for (const dryRun of [false, true])
+  it(`catalogue unbinding retains sparse facts across mixed rollback (dryRun=${String(dryRun)})`, async () => {
     const source = await seededSource();
-    await source.stores.steps.add(
-      { id: 'st-1', projectId: 'p1', name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' },
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'a:b', workPackageId: 'p1' }),
+      [],
       stamp,
     );
-    await source.stores.workItems.insert(workItemRow({ id: 'a:b', projectId: 'p1' }), [], stamp);
     const fact = { workItemId: 'a:b', stepId: 'st-1', maxParallel: 1 };
     await source.stores.stepParallels.set(fact, stamp);
-    const refusal = {
-      ok: false,
-      reason: 'referenced_by_step_parallel',
-      nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
-    } satisfies StepRemoved;
-    expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+    const refusal: StepUnbindOutcome = {
+      ...(dryRun
+        ? { kind: 'preview', wouldRefuse: 'step_nodes_in_use' }
+        : { kind: 'step_nodes_in_use' }),
+      count: 1,
+      pairs: [
+        {
+          id: 'a:b',
+          name: 'Rewire the shed',
+          stepId: 'st-1',
+          workPackageId: 'p1',
+          facts: ['parallel'],
+        },
+      ],
+    };
+    const before = await source.stores.stepCatalogue.readCatalogue('fixture-legacy-org');
+    const values = await source.stores.stepCatalogue.readPackage('fixture-legacy-org', 'p1');
+    expect(
+      await source.stores.stepCatalogue.unbindStep(
+        'fixture-legacy-org',
+        'st-1:binding',
+        { dryRun },
+        stamp,
+      ),
+    ).toEqual(refusal);
     await source.uow.run(async ({ stores }) => {
-      await stores.steps.rename('p1', 'st-1', 'Changed', stamp);
-      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+      expect(
+        (
+          await stores.stepCatalogue.patchStepDefinition(
+            'fixture-legacy-org',
+            'st-1',
+            { name: 'Changed' },
+            stamp,
+          )
+        ).ok,
+      ).toBe(true);
+      expect(
+        await stores.stepCatalogue.unbindStep(
+          'fixture-legacy-org',
+          'st-1:binding',
+          { dryRun },
+          stamp,
+        ),
+      ).toEqual(refusal);
       await stores.stepParallels.remove('a:b', 'st-1', stamp);
-      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toMatchObject({ ok: true });
+      expect(
+        await stores.stepCatalogue.unbindStep(
+          'fixture-legacy-org',
+          'st-1:binding',
+          { dryRun: false },
+          stamp,
+        ),
+      ).toMatchObject({ kind: 'unbound' });
+      expect((await stores.stepCatalogue.readPackage('fixture-legacy-org', 'p1'))?.steps).toEqual(
+        [],
+      );
       return { commit: false, value: undefined };
     });
-    expect(await source.stores.steps.findById('st-1')).toMatchObject({ name: 'Dev' });
-    expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
+    expect(await source.stores.stepCatalogue.readCatalogue('fixture-legacy-org')).toEqual(before);
+    expect(await source.stores.stepCatalogue.readPackage('fixture-legacy-org', 'p1')).toEqual(
+      values,
+    );
+    expect(await source.stores.stepParallels.listByWorkPackage('p1')).toEqual([fact]);
   });
 
 it('incident source restore preserves receipts across commit rollback and bumps only completed endpoint unions', async () => {
   const source = await seededSource();
   for (const id of ['parent', 'peer'])
     await source.stores.workItems.insert(
-      workItemRow({ id, projectId: 'p1', position: 10 }),
+      workItemRow({ id, workPackageId: 'p1', position: 10 }),
       [],
       stamp,
     );
   const original = {
     id: 'incident',
-    projectId: 'p1',
-    predecessor: { projectId: 'p1', workItemId: 'parent', scope: 'node' as const, stepId: 'st-1' },
-    successor: { projectId: 'p1', workItemId: 'peer', scope: 'whole' as const },
+    workPackageId: 'p1',
+    predecessor: {
+      workPackageId: 'p1',
+      workItemId: 'parent',
+      scope: 'node' as const,
+      stepId: 'st-1',
+    },
+    successor: { workPackageId: 'p1', workItemId: 'peer', scope: 'whole' as const },
     type: 'FS' as const,
   };
   await source.uow.run(async (scope) => {
@@ -1181,7 +1388,7 @@ it('incident source restore preserves receipts across commit rollback and bumps 
   await source.uow.run(async (scope) => {
     await scope.stores.typedDependencies.incidents.detach(receipt);
     await scope.stores.workItems.insert(
-      workItemRow({ id: 'child', projectId: 'p1', parentId: 'parent', position: 10 }),
+      workItemRow({ id: 'child', workPackageId: 'p1', parentId: 'parent', position: 10 }),
       [],
       stamp,
     );
@@ -1192,7 +1399,7 @@ it('incident source restore preserves receipts across commit rollback and bumps 
     return { commit: true, value: undefined };
   });
   expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(mapped);
-  const before = await source.stores.workItems.listByProject('p1');
+  const before = await source.stores.workItems.listByWorkPackage('p1');
   expect(
     before.map(({ id, revision }) => ({ id, revision })).sort((a, b) => a.id.localeCompare(b.id)),
   ).toEqual([
@@ -1216,7 +1423,7 @@ it('incident source restore preserves receipts across commit rollback and bumps 
   expect(failure).toBeInstanceOf(Error);
   expect(failure instanceof Error ? failure.message : '').toContain('node endpoint is not a leaf');
   expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(mapped);
-  expect(await source.stores.workItems.listByProject('p1')).toEqual(before);
+  expect(await source.stores.workItems.listByWorkPackage('p1')).toEqual(before);
   await source.uow.run(async (scope) => {
     await scope.stores.typedDependencies.incidents.detach(mapped);
     await scope.stores.workItems.remove(['child'], [], stamp);
@@ -1228,7 +1435,7 @@ it('incident source restore preserves receipts across commit rollback and bumps 
   });
   expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(receipt);
   expect(
-    (await source.stores.workItems.listByProject('p1'))
+    (await source.stores.workItems.listByWorkPackage('p1'))
       .map(({ id, revision }) => ({ id, revision }))
       .sort((a, b) => a.id.localeCompare(b.id)),
   ).toEqual([
@@ -1247,47 +1454,104 @@ for (const fault of [
   'missing-organization',
 ] as const)
   it(`incident source restoration refuses ${fault} atomically`, async () => {
-    const source = await seededSource();
-    const project = await source.stores.projects.findById('p1');
-    if (project === null) throw new Error('fixture project missing');
-    for (const id of ['p2', 'p3'])
-      await source.stores.projects.createInOrganization(
-        { ...project, id, name: id },
-        [
-          {
-            id: `st-${id}`,
-            projectId: id,
-            name: id,
-            position: 1,
-            code: id,
-            allowancePercent: 0,
-            estimateUnit: 'workdays',
-          },
-        ],
+    const fixture = openMemorySourceFixture();
+    fixture.addOrganization('org-a', { legacy: false });
+    const source = fixture.source;
+    await source.stores.users.create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      stamp,
+    );
+    fixture.setPackageCreationMembers('org-a', ['owner']);
+    fixture.seedPackageParent({
+      spaceId: null,
+      spacePosition: null,
+      id: 'incident-parent',
+      organizationId: 'org-a',
+      name: 'Incident parent',
+      revision: 0,
+      createdAt: 1,
+      updatedAt: null,
+      createdBy: 'owner',
+    });
+    await defineProjectStep(source.stores, 'st-1', 'Dev', 'dev', 10, {
+      organizationId: 'org-a',
+      projectId: 'incident-parent',
+    });
+    const created = await source.stores.workPackages.createInOrganization(
+      {
+        id: 'p1',
+        name: 'Before',
+        projectId: 'incident-parent',
+        restricted: false,
+        estimateMethod: 'pert',
+        depReach: 'whole-item',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'round',
+        startDate: null,
+        solutionRef: null,
+        revision: 0,
+        createdAt: 1,
+        optimizationEnabled: false,
+        scheduleEngine: 'fast',
+        scheduleObjective: 'pri',
+      },
+      [],
+      stamp,
+      'org-a',
+      { id: 'incident-creator-grant', auditId: 'incident-creator-audit' },
+    );
+    if (typeof created === 'string') throw new Error('incident fixture birth refused: ' + created);
+    const workPackage = await source.stores.workPackages.findById('p1');
+    if (workPackage === null) throw new Error('fixture work package missing');
+    const { abbreviation: _allocatedAbbreviation, ...draft } = workPackage;
+    for (const id of ['p2', 'p3']) {
+      const projectId = id + '-project';
+      fixture.seedPackageParent({
+        id: projectId,
+        organizationId: 'org-a',
+        name: projectId,
+        spaceId: null,
+        spacePosition: null,
+        revision: 0,
+        createdAt: 1,
+        createdBy: 'owner',
+        updatedAt: null,
+      });
+      await defineProjectStep(source.stores, 'st-' + id, id, id, 10, {
+        organizationId: 'org-a',
+        projectId,
+      });
+      const freshPackage = await source.stores.workPackages.createInOrganization(
+        { ...draft, id, name: id, projectId },
+        [],
         stamp,
         'org-a',
+        { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
       );
+      if (typeof freshPackage === 'string')
+        throw new Error('incident peer fixture birth refused: ' + freshPackage);
+    }
     for (const id of ['parent', 'peer'])
       await source.stores.workItems.insert(
-        workItemRow({ id, projectId: 'p2', position: 10 }),
+        workItemRow({ id, workPackageId: 'p2', position: 10 }),
         [],
         stamp,
       );
     await source.stores.workItems.insert(
-      workItemRow({ id: 'legacy-remote', projectId: 'p1', position: 10 }),
+      workItemRow({ id: 'legacy-remote', workPackageId: 'p1', position: 10 }),
       [],
       stamp,
     );
     const original = {
       id: 'incident',
-      projectId: 'p2',
+      workPackageId: 'p2',
       predecessor: {
-        projectId: 'p2',
+        workPackageId: 'p2',
         workItemId: 'parent',
         scope: 'node' as const,
         stepId: 'st-p2',
       },
-      successor: { projectId: 'p2', workItemId: 'peer', scope: 'whole' as const },
+      successor: { workPackageId: 'p2', workItemId: 'peer', scope: 'whole' as const },
       type: 'FS' as const,
     };
     await source.stores.typedDependencies.add(original, stamp);
@@ -1296,7 +1560,7 @@ for (const fault of [
       fault === 'missing-work-item'
         ? { ...original.predecessor, workItemId: 'absent' }
         : fault === 'wrong-work-item-owner'
-          ? { ...original.predecessor, projectId: 'p3', stepId: 'st-p3' }
+          ? { ...original.predecessor, workPackageId: 'p3', stepId: 'st-p3' }
           : fault === 'missing-step'
             ? { ...original.predecessor, stepId: 'absent' }
             : fault === 'wrong-step-owner'
@@ -1304,12 +1568,13 @@ for (const fault of [
               : fault === 'descendant-on-leaf'
                 ? { ...original.predecessor, scope: 'descendant-step' as const }
                 : {
-                    projectId: 'p1',
+                    workPackageId: 'p1',
                     workItemId: 'legacy-remote',
                     scope: 'node' as const,
                     stepId: 'st-1',
                   };
-    const before = await source.stores.workItems.listByProject('p2');
+    if (fault === 'missing-organization') fixture.removeWorkPackageOrganization('p1');
+    const before = await source.stores.workItems.listByWorkPackage('p2');
     const failure: unknown = await source.uow
       .run(async (scope) => {
         await scope.stores.typedDependencies.incidents.detach(receipt);
@@ -1331,10 +1596,10 @@ for (const fault of [
         ? 'step ownership'
         : fault === 'descendant-on-leaf'
           ? 'descendant endpoint is a leaf'
-          : 'matching organization ownership';
+          : 'package steps organization is absent or malformed';
     expect(failure instanceof Error ? failure.message : '').toContain(diagnostic);
     expect(await source.stores.typedDependencies.incidents.capture('incident')).toEqual(receipt);
-    expect(await source.stores.workItems.listByProject('p2')).toEqual(before);
+    expect(await source.stores.workItems.listByWorkPackage('p2')).toEqual(before);
     await source.close();
   });
 describe('the memory claims renewal', () => {
@@ -1359,14 +1624,17 @@ describe('the memory claims renewal', () => {
     const claims = inMemoryClaims(
       {
         findById: (id: string) =>
-          Promise.resolve(id === 'item-kept' ? workItemRow({ id, projectId: 'p-1' }) : null),
-        listByProject: () => Promise.resolve([]),
+          Promise.resolve(id === 'item-kept' ? workItemRow({ id, workPackageId: 'p-1' }) : null),
+        listByWorkPackage: () => Promise.resolve([]),
       },
       memoryProgressTable(),
       table,
       {} as Parameters<typeof inMemoryClaims>[3],
       () => true,
       {} as Parameters<typeof inMemoryClaims>[5],
+      () => {
+        throw new Error('renewal fixture cannot observe work packages');
+      },
     );
     const refusal = await claims
       .renewLeases('codex', null, () => 500)

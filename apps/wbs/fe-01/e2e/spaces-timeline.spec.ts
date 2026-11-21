@@ -1,7 +1,7 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './ordinary-test';
 
 const names = [
-  'A very long project name with enough words to wrap across several lines',
+  'A very long work package name with enough words to wrap across several lines',
   'W'.repeat(80),
 ];
 
@@ -21,41 +21,78 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
           id: 's',
           name: 'Q3',
           virtual: false,
-          projectCount: 2,
+          workPackageCount: 2,
+          projectCount: 1,
           revision: 1,
           createdById: 'u',
           createdAt: 1,
         },
         writable: false,
-        rows: names.map((name, index) => ({
-          position: index,
-          project: {
-            id: `p${String(index)}`,
-            abbreviation: `P${String(index)}`,
-            name,
-            ownerId: 'u',
-            restricted: false,
-            estimateMethod: 'pert',
-            depReach: 'whole-item',
-            pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
-            estimateRounding: 'exact',
-            startDate: null,
-            solutionRef: null,
-            revision: 0,
-            createdAt: 1,
-            optimizationEnabled: false,
-            scheduleEngine: 'fast',
-            scheduleObjective: 'pri',
-            ownerName: 'ada',
-            lastOpenedAt: null,
+        personIds: [],
+        serviceTeamIds: [],
+        projects: [
+          {
+            project: { id: 'fixture-project', name: 'Timeline engagement' },
+            position: 10,
+            workPackages: names.map((name, index) => ({
+              id: `p${String(index)}`,
+              abbreviation: `P${String(index)}`,
+              name,
+              projectId: 'fixture-project',
+              restricted: false,
+              estimateMethod: 'pert',
+              depReach: 'whole-item',
+              pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+              estimateRounding: 'exact',
+              startDate: null,
+              solutionRef: null,
+              revision: 0,
+              createdAt: 1,
+              optimizationEnabled: false,
+              scheduleEngine: 'fast',
+              scheduleObjective: 'pri',
+              createdByName: 'ada',
+              lastOpenedAt: null,
+            })),
           },
-        })),
+        ],
       },
     }),
   );
   await page.route('**/api/spaces/s/roll-ups?*', (route) =>
     route.fulfill({
-      json: { rollUps: { p0: { kind: 'unavailable' }, p1: { kind: 'unavailable' } } },
+      json: {
+        projects: [
+          {
+            project: { id: 'fixture-project', name: 'Timeline engagement' },
+            position: 10,
+            rollUp: { kind: 'unavailable' },
+            workPackages: names.map((name, index) => ({
+              workPackage: {
+                id: `p${String(index)}`,
+                abbreviation: `P${String(index)}`,
+                name,
+                projectId: 'fixture-project',
+                restricted: false,
+                estimateMethod: 'pert',
+                depReach: 'whole-item',
+                pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+                estimateRounding: 'exact',
+                startDate: null,
+                solutionRef: null,
+                revision: 0,
+                createdAt: 1,
+                optimizationEnabled: false,
+                scheduleEngine: 'fast',
+                scheduleObjective: 'pri',
+                createdByName: 'local-dev',
+                lastOpenedAt: null,
+              },
+              rollUp: { kind: 'unavailable' },
+            })),
+          },
+        ],
+      },
     }),
   );
   await page.route('**/api/spaces/s/in-progress', (route) =>
@@ -63,7 +100,7 @@ test('blank timeline lanes contain wrapped labels at a narrow viewport', async (
   );
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/spaces/s');
-  const timeline = page.getByRole('list', { name: 'Project timeline' });
+  const timeline = page.getByRole('list', { name: 'Work package timeline' });
   await expect(
     timeline.getByText(`${names[1]}: schedule unavailable`, { exact: true }),
   ).toBeVisible();

@@ -533,7 +533,7 @@ describe('rollUpFinals', () => {
     });
   });
 
-  it('rounds by the project’s rounding and weighs by its weights', () => {
+  it('rounds by the work package’s rounding and weighs by its weights', () => {
     const rows = [item('a', null)];
     const estimates = [held('a', 'dev', 2, 3, 10)];
 

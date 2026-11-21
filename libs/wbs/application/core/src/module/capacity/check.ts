@@ -17,7 +17,7 @@ export function installCapacity(requirements: CapacityRequirements): CapacityExp
   const bag = DiBag.createBuilder()
     .withInstalledModules([capacityModule])
     .withServices({
-      projectStore: DiBag.createProvider(() => requirements.projects, {
+      workPackageStore: DiBag.createProvider(() => requirements.workPackages, {
         factoryReturnKind: 'sync-value',
       }),
       capacityStore: DiBag.createProvider(() => requirements.capacity, {

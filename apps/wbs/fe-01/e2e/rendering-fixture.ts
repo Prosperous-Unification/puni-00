@@ -1,8 +1,14 @@
 import { expect, type Page } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
-import { createProject } from './create-project';
-import { assertCommandResults, fixtureClient, fixtureSuccess } from './plan-fixture';
+import { bindFixtureSteps } from './catalogue-fixture';
+import { assertOrdinaryAccount, readOrdinaryFixture } from './ordinary-context';
+import {
+  assertCommandResults,
+  fixtureClient,
+  fixtureSuccess,
+  openSeededPlan,
+} from './plan-fixture';
 
 export interface RenderingSize {
   rows: number;
@@ -29,27 +35,35 @@ export function renderingEdges(
 export async function seedRenderingPlan(page: Page, size: RenderingSize) {
   const started = Date.now();
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
-  await createProject(page, `Rendering ${String(size.rows)}/${String(size.steps)}/${size.density}`);
-  const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
-  if (projectId === null) throw new Error('rendering fixture has no selected project');
-  await page.goto('/directory');
+  await assertOrdinaryAccount(page);
   const client = fixtureClient(page);
+  const name = `Rendering ${String(size.rows)}/${String(size.steps)}/${size.density}`;
   const project = fixtureSuccess(
-    'getApiProjectsById',
-    await client.getApiProjectsById({ params: { id: projectId } }),
+    'postApiProjects',
+    await client.postApiProjects({ body: { name: name + ' [' + crypto.randomUUID() + ']' } }),
+  ).body.project;
+  const ordinary = readOrdinaryFixture();
+  await bindFixtureSteps(
+    page.request,
+    ordinary.appOrigin,
+    ordinary.organizationId,
+    project.id,
+    Array.from({ length: size.steps }, (_, index) =>
+      index === 0
+        ? { code: 'dev', name: 'Dev' }
+        : index === 1
+          ? { code: 'qa', name: 'QA' }
+          : { code: 'rendering-step-' + String(index + 1), name: 'Step ' + String(index + 1) },
+    ),
+  );
+  const workPackage = fixtureSuccess(
+    'postApiWorkPackages',
+    await client.postApiWorkPackages({ body: { projectId: project.id, name } }),
   ).body;
-  expect(project.steps).toHaveLength(2);
-  for (let index = 2; index < size.steps; index += 1) {
-    const answer = fixtureSuccess(
-      'postApiProjectsByIdSteps',
-      await client.postApiProjectsByIdSteps({
-        params: { id: projectId },
-        body: { name: `Step ${String(index + 1)}` },
-      }),
-    );
-    project.steps.push(answer.body.step);
-  }
+  const workPackageId = workPackage.workPackage.id;
+  expect(workPackage.steps).toHaveLength(size.steps);
+  await openSeededPlan(page, { workPackageId, workPackageName: name });
+  await page.goto('/directory');
   const ids: string[] = [];
   for (let start = 0; start < size.rows; start += 200) {
     const count = Math.min(200, size.rows - start);
@@ -69,9 +83,9 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
             : ''),
     }));
     const answer = fixtureSuccess(
-      'postApiProjectsByIdCommands',
-      await client.postApiProjectsByIdCommands({
-        params: { id: projectId },
+      'postApiWorkPackagesByIdCommands',
+      await client.postApiWorkPackagesByIdCommands({
+        params: { id: workPackageId },
         body: { commands },
       }),
     ).body;
@@ -79,7 +93,7 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
     for (let index = 0; index < count; index += 1) ids.push(created[`row${String(index)}`]);
   }
   const estimates: PlanCommandWire[] = ids.flatMap((id) =>
-    project.steps.map((step) => ({
+    workPackage.steps.map((step) => ({
       kind: 'setEstimate',
       workItemId: id,
       stepId: step.id,
@@ -96,9 +110,9 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
     for (let start = 0; start < commands.length; start += 200) {
       const batch = commands.slice(start, start + 200);
       const answer = fixtureSuccess(
-        'postApiProjectsByIdCommands',
-        await client.postApiProjectsByIdCommands({
-          params: { id: projectId },
+        'postApiWorkPackagesByIdCommands',
+        await client.postApiWorkPackagesByIdCommands({
+          params: { id: workPackageId },
           body: { commands: batch },
         }),
       ).body;
@@ -106,18 +120,18 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
     }
   }
   const tree = fixtureSuccess(
-    'getApiProjectsByIdWork-items',
-    await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
+    'getApiWorkPackagesByIdWork-items',
+    await client['getApiWorkPackagesByIdWork-items']({ params: { id: workPackageId } }),
   ).body;
   expect(tree.workItems.map((row) => row.id)).toEqual(ids);
   expect(tree.steps.map(({ id, name }) => ({ id, name }))).toEqual(
-    project.steps.map(({ id, name }) => ({ id, name })),
+    workPackage.steps.map(({ id, name }) => ({ id, name })),
   );
   const expectedDays = { optimistic: 1, realistic: 2, pessimistic: 3 };
   for (const [index, row] of tree.workItems.entries()) {
     // Proof: changing one real outgoing estimate to 8/9/10 made the named
     // rendering estimate assertion refuse before geometry was sampled.
-    for (const step of project.steps)
+    for (const step of workPackage.steps)
       expect(row.estimates[step.id], `rendering estimate ${String(index)}/${step.name}`).toEqual(
         expectedDays,
       );
@@ -131,7 +145,7 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
       predecessors,
     );
   }
-  return { ...size, projectId, ids, edges: edges.length, setupMs: Date.now() - started };
+  return { ...size, workPackageId, ids, edges: edges.length, setupMs: Date.now() - started };
 }
 
 /** Read once after layout; mounted counts are not computed from a virtualizer's range. */

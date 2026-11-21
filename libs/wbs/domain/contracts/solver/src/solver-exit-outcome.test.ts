@@ -281,7 +281,9 @@ it('refuses publication when a solver ignores the fixed booking and preserves or
   const input: ScheduleInput = {
     ...INPUT,
     slices: INPUT.slices.map((slice) => ({ ...slice, personId: 'ana' })),
-    elsewhere: new Map([['ana', [{ start: 0, end: 1, projectId: 'higher', workItemId: 'held' }]]]),
+    elsewhere: new Map([
+      ['ana', [{ start: 0, end: 1, workPackageId: 'higher', workItemId: 'held' }]],
+    ]),
   };
   const built = buildSolverRequest(input, 'pri', {
     baselineOffsets: { 'w-1\u0000dev': 48 },
@@ -301,7 +303,7 @@ it('refuses publication when a solver ignores the fixed booking and preserves or
   expect(outcome.optimized.schedule.slices.get('w-1\u0000dev')).toMatchObject({
     earliestStart: 1,
     boundBy: 'elsewhere',
-    elsewhereHolder: { projectId: 'higher', workItemId: 'held' },
+    elsewhereHolder: { workPackageId: 'higher', workItemId: 'held' },
   });
   expect(
     evaluateSolverOutcome(

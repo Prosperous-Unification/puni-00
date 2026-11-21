@@ -4,8 +4,10 @@ import { documentFromShapes } from './document-from-shapes';
 import { readHistory } from './history-shapes';
 
 it('emits the history path and both optional query filters from the actual shared shape', () => {
-  const operation = documentFromShapes([readHistory]).paths['/api/projects/{id}/history']?.['get'];
-  expect(operation?.operationId).toBe('getApiProjectsByIdHistory');
+  const operation = documentFromShapes([readHistory]).paths['/api/work-packages/{id}/history']?.[
+    'get'
+  ];
+  expect(operation?.operationId).toBe('getApiWorkPackagesByIdHistory');
   expect(operation?.parameters).toEqual([
     { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
     { name: 'kind', in: 'query', required: false, schema: { type: 'string' } },

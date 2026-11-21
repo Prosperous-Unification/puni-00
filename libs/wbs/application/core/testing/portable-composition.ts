@@ -1,5 +1,4 @@
 import { noopLogger } from '@wbs/contracts';
-import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
 import { NO_PROVEN_CONNECTIONS } from '../src/module/authentication/account.resource';
@@ -11,6 +10,7 @@ import { clockOf } from '../src/ports/clock';
 import { NO_MACHINE_CREDENTIALS } from '../src/ports/machine-credentials';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
 import { expectCreated } from '../src/testing/expect-created';
+import { createLegacyWorkPackageFixture } from '../src/testing/legacy-work-package-fixture';
 import { localCommandAccess } from '../src/testing/organization-access-fixture';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
 
@@ -75,7 +75,11 @@ const shared: SharedComposition = {
 /** Executes the source-independent composition in the runtime that imports this module. */
 export async function runPortableComposition(): Promise<PortableCompletion> {
   const completed = new Set<OperationName>();
-  const source = openMemorySource();
+  const { source } = await createLegacyWorkPackageFixture(
+    'owner',
+    'portable-legacy',
+    'portable-parent',
+  );
   const intervals = controllableIntervals();
   const pushed: unknown[] = [];
   let nextId = 0;
@@ -118,9 +122,11 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
   const actor = { id: 'owner', username: 'owner', scopes: ['write'] as const };
 
   try {
-    const project = expectCreated(await graph.projects.create('Browser composition', actor.id));
+    const workPackage = expectCreated(
+      await graph.workPackages.create('Browser composition', 'portable-parent', actor.id),
+    );
     const deniedBatch = await runCommandBatch(runner, {
-      projectId: project.project.id,
+      workPackageId: workPackage.workPackage.id,
       access: LEGACY_ACCESS,
       actor: { id: 'reader', username: 'reader', scopes: ['read'] },
       commands: [],
@@ -130,7 +136,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
       'batch accepted an actor without write scope',
     );
     const committed = await runCommandBatch(runner, {
-      projectId: project.project.id,
+      workPackageId: workPackage.workPackage.id,
       access: LEGACY_ACCESS,
       actor,
       commands: [
@@ -146,7 +152,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     });
     assert(committed.ok, 'mixed-store browser batch was refused');
     const refused = await runCommandBatch(runner, {
-      projectId: project.project.id,
+      workPackageId: workPackage.workPackage.id,
       access: LEGACY_ACCESS,
       actor,
       commands: [
@@ -154,7 +160,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
         {
           kind: 'setEstimate',
           workItemId: 'absent',
-          stepId: project.steps[0]?.id ?? 'absent-step',
+          stepId: workPackage.steps[0]?.id ?? 'absent-step',
           days: { optimistic: 1, realistic: 2, pessimistic: 3 },
         },
       ],
@@ -167,16 +173,16 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     );
     completed.add('batch');
 
-    await graph.projects.update(project.project.id, actor.id, { restricted: true });
+    await graph.workPackages.update(workPackage.workPackage.id, actor.id, { restricted: true });
     const deniedSave = await savePlan(graph, {
-      projectId: project.project.id,
+      workPackageId: workPackage.workPackage.id,
       actor: { id: 'reader', username: 'reader', scopes: ['write'] },
       name: 'Denied',
       access: LEGACY_ACCESS,
     });
     assert(deniedSave.outcome === 'forbidden', 'foreign browser save was admitted');
     const saved = await savePlan(graph, {
-      projectId: project.project.id,
+      workPackageId: workPackage.workPackage.id,
       actor,
       name: 'Browser snapshot',
       access: LEGACY_ACCESS,
@@ -188,11 +194,11 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     assert(readBack.outcome === 'read', 'saved browser plan was not readable');
     completed.add('save');
 
-    const subscription = `project:${project.project.id}`;
+    const subscription = `work-package:${workPackage.workPackage.id}`;
     const before = await source.stores.eventLog.latestSeq(subscription);
     for (const name of ['First replay event', 'Second replay event']) {
       const outcome = await runCommandBatch(runner, {
-        projectId: project.project.id,
+        workPackageId: workPackage.workPackage.id,
         access: LEGACY_ACCESS,
         actor,
         commands: [{ kind: 'createWorkItem', name, parentId: null, afterId: null }],

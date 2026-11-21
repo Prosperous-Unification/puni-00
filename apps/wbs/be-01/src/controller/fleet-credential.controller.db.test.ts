@@ -55,7 +55,7 @@ beforeEach(async () => {
   h.sqlite.run("UPDATE users SET email = 'dany@example.com', email_verified = 1 WHERE id = ?", [
     h.userId('dany'),
   ]);
-  const created = await h.call('dany', 'POST', '/api/projects', { name: 'Fleet plan' });
+  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Fleet plan' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   h.sqlite.run(
     "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', ?), ('mem-agent', 'Mem agent', 'agent', ?)",
@@ -138,7 +138,7 @@ describe('a retired operator link', () => {
     const users = usersTable();
     const links = linksTable();
 
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
+    expect(await as(await token(FLEET), 'GET', '/api/work-packages')).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(users);
     expect(linksTable()).toEqual(links);
   }, 30_000);
@@ -147,9 +147,9 @@ describe('a retired operator link', () => {
     legacyLink('mem', null);
     const users = usersTable();
 
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
+    expect(await as(await token(FLEET), 'GET', '/api/work-packages')).toEqual(MACHINE_BEARER);
     expect(
-      await as(await token(FLEET), 'POST', '/api/projects', { name: 'Written by a link' }),
+      await as(await token(FLEET), 'POST', '/api/work-packages', { name: 'Written by a link' }),
     ).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(users);
   }, 30_000);
@@ -164,14 +164,14 @@ describe('a retired operator link', () => {
       email_verified: true,
     });
 
-    expect(await as(bearer, 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
+    expect(await as(bearer, 'GET', '/api/work-packages')).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
   it('refuses an unlinked machine token machine_bearer_not_accepted, minting no account', async () => {
     const before = usersTable();
     const bearer = await token(FLEET);
-    expect(await as(bearer, 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
+    expect(await as(bearer, 'GET', '/api/work-packages')).toEqual(MACHINE_BEARER);
     // The refusal keeps the endpoint's own no-store and Vary headers.
     const raw = await h.request('/api/organization/active', {
       headers: { authorization: `Bearer ${bearer}` },
@@ -185,13 +185,15 @@ describe('a retired operator link', () => {
 
   // Proof: with `authenticateOrRefuse`'s groups-less branch disabled (the
   // token resolved through `resolveOidcIdentity`), this answered 200 with an
-  // empty project list instead of 401; watched 2026-10-20.
+  // empty work package list instead of 401; watched 2026-10-20.
   it('refuses an unlinked groups-less token before activation, minting no account', async () => {
     h.close();
     h = openHarness();
     await h.register('dany');
     const before = usersTable();
-    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual(MACHINE_BEARER);
+    expect(await h.callWith(await token(FLEET), 'GET', '/api/work-packages')).toEqual(
+      MACHINE_BEARER,
+    );
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
@@ -216,7 +218,7 @@ describe('a browser token', () => {
     legacyLink('dany', 'claire');
     const before = usersTable();
 
-    const answer = await as(await token(FLEET, true), 'GET', '/api/projects');
+    const answer = await as(await token(FLEET, true), 'GET', '/api/work-packages');
     expect(answer.status).toBe(200);
     expect(JSON.stringify(answer.body)).toContain('Fleet plan');
     expect(usersTable()).toEqual(before);

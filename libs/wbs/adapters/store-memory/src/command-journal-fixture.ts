@@ -54,7 +54,7 @@ export function inMemoryCommandJournal(
   const mine = (stack: UndoStack): JournalEntry[] =>
     entries.filter(
       (each) =>
-        each.projectId === stack.projectId &&
+        each.workPackageId === stack.workPackageId &&
         each.userId === stack.userId &&
         each.personId === stack.personId,
     );
@@ -68,7 +68,7 @@ export function inMemoryCommandJournal(
       }
       // The pair's number, shared by the account's stacks, as the real store's.
       const pair = entries.filter(
-        (each) => each.projectId === entry.projectId && each.userId === entry.userId,
+        (each) => each.workPackageId === entry.workPackageId && each.userId === entry.userId,
       );
       const seq = pair.reduce((highest, each) => Math.max(highest, each.seq), 0) + 1;
       entries.push({ ...entry, seq, undone: false });

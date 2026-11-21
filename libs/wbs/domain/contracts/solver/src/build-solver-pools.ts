@@ -6,7 +6,7 @@ import type { SolverSlice } from './wire-types';
  * The canonical `PoolSizes` is a `ReadonlyMap<string, number>` and the wire
  * carries an object, so this is a shape conversion with one real rule attached.
  *
- * **Only the pools the request actually names are emitted.** A project may
+ * **Only the pools the request actually names are emitted.** A work package may
  * carry sizes for teams no slice in this plan is labelled with; sending them
  * would put entries on the wire that constrain nothing, change the request
  * bytes on an edit nobody made to this plan, and — because the request is
@@ -40,7 +40,7 @@ export function poolIdsNamedBy(slices: readonly SolverSlice[]): Set<string> {
  * solver's own answer, and the fault would be read as the solver's.
  *
  * A pool with a **size below 1** is refused for the same reason rather than
- * clamped: `project_team_capacity.size` is `integer().notNull()` with the floor
+ * clamped: `work_package_team_capacity.size` is `integer().notNull()` with the floor
  * enforced at be-01's boundary, so a zero here means two readings came apart,
  * and a pool of 0 slots is a plan of `Infinity` dates. Clamping it to 1 would
  * invent a slot nobody has.

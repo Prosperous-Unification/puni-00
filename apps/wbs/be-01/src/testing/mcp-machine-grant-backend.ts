@@ -134,9 +134,9 @@ async function fixture(request: Request, path: string): Promise<Response | undef
       grantCredential(h.sqlite, 'org-a', id, grantRoleId, 'organization', 'org-a');
     return Response.json({ id, key });
   }
-  if (request.method === 'POST' && path === '/__fixture/project') {
+  if (request.method === 'POST' && path === '/__fixture/work-package') {
     const { name } = (await request.json()) as { name: string };
-    const created = await h.call('dany', 'POST', '/api/projects', { name });
+    const created = await h.call('dany', 'POST', '/api/work-packages', { name });
     if (created.status !== 200) return Response.json(created, { status: 500 });
     return Response.json(created.body);
   }

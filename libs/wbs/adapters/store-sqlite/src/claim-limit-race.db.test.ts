@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OrganizationLimitGauge, PlanCommand, ResourceAccess, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -19,6 +19,7 @@ import fc from 'fast-check';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -33,7 +34,7 @@ const SEED = 20261022;
 const accessOf = (userId: string): ResourceAccess => ({
   principal: { id: userId },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId },
 });
 
 /**
@@ -78,12 +79,13 @@ function boundClaims(): number {
 
 /**
  * Organization A with both accounts as admins, a claims cap of `cap`, its
- * persons, and one project of A with `leafCount` root leaves.
+ * persons, and one work package of A with `leafCount` root leaves.
  */
 async function seeded(cap: number, leafCount: number, counting: { source: CountSource }) {
   for (const id of ACCOUNTS)
     source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES (${id}, ${id}, 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
   for (const id of ACCOUNTS)
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ${id}, 'admin', 1)`,
@@ -103,20 +105,27 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   }
   const broadcast = recordingBroadcaster();
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
-  const created = expectCreated(await graph.projects.create('Race', 'dany'));
-  const projectId = created.project.id;
+  const created = expectCreated(
+    await seedOrganizationPackage(
+      source.stores.workPackages,
+      options.clock,
+      'org-a',
+      'fixture-project',
+      'dany',
+      'Race',
+    ),
+  );
+  const workPackageId = created.workPackage.id;
   const firstStep = created.steps.at(0);
   if (firstStep === undefined) throw new Error('the claim fixture has no first step');
-  source.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
-  );
+
   const hold: Hold = { reached: () => undefined, release: Promise.resolve(), armed: false };
   /** What the stale count answers: the count before the batch was asked for. */
   let staleCount = 0;
@@ -133,8 +142,8 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
         }
         return counting.source === 'turn' ? reading : { ...reading, current: staleCount };
       },
-      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
-        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
+      readCapacityCap: (organizationId, resourceId, exceptWorkPackageId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptWorkPackageId),
     };
   };
   const runner = createPlanCommandRunner({
@@ -155,7 +164,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   });
   const run = (userId: string, commands: PlanCommand[]) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       { id: userId, username: userId, scopes: ['write'] },
       // Claims target the first workflow node so prerequisite checks admit them to the cap.
       commands.map((command) =>
@@ -194,7 +203,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
   const readCountBeforeQueueing = () => {
     staleCount = boundClaims();
   };
-  return { run, leafIds, holdNextRead, readCountBeforeQueueing, projectId, runner };
+  return { run, leafIds, holdNextRead, readCountBeforeQueueing, workPackageId, runner };
 }
 
 const claim = (workItemId: string, personId: string, runId: string): PlanCommand => ({

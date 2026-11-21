@@ -1,4 +1,4 @@
-import { authorize, type ProjectEvent } from '@wbs/core';
+import { authorize, type WorkPackageEvent } from '@wbs/core';
 import { asc, eq } from 'drizzle-orm';
 
 import { AccessDecisionRepository } from './access-decisions';
@@ -7,20 +7,24 @@ import type { Drizzle } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
 import { readOrganizationActivation } from './organization-activation';
-import { restoreProjectRanksIn } from './project-rank-rollback';
 import {
   organization,
-  projectOrganization,
-  projectRank,
   sharedPeopleAudit,
   sharedPeopleRestoreApproval,
   sharedPeopleRestoreConsumption,
   sharedPeopleRestoreOperation,
   sharedPeopleRestoreReceipt,
+  workPackageOrganization,
+  workPackageRank,
 } from './schema';
 import { runSecurityTransaction } from './security-transaction';
-import { digestSharedPeople, readSharedPeopleBackup } from './shared-people-backup';
+import {
+  digestSharedPeople,
+  projectSharedPeople,
+  readSharedPeopleBackup,
+} from './shared-people-backup';
 import { decodeSharedPeople } from './shared-people-mode';
+import { restoreWorkPackageRanksIn } from './work-package-rank-rollback';
 
 /** Operator references name personal durable evidence, never actor/session authority. */
 export interface RestoreBinding {
@@ -55,7 +59,10 @@ export async function restoreApprovedSharedPeople(
   // Proof: dropping this detached snapshot (snapshot-offline-binding) failed `retains the offline restore binding before a delayed owner entry`; restored GREEN.
   binding = { operationId: binding.operationId, approvalIds: [...binding.approvalIds] };
   const saved = readSharedPeopleBackup(backup);
+  // Proof: backup-original-approved-digest. Rehashing original1 as current2 prevents genuine110-to111 pending recovery at the exact canonical operation binding.
+  // Observed test: actual111 preserves genuine outgoing pending approval rows and restores their original version1 digest.
   const digest = digestSharedPeople(saved);
+  const state = projectSharedPeople(saved);
   // Proof: removing reference validation admitted empty/duplicate external references in the owner DB test.
   if (
     binding.operationId === '' ||
@@ -68,7 +75,7 @@ export async function restoreApprovedSharedPeople(
     ...saved.organizations
       .filter((organization) => organization.mode === 'shared')
       .map((organization) => organization.organizationId),
-    ...saved.ranks.map((rank) => rank.organizationId),
+    ...state.ranks.map((rank) => rank.organizationId),
   ]);
   const eventLog = new DrizzleEventLogStore(db, OPEN);
   return runSecurityTransaction(db, OPEN, async (tx): Promise<RestoreReceipt> => {
@@ -117,7 +124,8 @@ export async function restoreApprovedSharedPeople(
         throw new Error(`saved organization ${organization.organizationId} is missing`);
     if (
       current.some((organization) => decodeSharedPeople(organization.mode) !== 0) ||
-      tx.select({ id: projectRank.projectId }).from(projectRank).limit(1).get() !== undefined
+      tx.select({ id: workPackageRank.workPackageId }).from(workPackageRank).limit(1).get() !==
+        undefined
     )
       throw new Error('restore requires isolated modes and no ranks');
     // Proof: bypassing cardinality admitted the second isolated organization's rank without its approval.
@@ -181,29 +189,32 @@ export async function restoreApprovedSharedPeople(
         })
         .run();
       modeChanges += 1;
-      // Proof: selecting a foreign organization or ranked projects alone failed complete all-project fan-out.
-      const projects = tx
-        .select({ id: projectOrganization.resourceId })
-        .from(projectOrganization)
-        .where(eq(projectOrganization.organizationId, approval.organizationId))
-        .orderBy(asc(projectOrganization.resourceId))
+      // Proof: selecting a foreign organization or ranked work packages alone failed complete all-work-package fan-out.
+      const workPackages = tx
+        .select({ id: workPackageOrganization.resourceId })
+        .from(workPackageOrganization)
+        .where(eq(workPackageOrganization.organizationId, approval.organizationId))
+        .orderBy(asc(workPackageOrganization.resourceId))
         .all();
-      for (const project of projects) {
-        const message: ProjectEvent = {
+      for (const workPackage of workPackages) {
+        const message: WorkPackageEvent = {
           type: 'elsewhere_changed',
-          projectId: project.id,
-          // Proof: substituting the project as cause failed the durable null-cause event assertions.
-          causeProjectId: null,
+          workPackageId: workPackage.id,
+          // Proof: substituting the work package as cause failed the durable null-cause event assertions.
+          causeWorkPackageId: null,
         };
         // Proof: public async writing failed when that writer was broken; borrowed writes still committed.
         // Proof: substituting the public owner for this borrowed writer (borrowed-event-body) failed `records durable events on the borrowed writer even when public async event writing is broken`; restored GREEN.
-        eventLog.recordEventIn(tx, 'project:' + project.id, message, at);
+        eventLog.recordEventIn(tx, 'work-package:' + workPackage.id, message, at);
         events += 1;
       }
     }
-    // The validated historical rows borrow this already owned connection; restoreProjectRanks is the separate public owner.
+    // The validated historical rows borrow this already owned connection; restoreWorkPackageRanks is the separate public owner.
     // Proof: substituting the public owner for this borrowed writer (borrowed-rank-body) failed `holds one immediate writer before reading current grants and borrows the rank body`; restored GREEN.
-    const ranks = restoreProjectRanksIn(tx, saved.ranks);
+    // Proof: backup-approved-current-facts. Corrupting projected position commits8 instead of7 after receipt equality; native historical/current saved facts detect the change. No later assertions are credited.
+    // Observed test: commits historical ranks, personal mode audit, every owned work package event and bound receipt together.
+    // Observed test: consumes a newly produced current2 backup with its own fresh operation digest.
+    const ranks = restoreWorkPackageRanksIn(tx, state.ranks);
     const completed = {
       operationId: operation.id,
       backupDigest: digest,

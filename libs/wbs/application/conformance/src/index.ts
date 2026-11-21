@@ -1,9 +1,12 @@
 export * from './case-manifest';
 export * from './case-runner';
 export * from './certification';
+export * from './project-store-conformance';
+export * from './source-catalogue-fixture';
 export * from './source-conformance';
 export * from './source-declaration';
 export * from './space-store-conformance';
+export * from './step-catalogue-fixture';
 export * from './step-parallel-conformance';
 export { CLAIM_IN_USE, DELEGATED_CLAIMS, OWNED_BINDING } from './stores/directory';
 export * from './stores/history-batch';
@@ -12,6 +15,7 @@ export {
   isMeasureDefinitionCase,
 } from './stores/measure-definitions';
 export { isMeasureFactCase, seedMeasureFactCase } from './stores/measure-facts';
+export { registerMoveWriteCases } from './stores/move-write';
 export {
   LIMITS_FIXTURE,
   type LimitsSideTables,
@@ -23,6 +27,8 @@ export {
   SHARED_OCCUPANCY_OWNERSHIP,
 } from './stores/resources';
 export * from './stores/saved-plan-capture';
+export { assertSettingSettlement, seedSettingCase, SETTINGS_CASE_IDS } from './stores/settings';
+export * from './stores/step-catalogue';
 export * from './stores/subtrees';
 export * from './testing/broken-source';
 export * from './testing/faults';

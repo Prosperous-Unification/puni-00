@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test, type TestInfo } from '@playwright/test';
+import { expect, type Locator, type Page, test, type TestInfo } from './ordinary-test';
 
 /**
  * The agent pools panel (`wbs-mcp-agent-surface` task 6.3), drawn by a browser

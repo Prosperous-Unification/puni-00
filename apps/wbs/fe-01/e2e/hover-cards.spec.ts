@@ -1,8 +1,7 @@
-import { expect, type Locator, type Page, test } from '@playwright/test';
-
 import { REACH_FOR_THE_CARD_MS, TAKEOVER_MS } from '../src/components/wbs/cell-card-store';
 import { cardIsOnTopAt } from './card-paint';
-import { createProject } from './create-project';
+import { createWorkPackage } from './create-work-package';
+import { expect, type Locator, type Page, test } from './ordinary-test';
 
 /**
  * The hover cards, measured by a browser.
@@ -25,7 +24,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
 
-  await createProject(page);
+  await createWorkPackage(page);
   const addRow = page.getByRole('button', { name: 'Add work item' });
   await addRow.click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
@@ -61,7 +60,7 @@ async function seedPlan(page: Page, _account: string): Promise<void> {
  * card share.
  *
  * Found through the box inside it rather than by `[data-final="…"]`: a step's
- * id is whatever be-01 minted when the project was made, so the only stable
+ * id is whatever be-01 minted when the work package was made, so the only stable
  * handle on this cell is the label the column writes from the step's *name*.
  */
 const foldedDevCell = (page: Page, number: string): Locator =>
@@ -181,14 +180,16 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
     //
     // Proof: `title: said` put back on `startCellProps`' returned props,
     // watched failing here on `expect(received).toBeNull() · Received:
-    // "Starts with the project"`.
+    // "Starts with the work package"`.
     expect(await cell.getAttribute('title')).toBeNull();
     expect(await cell.locator('[title]').count()).toBe(0);
     // The sentence is still in the DOM at rest, for the oracles that read the
     // day back out of the table — `e2e/gantt.spec.ts`' own fixture among them.
     // Undated, the sentence goes on to say which day of the plan this is and
     // how to get a date (review of PR #409).
-    expect(await cell.getAttribute('data-start-said')).toMatch(/^Starts with the project — Day 0/);
+    expect(await cell.getAttribute('data-start-said')).toMatch(
+      /^Starts with the workPackage — Day 0/,
+    );
 
     await cell.hover();
 
@@ -202,7 +203,7 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
     expect(await cardsOpen(page), 'no card in the frame the mouse arrived on the Start cell').toBe(
       1,
     );
-    expect(await cardText(page)).toContain('Starts with the project');
+    expect(await cardText(page)).toContain('Starts with the work package');
   });
 
   test('paints the Start cell’s card past the edge of a 52px column', async ({ page }) => {

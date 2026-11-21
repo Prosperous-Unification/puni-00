@@ -344,29 +344,26 @@ Exact original commands, logs, settled/reaped receipts, closed transcript descri
 
 This establishes the shared Browser runtime selection and its existing runner tests. The fixture exercises portable collection with a process-level Playwright case, not a WBS browser page or a fresh ordinary/packaged mode run. It adds no installed client command. Performance still needs its coherent current-WBS service/native-session dependencies, rather than an isolated runtime-word substitution. The remaining owned-script ports, actual operation-failure controls, client embedding, C35 closing proofs, public heavy-gate cutover and full host gates remain open; no parent checklist entry is closed by this record.
 
-
 ## Forge coherent candidate first-observation boundary
 
 The current authoring basis is CLI989 source roster /tmp/puni-cli-forge-selection-first-live-v1/source-pins.json (cab1c3d0cf197b4a35d8e7c642a11c5d4f7343d62182cc0cee4b5f318a2805c3). Root alone ran these first-feature owners; each original receipt is settled, reaped and streams closed with no primary/cleanup failure. These observations precede the new coherent production cohort; they do not claim its GREEN, compilation, effective CEL admission or mounted/native certification.
 
-| Existing owner / original native prefix | Actual first observation | Qualified boundary |
-| --- | --- | --- |
-| /tmp/puni-cli-forge-first-live-v1/forge/native | 0pass1fail8expects443ms | Original committed resources passed; missing exact PUNI volume is first failure. Later mapping/environment/command tails unreached. |
-| /tmp/puni-cli-forge-order-live-v1/admission/native | 0pass3fail10expects33ms | Claim, release and restored insertion-order premise reached missing/replaced installation owner expectations. The earlier wrong restore-order premise remains separately preserved as invalid setup. |
-| /tmp/puni-cli-forge-parser-first-live-v1/selectionParser/native | 0pass1fail2expects286ms | Historical down/status premises passed, then existing parser refused --puni-selection. Grammar only. |
-| /tmp/puni-cli-forge-remaining-first-live-v1/labParser/native | 0pass1fail1expects325ms | Historical status passed, then parser refused --puni-installation-root. Grammar only. |
-| /tmp/puni-cli-forge-boundary-repair-live-v1/boundaries/native | 0pass2fail4expects1.91s | Literal inherited infra2/root-empty allowance premises passed, then exact new aliases were absent. Other-option/resolved-import/neighbor-denial tails still prospective. The earlier wrong only-new-alias first expectation is retained as a contract error, not proof. |
-| /tmp/puni-cli-forge-selection-first-live-v1/selectionProducer/native | 0pass1fail11expects1055ms | Actual Bun install, probe, ready/main/archive/stdout/argv premises passed; puni-selection.json absence is first failure. Exact sidecar tail was not reached. |
+| Existing owner / original native prefix                              | Actual first observation  | Qualified boundary                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| /tmp/puni-cli-forge-first-live-v1/forge/native                       | 0pass1fail8expects443ms   | Original committed resources passed; missing exact PUNI volume is first failure. Later mapping/environment/command tails unreached.                                                                                                                                     |
+| /tmp/puni-cli-forge-order-live-v1/admission/native                   | 0pass3fail10expects33ms   | Claim, release and restored insertion-order premise reached missing/replaced installation owner expectations. The earlier wrong restore-order premise remains separately preserved as invalid setup.                                                                    |
+| /tmp/puni-cli-forge-parser-first-live-v1/selectionParser/native      | 0pass1fail2expects286ms   | Historical down/status premises passed, then existing parser refused --puni-selection. Grammar only.                                                                                                                                                                    |
+| /tmp/puni-cli-forge-remaining-first-live-v1/labParser/native         | 0pass1fail1expects325ms   | Historical status passed, then parser refused --puni-installation-root. Grammar only.                                                                                                                                                                                   |
+| /tmp/puni-cli-forge-boundary-repair-live-v1/boundaries/native        | 0pass2fail4expects1.91s   | Literal inherited infra2/root-empty allowance premises passed, then exact new aliases were absent. Other-option/resolved-import/neighbor-denial tails still prospective. The earlier wrong only-new-alias first expectation is retained as a contract error, not proof. |
+| /tmp/puni-cli-forge-selection-first-live-v1/selectionProducer/native | 0pass1fail11expects1055ms | Actual Bun install, probe, ready/main/archive/stdout/argv premises passed; puni-selection.json absence is first failure. Exact sidecar tail was not reached.                                                                                                            |
 
 New source/helper tests, producer serialization/factory correspondence, current SDK/host verifier, lab2/ConfigMap/policy, native supervisor, quality and R5 checks are UNRUN until Root records fresh outputs. Controlled current-profile fixtures are not an actual packaged current PUNI/container/TTY/cgroup certificate. Historical installed269 and source IO/TTY positives retain their original epochs. Full3.1c/3.1d.9c, Bun2.3d.3, source-cold-v2/default/public pin/host/CI and final gate remain open.
-
 
 ### Current source-cold-v2 first owner (2026-11-18; implementation checkpoint unrun)
 
 The selected real public request decoder ran under /tmp/puni-cli-cold-request-first-live-v3/coldRequest/native.{log,receipt.json,validation.json}: 0pass/1fail/19filtered,3expects,86ms. Historical decoding and both independent golden digests passed before the new current request reached the old source readClosed refusal. Later current-request negative tails were unreached. This is feature absence at the complete request boundary, not a removed-guard observation.
 
 The current source implementation checkpoint preserves source-startup-manifest.ts byte for byte and provides a separate current producer/router and consumers. Its new tree/image owners and implementation types/lint/runtime are unrun. Current HTTP/container/PUNI-Nx custody, loaded supervisor closure, remaining shell/client/CI retirement and parent2.3d.3c stay open. Earlier installed, marker and historical source observations retain their original epochs and scope.
-
 
 ### Private current Bun startup checkpoint — 2026-11-18
 
@@ -375,3 +372,170 @@ The reviewed25-file current routing/physical installation checkpoint passes19 se
 An earlier8-file regression group passes109 tests351 assertions with diagnostic Nx instrumentation, and real supervisor TERM passes1/17. Removing the instrumentation reproduces the poisoned-state waiting failure; Linux cleanup completes, but task ownership cause remains open. The loaded-SDK owner currently fails SETUP after25 assertions at copied-graph dynamic/package resolution, before any SDK-change feature verdict. Original Bun compiler output/metafile206inputs is retained to repair that fixture without inventing graph completeness.
 
 [Self-contained original commands, transcripts, receipts and source epochs](verification-private-current-startup-20261118.json) retain the exact scope. Loaded/runtime/native asset qualification, current HTTP/container readiness, shell retirement, remaining faults/quality/gates and integration remain required. No parent task tick or full-goal completion.
+
+## 2026-11-21 — Compose service inventory discovery (partial1.1)
+
+The independent consumer collector now finds standard Compose filenames and override variants
+in arbitrary and hidden directories. It records service command/entrypoint and post_start/pre_stop
+bodies at their structural locations, preserving null, empty strings/vectors, exact arguments and
+complete configuration identity. It neither evaluates interpolation nor treats container operands
+as host files. Root and service references retain image inheritance and include-only execution.
+All Compose sites remain unresolved pending image, mount and merge qualification. The current
+output scope extends to entrypoint-package-nx-github-compose; declaration schema1 stays exact.
+
+Evidence: [verification-compose-inventory-20261121.json](verification-compose-inventory-20261121.json).
+
+| Check                                        | Observed                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------- |
+| Complete consumer/inventory/workspace suites | 162 pass,0 fail;3 files;378 assertions                                            |
+| Strict types and lint                        | Six source/test roots and six owned TS files pass                                 |
+| Controlled faults                            | 17 independent omissions fail and restore exact bytes/modes                       |
+| Actual repository consumer capture           | 767 sites,547 unresolved,including three dev Compose sites;not accepted inventory |
+| PUNI root help with file-backed output       | Native exit0,normal owner/descriptor settlement                                   |
+| Existing CLI parser/process cohort           | 69 pass,13 fail;pipe-output EPERM remains a separate blocker                      |
+
+The initial Compose feature run has17 selected failures before discovery exists. A separate
+null-hook RED proves a required lifecycle command cannot inherit an image. Ordinary cases cover
+current command forms, hidden override names, exact metacharacter/empty operands, entrypoints,
+lifecycle hooks, inherited/include-only references, malformed service/hook/vector input and
+changed image/mount/environment/unknown settings with unchanged command bodies. An active Bun
+declaration cannot qualify the actual captured container command site.
+
+Faults independently remove family/field/hook discovery, scalar/vector/hook/service validation,
+configuration identity, unresolved admission, inherited/root references, explicit null capture
+and the native parser diagnostic witness. Scalar, hook-array, hook-object and missing-command
+controls prove contextual diagnostics while later rejection remains. The unresolved-admission
+control assesses one actual command site; it is not complete-graph acceptance evidence. Every
+owner settles before restoration. Final lexical bridges ignore comments/whitespace and one
+explicitly observed optional argument trailing comma in the parser probe; no broad token
+normalization or repeated native fault sweep is used. Formal Astra review remains pending.
+
+The first consumer cohort also exposed three existing parser probes failing async process output
+under pinned Bun1.4.4. Their saved pre-change source reproduces all three failures. Synchronous
+descriptor writes restore their unchanged output and malformed-parser assertions. Adding the
+complete workspace suite then exposes eight old native Git/FIFO-proxy failures before their
+intended oracles. Its source matches V110 exactly before repair; generated tiny diagnostic and
+NUL-framed byte writes now use writeSync, retaining every test, guard and expected refusal. The
+final full162-test run passes. These fixture repairs do not qualify the distinct CLI output path.
+
+The temporary type configuration first omitted absolute typeRoots; its two missing-type-library
+diagnostics are setup failure, followed by a successful corrected strict run. PUNI's82-case parser
+cohort separately has13 pipe-backed native failures with EPERM, while in-process grammar cases
+and actual file-backed root help pass. No CLI runtime source is changed and no installed alias,
+signal/output or artifact-delivery completion is inferred. That pipe path still needs diagnosis.
+
+The implementation follows the documented command/entrypoint inheritance distinction and
+lifecycle fields in the [Docker container specification](https://docs.docker.com/reference/compose-file/container-spec/)
+and [service reference](https://docs.docker.com/reference/compose-file/services/). Discovery remains
+a bounded service-field reader,not a complete Compose parser or container execution certificate.
+Dockerfile,Kubernetes/Ansible,generated/remote/runbook and launch-selected custom Compose files
+still require collectors and qualification. Counts do not establish owner/replacement/client
+coverage or Bun compliance. Tasks1.1/1.1b remain open,as does the whole PUNI/entities goal.
+
+All nine original obligations,all13 fact families/all15 historical guarantees,WBS/settings/catalogue
+closure,warm rollup performance,frozen scheduler identity,installed CLI aliases/Bun client migration,
+exact-SHA h2/h4 gates and authorized delivery remain. Astra remains unavailable until recorded
+2026-11-22 10:09AM,timezone unspecified;no new agent or retry occurred. No protected archive/MCP,
+WBS runtime,CLI runtime,historical identity,public commit/push/PR/merge/deploy or host gate changed.
+
+## 2026-11-21 — native output environment correction
+
+The earlier pipe-output failures are sandbox restrictions. Original probes are restored while Compose coverage remains; the proper native cohort passes244/0. Two copied Git guard omissions expose false greens inside restriction and fail as intended outside. See [the primary record](../puni-cli/verification-native-output-environment-20261121.json) and [incident catalogue](../../../docs/findings/checks-that-cannot-fail.md) for source-bound evidence and qualifications. All inventory/client/container/review/gate obligations remain open.
+
+### Docker execution inventory — 2026-11-21
+
+Dockerfile/Containerfile discovery now retains complete unresolved build/image files and ordinary RUN, CMD, ENTRYPOINT, HEALTHCHECK and ONBUILD physical spans. Continued lines and CRLF bytes stay exact; heredocs, escape directives and custom frontends remain whole-file opaque boundaries. No image operand is resolved against a host file. The output scope is entrypoint-package-nx-github-compose-docker; declaration schema1 remains unchanged.
+
+Final actual-workspace consumer/inventory regression passes175tests/455assertions across3files; all5 changed roots pass types and effective lint. Ten independent omissions fail at their own named assertions, restore exact bytes/modes after reaping/descriptor closure, and each restored control passes. The unresolved-reason proof is diagnostic-order evidence: the later unknown-runtime guard still refuses. [The compact record](verification-docker-inventory-20261121.json) owns receipts, source identities and limits.
+
+Actual current capture finds803sites/583unresolved, including36Docker sites across12files:24instruction bodies and12whole-file references. This is additional visible migration work, not accepted exhaustive inventory or Bun compliance. Task1.1c stays unchecked pending formal Astra review and qualification; custom build-file selections, image/stage/frontend/mount semantics, other infrastructure/generated/remote/runbook collectors and actual script conversion remain.
+
+Fresh PUNI package integration builds, packs and installs, then source selection refuses duplicate raw PAX identities (3pass/1fail,32assertions,50.74s). The protected archive implementation is unchanged; later source/installed Browser, Performance, aliases and client checks are unreached. The original complete objective and host/delivery gates remain open.
+
+## V123 — Bun backend probe and refreshed inventory
+
+The historical PAX refusal above is superseded byV119's complete package success and
+the freshV123 success, not by weakening archive validation.
+[The current probe record](../puni-cli/verification-backend-probe-20261121.json)
+owns all receipts, source identities, eleven qualified fault/restoration pairs,
+temporary-storage premises and exclusions. `puni dash|d dev-probe be ORIGIN` now
+embeds the former backend auth-probe behavior in Bun HTTP with the same HTTP200,
+anonymous-user and feature requirements. Both aliases execute healthy/HTTP201/
+authenticated cases from the actual freshly packed/installed package after deleting
+its producer checkout/output. Whole package4/0/549, source/root114/0 and actual
+standalone Dash134/0 pass; scoped types/lint/format and343OpenSpec entries pass.
+
+The finite table lives in that change's verify record. Removing response validation,
+individual user/type/dependency checks, HTTP status, redirect policy, timeout, exact
+endpoint, typed dispatch or blank-origin grammar fails each named owning assertion;
+every restored case passes. The timeout negative settles through the fixture's20s
+release instead of abandoning pending IO. Envelope omission is not per-conjunct proof.
+
+Fresh current discovery still finds803sites/583unresolved:264observed Bun,73shell,
+11Python,69external and386unknown. This remains the finite entrypoint/package/Nx/
+GitHub/Compose/Docker collector scope; other infrastructure/generated/remote/runbook
+collectors and typed declarations remain incomplete. It is neither accepted complete
+inventory nor Bun compliance. No old script is hidden or classified away: the
+backend shell/deployment caller remains until explicit installed selection migrates,
+alongside MCP probes and the remaining script families. Parent2.3/1.1, formal Astra
+review, all nine original requirements, real clients, full gates and delivery remain
+open. No public commit, push, PR update, merge, deployment or activation follows.
+
+## V124 — retire the backend probe's Bash entrypoint
+
+The [PUNI caller verification record](../puni-cli/verification-backend-caller-20261121.json)
+and its adjacent failure-proof table own the complete evidence. `bin/dev-be-probe.sh`
+is removed; its protected Bun replacement forwards to explicitly selected installed
+PUNI. The actual manual deployment caller preflights the grammar before Git/SSH and
+uses the embedded operation for later health. Forty-eight source/caller tests pass,
+and the genuine current package session passes4/0/558, including installed caller
+preflight/HTTP health after producer checkout/output removal. Scoped types/lint,
+deployment shellcheck and343OpenSpec entries pass.
+
+Twenty-two current variants fail their owning assertions and pass restored; two
+repeated startup flights add actual preload-marker evidence, for24flights. Earlier
+pre-rename pairs and a classifier failure receive no additional current-variant
+credit. Diagnostic-only file/main cases, whole-boundary completion coverage, ABI
+versus installed semantics, native timer/pipe limits and selected-code trust premises
+remain explicit. This adapter is not a sandbox for arbitrary selected module code.
+
+The real deployment body and MCP helpers still contain unported Bash. Discovery
+finds803sites/583unresolved, with264Bun/72shell/11Python/69external/387unknown.
+Its protected env-S Bun entrypoint has resolved program identity but unknown static
+runtime; full prefix qualification and the remaining collectors/declarations remain
+owed. Two broader workspace checks still fail on agent output and missing fixture
+inputs; all assertions and historical frontend captures remain. Formal Astra review,
+the nine original requirements, real clients, whole gates and delivery remain open.
+
+# Bounded Nx repair and pause — 2026-11-21 (V125)
+
+The final workspace/backend caller regression is 79 pass, 0 fail, 331
+assertions after declaring actual fixture/provider inputs and local E2E
+agent-output settings. Two equivalent frontend-relative path expressions avoid
+phantom cache inputs without changing their values or any assertion. See
+`../puni-cli/verification-nx-inputs-20261121.json` and the V125 section in
+`../puni-cli/verify.md` for commands and audit evidence.
+
+The separate frozen-frontend setup refusal is reproduced with all seven edits
+absent; its 22 selected cases remain unverified past setup. Historical profiles,
+captures and pins remain unchanged. Complete inventory (803 sites, 583
+unresolved), Bun/client conversion and host acceptance remain open. The user
+requested completion of this bounded work followed by replanning; the broader
+goal is paused. Proposed execution order lives in
+`docs/superpowers/plans/2026-11-21-puni-completion-replan.md`.
+
+## V139 — retained frontend selector fixtures during delivery repair
+
+The complete historical profile owner now passes 176 tests and 600 assertions.
+Its three setup sites use the existing authenticated retained materializer; its
+four literal reconstruction readers use the same retained package/lock assets.
+The unchanged materializer, selector, original pins, mixed-input refusals and
+reconstruction checks still own admission. The no-Vite HTTP selection case also
+passes through that materializer. The initial setup failure and intermediate
+170-pass/6-fail run are preserved in the
+[native verification record](verification-retained-profile-20261122.json).
+
+This repairs fixture dependence on moving workspace inputs. It does not qualify
+the actual Vite producer, reconstruct a complete historical source closure,
+close the remaining legacy HTTP cases, establish complete script conversion or
+complete the full host gate. Those checks and formal Astra review remain open.

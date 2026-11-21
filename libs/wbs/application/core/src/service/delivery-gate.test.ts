@@ -3,7 +3,7 @@ import { expect, test } from 'bun:test';
 
 import { DELIVERY_GATE_LIMITS, DeliveryGate, type DeliveryGateLimits } from './delivery-gate';
 
-const url = 'https://github.com/puni/project/pull/12';
+const url = 'https://github.com/puni/work-package/pull/12';
 const reading: DeliveryReading = { kind: 'unsupported', reason: 'test-provider' };
 const org = (organizationId: string) => ({ organizationId });
 const open = () => new AbortController().signal;

@@ -37,21 +37,21 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
   reads: string[];
 } {
   const reads: string[] = [];
-  const projects = Object.keys(trees).map((id, index) => ({
+  const workPackages = Object.keys(trees).map((id, index) => ({
     id,
     name: id,
     createdAt: index,
     revision: 1,
   }));
   const options = {
-    projects: { listWithin: () => Promise.resolve(projects) },
+    workPackages: { listWithin: () => Promise.resolve(workPackages) },
     workItems: {
       sharedTreesWithin: () => Promise.resolve({ kind: 'isolated' as const }),
       latestSeq: () => Promise.resolve(1),
-      treeWithin: (projectId: string) => {
-        reads.push(projectId);
-        const tree = trees[projectId];
-        if (tree === undefined) throw new Error(`no tree for ${projectId}`);
+      treeWithin: (workPackageId: string) => {
+        reads.push(workPackageId);
+        const tree = trees[workPackageId];
+        if (tree === undefined) throw new Error(`no tree for ${workPackageId}`);
         return Promise.resolve(tree());
       },
     },
@@ -64,20 +64,20 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
 }
 
 describe('PersonLoad', () => {
-  it('reads bookings from the engine the project displays', async () => {
+  it('reads bookings from the engine the work package displays', async () => {
     const { load } = loadOver({
       fast: () => datedTree('ana', 2, 'fast'),
       solved: () => datedTree('ana', 3, 'makespan'),
     });
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
     if (read !== null && 'kind' in read) throw new Error(read.refusal);
-    expect(read?.projects.map(({ projectId, engine }) => [projectId, engine])).toEqual([
+    expect(read?.workPackages.map(({ workPackageId, engine }) => [workPackageId, engine])).toEqual([
       ['fast', 'fast'],
       ['solved', 'optimized'],
     ]);
   });
 
-  it('lists a project whose engine is not installed as unavailable, whoever it names', async () => {
+  it('lists a work package whose engine is not installed as unavailable, whoever it names', async () => {
     const { load } = loadOver({
       missing: () =>
         ({ kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' }) as const,
@@ -85,7 +85,7 @@ describe('PersonLoad', () => {
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
     if (read !== null && 'kind' in read) throw new Error(read.refusal);
     expect(read?.unavailable).toEqual([
-      { projectId: 'missing', name: 'missing', reason: 'engine_unavailable' },
+      { workPackageId: 'missing', name: 'missing', reason: 'engine_unavailable' },
     ]);
     const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
     if ('kind' in organization) throw new Error(organization.refusal);
@@ -106,11 +106,11 @@ describe('PersonLoad', () => {
     const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
     if ('kind' in organization) throw new Error(organization.refusal);
     expect(organization.unavailable).toEqual([
-      { projectId: 'cycle', name: 'cycle', reason: 'cycle' },
+      { workPackageId: 'cycle', name: 'cycle', reason: 'cycle' },
     ]);
   });
 
-  it('reuses a reading while the project’s sequence stands', async () => {
+  it('reuses a reading while the work package’s sequence stands', async () => {
     const { load, reads } = loadOver({ only: () => datedTree('ana', 2, 'fast') });
     await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
     await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);

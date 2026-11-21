@@ -9,7 +9,7 @@ import { planToMermaid, planToMermaidDocument } from './plan-mermaid';
 
 /** Fixed input captured before extracting the export model. */
 const document: PlanExport = {
-  projectName: 'A, "quoted" | plan',
+  workPackageName: 'A, "quoted" | plan',
   generatedAt: '2026-08-07T09:15:00.000Z',
   method: 'pert',
   startDate: '2026-09-01',
@@ -64,19 +64,35 @@ const document: PlanExport = {
   ],
 };
 
-describe('plan export model extraction', () => {
-  it('preserves every byte of all four fixed-input documents', () => {
+describe('fixed plan export documents', () => {
+  it('changes only the explicit work-package headers and preserves every other byte', () => {
     const mermaid = planToMermaid(document);
     const bundled = planToMermaidDocument(document);
     if (!mermaid.drawn || !bundled.drawn) throw new Error('Fixed plan must produce diagrams');
-    const fingerprints = [
-      planToCsv(document),
-      planToMarkdown(document),
-      mermaid.text,
-      bundled.text,
-    ].map((text) => createHash('sha256').update(text, 'utf8').digest('hex'));
+    const csv = planToCsv(document);
+    const markdown = planToMarkdown(document);
+    const texts = [csv, markdown, mermaid.text, bundled.text];
+    const fingerprints = texts.map((text) =>
+      createHash('sha256').update(text, 'utf8').digest('hex'),
+    );
     // Proof: appending LF to production CSV changed its hash and failed this test.
+    // Proof: export-csv-one-lf-fault-v121 appended an actual LF in the production
+    // writer; the current fingerprint failed, then both fingerprint sets passed restored.
     expect(fingerprints).toEqual([
+      'cb3a1ff6cc3eeef8c44983e11597d7ba9ee534306a3a4301b8b1959acf78132d',
+      '639003454a314b8786f13e33a6c1c1d0e2e0d0733614bc3ccd8e8b459a363ae7',
+      '8d6d2ec64ff9c3601c6cd4a184cd5f1ffadb5e9faf17d3cb90b19de1e40f121a',
+      '8db5a3a4d2bb6e288675853da189b3bb418368e3ca57352bf949409dc1e412f8',
+    ]);
+    const beforeRename = [
+      csv.replace(/^Work package,/, 'Project,'),
+      markdown.replace(/^\*\*Work package:\*\*/, '**Project:**'),
+      mermaid.text,
+      bundled.text.replace(/^\*\*Work package:\*\*/, '**Project:**'),
+    ];
+    expect(
+      beforeRename.map((text) => createHash('sha256').update(text, 'utf8').digest('hex')),
+    ).toEqual([
       '070768dfcba15195091fe1f1f8092fd978aae4715d2569dd73ce670eb02e5a57',
       '95fad110e5fe057eb5add3a1dd5e5fdcfe81a9a86d176875796aa4ffb85df124',
       '8d6d2ec64ff9c3601c6cd4a184cd5f1ffadb5e9faf17d3cb90b19de1e40f121a',

@@ -8,7 +8,7 @@ export type NodeAssignment =
   | { kind: 'explicit'; personId: string }
   | { kind: 'assumed'; personId: string; fromStepId: string };
 
-/** Effective labels, including teams with no project capacity statement. */
+/** Effective labels, including teams with no work package capacity statement. */
 export type NodeTeams =
   | { kind: 'unstated' }
   | {
@@ -35,7 +35,7 @@ export interface NodeResources {
  * 1. **No team, no pool.** An empty set states nothing, so the slice is
  *    unconstrained.
  * 2. **An unsized team labels the work and constrains nothing.** A team this
- *    project has stated no capacity for is absent from `teamSizes`, so it is
+ *    work package has stated no capacity for is absent from `teamSizes`, so it is
  *    absent from `poolIds` too — which is what keeps the engine's `no size for
  *    pool` throw a caller-fault assertion rather than ordinary control flow. It
  *    contributes no clamp either: an unstated capacity is not a capacity of
@@ -119,16 +119,24 @@ export function resolveStepResources(
 /**
  * Each retained leaf's resource readings, before hold reduction or page
  * filtering. Parents have no entry; stepless leaves have an empty record.
- * Inheritance uses the complete tree and capacities are captured project
+ * Inheritance uses the complete tree and capacities are captured work package
  * statements, with null preserving an unsized team rather than inventing zero.
+ * Every actual leaf requires its own ordered identities, including an empty list.
+ * @throws for an absent own list, a nonleaf owner or repeated own identities.
  */
 export function nodeResourcesOf(
   rows: readonly (TeamsLabelled & { maxParallel: number })[],
-  stepIds: readonly string[],
+  stepIdsOf: ReadonlyMap<string, readonly string[]>,
   assigneesOf: ReadonlyMap<string, Readonly<Record<string, string>>>,
   teamSizes: ReadonlyMap<string, number>,
 ): Map<string, Record<string, NodeResources>> {
   const parents = new Set(rows.map((row) => row.parentId));
+  const leaves = new Set(rows.filter((row) => !parents.has(row.id)).map((row) => row.id));
+  // Proof: omission admitted extra parent and foreign lists independently
+  // (current-node-projection-fault-resource-parent/resource-foreign-v1).
+  for (const workItemId of stepIdsOf.keys())
+    if (!leaves.has(workItemId))
+      throw new Error(`resource step owner is not a leaf: ${workItemId}`);
   // Proof: stripping ancestry failed both mounted inherited-capacity reads;
   // a filtered parent cannot supply its labels; watched 2026-10-15.
   const effective = effectiveTeamsOf(rows);
@@ -137,6 +145,14 @@ export function nodeResourcesOf(
     // Proof: emitting parents failed the mounted absent-parent-field
     // assertions in isolated and shared mode; watched 2026-10-15.
     if (parents.has(row.id)) continue;
+    const stepIds = stepIdsOf.get(row.id);
+    // Proof: omission lost this named refusal to a native TypeError
+    // (current-node-projection-fault-resource-missing-v1); diagnostic proof.
+    if (stepIds === undefined) throw new Error(`resource step order is absent for ${row.id}`);
+    // Proof: omission let Object.fromEntries overwrite duplicates silently
+    // (current-node-projection-fault-resource-duplicate-v1).
+    if (new Set(stepIds).size !== stepIds.length)
+      throw new Error(`resource step order repeats an identity for ${row.id}`);
     const stated = effective.get(row.id);
     const teams: NodeTeams =
       stated === undefined
@@ -153,6 +169,8 @@ export function nodeResourcesOf(
     resources.set(
       row.id,
       Object.fromEntries(
+        // Proof: sorting these identities lost actual SQLite SC18 resource order
+        // (current-node-projection-fault-resource-order-v1).
         stepIds.map((stepId) => {
           const { assignment, width } = resolveStepResources(
             row.maxParallel,

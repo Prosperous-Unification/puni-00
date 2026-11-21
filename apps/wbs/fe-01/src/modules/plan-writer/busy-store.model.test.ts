@@ -6,7 +6,7 @@ import { type Busy, createBusy } from './busy-store';
 /**
  * What one listener does each time it is told busy changed.
  *
- * `bounce` is the re-entrant one: the first time it is told the project is
+ * `bounce` is the re-entrant one: the first time it is told the work package is
  * idle, it raises and lowers again from inside that notification — two more
  * changes while the first is still being delivered. Once, because a listener
  * that did it every time would never let delivery end.
@@ -255,7 +255,7 @@ const commandsArb = fc.commands<BusyModel, BusyWorld, false>(
  * The busy state, run against a reference model.
  *
  * The record this executes is section 3.2 of
- * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-project-prerequisites.md`.
+ * `docs/superpowers/plans/2026-09-21-batch-6/050-7-g-work-package-prerequisites.md`.
  */
 describe('the busy state, against a reference model', () => {
   it('holds the last value raised or lowered, and says so once per change', async () => {

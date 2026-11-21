@@ -10,7 +10,7 @@ export interface ConnectedIdentities {
   readonly personByKey: ReadonlyMap<string, string>;
   readonly teamByKey: ReadonlyMap<string, string>;
   readonly resourceByKey: ReadonlyMap<string, string>;
-  readonly projectIdByWorkItem: ReadonlyMap<string, string>;
+  readonly workPackageIdByWorkItem: ReadonlyMap<string, string>;
 }
 export type ConnectedPlacement =
   | DependencyCalendarMissing
@@ -23,8 +23,8 @@ export type ConnectedPlacement =
       readonly combined: Schedule;
       readonly baseline: Schedule;
       readonly stages: readonly ConnectedOptimizationSelection[];
-      readonly idleProjects: readonly string[];
-      readonly byProject: ReadonlyMap<string, Schedule>;
+      readonly idleWorkPackages: readonly string[];
+      readonly byWorkPackage: ReadonlyMap<string, Schedule>;
       readonly identities: ConnectedIdentities;
     };
 /** Detached graph evidence remains inspectable even when selected placement is unavailable. */
@@ -47,7 +47,7 @@ const resolveIdentity = (keys: ReadonlyMap<string, string>, key: string): string
   if (id === undefined) throw new Error(`missing reverse identity ${key}`);
   return id;
 };
-/** Restore public identities while retaining stable cross-project slice keys for blockers. */
+/** Restore public identities while retaining stable cross-work-package slice keys for blockers. */
 export function restoreConnectedSchedule(
   combined: Schedule,
   identities: ConnectedIdentities,
@@ -84,15 +84,16 @@ export function restoreConnectedSchedule(
   };
 }
 /** Each member receives its own affine offsets and waiting counts. eventsVisited measures the component computation. */
-export function projectConnectedSchedule(
+export function workPackageConnectedSchedule(
   combined: Schedule,
-  projectId: string,
+  workPackageId: string,
   shift: number,
   ownership: ReadonlyMap<string, string>,
 ): Schedule {
   const slices = new Map<string, ScheduledSlice>();
   for (const [key, slice] of combined.slices)
-    if (ownership.get(slice.workItemId) === projectId) slices.set(key, translateSpan(slice, shift));
+    if (ownership.get(slice.workItemId) === workPackageId)
+      slices.set(key, translateSpan(slice, shift));
   const waiting = (bound: ScheduledSlice['boundBy']) =>
     new Set(
       [...slices.values()]
@@ -103,7 +104,7 @@ export function projectConnectedSchedule(
     slices,
     workItems: new Map(
       [...combined.workItems]
-        .filter(([id]) => ownership.get(id) === projectId)
+        .filter(([id]) => ownership.get(id) === workPackageId)
         .map(([id, span]) => [id, translateSpan(span, shift)]),
     ),
     waitingForPerson: waiting('person'),
@@ -113,17 +114,17 @@ export function projectConnectedSchedule(
   };
 }
 /** Select an actual captured member without another placement pass. */
-export function selectConnectedProject(
+export function selectConnectedWorkPackage(
   projection: ConnectedPlanProjection,
-  projectId: string,
+  workPackageId: string,
 ):
   | Exclude<ConnectedPlacement, { kind: 'scheduled' }>
   | { readonly kind: 'scheduled'; readonly schedule: Schedule } {
   // Proof: bypassing membership failed `validates rank before an engine refusal and target membership before any unavailable return` (returned engine refusal).
-  if (!projection.capture.projects.some((member) => member.projectId === projectId))
-    throw new Error(`project ${projectId} is not captured`);
+  if (!projection.capture.workPackages.some((member) => member.workPackageId === workPackageId))
+    throw new Error(`work package ${workPackageId} is not captured`);
   if (projection.placement.kind !== 'scheduled') return projection.placement;
-  const schedule = projection.placement.byProject.get(projectId);
-  if (schedule === undefined) throw new Error(`missing project schedule ${projectId}`);
+  const schedule = projection.placement.byWorkPackage.get(workPackageId);
+  if (schedule === undefined) throw new Error(`missing work package schedule ${workPackageId}`);
   return { kind: 'scheduled', schedule };
 }

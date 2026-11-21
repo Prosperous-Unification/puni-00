@@ -29,23 +29,23 @@ export interface MeasureKey {
  *
  * **The third key column reaches exactly one of these four.** {@link remove}
  * names one row, so it takes the metric; {@link set} carries it in the record.
- * {@link listByProject} and {@link moveAll} name no row and take none — the
+ * {@link listByWorkPackage} and {@link moveAll} name no row and take none — the
  * first because the roll-up folds all three metrics from one read, the second
  * because a leaf gaining a child stops holding figures in every unit at once.
  */
 export interface MeasureStore {
-  /** Every measure in the project, in step order within each work item and metric order within each pair. */
-  listByProject(projectId: string): Promise<StoredMeasure[]>;
-  /** Values for the requested work items in project, step, and metric order. */
-  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]>;
+  /** Every measure in the work package, in step order within each work item and metric order within each pair. */
+  listByWorkPackage(workPackageId: string): Promise<StoredMeasure[]>;
+  /** Values for the requested work items in work package, step, and metric order. */
+  listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredMeasure[]>;
   /**
-   * The measure definitions of the organization owning the project, in list
+   * The measure definitions of the organization owning the work package, in list
    * order, or null when no organization owns it (`wbs-measure-budgets` D4,
    * design D19): what a fact's metric is decided against.
    */
-  definitionsFor(projectId: string): Promise<MeasureDefinition[] | null>;
+  definitionsFor(workPackageId: string): Promise<MeasureDefinition[] | null>;
   /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
-  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
+  listPlacements(workPackageId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /**
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.

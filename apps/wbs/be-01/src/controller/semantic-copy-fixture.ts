@@ -9,7 +9,11 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { expect } from 'bun:test';
 
-import { harness, type openFixture, requireOwnerEdit } from './cross-project-dependency-fixture';
+import {
+  harness,
+  type openFixture,
+  requireOwnerEdit,
+} from './cross-work-package-dependency-fixture';
 
 /** Explicit active capability for admitted semantic copy tests only; production remains dormant. */
 export async function runSemanticCopy<T extends { ok: boolean }>(
@@ -27,13 +31,13 @@ export async function runSemanticCopy<T extends { ok: boolean }>(
     if (!resolved.ok || resolved.access.kind !== 'scoped')
       throw new Error('fixture current authority refused');
     await requireOwnerEdit(scope.stores, fixture);
-    const granted = grantAdmission(fixture.owner.projectId, fixture.principal.id);
+    const granted = grantAdmission(fixture.owner.workPackageId, fixture.principal.id);
     const stores = configure === undefined ? scope.stores : configure(scope.stores);
-    const plan = createWorkingPlan({ ...scope, stores }, fixture.owner.projectId);
+    const plan = createWorkingPlan({ ...scope, stores }, fixture.owner.workPackageId);
     const opened = createDependencyContext(
       stores,
       {
-        projectId: fixture.owner.projectId,
+        workPackageId: fixture.owner.workPackageId,
         actorId: fixture.principal.id,
         access: resolved.access,
         admission: granted.admission,
@@ -55,7 +59,11 @@ export async function runSemanticCopy<T extends { ok: boolean }>(
       const collected = await service.collect(() => operation(service));
       if (collected.result.ok)
         await service.recordCollected(
-          { projectId: fixture.owner.projectId, userId: fixture.principal.id, personId: null },
+          {
+            workPackageId: fixture.owner.workPackageId,
+            userId: fixture.principal.id,
+            personId: null,
+          },
           collected.recordings,
         );
       return { commit: collected.result.ok, value: collected.result };

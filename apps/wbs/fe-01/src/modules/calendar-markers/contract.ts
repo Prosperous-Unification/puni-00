@@ -1,5 +1,5 @@
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
-import type { CalendarMarkerView, NewCalendarMarkerView, ProjectApi } from '@/lib/wbs-api';
+import type { CalendarMarkerView, NewCalendarMarkerView, WorkPackageApi } from '@/lib/wbs-api';
 
 /**
  * Re-exported so delivery imports this module and no other: rule K2 says a
@@ -9,13 +9,13 @@ import type { CalendarMarkerView, NewCalendarMarkerView, ProjectApi } from '@/li
 export type { CalendarMarkerView, NewCalendarMarkerView };
 
 /**
- * One edit to a project's calendar markers, as a value rather than a call.
+ * One edit to a work package's calendar markers, as a value rather than a call.
  *
  * A value because the two kinds have to talk about the edit twice — the
  * resource sends it, the feature decides whether its answer still matters — and
  * a closure would let only one of them see what was asked for. Rename and
  * recolour are separate arms and not one `edit(name?, color?)`, because be-01
- * answers 422 to a body naming both; {@link ProjectApi.renameCalendarMarker}
+ * answers 422 to a body naming both; {@link WorkPackageApi.renameCalendarMarker}
  * argues it on the route.
  */
 export type CalendarMarkerEdit =
@@ -28,24 +28,24 @@ export type CalendarMarkerEdit =
  * The part of the HTTP client this resource writes through.
  *
  * Narrowed to the four routes rather than taken whole, so the module's surface
- * states what it can do to a project: nothing here can rename the project or
+ * states what it can do to a work package: nothing here can rename the work package or
  * move a work item.
  */
 export type CalendarMarkerRoutes = Pick<
-  ProjectApi,
+  WorkPackageApi,
   'createCalendarMarker' | 'renameCalendarMarker' | 'recolorCalendarMarker' | 'deleteCalendarMarker'
 >;
 
 /** What the writing needs from whoever built it. */
 export interface CalendarMarkerPorts {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly api: CalendarMarkerRoutes;
 }
 
 /**
- * One project's calendar markers, as this browser writes them.
+ * One work package's calendar markers, as this browser writes them.
  *
- * The **resource**-service: one aggregate — the markers of one project — the
+ * The **resource**-service: one aggregate — the markers of one work package — the
  * four routes that change it, and the knowledge of what each change leaves out
  * of date. It owns no lifetime and says nothing to anybody; a refusal leaves it
  * as the thrown cause.
@@ -72,7 +72,7 @@ export interface CalendarMarkerRefusal {
  *
  * Every member is a function for {@link PlanWriterHost}'s reason: all of them
  * are read at the moment something happens, not at the moment the module is
- * built. A reader can leave for another project between a write starting and
+ * built. A reader can leave for another work package between a write starting and
  * its answer arriving.
  */
 export interface CalendarMarkersHost extends CalendarMarkerPorts {
@@ -83,9 +83,9 @@ export interface CalendarMarkersHost extends CalendarMarkerPorts {
    * Its **identity** is what makes a write this reader's: the same object it
    * started against, still answered. That is the whole test, and no second
    * "is the reader still on screen" question is asked beside it: a feed opens
-   * its refresh owner once, and the project runtime answers `null` here from
+   * its refresh owner once, and the work package runtime answers `null` here from
    * the moment its owner withdraws it (`readRefreshOwner` in
-   * `runtime/project-runtime.ts`), so a reader that left and a reader replaced
+   * `runtime/work-package-runtime.ts`), so a reader that left and a reader replaced
    * fail the same comparison.
    */
   readonly readRefreshOwner: () => PlanRefresh | null;
@@ -97,7 +97,7 @@ export interface CalendarMarkersHost extends CalendarMarkerPorts {
  * The calendar markers a reader may put on the chart, for as long as it owns it.
  *
  * The **feature**-service, and the only thing delivery sees: one piece of
- * user-facing value — the dates a person marks on the chart stay the project's,
+ * user-facing value — the dates a person marks on the chart stay the work package's,
  * and a refused one leaves the chart showing what is really there — coordinated
  * over one resource-service. It imports no React (F1).
  *

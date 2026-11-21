@@ -1,0 +1,906 @@
+{
+  "recordedAt": "2026-11-19T14:39:57.049Z",
+  "goalStatus": "active",
+  "scope": "SQLite current catalogue progress seed fault ownership",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "09da2ad8fd0220c00169a6df332d8ebd8eec8a71b216a3b38da183fe2bf2e4ec",
+      "bytes": 350886,
+      "mode": 436
+    }
+  ],
+  "controls": [
+    {
+      "name": "current-progress-seed-after-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-after-v1.receipt.json",
+        "sha256": "b2e115626e08233f7edd4a99e7a8513af90cccbe840ffdb1f7e505d464f4b3b0",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "a progress-only|a successful progress-only",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:37:10.383Z",
+        "endedAt": "2026-11-19T14:37:16.057Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-after-v1.log",
+          "sha256": "ec59ba772c65c2ac4698665d6a7df2a05069774b096b0e14bedc69c2d2efcf89",
+          "bytes": 705
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-after-v1.log",
+        "sha256": "ec59ba772c65c2ac4698665d6a7df2a05069774b096b0e14bedc69c2d2efcf89",
+        "bytes": 705,
+        "mode": 384
+      }
+    },
+    {
+      "name": "progress-seed-effect-case-injection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1.receipt.json",
+        "sha256": "af8ce6aa3ae881e5bef44dd8c62fecdbba77f51cfd1d4925d34e3aedfa08cbed",
+        "bytes": 1481,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "a progress-only case seed failure closes its source and removes its directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:37:52.483Z",
+        "endedAt": "2026-11-19T14:37:56.189Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1.log",
+          "sha256": "c34cd47480abd6de26eb73e72bad69953cf5ea00be50789d71bb389333b10ac7",
+          "bytes": 799
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1.log",
+        "sha256": "c34cd47480abd6de26eb73e72bad69953cf5ea00be50789d71bb389333b10ac7",
+        "bytes": 799,
+        "mode": 384
+      }
+    },
+    {
+      "name": "progress-seed-effect-proof-injection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1.receipt.json",
+        "sha256": "dc340e1d90491e3b0a6587e8152075db37f89a27dc04216ce1e9b2461e79cdb3",
+        "bytes": 1485,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "a progress-only proof seed failure closes its source and removes its directory",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:37:56.192Z",
+        "endedAt": "2026-11-19T14:37:59.918Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1.log",
+          "sha256": "7d12cc6e96cf6b09ed11e4d2514643b9d443aa1e1976592ab74ca1c7b87fa122",
+          "bytes": 1602
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1.log",
+        "sha256": "7d12cc6e96cf6b09ed11e4d2514643b9d443aa1e1976592ab74ca1c7b87fa122",
+        "bytes": 1602,
+        "mode": 384
+      }
+    },
+    {
+      "name": "progress-seed-effect-aggregate-injection-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1.receipt.json",
+        "sha256": "3a68be28dad6334540156558f31263f136cc614bce594632bcdeb899cc1bfd1d",
+        "bytes": 1476,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "a progress-only seed retains its original and cleanup failures",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:37:59.921Z",
+        "endedAt": "2026-11-19T14:38:03.595Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1.log",
+          "sha256": "ec46b3a67bf827d1f6e44bf1f2702c8ee09756cff0496c34038cb37334dd1ffe",
+          "bytes": 855
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1.log",
+        "sha256": "ec46b3a67bf827d1f6e44bf1f2702c8ee09756cff0496c34038cb37334dd1ffe",
+        "bytes": 855,
+        "mode": 384
+      }
+    },
+    {
+      "name": "progress-seed-effect-close-retention-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1.receipt.json",
+        "sha256": "6931820ef2ee0fc59a33f47281d34a90c1e7173c33e65854be5723773a05c986",
+        "bytes": 1468,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "a progress-only seed retains its original and cleanup failures",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:38:03.597Z",
+        "endedAt": "2026-11-19T14:38:07.168Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1.log",
+          "sha256": "f532202c6e8c8d80bd21510e040d4ad62a4cd5f5a3d8a8fb1d5e479819cb6e7b",
+          "bytes": 924
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1.log",
+        "sha256": "f532202c6e8c8d80bd21510e040d4ad62a4cd5f5a3d8a8fb1d5e479819cb6e7b",
+        "bytes": 924,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-progress-seed-format-write-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-format-write-v1.receipt.json",
+        "sha256": "33459f2be8c2da624ac4038c7eacdce0b7b65986f6488c81f5a9aa20eb8a8ab2",
+        "bytes": 1406,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-format-write-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--write",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:38:27.519Z",
+        "endedAt": "2026-11-19T14:38:28.263Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-format-write-v1.log",
+          "sha256": "8b1930987913b5a29d3dc14565254d6a0eda4761310379a7e00b41d68d65007f",
+          "bytes": 79
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-format-write-v1.log",
+        "sha256": "8b1930987913b5a29d3dc14565254d6a0eda4761310379a7e00b41d68d65007f",
+        "bytes": 79,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-progress-seed-final-tests-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-tests-v1.receipt.json",
+        "sha256": "4363e9c8ca140f03b13e8aaaf662f3af933517b7bc3b659f25958c5eb7df7797",
+        "bytes": 1767,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-tests-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "reinjects current step value|a seed failure cannot|a cleanup failure after|the execution report surfaces nested SQLite|the fault proof surfaces nested SQLite|reinjects estimate, remove|registers every named|certifies current package step reads|a progress-only|a successful progress-only",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:38:39.747Z",
+        "endedAt": "2026-11-19T14:39:03.230Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-tests-v1.log",
+          "sha256": "a7553045ac0d14a391f370d9e2773f115a0e2326d5809e12c16cac4d99052ec3",
+          "bytes": 2023
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-tests-v1.log",
+        "sha256": "a7553045ac0d14a391f370d9e2773f115a0e2326d5809e12c16cac4d99052ec3",
+        "bytes": 2023,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-progress-seed-final-types-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-types-v1.receipt.json",
+        "sha256": "2cf48bbfbac60f431832dfeeb4a6206dfc74c3767f89e11bccb1dee0d7d9e933",
+        "bytes": 1393,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:38:40.923Z",
+        "endedAt": "2026-11-19T14:38:50.548Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "current-progress-seed-final-lint-v1",
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-lint-v1.receipt.json",
+        "sha256": "d022131b86b84efbc12822e357e6c6b798d73fef9c86ca456e0f6d9c6d81cb90",
+        "bytes": 1379,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T14:38:42.390Z",
+        "endedAt": "2026-11-19T14:38:49.478Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    }
+  ],
+  "effects": {
+    "pin": {
+      "path": "/tmp/puni-combined-proposal-v1/control/current-progress-seed-effects-v1.json",
+      "sha256": "f197e59b5b9583a0b2166a7a50a0131d76304c7a2d6fd54c742b344d1748ea9c",
+      "bytes": 8897,
+      "mode": 384
+    },
+    "effects": [
+      {
+        "name": "case-injection",
+        "test": "a progress-only case seed failure closes its source and removes its directory",
+        "markers": ["1 fail", "Received value: undefined"],
+        "healthySha256": "2253f1b9ecfbec0d1953a5a2ff3593ba20da2569eaf1dea46eb33d1e9f1a213b",
+        "faultSha256": "135dc80a8a23113934e0ce1802db62edf95f2c024a39c3e3c6580916331a23ca",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+              "-t",
+              "a progress-only case seed failure closes its source and removes its directory",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:37:52.483Z",
+          "endedAt": "2026-11-19T14:37:56.189Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-case-injection-v1.log",
+            "sha256": "c34cd47480abd6de26eb73e72bad69953cf5ea00be50789d71bb389333b10ac7",
+            "bytes": 799
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "proof-injection",
+        "test": "a progress-only proof seed failure closes its source and removes its directory",
+        "markers": ["1 fail", "observed"],
+        "healthySha256": "2253f1b9ecfbec0d1953a5a2ff3593ba20da2569eaf1dea46eb33d1e9f1a213b",
+        "faultSha256": "a2b3a3d7daf63972f1fbfee983bd18afcfb6ab64627ddd6ce1113a170bfc266f",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+              "-t",
+              "a progress-only proof seed failure closes its source and removes its directory",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:37:56.192Z",
+          "endedAt": "2026-11-19T14:37:59.918Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-proof-injection-v1.log",
+            "sha256": "7d12cc6e96cf6b09ed11e4d2514643b9d443aa1e1976592ab74ca1c7b87fa122",
+            "bytes": 1602
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "aggregate-injection",
+        "test": "a progress-only seed retains its original and cleanup failures",
+        "markers": ["1 fail", "Expected: true", "Received: false"],
+        "healthySha256": "2253f1b9ecfbec0d1953a5a2ff3593ba20da2569eaf1dea46eb33d1e9f1a213b",
+        "faultSha256": "d5111addaffbb931ac3eea5a59d28d4c1fb71b417c61056e872d1e8f1fd275dd",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+              "-t",
+              "a progress-only seed retains its original and cleanup failures",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:37:59.921Z",
+          "endedAt": "2026-11-19T14:38:03.595Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-aggregate-injection-v1.log",
+            "sha256": "ec46b3a67bf827d1f6e44bf1f2702c8ee09756cff0496c34038cb37334dd1ffe",
+            "bytes": 855
+          },
+          "settled": true
+        }
+      },
+      {
+        "name": "close-retention",
+        "test": "a progress-only seed retains its original and cleanup failures",
+        "markers": ["1 fail", "Expected: true", "Received: false"],
+        "healthySha256": "2253f1b9ecfbec0d1953a5a2ff3593ba20da2569eaf1dea46eb33d1e9f1a213b",
+        "faultSha256": "467e1f6fb0260a9e6c93fb7ff12a2d9275f20fa78cb1882d1b29cb9c4d8cf4a5",
+        "restored": true,
+        "receipt": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+              "-t",
+              "a progress-only seed retains its original and cleanup failures",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-combined-proposal-v1/tree",
+            "deadlineMs": 60000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-19T14:38:03.597Z",
+          "endedAt": "2026-11-19T14:38:07.168Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-combined-proposal-v1/control/progress-seed-effect-close-retention-v1.log",
+            "sha256": "f532202c6e8c8d80bd21510e040d4ad62a4cd5f5a3d8a8fb1d5e479819cb6e7b",
+            "bytes": 924
+          },
+          "settled": true
+        }
+      }
+    ]
+  },
+  "firstRed": {
+    "artifact": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verification-current-step-readers-20261119.json",
+      "sha256": "77ca5dee34fec26bd05ca0f960d038a894dd9370d7871f9955c892a03ed8622e",
+      "bytes": 89644,
+      "mode": 436
+    },
+    "qualification": "The full83pass/31fail run observes all three old progress-only seed owners failing: absent setup exception, falsely observed proof and absent aggregate. This is the same predecessor source epoch; no extra first-red run or whole-count subtraction is claimed."
+  },
+  "behavior": [
+    "All three progress-only seed fault owners intercept the actual defineAndBindStep for PROGRESS_SENTINEL_STEP_ID and delegate every other definition unchanged. No legacy StepStore writer is substituted.",
+    "Actual setup rejection closes its acquired Source and removes its directory. A decorated close failure preserves both primary and cleanup causes and retains its directory until explicit raw-owner cleanup. All acquired owners are retained and counted by each test."
+  ],
+  "final": {
+    "tests": 15,
+    "fail": 0,
+    "assertions": 896,
+    "files": 2,
+    "sqliteCompilerRoot": 0,
+    "lintFiles": 1,
+    "qualification": "Focused current read/fault/inventory/lifecycle plus all four progress-only setup owners. Earlier273test/113Memory and83/31SQLite file observations retain their own source epochs; no updated whole-Source or whole-adapter total is inferred."
+  },
+  "inspectedSavedIdentity": {
+    "qualification": "Code inspection only, not a proven new runtime regression. Do not replace history safety guards or globally rewrite expected historical evidence to make the SQL suite pass.",
+    "source": [
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+        "sha256": "7b93f64e5a617328b0327303c2d1dbd1c67366bfc9fb023076d9b3318edec9b1",
+        "bytes": 81586,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-identity.ts",
+        "sha256": "40094c548e7b98eeba35ceb328662d511be0278514dd20baf61529a9b98d2b03",
+        "bytes": 5819,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/history-batch.ts",
+        "sha256": "b3ef857ef1c4edcb497776c9cc6dcedd7fe954dd52a4f29010ffdd3b9b1c9e42",
+        "bytes": 10723,
+        "mode": 436
+      },
+      {
+        "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/saved-plans.ts",
+        "sha256": "30116e8f83e742d631b8dc5735da11abe8d02e2e3ce5f96c45ba23f9b24da3eb",
+        "bytes": 23799,
+        "mode": 436
+      }
+    ],
+    "finding": "Memory readMemorySavedPlan explicitly always supplies pre_catalogue evidence and has no current alias projection. SQL readStepIdentityIn checks actual117 ledger/schema and current package attribution, returning catalogue aliases even for old stored body versions. Shared history/saved-plan fixtures still expect pre_catalogue. Resolve the actual Memory current identity model and adapter-neutral current/historical conformance together under SC13; preserve immutable bodies/hashes and separately modeled historical reads."
+  },
+  "remaining": [
+    "Other31-file-run failures remain their prior epoch. Saved-plan/current history, signed DTO diagnostics, other cleanup owners and aggregate120s certification budget require scoped fixes and actual after-controls.",
+    "Known-package corrupt ancestry/ownership, full API/UI/history/import/scheduler/SC17/SC22/SC25, complete client-script classification/Bun/PUNI embedding, installed profile/Nx/assets, Astra and exact committed host gates remain open. No parent task or full goal is complete."
+  ]
+}

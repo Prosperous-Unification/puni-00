@@ -1,0 +1,430 @@
+{
+  "workPackage": {
+    "id": "C",
+    "name": "C",
+    "ownerId": "u",
+    "restricted": false,
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "exact",
+    "startDate": "2026-10-05",
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "optimizationEnabled": false,
+    "solutionRef": null,
+    "timezone": "UTC",
+    "abbreviation": "C",
+    "revision": 7,
+    "createdAt": 0
+  },
+  "workItems": [
+    {
+      "id": "c",
+      "workPackageId": "C",
+      "parentId": null,
+      "position": 0,
+      "name": "c",
+      "notes": "",
+      "frozenNumber": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "deadline": null,
+      "readiness": null,
+      "hold": null,
+      "priority": null,
+      "serviceTeamId": null,
+      "serviceId": null,
+      "maxParallel": 1,
+      "revision": 1,
+      "teamIds": [],
+      "tagIds": [],
+      "serviceIds": [],
+      "typeIds": [],
+      "externalRefs": [],
+      "factStart": null,
+      "factEnd": null,
+      "number": "010",
+      "estimates": {
+        "build": {
+          "optimistic": 1,
+          "realistic": 1,
+          "pessimistic": 1
+        }
+      },
+      "actuals": {},
+      "measures": {},
+      "progress": {},
+      "status": "unknown",
+      "charged": {
+        "build": {
+          "unit": "workdays",
+          "days": 1
+        }
+      },
+      "finalDays": {
+        "build": 1
+      },
+      "finalTotal": 1,
+      "rolledUp": false,
+      "dependsOn": [],
+      "assignees": {},
+      "doesEveryStep": null,
+      "nodeReadings": {
+        "build": "unknown"
+      },
+      "schedule": {
+        "duration": 1,
+        "estimated": true,
+        "earliestStart": 2,
+        "earliestFinish": 3,
+        "latestStart": 2,
+        "latestFinish": 3,
+        "float": 0,
+        "critical": true
+      },
+      "dates": {
+        "startsOn": "2026-10-07",
+        "endsOn": "2026-10-07"
+      }
+    }
+  ],
+  "typedDependencies": [
+    {
+      "id": "bc",
+      "type": "FS",
+      "predecessor": {
+        "kind": "external",
+        "workPackageId": "B",
+        "scope": "whole",
+        "workItemId": "b",
+        "display": {
+          "workPackageName": "B",
+          "abbreviation": "B",
+          "workItemName": "b",
+          "address": "B.010"
+        }
+      },
+      "successor": {
+        "kind": "internal",
+        "scope": "whole",
+        "workItem": "c"
+      }
+    }
+  ],
+  "seq": 11,
+  "scheduleError": null,
+  "waitingForPerson": 0,
+  "waitingForCapacity": 0,
+  "slices": [
+    {
+      "id": "c\u0000build",
+      "workItemId": "c",
+      "stepId": "build",
+      "duration": 1,
+      "effort": 1,
+      "width": 1,
+      "estimated": true,
+      "earliestStart": 2,
+      "earliestFinish": 3,
+      "latestStart": 2,
+      "latestFinish": 3,
+      "float": 0,
+      "critical": true,
+      "personId": null,
+      "boundBy": "predecessor",
+      "resourcePredecessorId": null,
+      "capacityPredecessorIds": [],
+      "capacityTeamId": null,
+      "lateBy": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "build",
+      "name": "Build",
+      "code": "build",
+      "position": 0,
+      "allowancePercent": 0,
+      "estimateUnit": "workdays",
+      "workPackageId": "C"
+    }
+  ],
+  "assignedPeople": [],
+  "teamCapacities": [],
+  "priorityBands": [],
+  "estimateMethod": "realistic",
+  "pertWeights": {
+    "optimistic": 1,
+    "realistic": 4,
+    "pessimistic": 1
+  },
+  "estimateRounding": "exact",
+  "depReach": "whole-item",
+  "startDate": "2026-10-05",
+  "workPackageRevision": 7,
+  "connectedDependencies": [
+    {
+      "id": "bc",
+      "workPackageId": "C",
+      "type": "FS",
+      "predecessor": {
+        "endpoint": {
+          "workPackageId": "B",
+          "scope": "whole",
+          "workItemId": "b"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "b",
+        "workPackageAbbreviation": "B",
+        "workItemNumber": "010",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "B.010",
+        "stepNodeId": null
+      },
+      "successor": {
+        "endpoint": {
+          "workPackageId": "C",
+          "scope": "whole",
+          "workItemId": "c"
+        },
+        "isLeaf": true,
+        "revision": 1,
+        "name": "c",
+        "workPackageAbbreviation": "C",
+        "workItemNumber": "010",
+        "step": null,
+        "stepReference": null,
+        "qualifiedReference": "C.010",
+        "stepNodeId": null
+      }
+    }
+  ],
+  "remoteBlockageLabels": [],
+  "stepBlockages": [],
+  "stepNodes": [
+    {
+      "id": "sn1.c.build",
+      "workItemId": "c",
+      "stepId": "build",
+      "reference": "010.s1-build"
+    }
+  ],
+  "document": {
+    "format": "wbs-plan",
+    "version": 14,
+    "exportedAt": "2026-11-11T00:00:00.000Z"
+  },
+  "settings": {
+    "name": "C",
+    "restricted": false,
+    "estimateMethod": "realistic",
+    "depReach": "whole-item",
+    "pertWeights": {
+      "optimistic": 1,
+      "realistic": 4,
+      "pessimistic": 1
+    },
+    "estimateRounding": "exact",
+    "startDate": "2026-10-05",
+    "solutionRef": null,
+    "optimizationEnabled": false,
+    "scheduleEngine": "fast",
+    "scheduleObjective": "pri",
+    "timezone": "UTC",
+    "budgetFactor": 1
+  },
+  "capacity": [],
+  "resourceCapacities": [],
+  "demands": [],
+  "calendarMarkers": [],
+  "directory": {
+    "teams": [],
+    "people": [],
+    "tags": [],
+    "services": [],
+    "types": [],
+    "externalSystems": [],
+    "resources": []
+  },
+  "measureDefinitions": [],
+  "measureFacts": [],
+  "measureEstimates": [],
+  "budgets": [],
+  "connected": {
+    "kind": "connected",
+    "workPackageId": "C",
+    "mode": "isolated",
+    "workPackages": [
+      {
+        "workPackageId": "A",
+        "name": "A",
+        "abbreviation": "A",
+        "rank": 0,
+        "startDate": "2026-10-05",
+        "timezone": "UTC",
+        "revision": 7,
+        "seq": 11
+      },
+      {
+        "workPackageId": "B",
+        "name": "B",
+        "abbreviation": "B",
+        "rank": 1,
+        "startDate": "2026-10-05",
+        "timezone": "UTC",
+        "revision": 7,
+        "seq": 11
+      },
+      {
+        "workPackageId": "C",
+        "name": "C",
+        "abbreviation": "C",
+        "rank": 2,
+        "startDate": "2026-10-05",
+        "timezone": "UTC",
+        "revision": 7,
+        "seq": 11
+      }
+    ],
+    "relationships": [
+      {
+        "id": "ab",
+        "workPackageId": "B",
+        "predecessor": {
+          "workPackageId": "A",
+          "scope": "whole",
+          "workItemId": "a"
+        },
+        "successor": {
+          "workPackageId": "B",
+          "scope": "whole",
+          "workItemId": "b"
+        },
+        "type": "FS"
+      },
+      {
+        "id": "bc",
+        "workPackageId": "C",
+        "type": "FS",
+        "predecessor": {
+          "workPackageId": "B",
+          "scope": "whole",
+          "workItemId": "b"
+        },
+        "successor": {
+          "workPackageId": "C",
+          "scope": "whole",
+          "workItemId": "c"
+        }
+      }
+    ],
+    "placement": {
+      "kind": "scheduled",
+      "originOrdinal": 14810,
+      "baseline": [
+        {
+          "workPackageId": "A",
+          "workItemId": "a",
+          "stepId": "build",
+          "start": 0,
+          "finish": 1
+        },
+        {
+          "workPackageId": "B",
+          "workItemId": "b",
+          "stepId": "build",
+          "start": 1,
+          "finish": 2
+        },
+        {
+          "workPackageId": "C",
+          "workItemId": "c",
+          "stepId": "build",
+          "start": 2,
+          "finish": 3
+        }
+      ],
+      "selected": [
+        {
+          "workPackageId": "A",
+          "workItemId": "a",
+          "stepId": "build",
+          "start": 0,
+          "finish": 1
+        },
+        {
+          "workPackageId": "B",
+          "workItemId": "b",
+          "stepId": "build",
+          "start": 1,
+          "finish": 2
+        },
+        {
+          "workPackageId": "C",
+          "workItemId": "c",
+          "stepId": "build",
+          "start": 2,
+          "finish": 3
+        }
+      ],
+      "idleWorkPackages": [],
+      "stages": [
+        {
+          "workPackageId": "A",
+          "engine": "fast",
+          "objective": "pri",
+          "boundary": {
+            "format": "wbs-connected-stage",
+            "version": 2,
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"A\",\"mode\":\"isolated\",\"originOrdinal\":14810,\"workPackages\":[{\"workPackageId\":\"A\",\"rank\":0,\"anchorOrdinal\":14810},{\"workPackageId\":\"B\",\"rank\":1,\"anchorOrdinal\":14810},{\"workPackageId\":\"C\",\"rank\":2,\"anchorOrdinal\":14810}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"c\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"],[\"c\",\"C\"]],\"ranks\":[[\"A\",0],[\"B\",1],[\"C\",2]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"c\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"c\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"ab\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"c\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"bc\"}],\"relationships\":[{\"id\":\"ab\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]},{\"id\":\"bc\",\"type\":\"FS\",\"predecessor\":[\"B\",\"whole\",\"b\"],\"successor\":[\"C\",\"whole\",\"c\"]}],\"notBefore\":[[\"a\",0],[\"b\",0],[\"c\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000build\",0],[\"b\\u0000build\",1],[\"c\\u0000build\",2]],\"finishes\":[[\"a\\u0000build\",1],[\"b\\u0000build\",2],[\"c\\u0000build\",3]]}"
+          },
+          "optimization": null,
+          "decisions": {
+            "pri": null,
+            "time": null
+          },
+          "chosen": null
+        },
+        {
+          "workPackageId": "B",
+          "engine": "fast",
+          "objective": "pri",
+          "boundary": {
+            "format": "wbs-connected-stage",
+            "version": 2,
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"B\",\"mode\":\"isolated\",\"originOrdinal\":14810,\"workPackages\":[{\"workPackageId\":\"A\",\"rank\":0,\"anchorOrdinal\":14810},{\"workPackageId\":\"B\",\"rank\":1,\"anchorOrdinal\":14810},{\"workPackageId\":\"C\",\"rank\":2,\"anchorOrdinal\":14810}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"c\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"],[\"c\",\"C\"]],\"ranks\":[[\"A\",0],[\"B\",1],[\"C\",2]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"c\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"c\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"ab\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"c\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"bc\"}],\"relationships\":[{\"id\":\"ab\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]},{\"id\":\"bc\",\"type\":\"FS\",\"predecessor\":[\"B\",\"whole\",\"b\"],\"successor\":[\"C\",\"whole\",\"c\"]}],\"notBefore\":[[\"a\",0],[\"b\",0],[\"c\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000build\",0],[\"b\\u0000build\",1],[\"c\\u0000build\",2]],\"finishes\":[[\"a\\u0000build\",1],[\"b\\u0000build\",2],[\"c\\u0000build\",3]]}"
+          },
+          "optimization": null,
+          "decisions": {
+            "pri": null,
+            "time": null
+          },
+          "chosen": null
+        },
+        {
+          "workPackageId": "C",
+          "engine": "fast",
+          "objective": "pri",
+          "boundary": {
+            "format": "wbs-connected-stage",
+            "version": 2,
+            "canonical": "{\"kind\":\"connected-stage\",\"workPackageId\":\"C\",\"mode\":\"isolated\",\"originOrdinal\":14810,\"workPackages\":[{\"workPackageId\":\"A\",\"rank\":0,\"anchorOrdinal\":14810},{\"workPackageId\":\"B\",\"rank\":1,\"anchorOrdinal\":14810},{\"workPackageId\":\"C\",\"rank\":2,\"anchorOrdinal\":14810}],\"rows\":[{\"id\":\"a\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"b\",\"parentId\":null,\"position\":0,\"priority\":null},{\"id\":\"c\",\"parentId\":null,\"position\":0,\"priority\":null}],\"ownership\":[[\"a\",\"A\"],[\"b\",\"B\"],[\"c\",\"C\"]],\"ranks\":[[\"A\",0],[\"B\",1],[\"C\",2]],\"slices\":[{\"workItemId\":\"a\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"b\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]},{\"workItemId\":\"c\",\"steps\":[{\"stepId\":\"build\",\"days\":1,\"width\":1,\"personId\":null,\"poolIds\":[],\"demands\":[]}]}],\"nodes\":[{\"kind\":\"step\",\"workItemId\":\"a\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"b\",\"stepId\":\"build\",\"at\":0},{\"kind\":\"step\",\"workItemId\":\"c\",\"stepId\":\"build\",\"at\":0}],\"edges\":[{\"predecessor\":{\"leafId\":\"a\",\"at\":0},\"successor\":{\"leafId\":\"b\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"ab\"},{\"predecessor\":{\"leafId\":\"b\",\"at\":0},\"successor\":{\"leafId\":\"c\",\"at\":0},\"type\":\"FS\",\"provenance\":\"authored\",\"relationshipId\":\"bc\"}],\"relationships\":[{\"id\":\"ab\",\"type\":\"FS\",\"predecessor\":[\"A\",\"whole\",\"a\"],\"successor\":[\"B\",\"whole\",\"b\"]},{\"id\":\"bc\",\"type\":\"FS\",\"predecessor\":[\"B\",\"whole\",\"b\"],\"successor\":[\"C\",\"whole\",\"c\"]}],\"notBefore\":[[\"a\",0],[\"b\",0],[\"c\",0]],\"deadlines\":[],\"poolSizes\":[],\"resourceCapacities\":[],\"elsewhere\":[],\"starts\":[[\"a\\u0000build\",0],[\"b\\u0000build\",1],[\"c\\u0000build\",2]],\"finishes\":[[\"a\\u0000build\",1],[\"b\\u0000build\",2],[\"c\\u0000build\",3]]}"
+          },
+          "optimization": null,
+          "decisions": {
+            "pri": null,
+            "time": null
+          },
+          "chosen": null
+        }
+      ]
+    }
+  }
+}

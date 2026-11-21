@@ -38,7 +38,7 @@ export type ClaimDraft = Omit<Claim, 'id' | 'accountId'>;
 /** The caller as the claim rules see it (D5, D6). */
 export interface ClaimCaller {
   readonly accountId: string;
-  /** Holds `admin` or `super_admin` in the project's organization. */
+  /** Holds `admin` or `super_admin` in the work package's organization. */
   readonly isAdmin: boolean;
   /** The person the caller's credential is pinned to, or null for an unpinned credential. */
   readonly pinnedPersonId: string | null;
@@ -65,7 +65,7 @@ export interface ClaimTarget {
   readonly ancestorIds: readonly string[];
   /** Every strict descendant, in any order. */
   readonly descendantIds: readonly string[];
-  /** A leaf's steps in project order with their progress on it; empty for a non-leaf. */
+  /** A leaf's resolved steps in its execution order with progress; empty for a non-leaf. */
   readonly steps: readonly { readonly stepId: string; readonly progress: ProgressStatus }[];
 }
 
@@ -99,14 +99,14 @@ export interface ClaimRequest {
    * declared demand.
    */
   readonly resources: readonly ResourceUnits[] | null;
-  /** The project's stated resource capacities; a resource with none is unstated. */
+  /** The work package's stated resource capacities; a resource with none is unstated. */
   readonly capacities: readonly ResourceCapacity[];
-  /** Every occupancy row of the project's claims ({@link OccupancyRow}). */
+  /** Every occupancy row of the work package's claims ({@link OccupancyRow}). */
   readonly occupancy: readonly OccupancyRow[];
   /**
    * The stated directory capacities of the resources the leaf may ask for
    * (`wbs-shared-occupancy` S1); a resource with none is counted within the
-   * project alone.
+   * work package alone.
    */
   readonly directoryCapacities: readonly ResourceCapacity[];
   /** The units every leaf of the organization holds of those resources ({@link refuseOccupancy}). */
@@ -316,8 +316,8 @@ export function isHeldUnderRun(held: Pick<Claim, 'runId'>, run: ClaimRun): boole
  *
  * Beyond the spec's list: steps named on a non-leaf answer `steps_on_subtree`
  * (a subtree claim has no step), `resources` named on a non-leaf answer
- * `resources_on_subtree` (a subtree claim acquires nothing), and a leaf of a
- * project with no steps answers `no_steps`. The same holder repeating its claim under another parent answers
+ * `resources_on_subtree` (a subtree claim acquires nothing), and a leaf with
+ * no resolved steps answers `no_steps`. The same holder repeating its claim under another parent answers
  * `already_claimed` naming itself, as another run does: the chain it asks for
  * is not the one held.
  *

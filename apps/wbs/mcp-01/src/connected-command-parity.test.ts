@@ -205,14 +205,14 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         if (reply.status !== 200)
           throw new Error(`authority preparation failed: ${String(reply.status)}`);
       },
-      configureProject: async (
-        projectId: string,
+      configureWorkPackage: async (
+        workPackageId: string,
         patch: unknown,
       ): Promise<{ status: number; body: unknown }> => {
-        const response = await fetch(`${apiUrl}/_parity/project-settings`, {
+        const response = await fetch(`${apiUrl}/_parity/work-package-settings`, {
           method: 'POST',
           headers: { authorization: `Bearer ${ready.controlToken}` },
-          body: JSON.stringify({ projectId, patch }),
+          body: JSON.stringify({ workPackageId, patch }),
         });
         if (response.status !== 200)
           throw new Error(`settings fixture refused: ${String(response.status)}`);
@@ -318,7 +318,7 @@ async function stopBackend(
 }
 
 interface Endpoint {
-  projectId: string;
+  workPackageId: string;
   workItemId: string;
   scope: 'whole';
   steps: string[];
@@ -328,7 +328,7 @@ interface Snapshot {
   predecessorAuthored: unknown;
   relationship: ({ id: string } & Record<string, unknown>) | null;
   journal: { preconditions: string; payload: string } | null;
-  staged: { id: string; projectId: string; revision: number } | null;
+  staged: { id: string; workPackageId: string; revision: number } | null;
   localRelationships: unknown[];
   journalCount: number;
   revisions: unknown;
@@ -336,7 +336,7 @@ interface Snapshot {
 }
 setDefaultTimeout(45_000);
 
-// Proof: dropping nested projectId in wbs-client.ts failed MCP add with 404; replacing
+// Proof: dropping nested workPackageId in wbs-client.ts failed MCP add with 404; replacing
 // command-bindings minted id failed the response/SQLite identity assertion; omitting
 // resolveConnectedGraph external edges failed the expected 2→4 placement (2026-10-22).
 for (const transport of ['HTTP', 'MCP'] as const) {
@@ -345,8 +345,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
     try {
       const { successor, predecessor } = fixture;
       const tree = async () => {
-        const reply = await fixture.call('getApiProjectsByIdWork-items', {
-          id: successor.projectId,
+        const reply = await fixture.call('getApiWorkPackagesByIdWork-items', {
+          id: successor.workPackageId,
         });
         expect(reply.isError).not.toBe(true);
         return JSON.parse(reply.text) as unknown;
@@ -358,8 +358,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       const commands = [fixture.command];
       let committed: unknown;
       if (transport === 'MCP') {
-        const reply = await fixture.call('postApiProjectsByIdCommands', {
-          id: successor.projectId,
+        const reply = await fixture.call('postApiWorkPackagesByIdCommands', {
+          id: successor.workPackageId,
           commands,
         });
         expect(reply.isError).not.toBe(true);
@@ -368,7 +368,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         // Proof: omitting wbs-client's production V1 claim failed this exact equality
         // with the missing header (2026-10-23).
         expect(write).toEqual<unknown>({
-          url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
+          url: `${fixture.apiUrl}/api/work-packages/${successor.workPackageId}/commands`,
           method: 'POST',
           redirect: 'manual',
           signal: expect.any(AbortSignal) as unknown,
@@ -381,9 +381,13 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           body: JSON.stringify({ commands }),
         });
       } else {
-        const reply = await fixture.http('POST', `/api/projects/${successor.projectId}/commands`, {
-          commands,
-        });
+        const reply = await fixture.http(
+          'POST',
+          `/api/work-packages/${successor.workPackageId}/commands`,
+          {
+            commands,
+          },
+        );
         expect(reply.status).toBe(200);
         committed = reply.body;
       }
@@ -392,8 +396,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       if (relationship === null) throw new Error('committed relationship missing');
       expect(committed).toMatchObject({ results: [{ index: 0, id: relationship.id }] });
       expect(relationship).toMatchObject({
-        predecessor_project_id: predecessor.projectId,
-        successor_project_id: successor.projectId,
+        predecessor_work_package_id: predecessor.workPackageId,
+        successor_work_package_id: successor.workPackageId,
         predecessor_work_item_id: predecessor.workItemId,
         successor_work_item_id: successor.workItemId,
         predecessor_scope: 'whole',
@@ -406,10 +410,18 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       expect(JSON.parse(journal.preconditions)).toMatchObject({
         externalRevisions: {
           from: [
-            { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 0 },
+            {
+              workPackageId: predecessor.workPackageId,
+              workItemId: predecessor.workItemId,
+              revision: 0,
+            },
           ],
           expected: [
-            { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 1 },
+            {
+              workPackageId: predecessor.workPackageId,
+              workItemId: predecessor.workItemId,
+              revision: 1,
+            },
           ],
         },
       });
@@ -434,7 +446,10 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         ],
       };
       expect(await tree()).toMatchObject(expected);
-      const direct = await fixture.http('GET', `/api/projects/${successor.projectId}/work-items`);
+      const direct = await fixture.http(
+        'GET',
+        `/api/work-packages/${successor.workPackageId}/work-items`,
+      );
       expect(direct.status).toBe(200);
       expect(await tree()).toEqual(direct.body);
       expect((await fixture.inspect()).pushes.length).toBeGreaterThan(0);
@@ -451,8 +466,8 @@ test('ordinary MCP composition refuses dormant external commands without durable
   const fixture = await openFixture(false);
   try {
     const before = (await fixture.inspect()).effects;
-    const reply = await fixture.call('postApiProjectsByIdCommands', {
-      id: fixture.successor.projectId,
+    const reply = await fixture.call('postApiWorkPackagesByIdCommands', {
+      id: fixture.successor.workPackageId,
       commands: [fixture.command],
     });
     expect(reply.isError).toBe(true);
@@ -474,8 +489,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         { kind: 'patchWorkItem', workItemId: 'missing-row', patch: { name: 'Invalid' } },
       ];
       if (transport === 'MCP') {
-        const reply = await fixture.call('postApiProjectsByIdCommands', {
-          id: fixture.successor.projectId,
+        const reply = await fixture.call('postApiWorkPackagesByIdCommands', {
+          id: fixture.successor.workPackageId,
           commands,
         });
         expect(reply.isError).toBe(true);
@@ -484,7 +499,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       } else {
         const reply = await fixture.http(
           'POST',
-          `/api/projects/${fixture.successor.projectId}/commands`,
+          `/api/work-packages/${fixture.successor.workPackageId}/commands`,
           { commands },
         );
         expect(reply.status).toBe(404);
@@ -504,8 +519,8 @@ test('read-only MCP grant refuses the otherwise admitted external command', asyn
   const fixture = await openFixture(true, ['read']);
   try {
     const before = (await fixture.inspect()).effects;
-    const reply = await fixture.call('postApiProjectsByIdCommands', {
-      id: fixture.successor.projectId,
+    const reply = await fixture.call('postApiWorkPackagesByIdCommands', {
+      id: fixture.successor.workPackageId,
       commands: [fixture.command],
     });
     expect(reply.isError).toBe(true);
@@ -614,8 +629,8 @@ async function readFailure(operation: Promise<unknown>): Promise<Error> {
   throw new Error('expected the operation to reject');
 }
 
-function wholeEndpoint({ projectId, workItemId, scope }: Endpoint) {
-  return { projectId, workItemId, scope };
+function wholeEndpoint({ workPackageId, workItemId, scope }: Endpoint) {
+  return { workPackageId, workItemId, scope };
 }
 
 function nodeCommands(
@@ -628,7 +643,7 @@ function nodeCommands(
   if (remoteStep === undefined || ownerStep === undefined) throw new Error('fixture steps missing');
   const predecessor = encoded
     ? {
-        projectId: fixture.predecessor.projectId,
+        workPackageId: fixture.predecessor.workPackageId,
         scope: 'node',
         stepNodeId: `sn1.${fixture.predecessor.workItemId}.${remoteStep}`,
       }
@@ -659,19 +674,19 @@ async function submit(
   if (transport === 'HTTP') {
     const reply = await fixture.http(
       'POST',
-      `/api/projects/${fixture.successor.projectId}/commands`,
+      `/api/work-packages/${fixture.successor.workPackageId}/commands`,
       { commands },
     );
     return { status: reply.status, text: JSON.stringify(reply.body) };
   }
-  const reply = await fixture.call('postApiProjectsByIdCommands', {
-    id: fixture.successor.projectId,
+  const reply = await fixture.call('postApiWorkPackagesByIdCommands', {
+    id: fixture.successor.workPackageId,
     commands,
   });
   return { status: reply.isError === true ? 0 : 200, text: reply.text };
 }
 
-// Proof: dropping nested projectId forwarding, forcing owner project binding, or
+// Proof: dropping nested workPackageId forwarding, forcing owner work package binding, or
 // skipping dotted alias lookup each failed the MCP split-node success (2026-10-23).
 for (const transport of ['HTTP', 'MCP'] as const) {
   for (const encoded of [false, true]) {
@@ -694,24 +709,27 @@ for (const transport of ['HTTP', 'MCP'] as const) {
             { index: 3, id: relationship.id },
           ],
         });
-        expect(staged).toMatchObject({ projectId: fixture.successor.projectId, revision: 3 });
+        expect(staged).toMatchObject({
+          workPackageId: fixture.successor.workPackageId,
+          revision: 3,
+        });
         const predecessor = {
           ...wholeEndpoint(fixture.predecessor),
           scope: 'node',
           stepId: fixture.predecessor.steps.at(-1),
         };
         const successor = {
-          projectId: fixture.successor.projectId,
+          workPackageId: fixture.successor.workPackageId,
           workItemId: staged.id,
           scope: 'node',
           stepId: fixture.successor.steps.at(0),
         };
         expect(relationship).toMatchObject({
-          predecessor_project_id: predecessor.projectId,
+          predecessor_work_package_id: predecessor.workPackageId,
           predecessor_work_item_id: predecessor.workItemId,
           predecessor_scope: 'node',
           predecessor_step_id: predecessor.stepId,
-          successor_project_id: successor.projectId,
+          successor_work_package_id: successor.workPackageId,
           successor_work_item_id: staged.id,
           successor_scope: 'node',
           successor_step_id: successor.stepId,
@@ -724,15 +742,23 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         expect(JSON.parse(journal.preconditions)).toMatchObject({
           externalRevisions: {
             from: [
-              { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 0 },
+              {
+                workPackageId: predecessor.workPackageId,
+                workItemId: predecessor.workItemId,
+                revision: 0,
+              },
             ],
             expected: [
-              { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 1 },
+              {
+                workPackageId: predecessor.workPackageId,
+                workItemId: predecessor.workItemId,
+                revision: 1,
+              },
             ],
           },
         });
-        const reading = await fixture.call('getApiProjectsByIdWork-items', {
-          id: successor.projectId,
+        const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+          id: successor.workPackageId,
         });
         expect(reading.isError).not.toBe(true);
         const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
@@ -752,7 +778,10 @@ for (const transport of ['HTTP', 'MCP'] as const) {
             },
           ],
         });
-        const direct = await fixture.http('GET', `/api/projects/${successor.projectId}/work-items`);
+        const direct = await fixture.http(
+          'GET',
+          `/api/work-packages/${successor.workPackageId}/work-items`,
+        );
         expect(direct.status).toBe(200);
         expect(direct.body).toEqual(tree);
         if (transport === 'MCP')
@@ -765,7 +794,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       }
     });
   }
-  // Proof: bypassing explicit-project alias refusal or dormant authoring made the
+  // Proof: bypassing explicit-work-package alias refusal or dormant authoring made the
   // selected MCP refusal succeed. Skipping remote step identity or leaf scope
   // checks lost typed refusal and raised HTTP 500; all watched 2026-10-23.
   for (const fault of [
@@ -796,10 +825,10 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           };
         if (fault === 'explicit-remote-alias' || fault === 'explicit-owner-alias')
           last['successor'] = {
-            projectId:
+            workPackageId:
               fault === 'explicit-owner-alias'
-                ? fixture.successor.projectId
-                : fixture.predecessor.projectId,
+                ? fixture.successor.workPackageId
+                : fixture.predecessor.workPackageId,
             scope: 'node',
             workItemRef: 'REMOTE.010',
             stepId: fixture.successor.steps.at(0),
@@ -862,7 +891,7 @@ async function prepareLongPredecessor(fixture: Awaited<ReturnType<typeof openFix
   if (stepId === undefined) throw new Error('remote step missing');
   const reply = await fixture.http(
     'POST',
-    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
     {
       commands: [
         {
@@ -908,7 +937,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
             stepId: fixture.predecessor.steps.at(-1),
           };
           const successor = {
-            projectId: fixture.successor.projectId,
+            workPackageId: fixture.successor.workPackageId,
             workItemId: staged.id,
             scope: 'node',
             stepId: fixture.successor.steps.at(0),
@@ -921,13 +950,13 @@ for (const transport of ['HTTP', 'MCP'] as const) {
               { index: 3, id: relationship.id },
             ],
           });
-          expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+          expect(staged).toMatchObject({ workPackageId: successor.workPackageId, revision: 3 });
           expect(relationship).toMatchObject({
-            predecessor_project_id: predecessor.projectId,
+            predecessor_work_package_id: predecessor.workPackageId,
             predecessor_work_item_id: predecessor.workItemId,
             predecessor_scope: 'node',
             predecessor_step_id: predecessor.stepId,
-            successor_project_id: successor.projectId,
+            successor_work_package_id: successor.workPackageId,
             successor_work_item_id: staged.id,
             successor_scope: 'node',
             successor_step_id: successor.stepId,
@@ -943,22 +972,22 @@ for (const transport of ['HTTP', 'MCP'] as const) {
             externalRevisions: {
               from: [
                 {
-                  projectId: predecessor.projectId,
+                  workPackageId: predecessor.workPackageId,
                   workItemId: predecessor.workItemId,
                   revision: 1,
                 },
               ],
               expected: [
                 {
-                  projectId: predecessor.projectId,
+                  workPackageId: predecessor.workPackageId,
                   workItemId: predecessor.workItemId,
                   revision: 2,
                 },
               ],
             },
           });
-          const reading = await fixture.call('getApiProjectsByIdWork-items', {
-            id: successor.projectId,
+          const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+            id: successor.workPackageId,
           });
           expect(reading.isError).not.toBe(true);
           const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
@@ -980,13 +1009,13 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           });
           const direct = await fixture.http(
             'GET',
-            `/api/projects/${successor.projectId}/work-items`,
+            `/api/work-packages/${successor.workPackageId}/work-items`,
           );
           expect(direct.status).toBe(200);
           expect(direct.body).toEqual(tree);
           if (transport === 'MCP')
             expect(fixture.forwarded.find(({ method }) => method === 'POST')).toEqual<unknown>({
-              url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
+              url: `${fixture.apiUrl}/api/work-packages/${successor.workPackageId}/commands`,
               method: 'POST',
               redirect: 'manual',
               signal: expect.any(AbortSignal) as unknown,
@@ -1014,8 +1043,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       const snapshot = await fixture.inspect();
       if (snapshot.staged === null) throw new Error('staged control missing');
       expect(snapshot.relationship).toBeNull();
-      const reading = await fixture.call('getApiProjectsByIdWork-items', {
-        id: fixture.successor.projectId,
+      const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+        id: fixture.successor.workPackageId,
       });
       expect(reading.isError).not.toBe(true);
       const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
@@ -1088,7 +1117,7 @@ async function prepareDescendantPredecessor(
   }
   const reply = await fixture.http(
     'POST',
-    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    `/api/work-packages/${fixture.predecessor.workPackageId}/commands`,
     { commands },
   );
   expect(reply.status).toBe(200);
@@ -1113,7 +1142,7 @@ function descendantCommands(fixture: Awaited<ReturnType<typeof openFixture>>) {
   return commands;
 }
 
-// Proof: forcing the owner project failed remote MCP success; forcing node scope
+// Proof: forcing the owner work package failed remote MCP success; forcing node scope
 // failed remote and local-parent alias success. Omitting all expanded external
 // graph edges placed the successor at 0→1 instead of 4→5 (2026-10-23). Keeping
 // just the first edge survived both leaf orders; this is not an individual-edge proof.
@@ -1136,7 +1165,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           stepId: fixture.predecessor.steps.at(-1),
         };
         const successor = {
-          projectId: fixture.successor.projectId,
+          workPackageId: fixture.successor.workPackageId,
           workItemId: staged.id,
           scope: 'node',
           stepId: fixture.successor.steps.at(0),
@@ -1145,17 +1174,17 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           results: [{ index: 0, id: staged.id }, {}, {}, { index: 3, id: relationship.id }],
         });
         expect(relationship).toMatchObject({
-          predecessor_project_id: predecessor.projectId,
+          predecessor_work_package_id: predecessor.workPackageId,
           predecessor_work_item_id: predecessor.workItemId,
           predecessor_scope: 'descendant-step',
           predecessor_step_id: predecessor.stepId,
-          successor_project_id: successor.projectId,
+          successor_work_package_id: successor.workPackageId,
           successor_work_item_id: successor.workItemId,
           successor_scope: 'node',
           successor_step_id: successor.stepId,
           type: 'FS',
         });
-        expect(staged).toMatchObject({ projectId: successor.projectId, revision: 3 });
+        expect(staged).toMatchObject({ workPackageId: successor.workPackageId, revision: 3 });
         expect(snapshot.localRelationships).toEqual([]);
         expect(snapshot.journalCount).toBe(before.journalCount + 1);
         const payload = JSON.parse(journal.payload) as {
@@ -1168,15 +1197,15 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           do: 'add_typed_dependency',
           dependency: {
             id: relationship.id,
-            projectId: successor.projectId,
+            workPackageId: successor.workPackageId,
             predecessor,
             successor,
             type: 'FS',
           },
         });
         expect(journal.payload).not.toContain('REMOTE.010');
-        const reading = await fixture.call('getApiProjectsByIdWork-items', {
-          id: successor.projectId,
+        const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+          id: successor.workPackageId,
         });
         expect(reading.isError).not.toBe(true);
         const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
@@ -1198,7 +1227,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         });
         const remote = await fixture.http(
           'GET',
-          `/api/projects/${predecessor.projectId}/work-items`,
+          `/api/work-packages/${predecessor.workPackageId}/work-items`,
         );
         expect(remote.status).toBe(200);
         const remoteTree = remote.body as {
@@ -1220,7 +1249,10 @@ for (const transport of ['HTTP', 'MCP'] as const) {
               earliestFinish: (slowFirst ? index === 0 : index === 1) ? 4 : 2,
             },
           });
-        const direct = await fixture.http('GET', `/api/projects/${successor.projectId}/work-items`);
+        const direct = await fixture.http(
+          'GET',
+          `/api/work-packages/${successor.workPackageId}/work-items`,
+        );
         expect(direct.status).toBe(200);
         expect(direct.body).toEqual(tree);
         if (transport === 'MCP')
@@ -1272,7 +1304,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       if (snapshot.staged === null || snapshot.relationship === null || snapshot.journal === null)
         throw new Error('local parent alias commit missing');
       expect(snapshot.relationship).toMatchObject({
-        successor_project_id: fixture.successor.projectId,
+        successor_work_package_id: fixture.successor.workPackageId,
         successor_work_item_id: snapshot.staged.id,
         successor_scope: 'descendant-step',
         successor_step_id: fixture.successor.steps.at(0),
@@ -1281,8 +1313,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       expect(snapshot.journalCount).toBe(before.journalCount + 1);
       expect(snapshot.journal.payload).toContain(snapshot.relationship.id);
       expect(snapshot.journal.payload).not.toContain('LOCAL.PARENT');
-      const reading = await fixture.call('getApiProjectsByIdWork-items', {
-        id: fixture.successor.projectId,
+      const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+        id: fixture.successor.workPackageId,
       });
       expect(reading.isError).not.toBe(true);
       const tree = JSON.parse(reading.text) as {
@@ -1294,7 +1326,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         expect(child).toMatchObject({ schedule: { earliestStart: 2, earliestFinish: 3 } });
       const direct = await fixture.http(
         'GET',
-        `/api/projects/${fixture.successor.projectId}/work-items`,
+        `/api/work-packages/${fixture.successor.workPackageId}/work-items`,
       );
       expect(direct.status).toBe(200);
       expect(direct.body).toEqual(tree);
@@ -1304,7 +1336,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
   });
 
   for (const fault of [
-    'wrong-project-step',
+    'wrong-work-package-step',
     'leaf-selector',
     'later-command',
     'dormant',
@@ -1316,7 +1348,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         const commands = descendantCommands(fixture);
         const dependency = commands.at(-1);
         if (dependency === undefined) throw new Error('descendant command missing');
-        if (fault === 'wrong-project-step')
+        if (fault === 'wrong-work-package-step')
           dependency['predecessor'] = {
             ...wholeEndpoint(fixture.predecessor),
             scope: 'descendant-step',
@@ -1324,7 +1356,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           };
         if (fault === 'leaf-selector')
           dependency['predecessor'] = {
-            projectId: fixture.predecessor.projectId,
+            workPackageId: fixture.predecessor.workPackageId,
             workItemId: leaves[0],
             scope: 'descendant-step',
             stepId: fixture.predecessor.steps.at(-1),
@@ -1336,7 +1368,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
             patch: { name: 'Invalid' },
           });
         const reply = await submit(fixture, transport, commands);
-        const status = fault === 'wrong-project-step' || fault === 'later-command' ? 404 : 409;
+        const status = fault === 'wrong-work-package-step' || fault === 'later-command' ? 404 : 409;
         if (transport === 'HTTP') expect(reply.status).toBe(status);
         else {
           // Proof: forcing submit's MCP error-status projection to success left its HTTP 404 text intact; this assertion failed (received 200).
@@ -1372,7 +1404,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       expect(committed.status).toBe(200);
       const relationship = (await fixture.inspect()).relationship;
       if (relationship === null) throw new Error('outcome relationship missing');
-      const path = `/api/projects/${successor.projectId}/work-items`;
+      const path = `/api/work-packages/${successor.workPackageId}/work-items`;
       const scheduled = await fixture.http('GET', path);
       expect(scheduled.status).toBe(200);
       expect(scheduled.body).toMatchObject({
@@ -1381,16 +1413,19 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           { id: successor.workItemId, schedule: { earliestStart: 2, earliestFinish: 4 } },
         ],
       });
-      const patch = await fixture.configureProject(predecessor.projectId, {
+      const patch = await fixture.configureWorkPackage(predecessor.workPackageId, {
         startDate: null,
       });
       expect(patch.status).toBe(200);
       const beforeRead = await fixture.inspect();
       for (const endpoint of [predecessor, successor]) {
-        const direct = await fixture.http('GET', `/api/projects/${endpoint.projectId}/work-items`);
+        const direct = await fixture.http(
+          'GET',
+          `/api/work-packages/${endpoint.workPackageId}/work-items`,
+        );
         expect(direct.status).toBe(200);
-        const reading = await fixture.call('getApiProjectsByIdWork-items', {
-          id: endpoint.projectId,
+        const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+          id: endpoint.workPackageId,
         });
         expect(reading.isError).not.toBe(true);
         const tree: unknown = JSON.parse(reading.text);
@@ -1398,7 +1433,7 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         expect(tree).toMatchObject({
           scheduleError: {
             kind: 'dependency_calendar_missing',
-            projects: [{ projectId: predecessor.projectId, name: 'Predecessor' }],
+            workPackages: [{ workPackageId: predecessor.workPackageId, name: 'Predecessor' }],
           },
           slices: [],
           workItems: [{ id: endpoint.workItemId, schedule: null, dates: null }],
@@ -1426,8 +1461,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       expect(committed.status).toBe(200);
       const before = await fixture.inspect();
       const patch = { optimizationEnabled: true, scheduleEngine: 'optimized' };
-      const path = `/api/projects/${fixture.predecessor.projectId}`;
-      expect(await fixture.configureProject(fixture.predecessor.projectId, patch)).toEqual({
+      const path = `/api/work-packages/${fixture.predecessor.workPackageId}`;
+      expect(await fixture.configureWorkPackage(fixture.predecessor.workPackageId, patch)).toEqual({
         status: 409,
         body: { error: 'optimizer_unavailable' },
       });
@@ -1436,8 +1471,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
         status: 403,
         body: { error: 'forbidden', permission: 'package.manage_settings' },
       });
-      const refused = await fixture.call('patchApiProjectsById', {
-        id: fixture.predecessor.projectId,
+      const refused = await fixture.call('patchApiWorkPackagesById', {
+        id: fixture.predecessor.workPackageId,
         ...patch,
       });
       expect(refused.isError).toBe(true);
@@ -1445,8 +1480,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
       const after = await fixture.inspect();
       expect(after.effects).toEqual(before.effects);
       expect(after.pushes).toEqual(before.pushes);
-      const reading = await fixture.call('getApiProjectsByIdWork-items', {
-        id: fixture.successor.projectId,
+      const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+        id: fixture.successor.workPackageId,
       });
       expect(reading.isError).not.toBe(true);
       expect(JSON.parse(reading.text)).toMatchObject({
@@ -1474,11 +1509,11 @@ for (const optimizer of ['installed', 'absent'] as const) {
       if (before.relationship === null) throw new Error('optimization relationship missing');
       const direct = await fixture.http(
         'GET',
-        `/api/projects/${fixture.successor.projectId}/work-items`,
+        `/api/work-packages/${fixture.successor.workPackageId}/work-items`,
       );
       expect(direct.status).toBe(200);
-      const reading = await fixture.call('getApiProjectsByIdWork-items', {
-        id: fixture.successor.projectId,
+      const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+        id: fixture.successor.workPackageId,
       });
       expect(reading.isError).not.toBe(true);
       const tree: unknown = JSON.parse(reading.text);
@@ -1509,9 +1544,9 @@ for (const optimizer of ['installed', 'absent'] as const) {
             },
             scope: {
               kind: 'connected-stage',
-              projectId: fixture.successor.projectId,
+              workPackageId: fixture.successor.workPackageId,
               fixed: fixture.predecessor.steps.map((stepId, index) => ({
-                projectId: fixture.predecessor.projectId,
+                workPackageId: fixture.predecessor.workPackageId,
                 workItemId: fixture.predecessor.workItemId,
                 stepId,
                 start: index,
@@ -1528,7 +1563,7 @@ for (const optimizer of ['installed', 'absent'] as const) {
           scheduleError: {
             kind: 'engine_unavailable',
             engine: 'optimized',
-            projects: [fixture.successor.projectId],
+            workPackages: [fixture.successor.workPackageId],
             reason: 'adapter_missing',
           },
           slices: [],
@@ -1582,8 +1617,8 @@ test('generated MCP requires explicit write authority before copying a restricte
   try {
     await fixture.authority('restricted-predecessor');
     const before = await fixture.inspect();
-    const denied = await fixture.call('postApiProjectsByIdCommands', {
-      id: fixture.predecessor.projectId,
+    const denied = await fixture.call('postApiWorkPackagesByIdCommands', {
+      id: fixture.predecessor.workPackageId,
       commands: [
         {
           kind: 'patchWorkItem',
@@ -1623,8 +1658,8 @@ test('generated MCP requires explicit write authority before copying a restricte
     const dependencyId = committed.relationship.id;
     expect(JSON.parse(added.text)).toMatchObject({ results: [{ index: 0, id: dependencyId }] });
     expect(committed.relationship).toMatchObject({
-      predecessor_project_id: fixture.predecessor.projectId,
-      successor_project_id: fixture.successor.projectId,
+      predecessor_work_package_id: fixture.predecessor.workPackageId,
+      successor_work_package_id: fixture.successor.workPackageId,
       predecessor_scope: 'node',
       successor_scope: 'node',
       type: 'SS',
@@ -1644,14 +1679,14 @@ test('generated MCP requires explicit write authority before copying a restricte
       externalRevisions: {
         from: [
           {
-            projectId: fixture.predecessor.projectId,
+            workPackageId: fixture.predecessor.workPackageId,
             workItemId: fixture.predecessor.workItemId,
             revision: 1,
           },
         ],
         expected: [
           {
-            projectId: fixture.predecessor.projectId,
+            workPackageId: fixture.predecessor.workPackageId,
             workItemId: fixture.predecessor.workItemId,
             revision: 2,
           },
@@ -1662,11 +1697,11 @@ test('generated MCP requires explicit write authority before copying a restricte
     expect(after.pushes.length).toBeGreaterThan(before.pushes.length);
     const direct = await fixture.http(
       'GET',
-      `/api/projects/${fixture.successor.projectId}/work-items`,
+      `/api/work-packages/${fixture.successor.workPackageId}/work-items`,
     );
     expect(direct.status).toBe(200);
-    const reading = await fixture.call('getApiProjectsByIdWork-items', {
-      id: fixture.successor.projectId,
+    const reading = await fixture.call('getApiWorkPackagesByIdWork-items', {
+      id: fixture.successor.workPackageId,
     });
     expect(reading.isError).not.toBe(true);
     expect(JSON.parse(reading.text)).toEqual(direct.body);
@@ -1698,14 +1733,14 @@ for (const fault of ['revoke-credential', 'restrict-successor'] as const) {
       expect((await submit(fixture, 'MCP', [fixture.command])).status).toBe(200);
       const initial = await fixture.inspect();
       if (initial.relationship === null) throw new Error('queued update relationship missing');
-      const lookup = await fixture.call('getApiProjectsByIdWork-items', {
-        id: fixture.predecessor.projectId,
+      const lookup = await fixture.call('getApiWorkPackagesByIdWork-items', {
+        id: fixture.predecessor.workPackageId,
       });
       expect(lookup.isError).not.toBe(true);
       await fixture.authority('hold');
       held = true;
-      const pending = fixture.call('postApiProjectsByIdCommands', {
-        id: fixture.successor.projectId,
+      const pending = fixture.call('postApiWorkPackagesByIdCommands', {
+        id: fixture.successor.workPackageId,
         commands: [
           {
             kind: 'patchWorkItem',
@@ -1793,11 +1828,11 @@ for (const locality of ['local', 'remote'] as const) {
         const read = async () => {
           const direct = await fixture.http(
             'GET',
-            `/api/projects/${successor.projectId}/startable`,
+            `/api/work-packages/${successor.workPackageId}/startable`,
           );
           expect(direct.status).toBe(200);
-          const reply = await fixture.call('getApiProjectsByIdStartable', {
-            id: successor.projectId,
+          const reply = await fixture.call('getApiWorkPackagesByIdStartable', {
+            id: successor.workPackageId,
           });
           expect(reply.isError).not.toBe(true);
           const reading = JSON.parse(reply.text) as {
@@ -1815,7 +1850,7 @@ for (const locality of ['local', 'remote'] as const) {
           };
           expect(reading as unknown).toEqual(direct.body);
           expect(fixture.forwarded.at(-1)?.url).toBe(
-            `${fixture.apiUrl}/api/projects/${successor.projectId}/startable`,
+            `${fixture.apiUrl}/api/work-packages/${successor.workPackageId}/startable`,
           );
           return reading;
         };
@@ -1869,8 +1904,8 @@ for (const locality of ['local', 'remote'] as const) {
           ).toBeUndefined();
           await refuse([stepId]);
           // These remain observation commands: only the subsequent claim is governed.
-          const milestone = await fixture.call('postApiProjectsByIdCommands', {
-            id: predecessor.projectId,
+          const milestone = await fixture.call('postApiWorkPackagesByIdCommands', {
+            id: predecessor.workPackageId,
             commands: [
               type === 'FS'
                 ? {
@@ -1919,7 +1954,7 @@ for (const locality of ['local', 'remote'] as const) {
         expect(
           fixture.forwarded.filter((request) => request.method === 'POST').at(-1),
         ).toMatchObject({
-          url: `${fixture.apiUrl}/api/projects/${successor.projectId}/commands`,
+          url: `${fixture.apiUrl}/api/work-packages/${successor.workPackageId}/commands`,
           body: JSON.stringify({ commands: [{ ...claim, steps: [stepId] }] }),
         });
       } finally {

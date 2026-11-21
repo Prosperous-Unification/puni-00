@@ -194,6 +194,8 @@ describe('the seventh argument did not move a corpus byte', () => {
               each.notBefore ?? new Map(),
               each.poolSizes ?? new Map(),
               each.reach ?? 'whole-item',
+              undefined,
+              each.typed ?? [],
             )
           : schedule(
               each.rows,
@@ -203,6 +205,7 @@ describe('the seventh argument did not move a corpus byte', () => {
               each.poolSizes ?? new Map(),
               each.reach ?? 'whole-item',
               deadlines,
+              each.typed ?? [],
             ),
       );
     }
@@ -237,7 +240,7 @@ describe('the seventh argument did not move a corpus byte', () => {
           each.poolSizes ?? new Map(),
           each.reach ?? 'whole-item',
           new Map(),
-          [],
+          each.typed ?? [],
           new Map(),
         ),
       ).toThrow(ScheduleInvalidOptimizedStartError);

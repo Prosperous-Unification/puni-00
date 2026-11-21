@@ -11,6 +11,16 @@ puni dash         (alias: d)
 Use `puni --help`, `puni --version`, and `puni <namespace> --help` for discovery.
 `puni completion bash|zsh|fish` prints shell completion definitions.
 
+`puni dash dev-probe be ORIGIN` (or `puni d dev-probe be ORIGIN`) checks the
+backend's anonymous `/api/auth/me` response. It requires HTTP200, an explicit null
+user and valid deployment features, refuses redirects, and bounds the request to
+15seconds. The operation runs through Bun HTTP from the installed package. The
+manual deployment caller requires the absolute entrypoint of an independently
+provisioned reviewed PUNI in `PUNI_EXECUTABLE`. Its protected Bun adapter silently
+checks the backend-probe grammar before deployment work, then uses the same selected
+entrypoint for health. Remaining deployment and MCP script conversion is tracked in
+the `bun-scripts` change.
+
 The local package includes the current Burokrat toolkit, its pinned compiler closure,
 Dash migrations and observation launcher. Burokrat execution requires the package's exact
 Bun version. Git, GNU tar and other operation-specific external utilities remain explicit

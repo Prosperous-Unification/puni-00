@@ -26,11 +26,11 @@ function routed(ui: ReactNode) {
   render(<RouterProvider router={router} />);
 }
 
-const space = (id: string, name: string, projectCount = 0) => ({
+const space = (id: string, name: string, workPackageCount = 0) => ({
   id,
   name,
   virtual: false,
-  projectCount,
+  workPackageCount,
   revision: 0,
   createdById: 'u',
   createdAt: 1,
@@ -54,7 +54,7 @@ describe('the spaces page', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['All projects', 'Launch']);
-    expect(list.textContent).toContain('2 projects');
+    expect(list.textContent).toContain('2 work packages');
     fireEvent.change(screen.getByLabelText('New space'), { target: { value: ' Q3 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByText('Created Q3.')).toBeDefined();
@@ -89,7 +89,7 @@ describe('the spaces page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Another space already has that name.')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Delete Q3' }));
-    expect(await screen.findByText('Deleted Q3. Its projects are unchanged.')).toBeDefined();
+    expect(await screen.findByText('Deleted Q3. Its work packages are unchanged.')).toBeDefined();
   });
 
   it('renders the loading, empty and organization_required states', async () => {
@@ -101,7 +101,7 @@ describe('the spaces page', () => {
     stubServer({ 'GET /api/spaces': [() => answer(409, { error: 'organization_required' })] });
     routed(<SpacesPage nav={null} account={null} />);
     expect((await screen.findByRole('alert')).textContent).toBe('Spaces need an organization.');
-    expect(screen.getByText(/every project is in All projects/)).toBeDefined();
+    expect(screen.getByText(/projects appear in All projects/)).toBeDefined();
     expect(screen.getByRole('link', { name: 'Open All projects' })).toBeDefined();
   });
 

@@ -8,7 +8,11 @@ import { readLintCandidate } from '../run-lint';
 import { anchorPath } from '../validator-paths';
 import { runPreparationGit } from './preparation-git';
 import { RelocationRefusal } from './relocation-refusal';
-import { type CommittedBunExecutionToolkit, readCommittedBunToolkit } from './toolkit';
+import {
+  type CommittedBunExecutionToolkit,
+  readCommittedBunToolkit,
+  resolveToolkitModules,
+} from './toolkit';
 
 export interface PreparationSelection {
   readonly candidateRepository: string;
@@ -154,11 +158,7 @@ export async function readPreparationSource(
     // Proof: prep-placement-prepare-activation.mjs; `refuses candidate-contained prepare-activation.mjs through physical selection` failed under its recorded source fault and passed after restoration.
     // Proof: prep-placement-prepare-relocation-activation.mjs; `refuses candidate-contained prepare-relocation-activation.mjs through physical selection` failed under its recorded source fault and passed after restoration.
     assertExternal(repository, join(toolkit.directory, role), 'toolkit role ' + role);
-  const closure = assertExternal(
-    repository,
-    join(toolkit.directory, 'trusted-node-modules'),
-    'runtime closure',
-  );
+  const closure = assertExternal(repository, resolveToolkitModules(toolkit), 'runtime closure');
   // Proof: prep-closure-overlap; `refuses a runtime closure ancestor containing the actual candidate` failed under its recorded source fault and passed after restoration.
   if (isWithin(closure, repository))
     throw new RelocationRefusal('R19', 'runtime closure overlaps the candidate repository');

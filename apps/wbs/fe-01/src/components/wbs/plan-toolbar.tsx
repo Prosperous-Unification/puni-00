@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils';
 import type { PlanRead } from '@/lib/wbs-api';
 import type {
   MeasureDefinitionView,
-  PersonView,
   PriorityBandView,
   TeamCapacityView,
   TeamView,
@@ -35,12 +34,12 @@ import { isMeasureShown, type MeasureToggles, unitLabelOf } from './measure-read
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
+import { PlanImportOptions } from './plan-import-options';
 import { isSectionMode, SECTION_MODES } from './plan-mermaid';
 import { isAmbiguousWriteFailure } from './plan-refusal';
 import { type PlanRenderRow } from './plan-render-rows';
 import type { PlanRenderer } from './plan-renderer';
 import { PlanSheetGroup, TAKES_THE_FOCUS } from './plan-toolbar-sheet';
-import { ProjectSettingsModal } from './project-settings-modal';
 import type { SavedView } from './remembered-layout';
 import {
   rememberHiddenColumns,
@@ -63,9 +62,11 @@ import {
 import type { MeasureDefinitionsState } from './use-measure-definitions';
 import type { FacetOption } from './use-plan-filter';
 import { facetsChosen, toggledIn } from './use-plan-filter';
+import type { PlanImportControl } from './use-plan-import';
 import type { GapLanding } from './use-plan-keyboard';
 import type { ChartRead, PlanReadScope } from './use-plan-read';
 import { type TreeRow } from './wbs-rows';
+import { WorkPackageSettingsModal } from './work-package-settings-modal';
 
 /**
  * The six facets a reader can narrow the plan by, beside the Find box.
@@ -79,7 +80,7 @@ import { type TreeRow } from './wbs-rows';
  *
  * **Every list is the plan's own.** The teams are the effective teams somebody
  * on this plan carries, the people are the ones be-01 says are assigned on it,
- * the bands are this project's ladder and the steps are its steps. A facet
+ * the bands are this work package's ladder and the steps are its steps. A facet
  * offering a value no row has is a filter whose only possible answer is an
  * empty table.
  *
@@ -193,7 +194,7 @@ export function FilterFacets({
     return (
       <label
         className={`flex min-h-6 items-center gap-1.5 ${off ? 'text-muted-foreground' : ''}`}
-        // `why` is a refusal about this project — nothing in it is askable — so
+        // `why` is a refusal about this work package — nothing in it is askable — so
         // it opens at once; `what` says what ticking the box does, and waits.
         {...(off ? { 'data-fact': why } : { 'data-hint': what })}
       >
@@ -568,7 +569,7 @@ function closeOnChoice(panel: HTMLDivElement | null): (() => void) | undefined {
 }
 
 /**
- * Named filters this browser has saved for this project — R10 F4, beside
+ * Named filters this browser has saved for this work package — R10 F4, beside
  * {@link FilterFacets} because naming a filter and ticking one are the same
  * act's two moments.
  *
@@ -579,7 +580,7 @@ function closeOnChoice(panel: HTMLDivElement | null): (() => void) | undefined {
  *
  * Save is offered only while something is actually being asked of the plan —
  * the same bargain `Clear filters` makes: a view named for the whole,
- * unfiltered plan has nothing to be picked back to, because opening a project
+ * unfiltered plan has nothing to be picked back to, because opening a work package
  * already shows the whole plan.
  *
  * **An empty name does not turn Save off (UI review F-104).** Views and Saved
@@ -720,7 +721,7 @@ export function PlanToolbar({
   busy,
   run,
   commands,
-  projectId,
+  workPackageId,
   generalSettings,
   addWorkItem,
   filtering,
@@ -737,7 +738,6 @@ export function PlanToolbar({
   steps,
   hiddenColumnIds,
   frameState,
-  people,
   chartRead,
   estimateMethod,
   commitQuery,
@@ -775,8 +775,7 @@ export function PlanToolbar({
   downloadChartSvg,
   downloadOnScreen,
   downloadJson,
-  importBusy,
-  importJson,
+  planImport,
   mermaidSectionMode,
   setMermaidSectionMode,
   startDate,
@@ -790,7 +789,7 @@ export function PlanToolbar({
   busy: boolean;
   run: RunPlanWrite;
   commands: PlanCommands;
-  projectId: string;
+  workPackageId: string;
   generalSettings?: Omit<GeneralPanelProps, 'onDirtyChange' | 'onBusyChange'>;
   addWorkItem: () => void;
   filtering: boolean;
@@ -807,14 +806,13 @@ export function PlanToolbar({
   steps: StepView[];
   hiddenColumnIds: string[];
   frameState: FrameLayoutState;
-  people: PersonView[];
   /** Why the plan has no dated schedule to arrange, when it has none. */
   scheduleError: PlanRead['scheduleError'];
   /** Issues the arrangement and says it landed; built where the toast stack is. */
   arrangeBySchedule: () => void;
   chartRead: ChartRead;
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
-  commitQuery: (projectId: string, query: string) => void;
+  commitQuery: (workPackageId: string, query: string) => void;
   facets: Omit<FilterCriteria, 'query'>;
   setFacets: React.Dispatch<React.SetStateAction<Omit<FilterCriteria, 'query'>>>;
   facetTeams: FacetOption[];
@@ -854,8 +852,7 @@ export function PlanToolbar({
   downloadChartSvg: () => void;
   downloadOnScreen: () => void;
   downloadJson: () => void;
-  importBusy: boolean;
-  importJson: React.ChangeEventHandler<HTMLInputElement>;
+  planImport: PlanImportControl | undefined;
   mermaidSectionMode: 'step' | 'outline' | 'assignee';
   setMermaidSectionMode: React.Dispatch<React.SetStateAction<'step' | 'outline' | 'assignee'>>;
   startDate: string | null;
@@ -897,8 +894,8 @@ export function PlanToolbar({
   const [query, setQuery] = useState(criteria.query);
   const deferredQuery = useDeferredValue(query);
   useEffect(() => {
-    commitQuery(projectId, deferredQuery);
-  }, [commitQuery, deferredQuery, projectId]);
+    commitQuery(workPackageId, deferredQuery);
+  }, [commitQuery, deferredQuery, workPackageId]);
   const currentCriteria = { ...criteria, query };
 
   /** Conservatively reconciles a settings write whose server outcome is unknown. */
@@ -919,7 +916,7 @@ export function PlanToolbar({
       `Freeze numbering` freezes every current number and `Unfreeze all`
       releases every frozen row, but a plan may be **partly** frozen — a row's
       own ⋯ unfreezes one — so an `aria-pressed` button or a label that
-      swapped would claim a state this project does not have.
+      swapped would claim a state this work package does not have.
 
       Both items are always present and both are enabled while the toolbar is
       not busy. `Unfreeze all` on a plan with nothing frozen is a no-op write,
@@ -946,13 +943,14 @@ export function PlanToolbar({
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () => void run((write) => write.perform(['tree'], () => commands.freezeProject())),
+            run: () =>
+              void run((write) => write.perform(['tree'], () => commands.freezeWorkPackage())),
           },
           {
             id: 'unfreeze-all',
             label: 'Unfreeze all',
             run: () =>
-              void run((write) => write.perform(['tree'], () => commands.unfreezeProject())),
+              void run((write) => write.perform(['tree'], () => commands.unfreezeWorkPackage())),
           },
         ]}
         trigger={{
@@ -990,7 +988,7 @@ export function PlanToolbar({
       {/*
       The two ends of the expansion, which is otherwise one triangle at a
       time — a forty-row plan takes forty clicks to fold. Both write the
-      reader's own expansion, and it is remembered per project from there.
+      reader's own expansion, and it is remembered per work package from there.
 
       Disabled while the Find box holds something, for the reason the
       triangles are hidden then: what is open during a search is the
@@ -1002,7 +1000,7 @@ export function PlanToolbar({
       width-constrained bar said what a chevron says, so the words moved from
       the face of the button into its `aria-label` — which is where the two
       facts "a smaller thing" and "the same control" are made one, exactly as
-      `project-page.tsx`'s `✎` already does. Every existing test and every
+      `work-package-page.tsx`'s `✎` already does. Every existing test and every
       screen-reader path still finds `Expand all` and `Collapse all`, and that
       the old cases pass **unchanged** is the proof the names held.
 
@@ -1058,7 +1056,7 @@ export function PlanToolbar({
   const arrange = (
     <>
       {/*
-      Whether the project picked the optimized engine and is still being drawn
+      Whether the work package picked the optimized engine and is still being drawn
       by Fast — solving, failed or infeasible, which are one state to a reader
       waiting for their own schedule. The same three conditions be-01 refuses
       `schedule_not_ready` on, read off the payload the chart is already
@@ -1077,7 +1075,7 @@ export function PlanToolbar({
 
       **Two states swap the hint for a fact and disable it**, because in both
       of them be-01 would refuse and the reason is about *this plan* rather
-      than about the tool. A cycle has no schedule to arrange by; a project on
+      than about the tool. A cycle has no schedule to arrange by; a work package on
       the optimized engine that is still drawing Fast has not got the one it
       picked yet, and arranging by Fast there would leave the rows in an order
       the reader did not choose with nothing on screen admitting it (ADR
@@ -1138,9 +1136,9 @@ export function PlanToolbar({
   const settings = (
     <>
       {/*
-      Everything the **project** configures about itself — its teams' capacity,
+      Everything the **work package** configures about itself — its teams' capacity,
       its priority ladder, and its steps — behind one control, since
-      `project-config-modal` (2026-08-30). These were three labelled buttons
+      `work-package-config-modal` (2026-08-30). These were three labelled buttons
       here, each a thing somebody sets once and then leaves for weeks, sitting
       permanently beside `Add work item` and `Undo` on a bar whose width is the
       scarce resource. The three surfaces are three sections of one modal now.
@@ -1161,15 +1159,15 @@ export function PlanToolbar({
       use — one `effectiveTeamsOf` per render and never a second copy.
       Flattened, because a row on two teams puts a box beside each of them.
       C3 put that box in the directory, where a global size belonged; the
-      number is one plan's now (`capacity-per-project`, Dany 2026-08-13), and
+      number is one plan's now (`capacity-per-work-package`, Dany 2026-08-13), and
       the directory page has no plan.
 
       The steps section is handed the same `frameState` the `<colgroup>`
       above is resolved from, so the figure it quotes and the width the table
       lays out cannot be answers to two different questions.
     */}
-      <ProjectSettingsModal
-        projectId={projectId}
+      <WorkPackageSettingsModal
+        workPackageId={workPackageId}
         trigger={renderer === 'cards' ? 'labelled' : 'glyph'}
         {...(generalSettings === undefined
           ? {}
@@ -1202,9 +1200,6 @@ export function PlanToolbar({
           steps,
           hiddenColumnIds,
           frameState,
-          numberOf: (workItemId) => flat.find((row) => row.id === workItemId)?.number ?? null,
-          nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
-          addStep: (name, unit) => commands.addStep(name, unit),
           setStepUnit: (stepId, unit) => commands.setStepUnit(stepId, unit),
           estimateCounts: Object.fromEntries(
             steps.map((step) => [
@@ -1212,10 +1207,8 @@ export function PlanToolbar({
               flat.filter((row) => !row.rolledUp && Object.hasOwn(row.estimates, step.id)).length,
             ]),
           ),
-          renameStep: (stepId, name) => commands.renameStep(stepId, name),
           setStepAllowance: (stepId, allowancePercent) =>
             commands.setStepAllowance(stepId, allowancePercent),
-          removeStep: (stepId, cascade) => commands.removeStep(stepId, cascade),
           // How far a dependency reaches, on the same surface as the steps it
           // is about: reordering them moves what an `anchor-slice` dependency
           // waits for. Off the chart read rather than a state of its own, so
@@ -1226,15 +1219,14 @@ export function PlanToolbar({
           // The same reread every other change on this page makes, which is
           // what puts the new columns on the table and the new list in the
           // section.
+          // Proof: narrowing this to tree failed the current unit edit's exact steps/tree read observation.
           onChanged: () => refreshOrMarkStale('tree-and-steps'),
           onReachChanged: () => refreshOrMarkStale('tree'),
-          // Proof: dropping this recovery left `Remove QA` visible after the
-          // fake peer had deleted it in `fully recovers when a peer already
-          // removed the refused step`. Watched, 2026-09-13.
+          // Proof: omission retained the QA allowance after a peer withdrew its delivered step and the current values write returned typed404; the recovery case failed.
           onRefused: () => refreshOrMarkStale(),
         }}
         resources={{
-          projectId,
+          workPackageId,
           // A declared capacity moves dates, so an adopt rereads the plan
           // the way a team's capacity does.
           onChanged: () => refreshOrMarkStale('tree'),
@@ -1401,7 +1393,7 @@ export function PlanToolbar({
               ? [...savedViews, saved]
               : savedViews.map((view) => (view.id === named.id ? saved : view));
           setSavedViews(next);
-          rememberSavedViews(projectId, next);
+          rememberSavedViews(workPackageId, next);
         }}
         onApply={(view) => {
           const { query: savedQuery, ...savedFacets } = view.criteria;
@@ -1412,13 +1404,13 @@ export function PlanToolbar({
           // the Columns control would have.
           if (view.hiddenColumnIds !== undefined) {
             setStoredHiddenColumns(view.hiddenColumnIds);
-            rememberHiddenColumns(projectId, view.hiddenColumnIds);
+            rememberHiddenColumns(workPackageId, view.hiddenColumnIds);
           }
         }}
         onDelete={(id) => {
           const next = savedViews.filter((view) => view.id !== id);
           setSavedViews(next);
-          rememberSavedViews(projectId, next);
+          rememberSavedViews(workPackageId, next);
         }}
       />
     </>
@@ -1640,7 +1632,7 @@ export function PlanToolbar({
               budget, and was the only control on the bar that wrapped and stood taller than
               its neighbours (UI review F-004). The line costs 45px; Undo, Redo and Keyboard
               shortcuts became the 32px squares the other icon buttons are (−18px), and
-              `project-settings.spec.ts` re-pins the bar's measured sum with the difference.
+              `work-package-settings.spec.ts` re-pins the bar's measured sum with the difference.
             */}
             Export / Import
           </summary>
@@ -1746,7 +1738,7 @@ export function PlanToolbar({
             </Button>
             <div role="separator" className="bg-border my-1 h-px shrink-0" />
             <label
-              aria-disabled={importBusy}
+              aria-disabled={planImport?.busy === true || planImport?.canImport !== true}
               data-import-file
               className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), MENU_ITEM)}
             >
@@ -1759,13 +1751,14 @@ export function PlanToolbar({
                 // Proof: making this permanently enabled failed `disables the
                 // import file control while an import is in flight`: expected
                 // disabled, received enabled. Observed 2026-09-14.
-                disabled={importBusy}
-                onChange={importJson}
+                disabled={planImport?.busy === true || planImport?.canImport !== true}
+                onChange={planImport?.chooseFile}
               />
             </label>
+            {planImport !== undefined && <PlanImportOptions control={planImport} />}
             {/*
             Guidance, not a transfer: it opens a dialog and changes nothing. It sits beside
-            Import JSON because that is where someone bringing a project in already looks.
+            Import JSON because that is where someone bringing a work package in already looks.
           */}
             <ImportWithAiHelp />
             {/*
@@ -1847,7 +1840,7 @@ export function PlanToolbar({
         <span data-start-box className="group relative inline-flex">
           <DateField
             className="border-control-edge bg-background h-8 rounded-md border px-2 text-sm not-focus:text-transparent"
-            aria-label="Project start date"
+            aria-label="Work package start date"
             disabled={busy}
             {...busyAffordance(busy)}
             value={startDate ?? ''}
@@ -1876,7 +1869,7 @@ export function PlanToolbar({
       <label className="flex items-center gap-1 text-sm">
         Plan with
         {/*
-        A project-wide setting rather than a per-reader preference: the
+        A work-package-wide setting rather than a per-reader preference: the
         dates below are computed from it, and two people reading different
         dates off one plan is the failure this must not have.
       */}
@@ -1983,7 +1976,7 @@ export function PlanToolbar({
         two, wherever the bar wraps (1024 to 1440 on a plan with unestimated
         rows), is this group alone, right-aligned by `ml-auto`
         (`toolbar-panels.spec.ts`). The inner gap is the bar's own `gap-x-1.5`, so the width
-        the budgets in `project-settings.spec.ts` and `optimization-cue.spec.ts`
+        the budgets in `work-package-settings.spec.ts` and `optimization-cue.spec.ts`
         add up is unchanged; they count the controls by role, not by child.
         Named groups (F-094), so a screen reader hears the grouping the eye sees.
       */}
@@ -2016,13 +2009,13 @@ export function PlanToolbar({
       {/*
         No slot here for plan-level controls the table does not own, and that
         is a measurement rather than an omission. The saved-plan shelf held one
-        between `adb58ad9` and this change; `project-settings.spec.ts:77` puts
+        between `adb58ad9` and this change; `work-package-settings.spec.ts:77` puts
         `[data-toolbar]`'s children against a 1265px budget with a named margin
         for exactly one more control, and a fifth disclosure spent it — the row
         gained a line, and `gantt.spec.ts:2605` could no longer watch the wrap
         it is about, because the bar was already wrapped before the drag. The
-        shelf is in the app header's project row now; `SavedPlanShelf` in
-        `project-page.tsx` carries the full list of shapes and what each cost.
+        shelf is in the app header's work package row now; `SavedPlanShelf` in
+        `work-package-page.tsx` carries the full list of shapes and what each cost.
       */}
     </>
   );

@@ -19,7 +19,7 @@ const completeHost = () =>
 describe('the Event log module', () => {
   it('records, reads, and prunes durable subscription events', async () => {
     const { eventLog } = installEventLog({ events: inMemoryEventLog() });
-    const subscription = 'project:one';
+    const subscription = 'work-package:one';
     expect(await eventLog.readLatestSequence(subscription)).toBe(-1);
     const first = await eventLog.recordEvent(subscription, { n: 1 }, 1);
     const second = await eventLog.recordEvent(subscription, { n: 2 }, 2);

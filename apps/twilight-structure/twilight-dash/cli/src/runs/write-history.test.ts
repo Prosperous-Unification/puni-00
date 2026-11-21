@@ -277,6 +277,10 @@ test('verified write stage consumes actual live claim state before publication',
 
 const stateFaults: readonly [string, (state: RuntimeState) => unknown][] = [
   ['scope', (state) => ({ ...state, scope: { ...state.scope, personId: 'other' } })],
+  [
+    'owner scope',
+    (state) => ({ ...state, scope: { ...state.scope, workPackageId: 'other-owner' } }),
+  ],
   ['ledger', (state) => ({ ...state, ledgerId: 'other' })],
   ['basis', (state) => ({ ...state, basis: 'rb1:' + 'f'.repeat(64) })],
   ['authority', (state) => ({ ...state, authority: { kind: 'uninitialized' } })],

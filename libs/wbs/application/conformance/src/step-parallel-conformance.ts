@@ -10,7 +10,7 @@ export function stepParallelConformance(
     const { source, stamp } = open();
     const store = source.stores.stepParallels;
     expect(store).toBeDefined();
-    expect(await store.listByProject('p')).toEqual([]);
+    expect(await store.listByWorkPackage('p')).toEqual([]);
     await store.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
     await store.set({ workItemId: 'a', stepId: 'qa', maxParallel: 1000 }, stamp);
     await store.set({ workItemId: 'a', stepId: 'dev', maxParallel: 3 }, stamp);
@@ -20,10 +20,10 @@ export function stepParallelConformance(
     ]);
     expect(await store.listByWorkItems('p', [])).toEqual([]);
     await store.remove('a', 'dev', stamp);
-    expect(await store.listByProject('p')).toEqual([
+    expect(await store.listByWorkPackage('p')).toEqual([
       { workItemId: 'a', stepId: 'qa', maxParallel: 1000 },
     ]);
-    expect(await store.listByProject('foreign')).toEqual([]);
+    expect(await store.listByWorkPackage('foreign')).toEqual([]);
   });
   it('retains an explicit equal-default value across row-default edits while its sibling stays absent', async () => {
     const { source, stamp } = open();
@@ -45,14 +45,16 @@ export function stepParallelConformance(
   it('orders mixed-case owner IDs identically to SQLite binary order', async () => {
     const { source, stamp } = open();
     for (const id of ['work-a', 'work-A']) {
-      await source.stores.workItems.insert(workItemRow({ id, projectId: 'p' }), [], stamp);
+      await source.stores.workItems.insert(workItemRow({ id, workPackageId: 'p' }), [], stamp);
       await source.stores.stepParallels.set(
         { workItemId: id, stepId: 'dev', maxParallel: 2 },
         stamp,
       );
     }
     expect(
-      (await source.stores.stepParallels.listByProject('p')).map(({ workItemId }) => workItemId),
+      (await source.stores.stepParallels.listByWorkPackage('p')).map(
+        ({ workItemId }) => workItemId,
+      ),
     ).toEqual(['work-A', 'work-a']);
   });
   it('rejects each invalid value without storing a fact', async () => {
@@ -62,7 +64,7 @@ export function stepParallelConformance(
         source.stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel }, stamp),
         'integer from 1 to 1000',
       );
-    expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+    expect(await source.stores.stepParallels.listByWorkPackage('p')).toEqual([]);
   });
   it('rejects parent ownership, foreign steps, absent steps and absent owners independently', async () => {
     const { source, stamp } = open();
@@ -75,7 +77,7 @@ export function stepParallelConformance(
       await assertStepParallelRefusal(
         source.stores.stepParallels.set({ workItemId, stepId, maxParallel: 2 }, stamp),
       );
-    expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+    expect(await source.stores.stepParallels.listByWorkPackage('p')).toEqual([]);
   });
   it('commits sparse facts and rolls back replacements and removals with the surrounding batch', async () => {
     const { source, stamp } = open();
@@ -83,7 +85,7 @@ export function stepParallelConformance(
       await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 2 }, stamp);
       return { commit: true, value: undefined };
     });
-    const before = await source.stores.stepParallels.listByProject('p');
+    const before = await source.stores.stepParallels.listByWorkPackage('p');
     expect(before).toEqual([{ workItemId: 'a', stepId: 'dev', maxParallel: 2 }]);
     await source.uow.run(async ({ stores }) => {
       await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 9 }, stamp);
@@ -91,7 +93,7 @@ export function stepParallelConformance(
       await stores.stepParallels.remove('a', 'dev', stamp);
       return { commit: false, value: undefined };
     });
-    expect(await source.stores.stepParallels.listByProject('p')).toEqual(before);
+    expect(await source.stores.stepParallels.listByWorkPackage('p')).toEqual(before);
     await assertStepParallelRefusal(
       source.uow.run(async ({ stores }) => {
         await stores.stepParallels.remove('a', 'dev', stamp);
@@ -100,7 +102,7 @@ export function stepParallelConformance(
       }),
       'injected late failure',
     );
-    expect(await source.stores.stepParallels.listByProject('p')).toEqual(before);
+    expect(await source.stores.stepParallels.listByWorkPackage('p')).toEqual(before);
   });
 }
 

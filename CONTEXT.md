@@ -274,12 +274,12 @@ settings they share, the dependencies between them and the budgets that bound se
 them. Every project belongs to exactly one organization.
 _Avoid_: engagement, programme, portfolio, project (for one WBS)
 
-**Project abbreviation**:
-The short name that distinguishes a project within its organization when addressing its work items from another project.
+**Work package abbreviation**:
+The short name that distinguishes a work package within its organization when addressing its work items from another work package.
 _Avoid_: project ID, project prefix, slug
 
 **Qualified work-item address**:
-A project abbreviation followed by a dot and a work item number, such as `PUNI-CORE.080.39`. A qualified step reference additionally names that work item's step.
+A work package abbreviation followed by a dot and a work item number, such as `PUNI-CORE.080.39`. A qualified step reference additionally names that work item's step.
 _Avoid_: work-item ID, dependency ID
 
 **Work item**:
@@ -310,7 +310,7 @@ it is.
 _Avoid_: id, index, wbs code
 
 **Tree order**:
-The one order every reader draws a project in: depth-first, siblings by position, a tied
+The one order every reader draws a work package in: depth-first, siblings by position, a tied
 position by id. Numbers used to be the only spelling of it; since a frozen work item may
 move, they are not.
 _Avoid_: number order, sort order, display order
@@ -323,7 +323,7 @@ shown to the user.
 _Avoid_: order, rank, sort key, sequence
 
 **Freeze**:
-The project-wide act of writing every derived work item number into storage, because those
+The act of writing every derived work item number in one work package into storage, because those
 numbers have left the tool and cannot change. Work items created after a freeze derive
 their numbers as before, until the next freeze.
 _Avoid_: lock, pin, publish
@@ -339,7 +339,7 @@ Widening every child number under one parent when that parent gains a tenth chil
 _Avoid_: renumbering, padding fix
 
 **Arrange by schedule**:
-The project-wide act of rewriting each sibling group's positions so siblings read in the
+The act of rewriting each sibling group's positions in one work package so siblings read in the
 order their projections start in the selected engine's schedule, work items starting
 together keeping their order. Frozen work items move with the rest; nothing changes parent.
 _Avoid_: sort, reorder, sort by Gantt, sequence, sync with chart
@@ -351,6 +351,10 @@ the bindings along its chain, and each work package keeps its own unit and allow
 step. A definition, not an occurrence: its work within one leaf is a **step node**. Its
 **default estimate unit** seeds a package's unit; the effective unit is the package's.
 _Avoid_: discipline, type, category, phase
+
+**Retired step**:
+A step definition retained for its existing package values and history, but no longer available for new work bindings. Its code and name continue to identify that same step.
+_Avoid_: deleted step, hidden step, reusable code
 
 **Step binding**:
 One statement that one step applies, at one scope (organization, space or project), to work
@@ -365,13 +369,8 @@ step first reaches that package; changing it later changes no package.
 _Avoid_: step unit, effective unit (which is the package's)
 
 **Step code**:
-A step's short, immutable name for references, unique within its organization's catalogue — `dev`, `qa`,
-`review`: a
-lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
-step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
-reserved for ordinal references. Who defines steps and their codes, the work package as
-today or the project, is pending the separate `wbs-step-catalogue` design (#698 E21,
-deferred 2026-10-25).
+A step's short, immutable reference name, unique within its organization's catalogue: a lowercase letter followed by lowercase letters, digits or hyphens. It is suggested from the step's name at creation and unchanged by renaming; codes shaped `s<digits>` or `s<digits>-…` are reserved for ordinal references.
+
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
@@ -388,7 +387,7 @@ An unsubmitted edit to a Plan field retained while its author visits Board, toge
 _Avoid_: rejected draft, queued command, saved draft
 
 **Board card**:
-A view of one step node in a project's progress board. Its subject stays the same
+A view of one step node in a work package's progress board. Its subject stays the same
 when the work item is renumbered or the step is renamed.
 _Avoid_: work item, slice, task
 
@@ -404,7 +403,7 @@ _Avoid_: status, column
 **Node resources**:
 The effective person, teams and parallel width of one leaf step. A person is explicit, assumed
 from the leaf's sole assignment, or unassigned; teams are the nearest stated whole set, with
-each team's stated project capacity or no capacity statement.
+each team's stated work package capacity or no capacity statement.
 
 **Step maximum parallelism override**:
 An explicit integer ceiling from 1 through 1000 authored for one leaf work item's step.
@@ -418,12 +417,8 @@ reorder; a deleted and recreated step yields new step node IDs.
 _Avoid_: step reference (which is the readable, changeable spelling)
 
 **Step reference**:
-A step node's readable spelling: work item number, then its displayed step ordinal before its
-immutable code — `010.s1-dev`, or `010.s01-dev` when a project has ten or more steps. The
-ordinal is padded to the decimal width of the project's step count, so a work item's references
-sort in step order. Renumbering, reordering or repadding changes the spelling while the step
-node ID stays stable; code-only `010.dev` and unpadded ordinal forms remain accepted input at
-the current address revision.
+A step node's readable spelling: its work item number followed by the displayed step ordinal and immutable code (`010.s1-dev`), with the ordinal padded to the decimal width of the leaf's resolved step count. Renumbering, reordering or repadding changes the spelling without changing the node's identity; code-only `010.dev` and unpadded ordinal forms remain accepted input at the current address revision.
+
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
@@ -457,8 +452,8 @@ assumed assignee it would change.
 _Avoid_: references, dependents, blast radius
 
 **Directory**:
-The people and service teams projects in one organization draw from — one list scoped to that
-organization, not a per-project list or an account on this tool. Members holding any access
+The people and service teams work packages in one organization draw from — one list scoped to that
+organization, rather than a list for one work package or an account on this tool. Members holding any access
 grant may read it; `org-admin` and `org-super-admin` may edit it.
 _Avoid_: roster, address book, org chart, users
 
@@ -529,7 +524,7 @@ row can take it off.
 _Avoid_: source, owner, origin
 
 **Capacity**:
-How many of one team may be at work at once on **one project's plan**: a fact about the pair,
+How many of one team may be at work at once on **one work package's plan**: a fact about the pair,
 never about the team. Absent is _unstated_ and constrains nothing; there is no global number
 ([capacity-per-project](openspec/changes/archive/2026-08-30-capacity-per-project/specs/wbs-domain/spec.md)).
 _Avoid_: team size, headcount, allocation, availability
@@ -578,7 +573,7 @@ five rows is a card nobody finishes.
 _Avoid_: cause, blocker, main predecessor
 
 **Remembered capacity**:
-A capacity a project still holds for a team its work is no longer labelled with: invisible,
+A capacity a work package still holds for a team its work is no longer labelled with: invisible,
 because the plan lists only the teams on it, and re-applied silently if that team labels a row
 again. A third state beside stated and unstated.
 _Avoid_: stale capacity, orphan capacity, leftover
@@ -618,13 +613,18 @@ who does the work. Refused where the step is blocked, held, done or already clai
 back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
+**Step manifest**:
+A project's resolved step codes for every work-item type and for untyped work, tied to one
+project revision. It describes applicability independently of any retained workflow run.
+_Avoid_: Run manifest, workflow acceptance, step graph
+
 **Workflow binding**:
-The repository's mapping from work-item types and project step codes to named
+The repository's mapping from work-item types and resolved step codes to named
 activity classes and their settings.
 _Avoid_: Workflow configuration, executor configuration
 
 **Workflow acceptance**:
-Burokrat's immutable static binding snapshot, complete project-step set and original
+Burokrat's immutable static binding snapshot, complete set of steps in the work package and original
 prompt-byte identities; it grants no execution authority.
 _Avoid_: Approved binding, execution authorization
 
@@ -645,11 +645,11 @@ _Avoid_: Authorized manifest, execution grant
 
 **Runtime authority**:
 The receiver-owned owner label and generation for conditional writes in one organization,
-project and person's scope, separate from a coordinator's local owner epoch.
+work package and person's scope, separate from a coordinator's local owner epoch.
 _Avoid_: Credential, local lease
 
 **Runtime pin**:
-The retained complete organization/project/person address and receiver installation identity
+The retained complete address of an organization, work package and person, with the receiver installation identity
 for runtime coordination.
 _Avoid_: Credential, current authority
 
@@ -659,7 +659,7 @@ separate from its acceptance.
 _Avoid_: Dispatch acknowledgement, observed progress
 
 **Runtime basis**:
-The versioned digest of one coherent local project's ledger identity, project revision and
+The versioned digest of one coherent local work package's ledger identity, work package revision and
 complete work-item revision set, used as a conditional write precondition.
 _Avoid_: Global snapshot, authorization snapshot
 
@@ -719,7 +719,7 @@ _Avoid_: readiness, waiting, eligible slice, completion lock
 A step whose leaf is not blocked, held or done, whose progress is not done, whose prerequisites permit a new start, and that no claim
 holds; startable **for a team** when that team is also in the leaf's effective team set.
 Derived from the folds the table uses, never stored. A startable step whose leaf's demand the
-project's free units do not cover is still startable, but listed apart as not fitting, with its
+work package's free units do not cover is still startable, but listed apart as not fitting, with its
 shortfall.
 _Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
@@ -741,7 +741,7 @@ released: still held, still counted, and gone at the next sweep.
 _Avoid_: expired claim, dead claim, stale claim
 
 **Claim history**:
-The claim and release events of one project's plan history, newest first, each naming its
+The claim and release events of one work package's plan history, newest first, each naming its
 holders, runs, work items and why a release happened: a release command, an expired lease or a
 revoked credential.
 _Avoid_: claim log, activity feed, audit trail
@@ -789,12 +789,12 @@ Which scheduling problem a resource is: `exclusive` (identical units, demand alw
 _Avoid_: Resource type, category
 
 **Resource capacity**:
-How many units of one resource one project's plan may use, a fact about the pair, with the
+How many units of one resource one work package's plan may use, a fact about the pair, with the
 same unstated and remembered states as a team's capacity.
 _Avoid_: Quota, limit, size
 
 **Directory capacity**:
-How many units of one resource exist for every project of its organization, stated on the
+How many units of one resource exist for every work package of its organization, stated on the
 resource; the number shared occupancy is counted against. Stated or unstated, never remembered.
 _Avoid_: Total, pool size, quota, share
 
@@ -812,7 +812,7 @@ _Avoid_: Lease, hold, lock, allocation
 
 **Occupancy scope**:
 The widest set of leaves a claim's units of a resource are counted against. A claim is always
-counted against its project's leaves, and also against every project of the organization when
+counted against its work package's leaves, and also against every work package of the organization when
 the resource states a directory capacity.
 _Avoid_: Visibility, tenancy
 
@@ -867,7 +867,7 @@ _Avoid_: Released resource, free capacity, abandoned resource
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
-the affected projects with their work items by number and name, each work item's effects,
+the affected work packages with their work items by number and name, each work item's effects,
 and the people whose membership would be dropped. What a refusal carries so that the
 second, confirming request is agreeing to something it has seen.
 _Avoid_: references, impact, blast radius, dependents
@@ -904,7 +904,7 @@ item with children has no estimates of its own.
 _Avoid_: points, effort, sizing, days (as the only unit)
 
 **Step allowance**:
-The percentage a work package holds for one of its project's steps, default zero, applied to
+The percentage a work package holds for one of its resolved steps, default zero, applied to
 each leaf's combined base estimate before estimate rounding. It does not change optimistic,
 realistic or pessimistic entries, and a parent does not apply it again.
 _Avoid_: project-step allowance, contingency estimate, per-work-item allowance
@@ -929,9 +929,8 @@ summed across descendants for a work item with children without a second allowan
 _Avoid_: PERT number, computed figure, effective estimate
 
 **PERT weights**:
-The three coefficients a work package weighs an **estimate**'s optimistic, realistic and
-pessimistic figures by, whose sum is the divisor. 1, 4 and 1 unless its project or its own
-override says otherwise; read only under the `pert` estimate method.
+The three coefficients a work package weighs an estimate's optimistic, realistic and pessimistic figures by, whose sum is the divisor. Their default is 1, 4 and 1, subject to inherited values and the package's override; they apply only under the `pert` estimate method.
+
 _Avoid_: PERT formula, coefficients, lambda
 
 **Estimate rounding**:
@@ -1001,7 +1000,7 @@ held for one step node and one measure that allows three points; a money trio ca
 _Avoid_: budget, projection, target
 
 **Expected measure**:
-A measure estimate folded by the project's **PERT weights** and rounded by the measure's
+A measure estimate folded by the effective **PERT weights** and rounded by the measure's
 scale; compared with the **measure** to give the **measure variance**.
 _Avoid_: forecast, mean, planned value
 
@@ -1078,6 +1077,10 @@ a retried agent run is one. Never pruned, at most one running per node ([ADR
 **Attempt token**.
 _Avoid_: run, try, execution, round (as a stored thing), retry
 
+**Allocator reservation**:
+The retained upper bound of attempt numbers issued for one work item and step, including a parent whose work passed to a child. It preserves that address’s numbering history when the work item becomes a leaf again.
+_Avoid_: attempt mark (the Gantt drawing), hidden attempt, parent step node
+
 **Attempt outcome**:
 How an attempt ended — `succeeded`, `failed` or `cancelled`; absent while it runs. Says
 nothing about the node's progress, which is said separately.
@@ -1090,9 +1093,8 @@ running. Narrower than 4 px it is a tick.
 _Avoid_: actual bar (which is the work item's done bar), run bar
 
 **Work package timezone**:
-The IANA zone a work package's instants are read as days in — attempts, fact fills and the
-working window: its own override when set, otherwise its project's value, `UTC` when neither
-says; never the viewer's.
+The resolved IANA zone in which a work package's instants are read as days, including attempts, fact fills and the working window. It has inherited or local provenance and a `UTC` catalogue default, independent of the viewer's zone.
+
 _Avoid_: project timezone (for this), viewer's zone, browser zone, local time
 
 **Node reading**:
@@ -1132,7 +1134,7 @@ from a wrong answer.
 _Avoid_: risk level, risk class, impact, tag
 
 **Topic**:
-A name on a project's list of things its reviewers own — product, pricing, naming,
+A name on a work package's list of things its reviewers own — product, pricing, naming,
 architecture — with, per phase, whether a question on it is pushed to them. Decides notice,
 never permission.
 _Avoid_: area, domain, label, reserved topic, owner flag
@@ -1159,14 +1161,14 @@ note. An ordinary work item from then on.
 _Avoid_: revert task, correction, fix-up, comment
 
 **Question policy**:
-What a project uses to dispose of questions: a mode, a phase profile per phase, its topics
-with push flags, and its notice ages and digest. A project without its own holds the
+What a work package uses to dispose of questions: a mode, a phase profile per phase, its topics
+with push flags, and its notice ages and digest. A work package without its own holds the
 organization's; an organization without its own holds the deployment default. Hard gates are
 not part of it.
 _Avoid_: autonomy level, assumption config, agent freedom, rules
 
 **Policy mode**:
-Whether a project disposes of questions `by_step` (each step's phase picks the profile) or
+Whether a work package disposes of questions `by_step` (each step's phase picks the profile) or
 `offline` (profiles and topic pushes are bypassed: every question the hard gates allow is
 queued; a hard-gated one still blocks and still reaches the reviewers).
 _Avoid_: strictness, autonomy dial, away mode, blocker factor
@@ -1183,8 +1185,8 @@ false".
 _Avoid_: rule, predicate, trigger, flag
 
 **Step phase**:
-A step definition's word for which profile its nodes' questions are judged under: `planning` or
-`implementation`. Every step is `implementation` until the project says otherwise.
+A step definition's choice of the phase profile used for questions on its nodes: `planning` or
+`implementation`. The default is `implementation`.
 _Avoid_: stage, step kind, step type, period
 
 **Phase profile**:
@@ -1200,9 +1202,9 @@ records the set that applied. What acting would do cannot be reviewed after.
 _Avoid_: safety rule, forbidden action, always-block list
 
 **Reviewer**:
-An account a project lists to receive its notices, with a channel and address. Being listed
+An account a work package lists to receive its notices, with a channel and address. Being listed
 decides notice only; answering a question is the permission to edit the plan, refused to an
-agent credential whatever it holds. A project with an empty list writes no notices.
+agent credential whatever it holds. A work package with an empty list writes no notices.
 _Avoid_: author, approver, admin (which is a role), owner (a project has none)
 
 **Notice**:
@@ -1226,7 +1228,7 @@ _Avoid_: urgency, score, rank (which is the project's), weight
 **Unnoticed question**:
 A queued or notified question still without a verdict after the effective policy's unnoticed
 age. Blocked questions are never unnoticed; they carry blocked time instead. Counted per
-project and per submitter beside the overturn rate, the wrong-fact rate and blocked time.
+work package and per submitter beside the overturn rate, the wrong-fact rate and blocked time.
 _Avoid_: stale, forgotten, overdue, backlog
 
 **Waiting**:
@@ -1265,13 +1267,13 @@ by proxy. Derived from the full dependency graph, never said by anyone and never
 _Avoid_: transitively blocked, waiting, indirectly blocked
 
 **Fact start**:
-The day work on a work item actually began, date-only in the project timezone, typed by the
+The day work on a work item actually began, date-only in the work package timezone, typed by the
 planner or filled from the first attempt's start day when a leaf with attempts is started or
 finished holding none. Read by no engine; absent means nobody has said.
 _Avoid_: actual start, real start, started at, start date
 
 **Fact end**:
-The day work on a work item actually finished, date-only in the project timezone. Filled when a
+The day work on a work item actually finished, date-only in the work package timezone. Filled when a
 work item is marked done holding none: from the last attempt's end day when one exists, else
 the day of the act. Where a done work item's bar stops, whatever the estimate says ([ADR
 0024](docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md)).
@@ -1289,20 +1291,20 @@ _Avoid_: done modal, confirmation, completion dialog, date picker
 
 **Dependency**:
 An authored ordering relationship between predecessor and successor dependency endpoints.
-Legacy dependencies use project Dependency reach; typed dependencies name their endpoints and relationship type.
+Legacy dependencies use work package Dependency reach; typed dependencies name their endpoints and relationship type.
 _Avoid_: link, blocker, edge (outside the graph code)
 
-**Cross-project dependency**:
-A dependency whose predecessor and successor belong to different projects in the same organization. Its ordering applies to the selected work items or steps, not to their projects as indivisible units.
+**Cross-work-package dependency**:
+A dependency whose predecessor and successor belong to different work packages in the same organization. Its ordering applies to the selected work items or steps, not to their work packages as indivisible units.
 _Avoid_: project dependency, external link
 
 **Dependency activation authority**:
-The durable decision that permits cross-project dependency authoring for a WBS store after incompatible participants have been excluded. It remains in force when that store has no live cross-project dependencies.
+The durable decision that permits cross-work-package dependency authoring for a WBS store after incompatible participants have been excluded. It remains in force when that store has no live cross-work-package dependencies.
 _Avoid_: feature flag, active edge count
 
 **Dependency endpoint**:
 One side of a typed dependency, in one of three scopes: **whole** (a work item, leaf or
-parent), **node** (one leaf's step node) or **descendant-step** (one project step within
+parent), **node** (one leaf's step node) or **descendant-step** (one work package step within
 every leaf beneath a parent). Whole and descendant-step scopes are selectors that resolve to
 step nodes; a dependency constrains each resolved predecessor/successor pair.
 _Avoid_: anchor (for an explicit endpoint), bar end
@@ -1319,20 +1321,20 @@ The leaves beneath a parent endpoint, each of which participates in the dependen
 _Avoid_: parent envelope, first child
 
 **Dependency reach**:
-A project's answer to how far into a predecessor its legacy dependencies reach: `whole-item`,
+A work package's answer to how far into a predecessor its legacy dependencies reach: `whole-item`,
 the predecessor's last slice in step order, or `anchor-slice`, its Anchor slice with the steps
-behind it running alongside the successor. Stored per project and `whole-item` by default ([ADR
+behind it running alongside the successor. Stored per work package and `whole-item` by default ([ADR
 0010](docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md)).
 _Avoid_: dependency mode, wait rule, link type
 
 **Slice**:
 A step node as the scheduler sees it — the unit a schedule is computed in. A leaf in a
-project holding two steps is two slices, run one after the other in step order.
+work package holding two steps is two slices, run one after the other in step order.
 _Avoid_: task, bar, segment, phase, role, item×step
 
 **Anchor slice**:
 A work item's first slice in step order that somebody estimated — the one a legacy
-dependency waits on where project Dependency reach is `anchor-slice`
+dependency waits on where work package Dependency reach is `anchor-slice`
 ([spec](openspec/changes/archive/2026-08-30-dep-waits-on-first-role/specs/wbs-domain/spec.md)).
 Where nothing is estimated, it is the work item's zero-duration scheduled finish after its
 ordered unknown slices, so both reaches name the same zero-time boundary.
@@ -1375,10 +1377,8 @@ A work package's five bands, in rank order: a vocabulary and never a constraint
 _Avoid_: priority scheme, priority config, priority scale
 
 **Project settings**:
-The configuration a project defines for all its work packages: timezone, calendar periods and
-PERT weights, which a work package may override, and the allowed work item types and budget
-factor, which it may not. Step codes are not a setting; who defines them waits for
-`wbs-step-catalogue`. Also the surface where they are edited.
+The settings a project supplies to its work packages, including inheritable timezone, calendar markers and PERT weights. Its allowed work item types and budget factor constrain its work packages; catalogue step definitions and bindings are separate.
+
 _Avoid_: project config, shared settings, defaults
 
 **Work package settings**:
@@ -1408,7 +1408,7 @@ priority first.
 _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
-The one thing a slice's start is set by, out of the day the project starts, a dependency,
+The one thing a slice's start is set by, out of the day the work package starts, a dependency,
 its work item's earlier step, a manual date, its assignee's last finish, its team's
 capacity, and a resource's capacity. A tie is never the person and never a capacity:
 somebody — or some slot or unit — free exactly when the dependency clears is holding
@@ -1622,8 +1622,8 @@ told to be-01 — not the expansion, not the column widths.
 _Avoid_: preset, bookmark, layout, filter set
 
 **Expansion**:
-Which branches of one project's tree are open, in one browser: every branch or a named set of
-them, a branch not named being closed. Remembered per project, per browser, and overridden on
+Which branches of one work package's tree are open, in one browser: every branch or a named set of
+them, a branch not named being closed. Remembered per work package, per browser, and overridden on
 screen for as long as a search is running.
 _Avoid_: collapse state, open rows, fold
 
@@ -1721,7 +1721,7 @@ _Avoid_: context menu, row menu, kebab, overflow menu
 
 **Theme choice**:
 What a reader has asked the app to be painted in: `system`, `light` or `dark`, remembered per
-browser under one key for every project because it answers about this screen in this room.
+browser under one key for every work package because it answers about this screen in this room.
 `system` is an answer of its own — follow the machine, live
 ([dark-mode](openspec/changes/archive/2026-08-30-dark-mode/specs/wbs-domain/spec.md)).
 _Avoid_: theme mode, dark mode setting, colour preference
@@ -1774,36 +1774,36 @@ _Avoid_: full indent, real depth, uncapped padding
 
 **Column width override**:
 One column's width as this browser was told it by a drag, replacing the width the frame
-layout would otherwise resolve. Held per project, per browser, and never seen by anyone
+layout would otherwise resolve. Held per work package, per browser, and never seen by anyone
 else.
 _Avoid_: resize, custom width, preference
 
 **Panel height override**:
 The Gantt panel's height as this browser was told it by a drag on the panel's top edge,
-replacing the bounded share the panel would otherwise take. Held per project, per browser,
+replacing the bounded share the panel would otherwise take. Held per work package, per browser,
 and never seen by anyone else.
 _Avoid_: chart height, panel size, splitter position
 
 **Layout reset**:
 Forgetting every column width override, the panel height override and the hidden columns
-for one project, so each returns to what is resolved for it now rather than to what it was
+for one work package, so each returns to what is resolved for it now rather than to what it was
 when the override was made.
 _Avoid_: width reset, restore defaults, revert, clear
 
 **Column set**:
-Which of the table's columns one reader has on screen for one project: the default column
-set less that reader's hidden columns. Held per project, per browser, and never seen by
+Which of the table's columns one reader has on screen for one work package: the default column
+set less that reader's hidden columns. Held per work package, per browser, and never seen by
 anyone else; a saved view may carry one.
 _Avoid_: column config, visible columns, layout, column preferences
 
 **Default column set**:
-The columns a project's table shows before anybody has hidden or shown one — the same set
+The columns a work package's table shows before anybody has hidden or shown one — the same set
 on every deployment, whatever its directory holds. The set the folded-width budget is
 measured over.
 _Avoid_: fixed columns, standard columns, all columns
 
 **Hidden column**:
-A column a reader has taken off the table for one project, still in the plan and still
+A column a reader has taken off the table for one work package, still in the plan and still
 counted in every roll-up and date; a whole step can be hidden, and then none of its columns
 is on screen. Number, Name and the row's controls cannot be.
 _Avoid_: collapsed column, disabled column, removed column, folded column
@@ -1885,15 +1885,13 @@ a reader and can make a new work package; this one never leaves.
 _Avoid_: snapshot, checkpoint, backup, version
 
 **Import**:
-Making a new project from a plan document, whole or not at all: the importer owns it, every
-id is minted afresh, directory entries are found by name and created when absent. Never a
-change to a project that already exists.
+Creating a new work package inside its named project from a plan document, all or nothing, with a recorded creator and newly minted ids. Directory entries are found by name and created when absent; an existing work package is never replaced.
+
 _Avoid_: restore, load, upload, merge
 
 **Revision**:
-A count of how many times one work item or one project has been written to, starting at
-zero and never going down. Moves on the entity's own stored fields and on its satellites,
-and never on the number derived for it.
+A count of how many times one work item, work package or project has been written to, starting at zero and never decreasing. It advances for the entity's own stored fields and satellites, never for its derived work item number.
+
 _Avoid_: version, etag, timestamp, sequence
 
 **Phase**:
@@ -1909,14 +1907,14 @@ revision; a dependency has two owners and moves both.
 _Avoid_: child row, detail, related record
 
 **Solution ref**:
-The external solution a project belongs to, as a slug and a URL on the project itself. The
+The external solution a work package belongs to, as a slug and a URL on the work package itself. The
 slug is what `GET /plans/by-solution/{slug}` resolves, which is the one route an integration
 token reaches with nothing but a name it already knows.
 _Avoid_: integration, link, external project
 
 **Command journal**:
-The last fifty reversible commands one acting person ran on one project, held on the server in
-the order they happened — one stack per project, account and **acting person**, because undo is
+The last fifty reversible commands one acting person ran on one work package, held on the server in
+the order they happened — one stack per work package, account and **acting person**, because undo is
 personal. Supersedes the per-account stack of
 [conditional-undo](openspec/changes/archive/2026-08-10-conditional-undo/specs/wbs-domain/spec.md);
 see [undo-per-acting-person](openspec/changes/undo-per-acting-person/proposal.md).
@@ -1932,7 +1930,7 @@ person a claim or release naming no person is for
 _Avoid_: actor, principal, pin
 
 **Plan history**:
-Every command anybody ran on one project, kept — the plan's own record, per project
+Every command anybody ran on one work package, kept — the plan's own record, per work package
 rather than per account, added to and never edited, and thinned only by age. It is not
 the command journal, which is one actor's fifty-deep undo stack and drops what it must
 to stay one; and it is not the event log, which is the websocket's resume buffer.
@@ -2068,18 +2066,18 @@ _Avoid_: logout cookie, retry flag, browser binding
 ### Shared capacity
 
 **Booking**:
-One placed slice of a project's displayed schedule as its person sees it: the project, work
+One placed slice of a work package's displayed schedule as its person sees it: the work package, work
 item, step, start and end, in absolute workdays with fractions kept. Derived on read from the
-engine the project displays, never stored.
+engine the work package displays, never stored.
 _Avoid_: reservation, allocation
 
 **Load**:
-A person's bookings across every project of the organization the reader can open.
+A person's bookings across every work package of the organization the reader can open.
 _Avoid_: utilisation, workload (alone)
 
 **Overlap**:
-Where two bookings of one person intersect by more than a touching endpoint. A project's own
-scheduler never overlaps a person with themself, so an overlap spans projects, and exists only
+Where two bookings of one person intersect by more than a touching endpoint. A work package's own
+scheduler never overlaps a person with themself, so an overlap spans work packages, and exists only
 while the organization's people are isolated.
 _Avoid_: conflict, double-booking (in code)
 
@@ -2106,12 +2104,12 @@ in a connected plan. A slice waiting for one records an `elsewhere` floor.
 _Avoid_: foreign load
 
 **Shared people**:
-An organization's capacity mode, `isolated` (each project schedules its people alone, the
-default) or `shared` (a project works around its people's bookings elsewhere).
+An organization's capacity mode, `isolated` (each work package schedules its people alone, the
+default) or `shared` (a work package works around its people's bookings elsewhere).
 _Avoid_: global capacity, cross-project mode
 
 **Booking change cause**:
-A project whose own scheduling facts, shared-person connections or place in the project
+A work package whose own scheduling facts, shared-person connections or place in the work package
 order are directly affected by an act, including through an organization directory resource.
 _Avoid_: triggering user, transitive recipient
 
@@ -2273,7 +2271,7 @@ _Avoid_: controller, route handler, resolver
 **Refusal**:
 An endpoint's modeled rejection, carrying a code and its detail, including validation,
 throttling and temporary unavailability; redirects and unexpected failures are not refusals.
-`engine_unavailable` means the project's chosen schedule engine has no adapter here and
+`engine_unavailable` means the work package's chosen schedule engine has no adapter here and
 nothing schedules in its place.
 _Avoid_: error response, problem, fault (for this)
 
@@ -2374,14 +2372,13 @@ One of the three deployable services: `be`, `gw`, `fe`.
 _Avoid_: app, service, component
 
 **Engine**:
-Which schedule a project displays: `Fast`, the deterministic millisecond pass that always
-runs and is always the fallback, or `Optimized`, a stored solver result. A project-wide
-persisted setting, never a per-user view state, and never an input to the Input hash.
+Which schedule a work package displays: `Fast`, the deterministic millisecond pass that always
+runs and is always the fallback, or `Optimized`, a stored solver result. A persisted setting for the whole work package, never a per-user view state, and never an input to the Input hash.
 _Avoid_: mode, scheduler type, solver toggle
 
 **Objective**:
 Which ordering an Optimized schedule was solved for: `Priority-first` (PRI) or
-`Finish-first` (Time). Project-wide and persisted like Engine, and a cache dimension rather
+`Finish-first` (Time). Persisted for the whole work package like Engine, and a cache dimension rather
 than an Input hash input — both are solved, and Objective picks which stored one is shown.
 _Avoid_: strategy, goal, optimization mode
 
@@ -2390,7 +2387,7 @@ The SHA-256 of the canonical JSON of the exact argument tuple `schedule()` recei
 `position`/`frozenNumber`/as-written priority, authored dependency edges, the slice array
 grouped by work item with groups ordered by id and each group's own order preserved (only that
 intra-item order is step precedence — the order between groups is whatever SQL returned),
-`notBefore` floors in days from day zero, pool sizes, the project's dependency reach and the
+`notBefore` floors in days from day zero, pool sizes, the work package's dependency reach and the
 work-item deadlines. Two scheduling inputs are the same exactly when their hashes match.
 Engine, Objective, the optimization toggle, the display variant, the clock, the acting user and
 the solver budget are all excluded from the hash; Objective, Contract version and the solver
@@ -2406,8 +2403,8 @@ the Python package version does not describe.
 _Avoid_: solver version, schema version, cache version
 
 **Generation**:
-A monotonic optimization counter held per `(project, Contract version)` in the
-`optimization_generation` table — not on the project row, because a canonicalizer bump would
+A monotonic optimization counter held per `(work package, Contract version)` in the
+`optimization_generation` table — not on the work package row, because a canonicalizer bump would
 otherwise let two coexisting releases increment one counter against each other for ever. It is
 stored beside the Input hash it was allocated for and carried by every solver run; an equal
 hash reuses the generation and a different one increments it under a compare-and-swap, which
@@ -2448,8 +2445,8 @@ which is the real-domain Fast result the publication guard scores against.
 _Avoid_: rounded Fast, hint schedule
 
 **Cancel epoch**:
-A counter carried by each `(project, Contract version)` generation row, advanced on every one
-of a project's rows when optimization is switched OFF. It exists because the toggle is excluded
+A counter carried by each `(work package, Contract version)` generation row, advanced on every one
+of a work package's rows when optimization is switched OFF. It exists because the toggle is excluded
 from the Input hash, so an OFF transition cannot advance the Generation that allocation is
 required to reuse. **Worker-owned outcome writes** are conditional on it, with the current
 generation, the toggle and the writer's own attempt token; allocation eviction is authorised
@@ -2520,7 +2517,7 @@ clock-reading part, not a second process)
 **Slot lifecycle**:
 The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting` with
 a null `pid`; a successful bind CAS moves it to `running` and records the launcher's pid. A
-`starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a `running`
+`starting` row counts against the ceilings of four slots per work package and 16 for the fleet exactly like a `running`
 one — it _is_ the reservation — and is reclaimed by the same `now > admittedDeadlineAt` rule.
 _Avoid_: slot state, pending, provisional
 
@@ -2542,7 +2539,7 @@ _Avoid_: job name, tag, owner
 ### Shared people recovery
 
 **Restore operation**:
-One intended recovery of saved organization modes and project ranks, identified independently of
+One intended recovery of saved organization modes and work package ranks, identified independently of
 its retries and bound to one canonical backup digest.
 _Avoid_: restore session, operator session
 

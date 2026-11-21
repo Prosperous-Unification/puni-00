@@ -142,7 +142,7 @@ describe('organization limits panel', () => {
     expect(rowOf('worktrees').getAttribute('data-standing')).toBe('under');
   });
 
-  it('says so when no project states a capacity', async () => {
+  it('says so when no work package states a capacity', async () => {
     stubServer({
       'GET /api/organization/active': [role('admin')],
       'GET /api/organization/limits': [
@@ -156,7 +156,7 @@ describe('organization limits panel', () => {
     mountSlot();
     const panel = await region();
     expect(
-      await within(panel).findByText('No project states a capacity of any resource yet.'),
+      await within(panel).findByText('No work package states a capacity of any resource yet.'),
     ).toBeDefined();
     expect(within(panel).queryByRole('list', { name: 'Capacity by resource' })).toBeNull();
   });
@@ -178,7 +178,9 @@ describe('organization limits panel', () => {
   it('renders no panel when the read answers forbidden', async () => {
     const sent = stubServer({
       'GET /api/organization/active': [role('admin')],
-      'GET /api/organization/limits': [() => answer(403, { error: 'forbidden' })],
+      'GET /api/organization/limits': [
+        () => answer(403, { error: 'forbidden', permission: 'organization.read' }),
+      ],
     });
     mountSlot();
     await waitFor(() => {

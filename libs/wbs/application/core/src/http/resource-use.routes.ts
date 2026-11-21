@@ -67,7 +67,7 @@ function limitOf(query: { limit?: string; cursor?: string }): number | null {
   const limit = Number(query.limit);
   return Number.isSafeInteger(limit) && limit >= 1 && limit <= 100 ? limit : null;
 }
-/** Project-scoped reported tracking. An unwired composition refuses visibly instead of accepting reports it cannot persist. */
+/** WorkPackage-scoped reported tracking. An unwired composition refuses visibly instead of accepting reports it cannot persist. */
 export function resourceUseRoutes(
   organizations: OrganizationAccess,
   uses: ResourceUses | undefined,

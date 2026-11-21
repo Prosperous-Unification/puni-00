@@ -6,7 +6,7 @@ import type { PlanTree } from '../../ports/plan-tree';
 export type DemandFields = Pick<PlanTree, 'demands' | 'demandedResources'>;
 
 /**
- * Every demand of a project's work items and one entry per resource those
+ * Every demand of a work package's work items and one entry per resource those
  * demands name (`wbs-resources` 1.5), so a row's Resources cell reads the same
  * answer the table is drawn from. Empty when nothing is demanded, so a plan
  * stating none keeps its payload shape.

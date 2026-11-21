@@ -5,6 +5,7 @@ import type {
   RuntimeLedger,
   RuntimeScope,
   StoredRuntimeAcceptance,
+  StoredRuntimeAcceptance2,
 } from '@wbs/core';
 import {
   parseRuntimeAuthority,
@@ -12,6 +13,8 @@ import {
   parseRuntimeLedger,
   parseRuntimeScope,
   parseStoredRuntimeAcceptance,
+  parseStoredRuntimeAcceptance2,
+  readRuntimeAcceptanceScope,
 } from '@wbs/core/ports/runtime-command-records';
 import { sql } from 'drizzle-orm';
 
@@ -22,12 +25,13 @@ const MIGRATION = '20261022121000_add_runtime_commands';
 const REQUIRED_SCHEMA: Readonly<Record<string, string>> = {
   runtime_ledger:
     "CREATE TABLE runtime_ledger (id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1), schema_version INTEGER NOT NULL CHECK (schema_version = 1), ledger_id TEXT NOT NULL CHECK (length(ledger_id) > 0), authority_count INTEGER NOT NULL CHECK (typeof(authority_count) = 'integer' AND authority_count BETWEEN 0 AND 9007199254740991), binding_count INTEGER NOT NULL CHECK (typeof(binding_count) = 'integer' AND binding_count BETWEEN 0 AND 9007199254740991), receipt_count INTEGER NOT NULL CHECK (typeof(receipt_count) = 'integer' AND receipt_count BETWEEN 0 AND 9007199254740991))",
+  // Proof: runtime-sqlite-current-schema-identity substituted an obsolete physical schema expectation; 'SQLite current2 insertion persists exact current record and marker1' failed and restored GREEN.
   runtime_authority:
-    "CREATE TABLE runtime_authority (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), project_id TEXT NOT NULL CHECK (length(project_id) > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), owner_id TEXT NOT NULL CHECK (length(owner_id) > 0), generation INTEGER NOT NULL CHECK (typeof(generation) = 'integer' AND generation BETWEEN 1 AND 9007199254740991), PRIMARY KEY (organization_id, project_id, person_id))",
+    'CREATE TABLE runtime_authority (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), "work_package_id" TEXT NOT NULL CHECK (length("work_package_id") > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), owner_id TEXT NOT NULL CHECK (length(owner_id) > 0), generation INTEGER NOT NULL CHECK (typeof(generation) = \'integer\' AND generation BETWEEN 1 AND 9007199254740991), PRIMARY KEY (organization_id, "work_package_id", person_id))',
   runtime_claim_binding:
-    'CREATE TABLE runtime_claim_binding (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), project_id TEXT NOT NULL CHECK (length(project_id) > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), claim_id TEXT NOT NULL CHECK (length(claim_id) > 0), store_id TEXT NOT NULL CHECK (length(store_id) > 0), attempt_id TEXT NOT NULL CHECK (length(attempt_id) > 0), binding TEXT NOT NULL CHECK (json_valid(binding)), PRIMARY KEY (organization_id, project_id, person_id, claim_id), UNIQUE (organization_id, project_id, person_id, store_id, attempt_id))',
+    'CREATE TABLE runtime_claim_binding (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), "work_package_id" TEXT NOT NULL CHECK (length("work_package_id") > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), claim_id TEXT NOT NULL CHECK (length(claim_id) > 0), store_id TEXT NOT NULL CHECK (length(store_id) > 0), attempt_id TEXT NOT NULL CHECK (length(attempt_id) > 0), binding TEXT NOT NULL CHECK (json_valid(binding)), PRIMARY KEY (organization_id, "work_package_id", person_id, claim_id), UNIQUE (organization_id, "work_package_id", person_id, store_id, attempt_id))',
   runtime_command_receipt:
-    'CREATE TABLE runtime_command_receipt (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), project_id TEXT NOT NULL CHECK (length(project_id) > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), command_id TEXT NOT NULL CHECK (length(command_id) > 0), accepted TEXT NOT NULL CHECK (json_valid(accepted)), PRIMARY KEY (organization_id, project_id, person_id, command_id))',
+    'CREATE TABLE runtime_command_receipt (organization_id TEXT NOT NULL CHECK (length(organization_id) > 0), "work_package_id" TEXT NOT NULL CHECK (length("work_package_id") > 0), person_id TEXT NOT NULL CHECK (length(person_id) > 0), command_id TEXT NOT NULL CHECK (length(command_id) > 0), accepted TEXT NOT NULL CHECK (json_valid(accepted)), PRIMARY KEY (organization_id, "work_package_id", person_id, command_id))',
   runtime_ledger_no_delete:
     "CREATE TRIGGER runtime_ledger_no_delete BEFORE DELETE ON runtime_ledger BEGIN SELECT RAISE(ABORT, 'runtime history is immutable'); END",
   runtime_authority_no_delete:
@@ -43,7 +47,7 @@ const REQUIRED_SCHEMA: Readonly<Record<string, string>> = {
   runtime_ledger_monotonic:
     "CREATE TRIGGER runtime_ledger_monotonic BEFORE UPDATE ON runtime_ledger WHEN NEW.id IS NOT OLD.id OR NEW.schema_version IS NOT OLD.schema_version OR NEW.ledger_id IS NOT OLD.ledger_id OR NEW.authority_count < OLD.authority_count OR NEW.binding_count < OLD.binding_count OR NEW.receipt_count < OLD.receipt_count BEGIN SELECT RAISE(ABORT, 'runtime history is immutable'); END",
   runtime_authority_monotonic:
-    "CREATE TRIGGER runtime_authority_monotonic BEFORE UPDATE ON runtime_authority WHEN NEW.organization_id IS NOT OLD.organization_id OR NEW.project_id IS NOT OLD.project_id OR NEW.person_id IS NOT OLD.person_id OR NEW.generation != OLD.generation + 1 BEGIN SELECT RAISE(ABORT, 'runtime authority must advance exactly once'); END",
+    'CREATE TRIGGER runtime_authority_monotonic BEFORE UPDATE ON runtime_authority WHEN NEW.organization_id IS NOT OLD.organization_id OR NEW."work_package_id" IS NOT OLD."work_package_id" OR NEW.person_id IS NOT OLD.person_id OR NEW.generation != OLD.generation + 1 BEGIN SELECT RAISE(ABORT, \'runtime authority must advance exactly once\'); END',
 };
 const MIGRATION_HASH = 'ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d';
 
@@ -56,11 +60,11 @@ function normalizeSql(definition: string): string {
 }
 const matchScope = (scope: RuntimeScope) => {
   const scoped = parseRuntimeScope(scope);
-  return sql`organization_id=${scoped.organizationId} AND project_id=${scoped.projectId} AND person_id=${scoped.personId}`;
+  return sql`organization_id=${scoped.organizationId} AND work_package_id=${scoped.workPackageId} AND person_id=${scoped.personId}`;
 };
 interface BindingRow {
   organization_id: string;
-  project_id: string;
+  work_package_id: string;
   person_id: string;
   claim_id: string;
   store_id: string;
@@ -69,7 +73,7 @@ interface BindingRow {
 }
 interface AcceptanceRow {
   organization_id: string;
-  project_id: string;
+  work_package_id: string;
   person_id: string;
   command_id: string;
   accepted: unknown;
@@ -126,12 +130,12 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
     const ledger = parseRuntimeLedger(record);
     const authorities = this.db.all<{
       organization_id: unknown;
-      project_id: unknown;
+      work_package_id: unknown;
       person_id: unknown;
       ownerId: unknown;
       generation: unknown;
     }>(
-      'SELECT organization_id,project_id,person_id,owner_id AS ownerId,generation FROM runtime_authority',
+      'SELECT organization_id,work_package_id,person_id,owner_id AS ownerId,generation FROM runtime_authority',
     );
     const bindings = this.db.all<BindingRow>('SELECT * FROM runtime_claim_binding');
     const receipts = this.db.all<AcceptanceRow>('SELECT * FROM runtime_command_receipt');
@@ -146,7 +150,7 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
       // Proof: P35 omitted scope parsing; a BLOB scope with valid counts passed inspection.
       parseRuntimeScope({
         organizationId: held.organization_id,
-        projectId: held.project_id,
+        workPackageId: held.work_package_id,
         personId: held.person_id,
       });
       parseRuntimeAuthority({ ownerId: held.ownerId, generation: held.generation });
@@ -158,7 +162,7 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
   private parseBindingRow(row: BindingRow): RuntimeClaim {
     parseRuntimeScope({
       organizationId: row.organization_id,
-      projectId: row.project_id,
+      workPackageId: row.work_package_id,
       personId: row.person_id,
     });
     // Proof: P33 omitted the byte boundary; BLOB binding reached JSON parsing instead of its named refusal.
@@ -177,12 +181,14 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
     // Proof: P34 omitted the byte boundary; BLOB acceptance reached JSON parsing instead of its named refusal.
     if (typeof row.accepted !== 'string') throw new Error('invalid runtime acceptance bytes');
     const accepted = parseStoredRuntimeAcceptance(JSON.parse(row.accepted));
+    // Proof: runtime-sqlite-raw-address-reader omitted legacy address projection in native row correspondence; 'mounted migrated runtime1 grant replay and lookup return original receipt without effects' failed and restored GREEN.
+    const retainedScope = readRuntimeAcceptanceScope(accepted);
     // Proof: P16 omitted matching; command/scope/ledger lookup disagreements passed inspection.
     if (
       row.command_id !== accepted.commandId ||
-      row.organization_id !== accepted.scope.organizationId ||
-      row.project_id !== accepted.scope.projectId ||
-      row.person_id !== accepted.scope.personId ||
+      row.organization_id !== retainedScope.organizationId ||
+      row.work_package_id !== retainedScope.workPackageId ||
+      row.person_id !== retainedScope.personId ||
       accepted.receipt.ledgerId !== ledgerId
     )
       throw new Error('runtime stored acceptance identity mismatch');
@@ -222,7 +228,7 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
           const grant = parseRuntimeAuthority({ ownerId, generation: (held?.generation ?? 0) + 1 });
           if (held === undefined) {
             tx.run(
-              sql`INSERT INTO runtime_authority(organization_id,project_id,person_id,owner_id,generation) VALUES (${scope.organizationId},${scope.projectId},${scope.personId},${grant.ownerId},${grant.generation})`,
+              sql`INSERT INTO runtime_authority(organization_id,work_package_id,person_id,owner_id,generation) VALUES (${scope.organizationId},${scope.workPackageId},${scope.personId},${grant.ownerId},${grant.generation})`,
             );
             // Proof: P06 omitted this increment; real-source CAS/count inspection failed.
             tx.run('UPDATE runtime_ledger SET authority_count=authority_count+1 WHERE id=1');
@@ -267,7 +273,7 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
           const scoped = parseRuntimeScope(scope);
           const bound = parseRuntimeClaim(binding);
           tx.run(
-            sql`INSERT INTO runtime_claim_binding(organization_id,project_id,person_id,claim_id,store_id,attempt_id,binding) VALUES (${scoped.organizationId},${scoped.projectId},${scoped.personId},${bound.claimId},${bound.execution.storeId},${bound.execution.attemptId},${JSON.stringify(bound)})`,
+            sql`INSERT INTO runtime_claim_binding(organization_id,work_package_id,person_id,claim_id,store_id,attempt_id,binding) VALUES (${scoped.organizationId},${scoped.workPackageId},${scoped.personId},${bound.claimId},${bound.execution.storeId},${bound.execution.attemptId},${JSON.stringify(bound)})`,
           );
           // Proof: P07 omitted this increment; real-source exact-binding/count inspection failed.
           tx.run('UPDATE runtime_ledger SET binding_count=binding_count+1 WHERE id=1');
@@ -284,17 +290,18 @@ export class RuntimeCommandRepository implements RuntimeCommandStore {
       return accepted === undefined ? null : this.parseAcceptanceRow(accepted, ledger.ledgerId);
     });
   }
-  insertAcceptance(stored: StoredRuntimeAcceptance): Promise<void> {
+  insertAcceptance(stored: StoredRuntimeAcceptance2): Promise<void> {
     return this.gate.enter(() =>
       Promise.resolve().then(() => {
         this.db.transaction((tx) => {
           const ledger = this.inspectState();
-          const accepted = parseStoredRuntimeAcceptance(stored);
+          // Proof: runtime-sqlite-current-only-insert bypassed current-only native insertion decoding; 'SQLite current-only insertion refuses old tag around current fields before row and count effects' failed and restored GREEN.
+          const accepted = parseStoredRuntimeAcceptance2(stored);
           // Proof: P17 omitted this check; a wrong-ledger accepted-record insertion resolved.
           if (accepted.receipt.ledgerId !== ledger.ledgerId)
             throw new Error('runtime acceptance ledger mismatch');
           tx.run(
-            sql`INSERT INTO runtime_command_receipt(organization_id,project_id,person_id,command_id,accepted) VALUES (${accepted.scope.organizationId},${accepted.scope.projectId},${accepted.scope.personId},${accepted.commandId},${JSON.stringify(accepted)})`,
+            sql`INSERT INTO runtime_command_receipt(organization_id,work_package_id,person_id,command_id,accepted) VALUES (${accepted.scope.organizationId},${accepted.scope.workPackageId},${accepted.scope.personId},${accepted.commandId},${JSON.stringify(accepted)})`,
           );
           // Proof: P08 omitted this increment; real-source immutable-acceptance/count inspection failed.
           tx.run('UPDATE runtime_ledger SET receipt_count=receipt_count+1 WHERE id=1');

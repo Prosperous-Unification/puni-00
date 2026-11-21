@@ -29,7 +29,7 @@ The API, and the only thing that writes the database. Elysia + Drizzle +
 Every refusal a client can cause is **modeled**: a 4xx with be-01's own word for
 it, never a 500. `controller/refusal-status.ts` maps the word to the status —
 four shared arms and each route's own default. A malformed body is 400/422, a
-restricted project is 403 (never 404: the caller may read it), a state of the
+restricted work package is 403 (never 404: the caller may read it), a state of the
 plan is 409.
 
 ## Landmines

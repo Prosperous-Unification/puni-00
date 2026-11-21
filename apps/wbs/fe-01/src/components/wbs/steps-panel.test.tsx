@@ -1,10 +1,10 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { StepUsage, StepView } from '@/lib/wbs-api';
+import type { StepView } from '@/lib/wbs-api';
 
-import { flipSentence, StepsPanel, usageSentence } from './steps-panel';
+import { StepsPanel } from './steps-panel';
 import type * as TableFrame from './table-frame';
 import { foldedTableMinWidth, type FrameLayoutState, INITIAL_HIDDEN_COLUMNS } from './table-frame';
 
@@ -41,7 +41,7 @@ const QA: StepView = {
   allowancePercent: 0,
 };
 
-/** A plan where no row sets an earliest start, which is what a fresh project is. */
+/** A plan where no row sets an earliest start, which is what a fresh work package is. */
 const UNDATED: FrameLayoutState = {
   hasAnyNotBefore: false,
   deepestDepth: 0,
@@ -58,38 +58,18 @@ const DATED: FrameLayoutState = {
   waitsForSeveral: false,
 };
 
-const NUMBERS: Record<string, string> = { w1: '010', w2: '020' };
-const PEOPLE: Record<string, string> = { p1: 'Kat', p2: 'Ada' };
-
 /**
  * Everything the panel is given, with each call recorded.
  *
  * Rendered bare, without the modal around it: this suite is about what the
- * section sends and says, and `project-settings-modal.test.tsx` is about the
+ * section sends and says, and `work-package-settings-modal.test.tsx` is about the
  * shell — who opens it, who closes it, what it refuses to close over and where
  * the focus goes afterwards. Two cases that used to live here, `gives the focus
  * back to the button that opened it` and `leaves no half-answered confirmation
  * behind`, were about the shell and moved there with it.
  */
 function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
-  const addStep = vi.fn(() =>
-    Promise.resolve({
-      estimateUnit: 'workdays' as const,
-      id: 'step-design',
-      name: 'Design',
-      allowancePercent: 0,
-    }),
-  );
-  const renameStep = vi.fn(() =>
-    Promise.resolve({
-      estimateUnit: 'workdays' as const,
-      id: 'step-qa',
-      name: 'Review',
-      allowancePercent: 0,
-    }),
-  );
   const setStepAllowance = vi.fn(() => Promise.resolve({ ...QA, allowancePercent: 30 }));
-  const removeStep = vi.fn(() => Promise.resolve({ ok: true }));
   const setDepReach = vi.fn(() => Promise.resolve());
   const onChanged = vi.fn(() => Promise.resolve());
   const onDirtyChange = vi.fn();
@@ -102,22 +82,14 @@ function stubbed(overrides: Partial<Parameters<typeof StepsPanel>[0]> = {}) {
     frameState: UNDATED,
     // The table's own default, so every figure below is the default table's.
     hiddenColumnIds: INITIAL_HIDDEN_COLUMNS,
-    numberOf: (id: string) => NUMBERS[id] ?? null,
-    nameOf: (id: string) => PEOPLE[id] ?? null,
-    addStep,
-    renameStep,
     setStepAllowance,
-    removeStep,
     onChanged,
     onDirtyChange,
     ...overrides,
   };
   render(<StepsPanel {...props} />);
   return {
-    addStep,
-    renameStep,
     setStepAllowance,
-    removeStep,
     setDepReach,
     onChanged,
     onDirtyChange,
@@ -136,7 +108,7 @@ const type = (label: string, value: string): void => {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
 };
 
-describe('the steps a project holds', () => {
+describe('the steps a work package holds', () => {
   itDom('commits a changed allowance and rereads the plan', async () => {
     const stub = stubbed();
     type('QA allowance (%)', '30');
@@ -191,9 +163,12 @@ describe('the steps a project holds', () => {
 
   itDom('does not send an unchanged allowance', async () => {
     const stub = stubbed();
+    type('QA allowance (%)', '0.00');
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
     fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
     await settle();
     expect(stub.setStepAllowance).not.toHaveBeenCalled();
+    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
   });
   itDom('quotes the folded width of the columns actually on screen', () => {
     // `configurable-columns`: a reader who has hidden Depends on is 86px
@@ -212,8 +187,8 @@ describe('the steps a project holds', () => {
 
   itDom('says nothing on this panel that reads Phase or Role', () => {
     // The panel's own surface. What it is *called* is the settings modal's tab,
-    // asserted in `project-settings-modal.test.tsx` — this panel renders no
-    // title of its own since `project-config-modal` split it out of the dialog
+    // asserted in `work-package-settings-modal.test.tsx` — this panel renders no
+    // title of its own since `work-package-config-modal` split it out of the dialog
     // it used to be. `Phase` was the word on every control here until
     // `steps-not-phases`, and `Role` was the same thing below.
     stubbed();
@@ -222,152 +197,28 @@ describe('the steps a project holds', () => {
     expect(drawn).not.toMatch(/phase|role/i);
     // Non-vacuous: the panel really drew its controls, so an empty match is a
     // reading rather than an empty page.
-    expect(screen.getByRole('button', { name: 'Remove Dev' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: 'Dev minutes' })).toBeDefined();
     expect(drawn).toContain('Dev');
   });
 
-  itDom('lists every step, each with a way to rename it and remove it', () => {
+  itDom('lists every step with its immutable name and package-local values', () => {
     stubbed();
-
-    expect(screen.getByLabelText('Dev')).toHaveProperty('value', 'Dev');
-    expect(screen.getByLabelText('QA')).toHaveProperty('value', 'QA');
-    expect(screen.getByRole('button', { name: 'Remove Dev' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Remove QA' })).toBeDefined();
+    expect(screen.getByText('Dev')).toBeDefined();
+    expect(screen.getByText('QA')).toBeDefined();
+    expect(screen.queryByRole('textbox', { name: 'QA' })).toBeNull();
+    expect(screen.getByLabelText('QA allowance (%)')).toBeDefined();
   });
 
-  itDom('adds a step and rereads the project', async () => {
+  itDom('Escape in an allowance box forgets what was typed and sends nothing (F-162)', async () => {
     const stub = stubbed();
-
-    type('New step', 'Design');
-    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
+    type('QA allowance (%)', '30');
+    fireEvent.keyDown(screen.getByLabelText('QA allowance (%)'), { key: 'Escape' });
     await settle();
-
-    expect(stub.addStep).toHaveBeenCalledWith('Design', 'workdays');
-    // The reread is what puts the column on the table. Without it the panel
-    // would be the only thing on the page that knew about the new step.
-    expect(stub.onChanged).toHaveBeenCalled();
-  });
-
-  itDom('renames a step to what was typed over it', async () => {
-    const stub = stubbed();
-
-    type('QA', 'Review');
-    fireEvent.submit(screen.getByLabelText('QA'));
-    await settle();
-
-    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
-  });
-
-  itDom('renames on the way out of the box, not only on Enter', async () => {
-    // Every other text field in this product commits on blur. This one took
-    // Enter and nothing else, so a rename typed and then abandoned — ✕, Tab,
-    // anything — was dropped without a PATCH, a toast or a mark on the field,
-    // and `onOpenChange` clearing `renamed` is what made it silent. Observed on
-    // 2026-08-09.
-    //
-    // Proof: the `onBlur` handler removed from the rename box, this failed on
-    // `expected "spy" to be called with arguments: [ 'step-qa', 'Review' ]` —
-    // never called at all, and so did `keeps a rename that was typed and then
-    // the dialog closed on it`. Both watched, 2026-08-09.
-    const stub = stubbed();
-
-    type('QA', 'Review');
-    fireEvent.blur(screen.getByLabelText('QA'));
-    await settle();
-
-    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
-  });
-
-  itDom('keeps a rename that was typed and then left for the modal’s ✕', async () => {
-    // The gesture the finding was filed for: type over the name, then reach for
-    // the ✕. A browser blurs the field before the click lands — jsdom performs
-    // no focus change of its own, so the blur is delivered here in the order a
-    // browser delivers it. The ✕ itself is the modal's now and is not on this
-    // panel; what this panel owes is that the blur alone carries the rename,
-    // and that the modal is told it is in flight so the ✕ cannot close over it.
-    const stub = stubbed();
-
-    const box = screen.getByLabelText('QA');
-    box.focus();
-    type('QA', 'Review');
-    fireEvent.blur(box);
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
-    await settle();
-
-    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
+    expect(screen.getByLabelText<HTMLInputElement>('QA allowance (%)').value).toBe('0');
     expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
-  });
-
-  itDom('sends nothing on the way out of a box nobody typed in', async () => {
-    // The other half, and what keeps the blur commit from being a rename on
-    // every click through the list: leaving a box unchanged is not an edit.
-    const stub = stubbed();
-
-    fireEvent.blur(screen.getByLabelText('QA'));
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
     await settle();
-
-    expect(stub.renameStep).not.toHaveBeenCalled();
-  });
-
-  itDom(
-    'Escape in a Steps box forgets what was typed there, and sends nothing (F-162)',
-    async () => {
-      const stub = stubbed();
-
-      type('QA', 'Review');
-      fireEvent.keyDown(screen.getByLabelText('QA'), { key: 'Escape' });
-      type('QA allowance (%)', '30');
-      fireEvent.keyDown(screen.getByLabelText('QA allowance (%)'), { key: 'Escape' });
-      type('New step', 'Draft');
-      fireEvent.keyDown(screen.getByLabelText('New step'), { key: 'Escape' });
-      await settle();
-
-      expect(screen.getByLabelText<HTMLInputElement>('QA').value).toBe('QA');
-      expect(screen.getByLabelText<HTMLInputElement>('QA allowance (%)').value).toBe('0');
-      expect(screen.getByLabelText<HTMLInputElement>('New step').value).toBe('');
-      expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
-      fireEvent.blur(screen.getByLabelText('QA'));
-      fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
-      await settle();
-      expect(stub.renameStep).not.toHaveBeenCalled();
-      expect(stub.setStepAllowance).not.toHaveBeenCalled();
-    },
-  );
-
-  itDom('sends nothing for a name that is only spaces', async () => {
-    const stub = stubbed();
-
-    type('New step', '   ');
-    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
-    await settle();
-
-    // Refused here rather than by be-01: the answer is the same and this one
-    // needs no round trip.
-    // Proof: the `clean === ''` guard removed, this failed on `expected "spy"
-    // to not be called at all, but it was called 1 time`. Watched, 2026-08-09.
-    expect(stub.addStep).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert').textContent).toBe('A step needs a name.');
-  });
-
-  itDom('sends nothing when a name is submitted unchanged', async () => {
-    const stub = stubbed();
-
-    fireEvent.submit(screen.getByLabelText('QA'));
-    await settle();
-
-    expect(stub.renameStep).not.toHaveBeenCalled();
-  });
-
-  itDom('says what refused it, in words rather than in be-01’s code', async () => {
-    const stub = stubbed({ addStep: vi.fn(() => Promise.reject(new Error('taken'))) });
-
-    type('New step', 'Dev');
-    fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
-    await settle();
-
-    expect(screen.getByRole('alert').textContent).toBe('That name is already a step on this plan.');
-    expect(document.body.textContent).not.toContain('taken');
-    expect(stub.onChanged).not.toHaveBeenCalled();
+    expect(stub.setStepAllowance).not.toHaveBeenCalled();
   });
 });
 
@@ -377,7 +228,7 @@ describe('how far a dependency reaches', () => {
 
   itDom('the reach is chosen and written', async () => {
     // Two options and a sentence each, in the section about the steps — a
-    // dependency's reach is a statement about how steps chain. The project's
+    // dependency's reach is a statement about how steps chain. The work package's
     // stored value is what is checked; picking the other one writes it and
     // re-reads the plan, because every date on the table may move on it.
     //
@@ -400,7 +251,7 @@ describe('how far a dependency reaches', () => {
     expect(onChanged).toHaveBeenCalled();
   });
 
-  itDom('shows the project’s own reach, not the one it was last shown', () => {
+  itDom('shows the work package’s own reach, not the one it was last shown', () => {
     // The dialog holds nothing about the reach: what is checked is be-01's
     // answer, arriving as a prop, exactly as the step names beside it do.
     stubbed({ depReach: 'anchor-slice' });
@@ -420,7 +271,7 @@ describe('how far a dependency reaches', () => {
     // request and read by `checked` — and this failed on
     // `expect(element).toBeChecked() / Received element is not checked:
     // <input checked="" class="mt-1" name="dep-reach" type="radio" …`, the
-    // whole-item option unticked against a project be-01 had not answered for.
+    // whole-item option unticked against a work package be-01 had not answered for.
     // Watched 2026-08-29.
     const held = vi.fn(() => new Promise<void>(() => undefined));
     stubbed({ setDepReach: held });
@@ -441,168 +292,6 @@ describe('how far a dependency reaches', () => {
     await settle();
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
-  });
-});
-
-/*
-  `describe('leaving the surface')` stood here on `dep-reach-whole-item` and is
-  deliberately not carried over: its two cases — the focus returning to the
-  trigger, and a walked-away-from confirmation being dropped — are about the
-  shell, and `project-config-modal` made the shell `ProjectSettingsModal`'s.
-  Both live in `project-settings-modal.test.tsx` now, the second restated as a
-  refusal (the modal will not close over an unanswered confirmation) rather
-  than as a silent clear.
-*/
-
-describe('the chord on the surface', () => {
-  itDom('submits the form the keystroke was aimed at', async () => {
-    const stub = stubbed();
-
-    type('New step', 'Design');
-    // The chord `F shadcn-foundation`'s second round made reachable: the first
-    // version of `usePageShortcutsSuspended` ended it in the capture step and
-    // this handler could never have run.
-    // Proof: `onChord` returning early for every keystroke, this failed on
-    // `expected "spy" to be called with arguments: [ 'Design' ]`. Watched,
-    // 2026-08-09.
-    fireEvent.keyDown(screen.getByLabelText('New step'), {
-      key: 'Enter',
-      metaKey: true,
-      code: 'Enter',
-    });
-    await settle();
-
-    expect(stub.addStep).toHaveBeenCalledWith('Design', 'workdays');
-  });
-
-  itDom('submits the rename it was pressed in, not the add box', async () => {
-    const stub = stubbed();
-
-    type('QA', 'Review');
-    fireEvent.keyDown(screen.getByLabelText('QA'), {
-      key: 'Enter',
-      ctrlKey: true,
-      code: 'Enter',
-    });
-    await settle();
-
-    expect(stub.renameStep).toHaveBeenCalledWith('step-qa', 'Review');
-    expect(stub.addStep).not.toHaveBeenCalled();
-  });
-
-  itDom('leaves a bare Enter to the form it is in', async () => {
-    // Not a chord at all — `commandChord` answers null — so nothing here claims
-    // it and the browser's own submit does the work.
-    // Proof: `onChord` widened to fire on any `Enter`, this failed on `expected
-    // "spy" to not be called at all, but actually been called 1 times`.
-    // Watched, 2026-08-09.
-    const stub = stubbed();
-
-    type('New step', 'Design');
-    fireEvent.keyDown(screen.getByLabelText('New step'), { key: 'Enter', code: 'Enter' });
-    await settle();
-
-    expect(stub.addStep).not.toHaveBeenCalled();
-  });
-});
-
-describe('removing a step', () => {
-  const IN_USE: StepUsage = {
-    estimates: 2,
-    actuals: 0,
-    progress: 0,
-    blockages: 2,
-    measures: 0,
-    assignments: 1,
-    assumedAssignees: [{ workItemId: 'w2', assumedNow: null, assumedAfter: 'p1' }],
-  };
-  const refusing = () =>
-    vi.fn((_stepId: string, cascade: boolean) =>
-      cascade
-        ? Promise.resolve({ ok: true })
-        : Promise.resolve({ ok: false, reason: 'in_use' as const, inUse: IN_USE }),
-    );
-
-  itDom('asks without a cascade first, and shows what would go', async () => {
-    const removeStep = refusing();
-    stubbed({ removeStep });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-
-    expect(removeStep).toHaveBeenCalledWith('step-qa', false);
-    expect(document.body.textContent).toContain(
-      'Removing the step QA would delete 2 estimates and 1 assignment. It would also delete 2 step blockages.',
-    );
-    // The flip, by the work item's **number**: an id in a confirmation is a
-    // fact nobody reading the plan can act on.
-    expect(document.body.textContent).toContain(
-      '020: nobody is assumed to be doing all of it now, Kat would be afterwards.',
-    );
-  });
-
-  itDom('sends nothing when the confirmation is agreed to without the box', async () => {
-    const removeStep = refusing();
-    stubbed({ removeStep });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-    const confirm = screen.getByRole('button', { name: 'Remove QA' });
-
-    // The default this whole flow exists for.
-    // Proof: the confirmation opened with `cascade: true`, this failed on
-    // `expected <button …(2)></button> to have property "disabled" with value
-    // true` — the confirm was live on arrival and one click would have taken
-    // the estimates with it. Watched, 2026-08-09.
-    expect(confirm).toHaveProperty('disabled', true);
-    fireEvent.click(confirm);
-    await settle();
-
-    expect(removeStep).toHaveBeenCalledTimes(1);
-  });
-
-  itDom('removes it once the box is ticked', async () => {
-    const removeStep = refusing();
-    const stub = stubbed({ removeStep });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-    fireEvent.click(screen.getByLabelText('Delete them along with the step'));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-
-    expect(removeStep.mock.calls).toEqual([
-      ['step-qa', false],
-      ['step-qa', true],
-    ]);
-    expect(stub.onChanged).toHaveBeenCalled();
-  });
-
-  itDom('keeps the step, and asks nothing more, when the confirmation is dropped', async () => {
-    const removeStep = refusing();
-    stubbed({ removeStep });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-    fireEvent.click(screen.getByRole('button', { name: 'Keep QA' }));
-    await settle();
-
-    expect(removeStep).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText('New step')).toBeDefined();
-  });
-
-  itDom('takes a step nobody uses without asking at all', async () => {
-    // be-01 removes one nothing points at outright, so there is nothing to
-    // confirm — and asking anyway is how people learn to confirm without
-    // reading.
-    const stub = stubbed();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await waitFor(() => {
-      expect(stub.onChanged).toHaveBeenCalled();
-    });
-
-    expect(screen.queryByLabelText('Delete them along with the step')).toBeNull();
   });
 });
 
@@ -631,7 +320,7 @@ describe('how wide the steps make the table', () => {
   itDom('quotes the table’s own arithmetic, not a sum of its own', () => {
     // The number moves with every width the table declares, including the ones
     // that depend on the plan: the same two steps are 28px wider once
-    // somebody sets an earliest start anywhere in the project.
+    // somebody sets an earliest start anywhere in the work package.
     //
     // Proof: `minWidth` in `steps-panel.tsx` replaced by the hand-written
     // `952 + steps.length * 96` this sentence used to quote, this failed on
@@ -659,7 +348,7 @@ describe('how wide the steps make the table', () => {
     ).toBe(24);
   });
 
-  itDom('resolves the project’s own step ids, not stand-ins for the count', () => {
+  itDom('resolves the work package’s own step ids, not stand-ins for the count', () => {
     // A width can be resolved per column id now, which is what makes an id a
     // fact rather than a placeholder: `T1 column-widths-drag` stores a
     // reader's override under the exact column id, and a `step0-final`
@@ -682,7 +371,7 @@ describe('how wide the steps make the table', () => {
     // the figure that says how much width the steps need has to be that
     // table's. It can only be, because the override is stored under
     // `step-dev-final` — the id the table renders that column by — and this
-    // panel resolves the project's own step ids.
+    // panel resolves the work package's own step ids.
     //
     // Proof: `steps.map((step) => step.id)` replaced by the stand-in
     // `Array.from({ length: steps.length }, (_, at) => \`step${at}\`)`, this
@@ -749,129 +438,6 @@ describe('how wide the steps make the table', () => {
   });
 });
 
-describe('what the section tells the modal it is holding', () => {
-  itDom('is clean on mount and dirty from a name typed into the new box', () => {
-    // `project-config-modal` D3: a name typed and not added is an edit a close
-    // would lose, so the modal is told.
-    const stub = stubbed();
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
-
-    type('New step', 'Design');
-
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
-  });
-
-  itDom('is dirty while a confirmation is open and clean once it is answered', async () => {
-    // A confirmation nobody has answered is exactly the thing the modal must
-    // not close over: the ✕ used to clear it silently.
-    const removeStep = vi.fn((_stepId: string, cascade: boolean) =>
-      cascade
-        ? Promise.resolve({ ok: true })
-        : Promise.resolve({
-            ok: false,
-            reason: 'in_use' as const,
-            inUse: { estimates: 1, assignments: 0, assumedAssignees: [] },
-          }),
-    );
-    const stub = stubbed({ removeStep });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
-    await settle();
-    expect(screen.getByLabelText('Delete them along with the step')).toBeDefined();
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Keep QA' }));
-    await settle();
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
-  });
-
-  itDom('reads a name typed back to what it was as clean', () => {
-    // The rename box is a draft only while it says something the step does
-    // not. Typed to `Review` and back to `QA`, it holds nothing — and a modal
-    // that refused to close over it would be refusing over a box that says
-    // exactly what be-01 says.
-    const stub = stubbed();
-
-    type('QA', 'Review');
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(true);
-    type('QA', 'QA');
-    fireEvent.blur(screen.getByLabelText('QA'));
-
-    expect(stub.onDirtyChange).toHaveBeenLastCalledWith(false);
-    expect(stub.renameStep).not.toHaveBeenCalled();
-  });
-});
-
-describe('the sentences on their own', () => {
-  it('discloses direct blockage counts including zero and unknown older-server counts', () => {
-    const usage = {
-      estimates: 0,
-      actuals: 0,
-      progress: 0,
-      measures: 0,
-      assignments: 0,
-      assumedAssignees: [],
-    };
-    expect(usageSentence('QA', { ...usage, blockages: 2 })).toContain('2 step blockages');
-    expect(usageSentence('QA', { ...usage, blockages: 0 })).toContain('0 step blockages');
-    expect(usageSentence('QA', usage)).toContain('The server did not report step blockages.');
-  });
-
-  it('the removal sentence says step', () => {
-    // A project names its own steps, so one may well be called `Kat` or
-    // `Backend` — the sentence somebody agrees to before a removal has to say
-    // what kind of thing is going, in the word every other face uses for it.
-    const sentence = usageSentence('QA', {
-      estimates: 2,
-      actuals: 0,
-      progress: 0,
-      measures: 0,
-      assignments: 1,
-      assumedAssignees: [],
-    });
-
-    expect(sentence).toContain('the step QA');
-    expect(sentence).not.toMatch(/phase|role/i);
-  });
-
-  it('names both counts, even the one that is zero', () => {
-    expect(
-      usageSentence('QA', {
-        estimates: 1,
-        actuals: 0,
-        progress: 0,
-        measures: 0,
-        assignments: 0,
-        assumedAssignees: [],
-      }),
-    ).toBe(
-      'Removing the step QA would delete 1 estimate and 0 assignments. The server did not report step blockages.',
-    );
-  });
-
-  it('says who stops being assumed to do everything', () => {
-    expect(
-      flipSentence(
-        { workItemId: 'w1', assumedNow: 'p1', assumedAfter: null },
-        (id) => NUMBERS[id] ?? null,
-        (id) => PEOPLE[id] ?? null,
-      ),
-    ).toBe('010: Kat is assumed to be doing all of it now, nobody would be afterwards.');
-  });
-
-  it('names a work item the tree no longer holds by what it is, not by its id', () => {
-    // The list came from be-01 and the tree on screen is a moment older. A uuid
-    // in a confirmation is a fact nobody can act on, so it is not printed.
-    const said = flipSentence(
-      { workItemId: 'gone-uuid', assumedNow: null, assumedAfter: 'p2' },
-      () => null,
-      (id) => PEOPLE[id] ?? null,
-    );
-    expect(said).not.toContain('gone-uuid');
-    expect(said).toContain('A work item no longer on screen');
-  });
-});
-
 itDom(
   'blocks the unit control over estimates and changes an empty step with an explicit unit',
   async () => {
@@ -893,15 +459,6 @@ itDom(
     expect(setStepUnit).toHaveBeenCalledWith('step-qa', 'minutes');
   },
 );
-
-itDom('creates a step with its chosen explicit unit', async () => {
-  const stub = stubbed();
-  type('New step', 'Agent');
-  fireEvent.click(screen.getByRole('radio', { name: 'New step minutes' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Add step' }));
-  await settle();
-  expect(stub.addStep).toHaveBeenCalledWith('Agent', 'minutes');
-});
 
 itDom('refuses a trusted step list with an absent estimate count', () => {
   expect(() => stubbed({ estimateCounts: {} })).toThrow('no estimate count for step step-dev');

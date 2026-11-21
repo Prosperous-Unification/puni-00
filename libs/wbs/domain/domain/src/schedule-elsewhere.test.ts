@@ -38,7 +38,7 @@ const work = (workItemId: string, days: number, extra: Partial<Slice> = {}): Sli
 const booking = (start: number, end: number, workItemId = 'x1'): ElsewhereBooking => ({
   start,
   end,
-  projectId: 'platform',
+  workPackageId: 'platform',
   workItemId,
 });
 
@@ -83,7 +83,7 @@ describe('a person booked elsewhere', () => {
     );
     const a = sliceOf(plan, 'a');
     expect([a.earliestStart, a.earliestFinish, a.boundBy]).toEqual([3, 5, 'elsewhere']);
-    expect(a.elsewhereHolder).toEqual({ projectId: 'platform', workItemId: 'x1' });
+    expect(a.elsewhereHolder).toEqual({ workPackageId: 'platform', workItemId: 'x1' });
     expect(a.resourcePredecessorId).toBeNull();
     expect(plan.waitingElsewhere).toBe(1);
   });
@@ -99,9 +99,13 @@ describe('a person booked elsewhere', () => {
     );
     const a = sliceOf(plan, 'a');
     expect([a.earliestStart, a.earliestFinish]).toEqual([1, 4]);
-    expect(a.elsewhereHolder).toEqual({ projectId: 'platform', workItemId: 'x1' });
+    expect(a.elsewhereHolder).toEqual({ workPackageId: 'platform', workItemId: 'x1' });
     const b = sliceOf(plan, 'b');
-    expect([b.earliestStart, b.boundBy, b.elsewhereHolder]).toEqual([0, 'projectStart', undefined]);
+    expect([b.earliestStart, b.boundBy, b.elsewhereHolder]).toEqual([
+      0,
+      'workPackageStart',
+      undefined,
+    ]);
   });
 
   it('names the plan’s own predecessor, not the booking, when the two land on one day', () => {
@@ -160,7 +164,7 @@ describe('a person booked elsewhere', () => {
     );
     const b = sliceOf(plan, 'b');
     expect([b.earliestStart, b.earliestFinish, b.boundBy]).toEqual([4, 6, 'elsewhere']);
-    expect(b.elsewhereHolder).toEqual({ projectId: 'platform', workItemId: 'x1' });
+    expect(b.elsewhereHolder).toEqual({ workPackageId: 'platform', workItemId: 'x1' });
   });
 
   it('does not give a slice false float across its next booking', () => {
@@ -296,7 +300,7 @@ describe('no bookings elsewhere', () => {
         each.poolSizes ?? new Map(),
         each.reach ?? 'whole-item',
         new Map(),
-        [],
+        each.typed ?? [],
         undefined,
         new Map(),
       );
@@ -317,7 +321,7 @@ describe('no bookings elsewhere', () => {
         each.poolSizes ?? new Map(),
         each.reach ?? 'whole-item',
         new Map(),
-        [],
+        each.typed ?? [],
         undefined,
         new Map([['nobody-in-this-plan', [booking(0, 50)]]]),
       );

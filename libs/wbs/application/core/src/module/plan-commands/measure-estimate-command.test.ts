@@ -1,12 +1,14 @@
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { normalizeCommand, type PlanCommand } from '../../service/command-normalizers';
 import { createLocalDependencyContext } from '../../service/dependency-context';
+import { bindFixtureSteps } from '../../testing/bound-package-fixture';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -19,17 +21,17 @@ const ORG = 'org-a';
 const TRIO = { optimistic: 100, realistic: 200, pessimistic: 600 };
 
 /**
- * A project owned by the legacy organization `org-a`, which defines the
+ * A work package owned by the legacy organization `org-a`, which defines the
  * three-point `kwh` (real) beside the five seeds, holding parent `P` over
  * leaves `A` and `B` (`wbs-measure-budgets` tasks 2.1–2.3).
  */
 async function seeded() {
   const fixture = openMemorySourceFixture();
-  const source = fixture.source;
+  const source = ownTestSource(fixture.source);
   fixture.addOrganization(ORG, { legacy: true });
   const options = {
     dependencyContext: createLocalDependencyContext(source.stores),
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
@@ -39,15 +41,61 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = expectCreated(await graph.projects.create('Estimates', F));
-  const projectId = created.project.id;
-  fixture.ownProjectInOrganization(projectId, ORG);
-  for (const step of created.steps) {
-    await source.stores.steps.add(
-      { id: step.id, projectId, name: step.name, allowancePercent: 0, estimateUnit: 'workdays' },
-      { at: 1, by: F },
-    );
-  }
+  fixture.seedPackageParent({
+    spaceId: null,
+    spacePosition: null,
+    id: 'fixture-project',
+    organizationId: ORG,
+    name: 'Fixture project',
+    createdBy: F,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+  });
+  await bindFixtureSteps(
+    source,
+    ORG,
+    [
+      {
+        definition: {
+          id: 'fixture-dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-dev-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
+      },
+      {
+        definition: {
+          id: 'fixture-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: 'fixture-qa-binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 20,
+        },
+      },
+    ],
+    { at: 1, by: F },
+  );
+  const created = expectCreated(await graph.workPackages.create('Estimates', 'fixture-project', F));
+  const workPackageId = created.workPackage.id;
+
   const [dev] = created.steps.map(({ id }) => id);
   const runner = createPlanCommandRunner({
     uow: source.uow,
@@ -73,7 +121,7 @@ async function seeded() {
     },
   ]);
   if (!defined.ok) throw new Error(`kwh was refused: ${JSON.stringify(defined)}`);
-  const built = await runner.run(projectId, F, [
+  const built = await runner.run(workPackageId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     { kind: 'createWorkItem', ref: 'A', name: 'A', parentId: null, parentRef: 'P', afterId: null },
     {
@@ -93,9 +141,9 @@ async function seeded() {
       throw new Error(`no work item ${ref}`);
     return found.id;
   };
-  const run = (commands: readonly PlanCommand[]) => runner.run(projectId, F, commands);
+  const run = (commands: readonly PlanCommand[]) => runner.run(workPackageId, F, commands);
   const trios = async () =>
-    (await source.stores.measureEstimates.listByProject(projectId)).map(
+    (await source.stores.measureEstimates.listByWorkPackage(workPackageId)).map(
       ({ workItemId, key, optimistic, realistic, pessimistic, singlePoint }) => ({
         workItemId,
         key,
@@ -106,7 +154,7 @@ async function seeded() {
       }),
     );
   const facts = async () =>
-    (await source.stores.measures.listByProject(projectId)).map(
+    (await source.stores.measures.listByWorkPackage(workPackageId)).map(
       ({ workItemId, metric, value }) => ({ workItemId, metric, value }),
     );
   const kwhId = async () => {
@@ -116,7 +164,7 @@ async function seeded() {
     return found.id;
   };
   const tree = async (): Promise<PlanTree> => {
-    const read = await graph.workItems.tree(projectId);
+    const read = await graph.workItems.tree(workPackageId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');
     return read;
   };
@@ -136,7 +184,7 @@ async function seeded() {
     source,
     graph,
     runner,
-    projectId,
+    workPackageId,
     dev,
     idOf,
     run,
@@ -154,7 +202,7 @@ const setTrio = (workItemId: string, stepId: string, measure: string, estimate =
 
 describe('measure estimates as plan commands', () => {
   it('records, re-estimates and clears a trio in tokens, cost and a defined measure, undoably', async () => {
-    const { source, runner, projectId, dev, idOf, run, trios } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios } = await seeded();
     try {
       const A = idOf('A');
       expect(
@@ -189,22 +237,22 @@ describe('measure estimates as plan commands', () => {
       expect(
         await run([setTrio(A, dev, 'tokens', { optimistic: 1, realistic: 2, pessimistic: 3 })]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toContainEqual({
         workItemId: A,
         key: 'tokens',
         ...TRIO,
         singlePoint: false,
       });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toEqual([]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toHaveLength(3);
       expect(
         await run([{ kind: 'clearMeasureEstimate', workItemId: A, stepId: dev, measure: 'kwh' }]),
       ).toMatchObject({ ok: true });
       expect((await trios()).map(({ key }) => key)).toEqual(['cost', 'tokens']);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ key }) => key)).toEqual(['cost', 'kwh', 'tokens']);
     } finally {
       await source.close();
@@ -358,11 +406,11 @@ describe('expected measure and variance on the row read', () => {
     }
   });
 
-  it("weighs the trio by the project's own PERT weights", async () => {
-    const { source, graph, projectId, dev, idOf, run, rowOf } = await seeded();
+  it("weighs the trio by the work package's own PERT weights", async () => {
+    const { source, graph, workPackageId, dev, idOf, run, rowOf } = await seeded();
     try {
       const A = idOf('A');
-      const updated = await graph.projects.update(projectId, F, {
+      const updated = await graph.workPackages.update(workPackageId, F, {
         pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
       });
       expect(updated).toMatchObject({ ok: true });
@@ -392,7 +440,7 @@ describe('expected measure and variance on the row read', () => {
 
 describe('the legacy token estimate as a single-point trio', () => {
   it('reads a legacy token estimate as a single-point trio and clears the flag on a three-point write', async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, facts, rowOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, facts, rowOf } = await seeded();
     try {
       const A = idOf('A');
       await run([
@@ -429,7 +477,7 @@ describe('the legacy token estimate as a single-point trio', () => {
       ]);
       // The single figure is retired: the old release reads no token estimate.
       expect(await facts()).toEqual([]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toEqual([
         {
           workItemId: A,
@@ -447,7 +495,7 @@ describe('the legacy token estimate as a single-point trio', () => {
   });
 
   it('undoes a legacy token estimate written over a three-point trio by putting the trio back', async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, facts } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, facts } = await seeded();
     try {
       const A = idOf('A');
       await run([setTrio(A, dev, 'tokens')]);
@@ -464,7 +512,7 @@ describe('the legacy token estimate as a single-point trio', () => {
           singlePoint: true,
         },
       ]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toEqual([
         { workItemId: A, key: 'tokens', ...TRIO, singlePoint: false },
       ]);
@@ -477,7 +525,7 @@ describe('the legacy token estimate as a single-point trio', () => {
 
 describe('measure estimates follow their work item', () => {
   it("hands a leaf's trios down to its first child and back up on undo", async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, childOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, childOf } = await seeded();
     try {
       const A = idOf('A');
       await run([
@@ -492,12 +540,12 @@ describe('measure estimates follow their work item', () => {
         [C, 'kwh'],
         [C, 'tokens'],
       ]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ workItemId, key }) => [workItemId, key])).toEqual([
         [A, 'kwh'],
         [A, 'tokens'],
       ]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ workItemId, key }) => [workItemId, key])).toEqual([
         [C, 'kwh'],
         [C, 'tokens'],
@@ -508,7 +556,7 @@ describe('measure estimates follow their work item', () => {
   });
 
   it("hands a deleted last child's trios up to the parent and takes them off again on undo", async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, childOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, childOf } = await seeded();
     try {
       const B = idOf('B');
       const C = childOf(
@@ -540,7 +588,7 @@ describe('measure estimates follow their work item', () => {
           singlePoint: false,
         },
       ]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await trios()).toEqual([
         {
           workItemId: C,
@@ -551,7 +599,7 @@ describe('measure estimates follow their work item', () => {
           singlePoint: false,
         },
       ]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ workItemId }) => workItemId)).toEqual([B]);
     } finally {
       await source.close();
@@ -559,7 +607,7 @@ describe('measure estimates follow their work item', () => {
   });
 
   it("puts a deleted branch's trios back on undo", async () => {
-    const { source, runner, projectId, dev, idOf, run, trios } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios } = await seeded();
     try {
       const [A, B] = [idOf('A'), idOf('B')];
       await run([setTrio(A, dev, 'kwh'), setTrio(B, dev, 'tokens')]);
@@ -567,7 +615,7 @@ describe('measure estimates follow their work item', () => {
         await run([{ kind: 'deleteWorkItem', workItemId: idOf('P'), strategy: 'cascade' }]),
       ).toMatchObject({ ok: true });
       expect(await trios()).toEqual([]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ workItemId, key }) => [workItemId, key])).toEqual(
         [
           [A, 'kwh'],
@@ -580,7 +628,7 @@ describe('measure estimates follow their work item', () => {
   });
 
   it("copies a duplicated branch's trios and takes them with the copy on undo", async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, childOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, childOf } = await seeded();
     try {
       const A = idOf('A');
       await run([setTrio(A, dev, 'kwh')]);
@@ -591,9 +639,9 @@ describe('measure estimates follow their work item', () => {
       expect((await trios()).filter(({ workItemId }) => workItemId === copy)).toEqual([
         { workItemId: copy, key: 'kwh', ...TRIO, singlePoint: false },
       ]);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).map(({ workItemId }) => workItemId)).toEqual([A]);
-      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.redo(workPackageId, F)).toMatchObject({ ok: true });
       expect((await trios()).filter(({ workItemId }) => workItemId === copy)).toHaveLength(1);
     } finally {
       await source.close();
@@ -618,7 +666,7 @@ describe('a definition that stops allowing three points', () => {
   };
 
   it('undoes a delete and a first-child create after tokens stops allowing three points', async () => {
-    const { source, runner, projectId, dev, idOf, run, facts, childOf } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, facts, childOf } = await seeded();
     try {
       const [A, B] = [idOf('A'), idOf('B')];
       await patchThreePoint(runner, source, 'tokens');
@@ -627,14 +675,14 @@ describe('a definition that stops allowing three points', () => {
         { kind: 'setMeasure', workItemId: B, stepId: dev, metric: 'token_estimate', value: 70 },
       ]);
       expect(await run([{ kind: 'deleteWorkItem', workItemId: A }])).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await facts()).toContainEqual({ workItemId: A, metric: 'token_estimate', value: 500 });
       const C = childOf(
         await run([{ kind: 'createWorkItem', ref: 'C', name: 'C', parentId: B, afterId: null }]),
         'C',
       );
       expect(await facts()).toContainEqual({ workItemId: C, metric: 'token_estimate', value: 70 });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await facts()).toContainEqual({ workItemId: B, metric: 'token_estimate', value: 70 });
     } finally {
       await source.close();
@@ -663,14 +711,14 @@ describe('a definition that stops allowing three points', () => {
 
 describe('the legacy token estimate through a restore', () => {
   it("restores a deleted leaf's legacy token estimate with its recordedAt verbatim", async () => {
-    const { source, runner, projectId, dev, idOf, run } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run } = await seeded();
     try {
       const A = idOf('A');
       await run([
         { kind: 'setMeasure', workItemId: A, stepId: dev, metric: 'token_estimate', value: 40 },
       ]);
       const recorded = async () =>
-        (await source.stores.measures.listByProject(projectId)).find(
+        (await source.stores.measures.listByWorkPackage(workPackageId)).find(
           (each) => each.workItemId === A && each.metric === 'token_estimate',
         )?.recordedAt;
       const before = await recorded();
@@ -678,7 +726,7 @@ describe('the legacy token estimate through a restore', () => {
       await Bun.sleep(5);
       await run([{ kind: 'deleteWorkItem', workItemId: A }]);
       await Bun.sleep(5);
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
       expect(await recorded()).toBe(before);
     } finally {
       await source.close();
@@ -688,7 +736,7 @@ describe('the legacy token estimate through a restore', () => {
 
 describe('replays across a deleted definition', () => {
   it('refuses an undo that would put a trio back in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, kwhId } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, kwhId } = await seeded();
     try {
       const A = idOf('A');
       await run([setTrio(A, dev, 'kwh')]);
@@ -696,7 +744,7 @@ describe('replays across a deleted definition', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await kwhId() }]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await trios()).toEqual([]);
     } finally {
       await source.close();
@@ -704,7 +752,7 @@ describe('replays across a deleted definition', () => {
   });
 
   it('refuses an undo of a delete whose trio is in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, trios, kwhId } = await seeded();
+    const { source, runner, workPackageId, dev, idOf, run, trios, kwhId } = await seeded();
     try {
       const A = idOf('A');
       await run([setTrio(A, dev, 'kwh')]);
@@ -712,15 +760,15 @@ describe('replays across a deleted definition', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await kwhId() }]),
       ).toMatchObject({ ok: true });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
       expect(await trios()).toEqual([]);
     } finally {
       await source.close();
     }
   });
 
-  it('refuses an undo of a first-child create whose handed-down trio is in a measure deleted since', async () => {
-    const { source, runner, projectId, dev, idOf, run, kwhId, childOf } = await seeded();
+  it('refuses restoring a deleted measure but reverses the now-empty first-child transition without resurrecting it', async () => {
+    const { source, runner, workPackageId, dev, idOf, run, kwhId, childOf } = await seeded();
     try {
       const A = idOf('A');
       await run([setTrio(A, dev, 'kwh')]);
@@ -732,9 +780,15 @@ describe('replays across a deleted definition', () => {
       expect(
         await runner.runDirectory(F, [{ kind: 'deleteMeasure', measureId: await kwhId() }]),
       ).toMatchObject({ ok: true });
-      // The clear's undo refuses first, then the create's.
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
-      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      // The clear would restore a deleted key. The current first-child record
+      // transfers live work, so its later undo transfers the now-empty values.
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: false });
+      expect(await runner.undo(workPackageId, F)).toMatchObject({ ok: true });
+      expect(await source.stores.workItems.findById(C)).toBeNull();
+      expect(await source.stores.measureEstimates.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(
+        (await source.stores.directory.listMeasures(ORG)).some(({ key }) => key === 'kwh'),
+      ).toBe(false);
     } finally {
       await source.close();
     }

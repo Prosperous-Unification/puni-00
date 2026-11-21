@@ -29,7 +29,7 @@ plugin({ name: 'forbid-startup', setup(build) {
         env: {
           PATH: process.env['PATH'],
           DB_PATH: databasePath,
-          CROSS_PROJECT_DEPENDENCIES: 'enabled',
+          CROSS_WORK_PACKAGE_DEPENDENCIES: 'enabled',
           DEPENDENCY_ACTIVATION: 'ENABLED',
         },
         timeout: 5000,

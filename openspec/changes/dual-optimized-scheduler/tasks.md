@@ -1508,11 +1508,11 @@ to a BigInt`, naming nothing.
 ## 3. Cache, slot and queue tables (PROD MODE — reviewed PR, no self-merge)
 
 - [x] 3.1 `optimized_schedule_cache` in `apps/be-01/src/repository/schema.ts`:
-      composite PK `(projectId, inputHash, objective, contractVersion,
+      composite PK `(workPackageId, inputHash, objective, contractVersion,
 budgetMs)` → `generation`, `status`
       (`'ok' | 'failed' | 'plan-infeasible'`), `resultJson`
       (NULL iff failed), `failureReason` (NULL unless failed), `createdAt`.
-      Integrity is declared, not assumed: `projectId` FK to `project(id)`
+      Integrity is declared, not assumed: `workPackageId` FK to `project(id)`
       `ON DELETE CASCADE`; `CHECK (status IN ('ok','failed','plan-infeasible'))`;
       `CHECK ((status='ok' AND resultJson IS NOT NULL AND failureReason IS
 NULL) OR (status='failed' AND resultJson IS NULL AND failureReason IS
@@ -1533,7 +1533,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       offending-item list ever needs to be queried by SQL rather than read
       whole, at which point it becomes its own table and this assumption is
       wrong rather than merely superseded.
-- [x] 3.2 `optimization_generation`: PK `(projectId, contractVersion)` →
+- [x] 3.2 `optimization_generation`: PK `(workPackageId, contractVersion)` →
       `generation` (integer not null), `inputHash` (text nullable),
       `cancelEpoch` (integer not null default 0), `admissionState`
       (`'open' | 'draining'`, not null default `'open'`), `updatedAt`. This is the sole
@@ -1543,7 +1543,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       computing H1 and the release computing H2 alternately increment one
       counter and delete each other's rows for ever.
       `solver_slot`: PK
-      `(projectId, contractVersion, generation, objective, budgetMs)` →
+      `(workPackageId, contractVersion, generation, objective, budgetMs)` →
       `ownerId`, `attemptToken`, `lifecycle` (`'starting' | 'running'`, with
       `CHECK (lifecycle IN ('starting','running'))`) and
       `CHECK (objective IN ('pri','time'))` on the key's own `objective`
@@ -1559,7 +1559,7 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       cannot be evaluated against the full key at all, and a coordinator
       configured at the smaller budget reclaims a larger-budget child that is
       still inside its own deadline. `solver_queue`: PK
-      `(projectId, contractVersion, objective, budgetMs)` — **not** keyed by generation,
+      `(workPackageId, contractVersion, objective, budgetMs)` — **not** keyed by generation,
       so a project holds at most one queued entry per objective **per budget**
       per contract version (the PK's own bound; an entry that did not name its
       budget could not tell the dequeue which budget to launch, which is why
@@ -1569,14 +1569,14 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       `CHECK (objective IN ('pri','time'))` on the key's own `objective`
       column (Fable r18 Important 1), and
       an index on
-      `(enqueuedAt, projectId, contractVersion, objective, budgetMs)`. The
+      `(enqueuedAt, workPackageId, contractVersion, objective, budgetMs)`. The
       dequeue order is
-      `ORDER BY enqueuedAt, projectId, contractVersion, objective, budgetMs`,
+      `ORDER BY enqueuedAt, workPackageId, contractVersion, objective, budgetMs`,
       which is total (Sol r7 Minor 15): `objective` breaks the tie between a project's
       PRI and Time entries enqueued in the same millisecond, and
       `contractVersion` breaks the tie between blue and green enqueuing the
       same project and objective in that same millisecond. All three companion
-      tables carry `projectId` FK to `project(id)` `ON DELETE CASCADE`, so
+      tables carry `workPackageId` FK to `project(id)` `ON DELETE CASCADE`, so
       deleting a project cannot leave rows consuming the global 16-slot budget.
       Retirement: an `optimization_generation` row untouched for
       `GENERATION_RETENTION_DAYS = 30`, or whose contract version is retired at
@@ -1676,8 +1676,8 @@ effectiveDeadlineOffset }] }`, `ownerWorkItemId === boundWorkItemId` when
       a real two-coordinator process test** (Sol r10 Critical 2).
       `optimization-drain.proc.test.ts` samples the **real OS process count**
       throughout, not a mocked spawner. Name and implement two repository/service
-      seams: `beginOptimizationDrain(projectId, contractVersion?)` and
-      `finishOptimizationDrain(projectId, contractVersion?)`. Begin is one
+      seams: `beginOptimizationDrain(workPackageId, contractVersion?)` and
+      `finishOptimizationDrain(workPackageId, contractVersion?)`. Begin is one
       transaction: for contract retirement it sets the targeted generation's
       `admissionState='draining'`; for project deletion it first sets the durable
       `project.optimization_delete_pending_at` marker and then sets every one of
@@ -1887,7 +1887,7 @@ review`, no self-merge.
 
 - [x] 4.1 Repository functions: read the pair for the full key; write an `ok`
       row; write a `failed` row; allocate the next generation in the
-      `optimization_generation` row for `(projectId, contractVersion)` **and**
+      `optimization_generation` row for `(workPackageId, contractVersion)` **and**
       delete that contract version's older-generation cache and queue rows in
       one transaction — **slot rows are not deleted**, because freeing the
       count before the children are proved dead is what let six real children
@@ -1923,7 +1923,7 @@ review`, no self-merge.
 - [x] 4.1b Retention, both rules. (1) Allocation deletes that contract
       version's older-generation cache rows. (2) A committing outcome keeps the
       `MAX_LIVE_BUDGETS = 2` most recently written budgets for
-      `(projectId, objective, contractVersion, inputHash)` and deletes the
+      `(workPackageId, objective, contractVersion, inputHash)` and deletes the
       rest. **Rule 2 is a bound, not an exclusion** (Sol r7 Important 9): the
       earlier "delete every other row whose `(inputHash, budgetMs)` differs"
       made a budget change a livelock, because a config change is not a code
@@ -3479,7 +3479,7 @@ status: 'optimal' | 'feasible' | 'unknown' }` and
       including those already asked to cancel, rejects unless the matching
       generation has `admissionState='open'` and the project has no
       `optimization_delete_pending_at`, then inserts the
-      `(projectId, contractVersion, generation, objective, budgetMs)` slot with
+      `(workPackageId, contractVersion, generation, objective, budgetMs)` slot with
       `ON CONFLICT DO NOTHING` so concurrent cold reads coalesce to one spawn,
       stamping a fresh 128-bit `attemptToken` and
       `admittedDeadlineAt = startedAt + budgetMs + 5000 +
@@ -3494,17 +3494,17 @@ SLOT_RECLAIM_MARGIN_MS` **from the admitting coordinator's own budget**.
       `heartbeatAt` is refreshed every 5 s for live slots and the row is
       deleted when the child exits. **This is the whole admission protocol
       (Sol r8 Critical 3).** The earlier text here named the three-column key
-      `(projectId, generation, objective)` and a `budgetMs + 30s` reclaim, both
+      `(workPackageId, generation, objective)` and a `budgetMs + 30s` reclaim, both
       superseded by 3.2 and 6.10–6.11; an implementer following it would have
       lost the blue/green, cancellation and old-owner fences the design calls
       mandatory. No alternate key shape or reclaim rule is restated anywhere in
       this plan.
-- [x] 6.3 `solver_queue` FIFO ordered by `enqueuedAt`, then `projectId`, then
+- [x] 6.3 `solver_queue` FIFO ordered by `enqueuedAt`, then `workPackageId`, then
       `contractVersion`, then `objective`, then `budgetMs` — the trailing terms
       are what make the order total, because a project's PRI and Time entries
       can share a timestamp and blue and green can enqueue the same project and
       objective in that same millisecond (Sol r7 Minor 15) — one entry per
-      `(projectId, contractVersion, objective, budgetMs)`, the row carrying
+      `(workPackageId, contractVersion, objective, budgetMs)`, the row carrying
       `budgetMs` because the dequeue cannot otherwise say which budget to
       launch (Sol r8 Critical 2). Enqueue **persists the cancel
       epoch it was admitted under** as `admittedCancelEpoch`; without a stored
@@ -3701,7 +3701,7 @@ attemptToken)` predicate governs **worker-owned outcome writes only**;
       transition is what would otherwise leave a stale row. Remove the
       short-circuit and the spawner assertion must fail.
 - [x] 6.10 Generation allocation is one transaction against the
-      `optimization_generation` row for `(projectId, contractVersion)`, and
+      `optimization_generation` row for `(workPackageId, contractVersion)`, and
       there is exactly one allocation algorithm in this plan — 4.1's (Sol r7
       Critical 4). Equal `inputHash` reuses the generation; a different or NULL
       hash sets the hash and increments under
@@ -3778,7 +3778,7 @@ attemptToken)` predicate governs **worker-owned outcome writes only**;
       marker row, including for a pre-spawn `horizon-overflow` or
       `objective-overflow`.
 - [x] 7.2 `schedule_optimized` added to `ProjectEvent` in
-      `apps/be-01/src/service/broadcast.ts`, carrying `(projectId, generation,
+      `apps/be-01/src/service/broadcast.ts`, carrying `(workPackageId, generation,
 inputHash, objective, contractVersion, budgetMs)` (7.7). **The cache row
       and the `event_log` record are written in one SQLite transaction** and the
       broadcaster pushes from the committed record, so the guarantee is one
@@ -3813,7 +3813,7 @@ inputHash, objective, contractVersion, budgetMs)` (7.7). **The cache row
       would make every collaborator refetch unchanged data; a split write is a
       result nobody is told about.
 - [x] 7.6 A newly written failure marker emits `schedule_optimization_failed`
-      in the same transaction as the row, carrying `(projectId, generation,
+      in the same transaction as the row, carrying `(workPackageId, generation,
 inputHash, objective, contractVersion, budgetMs, failureReason)` and no
       schedule. Without it the read returns Fast, success emits
       `schedule_optimized`, and failure emitted nothing — so a client on
@@ -3863,7 +3863,7 @@ recorded, event)` buffers and pushes an already-recorded sequence
       **Proven through the real controller payload** in the cold, queued,
       retrying, failed, **corrupt**, **plan-infeasible**, partial-success and
       full-hit states.
-- [x] 7.11 `POST /api/projects/:projectId/optimization/retry`, body
+- [x] 7.11 `POST /api/projects/:workPackageId/optimization/retry`, body
       `{ objective, inputHash }`, under the same project-write authorization as
       the settings PATCH, running the ordinary admission transaction so two
       concurrent retries produce one child. `202` with the new state,

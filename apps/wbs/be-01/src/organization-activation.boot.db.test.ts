@@ -79,29 +79,31 @@ async function selectSession(
   };
 }
 
-/** The project names `username`'s browser session lists after selecting its one membership. */
+/** The work package names `username`'s browser session lists after selecting its one membership. */
 async function listAfterSelecting(
   process: BootedBrowserProcess,
   username: string,
 ): Promise<string[]> {
-  const projects = await call(
+  const workPackages = await call(
     process,
     'GET',
-    '/api/projects',
+    '/api/work-packages',
     await selectSession(process, username),
   );
-  expect(projects.status).toBe(200);
-  return (projects.body as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
+  expect(workPackages.status).toBe(200);
+  return (workPackages.body as { workPackages: { name: string }[] }).workPackages
+    .map((p) => p.name)
+    .toSorted();
 }
 
-/** Three accounts and two legacy projects, then the CLI's apply against the served file. */
+/** Three accounts and two legacy work packages, then the CLI's apply against the served file. */
 async function activateLegacyStore(process: BootedBrowserProcess): Promise<void> {
   for (const username of ['dany', 'ada', 'grace']) await process.register(username);
   for (const [username, name] of [
     ['dany', 'Launch'],
     ['ada', 'Billing'],
   ] as const) {
-    const created = await call(process, 'POST', '/api/projects', bearer(process, username), {
+    const created = await call(process, 'POST', '/api/work-packages', bearer(process, username), {
       name,
     });
     expect(created.status).toBe(200);
@@ -136,7 +138,7 @@ async function activateLegacyStore(process: BootedBrowserProcess): Promise<void>
   });
 }
 
-test('after the CLI activates, the super-admin and a member list the legacy projects and a stranger is refused', async () => {
+test('after the CLI activates, the super-admin and a member list the legacy work packages and a stranger is refused', async () => {
   be = await BootedBrowserProcess.open('enabled');
   const process = be;
   await activateLegacyStore(process);
@@ -146,12 +148,12 @@ test('after the CLI activates, the super-admin and a member list the legacy proj
   expect(await listAfterSelecting(process, 'dany')).toEqual(['Billing', 'Launch']);
   expect(await listAfterSelecting(process, 'ada')).toEqual(['Billing', 'Launch']);
   // A Bearer credential without the browser's organization cookie binds none (mcp-01's way).
-  expect(await call(process, 'GET', '/api/projects', bearer(process, 'dany'))).toMatchObject({
+  expect(await call(process, 'GET', '/api/work-packages', bearer(process, 'dany'))).toMatchObject({
     status: 403,
     body: { error: 'no_active_organization' },
   });
   await process.register('eve');
-  expect(await call(process, 'GET', '/api/projects', bearer(process, 'eve'))).toMatchObject({
+  expect(await call(process, 'GET', '/api/work-packages', bearer(process, 'eve'))).toMatchObject({
     status: 403,
     body: { error: 'no_active_organization' },
   });
@@ -164,7 +166,7 @@ test('after activation, the disabled composition binds no organization', async (
 
   // Production `disabled` wires NO_BOUND_ORGANIZATION and refuses selection: activating a
   // store served this way locks every account out of organization resources.
-  expect(await call(process, 'GET', '/api/projects', bearer(process, 'dany'))).toMatchObject({
+  expect(await call(process, 'GET', '/api/work-packages', bearer(process, 'dany'))).toMatchObject({
     status: 403,
     body: { error: 'no_active_organization' },
   });
@@ -181,25 +183,25 @@ test('after activation, the disabled composition binds no organization', async (
   expect(selected.setCookie).toBeNull();
 });
 
-test('a member reads a restricted project it does not own and cannot edit it, before and after', async () => {
+test('a member reads a restricted work package it does not own and cannot edit it, before and after', async () => {
   be = await BootedBrowserProcess.open('enabled');
   const process = be;
   for (const username of ['dany', 'ada']) await process.register(username);
-  const created = await call(process, 'POST', '/api/projects', bearer(process, 'dany'), {
+  const created = await call(process, 'POST', '/api/work-packages', bearer(process, 'dany'), {
     name: 'Launch',
   });
-  const projectId = (created.body as { project: { id: string } }).project.id;
+  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
   const restricted = await call(
     process,
     'PATCH',
-    `/api/projects/${projectId}`,
+    `/api/work-packages/${workPackageId}`,
     bearer(process, 'dany'),
     { restricted: true },
   );
   expect(restricted.status).toBe(200);
   const answers = async (headers: Record<string, string>) => {
-    const read = await call(process, 'GET', `/api/projects/${projectId}`, headers);
-    const edit = await call(process, 'PATCH', `/api/projects/${projectId}`, headers, {
+    const read = await call(process, 'GET', `/api/work-packages/${workPackageId}`, headers);
+    const edit = await call(process, 'PATCH', `/api/work-packages/${workPackageId}`, headers, {
       name: 'Hijacked',
     });
     return { read: read.status, edit: { status: edit.status, body: edit.body } };
@@ -233,26 +235,26 @@ test('a member reads a restricted project it does not own and cannot edit it, be
   expect(activated.exitCode).toBe(0);
   const owner = process.sqlite
     .query<{ organization_id: string }, [string]>(
-      'SELECT organization_id FROM project_organization WHERE resource_id=?',
+      'SELECT organization_id FROM work_package_organization WHERE resource_id=?',
     )
-    .get(projectId);
-  if (owner === null) throw new Error('activated project owner missing');
+    .get(workPackageId);
+  if (owner === null) throw new Error('activated work package owner missing');
   process.sqlite.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('ada-restricted-reader',?,'work_package',?,'user',?,'package-viewer','route',1)",
-    [owner.organization_id, projectId, process.userId('ada')],
+    [owner.organization_id, workPackageId, process.userId('ada')],
   );
 
   // Proof: 2026-10-20, granting every other user `super_admin` instead of `member` made this
-  // edit answer 200 and rename the project (an audited recovery) instead of 403 `forbidden`.
+  // edit answer 200 and rename the work package (an audited recovery) instead of 403 `forbidden`.
   expect(await answers(await selectSession(process, 'ada'))).toEqual({
     read: 200,
     edit: { status: 403, body: { error: 'forbidden', permission: 'package.manage_settings' } },
   });
-  const project = await call(
+  const workPackage = await call(
     process,
     'GET',
-    `/api/projects/${projectId}`,
+    `/api/work-packages/${workPackageId}`,
     await selectSession(process, 'dany'),
   );
-  expect(project.body).toMatchObject({ project: { name: 'Launch', restricted: true } });
+  expect(workPackage.body).toMatchObject({ workPackage: { name: 'Launch', restricted: true } });
 });

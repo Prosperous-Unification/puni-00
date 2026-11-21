@@ -1,5 +1,5 @@
-import { expect, type Page, test } from '@playwright/test';
-
+import { openWorkPackageActions, readOrdinaryFixture } from './ordinary-context';
+import { expect, type Page, test } from './ordinary-test';
 import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
@@ -117,11 +117,11 @@ for (const scheme of ['light', 'dark'] as const) {
     test.setTimeout(120_000);
     await page.emulateMedia({ colorScheme: scheme });
     // Proof, watched 2026-10-17: before this change the home card failed on
-    // `section[data-no-project-open] … Top edge in its ink oklch(0.129 0.042
+    // `section[data-no-work-package-open] … Top edge in its ink oklch(0.129 0.042
     // 264.695)` (light) and `oklch(0.984 0.003 247.858)` (dark). With the
     // base layer's `button`/`fieldset` frame reset deleted, the Gantt failed on
     // `button[data-gantt-label] "010 - Sign-up form" · 2px outset`; with the
-    // labels patched past, Project settings failed on `button "Close" · 2px
+    // labels patched past, Work package settings failed on `button "Close" · 2px
     // outset`; with only `fieldset` dropped from the reset, Steps failed on
     // `fieldset "A dependency waits for…" · 2px groove`.
     const seeded = await seedPlan(
@@ -144,18 +144,21 @@ for (const scheme of ['light', 'dark'] as const) {
       },
       { run: String(Date.now()), worker: info.workerIndex, test: `frames-${scheme}` },
     );
-    // Two projects and none remembered: the page offers them rather than opening one.
+    // Two work packages and none remembered: the page offers them rather than opening one.
     fixtureSuccess(
-      'postApiProjects',
-      await fixtureClient(page).postApiProjects({
-        body: { name: `Sibling of ${seeded.projectName}` },
+      'postApiWorkPackages',
+      await fixtureClient(page).postApiWorkPackages({
+        body: {
+          projectId: readOrdinaryFixture().projectId,
+          name: `Sibling of ${seeded.workPackageName}`,
+        },
       }),
     );
     await page.evaluate(() => {
-      localStorage.removeItem('wbs.project');
+      localStorage.removeItem('wbs.workPackage');
     });
     await page.goto('/');
-    await expect(page.getByRole('region', { name: 'No project open' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'No work package open' })).toBeVisible();
     await expectNoStrayFrames(page, 'the home card');
 
     await openSeededPlan(page, seeded);
@@ -163,6 +166,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await expectNoStrayFrames(page, 'the plan');
 
     for (const panel of ['Filters', 'Views', 'Columns', 'Saved plans', 'Export / Import']) {
+      if (panel === 'Saved plans') await openWorkPackageActions(page);
       await page.locator('summary', { hasText: panel }).click();
       await expectNoStrayFrames(page, `the ${panel} popover`);
       await page.keyboard.press('Escape');
@@ -196,8 +200,8 @@ for (const scheme of ['light', 'dark'] as const) {
     await expectNoStrayFrames(page, 'the account menu');
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Project settings' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Project settings' });
+    await page.getByRole('button', { name: 'Work package settings' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Work package settings' });
     await expect(dialog).toBeVisible();
     for (const tab of [
       'Teams',
@@ -209,7 +213,7 @@ for (const scheme of ['light', 'dark'] as const) {
       'Resources',
     ]) {
       await dialog.getByRole('tab', { name: tab, exact: true }).click();
-      await expectNoStrayFrames(page, `Project settings › ${tab}`);
+      await expectNoStrayFrames(page, `Work package settings › ${tab}`);
     }
     await page.keyboard.press('Escape');
 
@@ -301,7 +305,7 @@ for (const scheme of ['light', 'dark'] as const) {
     );
     await openSeededPlan(page, seeded);
     await page.getByRole('button', { name: 'Plan actions' }).click();
-    const starts = page.getByLabel('Project start date');
+    const starts = page.getByLabel('Work package start date');
     await starts.fill('2026-06-01');
     await starts.blur();
     await page.keyboard.press('Escape');

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { failureText } from '@/components/wbs/plan-refusal';
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
-import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
+import { httpWorkPackageApi, type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
+import { answerJson, stubServer } from '@/testing/stub-server';
 
 import { createBusy } from './busy-store';
 import type { PlanWriteRefusal, PlanWriterHost } from './contract';
@@ -191,7 +192,7 @@ it('reports organization context change once without retrying the refused mutati
       return Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: { error: 'organization_context_changed' },
         }),
       );
@@ -206,10 +207,9 @@ it('reports organization context change once without retrying the refused mutati
 });
 
 it.each([
-  'postApiProjectsByIdCommands',
-  'postApiProjectsByIdUndo',
-  'postApiProjectsByIdRedo',
-  'deleteApiProjectsByIdStepsByStepId',
+  'postApiWorkPackagesByIdCommands',
+  'postApiWorkPackagesByIdUndo',
+  'postApiWorkPackagesByIdRedo',
 ] as const)('reports disabled blockage admission from %s without retrying', async (operation) => {
   const recorded = recordingHost();
   const writer = createPlanWriter(recorded.host);
@@ -237,15 +237,7 @@ it.each([
 const sparseRefusals = [
   {
     kind: 'refusal',
-    operation: 'deleteApiProjectsByIdStepsByStepId',
-    refusal: {
-      error: 'referenced_by_step_parallel',
-      nodes: [{ workItemId: 'retained-row', stepId: 'retained-step' }],
-    },
-  },
-  {
-    kind: 'refusal',
-    operation: 'postApiProjectsByIdCommands',
+    operation: 'postApiWorkPackagesByIdCommands',
     refusal: {
       error: 'referenced_by_step_parallel',
       at: 0,
@@ -289,7 +281,7 @@ it('rereads only a completed request before a sparse command refusal', async () 
       Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: {
             error: 'referenced_by_step_parallel',
             at: 1,
@@ -311,19 +303,27 @@ it('rereads only a completed request before a sparse command refusal', async () 
   ]);
 });
 
-it('classifies project abbreviation refusals without throwing', () => {
+it('classifies work package abbreviation refusals without throwing', () => {
   const problems = [
-    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'invalid_abbreviation' } },
-    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_taken' } },
-    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_exhausted' } },
     {
       kind: 'refusal',
-      operation: 'patchApiProjectsById',
+      operation: 'postApiWorkPackages',
+      refusal: { error: 'invalid_abbreviation' },
+    },
+    { kind: 'refusal', operation: 'postApiWorkPackages', refusal: { error: 'abbreviation_taken' } },
+    {
+      kind: 'refusal',
+      operation: 'postApiWorkPackages',
+      refusal: { error: 'abbreviation_exhausted' },
+    },
+    {
+      kind: 'refusal',
+      operation: 'patchApiWorkPackagesById',
       refusal: { error: 'invalid_abbreviation' },
     },
     {
       kind: 'refusal',
-      operation: 'patchApiProjectsById',
+      operation: 'patchApiWorkPackagesById',
       refusal: { error: 'abbreviation_taken' },
     },
   ] as const;
@@ -332,18 +332,24 @@ it('classifies project abbreviation refusals without throwing', () => {
   }
 });
 
-it('classifies a step-write cycle and code collision from the shared typed refusal', () => {
-  for (const error of ['dependency_cycle', 'code_taken'] as const) {
-    const problem = {
+it('classifies current package value refusals from their typed operation', () => {
+  const problems = [
+    {
       kind: 'refusal',
-      operation: 'postApiProjectsByIdSteps',
-      refusal: { error },
-    } as const;
-    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(error);
-  }
+      operation: 'patchWorkPackageStepValues',
+      refusal: { error: 'estimates_present', count: 2 },
+    },
+    {
+      kind: 'refusal',
+      operation: 'patchWorkPackageStepValues',
+      refusal: { error: 'calendar_range' },
+    },
+  ] satisfies WbsProblem[];
+  for (const problem of problems)
+    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(problem.refusal.error);
 });
 
-it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
+it.each(['postApiWorkPackagesByIdCommands', 'postApiWorkPackagesByIdUndo'] as const)(
   'reports dormant external dependency admission from %s without retrying',
   async (operation) => {
     const recorded = recordingHost();
@@ -354,7 +360,7 @@ it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
         requests += 1;
         return Promise.reject(
           new WbsRequestError(
-            operation === 'postApiProjectsByIdCommands'
+            operation === 'postApiWorkPackagesByIdCommands'
               ? {
                   kind: 'refusal',
                   operation,
@@ -377,7 +383,7 @@ it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
     expect(requests).toBe(1);
     expect(recorded.rereads).toEqual([]);
     expect(recorded.refusals).toEqual([
-      { sentence: 'Dependencies between projects are not enabled on this server.' },
+      { sentence: 'Dependencies between work packages are not enabled on this server.' },
     ]);
   },
 );
@@ -392,7 +398,7 @@ it('reports a retained external prerequisite without retry or reread', async () 
       return Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: {
             error: 'referenced_by_external_dependency',
             at: 0,
@@ -420,7 +426,7 @@ it('rereads only the tree after a typed terminal Retry refusal and preserves com
       Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdOptimizationRetry',
+          operation: 'postApiWorkPackagesByIdOptimizationRetry',
           refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
         }),
       ),
@@ -446,7 +452,7 @@ it('a retired writer does not publish or reread a typed terminal Retry refusal',
       return Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdOptimizationRetry',
+          operation: 'postApiWorkPackagesByIdOptimizationRetry',
           refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
         }),
       );
@@ -456,7 +462,7 @@ it('a retired writer does not publish or reread a typed terminal Retry refusal',
   expect(recorded.rereads).toEqual([]);
 });
 
-it('reports a deleting project without retry or reread', async () => {
+it('reports a deleting work package without retry or reread', async () => {
   const recorded = recordingHost();
   const writer = createPlanWriter(recorded.host);
   let requests = 0;
@@ -466,9 +472,9 @@ it('reports a deleting project without retry or reread', async () => {
       return Promise.reject(
         new WbsRequestError({
           kind: 'refusal',
-          operation: 'postApiProjectsByIdCommands',
+          operation: 'postApiWorkPackagesByIdCommands',
           refusal: {
-            error: 'project_deleting',
+            error: 'work_package_deleting',
             at: 0,
             kind: 'addTypedDependency',
           },
@@ -480,7 +486,7 @@ it('reports a deleting project without retry or reread', async () => {
   expect(requests).toBe(1);
   expect(recorded.rereads).toEqual([]);
   expect(recorded.refusals).toEqual([
-    { sentence: 'This project is being deleted. Nothing was changed.' },
+    { sentence: 'This work package is being deleted. Nothing was changed.' },
   ]);
 });
 
@@ -503,7 +509,7 @@ it.each(['replacement', 'withdrawn'] as const)(
               reject(
                 new WbsRequestError({
                   kind: 'refusal',
-                  operation: 'postApiProjectsByIdOptimizationRetry',
+                  operation: 'postApiWorkPackagesByIdOptimizationRetry',
                   refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
                 }),
               );
@@ -543,7 +549,7 @@ it('a terminal Retry refusal waits for authoritative reconciliation before relea
         Promise.reject(
           new WbsRequestError({
             kind: 'refusal',
-            operation: 'postApiProjectsByIdOptimizationRetry',
+            operation: 'postApiWorkPackagesByIdOptimizationRetry',
             refusal: { code: 'not-retryable', state: 'boundary-infeasible' },
           }),
         ),
@@ -564,7 +570,7 @@ it('a terminal Retry refusal waits for authoritative reconciliation before relea
   expect(recorded.busyChanges).toEqual([true, false]);
 });
 
-it.each(['postApiProjectsByIdUndo', 'postApiProjectsByIdRedo'] as const)(
+it.each(['postApiWorkPackagesByIdUndo', 'postApiWorkPackagesByIdRedo'] as const)(
   'reports unavailable older history from %s without retry or reread',
   async (operation) => {
     const recorded = recordingHost();
@@ -589,5 +595,54 @@ it.each(['postApiProjectsByIdUndo', 'postApiProjectsByIdRedo'] as const)(
     expect(recorded.refusals).toEqual([
       { sentence: 'Undo and redo are unavailable for this older history entry.' },
     ]);
+  },
+);
+
+it.each(['undo', 'redo'] as const)(
+  'reports current protected step pairs from the real %s client without retry or reread',
+  async (action) => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter(recorded.host);
+    const refusal = {
+      error: 'step_nodes_in_use',
+      count: 1,
+      pairs: [
+        {
+          id: 'leaf-a',
+          name: 'Protected leaf',
+          workPackageId: 'package-a',
+          stepId: 'step-dev',
+          facts: ['progress'],
+        },
+      ],
+    };
+    const sent = stubServer({
+      ['POST /api/work-packages/package-a/' + action]: [() => answerJson(409, refusal)],
+    });
+    try {
+      const api = httpWorkPackageApi('test-token');
+      const outcome = await writer.run(async (write) => {
+        await write.perform(['tree'], () =>
+          api[action]('package-a').catch((cause: unknown) => {
+            expect(failureText(cause, 'missing refusal')).toBe('step_nodes_in_use');
+            throw cause;
+          }),
+        );
+      });
+      expect(outcome).toBe('refused');
+      expect(sent).toEqual([
+        { route: 'POST /api/work-packages/package-a/' + action, body: undefined },
+      ]);
+      expect(recorded.rereads).toEqual([]);
+      expect(recorded.busyChanges).toEqual([true, false]);
+      expect(recorded.refusals).toEqual([
+        {
+          sentence:
+            'This change would detach 1 protected step: Protected leaf / step-dev (progress). Nothing was changed.',
+        },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   },
 );

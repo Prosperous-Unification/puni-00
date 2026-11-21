@@ -17,7 +17,7 @@ const ROW: SavedPlanListEntryView = {
 
 describe('a node that cannot answer the question', () => {
   it('says so instead of showing an empty shelf', () => {
-    // The whole point of 6.4. An old node and a project with nothing saved both
+    // The whole point of 6.4. An old node and a work package with nothing saved both
     // have nothing to list, and only one of them is worth telling somebody
     // about — the other invites them to wait for rows that will never arrive.
     render(<SavedPlanList state={{ kind: 'unavailable' }} />);

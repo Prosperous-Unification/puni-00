@@ -1,0 +1,64 @@
+{
+  "schema": "puni-genuine-legacy-move-fixtures-v1",
+  "sourceCommit": "c8018843e6ff6827f7d97b67ff986cc717656578",
+  "sourceLockSha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+  "producerScript": "legacy-history-producer.ts.txt",
+  "producerScriptSha256": "8df4ba2bc58f5772da9c22c0cd930ab67b4a422bfbdd8556221a10ae179afcc4",
+  "runtime": {
+    "version": "1.4.4",
+    "revision": "38afee6c84fcf48c0edb2466aa4b27d287a59c30"
+  },
+  "ledgerEpoch": "20261103110000_add_initial_access_offers",
+  "ledgerEntries": 110,
+  "cases": {
+    "restore-progress": {
+      "database": {
+        "file": "legacy-restore-progress.sqlite.gz",
+        "sha256": "38e8c7eb1b57febb58538107697e0fbd0fd503b0a1a224f603e0be618b3917fd",
+        "gzipSha256": "f565f590089ab4710fdf44275653d7fac1f80e4fe71e35f586af9373830ac07a"
+      },
+      "producer": {
+        "file": "legacy-restore-progress.producer.json.gz",
+        "sha256": "374d9422193f43a344d6423479851fa5c579901bd2c0a894a6d9de949ebc8d06",
+        "gzipSha256": "caebbda2d6e75ee421a8a9f7a48db4d2fb69c2fa7b84c1c731eb3b35daa6605e"
+      },
+      "control": {
+        "file": "legacy-restore-progress.control.json.gz",
+        "sha256": "e1c94d3498edbd9009dcb58368936089e4c1f9cd48809f5ca02e5d7a8987f849",
+        "gzipSha256": "df6891e84d9d673daa8232ffde5f635e521bd1796461410faa7020222b1afee4"
+      },
+      "hasBlockage": false,
+      "movingProgress": {
+        "state": "in_progress",
+        "statedAt": 11
+      },
+      "destinationStatement": "Replay says done again at its own current stamp; the old recipe intentionally carries no statedAt.",
+      "qualification": "Original immutable old SQLite Source writes and copied old replay control; no raw fact or journal recipe was authored for this package."
+    },
+    "restore-progress-blockage": {
+      "database": {
+        "file": "legacy-restore-progress-blockage.sqlite.gz",
+        "sha256": "ab68bdc372b7dea0fa257b831c9a18a6a921a112dfc73801d0757a26ff0452f5",
+        "gzipSha256": "f0de7f1697af68ffbc5c03695377fb69eb49a4973345773473da660c5ec21d56"
+      },
+      "producer": {
+        "file": "legacy-restore-progress-blockage.producer.json.gz",
+        "sha256": "ffdf5b3d1996ad3bfd2d1a6989a0d1be16bd1a0052f41c843d661bf0cb84a825",
+        "gzipSha256": "a73782382ddbaa34d087375d55aa87edfbcbda78858268a8b8cbe5593c3df866"
+      },
+      "control": {
+        "file": "legacy-restore-progress-blockage.control.json.gz",
+        "sha256": "1be374e2deb8cd608244abfe1e1635d4f95177ba0ead57a5d98d261b65ac659e",
+        "gzipSha256": "ce69a321d9895c20b1d89f5da4f15eb7d919501c5ebfafae904dc47b7d0e0ae8"
+      },
+      "hasBlockage": true,
+      "movingProgress": {
+        "state": "in_progress",
+        "statedAt": 11
+      },
+      "destinationStatement": "Replay says done again at its own current stamp; the old recipe intentionally carries no statedAt.",
+      "qualification": "Original immutable old SQLite Source writes and copied old replay control; no raw fact or journal recipe was authored for this package."
+    }
+  },
+  "qualification": "These two genuine standalone old move variants preserve the original recipe strings. Current admission must use ordinary110→116, real report/backup/private117 apply and ordinary118/119, with complete original journal/history equality. Other original13 scenarios and requested review remain separate."
+}

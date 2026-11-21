@@ -17,11 +17,11 @@ import type { PlanInputRows } from './canonical-plan-input';
  * every assertion below.
  */
 export const planFixtureRows: PlanInputRows = {
-  project: {
+  workPackage: {
     id: 'p1',
     name: 'Rewire the shed',
     restricted: false,
-    ownerId: 'u1',
+    projectId: 'fixture-parent',
     solutionSlug: 'shed',
     solutionUrl: null,
     estimateMethod: 'pert',

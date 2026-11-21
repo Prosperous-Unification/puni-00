@@ -1,10 +1,10 @@
 import type { PlanInputReads } from '@wbs/core';
 
-export const CAPTURE_FIRST_READ = 'saved-plan-capture:first-project-read' as const;
+export const CAPTURE_FIRST_READ = 'saved-plan-capture:first-work-package-read' as const;
 
 export interface CaptureFirstReadEvidence {
-  readonly projectId: string;
-  readonly project: PlanInputReads['project'];
+  readonly workPackageId: string;
+  readonly workPackage: PlanInputReads['workPackage'];
 }
 
 export interface CaptureReadSeam {

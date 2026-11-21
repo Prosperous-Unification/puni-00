@@ -7,7 +7,7 @@ import { type OpenCase, storeCase } from './store-case';
 export function eventLogRegistrations(open: OpenCase<'eventLog'>): readonly CaseRegistration[] {
   return [
     storeCase('eventLog', 'eventLog.recordEvent', open, async ({ port, seed }) => {
-      const subscription = `project:${seed.projectIds[0]}`;
+      const subscription = `work-package:${seed.workPackageIds[0]}`;
       expect(await port.latestSeq(subscription)).toBe(-1);
       const first = await port.recordEvent(subscription, { type: 'first' }, 1);
       const second = await port.recordEvent(subscription, { type: 'second' }, 2);
@@ -15,7 +15,7 @@ export function eventLogRegistrations(open: OpenCase<'eventLog'>): readonly Case
       expect(await port.latestSeq(subscription)).toBe(1);
     }),
     storeCase('eventLog', 'eventLog.rangeSince', open, async ({ port, seed }) => {
-      const subscription = `project:${seed.projectIds[0]}`;
+      const subscription = `work-package:${seed.workPackageIds[0]}`;
       await port.recordEvent(subscription, { type: 'first' }, 1);
       await port.recordEvent(subscription, { type: 'second' }, 2);
       const since = await port.rangeSince(subscription, 0);
@@ -24,7 +24,7 @@ export function eventLogRegistrations(open: OpenCase<'eventLog'>): readonly Case
       expect(since.map(({ seq }) => seq)).toEqual([1]);
     }),
     storeCase('eventLog', 'eventLog.pruneBeyond', open, async ({ port, seed }) => {
-      const subscription = `project:${seed.projectIds[0]}`;
+      const subscription = `work-package:${seed.workPackageIds[0]}`;
       for (let sequence = 0; sequence < 4; sequence += 1) {
         await port.recordEvent(subscription, { type: `e${String(sequence)}` }, sequence);
       }
@@ -35,8 +35,8 @@ export function eventLogRegistrations(open: OpenCase<'eventLog'>): readonly Case
       expect((await port.rangeSince(subscription, -1)).map(({ seq }) => seq)).toEqual([2, 3]);
     }),
     storeCase('eventLog', 'eventLog.pruneBeyond:empty-sequence', open, async ({ port, seed }) => {
-      const subscription = `project:${seed.projectIds[0]}`;
-      const otherSubscription = `project:${seed.projectIds[1]}`;
+      const subscription = `work-package:${seed.workPackageIds[0]}`;
+      const otherSubscription = `work-package:${seed.workPackageIds[1]}`;
       const first = await port.recordEvent(subscription, { type: 'empty-first' }, 101);
       const second = await port.recordEvent(subscription, { type: 'empty-second' }, 102);
       const other = await port.recordEvent(otherSubscription, { type: 'scope-sentinel' }, 103);

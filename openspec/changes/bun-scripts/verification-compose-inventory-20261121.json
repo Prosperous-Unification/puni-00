@@ -1,0 +1,1158 @@
+{
+  "schema": "compose-inventory-verification-v111",
+  "recordedAt": "2026-11-21T12:25:39.806Z",
+  "goalStatus": "active",
+  "intent": {
+    "problem": "The independent package/Nx/GitHub inventory universe omitted Compose service execution bodies.",
+    "outcome": "Discover captured service startup/hooks, retain complete configuration and exact command forms, and require later container filesystem/merge qualification.",
+    "nonGoals": "No accepted exhaustive inventory, Dockerfile/Kubernetes/Ansible/generated/remote/runbook completeness, Bun compliance, installed CLI delivery, host activation or parent closure."
+  },
+  "verification": {
+    "inventoryAndWorkspace": {
+      "pass": 162,
+      "fail": 0,
+      "assertions": 378,
+      "files": 3
+    },
+    "compilerRoots": 6,
+    "lintOwners": 6,
+    "independentFaults": 17,
+    "nativeFaultObservations": 17,
+    "actualConsumerCapture": {
+      "consumers": 767,
+      "compose": 3,
+      "unresolved": 547
+    },
+    "acceptedInventory": false,
+    "cliParserDiagnostic": {
+      "pass": 69,
+      "fail": 13,
+      "total": 82,
+      "qualification": "Existing pipe-output EPERM; no CLI runtime source change."
+    },
+    "nativeRootHelp": {
+      "exitCode": 0,
+      "output": "file-backed"
+    },
+    "sourceFiles": 6139,
+    "curatedPins": 691
+  },
+  "checks": [
+    {
+      "name": "compose-inventory-openspec-apply-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "openspec",
+          "instructions",
+          "apply",
+          "--change",
+          "bun-scripts",
+          "--json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-openspec-apply-v1.receipt.json",
+        "sha256": "c7ee0f5be858ae63eb07919b2f8a5b044c495183c01d2b937338d11dfe34c3a7",
+        "bytes": 1373,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-openspec-apply-v1.log",
+        "sha256": "a8ee61077dbb04d67394e2c1b99a23d0cc410bfea4de278fd2860d84cd113b96",
+        "bytes": 30607,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-green-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "./tools/tool-devsync/src/scripts/inventory.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-green-v2.receipt.json",
+        "sha256": "ea50c4f7fa56d8463b3c10f5877c53df0684fe890380b9ffd5b71920d0e50ac4",
+        "bytes": 1390,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-green-v2.log",
+        "sha256": "466ae3cef5a1fc0c0271fb32f375234cbcd2888de59971eeff240658dd9a5142",
+        "bytes": 11781,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-hook-null-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses null for a required Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-hook-null-green-v1.receipt.json",
+        "sha256": "e2389c7fb815bd506ecedc36354f6fc6b85daf75a76bea5ed9d944ed9198b272",
+        "bytes": 1422,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-hook-null-green-v1.log",
+        "sha256": "19820240e2950df45b55c15bc7b891c313104e620a8e7f0cc9b2bcaf2c1aba46",
+        "bytes": 281,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-workspace-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/workspace.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-workspace-green-v1.receipt.json",
+        "sha256": "faef095411f723bb353e0d1c0e60ebe57ea6341217ec855e158a37965e17af55",
+        "bytes": 1349,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-workspace-green-v1.log",
+        "sha256": "04133712390cc9c9d36c1ec3216d6376d43b5af9a06b4638c511c7b6421e038b",
+        "bytes": 4431,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-final-tests-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "./tools/tool-devsync/src/scripts/inventory.test.ts",
+          "./tools/tool-devsync/src/scripts/workspace.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-tests-v2.receipt.json",
+        "sha256": "c1789e1d430ae7c19633c21886faeaa048cf8979e2095b85043e596d881e40f4",
+        "bytes": 1462,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-tests-v2.log",
+        "sha256": "5b9e6ef804a7ffc1b2905c1bd81c088f7ea4f940a118ba9d1c0bdb8b3722e446",
+        "bytes": 16086,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-final-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-compose-inventory-types-v111.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-types-v2.receipt.json",
+        "sha256": "e3730d10501930bfbc835d67cc663ef04acfc02f310a87970bb83b6d63f92a17",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-final-lint-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "tools/tool-devsync/src/scripts/compose.ts",
+          "tools/tool-devsync/src/scripts/consumers.ts",
+          "tools/tool-devsync/src/scripts/consumers.test.ts",
+          "tools/tool-devsync/src/scripts/inventory.ts",
+          "tools/tool-devsync/src/scripts/inventory.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-lint-v2.receipt.json",
+        "sha256": "e963d02a86cba6b15242de0b522729cee82f5a394bf96e49ad42b1a1a23ea6b4",
+        "bytes": 1602,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-final-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "tools/tool-devsync/src/scripts/compose.ts",
+          "tools/tool-devsync/src/scripts/consumers.ts",
+          "tools/tool-devsync/src/scripts/consumers.test.ts",
+          "tools/tool-devsync/src/scripts/inventory.ts",
+          "tools/tool-devsync/src/scripts/inventory.test.ts",
+          "tools/tool-devsync/src/scripts/workspace.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-format-v1.receipt.json",
+        "sha256": "bd7ed154c842cd1ec2c38a8e665a2c96fe5042977e606b8c46c6adf6f2ded578",
+        "bytes": 1630,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-format-v1.log",
+        "sha256": "2bd2443d7b672df07cb14c264dda0a145add4739b4239b5a8024fd921d282e9f",
+        "bytes": 379,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-doc-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "openspec/changes/bun-scripts/tasks.md",
+          "openspec/changes/bun-scripts/specs/bun-scripts/spec.md",
+          "openspec/changes/bun-scripts/verify.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-doc-format-v1.receipt.json",
+        "sha256": "4012b91ec711de315dfc299cf868d1b89e949af9e85bef0c7d98b01fdb0711a5",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-doc-format-v1.log",
+        "sha256": "bccdb3ae66884e6b704ae605d4954d0f4ed08e24be5ffcb45cd12b33fc17841b",
+        "bytes": 172,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-proof-bridge-v111-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-compose-inventory-bridge-v111-v2.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-proof-bridge-v111-v2.receipt.json",
+        "sha256": "4fadd7af7d73722cae096b166f961108f526e32c3bfab725b41ab4636a67f75d",
+        "bytes": 1298,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-proof-bridge-v111-v2.log",
+        "sha256": "6ac62adf5f94fa3be1b65ef35eb47c69949dd97d3ccc2b8df0bc522fbf66db68",
+        "bytes": 37,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-workspace-v111-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-compose-workspace-v111-v2.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-workspace-v111-v2.receipt.json",
+        "sha256": "a3e31916efc96f614388be7b9ede3f6211ed36d5e623f61c42158bea12873ffa",
+        "bytes": 1286,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-workspace-v111-v2.log",
+        "sha256": "7631ccc3731d2480d05b7c12eb7b2425b721885aae390dd6217f85690e8419de",
+        "bytes": 252,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-root-help-diagnostic-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "apps/puni/cli/src/entrypoint.ts", "--help"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-root-help-diagnostic-v1.receipt.json",
+        "sha256": "4f68dcaf4eccf589c077b129a16abba4ac453280a421155d6ec2e44eefc690b3",
+        "bytes": 1309,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-root-help-diagnostic-v1.log",
+        "sha256": "414ac748f6694b464f457d57f292012bbdec1ce35b66dee0a5863fec23f10f57",
+        "bytes": 10968,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-source-audit-v111",
+      "exitCode": 0,
+      "command": {
+        "argv": ["bun", "/tmp/puni-compose-inventory-audit-v111.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-source-audit-v111.receipt.json",
+        "sha256": "3ce436386d98231b3a7087f50e08a3fdea62846b9981ce3658f8cf0662597e03",
+        "bytes": 1288,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-source-audit-v111.log",
+        "sha256": "258d41ee8c3cc6fc365107a7b5fe710e9a5c1b71471b6d271de452fc88eea2f0",
+        "bytes": 70,
+        "mode": 384
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "name": "compose-inventory-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-red-v1.receipt.json",
+        "sha256": "a42afab4c7e56596bbaf65ff892063dcc33aa7198d0917a0e90f079ea614cf17",
+        "bytes": 1372,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-red-v1.log",
+        "sha256": "4aa8e92392636a5d14ca508e075a68e42070189e5e4c12c933b813f2f5685f0e",
+        "bytes": 13966,
+        "mode": 384
+      },
+      "reason": "Seventeen actual selected Compose failures before discovery exists."
+    },
+    {
+      "name": "compose-inventory-hook-null-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses null for a required Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-hook-null-red-v1.receipt.json",
+        "sha256": "dc139946033d49e27b858d04663609c9d703f91dc27bdcc0d96f3b3a6b8be352",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-hook-null-red-v1.log",
+        "sha256": "0125f6af217ae7bfba7f413a933e843f318e35424b10285e12275a1fac665267",
+        "bytes": 4228,
+        "mode": 384
+      },
+      "reason": "Required lifecycle command null was incorrectly admitted as image inheritance before its specific guard."
+    },
+    {
+      "name": "compose-inventory-green-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "./tools/tool-devsync/src/scripts/inventory.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-green-v1.receipt.json",
+        "sha256": "ad46e794fad76f7d9b23de18c5be463469d1ac88c3fac3a57ea8fa8338e0ddd7",
+        "bytes": 1390,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-green-v1.log",
+        "sha256": "f29b78ad22d6aa11a6c59846da12dc3cb97c00468c8cfa04c6164f1a1782fee4",
+        "bytes": 13920,
+        "mode": 384
+      },
+      "reason": "114pass/3fail: preexisting parser subprocess diagnostic writes fail EPERM under pinned Bun1.4.4."
+    },
+    {
+      "name": "compose-parser-baseline-v111",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "/tmp/puni-combined-proposal-v1/control/compose-parser-baseline-v111/consumers.test.ts",
+          "--test-name-pattern",
+          "broken parser AST",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-parser-baseline-v111.receipt.json",
+        "sha256": "8b424d7ee8b71806179f67a8cd884c066b1df4412639eaf48eb582b3fc27c611",
+        "bytes": 1424,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-parser-baseline-v111.log",
+        "sha256": "7e53136559bf08fe89470955575ebdef483391b47f5c76209ab3c6bf21938d12",
+        "bytes": 2300,
+        "mode": 384
+      },
+      "reason": "Saved pre-change parser source reproduces all3 output failures; final synchronous probe writes preserve the assertions."
+    },
+    {
+      "name": "compose-inventory-final-tests-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "./tools/tool-devsync/src/scripts/inventory.test.ts",
+          "./tools/tool-devsync/src/scripts/workspace.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-tests-v1.receipt.json",
+        "sha256": "84795f4cfbf242f98eb78ba1cdda6ccc4c42a86a8f9179667dc37d681b95002b",
+        "bytes": 1462,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-final-tests-v1.log",
+        "sha256": "34b0c3ec20ede7f03943e5dfccadedcf8d8d1422b573eed1b18018bb6ec1d2f4",
+        "bytes": 23440,
+        "mode": 384
+      },
+      "reason": "154pass/8fail: pristine V110 workspace probes fail pipe output before intended Git/FIFO assertions. All test cases and guards remain after generated tiny writes move to descriptors."
+    },
+    {
+      "name": "compose-inventory-types-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-compose-inventory-types-v111.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-types-v1.receipt.json",
+        "sha256": "887a508a0bdc5a9b733f215f70adb31b1102b369551497ec1d5b5160260e78ca",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-types-v1.log",
+        "sha256": "9a20fae1b2dcc97d8b6bce8f7a9278748514b7e2be95416701b83b887a2f2771",
+        "bytes": 340,
+        "mode": 384
+      },
+      "reason": "Temporary configuration lacked absolute typeRoots, producing setup diagnostics for bun-types/node; corrected owning config passes."
+    },
+    {
+      "name": "compose-inventory-proof-bridge-v111",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "/tmp/puni-compose-inventory-bridge-v111.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-proof-bridge-v111.receipt.json",
+        "sha256": "4ac2ef6037a34906f58fdbfc2ce6aa20839f412c1406910f8119f4bd03047adb",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-proof-bridge-v111.log",
+        "sha256": "dc1fbb68a109bdab852888471eeafaa7f314bd242ef199b6d4dc86fa391aad2f",
+        "bytes": 3970,
+        "mode": 384
+      },
+      "reason": "Initial strict lexical bridge rejects one Prettier-added optional argument comma in the probe source; the successor records and checks that exact one-token difference without rerunning native faults."
+    },
+    {
+      "name": "compose-inventory-cli-aliases-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": ["bun", "test", "./apps/puni/cli/src/cli-parser.test.ts", "--timeout", "30000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-cli-aliases-v1.receipt.json",
+        "sha256": "1115233cf0e35b5d9709cbcf1c87b59f7f728e4c4d41a77ea02d561d0428b47c",
+        "bytes": 1330,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-cli-aliases-v1.log",
+        "sha256": "5e8f38bb1c71450c402e709bcdd1f35ce5bc3cd82915053cbbe27998403deebb",
+        "bytes": 18125,
+        "mode": 384
+      },
+      "reason": "69pass/13fail: existing native pipe-backed parser/Dash discovery output fails EPERM. In-process aliases and file-backed actual root help pass, but pipe/installed ownership remains unqualified."
+    }
+  ],
+  "faultChecks": [
+    {
+      "name": "compose-inventory-fault-family-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "discovers container startup",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-family-v1.receipt.json",
+        "sha256": "5870928316f514e774a50bbd4b60ccf723a258891db2c7a01308f426e7bf0a99",
+        "bytes": 1409,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-family-v1.log",
+        "sha256": "596934eae9737f08f6e0edb836006cb1f04920d2f7d8345020a65c67466e2c53",
+        "bytes": 2531,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-commands-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "discovers container startup",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-commands-v1.receipt.json",
+        "sha256": "a10e3c8866c2a67bb9b00b7bf204dc6da87278275f1c9ee2413851bc091aeba3",
+        "bytes": 1413,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-commands-v1.log",
+        "sha256": "9709c43935430289566d6a0920a62f0c44ed59a84589b2c24f27b78a75bce86d",
+        "bytes": 2531,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-hooks-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "discovers actual Compose post_start",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hooks-v1.receipt.json",
+        "sha256": "9784de5f105c7906723b0898851f6f62224963b5cbb5ee7a34cdb1bdd4bde589",
+        "bytes": 1414,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hooks-v1.log",
+        "sha256": "5a7499161282ba640bd531b8bb0af7b14393fc0301ff518b058cadb71d1641b0",
+        "bytes": 929,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-scalar-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose command values 12",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-scalar-v1.receipt.json",
+        "sha256": "65fae084a8f240666b246a8e595e98f77c71cd5cde42eabbfc805e4ddf9adb88",
+        "bytes": 1425,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-scalar-v1.log",
+        "sha256": "037e9e74fe0d567c78cca4d7b62685c8f8dbd7a4807a5645470e49f726309006",
+        "bytes": 1027,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-word-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose command values.*12]",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-word-v1.receipt.json",
+        "sha256": "4c8fc958d3b432613a48fd2991bdff88b9e3c7b01e0908f562da9387bfa0acbc",
+        "bytes": 1423,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-word-v1.log",
+        "sha256": "1905bde0a3caaa7e414ffbf79aae23a9377a85f067b4c01328bf1c683b4e7278",
+        "bytes": 3987,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-hook-array-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose structural post_start",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-array-v1.receipt.json",
+        "sha256": "22c57d82e693a97164ab7f38fa99113496cc77b49af7e98126e99a8a0d70b183",
+        "bytes": 1437,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-array-v1.log",
+        "sha256": "8abeb807b420bc5d6fac6e1081f3b4c982146dc5e3716abe1641962d48b30e0c",
+        "bytes": 1298,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-hook-missing-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose structural missing-command",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-missing-v1.receipt.json",
+        "sha256": "bedc2f9405aeaba13393c04ab8ccad911d5c0b17119aab8199581d02f3a998ae",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-missing-v1.log",
+        "sha256": "e9951c443496523dd994c1aaa00d4e364e6da993349f95795e7d9afb6dc66d7e",
+        "bytes": 979,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-hook-null-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses null for a required Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-null-v1.receipt.json",
+        "sha256": "3008a75021f4f0be41d6dc8ac411fe88aab4899bdad0a45947616239a34d784f",
+        "bytes": 1423,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-null-v1.log",
+        "sha256": "1b2d323f6178ecf3ea913d338f93cbb84d55ae8975f20b1b2e7db376947c0769",
+        "bytes": 4228,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-context-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "binds complete Compose image context",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-context-v1.receipt.json",
+        "sha256": "92745a0e7ff84c11a7a7f5dc373d10252add55e120de23b60053d25cf4a83d3b",
+        "bytes": 1419,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-context-v1.log",
+        "sha256": "005b026113bc6782b0e453a9df1bbd8d5c6e988f2487f9024f2aca08afb87b66",
+        "bytes": 900,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-unqualified-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses an active Bun declaration for an unqualified container",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-unqualified-v1.receipt.json",
+        "sha256": "55838f7eb888e09002657d0c164afb799c69292d98df1b70663df32e2d4f383e",
+        "bytes": 1454,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-unqualified-v1.log",
+        "sha256": "8f9e20def0cb0977dca800a877f77f150e024fa604bf2ad23e1c4c232ec68575",
+        "bytes": 1489,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-inheritance-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "keeps image inheritance and include-only Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-inheritance-v1.receipt.json",
+        "sha256": "4785f14865c21565161435082717c072b233677b3eb682fd170719f3ee411675",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-inheritance-v1.log",
+        "sha256": "9e4e7c549dd931678b85034ab1cf190ac65db7a21f7974c055e3b03fe9de5614",
+        "bytes": 941,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-null-field-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "preserves the declared container command form null",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-null-field-v1.receipt.json",
+        "sha256": "c57eca65b48fdb3b43d5ce107ced95e723dae3d8bf8b84588c03a6c45f311212",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-null-field-v1.log",
+        "sha256": "0cb0760658797fd7f3e1c955cef0646f0edac737aa0beaaebf18dc81224f69ba",
+        "bytes": 911,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-services-object-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose structural services",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-services-object-v1.receipt.json",
+        "sha256": "2b91bf9b78145de2cf459230635b1fa1a49983f716700e2b8c81b24a06e6dbcd",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-services-object-v1.log",
+        "sha256": "6afc67aa759eedf75e09ee4ba97066a62460c1a6405a2118665cda4df9d16aea",
+        "bytes": 1787,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-service-object-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose structural service$",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-service-object-v1.receipt.json",
+        "sha256": "0c7230ce2c7f97299d36f1bacb4e975bd23565410458ef5f3958bab8a7017b4e",
+        "bytes": 1443,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-service-object-v1.log",
+        "sha256": "24af44c091f6ce97f36aa795ad97e88a8b1b10eaa1d7d0eb2adbd1e38ef3ccdb",
+        "bytes": 2835,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-hook-object-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses malformed Compose structural hook$",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-object-v1.receipt.json",
+        "sha256": "52e4a94c5f6159e987f70da8d4d6c147719eeae158fb089483de2c7bc6c46d8f",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-hook-object-v1.log",
+        "sha256": "98a77f34b5d220ab957c341da1cb70a09ca1d128f71242412a6e25ae1e4c1611",
+        "bytes": 881,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-probe-output-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "refuses broken parser AST children",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-probe-output-v1.receipt.json",
+        "sha256": "d683c005276eadc3a778229482a4e8e4e8ad3e7004fbf23861e1d5139fc1be8c",
+        "bytes": 1427,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-probe-output-v1.log",
+        "sha256": "6454b0088525fa44f09f0f19dfbd3641853d6c4b3c4b5eee430823325d311091",
+        "bytes": 754,
+        "mode": 384
+      }
+    },
+    {
+      "name": "compose-inventory-fault-root-reference-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./tools/tool-devsync/src/scripts/consumers.test.ts",
+          "--test-name-pattern",
+          "keeps image inheritance and include-only Compose",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-root-reference-v1.receipt.json",
+        "sha256": "0995a1436e331f3d9972c24fde0a1b2046737f4b13162f92abc52b4875a45311",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-fault-root-reference-v1.log",
+        "sha256": "47d41c34bb9880561af6f4ad8f6c47cb5079e8d8c7f29b8d8f11b714fa04063f",
+        "bytes": 919,
+        "mode": 384
+      }
+    }
+  ],
+  "proofBridge": {
+    "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-proof-bridge-v111.json",
+    "sha256": "d7b3a2b4ebc3df9c3be3b45887974cdbd5fab1e4e7635ca607aedf3c11105da3",
+    "bytes": 34661,
+    "mode": 384
+  },
+  "proofArchive": {
+    "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-faults-v111/proofs.json",
+    "sha256": "479e18ad4a43715283e56d6024704ab1df37ac6100656762e744964230f43216",
+    "bytes": 39841,
+    "mode": 436
+  },
+  "actualWorkspaceObservation": {
+    "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-workspace-observation-v111-v2.json",
+    "sha256": "3291e166dbdff7d207fa3f634db0b28b6b123d7b549e455bd78bef7e9d7934ac",
+    "bytes": 1439796,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-before-v111.json",
+    "sha256": "31751a759cd04e21ebf8f69da4d1e617ba0390a03d85ffb9609d9de0677c468e",
+    "bytes": 303839,
+    "mode": 384
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/compose-inventory-source-audit-v111.json",
+    "sha256": "b2b70f1a9989d4f46e848bdeef4c0e1c60816e84b8915cb34499ea68dce6740c",
+    "bytes": 1706464,
+    "mode": 384
+  },
+  "qualification": [
+    "Source behavior is a bounded service command/entrypoint/post_start/pre_stop collector over captured bytes. Root/service references retain include-only and image inheritance; all Compose sites remain unresolved until image, mounted paths and merge semantics are qualified. No container command is executed and no host operand lookup substitutes for its filesystem.",
+    "Current returned inventory scope extends to entrypoint-package-nx-github-compose. Existing version1 declarations and identities retain their grammar; descriptive scope does not assert full script coverage or compliance. Jobs/pre_start/healthcheck/Dockerfile/custom launch-selected files and generated/remote/infrastructure/runbook adapters remain required before full inventory acceptance.",
+    "The actual repository capture contains767 consumers and547 unresolved sites, including three dev Compose graph/service/command sites. It is neither an accepted ownership/replacement manifest nor evidence of installed PUNI clients. Earlier27-family/456-lead counts remain insufficient.",
+    "Seventeen independent source faults fail on intended oracles and restore only after original owners stop/reap and descriptors close. Scalar, hook-array, hook-object and missing-hook mutations prove contextual boundary diagnostics with later rejection remaining. Actual command-site unresolved admission is scoped, not complete-graph acceptance. No formal Astra review is inferred.",
+    "Final lexical bridges equal exercised preimages apart from comments/whitespace and one explicitly checked optional trailing argument comma after JSON.stringify in the parser test. The initial bridge failure is retained. No generic token normalization or repeated native sweep is used.",
+    "Existing parser fixture output failures reproduce on saved baseline; eight workspace failures occur on byte-identical V110 fixture source. Generated tiny diagnostic/NUL-framed writes now use writeSync, retaining every test/guard/assertion. Final inventory/workspace162/0, strict six-root types and six-owner lint pass. These probe repairs do not qualify actual CLI runtime output.",
+    "Separate PUNI CLI parser diagnostic69/13 remains current: native pipe-backed output fails EPERM under pinned Bun1.4.4. Actual file-backed root help exits0 with normal native settlement. Pipe-backed output, installed aliases and actual process/asset ownership remain requirements; CLI runtime source is unchanged.",
+    "All6138 earlier TS paths remain;five existing inventory/test owners change and one Compose reader is added,6139 total. Six owned paths extend curation685→691. Other WBS/CLI runtime bytes, generated MCP99 document and protected packaging archive remain exact. This does not extend the older6106-path retired-consumer scan or establish full Source/fact/history/product/CLI closure.",
+    "Tasks1.1/1.1b remain open pending remaining collectors, concrete owner/client/replacement/verification records, container qualification and formal source/proof review. Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified; no retry/substitute/new agent.",
+    "All nine original requirements,all13 fact families/all15 historical guarantees,WBS/catalogue/settings/API/UI closure,warm400ms rollup performance,frozen scheduler identity,PUNI/Bun installed client migration,full builds/secrets/migration checks,exact-SHA clean h2/h4 gates and authorized delivery remain. No public commit/push/PR/merge/deploy,host gate,activation,dependency install or historical rewrite occurred."
+  ],
+  "references": [
+    "https://docs.docker.com/reference/compose-file/container-spec/",
+    "https://docs.docker.com/reference/compose-file/services/"
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

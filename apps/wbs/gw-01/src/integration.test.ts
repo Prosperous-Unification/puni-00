@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './testing/app-fixture';
-import { GRANT_EVERY_PROJECT } from './testing/project-access';
+import { GRANT_EVERY_WORK_PACKAGE } from './testing/work-package-access';
 
 const OPTS = {
-  projectAccess: GRANT_EVERY_PROJECT,
+  workPackageAccess: GRANT_EVERY_WORK_PACKAGE,
   beUrl: 'http://be',
   internalAuthSecret: 's'.repeat(32),
   jwtKey: 'k'.repeat(32),

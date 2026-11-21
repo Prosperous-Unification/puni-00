@@ -22,8 +22,8 @@ export interface PlanWriteRefusal {
  *
  * Two kinds of member, and no React in either. The first two are **read** at
  * the moment a gesture asks, not at the moment the writer is built: the reader
- * can leave for another project between a request and its answer. The last
- * three are the project's own **store and ports** — the writer raises and
+ * can leave for another work package between a request and its answer. The last
+ * three are the work package's own **store and ports** — the writer raises and
  * lowers busy through one and says what happened through the other two, and
  * never learns who is listening.
  */
@@ -35,9 +35,9 @@ export interface PlanWriterHost {
    * Its **identity** is all that is read — a gesture compares the owner it began
    * under against the owner answered when its answer arrives, and that is the
    * whole of "is this still the reader's gesture". A feed opens its refresh
-   * owner once and never renews it, and the project runtime answers `null` here
+   * owner once and never renews it, and the work package runtime answers `null` here
    * once its owner has withdrawn it (`readRefreshOwner` in
-   * `runtime/project-runtime.ts`), so a reader that left and a reader replaced
+   * `runtime/work-package-runtime.ts`), so a reader that left and a reader replaced
    * fail the same comparison. The writer calls no member of it; rereads go
    * through {@link PlanWriterHost.rereadResources}.
    */
@@ -45,8 +45,8 @@ export interface PlanWriterHost {
   /** True when the covering read installed; failures stay in the feed's own snapshot. */
   rereadResources: (resources: readonly RefreshResource[]) => Promise<boolean>;
   /**
-   * The project's busy state: raised when a gesture starts, and lowered when it
-   * ends, however it ended. It is one project runtime's own, so a gesture whose
+   * The work package's busy state: raised when a gesture starts, and lowered when it
+   * ends, however it ended. It is one work package runtime's own, so a gesture whose
    * reader has left lowers only a busy state nobody draws any more.
    */
   busy: BusyWrites;
@@ -63,7 +63,7 @@ export interface PlanWriterHost {
 }
 
 /**
- * One project's writer: every plan gesture goes through it, and it is what
+ * One work package's writer: every plan gesture goes through it, and it is what
  * decides, for each one, what has to be read again afterwards.
  *
  * Framework-free by rule F1 of the code organization design. It imports no React

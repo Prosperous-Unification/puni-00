@@ -4,20 +4,21 @@ import type { DependencyLookup } from '@/modules/dependency-lookup/contract';
 
 import { resolveDependencyDraft } from './dependency-draft';
 
-const project = { projectId: 'remote', abbreviation: 'PUNI', name: 'Puni' };
+const workPackage = { workPackageId: 'remote', abbreviation: 'PUNI', name: 'Puni' };
 function lookup(): DependencyLookup {
   return {
-    discoverProjects: vi
-      .fn()
-      .mockResolvedValue({ kind: 'success', body: { projects: [project], nextCursor: null } }),
+    discoverWorkPackages: vi.fn().mockResolvedValue({
+      kind: 'success',
+      body: { workPackages: [workPackage], nextCursor: null },
+    }),
     searchEndpoints: vi.fn().mockResolvedValue({
       kind: 'success',
-      body: { project, addressRevision: 'r1', candidates: [], nextCursor: null },
+      body: { workPackage, addressRevision: 'r1', candidates: [], nextCursor: null },
     }),
     resolveReference: vi.fn().mockResolvedValue({
       kind: 'success',
       body: {
-        projectId: 'remote',
+        workPackageId: 'remote',
         endpoint: { scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
         reference: 'PUNI.080.s1-dev',
         addressRevision: 'r1',
@@ -30,15 +31,15 @@ it('resolves mixed local, step and qualified tokens with stable endpoint dedupe 
   const typed = '010, 010.s1-dev  PUNI.080.s1-dev, puni.080.s1-dev 999';
   const draft = await resolveDependencyDraft({
     typed,
-    projectId: 'local',
+    workPackageId: 'local',
     rows: [{ id: 'a', number: '010' }],
     nodes: [{ workItemId: 'a', stepId: 'dev', reference: '010.s1-dev' }],
     lookup: service,
   });
   expect(draft.found.map((token) => token.endpoint)).toEqual([
-    { projectId: 'local', scope: 'whole', workItemId: 'a' },
-    { projectId: 'local', scope: 'node', workItemId: 'a', stepId: 'dev' },
-    { projectId: 'remote', scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
+    { workPackageId: 'local', scope: 'whole', workItemId: 'a' },
+    { workPackageId: 'local', scope: 'node', workItemId: 'a', stepId: 'dev' },
+    { workPackageId: 'remote', scope: 'node', workItemId: 'remote-row', stepId: 'remote-dev' },
   ]);
   expect(draft.found.map((token) => typed.slice(token.start, token.end))).toEqual([
     '010',
@@ -46,31 +47,31 @@ it('resolves mixed local, step and qualified tokens with stable endpoint dedupe 
     'PUNI.080.s1-dev',
   ]);
   expect(draft.problems).toEqual(['999 (not found)']);
-  expect(service.discoverProjects).toHaveBeenCalledWith('PUNI', null);
+  expect(service.discoverWorkPackages).toHaveBeenCalledWith('PUNI', null);
 });
 it('a truncated page cannot establish unique abbreviation ownership', async () => {
   const service = lookup();
-  vi.mocked(service.discoverProjects).mockResolvedValue({
+  vi.mocked(service.discoverWorkPackages).mockResolvedValue({
     kind: 'success',
-    body: { projects: [project], nextCursor: 'more' },
+    body: { workPackages: [workPackage], nextCursor: 'more' },
   });
   const draft = await resolveDependencyDraft({
     typed: 'PUNI.080',
-    projectId: 'local',
+    workPackageId: 'local',
     rows: [],
     nodes: [],
     lookup: service,
   });
   expect(draft.found).toEqual([]);
-  expect(draft.problems).toEqual(['PUNI.080 (choose a project)']);
+  expect(draft.problems).toEqual(['PUNI.080 (choose a work package)']);
   expect(service.resolveReference).not.toHaveBeenCalled();
 });
 
-it('an explicitly selected project stays bound while its first revision is still loading', async () => {
+it('an explicitly selected work package stays bound while its first revision is still loading', async () => {
   const service = lookup();
   await resolveDependencyDraft({
     typed: 'PUNI.080.s1-dev',
-    projectId: 'local',
+    workPackageId: 'local',
     rows: [],
     nodes: [],
     lookup: service,
@@ -79,11 +80,11 @@ it('an explicitly selected project stays bound while its first revision is still
         start: 0,
         end: 'PUNI.080.s1-dev'.length,
         token: 'PUNI.080.s1-dev',
-        observation: { project, revision: null },
+        observation: { workPackage, revision: null },
       },
     ],
   });
-  expect(service.discoverProjects).not.toHaveBeenCalled();
+  expect(service.discoverWorkPackages).not.toHaveBeenCalled();
   expect(service.searchEndpoints).toHaveBeenCalledWith('remote', '080.s1-dev', null);
   expect(service.resolveReference).toHaveBeenCalledWith('remote', 'PUNI.080.s1-dev', 'r1');
 });

@@ -77,7 +77,7 @@ describe(LIMITS_AUDIT, () => {
       audit('a1', 'organization_limits_changed', 'organization_limits'),
       audit('a2', 'session_policy_changed', 'session_policy'),
       audit('a3', 'machine_credential_created', 'machine_credential'),
-      audit('a4', 'restricted_project_recovery', 'project'),
+      audit('a4', 'restricted_work_package_recovery', 'work_package'),
     ]);
     expect(auditRows(dbPath)).toHaveLength(4);
   });

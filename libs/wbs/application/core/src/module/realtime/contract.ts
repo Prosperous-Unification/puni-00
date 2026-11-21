@@ -31,7 +31,7 @@ export interface RealtimeRequirements {
  *
  * `broadcaster` is exported as the concrete {@link GatewayBroadcaster} class
  * rather than narrowed to the neutral `Broadcaster` port
- * (`ports/project-event.ts`): `apps/wbs/be-01/src/services.ts` calls its
+ * (`ports/work-package-event.ts`): `apps/wbs/be-01/src/services.ts` calls its
  * `pushRecorded` method, which is not part of the `Broadcaster` contract and
  * has exactly one production caller outside this module. Composition may
  * still decorate the returned instance with `OptimizerTriggerBroadcaster`

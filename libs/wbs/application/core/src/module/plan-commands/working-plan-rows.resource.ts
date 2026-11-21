@@ -1,7 +1,7 @@
 import type { LabelledWorkItem, WorkItemStore } from '../../ports/work-item-store';
 
 interface RetainedWorkItemReads {
-  all(): ReturnType<WorkItemStore['listByProject']>;
+  all(): ReturnType<WorkItemStore['listByWorkPackage']>;
   byIds(ids: readonly string[]): ReturnType<WorkItemStore['listByIds']>;
   placements(ids: readonly string[]): ReturnType<WorkItemStore['listPlacements']>;
 }
@@ -29,10 +29,16 @@ export function createWorkingPlanRows(
     };
 
   return {
-    listByProject: async () => reads.all(),
-    listUpdateInstants: guarded((projectId) => source().listUpdateInstants(projectId)),
-    listByIds: async (_projectId, ids) => reads.byIds(ids),
-    listPlacements: async (_projectId, ids) => reads.placements(ids),
+    resolveStepOrders: guarded((workPackageId, projection) =>
+      source().resolveStepOrders(workPackageId, projection),
+    ),
+    listTreeByWorkPackage: guarded((workPackageId) =>
+      source().listTreeByWorkPackage(workPackageId),
+    ),
+    listByWorkPackage: async () => reads.all(),
+    listUpdateInstants: guarded((workPackageId) => source().listUpdateInstants(workPackageId)),
+    listByIds: async (_work_packageId, ids) => reads.byIds(ids),
+    listPlacements: async (_work_packageId, ids) => reads.placements(ids),
     findById: guarded((id) => source().findById(id)),
     insert: guarded(async (workItem, respaced, stamp) => {
       await source().insert(workItem, respaced, stamp);

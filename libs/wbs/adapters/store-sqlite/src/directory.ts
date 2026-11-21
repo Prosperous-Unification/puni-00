@@ -32,6 +32,7 @@ import type {
   ServiceTeam,
   ServiceTeamWritten,
   ServiceWritten,
+  StepFactAddress,
   Tag,
   TagWritten,
   TeamPatch,
@@ -40,6 +41,10 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
+import {
+  readCatalogueId,
+  retainCatalogueStamp,
+} from '@wbs/core/module/step-catalogue/step-catalogue';
 import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -48,6 +53,7 @@ import { appendGrantAudit } from './access-audit';
 import { deleteGrantsOfCredentials } from './access-grant';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
+import { projectSqliteStepFactsIn } from './estimate-reads';
 import type { Gate } from './gate';
 import {
   deleteMeasure,
@@ -74,10 +80,6 @@ import {
   person,
   personOrganization,
   personTeam,
-  project,
-  projectOrganization,
-  projectResourceCapacity,
-  projectTeamCapacity,
   resource,
   resourceCapacityReport,
   resourceDirectoryCapacity,
@@ -86,7 +88,8 @@ import {
   serviceOrganization,
   serviceTeam,
   serviceTeamOrganization,
-  step,
+  spacePerson,
+  spaceTeam,
   tag,
   tagOrganization,
   teamService,
@@ -100,7 +103,14 @@ import {
   workItemType,
   workItemTypeOrganization,
   workItemWorkItemType,
+  workPackage,
+  workPackageOrganization,
+  workPackageResourceCapacity,
+  workPackageTeamCapacity,
 } from './schema';
+import { bumpSpaceRevision } from './space';
+import { readCatalogueStepsIn } from './step';
+import { captureCatalogueProjectIdsIn, touchCatalogueTargetsIn } from './step-catalogue-touch';
 import { writingStep } from './step-reference';
 import { LastSuperAdmin, requireSuperAdminIn } from './super-admin';
 import { WORK_ITEM_COLUMNS } from './work-item';
@@ -108,7 +118,7 @@ import { WORK_ITEM_COLUMNS } from './work-item';
 /** Nothing points at it: the empty usage, with both halves present as the spec requires. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
-  projects: [],
+  workPackages: [],
   assignments: [],
   steps: [],
   people: [],
@@ -119,10 +129,43 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
 };
 
 /** A reader that is either the connection or an open transaction — see {@link usageRowsIn}. */
-type Reader = Pick<SQLiteBunDatabase, 'select'>;
+type Reader = Pick<SQLiteBunDatabase, 'select' | 'all'>;
 
 /**
- * Everything the refusal needs about the projects `projectIds` names, plus the
+ * Validates retained point rows through {@link projectSqliteStepFactsIn} on the
+ * supplied read/writer, preserving duplicate detection. Subtree claims require
+ * an actual row but are not step facts.
+ * Proof: deduplicating actual retained claim rows made the duplicate-claim
+ * Source read resolve (current-directory-effect-duplicate-preservation-v2).
+ */
+function requireUsageFactsIn(
+  reader: Reader,
+  rows: Pick<DirectoryUsageRows, 'workItems'>,
+  facts: readonly { readonly workItemId: string; readonly stepId: string | null }[],
+  family: 'assignment' | 'claim',
+): void {
+  const packageOf = new Map(rows.workItems.map(({ id, workPackageId }) => [id, workPackageId]));
+  const grouped = new Map<string, StepFactAddress[]>();
+  for (const fact of facts) {
+    const workPackageId = packageOf.get(fact.workItemId);
+    // Proof: skipping this actual orphan claim made its first Source usage read
+    // resolve (current-directory-effect-claim-row-v2); the removal tail was unreached.
+    if (workPackageId === undefined)
+      throw new Error('directory ' + family + ' work item is absent from usage');
+    if (fact.stepId === null) continue;
+    let pairs = grouped.get(workPackageId);
+    if (pairs === undefined) {
+      pairs = [];
+      grouped.set(workPackageId, pairs);
+    }
+    pairs.push({ workItemId: fact.workItemId, stepId: fact.stepId });
+  }
+  for (const [workPackageId, pairs] of grouped)
+    projectSqliteStepFactsIn(reader, workPackageId, pairs, family);
+}
+
+/**
+ * Everything the refusal needs about the work packages `workPackageIds` names, plus the
  * `members` the caller worked out.
  *
  * Takes the reader so the refusal can read it inside the transaction that
@@ -131,19 +174,19 @@ type Reader = Pick<SQLiteBunDatabase, 'select'>;
  */
 function usageRowsIn(
   reader: Reader,
-  projectIds: readonly string[],
+  workPackageIds: readonly string[],
   members: readonly { id: string; name: string }[],
   /**
    * The team being removed, or null for a person's usage. Read here rather than
    * handed in as a number, because what the confirmation needs is one number
-   * **per project** — see {@link DirectoryUsageRows.capacityOf}.
+   * **per work package** — see {@link DirectoryUsageRows.capacityOf}.
    */
   teamId: string | null = null,
 ): DirectoryUsageRows {
   // `inArray` with an empty list becomes `IN ()`, which SQLite refuses — and a
-  // removal touching no project has no tree to number.
-  if (projectIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members };
-  const ids = [...projectIds];
+  // removal touching no work package has no tree to number.
+  if (workPackageIds.length === 0) return { ...NOTHING_POINTS_AT_IT, members };
+  const ids = [...workPackageIds];
   // The rows and the teams they are joined to, because the usage is computed
   // through `effectiveTeamsOf` — the join is the read since `team-sets`, and
   // rows handed over without their sets would report no effect at all.
@@ -154,15 +197,15 @@ function usageRowsIn(
   //
   // **Ordered by `work_item.id`, and the order is a promise rather than a
   // property of the query plan** — the same contract `WorkItemRepository.
-  // listByProject` states and ADR 0016 argues, applied to the one select in
+  // listByWorkPackage` states and ADR 0016 argues, applied to the one select in
   // this function that was missing it while the five below all order
   // explicitly. This is a preview a person reads before consenting to a
   // removal, so two reads of unchanged data returning two different orders is
   // a defect in what they are shown, not a cosmetic one.
   //
-  // It was latent until an index made it visible: `work_item_project_id_id`
-  // — `(project_id, id)`, added with that contract — can serve this
-  // `WHERE project_id IN (…)` on its own, and an index read comes back in key
+  // It was latent until an index made it visible: `work_item_work_package_id_id`
+  // — `(work_package_id, id)`, added with that contract — can serve this
+  // `WHERE work_package_id IN (…)` on its own, and an index read comes back in key
   // order where the table scan it replaced came back in rowid order, i.e. in
   // insertion order. CI run 34020910596 at `44463938` failed on exactly that
   // flip (`work-item-type.db.test.ts:265`, the two ids swapped into ascending
@@ -170,21 +213,21 @@ function usageRowsIn(
   const rows = reader
     .select(WORK_ITEM_COLUMNS)
     .from(workItem)
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItem.id))
     .all();
   const joined = reader
     .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
     .from(workItemTeam)
     .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItemTeam.teamId))
     .all();
   const tagged = reader
     .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
     .from(workItemTag)
     .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItemTag.tagId))
     .all();
   // And the services, for the same reason one line down: `directoryUsageOfService`
@@ -194,7 +237,7 @@ function usageRowsIn(
     .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
     .from(workItemService)
     .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItemService.serviceId))
     .all();
   const teamsOf = new Map<string, string[]>();
@@ -221,7 +264,7 @@ function usageRowsIn(
     .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
     .from(workItemWorkItemType)
     .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItemWorkItemType.typeId))
     .all();
   const typesOf = new Map<string, string[]>();
@@ -242,7 +285,7 @@ function usageRowsIn(
     })
     .from(workItemExternalRef)
     .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .orderBy(asc(workItemExternalRef.position))
     .all();
   const refsOf = new Map<string, ExternalRef[]>();
@@ -260,10 +303,10 @@ function usageRowsIn(
     typeIds: typesOf.get(row.id) ?? [],
     externalRefs: refsOf.get(row.id) ?? [],
   }));
-  const projects = reader
-    .select({ id: project.id, name: project.name })
-    .from(project)
-    .where(inArray(project.id, ids))
+  const workPackages = reader
+    .select({ id: workPackage.id, name: workPackage.name })
+    .from(workPackage)
+    .where(inArray(workPackage.id, ids))
     .all();
   const assignments = reader
     .select({
@@ -273,13 +316,22 @@ function usageRowsIn(
     })
     .from(assignment)
     .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
+    .where(inArray(workItem.workPackageId, ids))
     .all();
-  const steps = reader
-    .select({ id: step.id, name: step.name })
-    .from(step)
-    .where(inArray(step.projectId, ids))
-    .all();
+  const steps = [
+    // Proof: removing deduplication or selecting global definitions failed both
+    // actual label arrays (current-directory-effect-label-{dedup,scope}-v2).
+    // Bypassing validated package reads made separate resource refusal/cascade
+    // owners resolve without required values, with no point facts to mask this
+    // boundary (current-directory-effect-label-validation-v2).
+    ...new Map(
+      ids.flatMap((workPackageId) =>
+        readCatalogueStepsIn(reader, workPackageId).map(
+          ({ id, name }) => [id, { id, name }] as const,
+        ),
+      ),
+    ).values(),
+  ];
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
     named.length === 0
@@ -297,28 +349,32 @@ function usageRowsIn(
       ? []
       : reader
           .select({
-            projectId: projectTeamCapacity.projectId,
-            size: projectTeamCapacity.size,
+            workPackageId: workPackageTeamCapacity.workPackageId,
+            size: workPackageTeamCapacity.size,
           })
-          .from(projectTeamCapacity)
+          .from(workPackageTeamCapacity)
           .where(
             and(
-              eq(projectTeamCapacity.serviceTeamId, teamId),
-              inArray(projectTeamCapacity.projectId, ids),
+              eq(workPackageTeamCapacity.serviceTeamId, teamId),
+              inArray(workPackageTeamCapacity.workPackageId, ids),
             ),
           )
           .all();
-  return {
+  const usage: DirectoryUsageRows = {
     workItems,
-    projects,
+    workPackages,
     assignments,
     steps,
     people,
     members,
     claims: [],
     machineCredentials: 0,
-    capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
+    capacityOf: new Map(stated.map((row) => [row.workPackageId, row.size])),
   };
+  // Proof: omitting this boundary let the actual unresolved assignment read
+  // resolve (current-directory-effect-assignment-validation-v2), before its removal tail.
+  requireUsageFactsIn(reader, usage, assignments, 'assignment');
+  return usage;
 }
 
 /**
@@ -341,17 +397,22 @@ function liveMachineCredentialsOf(reader: Reader, personId: string) {
 }
 
 /**
- * A person's usage: what reaches their projects, every claim their removal
+ * A person's usage: what reaches their work packages, every claim their removal
  * takes, and the credentials pinned to them.
  */
 function personUsageIn(
   reader: Reader,
-  projectIds: readonly string[],
+  workPackageIds: readonly string[],
   personId: string,
 ): DirectoryUsageRows {
+  const usage = usageRowsIn(reader, workPackageIds, []);
+  const claims = claimsTakenWith(reader, personId);
+  // Proof: omitting this boundary let the actual unresolved claim read resolve
+  // (current-directory-effect-claim-validation-v2), before its removal tail.
+  requireUsageFactsIn(reader, usage, claims, 'claim');
   return {
-    ...usageRowsIn(reader, projectIds, []),
-    claims: claimsTakenWith(reader, personId),
+    ...usage,
+    claims,
     machineCredentials: liveMachineCredentialsOf(reader, personId).length,
   };
 }
@@ -416,9 +477,9 @@ const CATALOG_TABLES: Readonly<
   resources: { root: 'resource', side: 'resource_organization' },
 };
 
-/** The projects holding a work item this removal would touch, with no duplicates. */
-function projectsOf(rows: readonly { projectId: string }[]): string[] {
-  return [...new Set(rows.map((each) => each.projectId))];
+/** The work packages holding a work item this removal would touch, with no duplicates. */
+function workPackagesOf(rows: readonly { workPackageId: string }[]): string[] {
+  return [...new Set(rows.map((each) => each.workPackageId))];
 }
 
 /**
@@ -677,7 +738,7 @@ export class DirectoryRepository implements DirectoryStore {
    * `service_team.size` used to travel from here into `/api/teams` without the
    * string `serviceTeam.size` appearing anywhere for a grep to find. Naming the
    * two columns is what makes `verify.md`'s grep for readers of that column
-   * decisive — `capacity-per-project` D4, and this file is the one place the
+   * decisive — `capacity-per-work-package` D4, and this file is the one place the
    * column could still have been read by accident.
    *
    * Every other read of this table below is projected for the same reason.
@@ -724,18 +785,35 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
+  /** Maps a new owned root atomically with type-set manifest revision invalidation; other catalogs preserve project counters. */
   async mapInOrganization(
     catalog: DirectoryCatalog,
     resourceId: string,
     organizationId: string,
     name: string,
+    stamp: WriteStamp,
   ): Promise<void> {
+    const act = retainCatalogueStamp(stamp);
     await this.gate.enter(async () => {
       await Promise.resolve();
-      const { side } = CATALOG_TABLES[catalog];
-      this.db.run(
-        sql`INSERT INTO ${sql.raw(side)} (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${name})`,
-      );
+      // Proof: omitting this transaction retained a mapped type/advanced project after
+      // caught native failure and unrelated outer commit; exact restore passed
+      // (verification-project-manifest-20261119.json).
+      this.db.transaction((tx) => {
+        const { side } = CATALOG_TABLES[catalog];
+        tx.run(
+          sql`INSERT INTO ${sql.raw(side)} (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${name})`,
+        );
+        // Proof: omission left empty project revision2instead of3 after actual mapped
+        // type creation; exact restore passed (verification-project-manifest-20261119.json).
+        if (catalog === 'workItemTypes') {
+          const projectIds = captureCatalogueProjectIdsIn(tx, organizationId, {
+            scopeKind: 'organization',
+            scopeId: organizationId,
+          });
+          touchCatalogueTargetsIn(tx, { workPackageIds: [], projectIds }, act);
+        }
+      });
     });
   }
 
@@ -748,8 +826,8 @@ export class DirectoryRepository implements DirectoryStore {
    * - Skipping the name check made `renames only the organization-local
    *   name, refusing one another entry holds` answer 500, from the freeze
    *   trigger, instead of 409.
-   * - Skipping the foreign-project check made `fails closed on a directory
-   *   entry a foreign project names` answer the rename with 200 instead of
+   * - Skipping the foreign-work-package check made `fails closed on a directory
+   *   entry a foreign workPackage names` answer the rename with 200 instead of
    *   500.
    */
   async renameInOrganization(
@@ -776,21 +854,21 @@ export class DirectoryRepository implements DirectoryStore {
           sql`UPDATE ${sql.raw(root)} SET updated_at = ${auditOnUpdate(stamp).updatedAt} WHERE id = ${resourceId}`,
         );
         const touched: Record<NamedCatalog, () => string[]> = {
-          people: () => this.projectsReaching(tx, resourceId),
-          teams: () => this.projectsLabelled(tx, resourceId),
-          services: () => this.projectsServiced(tx, resourceId),
-          tags: () => this.projectsTagged(tx, resourceId),
-          workItemTypes: () => this.projectsTyped(tx, resourceId),
-          resources: () => this.projectsNamingResource(tx, resourceId),
+          people: () => this.workPackagesReaching(tx, resourceId),
+          teams: () => this.workPackagesLabelled(tx, resourceId),
+          services: () => this.workPackagesServiced(tx, resourceId),
+          tags: () => this.workPackagesTagged(tx, resourceId),
+          workItemTypes: () => this.workPackagesTyped(tx, resourceId),
+          resources: () => this.workPackagesNamingResource(tx, resourceId),
         };
-        const projectIds = touched[catalog]();
-        const outside = this.projectsOutsideIn(tx, projectIds, organizationId);
+        const workPackageIds = touched[catalog]();
+        const outside = this.workPackagesOutsideIn(tx, workPackageIds, organizationId);
         if (outside.length > 0) {
           throw new Error(
-            `${catalog} entry "${resourceId}" of organization "${organizationId}" is named by a foreign project`,
+            `${catalog} entry "${resourceId}" of organization "${organizationId}" is named by a foreign work package`,
           );
         }
-        return { ok: true, projectIds };
+        return { ok: true, workPackageIds };
       });
     });
   }
@@ -802,7 +880,7 @@ export class DirectoryRepository implements DirectoryStore {
    * 500):
    * - Failed alone: the assignment, capacity, a team's foreign member, a
    *   service's foreign owning team, and both scalar label arms.
-   * - Failed only together with `renameInOrganization`'s foreign-project
+   * - Failed only together with `renameInOrganization`'s foreign-work-package
    *   check, which also guards those renames: the work item team, service, tag
    *   and type label arms.
    * - Not observable alone: a person in a foreign team and a team owning a
@@ -817,35 +895,37 @@ export class DirectoryRepository implements DirectoryStore {
     await Promise.resolve();
     const id = resourceId;
     const o = organizationId;
-    const foreignProject = (column: string) =>
-      sql.raw(`(SELECT organization_id FROM project_organization WHERE resource_id = ${column})`);
+    const foreignWorkPackage = (column: string) =>
+      sql.raw(
+        `(SELECT organization_id FROM work_package_organization WHERE resource_id = ${column})`,
+      );
     const foreignOwner = (side: string, column: string) =>
       sql.raw(`(SELECT organization_id FROM ${side} WHERE resource_id = ${column})`);
     const labelled = (relation: string, table: string, column: string) => sql`
       SELECT ${relation} || ':' || l.work_item_id AS ref FROM ${sql.raw(table)} AS l
         JOIN work_item AS w ON w.id = l.work_item_id
-        WHERE l.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+        WHERE l.${sql.raw(column)} = ${id} AND ${foreignWorkPackage('w.work_package_id')} IS NOT ${o}`;
     const scalar = (relation: string, column: string) => sql`
       SELECT ${relation} || ':' || w.id AS ref FROM work_item AS w
-        WHERE w.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+        WHERE w.${sql.raw(column)} = ${id} AND ${foreignWorkPackage('w.work_package_id')} IS NOT ${o}`;
     const arms: Record<NamedCatalog, SQL[]> = {
       people: [
-        // The step's project too: an assignment on another organization's step
+        // The step's work package too: an assignment on another organization's step
         // is reached from there even when the work item is this one's.
         // Proof: dropping the step clause made the same test answer 200,
         // deleting A's assignment on B's step; watched 2026-09-27.
         sql`SELECT 'assignment:' || l.work_item_id AS ref FROM assignment AS l
           JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
-          WHERE l.person_id = ${id} AND (${foreignProject('w.project_id')} IS NOT ${o}
-            OR ${foreignProject('st.project_id')} IS NOT ${o})`,
+          WHERE l.person_id = ${id} AND (${foreignWorkPackage('w.work_package_id')} IS NOT ${o}
+            OR ${foreignWorkPackage('st.work_package_id')} IS NOT ${o})`,
         sql`SELECT 'person_team:' || m.service_team_id AS ref FROM person_team AS m
           WHERE m.person_id = ${id} AND ${foreignOwner('service_team_organization', 'm.service_team_id')} IS NOT ${o}`,
       ],
       teams: [
         labelled('work_item_team', 'work_item_team', 'team_id'),
         scalar('work_item_service_team', 'service_team_id'),
-        sql`SELECT 'project_team_capacity:' || c.project_id AS ref FROM project_team_capacity AS c
-          WHERE c.service_team_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+        sql`SELECT 'work_package_team_capacity:' || c.work_package_id AS ref FROM work_package_team_capacity AS c
+          WHERE c.service_team_id = ${id} AND ${foreignWorkPackage('c.work_package_id')} IS NOT ${o}`,
         sql`SELECT 'person_team:' || m.person_id AS ref FROM person_team AS m
           WHERE m.service_team_id = ${id} AND ${foreignOwner('person_organization', 'm.person_id')} IS NOT ${o}`,
         sql`SELECT 'team_service:' || t.service_id AS ref FROM team_service AS t
@@ -861,8 +941,8 @@ export class DirectoryRepository implements DirectoryStore {
       workItemTypes: [labelled('work_item_type', 'work_item_work_item_type', 'type_id')],
       resources: [
         labelled('work_item_resource_demand', 'work_item_resource_demand', 'resource_id'),
-        sql`SELECT 'project_resource_capacity:' || c.project_id AS ref FROM project_resource_capacity AS c
-          WHERE c.resource_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+        sql`SELECT 'work_package_resource_capacity:' || c.work_package_id AS ref FROM work_package_resource_capacity AS c
+          WHERE c.resource_id = ${id} AND ${foreignWorkPackage('c.work_package_id')} IS NOT ${o}`,
       ],
     };
     return this.db
@@ -870,28 +950,31 @@ export class DirectoryRepository implements DirectoryStore {
       .map((row) => row.ref);
   }
 
-  async projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]> {
+  async workPackagesOutside(
+    workPackageIds: readonly string[],
+    organizationId: string,
+  ): Promise<string[]> {
     await Promise.resolve();
-    return this.projectsOutsideIn(this.db, projectIds, organizationId);
+    return this.workPackagesOutsideIn(this.db, workPackageIds, organizationId);
   }
 
-  private projectsOutsideIn(
+  private workPackagesOutsideIn(
     reader: Pick<SQLiteBunDatabase, 'all'>,
-    projectIds: readonly string[],
+    workPackageIds: readonly string[],
     organizationId: string,
   ): string[] {
-    if (projectIds.length === 0) return [];
+    if (workPackageIds.length === 0) return [];
     const owned = new Set(
       reader
         .all<{ id: string }>(
-          sql`SELECT resource_id AS id FROM project_organization WHERE organization_id = ${organizationId} AND resource_id IN (${sql.join(
-            projectIds.map((id) => sql`${id}`),
+          sql`SELECT resource_id AS id FROM work_package_organization WHERE organization_id = ${organizationId} AND resource_id IN (${sql.join(
+            workPackageIds.map((id) => sql`${id}`),
             sql`, `,
           )})`,
         )
         .map((row) => row.id),
     );
-    return projectIds.filter((id) => !owned.has(id));
+    return workPackageIds.filter((id) => !owned.has(id));
   }
 
   /** Every resource in the global directory, by name. */
@@ -934,7 +1017,7 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * Renames a resource or changes its unit label, answering the projects whose
+   * Renames a resource or changes its unit label, answering the work packages whose
    * demands or capacities name it. No work item is bumped: a rename changes
    * what a resource is called, not what any row states about it.
    */
@@ -963,7 +1046,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: true,
             resource: patched,
-            projectIds: this.projectsNamingResource(tx, resourceId),
+            workPackageIds: this.workPackagesNamingResource(tx, resourceId),
           };
         });
       } catch (err) {
@@ -1022,7 +1105,7 @@ export class DirectoryRepository implements DirectoryStore {
             .where(eq(resourceCapacityReport.resourceId, resourceId))
             .run();
         }
-        return { ok: true, projectIds: this.projectsNamingResource(tx, resourceId) };
+        return { ok: true, workPackageIds: this.workPackagesNamingResource(tx, resourceId) };
       });
     });
   }
@@ -1046,11 +1129,11 @@ export class DirectoryRepository implements DirectoryStore {
    * States or clears a directory capacity with its audit row in one
    * transaction (`wbs-shared-occupancy` S1, S11). The organization is the
    * resource's own `resource_organization` row: a legacy resource has none
-   * and is refused `organization_required` (S2). The projects it answers for
+   * and is refused `organization_required` (S2). The work packages it answers for
    * the announce (S7) are those that demand, state or hold the resource, the
-   * holders being the organization's projects whose claims occupy units of it
+   * holders being the organization's work packages whose claims occupy units of it
    * (review S3-1): a claim's `resources` can name a resource no demand or
-   * capacity of its project does.
+   * capacity of its work package does.
    *
    * Proof: with the audit append removed, `writes one audit row per change,
    * never a journal entry` (directory-capacity.controller.db.test.ts) found no
@@ -1109,15 +1192,15 @@ export class DirectoryRepository implements DirectoryStore {
           after: units,
           organizationId,
           // Proof: with the holders left out, `announces directory_changed to a
-          // project that holds the resource only through a claim`
+          // work package that holds the resource only through a claim`
           // (directory-capacity.controller.db.test.ts) found no announce for C,
           // and the SQLite certification's
           // `directory.setDirectoryCapacity:state-clear-remove` read `[]`;
           // watched 2026-11-01.
-          projectIds: [
+          workPackageIds: [
             ...new Set([
-              ...this.projectsNamingResource(tx, resourceId),
-              ...this.projectsHoldingResource(tx, resourceId, organizationId),
+              ...this.workPackagesNamingResource(tx, resourceId),
+              ...this.workPackagesHoldingResource(tx, resourceId, organizationId),
             ]),
           ].sort(),
         };
@@ -1168,13 +1251,13 @@ export class DirectoryRepository implements DirectoryStore {
           return { ok: false, reason: 'in_use', usage };
         const demanded = [...new Set(usage.demands.map((each) => each.workItemId))];
         bumpWorkItems(tx, demanded, stamp);
-        // Read before the delete cascades the occupancy away: a project whose
+        // Read before the delete cascades the occupancy away: a work package whose
         // only link is a standing claim's units is told too.
         // Proof: with this left out, `refuses deleting a resource a claim holds,
         // counting it, and cascades on confirmation` (resource-occupancy.db.test.ts)
-        // announced no project on SQLite; watched 2026-10-20.
+        // announced no work package on SQLite; watched 2026-10-20.
         const occupying = tx
-          .selectDistinct({ projectId: workItem.projectId })
+          .selectDistinct({ workPackageId: workItem.workPackageId })
           .from(claimOccupancy)
           .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
           .innerJoin(workItem, eq(workItem.id, claim.workItemId))
@@ -1190,11 +1273,11 @@ export class DirectoryRepository implements DirectoryStore {
           ok: true,
           removal: {
             workItemIds: demanded,
-            projectIds: [
+            workPackageIds: [
               ...new Set([
-                ...usage.rows.projects.map((each) => each.id),
-                ...usage.capacities.map((each) => each.projectId),
-                ...occupying.map((each) => each.projectId),
+                ...usage.rows.workPackages.map((each) => each.id),
+                ...usage.capacities.map((each) => each.workPackageId),
+                ...occupying.map((each) => each.workPackageId),
               ]),
             ].sort(),
           },
@@ -1203,7 +1286,7 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
-  /** The demands, capacities and project rows that name one resource, read through `reader`. */
+  /** The demands, capacities and work package rows that name one resource, read through `reader`. */
   private resourceUsageIn(reader: Reader, resourceId: string): ResourceUsageRows {
     // Proof: without pending acknowledgments, the late-cause regression deleted this resource with status 200 (2026-10-25).
     const tracked = reader
@@ -1220,7 +1303,7 @@ export class DirectoryRepository implements DirectoryStore {
         workItemId: workItemResourceDemand.workItemId,
         resourceId: workItemResourceDemand.resourceId,
         units: workItemResourceDemand.units,
-        projectId: workItem.projectId,
+        workPackageId: workItem.workPackageId,
       })
       .from(workItemResourceDemand)
       .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
@@ -1229,12 +1312,12 @@ export class DirectoryRepository implements DirectoryStore {
       .all();
     const capacities = reader
       .select({
-        projectId: projectResourceCapacity.projectId,
-        units: projectResourceCapacity.units,
+        workPackageId: workPackageResourceCapacity.workPackageId,
+        units: workPackageResourceCapacity.units,
       })
-      .from(projectResourceCapacity)
-      .where(eq(projectResourceCapacity.resourceId, resourceId))
-      .orderBy(asc(projectResourceCapacity.projectId))
+      .from(workPackageResourceCapacity)
+      .where(eq(workPackageResourceCapacity.resourceId, resourceId))
+      .orderBy(asc(workPackageResourceCapacity.workPackageId))
       .all();
     const referenced = reader
       .select({ providerId: resource.providerId })
@@ -1248,7 +1331,7 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(claimOccupancy.resourceId, resourceId))
       .all();
     return {
-      rows: usageRowsIn(reader, projectsOf(demands), []),
+      rows: usageRowsIn(reader, workPackagesOf(demands), []),
       demands: demands.map(({ workItemId, units }) => ({ workItemId, resourceId, units })),
       capacities,
       // Proof: with 0 here, the SQLite certification's
@@ -1276,51 +1359,54 @@ export class DirectoryRepository implements DirectoryStore {
     };
   }
 
-  /** Every project whose demands or capacities name the resource. */
-  private projectsNamingResource(reader: Reader, resourceId: string): string[] {
+  /** Every work package whose demands or capacities name the resource. */
+  private workPackagesNamingResource(reader: Reader, resourceId: string): string[] {
     const demanding = reader
-      .select({ projectId: workItem.projectId })
+      .select({ workPackageId: workItem.workPackageId })
       .from(workItemResourceDemand)
       .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
       .where(eq(workItemResourceDemand.resourceId, resourceId))
       .all();
     const stating = reader
-      .select({ projectId: projectResourceCapacity.projectId })
-      .from(projectResourceCapacity)
-      .where(eq(projectResourceCapacity.resourceId, resourceId))
+      .select({ workPackageId: workPackageResourceCapacity.workPackageId })
+      .from(workPackageResourceCapacity)
+      .where(eq(workPackageResourceCapacity.resourceId, resourceId))
       .all();
-    return [...new Set(projectsOf([...demanding, ...stating]))].sort();
+    return [...new Set(workPackagesOf([...demanding, ...stating]))].sort();
   }
 
   /**
-   * Every project of `organizationId` whose claims hold units of the resource
-   * (`claim_occupancy → claim → work_item → project_organization`), the
+   * Every work package of `organizationId` whose claims hold units of the resource
+   * (`claim_occupancy → claim → work_item → work_package_organization`), the
    * holders `ClaimStore.organizationOccupancyOf` counts; a holder in
-   * another organization's project is skipped as that read skips it.
+   * another organization's work package is skipped as that read skips it.
    *
    * Proof: with the organization condition removed, the SQLite certification's
    * `directory.setDirectoryCapacity:state-clear-remove` also announced the
    * other organization's holder; watched 2026-11-01.
    */
-  private projectsHoldingResource(
+  private workPackagesHoldingResource(
     reader: Reader,
     resourceId: string,
     organizationId: string,
   ): string[] {
     const holding = reader
-      .select({ projectId: workItem.projectId })
+      .select({ workPackageId: workItem.workPackageId })
       .from(claimOccupancy)
       .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .where(
         and(
           eq(claimOccupancy.resourceId, resourceId),
-          eq(projectOrganization.organizationId, organizationId),
+          eq(workPackageOrganization.organizationId, organizationId),
         ),
       )
       .all();
-    return [...new Set(holding.map(({ projectId }) => projectId))];
+    return [...new Set(holding.map(({ workPackageId }) => workPackageId))];
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */
@@ -1392,8 +1478,8 @@ export class DirectoryRepository implements DirectoryStore {
    * being held, the row being gone, or a service that is not there.
    *
    * A refused patch writes nothing. The team carries no revision of its own —
-   * it is global rather than a satellite of any project — so what tells an open
-   * project about the new name is the event the service publishes after this
+   * it is global rather than a satellite of any work package — so what tells an open
+   * work package about the new name is the event the service publishes after this
    * commits, not a counter moved here. **The ownership map moves no revision
    * either, and that is the rule rather than an omission:** it labels no work
    * item and the scheduler never reads it, so a plan rendered a second ago is
@@ -1476,7 +1562,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: true,
             team: { ...patched, serviceIds: serviceIds.map((row) => row.serviceId) },
-            projectIds: this.projectsLabelled(tx, teamId),
+            workPackageIds: this.workPackagesLabelled(tx, teamId),
           };
         });
       } catch (err) {
@@ -1491,7 +1577,7 @@ export class DirectoryRepository implements DirectoryStore {
    * {@link DirectoryRepository.renameTeam}'s shape exactly.
    *
    * A refused rename writes nothing. The tag carries no revision of its own, so
-   * what tells an open project about the new name is the event the service
+   * what tells an open work package about the new name is the event the service
    * publishes after this commits; the **work items** are not bumped, and that is
    * deliberate — a rename changes what a label is called, not which rows carry
    * it, so no journal entry is made stale by it.
@@ -1509,7 +1595,7 @@ export class DirectoryRepository implements DirectoryStore {
             .all();
           const renamed = rows.at(0);
           if (renamed === undefined) return { ok: false, reason: 'not_found' };
-          return { ok: true, tag: renamed, projectIds: this.projectsTagged(tx, tagId) };
+          return { ok: true, tag: renamed, workPackageIds: this.workPackagesTagged(tx, tagId) };
         });
       } catch (err) {
         if (isUniqueViolation(err, UNIQUE_INDEXES.tagName)) return { ok: false, reason: 'taken' };
@@ -1540,7 +1626,11 @@ export class DirectoryRepository implements DirectoryStore {
             .all();
           const renamed = rows.at(0);
           if (renamed === undefined) return { ok: false, reason: 'not_found' };
-          return { ok: true, service: renamed, projectIds: this.projectsServiced(tx, serviceId) };
+          return {
+            ok: true,
+            service: renamed,
+            workPackageIds: this.workPackagesServiced(tx, serviceId),
+          };
         });
       } catch (err) {
         if (isUniqueViolation(err, UNIQUE_INDEXES.serviceName))
@@ -1752,7 +1842,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: true,
             person: { ...patched, teamIds: teamIds.map((row) => row.serviceTeamId) },
-            projectIds: this.projectsReaching(tx, personId),
+            workPackageIds: this.workPackagesReaching(tx, personId),
           };
         });
       } catch (err) {
@@ -1780,7 +1870,7 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * The projects a person's assignments reach into, read for the refusal that
+   * The work packages a person's assignments reach into, read for the refusal that
    * names them.
    *
    * A **fast path**, never the authority: see {@link DirectoryStore.usageOfPerson}.
@@ -1789,7 +1879,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfPerson(personId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return personUsageIn(this.db, this.projectsReaching(this.db, personId), personId);
+    return personUsageIn(this.db, this.workPackagesReaching(this.db, personId), personId);
   }
 
   /**
@@ -1802,7 +1892,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfTag(tagId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsTagged(this.db, tagId), []);
+    return usageRowsIn(this.db, this.workPackagesTagged(this.db, tagId), []);
   }
 
   /**
@@ -1832,7 +1922,7 @@ export class DirectoryRepository implements DirectoryStore {
       await Promise.resolve();
       return this.db.transaction((tx) => {
         const labelled = tx
-          .select({ id: workItem.id, projectId: workItem.projectId })
+          .select({ id: workItem.id, workPackageId: workItem.workPackageId })
           .from(workItemTag)
           .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
           .where(eq(workItemTag.tagId, tagId))
@@ -1841,7 +1931,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, projectsOf(labelled), []),
+            usage: usageRowsIn(tx, workPackagesOf(labelled), []),
           };
         }
         bumpWorkItems(
@@ -1859,7 +1949,7 @@ export class DirectoryRepository implements DirectoryStore {
           ok: true,
           removal: {
             workItemIds: labelled.map((each) => each.id),
-            projectIds: projectsOf(labelled),
+            workPackageIds: workPackagesOf(labelled),
           },
         };
       });
@@ -1952,7 +2042,11 @@ export class DirectoryRepository implements DirectoryStore {
             .all();
           const renamed = rows.at(0);
           if (renamed === undefined) return { ok: false, reason: 'not_found' };
-          return { ok: true, workItemType: renamed, projectIds: this.projectsTyped(tx, typeId) };
+          return {
+            ok: true,
+            workItemType: renamed,
+            workPackageIds: this.workPackagesTyped(tx, typeId),
+          };
         });
       } catch (err) {
         if (isUniqueViolation(err, UNIQUE_INDEXES.workItemTypeName))
@@ -1972,7 +2066,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfWorkItemType(typeId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsTyped(this.db, typeId), []);
+    return usageRowsIn(this.db, this.workPackagesTyped(this.db, typeId), []);
   }
 
   /**
@@ -1994,11 +2088,15 @@ export class DirectoryRepository implements DirectoryStore {
     cascade: boolean,
     stamp: WriteStamp,
   ): Promise<DirectoryRemoved> {
+    const act = retainCatalogueStamp(stamp);
     return await this.gate.enter(async () => {
       await Promise.resolve();
+      // Proof: omission retained type deletion/project advancement after caught native
+      // failure and an unrelated outer commit; exact restore passed
+      // (verification-project-manifest-20261119.json).
       return this.db.transaction((tx) => {
         const labelled = tx
-          .select({ id: workItem.id, projectId: workItem.projectId })
+          .select({ id: workItem.id, workPackageId: workItem.workPackageId })
           .from(workItemWorkItemType)
           .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
           .where(eq(workItemWorkItemType.typeId, typeId))
@@ -2007,9 +2105,20 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, projectsOf(labelled), []),
+            usage: usageRowsIn(tx, workPackagesOf(labelled), []),
           };
         }
+        const mapping = tx
+          .select({ organizationId: workItemTypeOrganization.organizationId })
+          .from(workItemTypeOrganization)
+          .where(eq(workItemTypeOrganization.resourceId, typeId))
+          .get();
+        // An unowned root is the explicit legacy directory case; current scoped
+        // removal has already admitted its actual organization mapping.
+        const organizationId =
+          mapping === undefined
+            ? null
+            : readCatalogueId(mapping.organizationId, 'removed type organization');
         bumpWorkItems(
           tx,
           labelled.map((each) => each.id),
@@ -2024,11 +2133,20 @@ export class DirectoryRepository implements DirectoryStore {
           .returning({ id: workItemType.id })
           .all();
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        // Proof: omission left empty project revision3instead of4 after successful
+        // unused-type deletion; exact restore passed (verification-project-manifest-20261119.json).
+        if (organizationId !== null) {
+          const projectIds = captureCatalogueProjectIdsIn(tx, organizationId, {
+            scopeKind: 'organization',
+            scopeId: organizationId,
+          });
+          touchCatalogueTargetsIn(tx, { workPackageIds: [], projectIds }, act);
+        }
         return {
           ok: true,
           removal: {
             workItemIds: labelled.map((each) => each.id),
-            projectIds: projectsOf(labelled),
+            workPackageIds: workPackagesOf(labelled),
           },
         };
       });
@@ -2047,7 +2165,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfService(serviceId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsServiced(this.db, serviceId), []);
+    return usageRowsIn(this.db, this.workPackagesServiced(this.db, serviceId), []);
   }
 
   /**
@@ -2080,7 +2198,7 @@ export class DirectoryRepository implements DirectoryStore {
         // so the old read would have bumped no revision and confirmed no usage for
         // exactly the rows the removal actually empties.
         const labelled = tx
-          .select({ id: workItem.id, projectId: workItem.projectId })
+          .select({ id: workItem.id, workPackageId: workItem.workPackageId })
           .from(workItemService)
           .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
           .where(eq(workItemService.serviceId, serviceId))
@@ -2089,7 +2207,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, projectsOf(labelled), []),
+            usage: usageRowsIn(tx, workPackagesOf(labelled), []),
           };
         }
         bumpWorkItems(
@@ -2107,19 +2225,19 @@ export class DirectoryRepository implements DirectoryStore {
           ok: true,
           removal: {
             workItemIds: labelled.map((each) => each.id),
-            projectIds: projectsOf(labelled),
+            workPackageIds: workPackagesOf(labelled),
           },
         };
       });
     });
   }
 
-  /** The same for a team: the projects it labels work in, the people in it, and its own row. */
+  /** The same for a team: the work packages it labels work in, the people in it, and its own row. */
   async usageOfTeam(teamId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
     return usageRowsIn(
       this.db,
-      this.projectsLabelled(this.db, teamId),
+      this.workPackagesLabelled(this.db, teamId),
       this.membersOf(this.db, teamId),
       teamId,
     );
@@ -2183,7 +2301,7 @@ export class DirectoryRepository implements DirectoryStore {
             return {
               ok: false,
               reason: 'in_use',
-              usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
+              usage: personUsageIn(tx, this.workPackagesReaching(tx, personId), personId),
             };
           }
           // Proof: with this refusal removed, `refuses a member's cascade over
@@ -2193,7 +2311,7 @@ export class DirectoryRepository implements DirectoryStore {
           // and revoked the credentials (200); watched 2026-10-22.
           if (machines.length > 0 && !reachesPerson(tx, personId, reach))
             return { ok: false, reason: 'forbidden' };
-          const projectIds = this.projectsReaching(tx, personId);
+          const workPackageIds = this.workPackagesReaching(tx, personId);
           tx.delete(assignment).where(eq(assignment.personId, personId)).run();
           // Delegated claims under these go with them: `parent_claim_id` cascades.
           tx.delete(claim).where(eq(claim.personId, personId)).run();
@@ -2212,18 +2330,26 @@ export class DirectoryRepository implements DirectoryStore {
           // `machine_credential.person_id` foreign key (500); watched 2026-10-22.
           removeMachineCredentialsOf(tx, personId, machines, stamp);
           tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
+          // Capture before the parent delete cascades its links; revision updates share this transaction.
+          const spaces = tx
+            .select({ id: spacePerson.spaceId })
+            .from(spacePerson)
+            .where(eq(spacePerson.personId, personId))
+            .orderBy(asc(spacePerson.spaceId))
+            .all();
           const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
           // Nothing was deleted, so there was nothing here to delete: somebody
           // else's removal committed first. This request changed nothing and must
           // move no revision — the two deletes above touched nothing for the same
           // reason.
           if (removed.length === 0) return { ok: false, reason: 'not_found' };
+          for (const space of spaces) bumpSpaceRevision(tx, space.id, stamp.at);
           // Proof: with `claimed` read as the person's own claims alone, the
           // SQLite `directory.removePerson:delegated-claims` case found the
           // worker's work item missing from the removal; watched 2026-10-20.
           const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
           bumpWorkItems(tx, workItemIds, stamp);
-          return { ok: true, removal: { workItemIds, projectIds } };
+          return { ok: true, removal: { workItemIds, workPackageIds } };
         });
       })
       .catch((failure: unknown) => {
@@ -2268,7 +2394,7 @@ export class DirectoryRepository implements DirectoryStore {
         // `team-sets`. The `UPDATE` below still nulls the column beside it, and
         // the join rows go by the cascade.
         const labelled = tx
-          .select({ id: workItem.id, projectId: workItem.projectId })
+          .select({ id: workItem.id, workPackageId: workItem.workPackageId })
           .from(workItemTeam)
           .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
           .where(eq(workItemTeam.teamId, teamId))
@@ -2281,10 +2407,10 @@ export class DirectoryRepository implements DirectoryStore {
             // The capacity rows are read in this same transaction as the count
             // that refused, so the numbers the confirmation names are the ones
             // that were in force when the removal was refused — see
-            // {@link DirectoryUsageRows.capacityOf}. Per project since
-            // `capacity-per-project`: the team row this used to read carried one
+            // {@link DirectoryUsageRows.capacityOf}. Per work package since
+            // `capacity-per-work-package`: the team row this used to read carried one
             // number for every plan, and there is no such number now.
-            usage: usageRowsIn(tx, projectsOf(labelled), members, teamId),
+            usage: usageRowsIn(tx, workPackagesOf(labelled), members, teamId),
           };
         }
         bumpWorkItems(
@@ -2297,34 +2423,42 @@ export class DirectoryRepository implements DirectoryStore {
           .where(eq(workItem.serviceTeamId, teamId))
           .run();
         tx.delete(personTeam).where(eq(personTeam.serviceTeamId, teamId)).run();
+        // Capture before the parent delete cascades its links; revision updates share this transaction.
+        const spaces = tx
+          .select({ id: spaceTeam.spaceId })
+          .from(spaceTeam)
+          .where(eq(spaceTeam.serviceTeamId, teamId))
+          .orderBy(asc(spaceTeam.spaceId))
+          .all();
         const removed = tx
           .delete(serviceTeam)
           .where(eq(serviceTeam.id, teamId))
           .returning({ id: serviceTeam.id })
           .all();
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        for (const space of spaces) bumpSpaceRevision(tx, space.id, stamp.at);
         return {
           ok: true,
           removal: {
             workItemIds: labelled.map((each) => each.id),
-            projectIds: projectsOf(labelled),
+            workPackageIds: workPackagesOf(labelled),
           },
         };
       });
     });
   }
 
-  /** Every project holding a work item this person is assigned on or holds a claim on. */
-  private projectsReaching(reader: Reader, personId: string): string[] {
-    return projectsOf([
+  /** Every work package holding a work item this person is assigned on or holds a claim on. */
+  private workPackagesReaching(reader: Reader, personId: string): string[] {
+    return workPackagesOf([
       ...reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(assignment)
         .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
         .where(eq(assignment.personId, personId))
         .all(),
       ...reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(claim)
         .innerJoin(workItem, eq(claim.workItemId, workItem.id))
         .where(eq(claim.personId, personId))
@@ -2333,24 +2467,24 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * Every project holding a work item labelled with this team — **any** row,
+   * Every work package holding a work item labelled with this team — **any** row,
    * leaves and parents alike.
    *
    * The "any row" is the load-bearing word, and it is what makes inheritance
    * need no widening anywhere: a leaf draws its pool from the nearest labelled
-   * ancestor, `effectiveTeamOf` walks `parentId` and never leaves a project, so
-   * a project with an inheriting leaf always holds the labelled ancestor and is
+   * ancestor, `effectiveTeamOf` walks `parentId` and never leaves a work package, so
+   * a work package with an inheriting leaf always holds the labelled ancestor and is
    * already in this list.
    *
    * Proof: narrowed to rows nothing calls a parent, and
-   * `tells a project the team reaches only through inheritance` failed with
+   * `tells a workPackage the team reaches only through inheritance` failed with
    * `[]` where one `directory_changed` was owed — a plan whose every date had
    * just moved, and nobody told. Watched 2026-08-12.
    */
-  private projectsLabelled(reader: Reader, teamId: string): string[] {
-    return projectsOf(
+  private workPackagesLabelled(reader: Reader, teamId: string): string[] {
+    return workPackagesOf(
       reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(workItemTeam)
         .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
         .where(eq(workItemTeam.teamId, teamId))
@@ -2358,11 +2492,11 @@ export class DirectoryRepository implements DirectoryStore {
     );
   }
 
-  /** {@link projectsLabelled} for the other dimension: the projects holding a tagged row. */
-  private projectsTagged(reader: Reader, tagId: string): string[] {
-    return projectsOf(
+  /** {@link workPackagesLabelled} for the other dimension: the work packages holding a tagged row. */
+  private workPackagesTagged(reader: Reader, tagId: string): string[] {
+    return workPackagesOf(
       reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(workItemTag)
         .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
         .where(eq(workItemTag.tagId, tagId))
@@ -2371,16 +2505,16 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * {@link projectsTagged} for the fourth dimension: the projects holding a row
+   * {@link workPackagesTagged} for the fourth dimension: the work packages holding a row
    * that carries this type, read through the join because there is no column.
    * That method line for line, and the sameness is deliberate — the two
    * dimensions are stored alike and differ only in whether a *read* walks the
    * tree, which this query does not do for either.
    */
-  private projectsTyped(reader: Reader, typeId: string): string[] {
-    return projectsOf(
+  private workPackagesTyped(reader: Reader, typeId: string): string[] {
+    return workPackagesOf(
       reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(workItemWorkItemType)
         .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
         .where(eq(workItemWorkItemType.typeId, typeId))
@@ -2389,19 +2523,19 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * {@link projectsTagged} for the third dimension: the projects holding a row
+   * {@link workPackagesTagged} for the third dimension: the work packages holding a row
    * that names this service.
    *
-   * `projectsTagged` line for line since task 10.2. The sentence that stood here
+   * `workPackagesTagged` line for line since task 10.2. The sentence that stood here
    * — "no join to read, the label is a column, so this is the only one of the
    * three that asks `work_item` alone" — was the singleton's, and reading the
-   * column now would name the projects the *outgoing* release labelled and miss
+   * column now would name the work packages the *outgoing* release labelled and miss
    * every row this one has written.
    */
-  private projectsServiced(reader: Reader, serviceId: string): string[] {
-    return projectsOf(
+  private workPackagesServiced(reader: Reader, serviceId: string): string[] {
+    return workPackagesOf(
       reader
-        .select({ projectId: workItem.projectId })
+        .select({ workPackageId: workItem.workPackageId })
         .from(workItemService)
         .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
         .where(eq(workItemService.serviceId, serviceId))
@@ -2421,18 +2555,18 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
-   * Joins only this project's assignments and their person names in one statement.
-   * The work-item project/id index leads into the assignment and person primary keys.
+   * Joins only this work package's assignments and their person names in one statement.
+   * The work-item work-package/id index leads into the assignment and person primary keys.
    *
    * Proof: restoring the unfiltered assignment read and filtering its answer
-   * afterward made `materializes only assigned project rows and names during a
+   * afterward made `materializes only assigned workPackage rows and names during a
    * tiny tree read` fail on 41 materialized rows, expected at most 1. Making
-   * project equality unindexable with `project_id || ''` preserved the payload
+   * work package equality unindexable with `work_package_id || ''` preserved the payload
    * but failed that test on `SCAN assignment`, expected no scanned tables.
    */
-  async assignmentsInProject(
-    projectId: string,
-  ): ReturnType<DirectoryStore['assignmentsInProject']> {
+  async assignmentsInWorkPackage(
+    workPackageId: string,
+  ): ReturnType<DirectoryStore['assignmentsInWorkPackage']> {
     const rows = await this.db
       .select({
         workItemId: assignment.workItemId,
@@ -2443,7 +2577,7 @@ export class DirectoryRepository implements DirectoryStore {
       .from(workItem)
       .innerJoin(assignment, eq(assignment.workItemId, workItem.id))
       .innerJoin(person, eq(person.id, assignment.personId))
-      .where(eq(workItem.projectId, projectId))
+      .where(eq(workItem.workPackageId, workPackageId))
       .orderBy(asc(person.name));
     return {
       assignments: rows.map(({ workItemId, stepId, personId }) => ({

@@ -180,12 +180,12 @@ describe('vite dev server proxy', () => {
     // `handle /api/*` and `handle /ws*` in site.caddy.tmpl.
     expect(routes('/api/auth/register')).toBe(true);
     expect(routes('/ws')).toBe(true);
-    expect(routes('/ws/socket?projectId=1')).toBe(true);
+    expect(routes('/ws/socket?workPackageId=1')).toBe(true);
     // Neither matches `/api/*` there, so `handle {}` hands both to the SPA —
     // which is what an unclaimed path means here too.
     expect(routes('/apiary')).toBe(false);
     expect(routes('/api')).toBe(false);
-    expect(routes('/projects')).toBe(false);
+    expect(routes('/work-packages')).toBe(false);
   });
 
   it('configures no proxy for a build, and does not read an env to decide', () => {
@@ -274,9 +274,10 @@ describe('the app and the run resolve the same modules', () => {
       '@': resolve(APP_ROOT, 'src'),
       '@wbs/domain/access-role': resolve(APP_ROOT, domain, 'access-role.ts'),
       '@wbs/domain/typed-dependency': resolve(APP_ROOT, domain, 'typed-dependency.ts'),
-      '@wbs/domain/project-address': resolve(APP_ROOT, domain, 'project-address.ts'),
+      '@wbs/domain/work-package-address': resolve(APP_ROOT, domain, 'work-package-address.ts'),
       '@wbs/domain/step-node': resolve(APP_ROOT, domain, 'step-node.ts'),
       '@wbs/domain/step-reference': resolve(APP_ROOT, domain, 'step-reference.ts'),
+      '@wbs/domain/step-fact': resolve(APP_ROOT, domain, 'step-fact.ts'),
       '@wbs/domain/workday': resolve(APP_ROOT, domain, 'workday.ts'),
       '@wbs/domain/estimate': resolve(APP_ROOT, domain, 'estimate.ts'),
       '@wbs/domain/progress': resolve(APP_ROOT, domain, 'progress.ts'),

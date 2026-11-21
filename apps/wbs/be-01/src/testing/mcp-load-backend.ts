@@ -13,7 +13,7 @@ import { OrganizationHarness } from './organization-harness';
  * the run's own generated values; the grant key is generated here. Never point
  * it at a deployment's store: it opens only its own temp file.
  *
- * Two activated organizations, each with one super admin, a project, and
+ * Two activated organizations, each with one super admin, a work package, and
  * `MCP_LOAD_AGENTS` (org-a) or `MCP_LOAD_OTHER_AGENTS` (org-b) agent persons
  * bound to that admin, each with one API key and one leaf of its own. Agents
  * are written straight into SQLite as the tests do, so the agent-person cap is
@@ -21,7 +21,7 @@ import { OrganizationHarness } from './organization-harness';
  *
  * Prints `{"port":N}` once serving, then be-01's log lines. Load routes:
  * - `GET /__load/agents` answers every agent: `{ personId, organizationId,
- *   clientId, key, projectId, leafId }`;
+ *   clientId, key, workPackageId, leafId }`;
  * - `POST /__load/delay` `{ ms }` holds every later `/api` request `ms` before
  *   be-01 handles it (0 stops), so a fence that needs slow calls can be
  *   reached without changing mcp-01.
@@ -54,11 +54,11 @@ interface LoadAgent {
   readonly organizationId: string;
   readonly clientId: string;
   readonly key: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly leafId: string;
 }
 
-/** One organization with its admin, project and `count` agents, each holding a key and a leaf. */
+/** One organization with its admin, work package and `count` agents, each holding a key and a leaf. */
 async function seedOrganization(
   organizationId: string,
   admin: string,
@@ -68,11 +68,13 @@ async function seedOrganization(
   h.organization(organizationId);
   h.member(organizationId, admin, 'super_admin');
   h.bind(admin, organizationId);
-  const created = await h.call(admin, 'POST', '/api/projects', { name: `${organizationId} swarm` });
+  const created = await h.call(admin, 'POST', '/api/work-packages', {
+    name: `${organizationId} swarm`,
+  });
   if (created.status !== 201 && created.status !== 200)
-    throw new Error(`creating ${organizationId}'s project: ${JSON.stringify(created)}`);
-  const projectId = (created.body as { project: { id: string } }).project.id;
-  const leaves = await h.call(admin, 'POST', `/api/projects/${projectId}/commands`, {
+    throw new Error(`creating ${organizationId}'s work package: ${JSON.stringify(created)}`);
+  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const leaves = await h.call(admin, 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: Array.from({ length: count }, (_, index) => ({
       kind: 'createWorkItem',
       parentId: null,
@@ -94,7 +96,7 @@ async function seedOrganization(
       personId,
       issuedBy: h.userId(admin),
     });
-    agents.push({ personId, organizationId, clientId: id, key, projectId, leafId });
+    agents.push({ personId, organizationId, clientId: id, key, workPackageId, leafId });
   }
   return agents;
 }

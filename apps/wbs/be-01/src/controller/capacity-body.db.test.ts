@@ -1,13 +1,21 @@
+import { openReadOnlyConnection as openPackageObservationConnection } from '@wbs/store-sqlite/db';
+import { NO_BOUND_ORGANIZATION } from '@wbs/store-sqlite/organization-access';
+import { refusingSavedCurrentCapture } from '@wbs/store-sqlite/saved-current-capture';
+import { SqliteWorkPackageObservation } from '@wbs/store-sqlite/work-package-observation';
+
+import { refusingPlanExports } from '../testing/plan-export-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -30,13 +38,12 @@ import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
 import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { WorkPackageRepository } from '../repository/work-package';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -59,38 +66,38 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
-import { refusingProjectRanks } from '../testing/project-rank-fixture';
+import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { refusingSpaces } from '../testing/space-fixture';
+import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
+import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
+import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-
 /**
- * `setCapacity`, a batch of one on `POST /api/projects/:id/commands`, over
+ * `setCapacity`, a batch of one on `POST /api/work-packages/:id/commands`, over
  * **real SQLite**.
  *
  * Real for `directory.controller.test.ts`'s reason: every status asserted here is
- * decided by rows — the 404 by a project or a team the database does not hold,
+ * decided by rows — the 404 by a work package or a team the database does not hold,
  * the stored number by the primary key on the pair — and a fixture answering them
  * would be a second implementation of the rules under test. The retired
  * `PATCH /api/teams/:id/size` had its tests in that file; then the retired
- * `PUT /api/projects/:id/teams/:teamId/capacity` inherited its whole job, and
- * the command inherited that route's: these are those tests recast per project
+ * `PUT /api/work-packages/:id/teams/:teamId/capacity` inherited its whole job, and
+ * the command inherited that route's: these are those tests recast per work package
  * plus the three claims that are new. The batch answers its `results` rather
  * than the row, so the stored number is read back through the tree's
  * `teamCapacities` and the repository, never off the write's answer.
  */
-describe('setCapacity on POST /api/projects/:id/commands', () => {
+describe('setCapacity on POST /api/work-packages/:id/commands', () => {
   let dir: string;
   let app: ReturnType<typeof buildApp>;
   let capacityStore: CapacityRepository;
   let directoryStore: DirectoryRepository;
-  let projectStore: ProjectRepository;
+  let workPackageStore: WorkPackageRepository;
   let db: ReturnType<typeof openDrizzle>;
   let broadcast: RecordingBroadcaster;
   let token: string;
@@ -99,10 +106,11 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-capacity-http-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrateOrganizationCatalogueFixture(path);
+    seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
     db = openDrizzle(path);
 
-    projectStore = new ProjectRepository(db, OPEN);
+    workPackageStore = new WorkPackageRepository(db, OPEN);
     directoryStore = new DirectoryRepository(db, OPEN);
     capacityStore = new CapacityRepository(db, OPEN);
     const workItems = new WorkItemRepository(db, OPEN);
@@ -115,17 +123,17 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     });
 
     const writing = {
-      projects: new ProjectService({
-        dependencyContext: sqliteDependencyContext(db, projectStore),
+      workPackages: new WorkPackageService({
+        dependencyContext: sqliteDependencyContext(db, workPackageStore),
         clock: testClock,
-        projects: projectStore,
+        workPackages: workPackageStore,
         broadcast: recordingBroadcaster(),
       }),
       directory: new DirectoryService({ clock: testClock, directory: directoryStore, broadcast }),
       capacity: new CapacityService({
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         clock: testClock,
-        projects: projectStore,
+        workPackages: workPackageStore,
         capacity: capacityStore,
         resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         broadcast,
@@ -134,26 +142,26 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       steps: new StepService({
-        dependencyContext: sqliteDependencyContext(db, projectStore),
+        dependencyContext: sqliteDependencyContext(db, workPackageStore),
         clock: testClock,
-        projects: projectStore,
+        workPackages: workPackageStore,
         steps: new StepRepository(db, OPEN),
         broadcast,
       }),
       workItems: new WorkItemService({
         dependencyContext: createLocalDependencyContext({
-          projects: projectStore,
+          workPackages: workPackageStore,
           workItems: workItems,
           estimates: new EstimateRepository(db, OPEN),
           dependencies: new DependencyRepository(db, OPEN),
           typedDependencies: new TypedDependencyRepository(db, OPEN),
         }),
         externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-        admission: CREATOR_ADMISSION,
+        admission: LEGACY_EDIT_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems,
-        projects: projectStore,
+        workPackages: workPackageStore,
         estimates: new EstimateRepository(db, OPEN),
         actuals: new ActualRepository(db, OPEN),
         measures: new StepMeasureRepository(db, OPEN),
@@ -176,7 +184,15 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
     };
     app = buildApp({
-      projectAddressSearch: refusingProjectAddressSearch,
+      projects: refusingProjects,
+      planExports: refusingPlanExports,
+      workPackageObservation: new SqliteWorkPackageObservation({
+        currentCapture: refusingSavedCurrentCapture,
+        openConnection: () => openPackageObservationConnection(path),
+        activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+        now: () => testClock.now(),
+      }),
+      workPackageAddressSearch: refusingWorkPackageAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -186,7 +202,8 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
-      projectRanks: refusingProjectRanks,
+      spaceRead: refusingSpaceRead,
+      workPackageRanks: refusingWorkPackageRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
@@ -227,13 +244,13 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
    * common case, `{}` for the body that names no size at all.
    */
   async function call(
-    projectId: string,
+    workPackageId: string,
     teamId: string,
     fields: object,
     as: string | null = token,
   ): Promise<{ status: number; body: unknown }> {
     const res = await app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/commands`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/commands`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -246,9 +263,9 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   }
 
   /** The capacities as the tree read carries them — the one place a client reads them from. */
-  async function capacitiesOnWire(projectId: string): Promise<unknown> {
+  async function capacitiesOnWire(workPackageId: string): Promise<unknown> {
     const tree = await app.handle(
-      new Request(`http://localhost/api/projects/${projectId}/work-items`, {
+      new Request(`http://localhost/api/work-packages/${workPackageId}/work-items`, {
         headers: { authorization: `Bearer ${token}` },
       }),
     );
@@ -256,17 +273,17 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     return ((await tree.json()) as { teamCapacities: unknown }).teamCapacities;
   }
 
-  /** A project of `ownerId`'s, and a team, both real rows. */
+  /** A work package of `ownerId`'s, and a team, both real rows. */
   async function plan(name = 'Rewire the shed'): Promise<string> {
-    const created = await new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+    const created = await new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: recordingBroadcaster(),
-    }).create(name, ownerId);
+    }).create(name, PROJECT_ID, ownerId);
     if (typeof created === 'string')
-      throw new Error(`fixture project creation refused: ${created}`);
-    return created.project.id;
+      throw new Error(`fixture work package creation refused: ${created}`);
+    return created.workPackage.id;
   }
 
   async function team(name: string): Promise<string> {
@@ -278,25 +295,25 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
   }
 
   it('states how many of a team are at work at once on this plan, and clears it', async () => {
-    const projectId = await plan();
+    const workPackageId = await plan();
     const platform = await team('Platform');
 
-    expect(await call(projectId, platform, { size: 4 })).toMatchObject({
+    expect(await call(workPackageId, platform, { size: 4 })).toMatchObject({
       status: 200,
       body: { results: [{ index: 0 }] },
     });
-    expect(await capacitiesOnWire(projectId)).toEqual([{ serviceTeamId: platform, size: 4 }]);
-    expect(await capacityStore.slotsFor(projectId)).toEqual(new Map([[platform, 4]]));
+    expect(await capacitiesOnWire(workPackageId)).toEqual([{ serviceTeamId: platform, size: 4 }]);
+    expect(await capacityStore.slotsFor(workPackageId)).toEqual(new Map([[platform, 4]]));
 
     // Cleared is **unstated**, which constrains no schedule — not a team of one,
     // which serialises every item it labels. And unstated is the absence of a
     // row, so the tree carries an empty list rather than a `null` beside the id.
-    expect(await call(projectId, platform, { size: null })).toMatchObject({
+    expect(await call(workPackageId, platform, { size: null })).toMatchObject({
       status: 200,
       body: { results: [{ index: 0 }] },
     });
-    expect(await capacitiesOnWire(projectId)).toEqual([]);
-    expect(await capacityStore.slotsFor(projectId)).toEqual(new Map());
+    expect(await capacitiesOnWire(workPackageId)).toEqual([]);
+    expect(await capacityStore.slotsFor(workPackageId)).toEqual(new Map());
   });
 
   it('leaves the team’s retired global number alone, because nothing reads it', async () => {
@@ -304,10 +321,10 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     // write `service_team.size`, so a rollback to the release before this one
     // finds the number the seeding put there rather than one this release
     // invented. The column is retired, not repurposed.
-    const projectId = await plan();
+    const workPackageId = await plan();
     const platform = await team('Platform');
 
-    await call(projectId, platform, { size: 4 });
+    await call(workPackageId, platform, { size: 4 });
 
     expect(await directoryStore.listTeams()).toEqual([
       { id: platform, name: 'Platform', serviceIds: [] },
@@ -322,12 +339,12 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     // Proof: the integer guard deleted from `capacityOf`, and this failed on the
     // first value — `[200, "0"]` where `[400, "0"]` was owed, a pool of no slots
     // taken and written. Watched 2026-08-13.
-    const projectId = await plan();
+    const workPackageId = await plan();
     const platform = await team('Platform');
-    await call(projectId, platform, { size: 4 });
+    await call(workPackageId, platform, { size: 4 });
 
     for (const bad of [0, -1, 1.5, '3', true, 1e20]) {
-      const refused = await call(projectId, platform, { size: bad });
+      const refused = await call(workPackageId, platform, { size: bad });
       // The value rides into the assertion so a failure names which of them got
       // through rather than reporting the same mismatch six times.
       expect([refused.status, String(bad)]).toEqual([400, String(bad)]);
@@ -335,12 +352,12 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
     // A command naming no size at all is a step that says nothing, and this kind
     // writes exactly one field — absent cannot mean "leave it".
-    expect(await call(projectId, platform, {})).toEqual({
+    expect(await call(workPackageId, platform, {})).toEqual({
       status: 400,
       body: { error: 'size_required', at: 0, kind: 'setCapacity' },
     });
 
-    expect(await capacityStore.slotsFor(projectId)).toEqual(new Map([[platform, 4]]));
+    expect(await capacityStore.slotsFor(workPackageId)).toEqual(new Map([[platform, 4]]));
   });
 
   it('refuses a capacity above what a plan can mean', async () => {
@@ -353,46 +370,46 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     // Proof: the `> MOST_PEOPLE_AT_ONCE` comparison deleted with the integer
     // guard left in place, and this failed on `status: 400` becoming `200` with
     // the pair coming back `size: 1001`. Watched 2026-08-13.
-    const projectId = await plan();
+    const workPackageId = await plan();
     const platform = await team('Platform');
 
-    expect(await call(projectId, platform, { size: 1001 })).toEqual({
+    expect(await call(workPackageId, platform, { size: 1001 })).toEqual({
       status: 400,
       body: { error: 'size_must_be_at_most_1000', at: 0, kind: 'setCapacity' },
     });
-    expect(await call(projectId, platform, { size: 1000 })).toMatchObject({ status: 200 });
+    expect(await call(workPackageId, platform, { size: 1000 })).toMatchObject({ status: 200 });
   });
 
-  it('answers 404 for a project or a team that is not there, and 401 with no token', async () => {
-    const projectId = await plan();
+  it('answers 404 for a work package or a team that is not there, and 401 with no token', async () => {
+    const workPackageId = await plan();
     const platform = await team('Platform');
 
     expect(await call(crypto.randomUUID(), platform, { size: 2 })).toEqual({
       status: 404,
       body: { error: 'not_found', at: 0, kind: 'setCapacity' },
     });
-    expect(await call(projectId, crypto.randomUUID(), { size: 2 })).toEqual({
+    expect(await call(workPackageId, crypto.randomUUID(), { size: 2 })).toEqual({
       status: 404,
       body: { error: 'not_found', at: 0, kind: 'setCapacity' },
     });
-    expect((await call(projectId, platform, { size: 2 }, null)).status).toBe(401);
+    expect((await call(workPackageId, platform, { size: 2 }, null)).status).toBe(401);
 
-    expect(await capacityStore.slotsFor(projectId)).toEqual(new Map());
+    expect(await capacityStore.slotsFor(workPackageId)).toEqual(new Map());
   });
 
-  it('refuses an account that may read the project but not write it', async () => {
-    // Gated by project write access, unlike everything in `directoryController`:
+  it('refuses an account that may read the work package but not write it', async () => {
+    // Gated by work package write access, unlike everything in `directoryController`:
     // the directory is global and open to every account, and this number moves one
-    // project's dates. 403 rather than 404, `projectController`'s own split —
-    // pretending the project is absent would contradict the next GET.
-    const projectId = await plan();
+    // work package's dates. 403 rather than 404, `workPackageController`'s own split —
+    // pretending the work package is absent would contradict the next GET.
+    const workPackageId = await plan();
     const platform = await team('Platform');
-    await new ProjectService({
-      dependencyContext: sqliteDependencyContext(db, projectStore),
+    await new WorkPackageService({
+      dependencyContext: sqliteDependencyContext(db, workPackageStore),
       clock: testClock,
-      projects: projectStore,
+      workPackages: workPackageStore,
       broadcast: recordingBroadcaster(),
-    }).update(projectId, ownerId, {
+    }).update(workPackageId, ownerId, {
       restricted: true,
     });
     const registered = await app.handle(
@@ -404,21 +421,21 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     );
     const { token: theirs } = (await registered.json()) as { token: string };
 
-    expect(await call(projectId, platform, { size: 2 }, theirs)).toEqual({
+    expect(await call(workPackageId, platform, { size: 2 }, theirs)).toEqual({
       status: 403,
       body: { error: 'forbidden', at: 0, kind: 'setCapacity' },
     });
-    expect(await capacityStore.slotsFor(projectId)).toEqual(new Map());
+    expect(await capacityStore.slotsFor(workPackageId)).toEqual(new Map());
   });
 
-  it('tells the project it names and no other, even one sharing the team', async () => {
+  it('tells the work package it names and no other, even one sharing the team', async () => {
     // The whole of the change from C2's fan-out. C2's size write announced to
-    // every project the team labelled, because the number moved dates in all of
+    // every work package the team labelled, because the number moved dates in all of
     // them; the set of plans a capacity write moves is now one, so the fan-out is
     // one — and a second plan sharing the team must not be told to reread for a
     // number that is not its own.
     //
-    // Proof: the publish widened to `directory.usageOfTeam(teamId)`'s projects —
+    // Proof: the publish widened to `directory.usageOfTeam(teamId)`'s work packages —
     // C2's own fan-out, put back — and this failed on
     // `[shed, roof] to equal [shed]`, the untouched plan told to reread. Watched
     // 2026-08-13.
@@ -430,7 +447,9 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
 
     await call(shed, platform, { size: 2 });
 
-    expect(broadcast.published).toEqual([{ projectId: shed, event: { type: 'capacity_changed' } }]);
+    expect(broadcast.published).toEqual([
+      { workPackageId: shed, event: { type: 'capacity_changed' } },
+    ]);
     // And the plan that was not told still holds its own number, untouched.
     expect(await capacityStore.slotsFor(roof)).toEqual(new Map([[platform, 9]]));
   });
@@ -442,9 +461,9 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     // for it. The landmine that test recorded is spent; what is worth keeping is
     // the shape of the proof, now pointed at the command that replaced the route
     // it used.
-    const projectId = await plan();
+    const workPackageId = await plan();
     const platform = await team('Platform');
-    expect((await call(projectId, platform, { size: 1 })).status).toBe(200);
+    expect((await call(workPackageId, platform, { size: 1 })).status).toBe(200);
 
     const send = (path: string, init?: RequestInit) =>
       app.handle(
@@ -453,18 +472,18 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
           headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
         }),
       );
-    const stepsRes = await send(`/api/projects/${projectId}`);
-    // `readonly` and indexed through `.at`, so the absence a fresh project could
+    const stepsRes = await send(`/api/work-packages/${workPackageId}`);
+    // `readonly` and indexed through `.at`, so the absence a fresh work package could
     // have is a state the type carries rather than one the cast asserts away — a
-    // project with no steps has no estimate to write and this test would
+    // work package with no steps has no estimate to write and this test would
     // otherwise fail three lines later on an empty string in the URL.
     const { steps } = (await stepsRes.json()) as { steps: readonly { id: string }[] };
     const devId = steps.at(0)?.id;
-    if (devId === undefined) throw new Error('the fixture project has no steps');
+    if (devId === undefined) throw new Error('the fixture work package has no steps');
 
     // Both items, each labelled and estimated, in one batch: a later command
     // names what an earlier one made by its `ref`.
-    const labelled = await send(`/api/projects/${projectId}/commands`, {
+    const labelled = await send(`/api/work-packages/${workPackageId}/commands`, {
       method: 'POST',
       body: JSON.stringify({
         commands: ['Strip', 'Sand'].flatMap((name) => [
@@ -481,7 +500,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     });
     expect(labelled.status).toBe(200);
 
-    const tree = await send(`/api/projects/${projectId}/work-items`);
+    const tree = await send(`/api/work-packages/${workPackageId}/work-items`);
     const body = (await tree.json()) as {
       waitingForCapacity: number;
       slices: { boundBy: string }[];
@@ -489,7 +508,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
     };
 
     expect(body.slices.map((one) => one.boundBy)).toContain('capacity');
-    // One: the fixture project holds `Dev` and `QA`, only `Dev` is estimated,
+    // One: the fixture work package holds `Dev` and `QA`, only `Dev` is estimated,
     // and the two `QA` slices nobody sized take no schedule time and no slot.
     // The second `Dev` alone waits for the pool of one.
     expect(body.waitingForCapacity).toBe(1);

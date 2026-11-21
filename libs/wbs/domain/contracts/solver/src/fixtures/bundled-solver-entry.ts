@@ -6,10 +6,10 @@ import { revalidateSolverResult } from '../revalidate-solver-result';
 const key = sliceKey('b', null);
 const stage: ConnectedOptimizationStage = {
   kind: 'connected-stage',
-  projectId: 'B',
+  workPackageId: 'B',
   mode: 'isolated',
   originOrdinal: 0,
-  projects: [{ projectId: 'B', rank: 0, anchorOrdinal: 0 }],
+  workPackages: [{ workPackageId: 'B', rank: 0, anchorOrdinal: 0 }],
   input: {
     rows: [{ id: 'b', parentId: null, position: 0, priority: 0, frozenNumber: null }],
     slices: [{ workItemId: 'b', stepId: null, days: 1, width: 1, personId: null, poolIds: [] }],
@@ -21,8 +21,8 @@ const stage: ConnectedOptimizationStage = {
     elsewhere: new Map(),
     order: {
       kind: 'connected',
-      projectIdByWorkItem: new Map([['b', 'B']]),
-      rankByProject: new Map([['B', 0]]),
+      workPackageIdByWorkItem: new Map([['b', 'B']]),
+      rankByWorkPackage: new Map([['B', 0]]),
     },
   },
   relationships: [],

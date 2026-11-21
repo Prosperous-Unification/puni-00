@@ -1,5 +1,5 @@
 {
-  "contractVersion": 18,
+  "contractVersion": 20,
   "cases": {
     "minute-step-half-workday": {
       "slices": [
@@ -19,7 +19,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -100,7 +100,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -217,7 +217,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -334,7 +334,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -415,7 +415,7 @@
             "float": 3,
             "critical": false,
             "personId": "p",
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -519,7 +519,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -623,7 +623,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -704,7 +704,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -880,7 +880,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -938,7 +938,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -961,7 +961,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -984,7 +984,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -1007,7 +1007,7 @@
             "float": 0,
             "critical": true,
             "personId": null,
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -1091,7 +1091,7 @@
             "float": 3,
             "critical": false,
             "personId": "p",
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -1114,7 +1114,7 @@
             "float": 3,
             "critical": false,
             "personId": "p",
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -1137,7 +1137,7 @@
             "float": 0,
             "critical": true,
             "personId": "p",
-            "boundBy": "projectStart",
+            "boundBy": "workPackageStart",
             "resourcePredecessorId": null,
             "capacityPredecessorIds": [],
             "capacityTeamId": null,
@@ -1183,6 +1183,218 @@
             "latestFinish": 3,
             "float": 0,
             "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    },
+    "mixed-leaf-descendant-qa-and-boundary": {
+      "slices": [
+        [
+          "qa-first\u0000dev",
+          {
+            "workItemId": "qa-first",
+            "stepId": "dev",
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 5,
+            "earliestFinish": 6,
+            "latestStart": 5,
+            "latestFinish": 6,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "stepOrder",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "qa-first\u0000qa",
+          {
+            "workItemId": "qa-first",
+            "stepId": "qa",
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 3,
+            "earliestFinish": 5,
+            "latestStart": 3,
+            "latestFinish": 5,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "predecessor",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "spike\u0000research",
+          {
+            "workItemId": "spike",
+            "stepId": "research",
+            "duration": 3,
+            "effort": 3,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 3,
+            "latestFinish": 6,
+            "float": 3,
+            "critical": false,
+            "personId": null,
+            "boundBy": "workPackageStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "story\u0000dev",
+          {
+            "workItemId": "story",
+            "stepId": "dev",
+            "duration": 2,
+            "effort": 2,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 2,
+            "latestStart": 0,
+            "latestFinish": 2,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "workPackageStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "story\u0000qa",
+          {
+            "workItemId": "story",
+            "stepId": "qa",
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 2,
+            "earliestFinish": 3,
+            "latestStart": 2,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "stepOrder",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "zero\u0000",
+          {
+            "workItemId": "zero",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 6,
+            "latestFinish": 6,
+            "float": 6,
+            "critical": false,
+            "personId": null,
+            "boundBy": "workPackageStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "P",
+          {
+            "duration": 0,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 6,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "qa-first",
+          {
+            "duration": 3,
+            "estimated": true,
+            "earliestStart": 3,
+            "earliestFinish": 6,
+            "latestStart": 3,
+            "latestFinish": 6,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "spike",
+          {
+            "duration": 3,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 3,
+            "latestFinish": 6,
+            "float": 3,
+            "critical": false
+          }
+        ],
+        [
+          "story",
+          {
+            "duration": 3,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "zero",
+          {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 6,
+            "latestFinish": 6,
+            "float": 6,
+            "critical": false
           }
         ]
       ],

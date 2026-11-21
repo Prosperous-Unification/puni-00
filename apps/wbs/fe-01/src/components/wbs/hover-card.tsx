@@ -62,7 +62,7 @@ export interface HoverCardProps {
    * portalled card like {@link HoverCardProps.anchor}, placed by {@link
    * besidePlacement} instead.
    *
-   * The project picker's alone. A card that explains one option of a list is
+   * The work package picker's alone. A card that explains one option of a list is
    * read against the other options, so it opens clear of the list rather than
    * over it; every card that explains a *cell* opens under that cell, where
    * there is nothing being compared.
@@ -322,7 +322,7 @@ export function HoverCard({
     const measured = node.getBoundingClientRect();
     setCardBox({ width: measured.width, height: measured.height });
     // Each anchor identity measures again: the card's content is the option's
-    // and a longer project name is a wider card.
+    // and a longer work package name is a wider card.
   }, [beside]);
   const besidePlaced =
     beside === undefined
@@ -498,7 +498,7 @@ export function HoverCard({
         boxSizing: 'border-box',
         // A portalled card is drawn on `--layer-card`, above every modal
         // surface, because the control it explains may be on one: at 20 it
-        // was painted under the phone's sheets and Project settings (UI
+        // was painted under the phone's sheets and Work package settings (UI
         // review F-131). In a cell it keeps 20, measured against the table's
         // own sticky layers.
         //
@@ -520,7 +520,7 @@ export function HoverCard({
         // token often enough that this is not a nicety: a 192-character work
         // item name laid 1396px of text inside a 388px card on a phone, and
         // the card was clipped rather than tall (measured in Chromium,
-        // 2026-09-08, `e2e/project-settings.spec.ts`'s phone case).
+        // 2026-09-08, `e2e/work-package-settings.spec.ts`'s phone case).
         //
         // `break-word` rather than `anywhere`: it leaves the card's
         // **min-content** width alone, so a compact card is still the width of

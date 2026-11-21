@@ -14,22 +14,22 @@ them with a rollback. `run-command-batch.ts` (the moved `use-cases/run-command-b
 case: it refuses an actor without the `write` scope before a batch is admitted. `command-bindings.ts`
 (the moved `service/command-bindings.ts`) is private support: the kind-indexed table that dispatches
 each command to the service it belongs to. `command-references.ts` is private support for the
-runner's project and organization reference checks and their existing refusal reasons. Private bindings are named under the
+runner's work package and organization reference checks and their existing refusal reasons. Private bindings are named under the
 `application.plan-commands` label, so a DI failure says which module asked.
 
 `claim-lease-sweep.ts` is the coordinator that gives back claims nobody renewed
-(`openspec/changes/wbs-claim-leases`): at start and on an interval it releases each project's expired
-leases through `PlanCommandRunner.releaseExpiredLeases`, one unit of work per project, coalescing a
+(`openspec/changes/wbs-claim-leases`): at start and on an interval it releases each work package's expired
+leases through `PlanCommandRunner.releaseExpiredLeases`, one unit of work per work package, coalescing a
 revocation's request for an immediate tick; the composition root constructs it and be-01's boot starts
 and stops it.
 
 `admitted-write.ts` runs the two route writes that check the combined step-node dependency graph —
-a project `depReach` change and a step removal — as one unit of work each. `composition.ts` privately
+a work package `depReach` change and a step removal — as one unit of work each. `composition.ts` privately
 binds their raw unit of work and graph factory into a mapped route-write transaction, with
-`NO_ADMISSION`; be-01's app uses `createAdmittedWrites` to bind the project and step routes.
+`NO_ADMISSION`; be-01's app uses `createAdmittedWrites` to bind the work package and step routes.
 
 `working-plan.resource.ts` (the moved `service/working-plan.ts`) is the Working plan, a resource
-private to this module: one project's lazily retained reads, owned by one admitted batch, which the
+private to this module: one work package's lazily retained reads, owned by one admitted batch, which the
 batch's graph writes through and which refuses every read once the batch closes it.
 `working-plan-directory.resource.ts`, `working-plan-edges.resource.ts`,
 `working-plan-rows.resource.ts`, `working-plan-subtrees.resource.ts` and
@@ -39,7 +39,7 @@ batch's graph writes through and which refuses every read once the batch closes 
 private scope. Composition opens each Working plan, builds the fixed `PlanCommandServices` graph
 from `plan-command-graph.ts`, and maps rollback repair through the fresh surviving scope. The
 feature chooses commit, refusal and repair without receiving raw scope or a generic graph factory.
-`runtime-commands.resource.ts` fixes runtime persistence to the admitted organization/project/person
+`runtime-commands.resource.ts` fixes runtime persistence to the admitted organization/work-package/person
 and keeps its borrowed store private. Its portable ledger and accepted-record declarations live in
 `../../ports/runtime-command-values.ts`; receiver authorization, canonical request and receipt checks
 remain in the runtime feature helpers.

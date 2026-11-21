@@ -2,32 +2,33 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
+import type { Step, WorkItem, WorkPackage, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { ProjectRepository } from './project';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 let dir: string;
 let repo: EstimateRepository;
 let ownerId: string;
-let projectId: string;
+let workPackageId: string;
 let devId: string;
 let qaId: string;
 let stripId: string;
 let sandId: string;
 
 /**
- * The stamp every write here carries. The account is the project's owner, which
+ * The stamp every write here carries. The account is the work package's owner, which
  * the `created_by` foreign key requires to exist; the owner's own signup carries
  * it too, because a new account authors its own row.
  */
@@ -44,7 +45,7 @@ const insertItem = async (
 ): Promise<void> => {
   const item: WorkItem = workItemRow({
     id,
-    projectId,
+    workPackageId,
     position,
     name,
   });
@@ -55,6 +56,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-estimate-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   const db = openDrizzle(path);
   repo = new EstimateRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
@@ -64,20 +66,20 @@ beforeEach(async () => {
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
-  projectId = crypto.randomUUID();
+  workPackageId = crypto.randomUUID();
   // Ids chosen so that sorting them disagrees with step order: `Dev` runs first
   // and sorts last. Random UUIDs would agree by luck about half the time, and a
   // read that fell back to the primary key's own order would pass on those runs.
   devId = `z-dev-${crypto.randomUUID()}`;
   qaId = `a-qa-${crypto.randomUUID()}`;
-  const project: Project = projectRow({
-    id: projectId,
-    ownerId,
+  const workPackage: WorkPackage = workPackageRow({
+    id: workPackageId,
+    projectId: 'fixture-project',
   });
   const steps: Step[] = [
     {
       id: devId,
-      projectId,
+      workPackageId,
       name: 'Dev',
       position: 10,
       code: 'dev',
@@ -86,7 +88,7 @@ beforeEach(async () => {
     },
     {
       id: qaId,
-      projectId,
+      workPackageId,
       name: 'QA',
       position: 20,
       code: 'qa',
@@ -94,7 +96,7 @@ beforeEach(async () => {
       estimateUnit: 'workdays' as const,
     },
   ];
-  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
+  await new WorkPackageRepository(db, OPEN).create(workPackage, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -145,7 +147,7 @@ describe('EstimateRepository', () => {
 
     await repo.remove(stripId, devId, wrote());
 
-    const left = await repo.listByProject(projectId);
+    const left = await repo.listByWorkPackage(workPackageId);
     expect(left).toHaveLength(2);
     // The same step on another work item survives — the work-item half.
     expect(left).toContainEqual({
@@ -183,7 +185,7 @@ describe('EstimateRepository', () => {
     await repo.remove(stripId, devId, wrote());
     await repo.remove(stripId, devId, wrote());
 
-    expect(await repo.listByProject(projectId)).toEqual([
+    expect(await repo.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: stripId, stepId: qaId, optimistic: 4, realistic: 5, pessimistic: 6 },
     ]);
   });
@@ -216,12 +218,12 @@ describe('EstimateRepository', () => {
       wrote(),
     );
 
-    const held = await repo.listByProject(projectId);
+    const held = await repo.listByWorkPackage(workPackageId);
 
     expect(held.map((each) => each.stepId)).toEqual([devId, qaId]);
   });
 
-  it('reads a project’s estimates in one statement, with no parameter per row', async () => {
+  it('reads a work package’s estimates in one statement, with no parameter per row', async () => {
     // The four satellite reads were two statements each until 2026-09-02: every
     // work item id, then `IN (…)` over the lot. Twenty work items rather than
     // two, because the fault is a bound parameter per row and at two rows "one
@@ -235,8 +237,8 @@ describe('EstimateRepository', () => {
     //
     // Proof: the join replaced by the two-query shape it had before, watched
     // failing on `expect(received).toHaveLength(expected) · Expected length: 1
-    // · Received length: 2`; and with the project's own `where` written as
-    // `inArray(workItem.projectId, [projectId])` — one statement, an `IN` list
+    // · Received length: 2`; and with the workPackage's own `where` written as
+    // `inArray(workItem.workPackageId, [workPackageId])` — one statement, an `IN` list
     // of one — on `Expected to not contain: "in ("`. Observed 2026-09-02.
     const workItems = new WorkItemRepository(openDrizzle(join(dir, 'test.db')), OPEN);
     for (let made = 0; made < 20; made += 1) {
@@ -257,7 +259,7 @@ describe('EstimateRepository', () => {
       OPEN,
     );
 
-    const held = await counted.listByProject(projectId);
+    const held = await counted.listByWorkPackage(workPackageId);
 
     // The precondition: a read that answered nothing would also cost one
     // statement, and the count would prove nothing about the join.

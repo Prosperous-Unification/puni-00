@@ -1,12 +1,13 @@
 import type { EstimateStore, StepWriteOutcome, StoredEstimate, WriteStamp } from '@wbs/core';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
+import { readSqliteEstimatesIn } from './estimate-reads';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { estimate, step, workItem } from './schema';
-import { writingStep } from './step-reference';
+import { estimate, workItem } from './schema';
+import { readSqliteStepWriteIn } from './step-write';
 
 /**
  * An estimate is a **satellite** of the work item it is for: it has no identity
@@ -16,7 +17,7 @@ import { writingStep } from './step-reference';
  *
  * **What the four satellite stores share is named, and it is not the class.**
  * `rowsChanged` is one function where three of them held the same eight lines,
- * and `listByProject` is one statement in all four — a join through
+ * and `listByWorkPackage` is one statement in all four — a join through
  * `work_item`, where it used to be an id read followed by an `IN (…)` over
  * every row. What is *not* shared is the four classes themselves, and the
  * reason is in this paragraph and the next: the value columns, the key width
@@ -38,8 +39,15 @@ export class EstimateRepository implements EstimateStore {
     private readonly gate: Gate,
   ) {}
 
+  /** Current public owner turn or borrowed writer, held across the entire synchronous capture. */
+  async readTarget(workItemId: string, stepId: string) {
+    return await this.gate.enter(() =>
+      Promise.resolve(this.db.transaction((tx) => readSqliteStepWriteIn(tx, workItemId, stepId))),
+    );
+  }
+
   /**
-   * Every estimate in the project, **in step order** within each work item.
+   * Every estimate in the work package, **in step order** within each work item.
    *
    * The order is part of the contract, not a side effect of how SQLite felt
    * about the query. A caller that adds these up — the schedule's adapter does,
@@ -49,89 +57,30 @@ export class EstimateRepository implements EstimateStore {
    * bit can be a whole day on the screen. An unordered read makes which day it
    * is depend on the query planner.
    *
-   * Ordered by the step's **position** rather than by its id, so that the order
-   * this hands back is the order the work actually runs in.
+   * Ordered by the leaf's current SC18 resolved binding order, not definition or ID
+   * order. Every fact is checked against the same coherent catalogue snapshot.
    *
-   * Proof: with the `orderBy` removed, `reads a work item's estimates in step
+   * Historical proof for the old step-table reader: with the `orderBy` removed, `reads a work item's estimates in step
    * order, not in the order the row ids happen to sort` fails, handing back the
-   * project's second step first — the composite primary key's own order;
+   * work package's second step first — the composite primary key's own order;
    * watched 2026-08-09.
    */
-  async listByProject(projectId: string): Promise<StoredEstimate[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: estimate.workItemId,
-          stepId: estimate.stepId,
-          optimistic: estimate.optimistic,
-          realistic: estimate.realistic,
-          pessimistic: estimate.pessimistic,
-        })
-        .from(estimate)
-        // Inner rather than left: `estimate.step_id` is a foreign key, so an
-        // estimate whose step is gone cannot exist — `StepRepository.remove`
-        // deletes them in the same transaction as the step.
-        .innerJoin(step, eq(estimate.stepId, step.id))
-        // And the work item, so the project is asked for in the statement that
-        // reads the rows. This was two queries until 2026-09-02 — every work item
-        // id, then `IN (…)` over the lot — which put one bound parameter per row
-        // into the read, four times over per plan read. Inner again, and for the
-        // same reason: `workItemId` is a foreign key.
-        .innerJoin(workItem, eq(estimate.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(estimate.workItemId, step.position, estimate.stepId)
+  async listByWorkPackage(workPackageId: string): Promise<StoredEstimate[]> {
+    return await this.gate.enter(() =>
+      Promise.resolve(this.db.transaction((tx) => readSqliteEstimatesIn(tx, workPackageId, null))),
     );
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredEstimate[]> {
-    if (ids.length === 0) return [];
-    await Promise.resolve();
-    const rows = await this.db
-      .select({
-        workItemId: estimate.workItemId,
-        stepId: estimate.stepId,
-        optimistic: estimate.optimistic,
-        realistic: estimate.realistic,
-        pessimistic: estimate.pessimistic,
-        workItemProjectId: workItem.projectId,
-        stepProjectId: step.projectId,
-        stepPosition: step.position,
-      })
-      .from(estimate)
-      .leftJoin(step, eq(estimate.stepId, step.id))
-      .leftJoin(workItem, eq(estimate.workItemId, workItem.id))
-      .where(
-        and(
-          inArray(estimate.workItemId, [...ids]),
-          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
-        ),
-      )
-      .orderBy(estimate.workItemId, step.position, estimate.stepId);
-    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
-      throw new Error('targeted estimate has an invalid work-item reference');
-    }
-    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
-    for (const row of admitted) {
-      if (row.stepProjectId !== projectId || row.stepPosition === null) {
-        throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid step reference`);
-      }
-      for (const value of [row.optimistic, row.realistic, row.pessimistic]) {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-          throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid day value`);
-        }
-      }
-    }
-    return admitted.map(({ workItemId, stepId, optimistic, realistic, pessimistic }) => ({
-      workItemId,
-      stepId,
-      optimistic,
-      realistic,
-      pessimistic,
-    }));
+  async listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredEstimate[]> {
+    const retained = [...ids];
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => readSqliteEstimatesIn(tx, workPackageId, retained)),
+      ),
+    );
   }
 
-  async listPlacements(projectId: string, ids: readonly string[]) {
+  async listPlacements(workPackageId: string, ids: readonly string[]) {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.work_item_id FROM estimate AS predecessor
@@ -139,7 +88,7 @@ export class EstimateRepository implements EstimateStore {
         AND EXISTS (
           SELECT 1 FROM work_item AS predecessor_owner
           WHERE predecessor_owner.id = predecessor.work_item_id
-            AND predecessor_owner.project_id = ${projectId}
+            AND predecessor_owner.work_package_id = ${workPackageId}
         )
       ORDER BY predecessor.work_item_id DESC LIMIT 1
     )`;
@@ -147,31 +96,37 @@ export class EstimateRepository implements EstimateStore {
       .selectDistinct({ id: estimate.workItemId, afterId })
       .from(estimate)
       .innerJoin(workItem, eq(estimate.workItemId, workItem.id))
-      .where(and(eq(workItem.projectId, projectId), inArray(estimate.workItemId, [...ids])))
+      .where(and(eq(workItem.workPackageId, workPackageId), inArray(estimate.workItemId, [...ids])))
       .orderBy(asc(estimate.workItemId));
   }
 
+  /** Captures leaf applicability on this exact writer, then changes value and revision without an intervening await. */
   async set(toSet: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome> {
-    return await writingStep(this.db, toSet.stepId, async () => {
-      await this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((tx) => {
+    const kept = structuredClone(toSet),
+      act = { ...stamp };
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx): StepWriteOutcome => {
+          const decision = readSqliteStepWriteIn(tx, kept.workItemId, kept.stepId);
+          // Proof: W_SQL removes this refusal; both post-unbind estimate owners return written.
+          if (decision.kind !== 'resolved') return decision.kind;
           tx.insert(estimate)
-            .values({ ...toSet, ...auditOnCreate(stamp) })
+            .values({ ...kept, ...auditOnCreate(act) })
             .onConflictDoUpdate({
               target: [estimate.workItemId, estimate.stepId],
               set: {
-                optimistic: toSet.optimistic,
-                realistic: toSet.realistic,
-                pessimistic: toSet.pessimistic,
-                ...auditOnUpdate(stamp),
+                optimistic: kept.optimistic,
+                realistic: kept.realistic,
+                pessimistic: kept.pessimistic,
+                ...auditOnUpdate(act),
               },
             })
             .run();
-          bumpWorkItems(tx, [toSet.workItemId], stamp);
-        });
-      });
-    });
+          bumpWorkItems(tx, [kept.workItemId], act);
+          return 'written';
+        }),
+      ),
+    );
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {

@@ -8,8 +8,8 @@ import {
   refusalFor,
 } from './dep-graph';
 
-/** A project as these tests describe one: a tree, and the edges written over it. */
-const project = (
+/** A work package as these tests describe one: a tree, and the edges written over it. */
+const workPackage = (
   tree: readonly (readonly [id: string, parentId: string | null])[],
   edges: readonly (readonly [predecessorId: string, successorId: string])[] = [],
 ): GraphRow[] =>
@@ -218,7 +218,7 @@ const BE_01_CASES: readonly {
 describe('refusalFor — the same cases be-01 judges', () => {
   for (const testCase of BE_01_CASES) {
     it(testCase.what, () => {
-      const rows = project(testCase.tree, testCase.edges);
+      const rows = workPackage(testCase.tree, testCase.edges);
 
       expect(asBe01(refusal(rows, testCase.predecessorId, testCase.successorId))).toBe(
         testCase.expected,
@@ -228,7 +228,7 @@ describe('refusalFor — the same cases be-01 judges', () => {
 });
 
 describe('refusalFor — the part the picker needs that be-01 does not', () => {
-  const rows = project(FIXTURE);
+  const rows = workPackage(FIXTURE);
 
   it('says which way round an ancestor edge runs', () => {
     // The two sentences the dropdown writes are not the same sentence: one row
@@ -242,9 +242,9 @@ describe('refusalFor — the part the picker needs that be-01 does not', () => {
     expect(refusal(rows, 'after', 'after')).toBe('self');
   });
 
-  it('throws when either end is not a row of this project', () => {
+  it('throws when either end is not a row of this work package', () => {
     // be-01 answers `not_found` because it takes ids off the wire — a
-    // cross-project id is a request someone made. Here both ends come out of
+    // cross-work-package id is a request someone made. Here both ends come out of
     // the array this function was handed, so an id it has never seen is a bug
     // in the caller and nothing to model (R5).
     expect(() => refusal(rows, 'ghost', 'after')).toThrow(/ghost/);
@@ -253,11 +253,11 @@ describe('refusalFor — the part the picker needs that be-01 does not', () => {
 });
 
 describe('indexDepGraph', () => {
-  it('reads the successor→predecessors of every row as the project’s edges', () => {
+  it('reads the successor→predecessors of every row as the work package’s edges', () => {
     // The client never sees an edge list; it sees each row's `dependsOn`. The
     // graph is those, turned back into edges — and the cycle above proves it
     // reads them the right way round.
-    const rows = project(FIXTURE, [['after', 'loose']]);
+    const rows = workPackage(FIXTURE, [['after', 'loose']]);
 
     expect(refusalFor(indexDepGraph(rows), { predecessorId: 'loose', successorId: 'after' })).toBe(
       'cycle',
@@ -284,7 +284,7 @@ describe('indexDepGraph', () => {
 
 describe('moveRefusalFor — be-01 canReparent, predicted', () => {
   it('refuses a new parent the row has an edge with, either way round', () => {
-    const rows = project(
+    const rows = workPackage(
       [
         ['strip', null],
         ['sand', null],
@@ -298,7 +298,7 @@ describe('moveRefusalFor — be-01 canReparent, predicted', () => {
   it('refuses a move whose expanded graph loops', () => {
     // rel waits for sand, sand for strip, strip for paint: under rel, paint
     // inherits rel's wait for sand — be-01's mounted `cycle` case.
-    const rows = project(
+    const rows = workPackage(
       [
         ['rel', null],
         ['ship', 'rel'],
@@ -316,7 +316,7 @@ describe('moveRefusalFor — be-01 canReparent, predicted', () => {
   });
 
   it('takes a move that leaves every edge valid', () => {
-    const rows = project(
+    const rows = workPackage(
       [
         ['strip', null],
         ['sand', null],

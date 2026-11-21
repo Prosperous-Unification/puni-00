@@ -3,18 +3,26 @@ import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import type { AccessDecisions, AccessTarget, ScopedPrincipal } from '../ports/access-decisions';
-import { authorize } from './authorize';
+import { authorize, authorizePackage, authorizePackageSettings } from './authorize';
 
 const principal: ScopedPrincipal = { id: 'ada' };
 const target: AccessTarget = {
   kind: 'work_package',
-  chain: { level: 'work_package', organizationId: 'org-a', workPackageId: 'wp-a' },
+  chain: {
+    level: 'work_package',
+    organizationId: 'org-a',
+    spaceId: null,
+    projectId: 'project-a',
+    workPackageId: 'wp-a',
+  },
   restricted: false,
 };
 
 /** The boundary verdict, independent of the helper's permission/refusal policy. */
 function createDecisions(effective: EffectiveRole | null): AccessDecisions {
   return {
+    packageTargetOf: () =>
+      Promise.reject(new Error('this evaluator-only test reads no package target')),
     effectiveRoleAt: (actor, scope) => {
       expect(actor).toBe(principal);
       expect(scope).toBe(target);
@@ -76,6 +84,8 @@ describe('authorize', () => {
 
   it('answers forbidden for an organization with no grant', async () => {
     const decisions: AccessDecisions = {
+      packageTargetOf: () =>
+        Promise.reject(new Error('this evaluator-only test reads no package target')),
       effectiveRoleAt: () => Promise.resolve({ permissions: new Set(), via: [] }),
       readablePackageIds: () => Promise.resolve(new Set()),
     };
@@ -95,6 +105,8 @@ describe('authorize', () => {
 
   it('throws when an organization decision violates its non-null contract', async () => {
     const decisions: AccessDecisions = {
+      packageTargetOf: () =>
+        Promise.reject(new Error('this evaluator-only test reads no package target')),
       effectiveRoleAt: () => Promise.resolve(null),
       readablePackageIds: () => Promise.resolve(new Set()),
     };
@@ -138,9 +150,68 @@ describe('authorize', () => {
   it('propagates unreadable trusted state', async () => {
     const fault = new Error('permission store unreadable');
     const decisions: AccessDecisions = {
+      packageTargetOf: () =>
+        Promise.reject(new Error('this evaluator-only test reads no package target')),
       effectiveRoleAt: () => Promise.reject(fault),
       readablePackageIds: () => Promise.resolve(new Set()),
     };
     expect(await rejectionOf(authorize(decisions, principal, target, 'package.write'))).toBe(fault);
+  });
+});
+
+describe('required current parent forwarding', () => {
+  it('forwards the actual parent in both package and settings decisions', async () => {
+    const observed: AccessTarget[] = [];
+    const currentTarget: Extract<AccessTarget, { readonly kind: 'work_package' }> = {
+      kind: 'work_package',
+      chain: {
+        level: 'work_package',
+        organizationId: 'org-a',
+        spaceId: 'actual-space',
+        projectId: 'actual-parent',
+        workPackageId: 'wp-a',
+      },
+      restricted: true,
+    };
+    const decisions: AccessDecisions = {
+      packageTargetOf: (id, organizationId) => {
+        expect([id, organizationId]).toEqual(['wp-a', 'org-a']);
+        return Promise.resolve(currentTarget);
+      },
+      effectiveRoleAt: (_principal, scope) => {
+        observed.push(scope);
+        const effective: EffectiveRole = {
+          permissions: new Set(['package.read', 'package.write', 'package.manage_settings']),
+          via: [],
+        };
+        return Promise.resolve(effective);
+      },
+      readablePackageIds: () => Promise.resolve(new Set()),
+    };
+    const current = { id: 'wp-a', projectId: 'actual-parent', restricted: true };
+    const access = {
+      kind: 'scoped' as const,
+      scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+      principal,
+    };
+    expect((await authorizePackage(decisions, access, current, 'ada', 'package.write')).ok).toBe(
+      true,
+    );
+    expect(
+      (await authorizePackageSettings(decisions, principal, currentTarget, { name: 'Renamed' })).ok,
+    ).toBe(true);
+    expect(observed).toEqual(
+      [0, 1].map(() => ({
+        kind: 'work_package',
+        chain: {
+          level: 'work_package',
+          organizationId: 'org-a',
+          spaceId: 'actual-space',
+          projectId: 'actual-parent',
+          workPackageId: 'wp-a',
+        },
+        restricted: true,
+      })),
+    );
   });
 });

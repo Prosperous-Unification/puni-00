@@ -41,16 +41,21 @@ for (const mode of ['isolated', 'shared'] as const) {
       harness.activate();
       if (mode === 'shared')
         harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
-      const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Staging' });
+      const created = await harness.call('ada', 'POST', '/api/work-packages', { name: 'Staging' });
       expect(created.status).toBe(200);
-      const { project, steps } = created.body as {
-        project: { id: string };
+      const { workPackage, steps } = created.body as {
+        workPackage: { id: string };
         steps: { id: string }[];
       };
       const batch = async (commands: unknown[]) => {
-        const applied = await harness.call('ada', 'POST', `/api/projects/${project.id}/commands`, {
-          commands,
-        });
+        const applied = await harness.call(
+          'ada',
+          'POST',
+          `/api/work-packages/${workPackage.id}/commands`,
+          {
+            commands,
+          },
+        );
         expect(applied.status).toBe(200);
         return applied.body as { results: { id: string; ref: string }[] };
       };
@@ -84,7 +89,11 @@ for (const mode of ['isolated', 'shared'] as const) {
       // Through the reader fe-01's client parses this route with, so a field the
       // chart draws from and the contract does not declare fails here first.
       const readTree = async () => {
-        const answer = await harness.call('ada', 'GET', `/api/projects/${project.id}/work-items`);
+        const answer = await harness.call(
+          'ada',
+          'GET',
+          `/api/work-packages/${workPackage.id}/work-items`,
+        );
         expect(answer.status).toBe(200);
         const [success] = getWorkItems.responses;
         const parsed = await validateSchema(success.schema, answer.body);

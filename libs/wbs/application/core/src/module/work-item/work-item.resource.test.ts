@@ -1,64 +1,73 @@
 import { schedule, serializeSchedule, workdaysBetween } from '@wbs/domain';
 import { canonicalScheduleInput, type ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
-import { projectRow } from '@wbs/store-memory/project-fixture';
 import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
   CapacityStore,
   DependencyStore,
   DirectoryStore,
-  Project,
-  ProjectStore,
+  NewWorkPackage,
   StepNodeAttemptStore,
   WorkItemStore,
+  WorkPackage,
+  WorkPackageStore,
   WriteStamp,
 } from '../../index';
 import { clockOf } from '../../ports/clock';
-import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
 import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
 import { createLocalDependencyContext } from '../../service/dependency-context';
 import { resolveDependencyGraph } from '../../service/dependency-graph';
-import { projectNodeReadings } from '../../service/node-readings';
+import { workPackageNodeReadings } from '../../service/node-readings';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
+import { bindFixtureSteps, createBoundFixturePackage } from '../../testing/bound-package-fixture';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
-import { inMemoryServices } from '../../testing/harness';
+import { createTestServices } from '../../testing/harness';
+import { createLegacyWorkPackageFixture } from '../../testing/legacy-work-package-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { poolsFor, type WorkItemServiceOptions } from './work-item.resource';
 
 const OWNER = 'owner-account';
 const STRANGER = 'stranger-account';
+const TWO_STEP_PROJECT = 'fixture-two-step-project';
+const OTHER_PROJECT = 'fixture-other-assignment-project';
 
 /**
- * The stamp the arrangements here write with. Every store below is an in-memory
- * one, so `created_by`'s foreign key is not in play; the owner is named because
- * these arrangements are the owner's, not because anything checks.
+ * The real fixture account authors package and catalogue metadata with this
+ * stamp. Request authorization remains the separately supplied legacy policy.
  */
 const WROTE: WriteStamp = { at: 1, by: OWNER };
 
-let projects: ProjectStore;
+let workPackages: Omit<WorkPackageStore, 'setStepUnit'>;
 let workItems: WorkItemStore;
 let service: WorkItemService;
 let serviceOptions: WorkItemServiceOptions;
-let projectId: string;
+let workPackageId: string;
 let stepId: string;
 let dependencies: DependencyStore;
 let directory: DirectoryStore;
 /**
- * This project's capacity for each team, which is where a pool size is stated
- * since `capacity-per-project`. `directory.addTeam({ size })` no longer bounds
+ * This work package's capacity for each team, which is where a pool size is stated
+ * since `capacity-per-work-package`. `directory.addTeam({ size })` no longer bounds
  * anything: the global number is read by nothing.
  */
 let capacity: CapacityStore;
 let broadcast: RecordingBroadcaster;
 let attempts: StepNodeAttemptStore;
 let progress: WorkItemServiceOptions['progress'];
+let fixture: Awaited<ReturnType<typeof createLegacyWorkPackageFixture>>;
+let catalogueQaId: string;
 
 beforeEach(async () => {
-  const harness = inMemoryServices();
-  ({ projects, dependencies, directory, workItems, capacity, attempts, progress } = harness.stores);
+  fixture = await createLegacyWorkPackageFixture(OWNER, 'fixture-legacy-org', 'fixture-project');
+  const { source } = fixture;
+  const harness = createTestServices(source);
+  ({ workPackages, dependencies, directory, workItems, capacity, attempts, progress } =
+    harness.stores);
   broadcast = harness.broadcast;
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
@@ -66,34 +75,90 @@ beforeEach(async () => {
   serviceOptions = {
     dependencyContext: createLocalDependencyContext(harness.stores),
     externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast,
     scheduler: harness.scheduler,
   };
   service = harness.service;
-  const project: Project = projectRow({
+  const workPackage: WorkPackage = workPackageRow({
     id: crypto.randomUUID(),
-    ownerId: OWNER,
+    projectId: 'fixture-project',
   });
   stepId = crypto.randomUUID();
-  await projects.create(
-    project,
+  await createBoundFixturePackage(
+    source,
+    'fixture-legacy-org',
+    workPackage,
     [
       {
-        id: stepId,
-        projectId: project.id,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
+        definition: {
+          id: stepId,
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        binding: {
+          bindingId: stepId + ':binding',
+          scopeKind: 'project',
+          scopeId: 'fixture-project',
+          workItemTypeId: null,
+          position: 10,
+        },
       },
     ],
     WROTE,
   );
-  projectId = project.id;
+  workPackageId = workPackage.id;
+  for (const projectId of [TWO_STEP_PROJECT, OTHER_PROJECT])
+    fixture.fixture.seedPackageParent({
+      id: projectId,
+      organizationId: 'fixture-legacy-org',
+      name: projectId,
+      spaceId: null,
+      spacePosition: null,
+      revision: 0,
+      createdAt: 1,
+      createdBy: OWNER,
+      updatedAt: null,
+    });
+  catalogueQaId = crypto.randomUUID();
+  const dev = await source.stores.stepCatalogue.bindStep(
+    'fixture-legacy-org',
+    {
+      bindingId: 'two-step-dev-binding',
+      stepId,
+      scopeKind: 'project',
+      scopeId: TWO_STEP_PROJECT,
+      workItemTypeId: null,
+      position: 10,
+    },
+    WROTE,
+  );
+  if (!dev.ok) throw new Error('two-step fixture Dev binding refused: ' + dev.reason);
+  const qa = await source.stores.stepCatalogue.defineAndBindStep(
+    'fixture-legacy-org',
+    {
+      id: catalogueQaId,
+      name: 'QA',
+      code: 'qa',
+      position: 20,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowancePercent: 0,
+    },
+    {
+      bindingId: 'two-step-qa-binding',
+      scopeKind: 'project',
+      scopeId: TWO_STEP_PROJECT,
+      workItemTypeId: null,
+      position: 20,
+    },
+    WROTE,
+  );
+  if (!qa.ok) throw new Error('two-step fixture QA definition refused: ' + qa.reason);
   // The people these tests assign. They have to be in the directory because
   // production reads the person inside the assignment's own transaction and
   // refuses one it does not hold — a fixture that let an unknown id through
@@ -109,9 +174,16 @@ beforeEach(async () => {
   }
 });
 
+/** Two-step package fixtures inherit the same organization definitions through their actual project. */
+async function createTwoStepPackage(workPackage: NewWorkPackage): Promise<void> {
+  const born = await workPackages.createWithSteps(workPackage, WROTE, { kind: 'legacy' });
+  if (typeof born === 'string') throw new Error('two-step fixture birth refused: ' + born);
+  expect(born.steps.map(({ id }) => id)).toEqual([stepId, catalogueQaId]);
+}
+
 /** Creates under `parentId`, after `afterId`, returning the new id. */
 async function add(name: string, parentId: string | null = null, afterId: string | null = null) {
-  const outcome = await service.create(projectId, OWNER, { parentId, afterId, name });
+  const outcome = await service.create(workPackageId, OWNER, { parentId, afterId, name });
   if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
   return outcome.value.id;
 }
@@ -119,12 +191,12 @@ async function add(name: string, parentId: string | null = null, afterId: string
 /**
  * The same, created with **no** priority — the explicit-null create.
  *
- * {@link add} carries the project's middle rung since `priority-default-medium`;
+ * {@link add} carries the work package's middle rung since `priority-default-medium`;
  * this is the create for a test whose subject is a row nobody has ranked, which
  * is what every row written before that change still is.
  */
 async function unranked(name: string, parentId: string | null = null) {
-  const outcome = await service.create(projectId, OWNER, {
+  const outcome = await service.create(workPackageId, OWNER, {
     parentId,
     afterId: null,
     name,
@@ -145,7 +217,7 @@ async function fill(parentId: string, count: number): Promise<void> {
     await workItems.insert(
       {
         id: crypto.randomUUID(),
-        projectId,
+        workPackageId,
         parentId,
         position: (i + 1) * 10,
         name: `Back box ${String(i)}`,
@@ -170,10 +242,10 @@ async function fill(parentId: string, count: number): Promise<void> {
   }
 }
 
-/** The project's work items as `number → name`, which is what a reader actually sees. */
+/** The work package's work items as `number → name`, which is what a reader actually sees. */
 async function numbered(): Promise<Record<string, string>> {
-  const tree = await service.tree(projectId);
-  if (tree === null) throw new Error('project vanished');
+  const tree = await service.tree(workPackageId);
+  if (tree === null) throw new Error('work package vanished');
   return Object.fromEntries(tree.workItems.map((w) => [w.number, w.name]));
 }
 
@@ -183,7 +255,7 @@ describe('the pools a row spends slots in', () => {
     expect(poolsFor([], new Map([['backend', 2]]))).toEqual({ poolIds: [], slots: undefined });
   });
 
-  it('spends nothing in a team this project has stated no capacity for', () => {
+  it('spends nothing in a team this work package has stated no capacity for', () => {
     // An unsized team labels the work and constrains nothing — the empty pool
     // set is what keeps the engine's `no size for pool` throw a caller-fault
     // assertion rather than ordinary control flow.
@@ -243,16 +315,16 @@ describe('deleting blocked work items', () => {
     await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: -30 }, WROTE);
     await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 25 }, WROTE);
     expect((await service.remove(leaf, OWNER, null, { kind: 'legacy' })).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([]);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([
+    expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toEqual([]);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: leaf, stepId, blockedAt: -30 },
     ]);
-    expect(await progress.listByProject(projectId)).toEqual([
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: leaf, stepId, state: 'done', statedAt: 25 },
     ]);
-    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([]);
+    expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toEqual([]);
   });
 
   it.each([true, false])(
@@ -268,19 +340,19 @@ describe('deleting blocked work items', () => {
       await progress.set({ workItemId: first, stepId, state: 'done', statedAt: 20 }, WROTE);
       await progress.set({ workItemId: second, stepId, state: 'done', statedAt: 30 }, WROTE);
       expect((await service.remove(branch, OWNER, 'cascade', { kind: 'legacy' })).ok).toBe(true);
-      expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
+      expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toEqual(
         unanimous ? [{ workItemId: parent, stepId, blockedAt: -10 }] : [],
       );
-      expect(await progress.listByProject(projectId)).toEqual([
+      expect(await progress.listByWorkPackage(workPackageId)).toEqual([
         { workItemId: parent, stepId, state: 'done', statedAt: 30 },
       ]);
-      expect((await service.undo(projectId, OWNER)).ok).toBe(true);
-      expect(await serviceOptions.blockages.listByProject(projectId)).toContainEqual({
+      expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
+      expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toContainEqual({
         workItemId: first,
         stepId,
         blockedAt: -30,
       });
-      expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+      expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
     },
   );
 
@@ -299,21 +371,29 @@ describe('deleting blocked work items', () => {
     expect(rejection).toContain('cannot replace deletion blockage');
   });
 
-  it('reports refused historical progress restoration during deletion undo', async () => {
-    const parent = await add('Parent');
-    const leaf = await add('Leaf', parent);
-    await progress.set({ workItemId: parent, stepId, state: 'in_progress', statedAt: -30 }, WROTE);
-    await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 20 }, WROTE);
+  it('refuses current parent progress and replays a lawful leaf-only deletion', async () => {
+    const parent = await add('Parent'),
+      leaf = await add('Leaf', parent);
+    const rejection = await progress
+      .set({ workItemId: parent, stepId, state: 'in_progress', statedAt: -30 }, WROTE)
+      .then(
+        () => 'resolved',
+        (cause: unknown) => {
+          if (!(cause instanceof Error)) throw cause;
+          return cause.message;
+        },
+      );
+    expect(rejection).toBe('step write requires a leaf work item');
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
+    expect(
+      await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 20 }, WROTE),
+    ).toBe('written');
     expect((await service.remove(leaf, OWNER, null, { kind: 'legacy' })).ok).toBe(true);
-    const refused = new WorkItemService({
-      ...serviceOptions,
-      progress: { ...progress, set: () => Promise.resolve('unknown_step') },
-    });
-    const rejection = await refused.undo(projectId, OWNER).then(
-      () => 'resolved',
-      (error: unknown) => String(error),
-    );
-    expect(rejection).toContain('cannot restore historical parent progress');
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
+    expect((await workItems.findById(leaf))?.parentId).toBe(parent);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([
+      { workItemId: leaf, stepId, state: 'done', statedAt: 20 },
+    ]);
   });
 
   it('refuses new parent progress before restore deletes any hand-up facts', async () => {
@@ -325,16 +405,19 @@ describe('deleting blocked work items', () => {
     const current = await workItems.findById(parent);
     if (current === null) throw new Error('missing parent');
     const entry = (
-      await serviceOptions.journal.entriesFor({ projectId, userId: OWNER, personId: null })
+      await serviceOptions.journal.entriesFor({ workPackageId, userId: OWNER, personId: null })
     ).at(-1);
     if (entry === undefined) throw new Error('missing delete journal');
     await serviceOptions.journal.flip(entry, entry.id, false, {
       ...(entry.preconditions as Record<string, unknown>),
       expected: { [parent]: current.revision },
     });
-    expect(await service.undo(projectId, OWNER)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await service.undo(workPackageId, OWNER)).toMatchObject({
+      ok: false,
+      reason: 'stale_undo',
+    });
     expect(await workItems.findById(leaf)).toBeNull();
-    expect(await progress.listByProject(projectId)).toEqual([
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: parent, stepId, state: 'done', statedAt: 99 },
     ]);
   });
@@ -378,65 +461,160 @@ describe('creating work items', () => {
     await blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
     await progress.set({ workItemId: parent, stepId, state: 'in_progress', statedAt: 100 }, WROTE);
     const child = await add('Back boxes', parent);
-    const facts = () => blockages.listByProject(projectId);
+    const facts = () => blockages.listByWorkPackage(workPackageId);
     expect(await facts()).toEqual([{ workItemId: child, stepId, blockedAt: 123 }]);
     expect(
-      (await progress.listByProject(projectId)).map(({ workItemId, state }) => ({
+      (await progress.listByWorkPackage(workPackageId)).map(({ workItemId, state }) => ({
         workItemId,
         state,
       })),
     ).toEqual([{ workItemId: child, state: 'in_progress' }]);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
     expect(await workItems.findById(child)).toBeNull();
     expect(await facts()).toEqual([{ workItemId: parent, stepId, blockedAt: 123 }]);
     expect(
-      (await progress.listByProject(projectId)).map(({ workItemId, state }) => ({
+      (await progress.listByWorkPackage(workPackageId)).map(({ workItemId, state }) => ({
         workItemId,
         state,
       })),
     ).toEqual([{ workItemId: parent, state: 'in_progress' }]);
-    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
     expect(await facts()).toEqual([{ workItemId: child, stepId, blockedAt: 123 }]);
   });
 
-  it('reports a refused first-child blockage write', async () => {
+  it('propagates a failed atomic first-child capability without publishing or changing stored work', async () => {
     const parent = await add('Strip');
     await serviceOptions.blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
+    const before = fixture.fixture.stepCatalogueEvidence();
+    const published = structuredClone(broadcast.published);
+    const failure = new Error('injected atomic first-child writer failure');
     const refused = new WorkItemService({
       ...serviceOptions,
-      blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
+      subtrees: { ...serviceOptions.subtrees, writeFirstChild: () => Promise.reject(failure) },
     });
-    const refusal = await refused
-      .create(projectId, OWNER, { parentId: parent, afterId: null })
-      .then(
-        () => '(resolved without throwing)',
-        (cause: unknown) => String(cause),
-      );
-    expect(refusal).toContain('cannot hand blockage to first child');
+    let caught: unknown;
+    try {
+      await refused.create(workPackageId, OWNER, { parentId: parent, afterId: null });
+    } catch (cause: unknown) {
+      caught = cause;
+    }
+    expect(caught).toBe(failure);
+    expect(fixture.fixture.stepCatalogueEvidence()).toEqual(before);
+    expect(broadcast.published).toEqual(published);
   });
 
-  it('reports a refused parent blockage clear before inserting a first child', async () => {
-    const parent = await add('Strip');
-    await serviceOptions.blockages.set({ workItemId: parent, stepId, blockedAt: 123 }, WROTE);
-    let reads = 0;
-    const refused = new WorkItemService({
-      ...serviceOptions,
-      blockages: {
-        ...serviceOptions.blockages,
-        listByWorkItems: async (...parameters) => {
-          reads += 1;
-          return reads === 1 ? serviceOptions.blockages.listByWorkItems(...parameters) : [];
-        },
-      },
+  it('preserves typed parent work when an untyped first child cannot inherit its blocked step', async () => {
+    const projectId = 'fixture-typed-first-child';
+    fixture.fixture.seedPackageParent({
+      id: projectId,
+      organizationId: 'fixture-legacy-org',
+      name: projectId,
+      spaceId: null,
+      spacePosition: null,
+      revision: 0,
+      createdAt: 1,
+      createdBy: OWNER,
+      updatedAt: null,
     });
-    const refusal = await refused
-      .create(projectId, OWNER, { parentId: parent, afterId: null })
-      .then(
-        () => '(resolved without throwing)',
-        (cause: unknown) => String(cause),
-      );
-    expect(refusal).toContain('cannot clear first-child blockage');
-    expect((await workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([parent]);
+    const type = await directory.addWorkItemType(
+      { id: 'typed-first-child-type', name: 'Typed first child' },
+      WROTE,
+    );
+    const boundStep = 'typed-first-child-step';
+    await bindFixtureSteps(
+      fixture.source,
+      'fixture-legacy-org',
+      [
+        {
+          definition: {
+            id: boundStep,
+            name: 'Typed review',
+            code: 'typed-review',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'typed-first-child-binding',
+            scopeKind: 'project',
+            scopeId: projectId,
+            workItemTypeId: type.id,
+            position: 10,
+          },
+        },
+      ],
+      WROTE,
+    );
+    const born = await workPackages.createWithSteps(
+      workPackageRow({ id: 'typed-first-child-package', projectId }),
+      WROTE,
+      { kind: 'legacy' },
+    );
+    if (typeof born === 'string')
+      throw new Error('typed first-child package birth refused: ' + born);
+    const created = await service.create(born.workPackage.id, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Typed parent',
+    });
+    if (!created.ok) throw new Error('typed parent creation refused: ' + created.reason);
+    const parent = created.value.id;
+    expect((await workItems.patch(parent, { typeIds: [type.id] }, WROTE)).ok).toBe(true);
+    expect(
+      await serviceOptions.blockages.set(
+        { workItemId: parent, stepId: boundStep, blockedAt: 123 },
+        WROTE,
+      ),
+    ).toBe('written');
+    const before = fixture.fixture.stepCatalogueEvidence();
+    const published = structuredClone(broadcast.published);
+    expect(
+      await service.create(born.workPackage.id, OWNER, {
+        parentId: parent,
+        afterId: null,
+        name: 'Untyped child',
+      }),
+    ).toEqual({
+      ok: false,
+      reason: 'step_nodes_in_use',
+      count: 1,
+      pairs: [
+        {
+          id: parent,
+          name: 'Typed parent',
+          stepId: boundStep,
+          workPackageId: born.workPackage.id,
+          facts: ['blockage'],
+        },
+      ],
+    });
+    expect(fixture.fixture.stepCatalogueEvidence()).toEqual(before);
+    expect(broadcast.published).toEqual(published);
+    expect(
+      (
+        await fixture.source.stores.stepCatalogue.bindStep(
+          'fixture-legacy-org',
+          {
+            bindingId: 'typed-first-child-every-binding',
+            stepId: boundStep,
+            scopeKind: 'project',
+            scopeId: projectId,
+            workItemTypeId: null,
+            position: 10,
+          },
+          WROTE,
+        )
+      ).ok,
+    ).toBe(true);
+    const admitted = await service.create(born.workPackage.id, OWNER, {
+      parentId: parent,
+      afterId: null,
+      name: 'Untyped child',
+    });
+    if (!admitted.ok) throw new Error('applicable first child refused: ' + admitted.reason);
+    expect(await serviceOptions.blockages.listByWorkPackage(born.workPackage.id)).toEqual([
+      { workItemId: admitted.value.id, stepId: boundStep, blockedAt: 123 },
+    ]);
   });
 
   it('accepts an empty name', async () => {
@@ -466,10 +644,10 @@ describe('creating work items', () => {
     expect(await numbersOn(leaf)).toBeUndefined();
   });
 
-  it('refuses a stranger on a restricted project', async () => {
-    await projects.update(projectId, { restricted: true }, WROTE);
+  it('refuses a stranger on a restricted work package', async () => {
+    await workPackages.update(workPackageId, { restricted: true }, WROTE);
 
-    const outcome = await service.create(projectId, STRANGER, {
+    const outcome = await service.create(workPackageId, STRANGER, {
       parentId: null,
       afterId: null,
       name: 'Sneaky',
@@ -482,87 +660,94 @@ describe('creating work items', () => {
 
 describe('moving work items', () => {
   it.each([false, true])(
-    'clears destination progress before moving and restores it after undo (blockage: %s)',
+    'refuses protected destination progress without changing incoming facts (blockage: %s)',
     async (isBlocked) => {
-      const destination = await add('Destination');
-      const incoming = await add('Incoming');
+      const destination = await add('Destination'),
+        incoming = await add('Incoming');
       if (isBlocked) {
-        await serviceOptions.blockages.set(
-          { workItemId: destination, stepId, blockedAt: -20 },
-          WROTE,
-        );
-        await serviceOptions.blockages.set({ workItemId: incoming, stepId, blockedAt: -10 }, WROTE);
+        expect(
+          await serviceOptions.blockages.set(
+            { workItemId: destination, stepId, blockedAt: -20 },
+            WROTE,
+          ),
+        ).toBe('written');
+        expect(
+          await serviceOptions.blockages.set(
+            { workItemId: incoming, stepId, blockedAt: -10 },
+            WROTE,
+          ),
+        ).toBe('written');
       }
-      await progress.set({ workItemId: destination, stepId, state: 'done', statedAt: 10 }, WROTE);
-      await progress.set(
-        { workItemId: incoming, stepId, state: 'in_progress', statedAt: 11 },
-        WROTE,
-      );
-      const observed = new WorkItemService({
-        ...serviceOptions,
-        workItems: {
-          ...workItems,
-          move: async (...parameters) => {
-            expect(
-              await serviceOptions.blockages.listByWorkItems(projectId, [destination]),
-            ).toEqual([]);
-            expect(await progress.listByWorkItems(projectId, [destination])).toEqual([]);
-            await workItems.move(...parameters);
+      expect(
+        await progress.set({ workItemId: destination, stepId, state: 'done', statedAt: 10 }, WROTE),
+      ).toBe('written');
+      expect(
+        await progress.set(
+          { workItemId: incoming, stepId, state: 'in_progress', statedAt: 11 },
+          WROTE,
+        ),
+      ).toBe('written');
+      const before = fixture.fixture.stepCatalogueEvidence(),
+        published = broadcast.published.length;
+      expect(
+        await service.move(
+          incoming,
+          OWNER,
+          { parentId: destination, afterId: null },
+          { kind: 'legacy' },
+        ),
+      ).toEqual({
+        ok: false,
+        reason: 'step_nodes_in_use',
+        count: 1,
+        pairs: [
+          {
+            id: destination,
+            name: 'Destination',
+            workPackageId,
+            stepId,
+            facts: isBlocked ? ['progress', 'blockage'] : ['progress'],
           },
-        },
+        ],
       });
-      expect(
-        (
-          await observed.move(
-            incoming,
-            OWNER,
-            { parentId: destination, afterId: null },
-            { kind: 'legacy' },
-          )
-        ).ok,
-      ).toBe(true);
-      expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
-        isBlocked ? [{ workItemId: incoming, stepId, blockedAt: -10 }] : [],
-      );
-      expect((await service.undo(projectId, OWNER)).ok).toBe(true);
-      expect(await serviceOptions.blockages.listByWorkItems(projectId, [destination])).toEqual(
-        isBlocked ? [{ workItemId: destination, stepId, blockedAt: -20 }] : [],
-      );
-      expect(
-        (await progress.listByWorkItems(projectId, [destination])).map(({ state }) => state),
-      ).toEqual(['done']);
-      expect((await service.redo(projectId, OWNER)).ok).toBe(true);
-      expect(await progress.listByWorkItems(projectId, [destination])).toEqual([]);
-      expect(await serviceOptions.blockages.listByWorkItems(projectId, [destination])).toEqual([]);
-      expect(
-        (await progress.listByWorkItems(projectId, [incoming])).map(({ state }) => state),
-      ).toEqual(['in_progress']);
+      expect(fixture.fixture.stepCatalogueEvidence()).toEqual(before);
+      expect(broadcast.published).toHaveLength(published);
+      expect(await progress.listByWorkItems(workPackageId, [incoming])).toEqual([
+        { workItemId: incoming, stepId, state: 'in_progress', statedAt: 11 },
+      ]);
     },
   );
 
-  it('reports a refused move destination clear before reparenting', async () => {
-    const destination = await add('Destination');
-    const incoming = await add('Incoming');
-    await serviceOptions.blockages.set({ workItemId: destination, stepId, blockedAt: 123 }, WROTE);
-    let reads = 0;
-    const refused = new WorkItemService({
+  it('uses owned destination facts when a caller blockage view omits them', async () => {
+    const destination = await add('Destination'),
+      incoming = await add('Incoming');
+    expect(
+      await serviceOptions.blockages.set(
+        { workItemId: destination, stepId, blockedAt: 123 },
+        WROTE,
+      ),
+    ).toBe('written');
+    const observed = new WorkItemService({
       ...serviceOptions,
-      blockages: {
-        ...serviceOptions.blockages,
-        listByWorkItems: async (...parameters) => {
-          reads += 1;
-          return reads === 1 ? serviceOptions.blockages.listByWorkItems(...parameters) : [];
-        },
-      },
+      blockages: { ...serviceOptions.blockages, listByWorkItems: () => Promise.resolve([]) },
     });
-    const refusal = await refused
-      .move(incoming, OWNER, { parentId: destination, afterId: null }, { kind: 'legacy' })
-      .then(
-        () => '(resolved without throwing)',
-        (cause: unknown) => String(cause),
-      );
-    expect(refusal).toContain('cannot clear move destination');
-    expect((await workItems.findById(incoming))?.parentId).toBeNull();
+    const before = fixture.fixture.stepCatalogueEvidence(),
+      published = broadcast.published.length;
+    expect(
+      await observed.move(
+        incoming,
+        OWNER,
+        { parentId: destination, afterId: null },
+        { kind: 'legacy' },
+      ),
+    ).toEqual({
+      ok: false,
+      reason: 'step_nodes_in_use',
+      count: 1,
+      pairs: [{ id: destination, name: 'Destination', workPackageId, stepId, facts: ['blockage'] }],
+    });
+    expect(fixture.fixture.stepCatalogueEvidence()).toEqual(before);
+    expect(broadcast.published).toHaveLength(published);
   });
 
   it('reports a refused move blockage hand-up', async () => {
@@ -595,14 +780,14 @@ describe('moving work items', () => {
       (await service.move(moving, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
         .ok,
     ).toBe(true);
-    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([
+    expect(await serviceOptions.blockages.listByWorkItems(workPackageId, [parent])).toEqual([
       { workItemId: parent, stepId, blockedAt: -10 },
     ]);
-    expect(await progress.listByWorkItems(projectId, [parent])).toEqual([]);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
-    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([
+    expect(await progress.listByWorkItems(workPackageId, [parent])).toEqual([]);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(workPackageId, [parent])).toEqual([]);
+    expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
+    expect(await serviceOptions.blockages.listByWorkItems(workPackageId, [parent])).toEqual([
       { workItemId: parent, stepId, blockedAt: -10 },
     ]);
   });
@@ -617,33 +802,46 @@ describe('moving work items', () => {
       (await service.move(moving, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
         .ok,
     ).toBe(true);
-    expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
+    expect(await serviceOptions.blockages.listByWorkItems(workPackageId, [parent])).toEqual([]);
   });
 
-  it('preserves unchanged historical parent progress through last-child move undo redo', async () => {
-    const parent = await add('Parent');
-    const child = await add('Child', parent);
-    const historical = { workItemId: parent, stepId, state: 'done' as const, statedAt: 123 };
-    await progress.set(historical, WROTE);
+  it('round trips a current last-child move and preserves later leaf progress on refusal', async () => {
+    const parent = await add('Parent'),
+      child = await add('Child', parent);
     expect(
       (await service.move(child, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
         .ok,
     ).toBe(true);
-    expect(await progress.listByProject(projectId)).toEqual([historical]);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect((await service.undo(workPackageId, OWNER)).ok).toBe(true);
     expect((await workItems.findById(child))?.parentId).toBe(parent);
-    expect(await progress.listByProject(projectId)).toEqual([historical]);
-    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
-    expect(await progress.listByProject(projectId)).toEqual([historical]);
-    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
-    expect(await progress.listByProject(projectId)).toEqual([historical]);
+    expect((await service.redo(workPackageId, OWNER)).ok).toBe(true);
+    const stated = { workItemId: parent, stepId, state: 'done' as const, statedAt: 123 };
+    expect(await progress.set(stated, WROTE)).toBe('written');
+    const before = await workItems.listByWorkPackage(workPackageId);
+    expect(await service.undo(workPackageId, OWNER)).toMatchObject({
+      ok: false,
+      reason: 'stale_undo',
+    });
+    expect(await workItems.listByWorkPackage(workPackageId)).toEqual(before);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([stated]);
   });
 
-  it('preserves historical parent progress during same-parent reorder and reparent into an existing parent', async () => {
-    const parent = await add('Parent');
-    const child = await add('Child', parent);
-    const incoming = await add('Incoming');
-    await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 10 }, WROTE);
+  it('keeps leaf progress distinct during current same-parent reorder and reparent', async () => {
+    const parent = await add('Parent'),
+      child = await add('Child', parent),
+      incoming = await add('Incoming');
+    const rejection = await progress
+      .set({ workItemId: parent, stepId, state: 'done', statedAt: 10 }, WROTE)
+      .then(
+        () => 'resolved',
+        (cause: unknown) => {
+          if (!(cause instanceof Error)) throw cause;
+          return cause.message;
+        },
+      );
+    expect(rejection).toBe('step write requires a leaf work item');
+    const stated = { workItemId: child, stepId, state: 'done' as const, statedAt: 10 };
+    expect(await progress.set(stated, WROTE)).toBe('written');
     expect(
       (await service.move(child, OWNER, { parentId: parent, afterId: null }, { kind: 'legacy' }))
         .ok,
@@ -658,9 +856,8 @@ describe('moving work items', () => {
         )
       ).ok,
     ).toBe(true);
-    expect(await progress.listByWorkItems(projectId, [parent])).toEqual([
-      { workItemId: parent, stepId, state: 'done', statedAt: 10 },
-    ]);
+    expect(await progress.listByWorkItems(workPackageId, [parent])).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([stated]);
   });
 
   /** Proof: injecting copied direct facts failed the exact original-only fact assertion; watched 2026-10-14. */
@@ -670,7 +867,7 @@ describe('moving work items', () => {
     await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: 123 }, WROTE);
     expect((await service.duplicate(leaf, OWNER)).ok).toBe(true);
     expect((await service.duplicate(parent, OWNER)).ok).toBe(true);
-    expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([
+    expect(await serviceOptions.blockages.listByWorkPackage(workPackageId)).toEqual([
       { workItemId: leaf, stepId, blockedAt: 123 },
     ]);
   });
@@ -701,7 +898,7 @@ describe('moving work items', () => {
 
   it('refuses to move a work item beneath itself', async () => {
     // Left unchecked this detaches the subtree from every root: the rows still
-    // exist, no number can be derived for them, and the project reads as if the
+    // exist, no number can be derived for them, and the work package reads as if the
     // work simply vanished.
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
@@ -773,7 +970,7 @@ describe('dependencies', () => {
 
     expect(await service.addDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([a]);
     expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
   });
@@ -785,7 +982,7 @@ describe('dependencies', () => {
 
     expect(await service.addDependency(a, OWNER, b)).toEqual({ ok: false, reason: 'cycle' });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.id === a)?.dependsOn).toEqual([]);
   });
 
@@ -799,7 +996,7 @@ describe('dependencies', () => {
     });
   });
 
-  it('refuses a predecessor that is not in the project', async () => {
+  it('refuses a predecessor that is not in the work package', async () => {
     const a = await add('Strip');
 
     expect(await service.addDependency(a, OWNER, crypto.randomUUID())).toEqual({
@@ -816,7 +1013,7 @@ describe('dependencies', () => {
     expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
     expect(await service.removeDependency(b, OWNER, a)).toEqual({ ok: true, value: null });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
   });
 
@@ -832,7 +1029,7 @@ describe('dependencies', () => {
       value: null,
     });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
   });
 
@@ -850,22 +1047,22 @@ describe('dependencies', () => {
       value: null,
     });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     expect(tree?.workItems.find((w) => w.id === other)?.dependsOn).toEqual([]);
   });
 
-  it('still reads a project whose dependencies contain a cycle', async () => {
+  it('still reads a work package whose dependencies contain a cycle', async () => {
     // The write path refuses a cycle, but two clients drawing conflicting edges
     // at the same instant are each checked against the graph as they read it.
-    // If that ever lands, every read of the project must not throw — the rows
+    // If that ever lands, every read of the work package must not throw — the rows
     // are still there and a plan nobody can open is worse than one with no
     // dates in it.
     const a = await add('Strip');
     const b = await add('Sand');
-    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b }, WROTE);
-    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a }, WROTE);
+    await dependencies.add({ id: 'x', workPackageId, predecessorId: a, successorId: b }, WROTE);
+    await dependencies.add({ id: 'y', workPackageId, predecessorId: b, successorId: a }, WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.workItems).toHaveLength(2);
     expect(tree?.scheduleError).toBe('cycle');
@@ -880,32 +1077,32 @@ describe('dependencies', () => {
     const a = await add('Strip');
     const broken = {
       ...dependencies,
-      listByProject: () => Promise.reject(new Error('the dependency table is on fire')),
+      listByWorkPackage: () => Promise.reject(new Error('the dependency table is on fire')),
     };
     const service2 = new WorkItemService({ ...serviceOptions, dependencies: broken });
 
-    expect(service2.tree(projectId)).rejects.toThrow(/on fire/);
+    expect(service2.tree(workPackageId)).rejects.toThrow(/on fire/);
     expect(a).toBeDefined();
   });
 
   // Proof: resolveDependencyGraph's legacy endpoint guard removed made this
   // live-tree caller resolve instead of refusing malformed state; watched 2026-10-13.
-  it('refuses a stored legacy predecessor absent from the project', async () => {
+  it('refuses a stored legacy predecessor absent from the work package', async () => {
     const a = await add('Strip');
     await dependencies.add(
       {
         id: 'stray',
-        projectId,
+        workPackageId,
         predecessorId: crypto.randomUUID(),
         successorId: a,
       },
       WROTE,
     );
 
-    expect(service.tree(projectId)).rejects.toThrow(/legacy dependency names absent work item/);
+    expect(service.tree(workPackageId)).rejects.toThrow(/legacy dependency names absent work item/);
   });
 
-  it('refuses stored progress naming an unknown work item or project step', async () => {
+  it('refuses stored progress naming an unknown work item or work package step', async () => {
     const known = await add('Strip');
     for (const statement of [
       { workItemId: 'missing-work-item', stepId, state: 'done' as const, statedAt: 1 },
@@ -918,13 +1115,13 @@ describe('dependencies', () => {
     ]) {
       const broken = {
         ...progress,
-        listByProject: async (readProjectId: string) => [
-          ...(await progress.listByProject(readProjectId)),
+        listByWorkPackage: async (readWorkPackageId: string) => [
+          ...(await progress.listByWorkPackage(readWorkPackageId)),
           statement,
         ],
       };
       const reader = new WorkItemService({ ...serviceOptions, progress: broken });
-      expect(reader.tree(projectId)).rejects.toThrow(/progress for unknown (work item|step)/);
+      expect(reader.tree(workPackageId)).rejects.toThrow(/progress for unknown (work item|step)/);
     }
   });
 
@@ -932,27 +1129,29 @@ describe('dependencies', () => {
     const present = await add('Strip');
     const broken = {
       ...serviceOptions.typedDependencies,
-      listByProject: () =>
+      listByWorkPackage: () =>
         Promise.resolve([
           {
             id: 'missing-endpoint',
-            projectId,
+            workPackageId,
             predecessor: {
-              projectId,
+              workPackageId,
               scope: 'node' as const,
               workItemId: 'missing-work-item',
               stepId,
             },
-            successor: { projectId, scope: 'node' as const, workItemId: present, stepId },
+            successor: { workPackageId, scope: 'node' as const, workItemId: present, stepId },
             type: 'FS' as const,
           },
         ]),
     };
     const reader = new WorkItemService({ ...serviceOptions, typedDependencies: broken });
-    expect(reader.tree(projectId)).rejects.toThrow(/no work item missing-work-item in this plan/);
+    expect(reader.tree(workPackageId)).rejects.toThrow(
+      /no work item missing-work-item in this plan/,
+    );
   });
 
-  it('keeps canonical input and full Fast bytes while direct blockage projects over a typed edge', async () => {
+  it('keeps canonical input and full Fast bytes while direct blockage work packages over a typed edge', async () => {
     // This proves the current domain projection seam. The live tree still
     // supplies blocked: [] until command/read wiring lands, so task 1.3 also
     // needs a stored-fact production test before its checkbox can close.
@@ -968,13 +1167,13 @@ describe('dependencies', () => {
       realistic: 3,
       pessimistic: 3,
     });
-    const linked = await service.addTypedDependency(projectId, OWNER, {
-      predecessor: { projectId, scope: 'node', workItemId: source, stepId },
-      successor: { projectId, scope: 'node', workItemId: downstream, stepId },
+    const linked = await service.addTypedDependency(workPackageId, OWNER, {
+      predecessor: { workPackageId, scope: 'node', workItemId: source, stepId },
+      successor: { workPackageId, scope: 'node', workItemId: downstream, stepId },
       type: 'FS',
     });
     if (!linked.ok) throw new Error(`typed dependency refused: ${linked.reason}`);
-    const before = await service.scheduleInput(projectId);
+    const before = await service.scheduleInput(workPackageId);
     if (before === null) throw new Error('missing canonical input');
     const fastBytes = (input: ScheduleInput): string =>
       JSON.stringify(
@@ -993,14 +1192,15 @@ describe('dependencies', () => {
       );
     const baselineInput = canonicalScheduleInput(before);
     const baselineFast = fastBytes(before);
-    const rows = await workItems.listByProject(projectId);
-    const projection = projectNodeReadings({
+    const rows = await workItems.listByWorkPackage(workPackageId);
+    const projection = workPackageNodeReadings({
       graph: resolveDependencyGraph({
+        stepOrder: { kind: 'uniform' },
         rows,
-        steps: await projects.stepsOf(projectId),
-        estimates: await serviceOptions.estimates.listByProject(projectId),
-        legacy: await dependencies.listByProject(projectId),
-        typed: await serviceOptions.typedDependencies.listByProject(projectId),
+        steps: await workPackages.stepsOf(workPackageId),
+        estimates: await serviceOptions.estimates.listByWorkPackage(workPackageId),
+        legacy: await dependencies.listByWorkPackage(workPackageId),
+        typed: await serviceOptions.typedDependencies.listByWorkPackage(workPackageId),
         reach: 'whole-item',
       }),
       holdOf: new Map(rows.map((row) => [row.id, row.hold])),
@@ -1011,16 +1211,16 @@ describe('dependencies', () => {
     });
     expect(projection.readings.get(source)?.[stepId]).toBe('blocked');
     expect(projection.readings.get(downstream)?.[stepId]).toBe('blocked_by_proxy');
-    const after = await service.scheduleInput(projectId);
+    const after = await service.scheduleInput(workPackageId);
     if (after === null) throw new Error('missing canonical input after projection');
     expect(canonicalScheduleInput(after)).toBe(baselineInput);
     expect(fastBytes(after)).toBe(baselineFast);
   });
 
-  it('reports no schedule error for a project that schedules', async () => {
+  it('reports no schedule error for a work package that schedules', async () => {
     await add('Strip');
 
-    expect((await service.tree(projectId))?.scheduleError).toBeNull();
+    expect((await service.tree(workPackageId))?.scheduleError).toBeNull();
   });
 
   it('schedules a dependent work item after the one it waits for', async () => {
@@ -1030,7 +1230,7 @@ describe('dependencies', () => {
     await service.setEstimate(b, OWNER, stepId, { optimistic: 3, realistic: 3, pessimistic: 3 });
     await service.addDependency(b, OWNER, a);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const sand = tree?.workItems.find((w) => w.id === b)?.schedule;
 
     expect(sand).toMatchObject({ earliestStart: 2, earliestFinish: 5, critical: true });
@@ -1041,40 +1241,17 @@ describe('the plan waits for the people in it', () => {
   /** A whole-day estimate, so the numbers in these tests are the numbers. */
   const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
 
-  /** A second project, holding `Dev` and `QA` in that order. */
-  async function twoStepProject() {
-    const project: Project = projectRow({
+  /** A second work package, holding `Dev` and `QA` in that order. */
+  async function twoStepWorkPackage() {
+    const workPackage: WorkPackage = workPackageRow({
       id: crypto.randomUUID(),
       name: 'Two steps',
-      ownerId: OWNER,
+      projectId: TWO_STEP_PROJECT,
     });
-    const dev = crypto.randomUUID();
-    const qa = crypto.randomUUID();
-    await projects.create(
-      project,
-      [
-        {
-          id: dev,
-          projectId: project.id,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        {
-          id: qa,
-          projectId: project.id,
-          name: 'QA',
-          position: 20,
-          code: 'qa',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      WROTE,
-    );
-    return { projectId: project.id, dev, qa };
+    const dev = stepId;
+    const qa = catalogueQaId;
+    await createTwoStepPackage(workPackage);
+    return { workPackageId: workPackage.id, dev, qa };
   }
 
   it('runs two work items one person is doing one after the other', async () => {
@@ -1085,7 +1262,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(first, stepId, 'ada', WROTE);
     await directory.assign(second, stepId, 'ada', WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.workItems.find((w) => w.id === first)?.schedule).toMatchObject({
       earliestStart: 0,
@@ -1107,7 +1284,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(second, stepId, 'ada', WROTE);
     expect((await service.setStatus(first, OWNER, 'on_hold')).ok).toBe(true);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     // Proof: the hold reduction bypassed in `canonicalScheduleParts` made this
     // fail with the held row still scheduled (`toBeNull`), Ada's queue intact;
@@ -1131,11 +1308,11 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(first, stepId, 'ada', WROTE);
     await directory.assign(second, stepId, 'ada', WROTE);
 
-    const before = await service.tree(projectId);
+    const before = await service.tree(workPackageId);
     expect(before?.workItems.find((w) => w.id === first)?.schedule?.earliestStart).toBe(0);
 
     await service.patch(second, OWNER, { priority: 1 });
-    const after = await service.tree(projectId);
+    const after = await service.tree(workPackageId);
 
     expect(after?.workItems.find((w) => w.id === second)?.schedule).toMatchObject({
       earliestStart: 0,
@@ -1156,7 +1333,7 @@ describe('the plan waits for the people in it', () => {
     // can be made of.
     //
     // `Wire` is created **unprioritised** on purpose. Since
-    // `priority-default-medium` a create carries the project's middle rung, and
+    // `priority-default-medium` a create carries the work package's middle rung, and
     // `priorityByLeaf` resolves by the most specific statement — so a leaf with
     // one of its own is a leaf a step's priority no longer reaches, which is
     // the rule working rather than failing. The state under test here is a leaf
@@ -1172,13 +1349,13 @@ describe('the plan waits for the people in it', () => {
     // `Step` reads first, so `Wire` already takes `ada` — a priority on `other`
     // is what makes the second half of this say anything at all.
     await service.patch(other, OWNER, { priority: 2 });
-    const after = await service.tree(projectId);
+    const after = await service.tree(workPackageId);
     expect(after?.workItems.find((w) => w.id === other)?.schedule?.earliestStart).toBe(0);
 
     // And now the step outranks it — 1 against 2 — through its leaf, which is
     // the only thing in the queue.
     await service.patch(step, OWNER, { priority: 1 });
-    const ranked = await service.tree(projectId);
+    const ranked = await service.tree(workPackageId);
 
     expect(ranked?.workItems.find((w) => w.id === inside)?.schedule).toMatchObject({
       earliestStart: 0,
@@ -1195,7 +1372,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(first, stepId, 'ada', WROTE);
     await directory.assign(second, stepId, 'grace', WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.workItems.find((w) => w.id === second)?.schedule?.earliestStart).toBe(0);
     expect(tree?.waitingForPerson).toBe(0);
@@ -1205,13 +1382,13 @@ describe('the plan waits for the people in it', () => {
     // The assumed assignee, as time: one named person on a two-step work item
     // is doing both of its slices, so nothing else of theirs can run alongside
     // either. Only `Dev` is assigned here — the `QA` queue is the assumption.
-    const two = await twoStepProject();
-    const covered = (await service.create(two.projectId, OWNER, {
+    const two = await twoStepWorkPackage();
+    const covered = (await service.create(two.workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
     })) as { ok: true; value: { id: string } };
-    const next = (await service.create(two.projectId, OWNER, {
+    const next = (await service.create(two.workPackageId, OWNER, {
       parentId: null,
       afterId: covered.value.id,
       name: 'Test the rewire',
@@ -1222,7 +1399,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(covered.value.id, two.dev, 'ada', WROTE);
     await directory.assign(next.value.id, two.dev, 'ada', WROTE);
 
-    const tree = await service.tree(two.projectId);
+    const tree = await service.tree(two.workPackageId);
 
     // `ada` works through every slice of both work items: the first's `Dev`,
     // then the second's, then the two `QA`s nobody named her for. The first
@@ -1250,13 +1427,13 @@ describe('the plan waits for the people in it', () => {
     //
     // That row's own `QA` is unestimated and takes no schedule time, so the
     // row ends with its `Dev` on day 3.
-    const two = await twoStepProject();
-    const covered = (await service.create(two.projectId, OWNER, {
+    const two = await twoStepWorkPackage();
+    const covered = (await service.create(two.workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
     })) as { ok: true; value: { id: string } };
-    const next = (await service.create(two.projectId, OWNER, {
+    const next = (await service.create(two.workPackageId, OWNER, {
       parentId: null,
       afterId: covered.value.id,
       name: 'Test the rewire',
@@ -1268,7 +1445,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(covered.value.id, two.qa, 'grace', WROTE);
     await directory.assign(next.value.id, two.dev, 'ada', WROTE);
 
-    const tree = await service.tree(two.projectId);
+    const tree = await service.tree(two.workPackageId);
 
     expect(tree?.workItems.find((w) => w.id === next.value.id)?.schedule).toMatchObject({
       earliestStart: 2,
@@ -1280,7 +1457,7 @@ describe('the plan waits for the people in it', () => {
     const first = await add('Strip');
     await service.setEstimate(first, OWNER, stepId, flat(2));
 
-    expect((await service.tree(projectId))?.waitingForPerson).toBe(0);
+    expect((await service.tree(workPackageId))?.waitingForPerson).toBe(0);
   });
 
   it('reports nobody waiting on a plan that could not be scheduled at all', async () => {
@@ -1291,10 +1468,10 @@ describe('the plan waits for the people in it', () => {
     const b = await add('Sand');
     await directory.assign(a, stepId, 'ada', WROTE);
     await directory.assign(b, stepId, 'ada', WROTE);
-    await dependencies.add({ id: 'x', projectId, predecessorId: a, successorId: b }, WROTE);
-    await dependencies.add({ id: 'y', projectId, predecessorId: b, successorId: a }, WROTE);
+    await dependencies.add({ id: 'x', workPackageId, predecessorId: a, successorId: b }, WROTE);
+    await dependencies.add({ id: 'y', workPackageId, predecessorId: b, successorId: a }, WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.scheduleError).toBe('cycle');
     expect(tree?.waitingForPerson).toBe(0);
@@ -1305,7 +1482,7 @@ describe('who is doing the work', () => {
   it('reports nobody when nobody is assigned', async () => {
     const id = await add('Strip');
 
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
 
     expect(row?.assignees).toEqual({});
     expect(row?.doesEveryStep).toBeNull();
@@ -1318,12 +1495,12 @@ describe('who is doing the work', () => {
     const id = await add('Strip');
     const qaStepId = crypto.randomUUID();
     await directory.assign(id, stepId, 'ada', WROTE);
-    let row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    let row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(row?.doesEveryStep).toBe('ada');
 
     await directory.assign(id, qaStepId, 'grace', WROTE);
 
-    row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(row?.assignees).toEqual({ [stepId]: 'ada', [qaStepId]: 'grace' });
     expect(row?.doesEveryStep).toBeNull();
   });
@@ -1337,7 +1514,7 @@ describe('who is doing the work', () => {
     const outcome = await service.assign(id, OWNER, stepId, 'ada-of-platform');
 
     expect(outcome.ok).toBe(true);
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(row?.assignees[stepId]).toBe('ada-of-platform');
     expect(row?.serviceTeamId).toBe('team-billing');
   });
@@ -1364,7 +1541,7 @@ describe('who is doing the work', () => {
     expect(outcome).toEqual({ ok: false, reason: 'unknown_team' });
     // The label it already had, not a null and not the dead id: a refused
     // write leaves the row exactly where it was.
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(row?.serviceTeamId).toBe('team-sparks');
   });
 
@@ -1374,9 +1551,9 @@ describe('who is doing the work', () => {
 
     await service.assign(id, OWNER, stepId, null);
 
-    expect((await service.tree(projectId))?.workItems.find((w) => w.id === id)?.assignees).toEqual(
-      {},
-    );
+    expect(
+      (await service.tree(workPackageId))?.workItems.find((w) => w.id === id)?.assignees,
+    ).toEqual({});
   });
 });
 
@@ -1388,10 +1565,10 @@ describe('duplicating a subtree', () => {
     return outcome.value.id;
   }
 
-  /** The project's rows, by id, as a reader sees them. */
+  /** The work package's rows, by id, as a reader sees them. */
   async function readTree() {
-    const tree = await service.tree(projectId);
-    if (tree === null) throw new Error('project vanished');
+    const tree = await service.tree(workPackageId);
+    if (tree === null) throw new Error('work package vanished');
     return tree.workItems;
   }
 
@@ -1495,7 +1672,7 @@ describe('duplicating a subtree', () => {
   it('gives no copy a frozen number, and leaves every original with its own', async () => {
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
-    await service.freeze(projectId, OWNER);
+    await service.freeze(workPackageId, OWNER);
 
     const copyId = await duplicate(strip);
 
@@ -1516,7 +1693,7 @@ describe('duplicating a subtree', () => {
     expect(await numbered()).toEqual({ '010': 'Strip', '020': 'Strip (copy)' });
   });
 
-  it('tells the project once, with the whole tree', async () => {
+  it('tells the work package once, with the whole tree', async () => {
     const strip = await add('Strip');
     await add('Sockets', strip);
     const before = broadcast.published.length;
@@ -1559,15 +1736,15 @@ describe('the calendar', () => {
     await service.setEstimate(id, OWNER, stepId, { optimistic: 2, realistic: 2, pessimistic: 2 });
   };
 
-  it('reports no dates while the project has no start date', async () => {
+  it('reports no dates while the work package has no start date', async () => {
     const id = await add('Strip');
     await twoDaysOf(id);
 
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
 
     // The ordinary state of an estimate nobody has committed to a date.
     expect(row?.dates).toBeNull();
-    expect((await service.tree(projectId))?.startDate).toBeNull();
+    expect((await service.tree(workPackageId))?.startDate).toBeNull();
   });
 
   it('places the plan on working days, skipping the weekend', async () => {
@@ -1576,9 +1753,9 @@ describe('the calendar', () => {
     await twoDaysOf(first);
     await twoDaysOf(second);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
     const strip = tree?.workItems.find((w) => w.id === first);
     const sand = tree?.workItems.find((w) => w.id === second);
 
@@ -1591,10 +1768,10 @@ describe('the calendar', () => {
   it('pushes an item later when it may not start before a date', async () => {
     const id = await add('Strip');
     await twoDaysOf(id);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
     await service.patch(id, OWNER, { startNoEarlierThan: '2026-08-12' });
 
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
 
     expect(row?.dates?.startsOn).toBe('2026-08-12');
   });
@@ -1612,11 +1789,11 @@ describe('the calendar', () => {
     });
     await twoDaysOf(second);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
     // Day 1 is the Friday: earlier than where the predecessor leaves it.
     await service.patch(second, OWNER, { startNoEarlierThan: '2026-08-07' });
 
-    const sand = (await service.tree(projectId))?.workItems.find((w) => w.id === second);
+    const sand = (await service.tree(workPackageId))?.workItems.find((w) => w.id === second);
 
     // Six working days from Thursday lands on the Friday after next.
     expect(sand?.dates?.startsOn).toBe('2026-08-14');
@@ -1625,11 +1802,11 @@ describe('the calendar', () => {
   it('reports no dates when the schedule itself failed', async () => {
     const first = await add('Strip');
     const second = await add('Sand');
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
     await dependencies.add(
       {
         id: 'a',
-        projectId,
+        workPackageId,
         predecessorId: first,
         successorId: second,
       },
@@ -1638,14 +1815,14 @@ describe('the calendar', () => {
     await dependencies.add(
       {
         id: 'b',
-        projectId,
+        workPackageId,
         predecessorId: second,
         successorId: first,
       },
       WROTE,
     );
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     // A date read off a schedule that could not be computed is the same
     // confident lie as a page of zeroes.
@@ -1661,11 +1838,11 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   // Half a day only reaches the calendar under `exact`. Every other rounding
   // charges a step whole days, so the boundary arithmetic these tests are about
   // — a finish at midday, a chain that drifts a bit below a whole day, the snap
-  // that must not eat 14.9 — is unreachable on a project that rounds. The
+  // that must not eat 14.9 — is unreachable on a work package that rounds. The
   // guards are `snapWorkdays`' and they are still live; this is the arm that
   // reaches them (`estimate-weights-and-rounding`).
   beforeEach(async () => {
-    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
+    await workPackages.update(workPackageId, { estimateRounding: 'exact' }, WROTE);
   });
 
   /** A flat trio, so the duration in these tests is the number written. */
@@ -1678,12 +1855,12 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   };
 
   const datesFor = async (id: string) =>
-    (await service.tree(projectId))?.workItems.find((w) => w.id === id)?.dates;
+    (await service.tree(workPackageId))?.workItems.find((w) => w.id === id)?.dates;
 
   it('starts a plan whose start date is a Saturday on the Monday', async () => {
     const id = await add('Pour');
     await flatDaysOf(id, 1);
-    await projects.update(projectId, { startDate: SATURDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: SATURDAY }, WROTE);
 
     expect(await datesFor(id)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-10' });
   });
@@ -1691,7 +1868,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('carries a span across two weekends without counting them', async () => {
     const id = await add('Rewire');
     await flatDaysOf(id, 12);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
     // Twelve working days from the Thursday: two of week one, five each of the
     // next two weeks — landing on that third Friday, fifteen calendar days on.
@@ -1701,7 +1878,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('keeps a half-day task inside its single day', async () => {
     const id = await add('Chase');
     await flatDaysOf(id, 0.5);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
     expect(await datesFor(id)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-06' });
   });
@@ -1715,7 +1892,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(first, 2.5);
     await flatDaysOf(second, 2.5);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
     expect(await datesFor(first)).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-10' });
     // The pair finish at exactly 5.0, so the fraction never reaches the dates.
@@ -1749,7 +1926,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(partGate, 0);
     await service.addDependency(wholeGate, OWNER, wholeRunner);
     await service.addDependency(partGate, OWNER, partRunner);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
     // Three whole days from the Thursday end on the Monday; the gate stands on
     // the Tuesday after them, both ends.
@@ -1763,15 +1940,15 @@ describe('the calendar — weekend edges and fractions of a day', () => {
   it('moves the dates and the printed figure together when the method changes', async () => {
     const id = await add('Strip');
     await service.setEstimate(id, OWNER, stepId, { optimistic: 2, realistic: 3, pessimistic: 10 });
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
 
-    await projects.update(projectId, { estimateMethod: 'optimistic' }, WROTE);
-    const hopeful = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    await workPackages.update(workPackageId, { estimateMethod: 'optimistic' }, WROTE);
+    const hopeful = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(hopeful?.finalTotal).toBe(2);
     expect(hopeful?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
 
-    await projects.update(projectId, { estimateMethod: 'pessimistic' }, WROTE);
-    const braced = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    await workPackages.update(workPackageId, { estimateMethod: 'pessimistic' }, WROTE);
+    const braced = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
     expect(braced?.finalTotal).toBe(10);
     expect(braced?.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-19' });
   });
@@ -1789,7 +1966,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const parent = await add('Step');
     const kid = await add('Wire', parent);
     await flatDaysOf(kid, 2);
-    await projects.update(projectId, { startDate: THURSDAY }, WROTE);
+    await workPackages.update(workPackageId, { startDate: THURSDAY }, WROTE);
     await service.patch(parent, OWNER, { startNoEarlierThan: '2026-08-12' });
 
     expect((await datesFor(kid))?.startsOn).toBe('2026-08-12');
@@ -1820,7 +1997,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
       previous = id;
       last = id;
     }
-    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
+    await workPackages.update(workPackageId, { startDate: '2026-08-10' }, WROTE);
 
     expect((await datesFor(last))?.endsOn).toBe('2026-08-28');
   });
@@ -1852,7 +2029,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const after = await add('Snag');
     await flatDaysOf(after, 1);
     await service.addDependency(after, OWNER, last);
-    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
+    await workPackages.update(workPackageId, { startDate: '2026-08-10' }, WROTE);
 
     // The chain end starts within working day 11 and finishes on day 15 —
     // Tuesday the 25th to Friday the 28th, not Monday the 31st.
@@ -1885,7 +2062,7 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     const after = await add('Snag');
     await flatDaysOf(after, 1);
     await service.addDependency(after, OWNER, last);
-    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
+    await workPackages.update(workPackageId, { startDate: '2026-08-10' }, WROTE);
 
     // The chain end runs inside working day 8 — Thursday the 20th, both ends.
     expect(await datesFor(last)).toEqual({ startsOn: '2026-08-20', endsOn: '2026-08-20' });
@@ -1904,55 +2081,34 @@ describe('the calendar — weekend edges and fractions of a day', () => {
     await flatDaysOf(first, 14.9);
     await flatDaysOf(second, 1);
     await service.addDependency(second, OWNER, first);
-    await projects.update(projectId, { startDate: '2026-08-10' }, WROTE);
+    await workPackages.update(workPackageId, { startDate: '2026-08-10' }, WROTE);
 
     expect(await datesFor(first)).toEqual({ startsOn: '2026-08-10', endsOn: '2026-08-28' });
     expect(await datesFor(second)).toEqual({ startsOn: '2026-08-28', endsOn: '2026-08-31' });
   });
 });
 
-describe('the project’s dependency reach', () => {
+describe('the work package’s dependency reach', () => {
   const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
 
   /**
-   * A project of its own on `reach`, holding `Dev` then `QA`, with `A` (Dev 3,
+   * A work package of its own on `reach`, holding `Dev` then `QA`, with `A` (Dev 3,
    * QA 2) and `B` (Dev 1) and `B` depending on `A`.
    *
-   * Its own project rather than the fixture's, because the fixture has one role
+   * Its own work package rather than the fixture's, because the fixture has one role
    * and a reach decides nothing on a plan with one step.
    */
   async function chainOn(reach: 'whole-item' | 'anchor-slice') {
     const id = crypto.randomUUID();
-    const dev = crypto.randomUUID();
-    const qa = crypto.randomUUID();
-    await projects.create(
-      projectRow({
+    const dev = stepId;
+    const qa = catalogueQaId;
+    await createTwoStepPackage(
+      workPackageRow({
         id,
         name: `Chain on ${reach}`,
-        ownerId: OWNER,
+        projectId: TWO_STEP_PROJECT,
         depReach: reach,
       }),
-      [
-        {
-          id: dev,
-          projectId: id,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        {
-          id: qa,
-          projectId: id,
-          name: 'QA',
-          position: 20,
-          code: 'qa',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      WROTE,
     );
     const made = async (name: string) => {
       const outcome = await service.create(id, OWNER, { parentId: null, afterId: null, name });
@@ -1965,28 +2121,28 @@ describe('the project’s dependency reach', () => {
     await service.setEstimate(a, OWNER, qa, flat(2));
     await service.setEstimate(b, OWNER, dev, flat(1));
     await dependencies.add(
-      { id: crypto.randomUUID(), projectId: id, predecessorId: a, successorId: b },
+      { id: crypto.randomUUID(), workPackageId: id, predecessorId: a, successorId: b },
       WROTE,
     );
     return { id, a, b };
   }
 
   /** One work item's earliest start out of the payload, or a throw. */
-  async function startOf(projectId: string, workItemId: string): Promise<number> {
-    const tree = await service.tree(projectId);
+  async function startOf(workPackageId: string, workItemId: string): Promise<number> {
+    const tree = await service.tree(workPackageId);
     const row = tree?.workItems.find((each) => each.id === workItemId);
     if (row === undefined) throw new Error(`${workItemId} is not in the payload`);
     if (row.schedule === null) throw new Error(`${workItemId} is unscheduled`);
     return row.schedule.earliestStart;
   }
 
-  it('each project is scheduled by its own reach', async () => {
-    // The reach is read from the project being scheduled, so two projects in
+  it('each work package is scheduled by its own reach', async () => {
+    // The reach is read from the work package being scheduled, so two work packages in
     // one process must not share one answer. Both orders, so a hoisted read is
     // visible whichever plan happened to be read first.
     //
-    // Proof: `project.depReach` in `work-item.service.ts` replaced by a
-    // module-level `heldReach ??= project.depReach` and this failed on
+    // Proof: `workPackage.depReach` in `work-item.service.ts` replaced by a
+    // module-level `heldReach ??= workPackage.depReach` and this failed on
     // `expect(received).toBe(expected) / Expected: 5 / Received: 3` for the
     // whole-item plan's `B`; watched 2026-08-29.
     const anchored = await chainOn('anchor-slice');
@@ -2001,7 +2157,7 @@ describe('the project’s dependency reach', () => {
     expect(await startOf(anchored.id, anchored.b)).toBe(3);
   });
 
-  it('reports the project’s reach on the wire beside the dates it produced', async () => {
+  it('reports the work package’s reach on the wire beside the dates it produced', async () => {
     // The chart draws a dependency arrow out of the slice the reach names, so
     // the value that decided the dates has to travel with them.
     const anchored = await chainOn('anchor-slice');
@@ -2010,7 +2166,7 @@ describe('the project’s dependency reach', () => {
   });
 });
 
-describe('the project’s estimate method', () => {
+describe('the work package’s estimate method', () => {
   /** A leaf with one three-point estimate, and the tree read back. */
   async function estimated(method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') {
     const id = await add('Strip');
@@ -2019,8 +2175,8 @@ describe('the project’s estimate method', () => {
       realistic: 3,
       pessimistic: 10,
     });
-    await projects.update(projectId, { estimateMethod: method }, WROTE);
-    const tree = await service.tree(projectId);
+    await workPackages.update(workPackageId, { estimateMethod: method }, WROTE);
+    const tree = await service.tree(workPackageId);
     const row = tree?.workItems.find((w) => w.id === id);
     return { tree, row };
   }
@@ -2033,7 +2189,7 @@ describe('the project’s estimate method', () => {
     expect(tree?.estimateMethod).toBe('pert');
   });
 
-  it('reports the chosen point instead when the project chose one', async () => {
+  it('reports the chosen point instead when the work package chose one', async () => {
     expect((await estimated('pessimistic')).row?.finalTotal).toBe(10);
     expect((await estimated('optimistic')).row?.finalTotal).toBe(2);
     expect((await estimated('realistic')).row?.finalTotal).toBe(3);
@@ -2052,71 +2208,48 @@ describe('the project’s estimate method', () => {
   it('leaves a step nobody estimated absent rather than zero', async () => {
     const id = await add('Strip');
 
-    const row = (await service.tree(projectId))?.workItems.find((w) => w.id === id);
+    const row = (await service.tree(workPackageId))?.workItems.find((w) => w.id === id);
 
     expect(row?.finalDays).toEqual({});
     expect(row?.finalTotal).toBe(0);
   });
 });
 
-describe('the project’s estimate arithmetic — weights, and the rounding per step', () => {
+describe('the work package’s estimate arithmetic — weights, and the rounding per step', () => {
   /**
-   * A project of its own with two steps, because the order the rounding and the
-   * sum happen in is only visible across **two** steps and the fixture's project
+   * A work package of its own with two steps, because the order the rounding and the
+   * sum happen in is only visible across **two** steps and the fixture's work package
    * has one.
    */
-  async function twoStepProject(over: {
+  async function twoStepWorkPackage(over: {
     pertWeights?: { optimistic: number; realistic: number; pessimistic: number };
     estimateRounding?: 'exact' | 'floor' | 'round' | 'ceil';
   }): Promise<{ id: string; devId: string; qaId: string }> {
     const id = crypto.randomUUID();
-    const devId = crypto.randomUUID();
-    const qaId = crypto.randomUUID();
-    await projects.create(
-      {
-        id,
-        name: 'Refit',
-        ownerId: OWNER,
-        restricted: false,
-        estimateMethod: 'pert',
-        pertWeights: over.pertWeights ?? { optimistic: 1, realistic: 4, pessimistic: 1 },
-        estimateRounding: over.estimateRounding ?? 'ceil',
-        depReach: 'whole-item',
-        startDate: null,
-        solutionRef: null,
-        revision: 0,
-        createdAt: 1,
-      },
-      [
-        {
-          id: devId,
-          projectId: id,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        {
-          id: qaId,
-          projectId: id,
-          name: 'QA',
-          position: 20,
-          code: 'qa',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      WROTE,
-    );
+    const devId = stepId;
+    const qaId = catalogueQaId;
+    await createTwoStepPackage({
+      id,
+      name: 'Refit',
+      projectId: TWO_STEP_PROJECT,
+      restricted: false,
+      estimateMethod: 'pert',
+      pertWeights: over.pertWeights ?? { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: over.estimateRounding ?? 'ceil',
+      depReach: 'whole-item',
+      startDate: null,
+      solutionRef: null,
+      revision: 0,
+      createdAt: 1,
+    });
     return { id, devId, qaId };
   }
 
   const half = { optimistic: 0.5, realistic: 0.5, pessimistic: 0.5 };
 
-  /** One row of a project's tree, or a throw — a missing row is a broken fixture. */
-  async function rowOf(projectOfIt: string, workItemId: string) {
-    const found = (await service.tree(projectOfIt))?.workItems.find((w) => w.id === workItemId);
+  /** One row of a work package's tree, or a throw — a missing row is a broken fixture. */
+  async function rowOf(workPackageOfIt: string, workItemId: string) {
+    const found = (await service.tree(workPackageOfIt))?.workItems.find((w) => w.id === workItemId);
     if (found === undefined) throw new Error(`no row for ${workItemId}`);
     return found;
   }
@@ -2138,7 +2271,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
    * and that half is `rollUpFinals`' own proof and the parent test below.
    */
   it('rounds each step before summing them', async () => {
-    const { id, devId, qaId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const { id, devId, qaId } = await twoStepWorkPackage({ estimateRounding: 'ceil' });
     const outcome = await service.create(id, OWNER, {
       parentId: null,
       afterId: null,
@@ -2158,14 +2291,14 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     expect(row.estimates[devId]).toEqual(half);
   });
 
-  it('floors, rounds and keeps the fraction when the project says so', async () => {
+  it('floors, rounds and keeps the fraction when the work package says so', async () => {
     for (const [rounding, owed] of [
       ['floor', 0],
       ['round', 1],
       ['ceil', 1],
       ['exact', 0.5],
     ] as const) {
-      const { id, devId } = await twoStepProject({ estimateRounding: rounding });
+      const { id, devId } = await twoStepWorkPackage({ estimateRounding: rounding });
       const outcome = await service.create(id, OWNER, {
         parentId: null,
         afterId: null,
@@ -2178,10 +2311,10 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     }
   });
 
-  it('weighs the three points by the coefficients the project set', async () => {
+  it('weighs the three points by the coefficients the work package set', async () => {
     // 2/3/10 is 4 days under 1/4/1 and 5 under a plain average — the divisor is
     // the sum of the weights, not a fixed six.
-    const { id, devId } = await twoStepProject({
+    const { id, devId } = await twoStepWorkPackage({
       pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
       estimateRounding: 'exact',
     });
@@ -2217,7 +2350,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
    * 2026-08-30.
    */
   it('gives a parent the days its children were charged, and the chart the same', async () => {
-    const { id, devId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const { id, devId } = await twoStepWorkPackage({ estimateRounding: 'ceil' });
     const parent = await service.create(id, OWNER, {
       parentId: null,
       afterId: null,
@@ -2260,7 +2393,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     // The whole point of one `finalDays`: two half-day steps charged as a whole
     // day each occupy two whole days of the calendar, and the row's own figures
     // say so. Both steps are estimated, so nothing here is an assumed duration.
-    const { id, devId, qaId } = await twoStepProject({ estimateRounding: 'ceil' });
+    const { id, devId, qaId } = await twoStepWorkPackage({ estimateRounding: 'ceil' });
     const outcome = await service.create(id, OWNER, {
       parentId: null,
       afterId: null,
@@ -2269,7 +2402,7 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     if (!outcome.ok) throw new Error(`create failed: ${outcome.reason}`);
     await service.setEstimate(outcome.value.id, OWNER, devId, half);
     await service.setEstimate(outcome.value.id, OWNER, qaId, half);
-    await projects.update(id, { startDate: '2026-08-06' }, WROTE);
+    await workPackages.update(id, { startDate: '2026-08-06' }, WROTE);
 
     const row = await rowOf(id, outcome.value.id);
 
@@ -2307,7 +2440,7 @@ describe('capacity, as the adapter resolves it', () => {
     await workItems.insert(
       workItemRow({
         id,
-        projectId,
+        workPackageId,
         parentId,
         position: (position += 10),
         name,
@@ -2325,7 +2458,7 @@ describe('capacity, as the adapter resolves it', () => {
     const strip = await leaf('Strip', 3);
     await service.setEstimate(strip, OWNER, stepId, flat(6));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(slicedFor(tree, strip)).toMatchObject({
       effort: 6,
@@ -2344,15 +2477,15 @@ describe('capacity, as the adapter resolves it', () => {
     // failed with `width: 4` and `duration: 1` — a plan claiming four of a
     // team of two; watched 2026-08-12.
     //
-    // The two is stated **for this project** since `capacity-per-project`. The
+    // The two is stated **for this work package** since `capacity-per-work-package`. The
     // team is added unsized on purpose: a global size is read by nothing, and
     // seeding one here would let this pass against a build that still read it.
     await directory.addTeam({ id: 'team-small', name: 'Small' }, WROTE);
-    await capacity.set(projectId, 'team-small', 2, WROTE);
+    await capacity.set(workPackageId, 'team-small', 2, WROTE);
     const strip = await leaf('Strip', 4, 'team-small');
     await service.setEstimate(strip, OWNER, stepId, flat(4));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(slicedFor(tree, strip)).toMatchObject({ effort: 4, width: 2, duration: 2 });
   });
@@ -2360,22 +2493,18 @@ describe('capacity, as the adapter resolves it', () => {
   it('reports the non-first team that bound a joint-capacity slice', async () => {
     await directory.addTeam({ id: 'team-alpha', name: 'Alpha' }, WROTE);
     await directory.addTeam({ id: 'team-beta', name: 'Beta' }, WROTE);
-    await capacity.set(projectId, 'team-alpha', 1, WROTE);
-    await capacity.set(projectId, 'team-beta', 1, WROTE);
+    await capacity.set(workPackageId, 'team-alpha', 1, WROTE);
+    await capacity.set(workPackageId, 'team-beta', 1, WROTE);
     const betaBlocker = await leaf('Beta blocker', 1, 'team-beta');
     const jointlyBound = await leaf('Jointly bound', 1, 'team-alpha');
 
-    // Task 2 widens the writer. Until then, present the reader with the exact
-    // canonical set that the repository already returns from work_item_team.
-    const listByProject = workItems.listByProject.bind(workItems);
-    workItems.listByProject = async (wantedProjectId) =>
-      (await listByProject(wantedProjectId)).map((row) =>
-        row.id === jointlyBound ? { ...row, teamIds: ['team-alpha', 'team-beta'] } : row,
-      );
+    expect(
+      (await workItems.patch(jointlyBound, { teamIds: ['team-alpha', 'team-beta'] }, WROTE)).ok,
+    ).toBe(true);
     await service.setEstimate(betaBlocker, OWNER, stepId, flat(2));
     await service.setEstimate(jointlyBound, OWNER, stepId, flat(2));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     // Proof: replacing the engine's capacityTeamId in the payload with
     // `teamOf.get(placed.workItemId)?.teamIds.at(0)` failed here on
@@ -2399,7 +2528,7 @@ describe('capacity, as the adapter resolves it', () => {
     await service.setEstimate(strip, OWNER, stepId, flat(6));
     await directory.assign(strip, stepId, 'kat', WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(slicedFor(tree, strip)).toMatchObject({
       effort: 6,
@@ -2415,14 +2544,14 @@ describe('capacity, as the adapter resolves it', () => {
     // down — the rows are read back to prove the label is still only on the
     // parent.
     await directory.addTeam({ id: 'team-one', name: 'One' }, WROTE);
-    await capacity.set(projectId, 'team-one', 1, WROTE);
+    await capacity.set(workPackageId, 'team-one', 1, WROTE);
     const step = await leaf('Step', 1, 'team-one');
     const first = await leaf('First', 1, null, step);
     const second = await leaf('Second', 1, null, step);
     await service.setEstimate(first, OWNER, stepId, flat(2));
     await service.setEstimate(second, OWNER, stepId, flat(2));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     // A pool of one, so the two children queue behind each other even though
     // neither of them carries the label.
@@ -2447,13 +2576,13 @@ describe('capacity, as the adapter resolves it', () => {
     await service.setEstimate(strip, OWNER, stepId, flat(2));
     await service.setEstimate(sand, OWNER, stepId, flat(2));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(slicedFor(tree, strip)).toMatchObject({ earliestStart: 0, earliestFinish: 2 });
     expect(slicedFor(tree, sand)).toMatchObject({
       earliestStart: 0,
       earliestFinish: 2,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
       capacityPredecessorIds: [],
     });
     expect(tree?.waitingForCapacity).toBe(0);
@@ -2485,7 +2614,7 @@ describe('the slices the schedule placed, on the wire', () => {
     await directory.assign(strip, stepId, 'kat', WROTE);
     await directory.assign(sand, stepId, 'kat', WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.slices).toHaveLength(2);
     expect(slicedFor(tree, strip)).toMatchObject({
@@ -2497,7 +2626,7 @@ describe('the slices the schedule placed, on the wire', () => {
       earliestStart: 0,
       earliestFinish: 3,
       critical: true,
-      boundBy: 'projectStart',
+      boundBy: 'workPackageStart',
       resourcePredecessorId: null,
     });
     expect(slicedFor(tree, sand)).toMatchObject({
@@ -2519,8 +2648,8 @@ describe('the slices the schedule placed, on the wire', () => {
     // Under `exact`, because that is the only arm a fraction survives now
     // (`estimate-weights-and-rounding`): the claim is about the **payload**
     // never rounding the engine's own numbers, which is exactly as load-bearing
-    // for a project that plans in fractions as it was for every project before.
-    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
+    // for a work package that plans in fractions as it was for every work package before.
+    await workPackages.update(workPackageId, { estimateRounding: 'exact' }, WROTE);
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, {
@@ -2532,7 +2661,7 @@ describe('the slices the schedule placed, on the wire', () => {
     await directory.assign(strip, stepId, 'kat', WROTE);
     await directory.assign(sand, stepId, 'kat', WROTE);
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     const expected = (3 + 4 * 3.5 + 5) / 6;
     expect(slicedFor(tree, strip).duration).toBe(expected);
@@ -2544,52 +2673,37 @@ describe('the slices the schedule placed, on the wire', () => {
   it('carries no slices at all when the plan could not be scheduled', async () => {
     const strip = await add('Strip');
     const sand = await add('Sand');
-    await dependencies.add({ id: 'x', projectId, predecessorId: strip, successorId: sand }, WROTE);
-    await dependencies.add({ id: 'y', projectId, predecessorId: sand, successorId: strip }, WROTE);
+    await dependencies.add(
+      { id: 'x', workPackageId, predecessorId: strip, successorId: sand },
+      WROTE,
+    );
+    await dependencies.add(
+      { id: 'y', workPackageId, predecessorId: sand, successorId: strip },
+      WROTE,
+    );
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.scheduleError).toBe('cycle');
     expect(tree?.slices).toEqual([]);
   });
 
   /**
-   * A project with two steps, its own rows, and somebody on each step.
+   * A work package with two steps, its own rows, and somebody on each step.
    *
-   * Its own project rather than the fixture's, because the order of the steps
+   * Its own work package rather than the fixture's, because the order of the steps
    * is the point and the fixture has one.
    */
   async function twoStepPlan(): Promise<{ id: string; devId: string; qaId: string }> {
     const id = crypto.randomUUID();
-    const devId = crypto.randomUUID();
-    const qaId = crypto.randomUUID();
-    await projects.create(
-      projectRow({
+    const devId = stepId;
+    const qaId = catalogueQaId;
+    await createTwoStepPackage(
+      workPackageRow({
         id,
         name: 'Refit',
-        ownerId: OWNER,
+        projectId: TWO_STEP_PROJECT,
       }),
-      [
-        {
-          id: devId,
-          projectId: id,
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-        {
-          id: qaId,
-          projectId: id,
-          name: 'QA',
-          position: 20,
-          code: 'qa',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      WROTE,
     );
     const created = await service.create(id, OWNER, {
       parentId: null,
@@ -2666,15 +2780,15 @@ describe('the slices the schedule placed, on the wire', () => {
     // what the two requests saw, and why the chart used to be handed a slice
     // under a step its step list no longer had.
     let reads = 0;
-    const shifting: ProjectStore = {
-      ...projects,
-      async stepsOf(projectId) {
+    const shifting: Omit<WorkPackageStore, 'setStepUnit'> = {
+      ...workPackages,
+      async stepsOf(workPackageId) {
         reads += 1;
-        const all = await projects.stepsOf(projectId);
+        const all = await workPackages.stepsOf(workPackageId);
         return reads === 1 ? all : all.filter((step) => step.name !== 'QA');
       },
     };
-    const readingOnce = new WorkItemService({ ...serviceOptions, projects: shifting });
+    const readingOnce = new WorkItemService({ ...serviceOptions, workPackages: shifting });
 
     const tree = await readingOnce.tree(plan.id);
 
@@ -2682,7 +2796,7 @@ describe('the slices the schedule placed, on the wire', () => {
     // under, on one read.
     //
     // Proof: `steps` in the returned object replaced by a second
-    // `await this.opts.projects.stepsOf(projectId)` — the second request, which
+    // `await this.opts.workPackages.stepsOf(workPackageId)` — the second request, which
     // is what the client used to make. This failed on
     // `expect(received).toEqual(expected)` with `- "QA"` — the payload one
     // step short of the slices in it, which is the skew itself. Watched
@@ -2699,18 +2813,18 @@ describe('the slices the schedule placed, on the wire', () => {
     // `exact` for the reason above: the row's `finalDays` in this test is the
     // fraction the engine ran the slice for, and the claim is that the two are
     // one number.
-    await projects.update(projectId, { estimateRounding: 'exact' }, WROTE);
+    await workPackages.update(workPackageId, { estimateRounding: 'exact' }, WROTE);
     const strip = await add('Strip');
     await service.setEstimate(strip, OWNER, stepId, flat(3));
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     // Additive, asserted rather than asserted about: every name the payload
     // carried before is still there, and the new ones are named. `slices` was
     // this test's own; `waitingForCapacity` is `capacity-engine`'s, and it sits
     // beside `waitingForPerson` rather than inside it because a queue and a
     // headcount are different sentences. `teamCapacities` is
-    // `capacity-per-project`'s, and it rides here rather than on a route of its
+    // `capacity-per-work-package`'s, and it rides here rather than on a route of its
     // own because the dates in this payload were computed from it. `priorityBands`
     // is `priority-bands`', and it rides here for a different reason: no date
     // here came from it, and every face draws every priority through it.
@@ -2729,7 +2843,6 @@ describe('the slices the schedule placed, on the wire', () => {
       'estimateRounding',
       'pertWeights',
       'priorityBands',
-      'projectRevision',
       'scheduleError',
       'seq',
       'slices',
@@ -2740,6 +2853,7 @@ describe('the slices the schedule placed, on the wire', () => {
       'waitingForCapacity',
       'waitingForPerson',
       'workItems',
+      'workPackageRevision',
     ]);
     expect(tree?.workItems).toHaveLength(1);
     expect(tree?.workItems[0]).toMatchObject({
@@ -2775,14 +2889,14 @@ describe('what a not-before reason does not do', () => {
     // a day — and this fails with every date downstream moved; watched
     // 2026-08-18. `libs/wbs/domain/domain/src/schedule.ts` has an empty diff on this branch and
     // this is the behavioural half of that claim.
-    // **The project needs a start date and the floor has to bind.** Without a
+    // **The work package needs a start date and the floor has to bind.** Without a
     // start date the engine never builds the not-before map at all — the
-    // `if (project.startDate !== null)` in `tree` — so a plan with no calendar
+    // `if (workPackage.startDate !== null)` in `tree` — so a plan with no calendar
     // would schedule identically whatever this column said, and the assertion
     // below would hold for a reason that has nothing to do with this change.
     // That vacuity was real: the first version of this case ran on the default
-    // project (`startDate: null`) and passed under its own injected fault.
-    await projects.update(projectId, { startDate: '2026-08-06' }, WROTE);
+    // work package (`startDate: null`) and passed under its own injected fault.
+    await workPackages.update(workPackageId, { startDate: '2026-08-06' }, WROTE);
     const strip = await add('Strip');
     const sand = await add('Sand');
     await service.setEstimate(strip, OWNER, stepId, {
@@ -2797,7 +2911,7 @@ describe('what a not-before reason does not do', () => {
     });
     await service.addDependency(sand, OWNER, strip);
     await service.patch(strip, OWNER, { startNoEarlierThan: '2026-09-01' });
-    const before = await service.tree(projectId);
+    const before = await service.tree(workPackageId);
     // The floor is the thing being held still, so it has to be holding
     // something first: `010` starts on its date rather than on day zero.
     expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule?.earliestStart).toBe(
@@ -2808,7 +2922,7 @@ describe('what a not-before reason does not do', () => {
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
 
-    const after = await service.tree(projectId);
+    const after = await service.tree(workPackageId);
     const schedules = (tree: Awaited<ReturnType<WorkItemService['tree']>>) =>
       (tree?.workItems ?? []).map((row) => ({
         name: row.name,
@@ -2850,7 +2964,7 @@ describe('what a not-before reason does not do', () => {
       startNoEarlierThanReason: 'waiting on client sign-off',
     });
 
-    const tree = await service.tree(projectId);
+    const tree = await service.tree(workPackageId);
 
     expect(tree?.workItems.find((row) => row.id === strip)).toMatchObject({
       startNoEarlierThan: '2026-09-12',
@@ -2863,7 +2977,7 @@ describe('what a not-before reason does not do', () => {
  * The rung a create stamps, and what happens when the ladder has not got one.
  *
  * The happy paths live in `plan-commands.test.ts`, against real SQLite and the
- * project's own ladder. This is the one case a real ladder cannot be put into:
+ * work package's own ladder. This is the one case a real ladder cannot be put into:
  * `priorityLadderProblem` refuses a write of any count but five, so a store
  * answering fewer is a store that has stopped keeping its contract.
  */
@@ -2872,12 +2986,12 @@ describe('the priority a create stamps', () => {
     // Proof: the throw in `ordinaryPriorityOf` replaced by
     // `?? DEFAULT_PRIORITY_BANDS[ORDINARY_BAND_RANK]`, and this failed on
     // `expected "(resolved without throwing)" to match /no rank 2 rung/` — the
-    // create returned `ok` having stored 50, a number from a ladder this project
+    // create returned `ok` having stored 50, a number from a ladder this work package
     // does not use. Watched 2026-08-29.
     const short = new WorkItemService({
       ...serviceOptions,
       priorityBands: inMemoryPriorityBands({
-        [projectId]: [
+        [workPackageId]: [
           { startsAt: 1, label: 'Now', defaultValue: 1 },
           { startsAt: 2, label: 'Later', defaultValue: 2 },
         ],
@@ -2885,27 +2999,27 @@ describe('the priority a create stamps', () => {
     });
     // Awaited rather than `.rejects.toThrow`, which returns void in `bun:test`
     // and so cannot be awaited — an assertion nothing awaits passes whatever
-    // happens, which is `project.test.ts`' own note and exactly the failure mode
+    // happens, which is `work-package.test.ts`' own note and exactly the failure mode
     // R5 is about.
     const refusal = await short
-      .create(projectId, OWNER, { parentId: null, afterId: null, name: 'Rewire' })
+      .create(workPackageId, OWNER, { parentId: null, afterId: null, name: 'Rewire' })
       .then(
         () => '(resolved without throwing)',
         (err: unknown) => String(err),
       );
     expect(refusal).toMatch(/no rank 2 rung/);
     // And nothing was written on the way to the throw.
-    expect(await workItems.listByProject(projectId)).toHaveLength(0);
+    expect(await workItems.listByWorkPackage(workPackageId)).toHaveLength(0);
   });
 
   it('writes the explicit priority a caller names, and null for an unprioritised row', async () => {
-    const stamped = await service.create(projectId, OWNER, {
+    const stamped = await service.create(workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Rewire',
       priority: 7,
     });
-    const blank = await service.create(projectId, OWNER, {
+    const blank = await service.create(workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'Sand',
@@ -2918,26 +3032,39 @@ describe('the priority a create stamps', () => {
 
 // T1 does not require a Unit citation, but this scenario enters the ledger no other way because
 // Unit is its only proving level.
-describe('assignment projections isolate memory projects', () => {
-  it('[PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested project', async () => {
-    const first = await service.create(projectId, OWNER, {
+describe('assignment projections isolate memory work packages', () => {
+  it('[PROJECT-ASSIGNMENT-READS-003] names only the people assigned in the requested work package', async () => {
+    const first = await service.create(workPackageId, OWNER, {
       parentId: null,
       afterId: null,
       name: 'First',
     });
     if (!first.ok) throw new Error('first row refused');
-    const other = projectRow({ id: 'other-assignment-project', ownerId: OWNER });
-    await projects.create(
+    const other = workPackageRow({
+      id: 'other-assignment-work-package',
+      projectId: OTHER_PROJECT,
+    });
+    await createBoundFixturePackage(
+      fixture.source,
+      'fixture-legacy-org',
       other,
       [
         {
-          id: 'other-step',
-          projectId: other.id,
-          name: 'Other',
-          position: 10,
-          code: 'other',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
+          definition: {
+            id: 'other-step',
+            name: 'Other',
+            code: 'other',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'other-step-binding',
+            scopeKind: 'project',
+            scopeId: OTHER_PROJECT,
+            workItemTypeId: null,
+            position: 10,
+          },
         },
       ],
       WROTE,
@@ -2950,7 +3077,9 @@ describe('assignment projections isolate memory projects', () => {
     if (!second.ok) throw new Error('second row refused');
     await directory.assign(first.value.id, stepId, 'ada', WROTE);
     await directory.assign(second.value.id, 'other-step', 'grace', WROTE);
-    expect((await service.tree(projectId))?.assignedPeople).toEqual([{ id: 'ada', name: 'ada' }]);
+    expect((await service.tree(workPackageId))?.assignedPeople).toEqual([
+      { id: 'ada', name: 'ada' },
+    ]);
     expect((await service.tree(other.id))?.assignedPeople).toEqual([
       { id: 'grace', name: 'grace' },
     ]);
@@ -2958,6 +3087,44 @@ describe('assignment projections isolate memory projects', () => {
 });
 
 describe('attempts at step nodes (step-node-attempts D2)', () => {
+  for (const fault of ['absent', 'other-step'] as const)
+    it('refuses corrupted current attempt label metadata ' + fault, async () => {
+      const leaf = await add('Label boundary');
+      // Break only the detached display read of the actual Source-backed store.
+      // collect exercises the real batch label path without a later tree read masking this guard.
+      const broken: WorkItemStore = {
+        ...workItems,
+        async listTreeByWorkPackage(id) {
+          const rows = await workItems.listTreeByWorkPackage(id);
+          return rows.map((row) => {
+            if (row.id !== leaf) return row;
+            if (fault === 'absent') {
+              const { steps: _steps, ...placement } = row;
+              return placement;
+            }
+            return {
+              ...row,
+              steps: row.steps?.map((step) => ({ ...step, stepId: 'other-step', code: 'qa' })),
+            };
+          });
+        },
+      };
+      const acting = new WorkItemService({ ...serviceOptions, workItems: broken });
+      const observed = await acting
+        .collect(() => acting.startAttempt(leaf, OWNER, stepId, {}))
+        .then(
+          () => ({ kind: 'returned' }),
+          (cause: unknown) => ({ kind: 'threw', cause }),
+        );
+      expect(observed).toEqual({
+        kind: 'threw',
+        cause: new Error(
+          fault === 'absent'
+            ? 'attempt label leaf steps are absent'
+            : `step ${stepId} is unresolved for the attempt label`,
+        ),
+      });
+    });
   /** `2026-10-11T14:02:00Z`: the act every write of {@link atTheAct} stamps. */
   const ACT = Date.UTC(2026, 9, 11, 14, 2);
   /** A service whose every write stamps {@link ACT}, hours behind the machine's clock. */
@@ -3050,7 +3217,7 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     const running = await onDev(leaf);
     await service.endAttempt(leaf, OWNER, stepId, { outcome: 'failed', reference: 'PR #12' });
 
-    const undoneEnd = await service.undo(projectId, OWNER);
+    const undoneEnd = await service.undo(workPackageId, OWNER);
     expect(undoneEnd.ok ? undoneEnd.value.done : undoneEnd).toBe(
       'ended attempt 1 of 010.s1-dev failed',
     );
@@ -3059,14 +3226,14 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     await service.endAttempt(leaf, OWNER, stepId, { outcome: 'succeeded' });
     const ended = await onDev(leaf);
     await service.removeAttempt(leaf, OWNER, stepId, 1);
-    const undoneRemove = await service.undo(projectId, OWNER);
+    const undoneRemove = await service.undo(workPackageId, OWNER);
     expect(undoneRemove.ok ? undoneRemove.value.done : undoneRemove).toBe(
       'removed attempt 1 of 010.s1-dev',
     );
     expect(await onDev(leaf)).toEqual(ended);
 
     await service.startAttempt(leaf, OWNER, stepId, {});
-    const undoneStart = await service.undo(projectId, OWNER);
+    const undoneStart = await service.undo(workPackageId, OWNER);
     expect(undoneStart.ok ? undoneStart.value.done : undoneStart).toBe(
       'started attempt 2 of 010.s1-dev',
     );
@@ -3077,7 +3244,7 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     const leaf = await add('Strip');
     await service.startAttempt(leaf, OWNER, stepId, {});
     await service.endAttempt(leaf, OWNER, stepId, { outcome: 'succeeded' });
-    expect(await progress.listByProject(projectId)).toEqual([]);
+    expect(await progress.listByWorkPackage(workPackageId)).toEqual([]);
 
     await service.startAttempt(leaf, OWNER, stepId, {});
     expect(await service.setStatus(leaf, OWNER, 'done')).toMatchObject({ ok: true });
@@ -3098,10 +3265,10 @@ describe('attempts at step nodes (step-node-attempts D2)', () => {
     const held = await onDev(leaf);
     const child = await add('Back boxes', leaf);
 
-    expect(await service.undo(projectId, OWNER)).toMatchObject({ ok: true });
+    expect(await service.undo(workPackageId, OWNER)).toMatchObject({ ok: true });
     expect(await onDev(leaf)).toEqual(held);
 
-    expect(await service.redo(projectId, OWNER)).toMatchObject({ ok: true });
+    expect(await service.redo(workPackageId, OWNER)).toMatchObject({ ok: true });
     expect(await onDev(child)).toEqual(held.map((each) => ({ ...each, workItemId: child })));
     expect(await onDev(leaf)).toEqual([]);
   });

@@ -1,8 +1,10 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { type Browser, expect, type Page, test, type TestInfo } from '@playwright/test';
+import { readPasswordSession, validateSchema } from '@wbs/contracts';
 
+import { openOrdinaryContext } from './ordinary-context';
+import { type Browser, expect, type Page, test, type TestInfo } from './ordinary-test';
 import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
 
 /**
@@ -14,7 +16,7 @@ import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
  * ordinary e2e be-01 has none to answer `GET /api/measures` with (it says
  * `409 organization_required`). The budgets, money bases and mixes a panel has
  * to draw are written onto the real plan read for three named rows, since an
- * unowned project holds no cost definition to price; everything else — the
+ * unowned work package holds no cost definition to price; everything else — the
  * tokens trio and fact the interaction types — goes to the real be-01 and comes
  * back on its own read.
  *
@@ -155,25 +157,34 @@ function measureFieldsFor(name: string, devStepId: string): Record<string, unkno
 /**
  * Answers the definitions, and writes the panel's states onto the real plan read.
  *
- * The session read is answered as an activated deployment's: the ordinary
- * be-01 reports `onboarding: false`, and a table told that asks nothing of
- * `GET /api/measures` (`useMeasureDefinitions`).
+ * The actual session and organization feature are retained; only the
+ * onboarding flag admitting this fixture's measure layout is overridden.
  * Proof: answering `onboarding: false` here, `a fresh reader sees time only`
  * found no `[data-measure-choice="tokens"]` in the chooser; watched 2026-10-23.
  */
 async function answerMeasures(page: Page, devStepId: string): Promise<void> {
   await page.route('**/api/auth/me', async (route) => {
     const response = await route.fetch();
-    const body = (await response.json()) as Record<string, unknown>;
+    const checked = await validateSchema(
+      readPasswordSession.responses[0].schema,
+      await response.json(),
+    );
+    if (
+      response.status() !== 200 ||
+      checked.issues !== undefined ||
+      checked.value.features === undefined
+    )
+      throw new Error('Measure fixture requires an actual session with deployment features');
+    const body = checked.value;
     await route.fulfill({
       response,
-      json: { ...body, features: { onboarding: true, organizations: false } },
+      json: { ...body, features: { ...body.features, onboarding: true } },
     });
   });
   await page.route('**/api/measures', (route) =>
     route.fulfill({ status: 200, json: { measures: SEEDED_MEASURES } }),
   );
-  await page.route('**/api/projects/*/work-items*', async (route) => {
+  await page.route('**/api/work-packages/*/work-items*', async (route) => {
     const response = await route.fetch();
     const body = (await response.json()) as { workItems: { name: string }[] };
     body.workItems = body.workItems.map((row) => ({
@@ -251,8 +262,24 @@ async function expectSeededRows(page: Page, seeded: SeededPlan): Promise<void> {
 }
 
 async function freshContextPage(browser: Browser, width: number, height: number) {
-  const context = await browser.newContext({ viewport: { width, height } });
-  return { context, page: await context.newPage() };
+  const context = await openOrdinaryContext(browser, { viewport: { width, height } });
+  try {
+    return { context, page: await context.newPage() };
+  } catch (primary) {
+    let cleanupFailure: { cause: unknown } | null = null;
+    try {
+      await context.close();
+    } catch (cause) {
+      cleanupFailure = { cause };
+    }
+    if (cleanupFailure !== null)
+      throw new AggregateError(
+        [primary, cleanupFailure.cause],
+        'Fresh reader page and context close failed',
+        { cause: primary },
+      );
+    throw primary;
+  }
 }
 
 test.describe('measure columns', () => {
@@ -380,7 +407,7 @@ test.describe('measure columns', () => {
       ([key]) => {
         localStorage.setItem(key, JSON.stringify({ tokens: true, cost: true }));
       },
-      [`wbs.measureColumns.${seeded.projectId}`],
+      [`wbs.measureColumns.${seeded.workPackageId}`],
     );
     await openSeededPlan(page, seeded);
     await expect(page.getByRole('article', { name: 'Work item 010' })).toBeVisible();
@@ -431,7 +458,7 @@ test.describe('measure columns', () => {
     browser,
   }, testInfo) => {
     const evidence = process.env['MEASURE_EVIDENCE_DIR'];
-    const context = await browser.newContext({
+    const context = await openOrdinaryContext(browser, {
       viewport: { width: 1440, height: 900 },
       ...(evidence === undefined || evidence === ''
         ? {}
@@ -439,39 +466,60 @@ test.describe('measure columns', () => {
             recordVideo: { dir: testInfo.outputPath('video'), size: { width: 1440, height: 900 } },
           }),
     });
-    const page = await context.newPage();
-    const seeded = await seedMeasurePlan(page, testInfo);
-    await answerMeasures(page, seeded.stepIds['Dev'] ?? '');
-    await openSeededPlan(page, seeded);
-    await expect(page.locator('th[data-column="final-total"]')).toBeVisible();
+    let video: ReturnType<Page['video']> = null;
+    let primary: { cause: unknown } | null = null;
+    try {
+      const page = await context.newPage();
+      const seeded = await seedMeasurePlan(page, testInfo);
+      await answerMeasures(page, seeded.stepIds['Dev'] ?? '');
+      await openSeededPlan(page, seeded);
+      await expect(page.locator('th[data-column="final-total"]')).toBeVisible();
 
-    await page.locator('details[data-columns] > summary').click();
-    await page.locator('[data-measure-choice="tokens"] input').check();
-    await expect(page.locator('th[data-column="measure-tokens-variance"]')).toBeVisible();
-    await page.locator('details[data-columns] > summary').click();
-    await expect(page.locator('[data-columns-panel]')).toBeHidden();
-    const variance = page.locator('td[data-column="measure-tokens-variance"]').nth(2);
-    await expect(variance).toHaveText('—');
+      await page.locator('details[data-columns] > summary').click();
+      await page.locator('[data-measure-choice="tokens"] input').check();
+      await expect(page.locator('th[data-column="measure-tokens-variance"]')).toBeVisible();
+      await page.locator('details[data-columns] > summary').click();
+      await expect(page.locator('[data-columns-panel]')).toBeHidden();
+      const variance = page.locator('td[data-column="measure-tokens-variance"]').nth(2);
+      await expect(variance).toHaveText('—');
 
-    const panel = await openPanel(page, '030');
-    const tokens = panel.getByRole('region', { name: 'Tokens' });
-    await tokens.getByRole('button', { name: 'Edit' }).click();
-    await tokens.getByLabel('Tokens optimistic').pressSequentially('100', { delay: 40 });
-    await tokens.getByLabel('Tokens realistic').pressSequentially('200', { delay: 40 });
-    await tokens.getByLabel('Tokens pessimistic').pressSequentially('600', { delay: 40 });
-    await tokens.getByRole('button', { name: 'Save estimate' }).click();
-    await expect(tokens.locator('[data-measure-trio]')).toContainText('Optimistic 100');
-    await tokens.getByLabel('Tokens fact').pressSequentially('300', { delay: 40 });
-    await tokens.getByRole('button', { name: 'Save fact' }).click();
-    await expect(tokens.locator('dd').nth(2)).toHaveText('+50');
-    await page.keyboard.press('Escape');
-    await expect(panel).toBeHidden();
-    await expect(variance).toHaveText('+50');
-    await expect(page.locator('td[data-column="measure-tokens-estimate"]').nth(2)).toHaveText(
-      '250',
-    );
-    const video = page.video();
-    await context.close();
+      const panel = await openPanel(page, '030');
+      const tokens = panel.getByRole('region', { name: 'Tokens' });
+      await tokens.getByRole('button', { name: 'Edit' }).click();
+      await tokens.getByLabel('Tokens optimistic').pressSequentially('100', { delay: 40 });
+      await tokens.getByLabel('Tokens realistic').pressSequentially('200', { delay: 40 });
+      await tokens.getByLabel('Tokens pessimistic').pressSequentially('600', { delay: 40 });
+      await tokens.getByRole('button', { name: 'Save estimate' }).click();
+      await expect(tokens.locator('[data-measure-trio]')).toContainText('Optimistic 100');
+      await tokens.getByLabel('Tokens fact').pressSequentially('300', { delay: 40 });
+      await tokens.getByRole('button', { name: 'Save fact' }).click();
+      await expect(tokens.locator('dd').nth(2)).toHaveText('+50');
+      await page.keyboard.press('Escape');
+      await expect(panel).toBeHidden();
+      await expect(variance).toHaveText('+50');
+      await expect(page.locator('td[data-column="measure-tokens-estimate"]').nth(2)).toHaveText(
+        '250',
+      );
+      video = page.video();
+    } catch (cause) {
+      primary = { cause };
+    }
+    let cleanupFailure: { cause: unknown } | null = null;
+    try {
+      await context.close();
+    } catch (cause) {
+      cleanupFailure = { cause };
+    }
+    if (cleanupFailure !== null) {
+      if (primary !== null)
+        throw new AggregateError(
+          [primary.cause, cleanupFailure.cause],
+          'Measure interaction and context close failed',
+          { cause: primary.cause },
+        );
+      throw cleanupFailure.cause;
+    }
+    if (primary !== null) throw primary.cause;
     if (video !== null && evidence !== undefined && evidence !== '') {
       mkdirSync(evidence, { recursive: true });
       copyFileSync(await video.path(), join(evidence, 'interaction-toggle-estimate-variance.webm'));

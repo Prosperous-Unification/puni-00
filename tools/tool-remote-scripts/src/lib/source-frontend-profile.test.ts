@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import type * as MaterializerModule from '../fixtures/source-frontend-profile';
-import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
+import { prepareRetainedSourceFrontendProfile } from '../fixtures/source-frontend-retained-inputs';
 import { artifact, configuration, git, modes, roots } from '../fixtures/source-startup';
 import { selectSourceFrontendProfile } from './source-frontend-profile';
 import {
@@ -98,7 +98,7 @@ const PAIRS = [
 let current: SourceStartupManifest;
 beforeAll(async () => {
   const prepared = await artifact();
-  await prepareSourceFrontendProfile(prepared.root);
+  await prepareRetainedSourceFrontendProfile(prepared.root);
   await modes(prepared.root);
   await git(prepared.root, 'add', '.');
   await git(
@@ -371,7 +371,7 @@ test.each(['package.json', 'bun.lock'] as const)(
   'actual committed same-length %s drift reaches selector refusal',
   async (path) => {
     const prepared = await artifact();
-    await prepareSourceFrontendProfile(prepared.root);
+    await prepareRetainedSourceFrontendProfile(prepared.root);
     const original = await readFile(join(prepared.root, path), 'utf8');
     // Both replacements preserve valid manifest syntax and change non-launch-relevant metadata.
     const changed =
@@ -416,7 +416,7 @@ test.each([
   async (epoch, path) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-materializer-boundary-'));
     roots.push(root);
-    await prepareSourceFrontendProfile(root);
+    await prepareRetainedSourceFrontendProfile(root);
     const bytes = await readFile(join(root, path));
     const historical =
       epoch === 'fourth'
@@ -497,7 +497,9 @@ function reconstructFourthInput(
 
 for (const path of ['package.json', 'bun.lock'] as const) {
   test(`registry S3 reconstruction reaches exact fourth ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const reconstructed = reconstructFourthInput(path, bytes);
     const expected = PAIRS.at(3);
     if (expected === undefined) throw new Error('fourth pair expectation absent');
@@ -507,7 +509,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     }).toEqual(expected[path]);
   });
   test(`registry S3 reconstruction refuses repairable unreviewed full ${path}`, async () => {
-    const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+    const bytes = await readFile(
+      resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+    );
     const extra = 'UNREVIEWED_REGISTRY_INPUT\n';
     expect(() =>
       reconstructFourthInput(path, Buffer.concat([bytes, Buffer.from(extra)]), [
@@ -518,7 +522,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
   });
   for (const fault of ['absent', 'duplicate', 'empty'] as const)
     test(`registry S3 reconstruction refuses ${fault} hunk in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const first = REGISTRY_REMOVALS[path].at(0);
       if (first === undefined) throw new Error('literal registry hunk absent');
       const extra =
@@ -529,7 +535,9 @@ for (const path of ['package.json', 'bun.lock'] as const) {
     });
   for (const fault of ['missing', 'changed'] as const)
     test(`registry S3 reconstruction refuses ${fault} fourth intermediate in ${path}`, async () => {
-      const bytes = await readFile(resolve(import.meta.dir, '../../../..', path));
+      const bytes = await readFile(
+        resolve(import.meta.dir, '../fixtures/source-frontend-retained-inputs', `${path}.txt`),
+      );
       const hunks = REGISTRY_REMOVALS[path];
       const changed =
         fault === 'missing'

@@ -23,7 +23,7 @@ export interface ReplayOrchestratorOptions {
 /**
  * Deliberately small, and it is a count of *payloads* rather than of bytes.
  *
- * A structural edit broadcasts `tree_replaced`, which carries the whole project,
+ * A structural edit broadcasts `tree_replaced`, which carries the whole work package,
  * so a replay is not a handful of deltas — thirty-two of them on a large
  * breakdown is already megabytes written into one socket in a tight loop. Past
  * a few dozen missed events a single refetch is both smaller and simpler, and

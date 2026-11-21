@@ -789,7 +789,7 @@ export const revalidateConnectedSolverResult = (
   const localSlices = stage.input.slices.filter(
     (slice) =>
       stage.input.order.kind === 'connected' &&
-      stage.input.order.projectIdByWorkItem.get(slice.workItemId) === stage.projectId,
+      stage.input.order.workPackageIdByWorkItem.get(slice.workItemId) === stage.workPackageId,
   );
   return revalidateWireSolverResult(request, response, localSlices);
 };

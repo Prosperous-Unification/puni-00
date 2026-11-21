@@ -16,8 +16,8 @@ export type DemandWritten = 'written' | 'unknown_work_item' | 'unknown_resource'
  * and every demand goes with its work item and with its resource.
  */
 export interface DemandStore {
-  /** Every demand on a work item of the project, by work item then resource. */
-  listByProject(projectId: string): Promise<Demand[]>;
+  /** Every demand on a work item of the work package, by work item then resource. */
+  listByWorkPackage(workPackageId: string): Promise<Demand[]>;
   /**
    * States one work item's demand on one resource, or removes it on `null`,
    * moving the work item's revision either way. Units are already bounded and

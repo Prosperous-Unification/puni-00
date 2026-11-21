@@ -28,8 +28,8 @@ interface CounterSource {
 
 function counterFault() {
   return defineFault({
-    id: 'break:projects.create:steps',
-    caseId: 'projects.create:steps',
+    id: 'break:workPackages.create:steps',
+    caseId: 'workPackages.create:steps',
     createControl: () => createFaultControl('counter-read'),
     mutate(source: CounterSource, control) {
       return {
@@ -71,8 +71,8 @@ describe('broken source proofs', () => {
     // `baseline counter was not one` instead of this named assertion failure.
     expect(proof).toEqual({
       kind: 'observed',
-      faultId: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      faultId: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       phase: 'counter-read',
       assertion: 'counter read remains one',
       observedFailure: 'expected 1, received 2',
@@ -111,8 +111,8 @@ describe('broken source proofs', () => {
     // and `observedFailure: fixture failed before setup verification`.
     expect(setupProof).toEqual({
       kind: 'setup-failed',
-      faultId: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      faultId: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       failure: 'fixture failed before setup verification',
     });
 
@@ -128,8 +128,8 @@ describe('broken source proofs', () => {
     // `kind: observed` and that operation error as `observedFailure`.
     expect(phaseProof).toEqual({
       kind: 'phase-failed',
-      faultId: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      faultId: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       phase: 'counter-read',
       failure: 'operation failed before counter-read',
     });
@@ -146,8 +146,8 @@ describe('broken source proofs', () => {
     // as `kind: observed` instead of reporting the bypassed phase.
     expect(bypassedProof).toEqual({
       kind: 'phase-failed',
-      faultId: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      faultId: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       phase: 'counter-read',
       failure: 'fault did not reach counter-read',
     });
@@ -155,8 +155,8 @@ describe('broken source proofs', () => {
 
   it('a different phase cannot satisfy the named fault', async () => {
     const fault = defineFault({
-      id: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      id: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       createControl: () => createFaultControl<'counter-read' | 'counter-write'>('counter-read'),
       mutate: (source: CounterSource) => source,
     });
@@ -202,8 +202,8 @@ describe('broken source proofs', () => {
   it('a reused control is refused before another setup', async () => {
     const control = createFaultControl('counter-read');
     const fault = defineFault({
-      id: 'break:projects.create:steps',
-      caseId: 'projects.create:steps',
+      id: 'break:workPackages.create:steps',
+      caseId: 'workPackages.create:steps',
       createControl: () => control,
       mutate: (source: CounterSource) => source,
     });

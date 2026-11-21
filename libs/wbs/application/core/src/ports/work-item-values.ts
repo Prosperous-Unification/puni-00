@@ -1,8 +1,8 @@
-import type { Hold, IsoDate, Readiness } from '@wbs/domain';
+import type { Hold, IsoDate, Readiness, ResolvedStep } from '@wbs/domain';
 
 export interface WorkItem {
   id: string;
-  projectId: string;
+  workPackageId: string;
   parentId: string | null;
   position: number;
   name: string;
@@ -209,6 +209,11 @@ export interface ExternalRef {
   systemId: string;
   url: string;
   name: string;
+}
+
+/** Current leaf metadata is absent only on parents and independent legacy fixtures. */
+export interface TreeWorkItem extends LabelledWorkItem {
+  readonly steps?: readonly ResolvedStep[];
 }
 
 /**

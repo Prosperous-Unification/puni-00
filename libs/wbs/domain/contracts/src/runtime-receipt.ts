@@ -5,13 +5,13 @@ import type {
   RuntimeScope,
 } from './runtime-command-values';
 
-/** Compares complete already-validated organization/project/person addresses without mutation. */
+/** Compares complete already-validated organization/work-package/person addresses without mutation. */
 export function matchesRuntimeScope(left: RuntimeScope, right: RuntimeScope): boolean {
   return (
     // Proof: bypassing organizationId equality made the public receipt scope organizationId negative return true.
     left.organizationId === right.organizationId &&
-    // Proof: bypassing projectId equality made the public receipt scope projectId negative return true.
-    left.projectId === right.projectId &&
+    // Proof: bypassing workPackageId equality made the public receipt scope workPackageId negative return true.
+    left.workPackageId === right.workPackageId &&
     // Proof: bypassing personId equality made the public receipt scope personId negative return true.
     left.personId === right.personId
   );
@@ -45,7 +45,7 @@ export function matchesRuntimeReceipt(
   receipt: RuntimeReceipt,
 ): boolean {
   return (
-    matchesRuntimeScope(scope, receipt.scope) &&
+    matchesRuntimeScope(scope, readRuntimeReceiptScope(receipt)) &&
     // Proof: bypassing ledgerId equality made the public receipt metadata ledgerId negative return true.
     operation.expectedLedgerId === receipt.ledgerId &&
     // Proof: bypassing commandId equality made the public receipt metadata commandId negative return true.
@@ -92,4 +92,16 @@ function matchesAcceptance(request: RuntimeOperation, receipt: RuntimeReceipt): 
       (command, index) => command.index === index && command.kind === action.commands[index]?.kind,
     )
   );
+}
+
+/** Read the current semantic address of an already validated raw receipt; original receipt fields remain unchanged. */
+export function readRuntimeReceiptScope(receipt: RuntimeReceipt): RuntimeScope {
+  return receipt.schemaVersion === 2
+    ? receipt.scope
+    : {
+        organizationId: receipt.scope.organizationId,
+        // Proof: runtime-receipt-address-projection substituted the projected original receipt owner; 'receiver verifies genuine runtime1 grant using original bytes and original receipt' failed and restored GREEN.
+        workPackageId: receipt.scope.projectId,
+        personId: receipt.scope.personId,
+      };
 }

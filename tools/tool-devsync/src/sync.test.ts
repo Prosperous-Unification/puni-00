@@ -292,7 +292,10 @@ describe('dev supervisor', () => {
   // because the script no longer names any project.
   it('names every tier in the dev stack, for both dev modes', async () => {
     const provider = await readFile(
-      new URL('../../../apps/twilight-structure/twilight-dash/cli/src/development.ts', import.meta.url),
+      new URL(
+        '../../../apps/twilight-structure/twilight-dash/cli/src/development.ts',
+        import.meta.url,
+      ),
       'utf8',
     );
     const projectLists = [...provider.matchAll(/--projects=([A-Za-z0-9,-]+)/g)];
@@ -321,7 +324,8 @@ describe('dev supervisor', () => {
     expect(backend.targets['prepare-mcp-document']).toMatchObject({
       cache: false,
       options: {
-        command: 'bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json',
+        command:
+          'bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts apps/wbs/mcp-01/src/openapi.json',
       },
       outputs: ['{workspaceRoot}/apps/wbs/mcp-01/src/openapi.json'],
     });
@@ -396,6 +400,7 @@ describe('dev supervisor', () => {
   it('prepares a changed solver target and keeps unchanged targets on the existing preflight', async () => {
     const changedEvents: string[] = [];
     await deploySolverTarget('c'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('b'.repeat(40)),
       changedPaths: () => Promise.resolve(['libs/wbs/adapters/solver-py/src/wbs_solver/solve.py']),
       compatibilityIdentity: () => Promise.resolve('d'.repeat(64)),
@@ -416,6 +421,7 @@ describe('dev supervisor', () => {
 
     const unchangedEvents: string[] = [];
     await deploySolverTarget('c'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('b'.repeat(40)),
       changedPaths: () => Promise.resolve([]),
       compatibilityIdentity: () =>
@@ -443,13 +449,18 @@ describe('dev supervisor', () => {
     });
     await mkdir(join(sourceRepository, 'apps', 'wbs', 'be-01'), { recursive: true });
     await mkdir(exportedRuntime, { recursive: true });
+    await mkdir(join(sourceRepository, 'apps/wbs/be-01/drizzle/0001_init'), { recursive: true });
+    await writeFile(
+      join(sourceRepository, 'apps/wbs/be-01/drizzle/0001_init/migration.sql'),
+      'CREATE TABLE baseline (id TEXT);\n',
+    );
     await writeFile(
       join(sourceRepository, 'libs', 'wbs', 'adapters', 'solver-py', 'solver.py'),
       'version = 1\n',
     );
     await writeFile(join(sourceRepository, 'apps', 'wbs', 'be-01', 'Dockerfile'), 'FROM scratch\n');
     await $`git -C ${sourceRepository} init --quiet`;
-    await $`git -C ${sourceRepository} add libs/wbs/adapters/solver-py apps/wbs/be-01/Dockerfile`;
+    await $`git -C ${sourceRepository} add libs/wbs/adapters/solver-py apps/wbs/be-01`;
     await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m compatibility`;
     const compatibilitySha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
     const dependencies = solverTargetDependencies({
@@ -677,6 +688,7 @@ describe('dev-sync rehearsal inputs', () => {
   it('resets an unchanged solver target without calling any live host seam', async () => {
     const resets: string[] = [];
     await deployRehearsalTarget('b'.repeat(40), {
+      admitSource: () => Promise.resolve(),
       currentSha: () => Promise.resolve('a'.repeat(40)),
       changedPaths: () => Promise.resolve([]),
       reset: (sha) => {
@@ -692,6 +704,7 @@ describe('dev-sync rehearsal inputs', () => {
     let failure: unknown;
     try {
       await deployRehearsalTarget('b'.repeat(40), {
+        admitSource: () => Promise.resolve(),
         currentSha: () => Promise.resolve('a'.repeat(40)),
         changedPaths: () => Promise.resolve(['apps/wbs/be-01/Dockerfile']),
         reset: () => {
@@ -1104,7 +1117,12 @@ describe('boot-commit convergence after reset', () => {
     await $`git clone --quiet ${origin} ${source}`.quiet();
     await mkdir(join(source, touched, '..'), { recursive: true });
     await writeFile(join(source, touched), 'one\n');
-    await $`git -C ${source} add ${touched}`;
+    await mkdir(join(source, 'apps/wbs/be-01/drizzle/0001_init'), { recursive: true });
+    await writeFile(
+      join(source, 'apps/wbs/be-01/drizzle/0001_init/migration.sql'),
+      'CREATE TABLE baseline (id TEXT);\n',
+    );
+    await $`git -C ${source} add ${touched} apps/wbs/be-01/drizzle`;
     await $`git -C ${source} ${GIT} commit --quiet -m one`;
     const previous = (await $`git -C ${source} rev-parse HEAD`.text()).trim();
     await writeFile(join(source, touched), 'two\n');

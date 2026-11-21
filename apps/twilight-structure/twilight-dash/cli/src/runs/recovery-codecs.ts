@@ -1,4 +1,5 @@
 import { parseOrThrow, type } from '@shared/validation';
+import { retainedRuntimeState } from '@wbs/contracts';
 
 import {
   AttemptCodec,
@@ -138,54 +139,40 @@ const receiptFields = {
   actorId: identity,
 } as const;
 // Proof: fix1-R3/R6 rejected/deleted allowed public fields; authority root/nested preservation tests failed.
+// Proof: dash-embedded-authorityReceipt-current2: removing the current authority-receipt2 arm.
+// 'embedded authority2 observation and accepted fence preserve full raw additions' failed; exact restoration passed.
+// Producer/schema consistency refusal, not admission bypass.
 const authorityReceipt = type({
   ...receiptFields,
   acceptance: { kind: "'authority'", authority },
-}).onDeepUndeclaredKey('ignore');
+})
+  .or({
+    ...receiptFields,
+    schemaVersion: '2',
+    scope: { organizationId: identity, workPackageId: identity, personId: identity },
+    acceptance: { kind: "'authority'", authority },
+  })
+  .onDeepUndeclaredKey('ignore');
 // Proof: fix1-R4/R7 rejected/deleted allowed public fields; claim root/nested preservation tests failed.
+// Proof: dash-embedded-claimReceipt-current2: removing the current claim-receipt2 arm.
+// 'embedded claim2 resolve and history preserve full raw additions' failed; exact restoration passed.
+// Producer/schema consistency refusal, not admission bypass.
 const claimReceipt = type({
   ...receiptFields,
   acceptance: { kind: "'claim'", authority, claim, basisAfter: basis },
-}).onDeepUndeclaredKey('ignore');
-const liveClaim = type({
-  id: identity,
-  workItemId: identity,
-  stepId: identity.or('null'),
-  personId: identity,
-  runId: identity.or('null'),
-  parentClaimId: identity.or('null'),
-  accountId: identity,
-});
-// Proof: fix1-R2/R5 rejected/deleted allowed public fields; state root/nested preservation tests failed.
-const state = type({
-  schemaVersion: '1',
-  ledgerId: identity,
-  scope: scopeCodec,
-  basis,
-  facts: {
-    projectRevision: Integer,
-    workItems: type({
-      id: identity,
-      parentId: identity.or('null'),
-      revision: Integer,
-      externalRefs: type({
-        id: identity,
-        systemId: identity,
-        url: 'string',
-        name: 'string',
-      }).array(),
-    }).array(),
-    steps: type({ id: identity, code: 'string | null', position: 'number' }).array(),
-  },
-  authority: type({ kind: "'uninitialized'" }).or({
-    kind: "'held'",
-    ownerId: identity,
-    generation: Positive,
-  }),
-  claims: type({ kind: "'ordinary'", claim: liveClaim })
-    .or({ kind: "'runtime'", claim: liveClaim, binding: claim })
-    .array(),
-}).onDeepUndeclaredKey('ignore');
+})
+  .or({
+    ...receiptFields,
+    schemaVersion: '2',
+    scope: { organizationId: identity, workPackageId: identity, personId: identity },
+    acceptance: { kind: "'claim'", authority, claim, basisAfter: basis },
+  })
+  .onDeepUndeclaredKey('ignore');
+// Proof: dash-embedded-state-consumer: bypassing the complete embedded retained-state schema.
+// 'embedded retained state1 rejects invalid revision before later artifact verification' failed; exact restoration passed.
+// 'embedded retained state2 rejects invalid revision before later artifact verification' failed; exact restoration passed.
+// One grouped embedded schema fault with two named generations.
+const state = retainedRuntimeState;
 const stateExchange = type({
   ...closedRecord,
   envelope,
@@ -368,19 +355,27 @@ const resolve = type({
   fence: acceptedFence,
   decision: claimDecision,
 });
-const writeReceipt = type({
-  ...receiptFields,
-  acceptance: {
-    kind: "'write'",
-    authority,
-    claim,
-    basisAfter: basis,
-    applied: type({
-      index: Integer,
-      kind: "'setProgress'|'setMeasure'|'patchWorkItem'|'releaseWorkItem'",
-    }).array(),
-  },
-}).onDeepUndeclaredKey('ignore');
+const writeAcceptance = type({
+  kind: "'write'",
+  authority,
+  claim,
+  basisAfter: basis,
+  applied: type({
+    index: Integer,
+    kind: "'setProgress'|'setMeasure'|'patchWorkItem'|'releaseWorkItem'",
+  }).array(),
+});
+// Proof: dash-embedded-writeReceipt-current2: removing the current write-receipt2 arm.
+// 'embedded write recovery preserves complete raw receipt2' failed; exact restoration passed.
+// Producer/schema consistency refusal, not admission bypass.
+const writeReceipt = type({ ...receiptFields, acceptance: writeAcceptance })
+  .or({
+    ...receiptFields,
+    schemaVersion: '2',
+    scope: { organizationId: identity, workPackageId: identity, personId: identity },
+    acceptance: writeAcceptance,
+  })
+  .onDeepUndeclaredKey('ignore');
 const writeExchange = type({
   ...closedRecord,
   envelope,

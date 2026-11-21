@@ -1,0 +1,2807 @@
+{
+  "schema": "private-estimate-writers-20261118",
+  "status": "private incremental observations; full cutover incomplete",
+  "source": {
+    "path": "/tmp/puni-step-estimate-registration-live-v1/source-pins.json",
+    "sha256": "dc9dc87533cd7d349d0fb4dc2a1217f9d363bef233c6fc628faee6b16b2e7b8d",
+    "bytes": 5167718,
+    "mode": 384
+  },
+  "originals": [
+    {
+      "name": "queuedSqliteRed",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateSqlite/native.log",
+          "sha256": "a43a64610cdbc4a2c5a09e64259b29cedbbf87afdb48081c4c597615c9f482c2",
+          "bytes": 1276,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n-     \"optimistic\": 1,\n-     \"pessimistic\": 3,\n-     \"realistic\": 2,\n-     \"stepId\": \"queued-estimate-original\",\n-     \"workItemId\": \"queued-leaf-original\",\n+     \"optimistic\": 7,\n+     \"pessimistic\": 9,\n+     \"realistic\": 8,\n+     \"stepId\": \"queued-estimate-alternate\",\n+     \"workItemId\": \"queued-leaf-alternate\",\n    },\n  ]\n\n- Expected  - 5\n+ Received  + 5\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:queued-estimate-input-retention [746.34ms]\n\n 0 pass\n 22 filtered out\n 1 fail\n 32 expect() calls\nRan 1 test across 1 file. [3.27s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateSqlite/native.receipt.json",
+          "sha256": "b1704782b25ddeb7c06ad67e8532e2593628baec1d6d4f34037ddb3efed7f091",
+          "bytes": 1493,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateSqlite/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factWrite:queued-estimate-input-retention$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:46:45.991Z",
+          "endedAt": "2026-11-18T07:46:49.306Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateSqlite/native.log",
+            "sha256": "a43a64610cdbc4a2c5a09e64259b29cedbbf87afdb48081c4c597615c9f482c2",
+            "bytes": 1276
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "queuedMemoryRed",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateMemory/native.log",
+          "sha256": "5b08ec08284d71235fe052cd83577bd0536d2c38e21bacca4f5414de71ee481b",
+          "bytes": 1269,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n-     \"optimistic\": 1,\n-     \"pessimistic\": 3,\n-     \"realistic\": 2,\n-     \"stepId\": \"queued-estimate-original\",\n-     \"workItemId\": \"queued-leaf-original\",\n+     \"optimistic\": 7,\n+     \"pessimistic\": 9,\n+     \"realistic\": 8,\n+     \"stepId\": \"queued-estimate-alternate\",\n+     \"workItemId\": \"queued-leaf-alternate\",\n    },\n  ]\n\n- Expected  - 5\n+ Received  + 5\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:queued-estimate-input-retention [32.93ms]\n\n 0 pass\n 23 filtered out\n 1 fail\n 26 expect() calls\nRan 1 test across 1 file. [2.44s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateMemory/native.receipt.json",
+          "sha256": "939e7b0f4878fc5afdbaecb1a500d07b7d33352f24017e5a9dcc49ae59c16f83",
+          "bytes": 1490,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateMemory/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factWrite:queued-estimate-input-retention$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:47:20.873Z",
+          "endedAt": "2026-11-18T07:47:23.359Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-queue-premise-live-v2/queuedEstimateMemory/native.log",
+            "sha256": "5b08ec08284d71235fe052cd83577bd0536d2c38e21bacca4f5414de71ee481b",
+            "bytes": 1269
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "readerSqliteRed",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerSqlite/native.log",
+          "sha256": "a745a65c5767b2d42f8925bef5885598960063e22032252c6b4829a5aaaf36b5",
+          "bytes": 2628,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: Failed query: select \"estimate\".\"work_item_id\", \"estimate\".\"step_id\", \"estimate\".\"optimistic\", \"estimate\".\"realistic\", \"estimate\".\"pessimistic\" from \"estimate\" inner join \"step\" on \"estimate\".\"step_id\" = \"step\".\"id\" inner join \"work_item\" on \"estimate\".\"work_item_id\" = \"work_item\".\"id\" where \"work_item\".\"work_package_id\" = ? order by \"estimate\".\"work_item_id\", \"step\".\"position\", \"estimate\".\"step_id\"\nparams: catalogue-empty-package\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factRead:estimate-catalogue-order [744.89ms]\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: Failed query: select \"estimate\".\"work_item_id\", \"estimate\".\"step_id\", \"estimate\".\"optimistic\", \"estimate\".\"realistic\", \"estimate\".\"pessimistic\", \"work_item\".\"work_package_id\", \"step\".\"work_package_id\", \"step\".\"position\" from \"estimate\" left join \"step\" on \"estimate\".\"step_id\" = \"step\".\"id\" left join \"work_item\" on \"estimate\".\"work_item_id\" = \"work_item\".\"id\" where ((\"estimate\".\"work_item_id\" in (?, ?, ?)) and (((\"work_item\".\"work_package_id\" = ?) or ((\"work_item\".\"work_package_id\" is null))))) order by \"estimate\".\"work_item_id\", \"step\".\"position\", \"estimate\".\"step_id\"\nparams: estimate-first-leaf,absent-leaf,estimate-first-leaf,catalogue-empty-package\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factRead:targeted-estimate-catalogue-order [617.91ms]\n\n 0 pass\n 23 filtered out\n 2 fail\n 52 expect() calls\nRan 2 tests across 1 file. [3.94s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerSqlite/native.receipt.json",
+          "sha256": "2efa44d8e30efbb49e060a26a8a28315329bc14a7940115e989274e10b7e9d99",
+          "bytes": 1444,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-readers-first-live-v1/readerSqlite/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factRead:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:48:53.590Z",
+          "endedAt": "2026-11-18T07:48:57.589Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerSqlite/native.log",
+            "sha256": "a745a65c5767b2d42f8925bef5885598960063e22032252c6b4829a5aaaf36b5",
+            "bytes": 2628
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "readerMemoryRed",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerMemory/native.log",
+          "sha256": "b392d0744654fcbf568e6ae60504cdb0882a37072f124346d43e949b354a916c",
+          "bytes": 2322,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toEqual(expected)\n\n  [\n    {\n-     \"optimistic\": 1,\n-     \"pessimistic\": 3,\n-     \"realistic\": 2,\n-     \"stepId\": \"z-estimate-first\",\n-     \"workItemId\": \"estimate-first-leaf\",\n-   },\n-   {\n      \"optimistic\": 4,\n      \"pessimistic\": 6,\n      \"realistic\": 5,\n      \"stepId\": \"a-estimate-second\",\n+     \"workItemId\": \"estimate-first-leaf\",\n+   },\n+   {\n+     \"optimistic\": 1,\n+     \"pessimistic\": 3,\n+     \"realistic\": 2,\n+     \"stepId\": \"z-estimate-first\",\n      \"workItemId\": \"estimate-first-leaf\",\n    },\n    {\n      \"optimistic\": 7,\n      \"pessimistic\": 9,\n      \"realistic\": 8,\n      \"stepId\": \"z-estimate-first\",\n      \"workItemId\": \"estimate-other-leaf\",\n    },\n  ]\n\n- Expected  - 7\n+ Received  + 7\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factRead:estimate-catalogue-order [30.81ms]\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: estimate estimate-first-leaf/a-estimate-second has an invalid step reference\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factRead:targeted-estimate-catalogue-order [5.30ms]\n\n 0 pass\n 24 filtered out\n 2 fail\n 41 expect() calls\nRan 2 tests across 1 file. [2.51s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerMemory/native.receipt.json",
+          "sha256": "69b944396a05a2d64d6ec56a48aa562dc4316e8d7c5476c37c964cef9d429ba9",
+          "bytes": 1441,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-readers-first-live-v1/readerMemory/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factRead:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:49:16.003Z",
+          "endedAt": "2026-11-18T07:49:18.555Z",
+          "exitCode": 1,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-readers-first-live-v1/readerMemory/native.log",
+            "sha256": "b392d0744654fcbf568e6ae60504cdb0882a37072f124346d43e949b354a916c",
+            "bytes": 2322
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "memory8",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.log",
+          "sha256": "68f322e674bac61fe693bd8a3bbabf863f5c93f76912fa4822ee042ce7411a10",
+          "bytes": 806,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:estimate-after-unbind [20.29ms]\n(pass) memory stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [8.04ms]\n(pass) memory stepCatalogue.factWrite:queued-estimate-input-retention [7.45ms]\n(pass) memory stepCatalogue.factWrite:estimate-target-types [5.99ms]\n(pass) memory stepCatalogue.factWrite:borrowed-target-types-keep-commit [5.74ms]\n(pass) memory stepCatalogue.factWrite:target-public-source-close [4.58ms]\n(pass) memory stepCatalogue.factWrite:target-borrowed-after-commit [5.90ms]\n(pass) memory stepCatalogue.factWrite:target-plain-repair-expiry [5.72ms]\n\n 8 pass\n 23 filtered out\n 0 fail\n 243 expect() calls\nRan 8 tests across 1 file. [2.45s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.receipt.json",
+          "sha256": "7211cfebd6c55876a199507fd16c1c48f5b0ece441bdeaea399c264e5c4abc8f",
+          "bytes": 1437,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factWrite:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:53:04.159Z",
+          "endedAt": "2026-11-18T07:53:06.664Z",
+          "exitCode": 0,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.log",
+            "sha256": "68f322e674bac61fe693bd8a3bbabf863f5c93f76912fa4822ee042ce7411a10",
+            "bytes": 806
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "sqlite8",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.log",
+          "sha256": "0f47a7457ced36ec0a26e5b6f64bf7f5509e3b9fe85f68ee3522c9c8a46420e6",
+          "bytes": 824,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:estimate-after-unbind [647.97ms]\n(pass) sqlite stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [577.38ms]\n(pass) sqlite stepCatalogue.factWrite:queued-estimate-input-retention [666.74ms]\n(pass) sqlite stepCatalogue.factWrite:estimate-target-types [770.88ms]\n(pass) sqlite stepCatalogue.factWrite:borrowed-target-types-keep-commit [677.32ms]\n(pass) sqlite stepCatalogue.factWrite:target-public-source-close [624.87ms]\n(pass) sqlite stepCatalogue.factWrite:target-borrowed-after-commit [637.95ms]\n(pass) sqlite stepCatalogue.factWrite:target-plain-repair-expiry [568.20ms]\n\n 8 pass\n 22 filtered out\n 0 fail\n 291 expect() calls\nRan 8 tests across 1 file. [7.72s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.receipt.json",
+          "sha256": "85464347f8b27b494ff869b10a386429f40448eec39278cb0a15c4c865f354fb",
+          "bytes": 1440,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.factWrite:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:53:52.954Z",
+          "endedAt": "2026-11-18T07:54:00.732Z",
+          "exitCode": 0,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.log",
+            "sha256": "0f47a7457ced36ec0a26e5b6f64bf7f5509e3b9fe85f68ee3522c9c8a46420e6",
+            "bytes": 824
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "boundRepair",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.log",
+          "sha256": "218685c42dc0888f321b4995a16584b0fa8fe20006e662f5f875fd51a86190f4",
+          "bytes": 290,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:\n(pass) sqlite estimate target bound repair loan expires without reviving during another real repair [731.45ms]\n\n 1 pass\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.33s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.receipt.json",
+          "sha256": "d74b56224be0ccb794cff2e015e374f920e1e3c466bab2e8c6f09f67c4ba15b3",
+          "bytes": 1383,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:54:32.836Z",
+          "endedAt": "2026-11-18T07:54:36.214Z",
+          "exitCode": 0,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.log",
+            "sha256": "218685c42dc0888f321b4995a16584b0fa8fe20006e662f5f875fd51a86190f4",
+            "bytes": 290
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "memoryUnbind10",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/unbindMemory/native.log",
+          "sha256": "aa4f9d4cf591f56afb158cba17db562a229d670babad774c8e8ee14b63461a36",
+          "bytes": 955,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.unbindStep:estimate-refusal-and-preview [20.54ms]\n(pass) memory stepCatalogue.unbindStep:safe-preview-apply-retains-values [6.24ms]\n(pass) memory stepCatalogue.unbindStep:redundant-binding-keeps-protected-node [6.95ms]\n(pass) memory stepCatalogue.unbindStep:201-pairs-cap-and-order [19.18ms]\n(pass) memory stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit [6.56ms]\n(pass) memory stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit [5.56ms]\n(pass) memory stepCatalogue.unbindStep:queued-mode-retention [4.94ms]\n(pass) memory stepCatalogue.unbindStep:borrowed-expiry [5.36ms]\n(pass) memory stepCatalogue.unbindStep:detached-refusal [4.97ms]\n(pass) memory stepCatalogue.unbindStep:source-close [4.25ms]\n\n 10 pass\n 21 filtered out\n 0 fail\n 469 expect() calls\nRan 10 tests across 1 file. [2.48s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/unbindMemory/native.receipt.json",
+          "sha256": "3efe5767b3fe8a02b422a0767a8d08dcb9b28380206c9ac1235ed565c522a892",
+          "bytes": 1440,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-registration-live-v1/unbindMemory/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.unbindStep:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:58:50.697Z",
+          "endedAt": "2026-11-18T07:58:53.226Z",
+          "exitCode": 0,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-registration-live-v1/unbindMemory/native.log",
+            "sha256": "aa4f9d4cf591f56afb158cba17db562a229d670babad774c8e8ee14b63461a36",
+            "bytes": 955
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "sqliteUnbind10",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/unbindSqlite/native.log",
+          "sha256": "ddd71976829e591854146b2d6902e64777abdcd8a6655461d675d1bd0ff8aca2",
+          "bytes": 976,
+          "mode": 384
+        },
+        "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.unbindStep:estimate-refusal-and-preview [744.28ms]\n(pass) sqlite stepCatalogue.unbindStep:safe-preview-apply-retains-values [558.92ms]\n(pass) sqlite stepCatalogue.unbindStep:redundant-binding-keeps-protected-node [654.93ms]\n(pass) sqlite stepCatalogue.unbindStep:201-pairs-cap-and-order [720.18ms]\n(pass) sqlite stepCatalogue.unbindStep:borrowed-preview-keeps-unrelated-commit [646.27ms]\n(pass) sqlite stepCatalogue.unbindStep:borrowed-refusal-keeps-unrelated-commit [561.58ms]\n(pass) sqlite stepCatalogue.unbindStep:queued-mode-retention [571.48ms]\n(pass) sqlite stepCatalogue.unbindStep:borrowed-expiry [656.88ms]\n(pass) sqlite stepCatalogue.unbindStep:detached-refusal [562.17ms]\n(pass) sqlite stepCatalogue.unbindStep:source-close [641.38ms]\n\n 10 pass\n 20 filtered out\n 0 fail\n 529 expect() calls\nRan 10 tests across 1 file. [8.87s]\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/unbindSqlite/native.receipt.json",
+          "sha256": "cc3ba58c5a34db6fd68acbdc0cd835cc963216465ab8fa386b18ecc52d707993",
+          "bytes": 1443,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-registration-live-v1/unbindSqlite/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+              "--test-name-pattern",
+              "stepCatalogue.unbindStep:",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:59:21.591Z",
+          "endedAt": "2026-11-18T07:59:30.526Z",
+          "exitCode": 0,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-registration-live-v1/unbindSqlite/native.log",
+            "sha256": "ddd71976829e591854146b2d6902e64777abdcd8a6655461d675d1bd0ff8aca2",
+            "bytes": 976
+          },
+          "settled": true
+        }
+      }
+    },
+    {
+      "name": "types",
+      "log": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/types/native.log",
+          "sha256": "3bcffb69d98c7459becb2f37ab63005b0b7448110ef4049131f1a34c6d746953",
+          "bytes": 428,
+          "mode": 384
+        },
+        "text": "libs/wbs/application/core/src/testing/harness.ts(146,44): error TS2554: Expected 2-4 arguments, but got 1.\nlibs/wbs/application/core/src/testing/harness.ts(146,44): error TS2554: Expected 2-4 arguments, but got 1.\nlibs/wbs/application/core/src/testing/harness.ts(146,44): error TS2554: Expected 2-4 arguments, but got 1.\nlibs/wbs/application/core/src/testing/harness.ts(146,44): error TS2554: Expected 2-4 arguments, but got 1.\n"
+      },
+      "receipt": {
+        "descriptor": {
+          "path": "/tmp/puni-step-estimate-registration-live-v1/types/native.receipt.json",
+          "sha256": "b87667dd125517fb170dc8c17b15f9e077d30528a19cbc597217c1a9745e3dc0",
+          "bytes": 1520,
+          "mode": 384
+        },
+        "value": {
+          "schema": "activation-protected-native-v1",
+          "prefix": "/tmp/puni-step-estimate-registration-live-v1/types/native",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "node_modules/@typescript/native/bin/tsc",
+              "--build",
+              "--force",
+              "libs/wbs/domain/domain/tsconfig.json",
+              "libs/wbs/application/core/tsconfig.json",
+              "libs/wbs/adapters/store-sqlite/tsconfig.json",
+              "libs/wbs/adapters/store-memory/tsconfig.json"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "environment": {
+            "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/home/df",
+            "TMPDIR": "/tmp",
+            "TZ": "UTC",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "NODE_ENV": "test",
+            "NO_COLOR": "1",
+            "NX_DAEMON": "false",
+            "NX_ISOLATE_PLUGINS": "false"
+          },
+          "startedAt": "2026-11-18T07:56:40.765Z",
+          "endedAt": "2026-11-18T07:56:58.585Z",
+          "exitCode": 2,
+          "signal": null,
+          "originalObserved": true,
+          "launched": true,
+          "primary": null,
+          "cleanup": [],
+          "ownerState": "stopped-and-reaped",
+          "descriptorState": "closed",
+          "output": {
+            "state": "acquired",
+            "stdoutFd": 5,
+            "stderrFd": 5,
+            "sameNumericFd": true
+          },
+          "transcript": {
+            "state": "owned",
+            "path": "/tmp/puni-step-estimate-registration-live-v1/types/native.log",
+            "sha256": "3bcffb69d98c7459becb2f37ab63005b0b7448110ef4049131f1a34c6d746953",
+            "bytes": 428
+          },
+          "settled": true
+        }
+      }
+    }
+  ],
+  "finite": [
+    {
+      "id": "W_SQL",
+      "scope": "Necessity of the actual set outcome-refusal branch for an owned unbound step with retained definition/WPS. Capture and raw metadata validation remain; no foreign/type-conflict or each internal predicate credit.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-before.log",
+                  "sha256": "ad09c058430fad8aaef21c876c58a1bd70fe23d029f79fae60c139d2a24de842",
+                  "bytes": 358,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:estimate-after-unbind [749.00ms]\n(pass) sqlite stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [596.20ms]\n\n 2 pass\n 28 filtered out\n 0 fail\n 82 expect() calls\nRan 2 tests across 1 file. [4.15s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-before.receipt.json",
+                  "sha256": "6eaee3f31b34abb1dc61dd33970122f70b3572b1a46a897ff350c24d0e69da33",
+                  "bytes": 1519,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:03:45.784Z",
+                  "endedAt": "2026-11-18T08:03:49.972Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-before.log",
+                    "sha256": "ad09c058430fad8aaef21c876c58a1bd70fe23d029f79fae60c139d2a24de842",
+                    "bytes": 358
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-fault.log",
+                  "sha256": "949dc274b7b1d0255853bcd5b7602de97df40b83569bb59d8cdea3d61ca57c0b",
+                  "bytes": 1706,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toBe(expected)\n\nExpected: \"step_not_resolved\"\nReceived: \"written\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:estimate-after-unbind [719.70ms]\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toBe(expected)\n\nExpected: \"step_not_resolved\"\nReceived: \"written\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [571.10ms]\n\n 0 pass\n 28 filtered out\n 2 fail\n 69 expect() calls\nRan 2 tests across 1 file. [4.03s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-fault.receipt.json",
+                  "sha256": "9e959f2fd1af10bd51f7d34dcef185ef33c09e7a2d879f9ee4938b80221680d1",
+                  "bytes": 1518,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:03:50.691Z",
+                  "endedAt": "2026-11-18T08:03:54.758Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-fault.log",
+                    "sha256": "949dc274b7b1d0255853bcd5b7602de97df40b83569bb59d8cdea3d61ca57c0b",
+                    "bytes": 1706
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-after.log",
+                  "sha256": "5f4cb4a58e315db6ef8295a318d7b676e2c89c92f6fe2a8c3993fa4e50bfb703",
+                  "bytes": 358,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:estimate-after-unbind [762.95ms]\n(pass) sqlite stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [670.38ms]\n\n 2 pass\n 28 filtered out\n 0 fail\n 82 expect() calls\nRan 2 tests across 1 file. [4.26s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-after.receipt.json",
+                  "sha256": "1b154a662374f5dcb00fc7fd6fc4966bdc85bc059fce1d253a6ea897d904c7be",
+                  "bytes": 1517,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:03:56.205Z",
+                  "endedAt": "2026-11-18T08:04:00.500Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_SQL/vector-0-after.log",
+                    "sha256": "5f4cb4a58e315db6ef8295a318d7b676e2c89c92f6fe2a8c3993fa4e50bfb703",
+                    "bytes": 358
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W_MEM",
+      "scope": "Same actual set outcome-refusal necessity in memory; no claim about other fact writers or generic queued retention.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-before.log",
+                  "sha256": "34322988881a7a4197ba9583d373d26668fc8397e882a4c504b8b15b0f4ab369",
+                  "bytes": 352,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:estimate-after-unbind [35.45ms]\n(pass) memory stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [8.62ms]\n\n 2 pass\n 29 filtered out\n 0 fail\n 70 expect() calls\nRan 2 tests across 1 file. [2.58s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-before.receipt.json",
+                  "sha256": "755b599c0f39da026ab48f32099f1c1a3b1412d9612a200d54fa62c5d263a39e",
+                  "bytes": 1516,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:01.933Z",
+                  "endedAt": "2026-11-18T08:04:04.549Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-before.log",
+                    "sha256": "34322988881a7a4197ba9583d373d26668fc8397e882a4c504b8b15b0f4ab369",
+                    "bytes": 352
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-fault.log",
+                  "sha256": "2d1fc79433b08b81a062915ef1f984136db522c0610e77ebe98b86f3dd5f3269",
+                  "bytes": 1694,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toBe(expected)\n\nExpected: \"step_not_resolved\"\nReceived: \"written\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:estimate-after-unbind [41.85ms]\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).toBe(expected)\n\nExpected: \"step_not_resolved\"\nReceived: \"written\"\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [8.12ms]\n\n 0 pass\n 29 filtered out\n 2 fail\n 57 expect() calls\nRan 2 tests across 1 file. [2.49s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-fault.receipt.json",
+                  "sha256": "1157cd5118cc83458d6a07cc9ee019f1e61ca4fe35cff088d3057b8ac5686941",
+                  "bytes": 1515,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:05.281Z",
+                  "endedAt": "2026-11-18T08:04:07.814Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-fault.log",
+                    "sha256": "2d1fc79433b08b81a062915ef1f984136db522c0610e77ebe98b86f3dd5f3269",
+                    "bytes": 1694
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-after.log",
+                  "sha256": "0682ca4a291b2f1baf91fbba70f45e4df62c84c2c3a0f2ab86f8a241110b9429",
+                  "bytes": 352,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:estimate-after-unbind [21.85ms]\n(pass) memory stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit [8.44ms]\n\n 2 pass\n 29 filtered out\n 0 fail\n 70 expect() calls\nRan 2 tests across 1 file. [2.61s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-after.receipt.json",
+                  "sha256": "57777783e96991b910c05566c33b05b0e5efb12ab834df30fb672bcfb1166b33",
+                  "bytes": 1514,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:09.262Z",
+                  "endedAt": "2026-11-18T08:04:11.910Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/W_MEM/vector-0-after.log",
+                    "sha256": "0682ca4a291b2f1baf91fbba70f45e4df62c84c2c3a0f2ab86f8a241110b9429",
+                    "bytes": 352
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L_CORE",
+      "scope": "Whole entry-plus-postawait lifetime enforcement only. This does NOT independently own either check, postawait held-dependency expiry, or Source-wide closure. Public-close owner is deliberately excluded because deeper closed state may mask omission.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-before.log",
+                  "sha256": "815fc5d21168806aa7bbd9e57e1485f38338857a04a7f67a7207afbdbf61eea3",
+                  "bytes": 272,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:target-borrowed-after-commit [41.53ms]\n\n 1 pass\n 30 filtered out\n 0 fail\n 28 expect() calls\nRan 1 test across 1 file. [2.60s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-before.receipt.json",
+                  "sha256": "b18b482427defde3658581432113fcc6f25bcbe3925539086af7abf76b7736f3",
+                  "bytes": 1486,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:13.337Z",
+                  "endedAt": "2026-11-18T08:04:15.982Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-before.log",
+                    "sha256": "815fc5d21168806aa7bbd9e57e1485f38338857a04a7f67a7207afbdbf61eea3",
+                    "bytes": 272
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-fault.log",
+                  "sha256": "919a5842c9d83cd425c05033c48cfc0e37057accd8a1b5eb56b1343739c98186",
+                  "bytes": 989,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:target-borrowed-after-commit [37.94ms]\n\n 0 pass\n 30 filtered out\n 1 fail\n 22 expect() calls\nRan 1 test across 1 file. [2.96s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-fault.receipt.json",
+                  "sha256": "606e0a63ab8966047d5e151307806df95bf38d78e62e5b80b8b686f5afd1958a",
+                  "bytes": 1484,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:16.711Z",
+                  "endedAt": "2026-11-18T08:04:19.718Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-fault.log",
+                    "sha256": "919a5842c9d83cd425c05033c48cfc0e37057accd8a1b5eb56b1343739c98186",
+                    "bytes": 989
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-after.log",
+                  "sha256": "42c3bc87de4daad6b4e9f2d0ac5d58d5ccad4e158c779e00b1d915f6a050df06",
+                  "bytes": 272,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:target-borrowed-after-commit [23.64ms]\n\n 1 pass\n 30 filtered out\n 0 fail\n 28 expect() calls\nRan 1 test across 1 file. [2.41s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-after.receipt.json",
+                  "sha256": "28e19bc8d7e647da61301a2b93570a0fd5a93693f64c4761fefd28036054e51a",
+                  "bytes": 1484,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:21.149Z",
+                  "endedAt": "2026-11-18T08:04:23.609Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-0-after.log",
+                    "sha256": "42c3bc87de4daad6b4e9f2d0ac5d58d5ccad4e158c779e00b1d915f6a050df06",
+                    "bytes": 272
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-before.log",
+                  "sha256": "f16029eef7e4f4c71bf6884cd14ea86a084d3f468ff530ebd4d87e25468284db",
+                  "bytes": 276,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:target-borrowed-after-commit [728.21ms]\n\n 1 pass\n 29 filtered out\n 0 fail\n 34 expect() calls\nRan 1 test across 1 file. [3.30s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-before.receipt.json",
+                  "sha256": "5a77d0594e49c5cebfcf3126b0b513e5d8c40bfa278bfef73c549a547ebba686",
+                  "bytes": 1489,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:25.042Z",
+                  "endedAt": "2026-11-18T08:04:28.394Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-before.log",
+                    "sha256": "f16029eef7e4f4c71bf6884cd14ea86a084d3f468ff530ebd4d87e25468284db",
+                    "bytes": 276
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-fault.log",
+                  "sha256": "714ff2d229d596013812afdd28d0618b4e93936937e7937808aaf35acc3556f3",
+                  "bytes": 996,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:target-borrowed-after-commit [739.35ms]\n\n 0 pass\n 29 filtered out\n 1 fail\n 28 expect() calls\nRan 1 test across 1 file. [3.27s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-fault.receipt.json",
+                  "sha256": "57ca2a0f4225bcf922c6bcb3ef05020859a5f00068acec68772e2f02656522df",
+                  "bytes": 1487,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:29.132Z",
+                  "endedAt": "2026-11-18T08:04:32.443Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-fault.log",
+                    "sha256": "714ff2d229d596013812afdd28d0618b4e93936937e7937808aaf35acc3556f3",
+                    "bytes": 996
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-after.log",
+                  "sha256": "0ac36efef7d568022847cd54a8daa98b05f329339513ef8eb3e1b7eea0c8cd82",
+                  "bytes": 276,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:target-borrowed-after-commit [730.20ms]\n\n 1 pass\n 29 filtered out\n 0 fail\n 34 expect() calls\nRan 1 test across 1 file. [3.31s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-after.receipt.json",
+                  "sha256": "2ad24b4981518c824936e1b0c57188acb84ee66291561fd93423477a4bcd381c",
+                  "bytes": 1487,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:33.864Z",
+                  "endedAt": "2026-11-18T08:04:37.224Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_CORE/vector-1-after.log",
+                    "sha256": "0ac36efef7d568022847cd54a8daa98b05f329339513ef8eb3e1b7eea0c8cd82",
+                    "bytes": 276
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L_SQL_PLAIN",
+      "scope": "Plain SQLite repair-scope estimate wrapper wiring. All other scope guards and common wrapper unchanged.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-before.log",
+                  "sha256": "bef43cbae64570a3f1e215fab6d45f309d0948890f6fff11010d6debe6ea0502",
+                  "bytes": 274,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:target-plain-repair-expiry [705.95ms]\n\n 1 pass\n 29 filtered out\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.30s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-before.receipt.json",
+                  "sha256": "7eb85cfcee291f624d46c48ac8833b1e471aef1561b4dc26455cf943231497bf",
+                  "bytes": 1497,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:38.650Z",
+                  "endedAt": "2026-11-18T08:04:42.001Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-before.log",
+                    "sha256": "bef43cbae64570a3f1e215fab6d45f309d0948890f6fff11010d6debe6ea0502",
+                    "bytes": 274
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-fault.log",
+                  "sha256": "7fb4ba04f6c0358baa48b4326ccb60727b7aa49358f276df3fdc7b0d3dcab90b",
+                  "bytes": 994,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n 5 | \n 6 | for (const registration of stepCatalogueRegistrations(openSqliteStepCatalogueCase)) {\n 7 |   test('sqlite ' + registration.caseId, async () => {\n 8 |     const report = await runCases([registration]);\n 9 |     const failure = report.cases.find(({ status }) => status === 'failed');\n10 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:10:49)\n(fail) sqlite stepCatalogue.factWrite:target-plain-repair-expiry [640.99ms]\n\n 0 pass\n 29 filtered out\n 1 fail\n 30 expect() calls\nRan 1 test across 1 file. [3.21s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-fault.receipt.json",
+                  "sha256": "b120a64ede961c18c984bba61557ab5c656b721cc5ee1483d2ef07eb3557894d",
+                  "bytes": 1495,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:42.732Z",
+                  "endedAt": "2026-11-18T08:04:45.992Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-fault.log",
+                    "sha256": "7fb4ba04f6c0358baa48b4326ccb60727b7aa49358f276df3fdc7b0d3dcab90b",
+                    "bytes": 994
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-after.log",
+                  "sha256": "4ced94c0921294a975f3152fcc91673b1768aff61b5a132639cb89ce407290e2",
+                  "bytes": 274,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts:\n(pass) sqlite stepCatalogue.factWrite:target-plain-repair-expiry [704.54ms]\n\n 1 pass\n 29 filtered out\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.28s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-after.receipt.json",
+                  "sha256": "cc3ea6b1c5de09deaf3f78315d48d5f7e28d9ac46b6978438f360d0e858cad0f",
+                  "bytes": 1495,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:47.412Z",
+                  "endedAt": "2026-11-18T08:04:50.738Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_PLAIN/vector-0-after.log",
+                    "sha256": "4ced94c0921294a975f3152fcc91673b1768aff61b5a132639cb89ce407290e2",
+                    "bytes": 274
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L_SQL_BOUND",
+      "scope": "Bound SQLite repair-scope estimate wrapper wiring, independently from plain scope.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-before.log",
+                  "sha256": "be28d06deca5c50c2b0d018cf159165485b80744bb2da42340f4eb30f99e798e",
+                  "bytes": 290,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:\n(pass) sqlite estimate target bound repair loan expires without reviving during another real repair [714.69ms]\n\n 1 pass\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.19s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-before.receipt.json",
+                  "sha256": "3320e59b6d634d1f1c55917032fcd923a6e5e5368bc6031d925f9bca381da0f2",
+                  "bytes": 1526,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite estimate target bound repair loan expires without reviving during another real repair$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:51.972Z",
+                  "endedAt": "2026-11-18T08:04:55.210Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-before.log",
+                    "sha256": "be28d06deca5c50c2b0d018cf159165485b80744bb2da42340f4eb30f99e798e",
+                    "bytes": 290
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-fault.log",
+                  "sha256": "57b34e72875f76f1bf7bf43636064b3645a80efb111c7e693fd8116016c6c462",
+                  "bytes": 1336,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:\n45 |     });\n46 |     expect(refusal).toBe('bound-refused-turn');\n47 |     const retained = captured.port;\n48 |     if (retained === undefined) throw new Error('actual bound repair target loan was not captured');\n49 |     expect(fixture.readEvidence()).toEqual(before);\n50 |     await expect(retained.readTarget(workItemId, stepId)).rejects.toThrow(/closed/);\n                                                                       ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:50:67)\n      at async attempt (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:10:41)\n      at async <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:16:27)\n(fail) sqlite estimate target bound repair loan expires without reviving during another real repair [689.34ms]\n\n 0 pass\n 1 fail\n 30 expect() calls\nRan 1 test across 1 file. [3.21s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-fault.receipt.json",
+                  "sha256": "49f8b3669f6fbf56e55bdbe9537c537bf6e1e4375109fed5c4fec61a8cf62a57",
+                  "bytes": 1525,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite estimate target bound repair loan expires without reviving during another real repair$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:04:55.924Z",
+                  "endedAt": "2026-11-18T08:04:59.183Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-fault.log",
+                    "sha256": "57b34e72875f76f1bf7bf43636064b3645a80efb111c7e693fd8116016c6c462",
+                    "bytes": 1336
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-after.log",
+                  "sha256": "64822ad5350f165dac7618fafb02ce21add0acd20cb6570deb068490c54bb92b",
+                  "bytes": 290,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts:\n(pass) sqlite estimate target bound repair loan expires without reviving during another real repair [719.24ms]\n\n 1 pass\n 0 fail\n 36 expect() calls\nRan 1 test across 1 file. [3.27s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-after.receipt.json",
+                  "sha256": "c4ac84fa1320a078b9b4bb232dfa933c94d5b3e460483dbc41e57724584803d7",
+                  "bytes": 1524,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+                      "--test-name-pattern",
+                      "^sqlite estimate target bound repair loan expires without reviving during another real repair$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:05:00.596Z",
+                  "endedAt": "2026-11-18T08:05:03.917Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_SQL_BOUND/vector-0-after.log",
+                    "sha256": "64822ad5350f165dac7618fafb02ce21add0acd20cb6570deb068490c54bb92b",
+                    "bytes": 290
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L_MEM_REPAIR",
+      "scope": "Memory repair-scope estimate wrapper wiring; no new coordinator, alternative state or synthetic loan.",
+      "vectors": [
+        {
+          "index": 0,
+          "phases": [
+            {
+              "phase": "before",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-before.log",
+                  "sha256": "90749cfc078ddc2d9f5f07acc82a7f6a1eea4ace1e1b5af7e38e09e626cad8a2",
+                  "bytes": 270,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:target-plain-repair-expiry [38.02ms]\n\n 1 pass\n 30 filtered out\n 0 fail\n 30 expect() calls\nRan 1 test across 1 file. [2.45s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-before.receipt.json",
+                  "sha256": "452126376628e1ed122b33dc959744c88790cc4cf5cf986d3782b8e0f4225da5",
+                  "bytes": 1496,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-before",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:05:05.327Z",
+                  "endedAt": "2026-11-18T08:05:07.818Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-before.log",
+                    "sha256": "90749cfc078ddc2d9f5f07acc82a7f6a1eea4ace1e1b5af7e38e09e626cad8a2",
+                    "bytes": 270
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "fault",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-fault.log",
+                  "sha256": "c3f35c7e1b5e34772f25a24ebf20d4f580388d8d6058514269a4fe872edee461",
+                  "bytes": 987,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n16 | \n17 | for (const registration of stepCatalogueRegistrations(openMemoryStepCatalogueCase)) {\n18 |   test('memory ' + registration.caseId, async () => {\n19 |     const report = await runCases([registration]);\n20 |     const failure = report.cases.find(({ status }) => status === 'failed');\n21 |     if (failure?.status === 'failed') throw new Error(failure.failure);\n                                                     ^\nerror: expect(received).rejects.toThrow(expected)\n\nExpected promise that rejects\nReceived promise that resolved: Promise { <resolved> }\n\n      at <anonymous> (/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:21:49)\n(fail) memory stepCatalogue.factWrite:target-plain-repair-expiry [33.85ms]\n\n 0 pass\n 30 filtered out\n 1 fail\n 24 expect() calls\nRan 1 test across 1 file. [2.46s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-fault.receipt.json",
+                  "sha256": "9fa41dcb84308e7fe6eaac0f43cbc0bbead0cf0c72889127ca0b8e039af268ff",
+                  "bytes": 1494,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-fault",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:05:08.557Z",
+                  "endedAt": "2026-11-18T08:05:11.065Z",
+                  "exitCode": 1,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-fault.log",
+                    "sha256": "c3f35c7e1b5e34772f25a24ebf20d4f580388d8d6058514269a4fe872edee461",
+                    "bytes": 987
+                  },
+                  "settled": true
+                }
+              }
+            },
+            {
+              "phase": "after",
+              "log": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-after.log",
+                  "sha256": "9a1985e3692f86d821d7d233f529b97cc27570e6305a67b8011e3242ee0fd6ca",
+                  "bytes": 270,
+                  "mode": 384
+                },
+                "text": "bun test v1.4.4 (38afee6c8)\n\nlibs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts:\n(pass) memory stepCatalogue.factWrite:target-plain-repair-expiry [31.70ms]\n\n 1 pass\n 30 filtered out\n 0 fail\n 30 expect() calls\nRan 1 test across 1 file. [2.40s]\n"
+              },
+              "receipt": {
+                "descriptor": {
+                  "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-after.receipt.json",
+                  "sha256": "75415e8df1277e209ccb3934a270b815a9de11af29cee155dee8b2ceb2b60823",
+                  "bytes": 1494,
+                  "mode": 384
+                },
+                "value": {
+                  "schema": "activation-protected-native-v1",
+                  "prefix": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-after",
+                  "command": {
+                    "argv": [
+                      "/home/df/.bun/bin/bun",
+                      "test",
+                      "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                      "--test-name-pattern",
+                      "^memory stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                      "--timeout=30000"
+                    ],
+                    "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+                    "deadlineMs": 180000
+                  },
+                  "environment": {
+                    "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME": "/home/df",
+                    "TMPDIR": "/tmp",
+                    "TZ": "UTC",
+                    "LANG": "C.UTF-8",
+                    "LC_ALL": "C.UTF-8",
+                    "NODE_ENV": "test",
+                    "NO_COLOR": "1",
+                    "NX_DAEMON": "false",
+                    "NX_ISOLATE_PLUGINS": "false"
+                  },
+                  "startedAt": "2026-11-18T08:05:12.509Z",
+                  "endedAt": "2026-11-18T08:05:14.950Z",
+                  "exitCode": 0,
+                  "signal": null,
+                  "originalObserved": true,
+                  "launched": true,
+                  "primary": null,
+                  "cleanup": [],
+                  "ownerState": "stopped-and-reaped",
+                  "descriptorState": "closed",
+                  "output": {
+                    "state": "acquired",
+                    "stdoutFd": 5,
+                    "stderrFd": 5,
+                    "sameNumericFd": true
+                  },
+                  "transcript": {
+                    "state": "owned",
+                    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/L_MEM_REPAIR/vector-0-after.log",
+                    "sha256": "9a1985e3692f86d821d7d233f529b97cc27570e6305a67b8011e3242ee0fd6ca",
+                    "bytes": 270
+                  },
+                  "settled": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "The initial SQLite queued ordering setup failure is excluded; sorted membership repair precedes the credited RED.",
+    "The V4 missing reaches binding was repaired and separately reviewed; the successful controls use the corrected source.",
+    "Reader cases remain intentional failures until current readers replace the legacy implementations.",
+    "Types report only the required inMemoryServices fixture-constructor migration, repeated by project references. No passing type, lint, format, build, full repository gate or deployment is claimed.",
+    "Finite effects own two set refusal branches, whole common target lifetime enforcement, and three repair wrapper selections. Individual pre/post-await and raw metadata predicates, other fact families and structural command paths remain open."
+  ],
+  "plan": {
+    "descriptor": {
+      "path": "/tmp/puni-step-estimate-guard-effects-v1/plan.json",
+      "sha256": "484a78f94fd69b2406a0a8277a427278c878496fc4d4f1c902df359f8b134413",
+      "bytes": 21026,
+      "mode": 384
+    },
+    "value": {
+      "schema": "estimate-guard-effects-v1",
+      "status": "REVIEW ONLY ALL FAULTS UNRUN",
+      "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+      "basis": {
+        "path": "/tmp/puni-step-estimate-controls-live-v1/source-pins.json",
+        "sha256": "14df1a5da365cdfa9bb225ed00d8dc486eb01f6bd5fa0e43092277ed46b5b815",
+        "bytes": 5167718,
+        "mode": 384
+      },
+      "protect": [
+        {
+          "path": "/tmp/puni-step-estimate-controls-live-v1/source-pins.json",
+          "sha256": "14df1a5da365cdfa9bb225ed00d8dc486eb01f6bd5fa0e43092277ed46b5b815",
+          "bytes": 5167718,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+          "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+          "bytes": 145510,
+          "mode": 384
+        },
+        {
+          "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+          "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+          "bytes": 76933,
+          "mode": 384
+        }
+      ],
+      "ordinaryOriginals": [
+        {
+          "phase": "factWriteMemory",
+          "files": [
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.log",
+              "sha256": "68f322e674bac61fe693bd8a3bbabf863f5c93f76912fa4822ee042ce7411a10",
+              "bytes": 806,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.receipt.json",
+              "sha256": "7211cfebd6c55876a199507fd16c1c48f5b0ece441bdeaea399c264e5c4abc8f",
+              "bytes": 1437,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteMemory/native.validation.json",
+              "sha256": "a7fd279c745cdc61117dbb628a9e544d3409ed624cafa6d48e0b2ac18333937b",
+              "bytes": 1358,
+              "mode": 384
+            }
+          ]
+        },
+        {
+          "phase": "factWriteSqlite",
+          "files": [
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.log",
+              "sha256": "0f47a7457ced36ec0a26e5b6f64bf7f5509e3b9fe85f68ee3522c9c8a46420e6",
+              "bytes": 824,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.receipt.json",
+              "sha256": "85464347f8b27b494ff869b10a386429f40448eec39278cb0a15c4c865f354fb",
+              "bytes": 1440,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/factWriteSqlite/native.validation.json",
+              "sha256": "b7a21155edddbaf64c2d19591d2a78883e2e84a090f64f38e34e9d8072a888ae",
+              "bytes": 1358,
+              "mode": 384
+            }
+          ]
+        },
+        {
+          "phase": "boundTargetLifetime",
+          "files": [
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.log",
+              "sha256": "218685c42dc0888f321b4995a16584b0fa8fe20006e662f5f875fd51a86190f4",
+              "bytes": 290,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.receipt.json",
+              "sha256": "d74b56224be0ccb794cff2e015e374f920e1e3c466bab2e8c6f09f67c4ba15b3",
+              "bytes": 1383,
+              "mode": 384
+            },
+            {
+              "path": "/tmp/puni-step-estimate-controls-live-v1/boundTargetLifetime/native.validation.json",
+              "sha256": "21590be6a41939ee759d75c55838fc4f9f1a3da42febe7677b4f5927f6f22319",
+              "bytes": 1370,
+              "mode": 384
+            }
+          ]
+        }
+      ],
+      "owners": [
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/step-fact-writer.ts",
+          "sha256": "ed2f15b7665e0dec95d014ddc9cc261d3381edf04748a9909b837f730c29d2e9",
+          "bytes": 13416,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/step-estimate-target-lifetime.ts",
+          "sha256": "151565dd6ffa5cfb56e692da1f1672b4c932c001dd1b8f5034e0dbdc8f00fa1c",
+          "bytes": 5587,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/case-manifest.ts",
+          "sha256": "092f7a8561105235ab1b5831e37e532444f9321dfd85059dc58a6edd6329bf74",
+          "bytes": 11104,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/conformance/src/stores/step-catalogue.ts",
+          "sha256": "76bd18ee46915e114b775c3bd545f769e4417c8f491422d7837f36ec4fac6610",
+          "bytes": 38141,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+          "sha256": "f9b0d2ae32457a2d34395b73b19ff869a6347e472123681a96085e410738e6e7",
+          "bytes": 4057,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+          "sha256": "3e95e2cd5e4ba5f0d5e39d24a4bad850ec48312c63c194561e0f2ad22f0438d0",
+          "bytes": 7625,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+          "sha256": "486e0dc5b16acf3c2a5aee99f7c229a8b7dd07cb75cf8f4ef574f60eaf500917",
+          "bytes": 685,
+          "mode": 436
+        }
+      ],
+      "effects": [
+        {
+          "id": "W_SQL",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/estimate.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/estimate.ts",
+            "sha256": "bec4c68f1de0fdf3d19adafebd061236d1ea966448a96e31380974d957df4564",
+            "bytes": 10199,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_SQL.before.ts",
+            "sha256": "bec4c68f1de0fdf3d19adafebd061236d1ea966448a96e31380974d957df4564",
+            "bytes": 10199,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_SQL.fault.ts",
+            "sha256": "f6b2db2657eab509946c49358ab1602ddc55a7a62da28b081d88c82d4bc86cc7",
+            "bytes": 10137,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_SQL.inverse.json",
+            "sha256": "deaff412e66799261c26d67e728d3462ee18836ceed62a8828c84367c453d0fc",
+            "bytes": 274,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_SQL.effect.json",
+            "sha256": "e4a0164f3fa119e035aec437b12067cd56d129404c53cd504184304b67bbc88f",
+            "bytes": 708,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                "--test-name-pattern",
+                "^sqlite stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                "--timeout=30000"
+              ],
+              "titles": [
+                "sqlite stepCatalogue.factWrite:estimate-after-unbind",
+                "sqlite stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit"
+              ],
+              "expectedSelected": 2,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "Both selected cases first receive written instead of step_not_resolved. Borrowed owner has already committed its unrelated definition; later state/revision assertions remain unreached.",
+          "scope": "Necessity of the actual set outcome-refusal branch for an owned unbound step with retained definition/WPS. Capture and raw metadata validation remain; no foreign/type-conflict or each internal predicate credit.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        },
+        {
+          "id": "W_MEM",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/estimate-fixture.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/estimate-fixture.ts",
+            "sha256": "a2838d542445b6702a2fc5347021b40d396749fb5b80ec422e607516e3599e79",
+            "bytes": 3549,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_MEM.before.ts",
+            "sha256": "a2838d542445b6702a2fc5347021b40d396749fb5b80ec422e607516e3599e79",
+            "bytes": 3549,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_MEM.fault.ts",
+            "sha256": "fb1fa5a9c4546a8e897befbb7f24808fa99bf1d01f3c930faee957381116512e",
+            "bytes": 3487,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_MEM.inverse.json",
+            "sha256": "51c44746f0b3f84d815c5b7f9c231a3588d3f3aa1314035ceaa4f9fe811412d4",
+            "bytes": 274,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/W_MEM.effect.json",
+            "sha256": "6f9807b62b1436707951bce72223bfec5e1cbc46e213ca77cad125bccaa2e8c2",
+            "bytes": 722,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                "--test-name-pattern",
+                "^memory stepCatalogue\\.factWrite:(estimate-after-unbind|borrowed-estimate-refusal-keeps-commit)$",
+                "--timeout=30000"
+              ],
+              "titles": [
+                "memory stepCatalogue.factWrite:estimate-after-unbind",
+                "memory stepCatalogue.factWrite:borrowed-estimate-refusal-keeps-commit"
+              ],
+              "expectedSelected": 2,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "Both selected cases first receive written instead of step_not_resolved. Borrowed owner has already committed its unrelated definition; later state/revision assertions remain unreached.",
+          "scope": "Same actual set outcome-refusal necessity in memory; no claim about other fact writers or generic queued retention.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        },
+        {
+          "id": "L_CORE",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-write.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/application/core/src/module/step-catalogue/step-write.ts",
+            "sha256": "3b54e31756e464f6ba2a3cac1daa85d7dc210a5ff0d9f57aea9b25cba410e3ed",
+            "bytes": 4002,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_CORE.before.ts",
+            "sha256": "3b54e31756e464f6ba2a3cac1daa85d7dc210a5ff0d9f57aea9b25cba410e3ed",
+            "bytes": 4002,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_CORE.fault.ts",
+            "sha256": "1a176065a0c3a1dbc45ade554ed38d024bc6184e5b076c66543d844f4d5c16a2",
+            "bytes": 3962,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_CORE.inverse.json",
+            "sha256": "53bd1396dc43c8860b098a00601a350a23a6ed11aedbacb152ada91ea38f7beb",
+            "bytes": 529,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_CORE.effect.json",
+            "sha256": "f074b91407478dc010d0e9542b9dbdd2b8fd115718b997a887817f6bd903b58e",
+            "bytes": 1000,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                "--test-name-pattern",
+                "^memory stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                "--timeout=30000"
+              ],
+              "titles": ["memory stepCatalogue.factWrite:target-borrowed-after-commit"],
+              "expectedSelected": 1,
+              "outerDeadlineMs": 180000
+            },
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                "--test-name-pattern",
+                "^sqlite stepCatalogue\\.factWrite:(target-borrowed-after-commit)$",
+                "--timeout=30000"
+              ],
+              "titles": ["sqlite stepCatalogue.factWrite:target-borrowed-after-commit"],
+              "expectedSelected": 1,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "The first expectTargetClosed after actual COMMIT receives a resolved target rather than a rejection. Healthy public/borrowed metadata and independent committed leaf precede it. Later unchanged-state/no-revival assertions are unreached.",
+          "scope": "Whole entry-plus-postawait lifetime enforcement only. This does NOT independently own either check, postawait held-dependency expiry, or Source-wide closure. Public-close owner is deliberately excluded because deeper closed state may mask omission.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        },
+        {
+          "id": "L_SQL_PLAIN",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+            "sha256": "f949a4d50de42b545b02a05dcb2b054a9865f614117fe7f02193694928cbe16c",
+            "bytes": 18892,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_PLAIN.before.ts",
+            "sha256": "f949a4d50de42b545b02a05dcb2b054a9865f614117fe7f02193694928cbe16c",
+            "bytes": 18892,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_PLAIN.fault.ts",
+            "sha256": "02901a20b9831876ef42e1cd244337fb05cc9040fa12e44043896f4facf32164",
+            "bytes": 18817,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_PLAIN.inverse.json",
+            "sha256": "4c957ba60b4e0178defe4758dd040aa00a19db7924e6e221d1546389c14631b3",
+            "bytes": 523,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_PLAIN.effect.json",
+            "sha256": "643aeebfa1e96db67505532e827e87c6b30a58f872cc174b3d5eb36aa1f1a358",
+            "bytes": 959,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/step-catalogue-conformance.db.test.ts",
+                "--test-name-pattern",
+                "^sqlite stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                "--timeout=30000"
+              ],
+              "titles": ["sqlite stepCatalogue.factWrite:target-plain-repair-expiry"],
+              "expectedSelected": 1,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "The first expired repair read resolves instead of rejecting, after actual healthy afterRollback read and state equality. Later no-revival/state assertions are unreached.",
+          "scope": "Plain SQLite repair-scope estimate wrapper wiring. All other scope guards and common wrapper unchanged.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        },
+        {
+          "id": "L_SQL_BOUND",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/source.ts",
+            "sha256": "f949a4d50de42b545b02a05dcb2b054a9865f614117fe7f02193694928cbe16c",
+            "bytes": 18892,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_BOUND.before.ts",
+            "sha256": "f949a4d50de42b545b02a05dcb2b054a9865f614117fe7f02193694928cbe16c",
+            "bytes": 18892,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_BOUND.fault.ts",
+            "sha256": "8ff6650b111f79c0086275195af12f2bae12a424e93708a1f7b5c435125c5486",
+            "bytes": 18817,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_BOUND.inverse.json",
+            "sha256": "2bc69acde2d158a1d7d2e2884321a5cc8e07b807b6625f0725a46deb4bd03424",
+            "bytes": 587,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_SQL_BOUND.effect.json",
+            "sha256": "23b77ca7fbb3d0d953c7616f29ba4bd3cc09d8489de2c67b979e6116e95d5f2b",
+            "bytes": 1023,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-sqlite/src/testing/estimate-target-lifetime.db.test.ts",
+                "--test-name-pattern",
+                "^sqlite estimate target bound repair loan expires without reviving during another real repair$",
+                "--timeout=30000"
+              ],
+              "titles": [
+                "sqlite estimate target bound repair loan expires without reviving during another real repair"
+              ],
+              "expectedSelected": 1,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "First retained bound repair read resolves instead of rejecting, after actual bindLivePlans/healthy ordinary and repair reads. Later no-revival/state/public reread assertions are unreached.",
+          "scope": "Bound SQLite repair-scope estimate wrapper wiring, independently from plain scope.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        },
+        {
+          "id": "L_MEM_REPAIR",
+          "target": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+          "before": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-memory/src/source.ts",
+            "sha256": "d68b5e360f722c762134429b2fe517dd6f122247cbe65c14b49668172a063a73",
+            "bytes": 61251,
+            "mode": 436
+          },
+          "canonical": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_MEM_REPAIR.before.ts",
+            "sha256": "d68b5e360f722c762134429b2fe517dd6f122247cbe65c14b49668172a063a73",
+            "bytes": 61251,
+            "mode": 384
+          },
+          "variant": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_MEM_REPAIR.fault.ts",
+            "sha256": "f5b9f29647f53f305b87c54331b1eb75a8bb942cde435cfaa35755a9cb90be87",
+            "bytes": 61212,
+            "mode": 384
+          },
+          "inverse": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_MEM_REPAIR.inverse.json",
+            "sha256": "b74f631af6ed52d8b98c417ab652bc8d78b5f1136cbe3d9fc3dacf3328c171a1",
+            "bytes": 339,
+            "mode": 384
+          },
+          "effect": {
+            "path": "/tmp/puni-step-estimate-guard-effects-v1/L_MEM_REPAIR.effect.json",
+            "sha256": "27a665f5f2a25c241da1c6a726c78dfd6659201442a91d2b1f1f793730c50ad3",
+            "bytes": 776,
+            "mode": 384
+          },
+          "vectors": [
+            {
+              "argv": [
+                "/home/df/.bun/bin/bun",
+                "test",
+                "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+                "--test-name-pattern",
+                "^memory stepCatalogue\\.factWrite:(target-plain-repair-expiry)$",
+                "--timeout=30000"
+              ],
+              "titles": ["memory stepCatalogue.factWrite:target-plain-repair-expiry"],
+              "expectedSelected": 1,
+              "outerDeadlineMs": 180000
+            }
+          ],
+          "prospectiveFirstFailure": "First retained memory repair read resolves instead of rejecting. Actual healthy repair read and prior state equality must be reached; later state/no-revival assertions are unreached.",
+          "scope": "Memory repair-scope estimate wrapper wiring; no new coordinator, alternative state or synthetic loan.",
+          "nativeMutantOnly": true,
+          "observedFault": null
+        }
+      ],
+      "report": {
+        "path": "/tmp/puni-step-estimate-guard-effects-v1/report.md",
+        "sha256": "d74160871dec7169a3146024b5247365c9db1c257673ca9c570d4636674b3202",
+        "bytes": 2113,
+        "mode": 384
+      },
+      "actorsRun": [],
+      "counts": {
+        "sourceEffects": 6,
+        "argvSelections": 7,
+        "selectedCasesPerPhase": 9
+      },
+      "executionOwner": "Root only; existing protected finite actor and exact restoration protocol"
+    }
+  },
+  "effectSummary": {
+    "path": "/tmp/puni-step-estimate-guard-effects-live-v1/summary.json",
+    "sha256": "e794fad1fe2bc6eb0f1154957df619375ae92cca84d8b3db236f2aa5e5b59c2e",
+    "bytes": 21068,
+    "mode": 384
+  }
+}

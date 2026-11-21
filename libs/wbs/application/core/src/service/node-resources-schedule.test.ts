@@ -51,6 +51,7 @@ it('preserves base schedule slice bytes, pool order, canonical hash and Fast sch
     effectiveTeamsOf(rows),
     capacity,
     new Map(),
+    { kind: 'uniform' },
   );
   const expected = ['a', 'b', 'c'].flatMap((workItemId) =>
     steps.map(({ id: stepId }) => ({
@@ -82,6 +83,14 @@ it('preserves base schedule slice bytes, pool order, canonical hash and Fast sch
     '836fceac297ca723748bc4d05720bb5ebe5f7b6741e30778f29bde44e26b459f',
   );
   expect(createHash('sha256').update(JSON.stringify(fast)).digest('hex')).toBe(
+    'b26c0d5f070ac008817b6ce41e6201a2e82f2b225d37d235e2687c46a20843c7',
+  );
+  // The owned floor was renamed; projecting that field back must retain the
+  // original golden bytes for every timing, wait, pool and placement value.
+  const previousVocabulary = JSON.stringify(fast, (key, value: unknown) =>
+    key === 'boundBy' && value === 'workPackageStart' ? 'projectStart' : value,
+  );
+  expect(createHash('sha256').update(previousVocabulary).digest('hex')).toBe(
     '980ef345d62f1a699801b12f5f7e91779af965a080c564602865fdc3b03168e8',
   );
 });

@@ -116,7 +116,7 @@ describe('narrowTree — a typed name', () => {
   });
 
   it('treats a query of nothing but spaces as no filter at all', () => {
-    // The same `trim().toLowerCase()` rule the project picker and the Depends
+    // The same `trim().toLowerCase()` rule the work package picker and the Depends
     // on picker apply. Two filters side by side that disagree about a space is
     // a surprise with nothing to gain from it.
     const narrowed = narrowTree(PLAN, asking({ query: '   ' }));

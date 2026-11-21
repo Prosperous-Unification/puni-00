@@ -15,7 +15,7 @@ function labelled(id: string, parentId: string | null, ...teamIds: string[]): La
     id,
     parentId,
     name: id,
-    projectId: 'p1',
+    workPackageId: 'p1',
     serviceTeamId: teamIds.at(0) ?? null,
     teamIds,
   });
@@ -27,7 +27,7 @@ function rowsOf(
 ): DirectoryUsageRows {
   return {
     workItems,
-    projects: [{ id: 'p1', name: 'Rollout' }],
+    workPackages: [{ id: 'p1', name: 'Rollout' }],
     assignments: [],
     steps: [],
     people: [],
@@ -47,7 +47,7 @@ describe('directoryUsageOfTeam over a set', () => {
     const rows = rowsOf([labelled('w1', null, 'backend', 'design')]);
 
     for (const teamId of ['backend', 'design']) {
-      expect(directoryUsageOfTeam(rows, teamId).projects).toEqual([
+      expect(directoryUsageOfTeam(rows, teamId).workPackages).toEqual([
         {
           id: 'p1',
           name: 'Rollout',
@@ -60,7 +60,7 @@ describe('directoryUsageOfTeam over a set', () => {
   it('says nothing about a team no row in the set names', () => {
     const rows = rowsOf([labelled('w1', null, 'backend', 'design')]);
 
-    expect(directoryUsageOfTeam(rows, 'platform').projects).toEqual([]);
+    expect(directoryUsageOfTeam(rows, 'platform').workPackages).toEqual([]);
   });
 
   it('releases the capacity of an inherited set, on either member', () => {
@@ -74,7 +74,7 @@ describe('directoryUsageOfTeam over a set', () => {
     );
 
     for (const teamId of ['backend', 'design']) {
-      const named = directoryUsageOfTeam(rows, teamId).projects[0]?.workItems ?? [];
+      const named = directoryUsageOfTeam(rows, teamId).workPackages[0]?.workItems ?? [];
       expect(named.map((each) => each.id)).toEqual(['parent', 'leaf']);
       expect(named.at(1)?.effects).toEqual([
         { kind: 'capacity_released', size: 2, fromId: 'parent' },
@@ -104,7 +104,7 @@ describe('directoryUsageOfPerson over claims', () => {
       ],
     };
     expect(
-      directoryUsageOfPerson(rows, 'claire').projects[0]?.workItems.map(({ id, effects }) => [
+      directoryUsageOfPerson(rows, 'claire').workPackages[0]?.workItems.map(({ id, effects }) => [
         id,
         effects,
       ]),

@@ -1,0 +1,667 @@
+{
+  "schema": "memory-project-revision-verification-v109",
+  "recordedAt": "2026-11-21T10:59:09.256254+00:00",
+  "goalStatus": "active",
+  "intent": {
+    "problem": "Memory rename/delete could accept malformed raw revisions or hide them behind modeled conflicts/nonempty outcomes, unlike SQLite row decoding.",
+    "outcome": "Validate admitted raw revisions once before branching or arithmetic, without changing concealment, CP14, rollback or valid maximum overflow precedence.",
+    "nonGoals": "No new current Source project/directory capability, history rewrite, migration bypass or full original goal completion."
+  },
+  "verification": {
+    "memoryProjectAndSource": {
+      "pass": 195,
+      "fail": 0,
+      "files": 2,
+      "assertions": 12763,
+      "newProjectCases": 20
+    },
+    "memorySourceWholeFile": {
+      "pass": 115,
+      "fail": 0,
+      "files": 1,
+      "assertions": 12339,
+      "certificate": {
+        "source": "memory",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 221,
+        "exclusions": [],
+        "absentFamilies": [
+          {
+            "family": "accessDecisions",
+            "reason": "This Memory Source exposes no accessDecisions port; grant-backed package/export authority is separate."
+          },
+          {
+            "family": "livePlans",
+            "reason": "This Memory Source exposes no livePlans port; its separate export capture remains available."
+          },
+          {
+            "family": "workPackageRanks",
+            "reason": "This Memory Source exposes no workPackageRanks port or organization ordering writer."
+          }
+        ]
+      }
+    },
+    "sqliteSourceWholeFile": {
+      "pass": 129,
+      "fail": 0,
+      "files": 1,
+      "assertions": 13990,
+      "seconds": 351.14,
+      "certificate": {
+        "source": "sqlite",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 224,
+        "exclusions": [],
+        "absentFamilies": []
+      }
+    },
+    "earlierBroaderProjectCohort": {
+      "pass": 272,
+      "fail": 1,
+      "files": 3,
+      "qualification": "Pre-final-oracle cohort; SQLite combined create reaches missing required119 profile before shared legacy Research-step assertions. No current whole project pass is claimed."
+    },
+    "sqliteProfileAfterControl": {
+      "pass": 0,
+      "fail": 1,
+      "files": 1,
+      "filtered": 77,
+      "assertions": 4
+    },
+    "compilerRoots": 356,
+    "lintOwners": 2,
+    "faults": 6,
+    "sourceFiles": 6136,
+    "curatedPins": 674
+  },
+  "checks": [
+    {
+      "name": "memory-source-current-full-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-current-full-v1.receipt.json",
+        "sha256": "8e888187858e89ee8aa4069de26b7aab963a9f161d5b764a8bde725d2758b291",
+        "bytes": 1357,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-current-full-v1.log",
+        "sha256": "3a829f365eb625504c1a79ab051559d83f603761162685aca0c2c341a66f3aa6",
+        "bytes": 23904,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-red-v1.receipt.json",
+        "sha256": "69e0db142e9b49353536915a4622ab35781720dae7ae0173f2c0a9a0b408631f",
+        "bytes": 1348,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-red-v1.log",
+        "sha256": "f866c6cd5b92912fbd268c45fd6a9bbe11792ca70b0983cc7cdc882e84f32291",
+        "bytes": 24593,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-green-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-green-v1.receipt.json",
+        "sha256": "b73b8dae383dffda23c090df56b7787fe12fcb1d5acb360238978e8ba3a72e17",
+        "bytes": 1351,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-green-v1.log",
+        "sha256": "41e9eb6d7e294ade8479ee7389dcdf46257eba3686d3b16fa8ce46ff2ef81c95",
+        "bytes": 8912,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-memory-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-memory-v2.receipt.json",
+        "sha256": "1e4f118317fc84e62b2fc6a8f968acf941f837c6b7c328836e035b91bb2dffd8",
+        "bytes": 1447,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-memory-v2.log",
+        "sha256": "13e2b7d84603eb30a7eb461ca5dd16390a9bf98bed10c0bd37622efa7f25c53c",
+        "bytes": 32717,
+        "mode": 384
+      }
+    },
+    {
+      "name": "sqlite-source-current-full-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-source-current-full-v1.receipt.json",
+        "sha256": "fd9bcc9d49fd5cfb93ab54448c726d3900949fb8f90191cc4d30a4d816fbb946",
+        "bytes": 1360,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-source-current-full-v1.log",
+        "sha256": "91786d287bfc996bf612c06c09eab58bbbe02f4e491c624d202403b2adb33b70",
+        "bytes": 25789,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-cohort-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-cohort-v1.receipt.json",
+        "sha256": "66b3826e9bfd0155a62df770b65fec924a920ae01df5dc7ae88081f459e19d93",
+        "bytes": 1512,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-cohort-v1.log",
+        "sha256": "99216e2ee3b95582af8ca0e8400eae374ba2b8b378b4e75aeba67662541c8331",
+        "bytes": 43569,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-sqlite-profile-red-v1",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-sqlite/src/project.db.test.ts",
+          "--test-name-pattern",
+          "creates the actual first work package",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-sqlite-profile-red-v1.receipt.json",
+        "sha256": "0c4f1adbc09badc1452795f47b4aca248f0d843eb03c8f1710f1e513d8d52743",
+        "bytes": 1430,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-sqlite-profile-red-v1.log",
+        "sha256": "7e77cb7352819dea451d62b5ba0840d560c3ec618636232675282f0b924b4c3c",
+        "bytes": 2197,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-types-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/@typescript/native/bin/tsc",
+          "--project",
+          "/tmp/puni-memory-project-revision-types-v1.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-types-v2.receipt.json",
+        "sha256": "27a27b32073212cd6e43acae92c2f416b1999aefeea19e37cd5d87f52aeeb10c",
+        "bytes": 1367,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-types-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-lint-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/eslint/bin/eslint.js",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-lint-v2.receipt.json",
+        "sha256": "495930497d551d5aa1876dc8728e71d9ca33c4e6da340b737350b74f95811dd0",
+        "bytes": 1414,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-lint-v2.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/project-fixture.ts",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-format-v1.receipt.json",
+        "sha256": "e514d1a9f248526b8dd7e0ca66fa75c636947978272532729d1431096df2fd86",
+        "bytes": 1514,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-format-v1.log",
+        "sha256": "d5cad6ff591511f015d2893c7fbab534d9d65687b8bf3144b9c3ae1452ca2a78",
+        "bytes": 229,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-final-format-v2",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-format-v2.receipt.json",
+        "sha256": "75f7b0ca3f2d49af647381d1fbd7a983ee137aac4c96d296c866fa9430464a45",
+        "bytes": 1378,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-final-format-v2.log",
+        "sha256": "a899f710186ee996eb363eec98bfd00ee174611104ed49a0d9665f188ccacf2e",
+        "bytes": 77,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-test-format-v3",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "libs/wbs/adapters/store-memory/src/project-fixture.test.ts"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-test-format-v3.receipt.json",
+        "sha256": "ed803c0191f73e42ab5fe83f00e2b08a643154e45fe71dc59bb65eb7a58addf8",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-test-format-v3.log",
+        "sha256": "c6c7e12c2a3d9e7b3555feb693b21e8b687ccf8246c291737e0a875cdc113301",
+        "bytes": 65,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-doc-format-v1",
+      "exitCode": 0,
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--write",
+          "openspec/changes/wbs-work-packages/verify.md",
+          "openspec/changes/wbs-work-packages/specs/work-packages/spec.md"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-doc-format-v1.receipt.json",
+        "sha256": "6b2a9fb71167c44f4a03bee7e727c4251fce6780710b5598c662d8c7d5a63d09",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-doc-format-v1.log",
+        "sha256": "49c9714d25e18abe75ba1e9a56ba7698a8e4fabc0e883ccc939277c676075278",
+        "bytes": 132,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-source-audit-v109",
+      "exitCode": 0,
+      "command": {
+        "argv": ["python3", "/tmp/puni-memory-project-revision-audit-v109.py"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-source-audit-v109.receipt.json",
+        "sha256": "a74dcfc7984be50389075d12c441298b34c9dcd16763c50389451a626a6745ec",
+        "bytes": 1310,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-source-audit-v109.log",
+        "sha256": "76d2f7affee52ed2647975ea34a72830b97d2a9cc4d983fdcc8e1b8391f0eb3d",
+        "bytes": 67,
+        "mode": 384
+      }
+    }
+  ],
+  "faultChecks": [
+    {
+      "name": "memory-project-revision-fault-nonnegative-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "with negative revision",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-nonnegative-v2.receipt.json",
+        "sha256": "8c8e127ce03799b4a2615818d92a986d270c3ecbeaa8d4cb6e08632411372eb4",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-nonnegative-v2.log",
+        "sha256": "9367f71d981c2aa6a0d89e80a25b1c70a48f9ac5f668fa8d6d64fd7f636db498",
+        "bytes": 1646,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-fault-integer-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "with rounded-fraction revision",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-integer-v2.receipt.json",
+        "sha256": "d4b5a2f5fca5cfa9ce13089a8e5f3f26da583fb85c2e1e1270d26d3f6d88ca34",
+        "bytes": 1436,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-integer-v2.log",
+        "sha256": "32ce0253864c01d3539ac99196210237a51ed2f714d4409328ebc538a08e4b97",
+        "bytes": 1662,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-fault-rename-admission-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "rename with null revision",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-rename-admission-v2.receipt.json",
+        "sha256": "abea5a3ba3408a1446f39b13965d07daa4a312465a98d93f28725e5186e461ca",
+        "bytes": 1448,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-rename-admission-v2.log",
+        "sha256": "0f9eeac3bc9715f845c69e1c2d98b70b125c1586be8772b7a0e3c0721eafb492",
+        "bytes": 906,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-fault-delete-admission-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "delete with null revision",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-delete-admission-v2.receipt.json",
+        "sha256": "059dd4e7bdbbf5609009ac677360c1cfae5772963cc28246ce62a2bd5bc93405",
+        "bytes": 1448,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-delete-admission-v2.log",
+        "sha256": "4b345aeb71385731497efd7354d7ef7ecf740dd48f4cdb3d924c81c542a3f807",
+        "bytes": 906,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-fault-rename-order-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "behind name-conflict",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-rename-order-v2.receipt.json",
+        "sha256": "5e0f9274f8093d867eb1e63022387076c483cf21f6cb51b2a15c938a31f6f9cd",
+        "bytes": 1435,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-rename-order-v2.log",
+        "sha256": "dcc961c60e9c77389b579e1f5967e51bdccff6776b806eb18b5704765508330f",
+        "bytes": 904,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-project-revision-fault-delete-order-v2",
+      "exitCode": 1,
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./libs/wbs/adapters/store-memory/src/project-fixture.test.ts",
+          "--test-name-pattern",
+          "behind not-empty",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-delete-order-v2.receipt.json",
+        "sha256": "29bc859607bd71fbfa487c8393926128a762c528b77ab85f5a7811e0bd210bdc",
+        "bytes": 1431,
+        "mode": 384
+      },
+      "transcript": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-fault-delete-order-v2.log",
+        "sha256": "69f5bebf12f969cd2816abd050ca0e6f8f7e2c48aa8e4bbca7c9b947af5904e3",
+        "bytes": 900,
+        "mode": 384
+      }
+    }
+  ],
+  "proofArchive": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-faults-v109-v2/proofs.json",
+    "sha256": "1fdeac0e4b12a66d3f19bcc4509a8807ac56cb504287ff01347943c3d184d11e",
+    "bytes": 14008,
+    "mode": 436
+  },
+  "sourceAudit": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-source-audit-v109.json",
+    "sha256": "d62427f13670b3acef1922945f5f74db7af9625260092420d04e6b1c6d604177",
+    "bytes": 1700550,
+    "mode": 384
+  },
+  "before": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-project-revision-before-v109.json",
+    "sha256": "ae8ffcbec96f4524278473a88cfa9072b4f33f8306376550bd9255b1583af83e",
+    "bytes": 517407,
+    "mode": 384
+  },
+  "qualification": [
+    "Each scalar/call-site/ordering fault fails at the intended required-rejection oracle. Subsequent full-state assertions are unreached under the fault; final ordinary tests reach those assertions after explicitly awaiting operation settlement.",
+    "The stronger explicit-await proof driver initially rejected the valid first native fault because its expected text still named the former matcher. Its completion reused the original terminal nonnegative-v2 receipt and executed only the five unexecuted controls. Both driver source versions and all earlier receipts remain.",
+    "All six final fault source hashes equal the current production file exactly. The final test helper additionally gives non-Error failures their generic project-store diagnostic. No weakened runtime scalar or history guard was applied.",
+    "The historical Memory84/2 observation is superseded by current115/0; its original record is preserved. The older SQL180-second incomplete run is preserved separately; this fresh full file completes under the existing660s owner with normal30s test defaults and its actual600s certificate allowance.",
+    "The SQLite ProjectRepository combined-create fixture remains a genuine current failure. Its real migration ceiling precedes required119, and shared first-package assertions still author a legacy Research seed. Actual catalogue/window authoring and Memory twin alignment remain required; no fabricated header, relaxed assertion or exclusion was introduced.",
+    "Passing whole Source files certify registered cases and actual Memory absences, not every owner, all13 fact families/all15 historical guarantees, full API/UI/product behavior or the complete CLI. The standalone Memory project twin is separately scoped.",
+    "Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified. No new agents/install/protected archive/history/default/activation change,full build/secrets/migration/host gate or public commit/push/PR/merge/deploy occurred."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ]
+}

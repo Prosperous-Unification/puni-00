@@ -4,16 +4,18 @@ import {
   effectiveTeamsOf,
   type Elsewhere,
   type EstimateRule,
+  indexCapturedLeafSteps,
   type IsoDate,
   type PlanInputReads,
+  type ResolvedPlanInputReads,
   withoutHeldSubtrees,
   workdaysBetween,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import { NO_DEADLINES, slicesOf } from './schedule-slices';
+import { NO_DEADLINES, slicesOf, type SliceStepOrder } from './schedule-slices';
 
-/** Canonical placement input and display facts prepared under one project's own settings. */
+/** Canonical placement input and display facts prepared under one work package's own settings. */
 export interface ScheduleParts {
   readonly input: ScheduleInput;
   readonly unreducedInput: ScheduleInput;
@@ -24,8 +26,8 @@ export interface ScheduleParts {
 
 /** Prepare real charged slices, inherited capacities, calendar constraints and held reduction once. */
 export function prepareScheduleParts(
-  project: Pick<
-    PlanInputReads['project'],
+  workPackage: Pick<
+    PlanInputReads['workPackage'],
     'estimateMethod' | 'pertWeights' | 'estimateRounding' | 'startDate' | 'depReach'
   >,
   rows: readonly (Parameters<typeof slicesOf>[0][number] & {
@@ -39,6 +41,7 @@ export function prepareScheduleParts(
   poolSizes: PlanInputReads['capacity'],
   demands: PlanInputReads['demands'],
   resourceCapacities: PlanInputReads['resourceCapacities'],
+  stepOrder: SliceStepOrder,
 ): ScheduleParts {
   const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
   const capacityByResource = new Map(
@@ -52,11 +55,11 @@ export function prepareScheduleParts(
     });
   }
   const rule: EstimateRule = {
-    // Proof: forcing realistic failed `applies each project minute conversion, estimate method and allowance exactly once` (B effort 2 instead of 3).
-    method: project.estimateMethod,
-    pertWeights: project.pertWeights,
+    // Proof: forcing realistic failed `applies each workPackage minute conversion, estimate method and allowance exactly once` (B effort 2 instead of 3).
+    method: workPackage.estimateMethod,
+    pertWeights: workPackage.pertWeights,
     // Proof: forcing ceil failed `uses own rounding, units, allowance, team capacity and width before injective namespacing` (B duration 1.5 instead of 1.05).
-    rounding: project.estimateRounding,
+    rounding: workPackage.estimateRounding,
   };
   const slices = slicesOf(
     rows,
@@ -68,19 +71,20 @@ export function prepareScheduleParts(
     effectiveTeamsOf(rows),
     poolSizes,
     chargedDemandsOf(demands, capacityByResource),
+    stepOrder,
   );
   const notBefore = new Map<string, number>();
-  if (project.startDate !== null) {
+  if (workPackage.startDate !== null) {
     for (const row of rows) {
       if (row.startNoEarlierThan === null) continue;
-      notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
+      notBefore.set(row.id, workdaysBetween(workPackage.startDate, row.startNoEarlierThan));
     }
   }
   const deadlines =
-    project.startDate === null
+    workPackage.startDate === null
       ? NO_DEADLINES
       : deadlineOffsetsOf(
-          project.startDate,
+          workPackage.startDate,
           new Map(
             rows
               .filter((row): row is typeof row & { deadline: IsoDate } => row.deadline !== null)
@@ -102,11 +106,11 @@ export function prepareScheduleParts(
     slices,
     notBefore,
     poolSizes,
-    // Proof: forcing whole-item failed `resolves every project local dependency under its own reach and step order` (successor 2 instead of 1).
-    reach: project.depReach,
+    // Proof: forcing whole-item failed `resolves every workPackage local dependency under its own reach and step order` (successor 2 instead of 1).
+    reach: workPackage.depReach,
     deadlines,
     typed,
-    // Stated only when the project states one, so every plan with no
+    // Stated only when the work package states one, so every plan with no
     // resource keeps the input, and the hash, it had before.
     // Proof: left out, both levelling cases of resource-schedule.test.ts
     // threw `no capacity for resource …`; watched 2026-10-20.
@@ -122,13 +126,13 @@ export function prepareScheduleParts(
   };
 }
 
-/** Historical captures contain no actual dates; preparation cannot invent them. */
+/** Current detached captures require every own leaf order and contain no actual dates to invent. */
 export function prepareCapturedScheduleParts(
-  reads: PlanInputReads,
+  reads: ResolvedPlanInputReads,
   elsewhere?: Elsewhere,
 ): ScheduleParts {
   const prepared = prepareScheduleParts(
-    reads.project,
+    reads.workPackage,
     reads.workItems.map((row) => ({ ...row, factStart: null, factEnd: null })),
     reads.estimates,
     reads.dependencies,
@@ -138,6 +142,10 @@ export function prepareCapturedScheduleParts(
     reads.capacity,
     reads.demands,
     reads.resourceCapacities,
+    // Proof: uniform interpretation lost actual SQLite own orders/boundaries; index bypass
+    // separately admitted parent/foreign entries and lost the modeled missing-list refusal
+    // (current-writer13-fault-captured-uniform/census-parent/census-foreign/census-missing-v5).
+    { kind: 'leaf', byLeaf: indexCapturedLeafSteps(reads.workItems, reads.steps, reads.leafSteps) },
   );
   return elsewhere === undefined
     ? prepared

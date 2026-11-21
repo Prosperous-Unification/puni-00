@@ -19,7 +19,7 @@ let machineGrants: HarnessMachineGrants;
 beforeAll(async () => {
   machineGrants = await forwardingMachineGrants();
 });
-let projectId: string;
+let workPackageId: string;
 let workItemId: string;
 let resourceId: string;
 let path: string;
@@ -34,14 +34,54 @@ beforeEach(async () => {
   for (const username of ['keeper', 'reporter', 'reader']) harness.bind(username, 'org-a');
   harness.activate();
   addAgentPerson(harness.sqlite, 'reporting-agent', 'org-a', harness.userId('keeper'));
-  const created = await harness.call('keeper', 'POST', '/api/projects', {
+  const parent = await harness.call('keeper', 'POST', '/api/projects', {
+    name: 'Resource permission project',
+  });
+  expect(parent.status).toBe(201);
+  const parentReply = parent.body;
+  if (typeof parentReply !== 'object' || parentReply === null || !('project' in parentReply))
+    throw new Error('Resource permission fixture project response is absent');
+  const project = parentReply.project;
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id === ''
+  )
+    throw new Error('Resource permission fixture project identity is absent');
+  const projectId = project.id;
+  expect(
+    harness.sqlite
+      .query('SELECT id,organization_id,created_by FROM project WHERE id=?')
+      .get(projectId),
+  ).toEqual({ id: projectId, organization_id: 'org-a', created_by: harness.userId('keeper') });
+  const created = await harness.call('keeper', 'POST', '/api/work-packages', {
+    projectId,
     name: 'Permission plan',
   });
   expect(created.status).toBe(200);
-  projectId = (created.body as { project: { id: string } }).project.id;
-  const work = await harness.call('keeper', 'POST', '/api/projects/' + projectId + '/commands', {
-    commands: [{ kind: 'createWorkItem', parentId: null, name: 'Tracked work' }],
+  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  expect(
+    harness.sqlite
+      .query(
+        'SELECT w.id,w.project_id,w.created_by,m.organization_id FROM work_package w LEFT JOIN work_package_organization m ON m.resource_id=w.id WHERE w.id=?',
+      )
+      .get(workPackageId),
+  ).toEqual({
+    id: workPackageId,
+    project_id: projectId,
+    created_by: harness.userId('keeper'),
+    organization_id: 'org-a',
   });
+  const work = await harness.call(
+    'keeper',
+    'POST',
+    '/api/work-packages/' + workPackageId + '/commands',
+    {
+      commands: [{ kind: 'createWorkItem', parentId: null, name: 'Tracked work' }],
+    },
+  );
   expect(work.status).toBe(200);
   workItemId = (work.body as { results: { id: string }[] }).results[0].id;
   const directory = await harness.call('keeper', 'POST', '/api/directory/commands', {
@@ -51,9 +91,17 @@ beforeEach(async () => {
   });
   expect(directory.status).toBe(200);
   resourceId = (directory.body as { results: { id: string }[] }).results[0].id;
-  path = '/api/projects/' + projectId + '/resource-uses';
+  path = '/api/work-packages/' + workPackageId + '/resource-uses';
 });
 afterEach(async () => harness.closeComposed());
+/** Current persisted parent for an independent permission prerequisite, on its existing owned connection. */
+async function readManualTarget(db: ReturnType<typeof openConnection>['db']) {
+  const target = await new AccessDecisionRepository(db).packageTargetOf(workPackageId, null);
+  if (target?.kind !== 'work_package' || target.chain.organizationId !== 'org-a')
+    throw new Error('manual permission fixture has no owned package target');
+  return target;
+}
+
 function draft() {
   return {
     requestId: crypto.randomUUID(),
@@ -89,7 +137,7 @@ it('hides a live package from role-only resource registration without effects', 
   const absent = await harness.call(
     'reporter',
     'POST',
-    '/api/projects/absent/resource-uses',
+    '/api/work-packages/absent/resource-uses',
     draft(),
   );
   expect(hidden.status).toBe(404);
@@ -145,7 +193,7 @@ it('hides live resource lists and history from role-only members', async () => {
     const absent = await harness.call(
       'reporter',
       'GET',
-      '/api/projects/absent/resource-uses' + suffix,
+      '/api/work-packages/absent/resource-uses' + suffix,
     );
     expect(hidden.status).toBe(404);
     expect(hidden.body).toEqual(absent.body);
@@ -193,9 +241,9 @@ it('encodes manage_directory for role-only runtime authority bind and read witho
 
 function deletePlanningRows() {
   harness.sqlite.run('DELETE FROM work_item WHERE id=?', [workItemId]);
-  harness.sqlite.run('DELETE FROM project_access WHERE project_id=?', [projectId]);
-  harness.sqlite.run('DELETE FROM step WHERE project_id=?', [projectId]);
-  harness.sqlite.run('DELETE FROM project WHERE id=?', [projectId]);
+  harness.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
+  harness.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
+  harness.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
 }
 it('uses minimal manage_directory for immutable personal orphan reads and updates', async () => {
   const useId = await register();
@@ -226,7 +274,7 @@ it('conceals personal orphan history and updates from role-only administrators',
     const absent = await harness.call(
       'reporter',
       'GET',
-      '/api/projects/absent/resource-uses' + suffix,
+      '/api/work-packages/absent/resource-uses' + suffix,
     );
     expect(hidden.status).toBe(404);
     expect(hidden.body).toEqual(absent.body);
@@ -258,7 +306,7 @@ async function openManualMachine(logger?: Logger) {
     scope: {
       organizationId: 'org-a',
       userId: principal.id,
-      role: 'admin',
+
       cap: CONTRIBUTOR_CAP,
       delegated: true,
     },
@@ -283,10 +331,10 @@ function invokeManual(
 ): Promise<unknown> {
   switch (operation) {
     case 'register':
-      return boundary.uses.register(projectId, boundary.actor, draft(), 123);
+      return boundary.uses.register(workPackageId, boundary.actor, draft(), 123);
     case 'append':
       return boundary.uses.append(
-        projectId,
+        workPackageId,
         useId,
         boundary.actor,
         {
@@ -298,9 +346,9 @@ function invokeManual(
         123,
       );
     case 'list':
-      return boundary.uses.list(projectId, boundary.actor, { limit: 50 });
+      return boundary.uses.list(workPackageId, boundary.actor, { limit: 50 });
     case 'history':
-      return boundary.uses.history(projectId, useId, boundary.actor, { limit: 50 });
+      return boundary.uses.history(workPackageId, useId, boundary.actor, { limit: 50 });
   }
 }
 for (const operation of manualOperations) {
@@ -374,11 +422,7 @@ for (const operation of manualOperations) {
             await authorize(
               new AccessDecisionRepository(boundary.connection.db),
               boundary.actor.principal,
-              {
-                kind: 'work_package',
-                chain: { level: 'work_package', organizationId: 'org-a', workPackageId: projectId },
-                restricted: false,
-              },
+              await readManualTarget(boundary.connection.db),
               'package.write',
             ),
           ).toMatchObject({ ok: true });
@@ -437,11 +481,7 @@ for (const operation of manualOperations) {
           await authorize(
             new AccessDecisionRepository(boundary.connection.db),
             boundary.actor.principal,
-            {
-              kind: 'work_package',
-              chain: { level: 'work_package', organizationId: 'org-a', workPackageId: projectId },
-              restricted: false,
-            },
+            await readManualTarget(boundary.connection.db),
             'package.write',
           ),
         ).toMatchObject({ ok: true });
@@ -507,7 +547,7 @@ async function openInfrastructure(stage: InfrastructureStage, logger?: Logger) {
     observedAt: 1,
     reason: 'Original admission',
     use: {
-      projectId,
+      workPackageId,
       resourceId,
       workItemId,
       agentRun: 'run-a',
@@ -573,7 +613,7 @@ async function openInfrastructure(stage: InfrastructureStage, logger?: Logger) {
             ...event,
             use: {
               kind: 'host_job',
-              projectId,
+              workPackageId,
               workItemId,
               responsiblePersonId: 'reporting-agent',
               type: 'source-check',
@@ -664,13 +704,13 @@ for (const stage of infrastructureStages) {
       // Preparation proves fresh live admission separately; this invocation is infrastructure only.
       harness.sqlite.run('ALTER TABLE access_grant RENAME TO unavailable_access_grant');
       if (stage !== 'deleted cleanup')
-        harness.sqlite.run('ALTER TABLE project RENAME TO unavailable_project');
+        harness.sqlite.run('ALTER TABLE work_package RENAME TO unavailable_work_package');
       try {
         expect(await boundary.invoke()).toMatchObject({ ok: true });
       } finally {
         try {
           if (stage !== 'deleted cleanup')
-            harness.sqlite.run('ALTER TABLE unavailable_project RENAME TO project');
+            harness.sqlite.run('ALTER TABLE unavailable_work_package RENAME TO work_package');
           harness.sqlite.run('ALTER TABLE unavailable_access_grant RENAME TO access_grant');
         } finally {
           boundary.connection.close();
@@ -782,12 +822,12 @@ for (const operation of manualOperations) {
     await entered.promise;
     const pending: Promise<unknown> =
       operation === 'register'
-        ? boundary.uses.register(projectId, boundary.actor, body, 123)
+        ? boundary.uses.register(workPackageId, boundary.actor, body, 123)
         : operation === 'append'
-          ? boundary.uses.append(projectId, useId, boundary.actor, event, 123)
+          ? boundary.uses.append(workPackageId, useId, boundary.actor, event, 123)
           : operation === 'list'
-            ? boundary.uses.list(projectId, boundary.actor, page)
-            : boundary.uses.history(projectId, useId, boundary.actor, page);
+            ? boundary.uses.list(workPackageId, boundary.actor, page)
+            : boundary.uses.history(workPackageId, useId, boundary.actor, page);
     Object.assign(body, { locator: '/substituted', units: 99 });
     event.reason = 'Substituted queued reason';
     Object.assign(page, { cursor: '999', limit: 1 });
@@ -846,7 +886,7 @@ async function openRuntimeQueue(operation: RuntimeQueueOperation, logger?: Logge
     requestedActor = {
       ...resourceUseActorOf(principal, {
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'admin', cap: null },
+        scope: { organizationId: 'org-a', userId: principal.id, cap: null },
         principal: { id: principal.id, authentication: structuredClone(principal.authentication) },
       }),
       credentialId: null,
@@ -1104,7 +1144,7 @@ for (const field of ['retention', 'evidence', 'host reservations'] as const) {
         await boundary.runtime.ingest(boundary.authorityId, boundary.runtimeActor, released, 123),
       ).toMatchObject({ ok: true });
     }
-    const originalDeclaration = JSON.stringify(hostUse);
+    const originalDeclaration = JSON.stringify({ schemaVersion: 2, use: hostUse });
     const held = Promise.withResolvers<undefined>(),
       entered = Promise.withResolvers<undefined>();
     const blocker = boundary.gate.enter(() => {
@@ -1258,7 +1298,7 @@ it('throws on a misbound raw role before actual resource registration despite va
   await register();
   harness.sqlite.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('misbound-resource-role','org-a','work_package',?,'user',?,'project-contributor','route',1)",
-    [projectId, harness.userId('keeper')],
+    [workPackageId, harness.userId('keeper')],
   );
   const before = captureState();
   const answer = await harness.call('keeper', 'POST', path, draft());
@@ -1270,7 +1310,7 @@ it('throws on a misbound nonorganization target grant before member summary filt
   expect((await harness.call('keeper', 'GET', '/api/organization/members')).status).toBe(200);
   harness.sqlite.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('misbound-summary-role','org-a','work_package',?,'user',?,'project-contributor','route',1)",
-    [projectId, harness.userId('reporter')],
+    [workPackageId, harness.userId('reporter')],
   );
   const before = captureState();
   const answer = await harness.call('keeper', 'GET', '/api/organization/members');
@@ -1355,7 +1395,7 @@ for (const operation of manualOperations) {
           scope: {
             organizationId: 'org-a',
             userId: principal.id,
-            role: 'admin',
+
             cap: CONTRIBUTOR_CAP,
             delegated: true,
           },
@@ -1369,7 +1409,9 @@ for (const operation of manualOperations) {
             "UPDATE machine_credential SET source='mcp_consent',mcp_family_id='original-family' WHERE id=?",
             [boundary.credential.id],
           );
-          expect(await boundary.uses.list(projectId, boundary.actor, { limit: 50 })).toMatchObject({
+          expect(
+            await boundary.uses.list(workPackageId, boundary.actor, { limit: 50 }),
+          ).toMatchObject({
             ok: true,
           });
           if (change === 'family')
@@ -1393,11 +1435,7 @@ for (const operation of manualOperations) {
             await authorize(
               new AccessDecisionRepository(boundary.connection.db),
               boundary.actor.principal,
-              {
-                kind: 'work_package',
-                chain: { level: 'work_package', organizationId: 'org-a', workPackageId: projectId },
-                restricted: false,
-              },
+              await readManualTarget(boundary.connection.db),
               'package.write',
             ),
           ).toMatchObject({ ok: true });
@@ -1728,7 +1766,7 @@ for (const stage of ['fresh admission', 'fresh registration', 'live followup'] a
   );
 }
 
-it('projects actual resource grant authority without binding or secret-shaped extras', async () => {
+it('work packages actual resource grant authority without binding or secret-shaped extras', async () => {
   const boundary = await openManualMachine();
   Object.assign(boundary.actor.principal, {
     organizationBinding: { cookie: 'resource-cookie-sentinel', digest: 'resource-digest-sentinel' },
@@ -1751,7 +1789,7 @@ it('projects actual resource grant authority without binding or secret-shaped ex
     },
   );
   try {
-    const answer = await boundary.uses.register(projectId, boundary.actor, draft(), 123);
+    const answer = await boundary.uses.register(workPackageId, boundary.actor, draft(), 123);
     expect(answer).toMatchObject({ ok: true });
     expect(seen).toHaveLength(1);
     const projection = seen[0];
@@ -1774,10 +1812,10 @@ for (const stage of ['manual registration', 'runtime admission'] as const) {
   it('honors an explicitly named restricted package grant for ' + stage, async () => {
     const boundary = await openInfrastructure('host job');
     try {
-      harness.sqlite.run('UPDATE project SET restricted=1 WHERE id=?', [projectId]);
+      harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [workPackageId]);
       harness.sqlite.run(
         "UPDATE access_grant SET scope_kind='work_package',scope_id=?,role_id='package-viewer' WHERE id='own-manual-grant'",
-        [projectId],
+        [workPackageId],
       );
       const before = captureState();
       const invoke = () =>
@@ -1788,7 +1826,7 @@ for (const stage of ['manual registration', 'runtime admission'] as const) {
               boundary.admission,
               123,
             )
-          : boundary.uses.register(projectId, boundary.actor, draft(), 123);
+          : boundary.uses.register(workPackageId, boundary.actor, draft(), 123);
       expect(await invoke()).toEqual({
         ok: false,
         reason: 'forbidden',
@@ -1841,11 +1879,11 @@ it('conceals delegated personal orphan access even with effective manage_directo
   const before = captureState();
   try {
     for (const invoke of [
-      () => boundary.uses.list(projectId, boundary.requestedActor, { limit: 50 }),
-      () => boundary.uses.history(projectId, useId, boundary.requestedActor, { limit: 50 }),
+      () => boundary.uses.list(workPackageId, boundary.requestedActor, { limit: 50 }),
+      () => boundary.uses.history(workPackageId, useId, boundary.requestedActor, { limit: 50 }),
       () =>
         boundary.uses.append(
-          projectId,
+          workPackageId,
           useId,
           boundary.requestedActor,
           {
@@ -1872,7 +1910,11 @@ it('conceals immutable orphan uses of a foreign organization despite own directo
   const before = captureState();
   for (const suffix of ['', '/' + useId + '/history']) {
     const hidden = await harness.call('reporter', 'GET', path + suffix),
-      absent = await harness.call('reporter', 'GET', '/api/projects/absent/resource-uses' + suffix);
+      absent = await harness.call(
+        'reporter',
+        'GET',
+        '/api/work-packages/absent/resource-uses' + suffix,
+      );
     expect(hidden.status).toBe(404);
     expect(hidden).toEqual(absent);
   }

@@ -11,8 +11,8 @@ afterEach(() => {
 });
 
 const leaf = (overrides: Record<string, unknown>) => ({
-  projectId: 'p1',
-  projectName: 'Shed',
+  workPackageId: 'p1',
+  workPackageName: 'Shed',
   position: 10,
   workItemId: 'w1',
   number: '1.2',
@@ -32,11 +32,11 @@ const names = new Map([
 /** Reads the list through the stubbed route, then draws what the read answered. */
 async function renderRead(answered: () => Response) {
   stubServer({ 'GET /api/spaces/s/in-progress': [answered] });
-  render(<InProgressList state={await readInProgress('s')} projectNames={names} />);
+  render(<InProgressList state={await readInProgress('s')} workPackageNames={names} />);
 }
 
 describe('in progress now', () => {
-  it('lists each leaf with its project, step, end, lateness and people', async () => {
+  it('lists each leaf with its work package, step, end, lateness and people', async () => {
     await renderRead(() =>
       answer(200, {
         items: [
@@ -65,13 +65,15 @@ describe('in progress now', () => {
   });
 
   it('renders the loading, empty and failure states', async () => {
-    render(<InProgressList state={{ kind: 'loading' }} projectNames={names} />);
+    render(<InProgressList state={{ kind: 'loading' }} workPackageNames={names} />);
     expect(screen.getByText('Loading work in progress…')).toBeDefined();
     cleanup();
     await renderRead(() => answer(200, { items: [], truncated: false, unavailable: [] }));
     expect(screen.getByText('Nothing is in progress in this space.')).toBeDefined();
     cleanup();
     await renderRead(() => answer(404, { error: 'not_found' }));
-    expect(screen.getByRole('alert').textContent).toBe('That space or project no longer exists.');
+    expect(screen.getByRole('alert').textContent).toBe(
+      'That space or work package no longer exists.',
+    );
   });
 });

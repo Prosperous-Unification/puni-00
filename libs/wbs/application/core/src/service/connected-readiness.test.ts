@@ -26,6 +26,65 @@ const withType = (held: ConnectedPlanCapture, type: 'SS' | 'FF'): ConnectedPlanC
 });
 
 describe('connected live readiness', () => {
+  for (const collection of ['progress', 'stepBlockages', 'attempts'] as const) {
+    it('refuses own-package unresolved leaf ' + collection + ' evidence', () => {
+      const a = connectedReads('A');
+      const held = connectedCapture(
+        { ...a, steps: [...a.steps, { ...a.steps[0], id: 'unresolved' }] },
+        connectedReads('B'),
+      );
+      const authored = deriveConnectedPlan(
+        held,
+        { supports: () => false },
+        scheduleResolved,
+      ).authored;
+      const fact = { workItemId: 'a', stepId: 'unresolved' };
+      const corrupted = {
+        ...held,
+        workPackages: held.workPackages.map((member) =>
+          member.workPackageId !== 'A'
+            ? member
+            : {
+                ...member,
+                reads: {
+                  ...member.reads,
+                  ...(collection === 'progress'
+                    ? { progress: [{ ...fact, state: 'done' as const, statedAt: 1 }] }
+                    : {}),
+                  ...(collection === 'stepBlockages'
+                    ? { stepBlockages: [{ ...fact, blockedAt: 1 }] }
+                    : {}),
+                },
+              },
+        ),
+      };
+      const attempts: readonly StoredAttempt[] =
+        collection === 'attempts'
+          ? [
+              {
+                ...fact,
+                attemptNumber: 1,
+                startedAt: 1,
+                endedAt: null,
+                outcome: null,
+                executorPersonId: null,
+                reference: null,
+                note: null,
+              },
+            ]
+          : [];
+      expect(() =>
+        deriveConnectedReadiness(
+          corrupted,
+          authored,
+          new Map([
+            ['A', attempts],
+            ['B', []],
+          ]),
+        ),
+      ).toThrow('own work package');
+    });
+  }
   it('requires remote FS completion even without calendars', () => {
     expect(derive().eligibilityByNode.get(sliceKey('b', 'build'))?.canStart).toBe(false);
     const a = connectedReads('A', null);
@@ -74,7 +133,7 @@ describe('connected live readiness', () => {
       derive(withType(held, 'FF')).eligibilityByNode.get(sliceKey('b', 'build')),
     ).toMatchObject({ canStart: true, canFinish: false });
   });
-  it('refuses absent attempts and own-project foreign step evidence', () => {
+  it('refuses absent attempts and own-work-package foreign step evidence', () => {
     expect(() => derive(capture(), new Map([['B', []]]))).toThrow('attempts');
     const a = connectedReads('A');
     const b = connectedReads('B');
@@ -86,7 +145,7 @@ describe('connected live readiness', () => {
           foreign,
         ),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
     expect(() =>
       derive(
         connectedCapture(
@@ -97,7 +156,7 @@ describe('connected live readiness', () => {
           foreign,
         ),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
     expect(() =>
       derive(
         connectedCapture(a, foreign),
@@ -121,6 +180,6 @@ describe('connected live readiness', () => {
           ['B', []],
         ]),
       ),
-    ).toThrow('own project');
+    ).toThrow('own work package');
   });
 });

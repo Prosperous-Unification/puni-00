@@ -78,7 +78,7 @@ export const sliceAt = (
   earliestFinish,
   float: 0,
   critical: false,
-  boundBy: 'projectStart',
+  boundBy: 'workPackageStart',
   resourcePredecessorId: null,
   capacityTeamId: null,
   width: 1,
@@ -117,7 +117,7 @@ export const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   teamNames: new Map([['team-platform', 'Platform']]),
   resourceLabels: new Map(),
   priorityBands: DEFAULT_PRIORITY_BANDS,
-  // The default a project takes unless it asks otherwise.
+  // The default a work package takes unless it asks otherwise.
   depReach: 'whole-item',
   ...parts,
 });

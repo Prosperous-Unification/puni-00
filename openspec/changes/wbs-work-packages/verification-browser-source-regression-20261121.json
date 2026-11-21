@@ -1,0 +1,1767 @@
+{
+  "schema": "puni-wbs-regression-v120",
+  "recordedAt": "2026-11-21T18:25:39.420Z",
+  "parentStagedTree": "5b25329d74d9c829c10176c4eb238c476750ca13",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+      "sha256": "292bed33f51545ef066010f196fac0f11b415e8322256da688f78c0698601bf5",
+      "bytes": 36735,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/testing/browser-lifecycle-mounted.worker.ts",
+      "sha256": "c4e68413566a68df8df984de1c38832a5704812f35a2e2702314679fbe1a4b3d",
+      "bytes": 14884,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/playwright-config.test.ts",
+      "sha256": "15768b6a6623c54723250bafa73a6b4f862816b3012fb49c290625a385b4093d",
+      "bytes": 52827,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-layout.test.tsx",
+      "sha256": "470f415e78b4c59c6867e6a5d9544131e26568fd05e4baae4e20b5d94f54df4a",
+      "bytes": 101371,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/optimization-cue.test.tsx",
+      "sha256": "16450577c380cc61c8fbe824dd3c3cfdc8e2452cff14dc382dbfbb0ab2cfdb30",
+      "bytes": 39015,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/resource-uses-panel.test.tsx",
+      "sha256": "89eb9ce8f9219d2063c707f642c232723cbf9e6900046f732483e945264086e7",
+      "bytes": 27976,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/persisted-remote-dependencies.test.tsx",
+      "sha256": "929dfdc324e82e2f483051577a6d15ccde4a5dfde3c9b9b914917180113d381d",
+      "bytes": 46463,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/wbs/plan-mermaid.test.ts",
+      "sha256": "946c4476a2ba26710305ab58b763711e509809b4354561ff25f0b74e22a8676a",
+      "bytes": 35581,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/machine-credentials-panel.test.tsx",
+      "sha256": "05cde13fd340214f3c8d4c01efbc8412ea6588821dbbefc012d45870fa22a06a",
+      "bytes": 32999,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/components/organization/agent-pools-panel.test.tsx",
+      "sha256": "617c28a0de8074cb55123ba39cdb9b97ed1b989f8e86e041e12fba3f9667cd69",
+      "bytes": 42648,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/deadline-copy.test.ts",
+      "sha256": "47d9650568f690f38e53566cb639eec0c2b4ffa65373287afc7d49872c04fa85",
+      "bytes": 21050,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/runtime/session-runtime.test.ts",
+      "sha256": "86fddbdca3e9637509e2871aa4465087b954b02c2dbd3fe473f7ea8d4b234cc0",
+      "bytes": 17667,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/runtime/work-package-runtime.test.ts",
+      "sha256": "c874e1184cc2e6885f03f612c42915f929a1f998153d256529d9e1474e3b17bb",
+      "bytes": 9241,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/src/test-tiers.test.ts",
+      "sha256": "cfd8d7aadf6747e090ebac4d9cdd0c96850561bcefc9eeccf1a168afff88b024",
+      "bytes": 9195,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01/vitest.node-suites.json",
+      "sha256": "19335d736db6b3778cde5ba17cb77dc46e452c65926cfb0b7097abdcf65dd381",
+      "bytes": 8686,
+      "mode": 436
+    }
+  ],
+  "checks": [
+    {
+      "name": "memory-source-direct-v120",
+      "command": {
+        "argv": ["bun", "test", "./src/testing/source-conformance.test.ts", "--timeout", "10000"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T17:26:43.276Z",
+      "endedAt": "2026-11-21T17:26:48.748Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-direct-v120.receipt.json",
+        "sha256": "fa6269c625829de78b177a5e42b4bd7169292f79f156147329e3efbfe32377ed",
+        "bytes": 1349,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-direct-v120.log",
+        "sha256": "4c5bade45874332ce83751b9f9d71570b86718755e497606f9bf57057e0c2be7",
+        "bytes": 23874,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-direct-v120.validation.json",
+        "sha256": "cf8f7e3d823ff19242bb754ed2d741e9f6486e310efc7db0639743110a5bda21",
+        "bytes": 484,
+        "mode": 384
+      },
+      "certificate": {
+        "source": "memory",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 221,
+        "exclusions": [],
+        "absentFamilies": [
+          {
+            "family": "accessDecisions",
+            "reason": "This Memory Source exposes no accessDecisions port; grant-backed package/export authority is separate."
+          },
+          {
+            "family": "livePlans",
+            "reason": "This Memory Source exposes no livePlans port; its separate export capture remains available."
+          },
+          {
+            "family": "workPackageRanks",
+            "reason": "This Memory Source exposes no workPackageRanks port or organization ordering writer."
+          }
+        ]
+      },
+      "summary": [
+        " 115 pass",
+        " 0 fail",
+        " 12339 expect() calls",
+        "Ran 115 tests across 1 file. [5.41s]"
+      ]
+    },
+    {
+      "name": "sqlite-source-direct-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./src/testing/source-conformance.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T17:27:15.289Z",
+      "endedAt": "2026-11-21T17:33:35.237Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-source-direct-v120.receipt.json",
+        "sha256": "06763c0e668f00d69c1b2c97f98017a3c3c70f3ae0b495a3a9305e2c6f8f0c80",
+        "bytes": 1352,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-source-direct-v120.log",
+        "sha256": "42dacf5ff7a8dbda805b2c146db93d14e5e5dcc4639de7c62a24743b75ada79f",
+        "bytes": 25759,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/sqlite-source-direct-v120.validation.json",
+        "sha256": "fb7d6db89afcb60950e3dda46c24cbd02c422ad4d6da1a36bea12fc3c1a7f7f5",
+        "bytes": 484,
+        "mode": 384
+      },
+      "certificate": {
+        "source": "sqlite",
+        "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+        "certifiedCases": 224,
+        "exclusions": [],
+        "absentFamilies": []
+      },
+      "summary": [
+        " 129 pass",
+        " 0 fail",
+        " 13990 expect() calls",
+        "Ran 129 tests across 1 file. [379.87s]"
+      ]
+    },
+    {
+      "name": "core-source-full-direct-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-core-source-run-v120b.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T17:30:18.037Z",
+      "endedAt": "2026-11-21T17:32:06.197Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-full-direct-v120.receipt.json",
+        "sha256": "38b54edcd3ee74f203e1d91e67778bb09ef31608926f0e5e6e53f78e1a7743f2",
+        "bytes": 1271,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-full-direct-v120.log",
+        "sha256": "27f818271bf641cf979ba6002a96fbf6aee43d113857e1865a66f820b4da11b3",
+        "bytes": 232907,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-full-direct-v120.validation.json",
+        "sha256": "a08edad5192a35efc51ec834e71bcd708c222c048c65e82289c53f3020a3d6bc",
+        "bytes": 491,
+        "mode": 384
+      },
+      "summary": [
+        " 2124 pass",
+        " 0 fail",
+        " 12936 expect() calls",
+        "Ran 2124 tests across 171 files. [107.86s]"
+      ]
+    },
+    {
+      "name": "backend-production-types-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "apps/wbs/be-01/tsconfig.lib.json",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:35:26.687Z",
+      "endedAt": "2026-11-21T17:35:52.384Z",
+      "settled": true,
+      "exitCode": 2,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-production-types-before-v120.receipt.json",
+        "sha256": "5ffcab124658b648c7cb925843c3dad375538d44bad9f46356357f3d49cb84d0",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-production-types-before-v120.log",
+        "sha256": "e54e0ada169cade11383da7b7b8b11ddc7cdf676af5097cb1b29b5948ced990e",
+        "bytes": 654,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": []
+    },
+    {
+      "name": "backend-production-types-after-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "apps/wbs/be-01/tsconfig.lib.json",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:51:17.594Z",
+      "endedAt": "2026-11-21T17:51:45.444Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-production-types-after-v120.receipt.json",
+        "sha256": "0b938df06a1f08dbadcceb3ce667ead0ee16d84b2ad1fcc4c5b659cd664948ff",
+        "bytes": 1390,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-production-types-after-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/backend-production-types-after-v120.validation.json",
+        "sha256": "bd3fdd736d930021b2157c0b22838f52596aadd33506d226c09f5b0f7ee65db7",
+        "bytes": 500,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-production-types-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "apps/wbs/fe-01/tsconfig.app.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:34:26.221Z",
+      "endedAt": "2026-11-21T17:34:43.465Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-production-types-before-v120.receipt.json",
+        "sha256": "7d4372efb1b8eb60a4a66b6df6e6f560cc2ad0eee26436323e10aabbbad8f2a4",
+        "bytes": 1338,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-production-types-before-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-production-types-before-v120.validation.json",
+        "sha256": "ce4a414f2c8680b753dffa73c9f4d40467e99c7bb3aeffe4813de18b370ffe23",
+        "bytes": 504,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "gateway-production-types-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "apps/wbs/gw-01/tsconfig.lib.json",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:35:26.686Z",
+      "endedAt": "2026-11-21T17:35:46.922Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/gateway-production-types-before-v120.receipt.json",
+        "sha256": "3da13b6a844044897233edaa7c1ce7895b201f59bbc7990d41fd63c217b1d15e",
+        "bytes": 1392,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/gateway-production-types-before-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/gateway-production-types-before-v120.validation.json",
+        "sha256": "588276517e068b85cd7e95c89ea268bca98769fae43722c1c66ca13f57438101",
+        "bytes": 502,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "mcp-production-types-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "apps/wbs/mcp-01/tsconfig.lib.json",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:35:26.686Z",
+      "endedAt": "2026-11-21T17:35:47.023Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/mcp-production-types-before-v120.receipt.json",
+        "sha256": "3e366806dd58e2e3b5a4b384f700ad5af1ddd74cd9a01c256d893ab1e9ebf7bb",
+        "bytes": 1385,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/mcp-production-types-before-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/mcp-production-types-before-v120.validation.json",
+        "sha256": "43d4410c17ea2e45569da4f712c40c3acec85e12647d482baeb7402410335ee6",
+        "bytes": 494,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "browser-lifecycle-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:38:30.772Z",
+      "endedAt": "2026-11-21T17:38:33.659Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-before-v120.receipt.json",
+        "sha256": "2ff812f94e0a006bc9af0706f3bd15a408af5342e75aa4781cdf7ec2bc2a3604",
+        "bytes": 1362,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-before-v120.log",
+        "sha256": "8f3fb9f46beb64a1465492909ade1cb52269490f33b8b864914bd66029a991bf",
+        "bytes": 12409,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [" 0 pass", " 12 fail", "Ran 12 tests across 1 file. [2.82s]"]
+    },
+    {
+      "name": "browser-lifecycle-after-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:44:13.376Z",
+      "endedAt": "2026-11-21T17:45:33.386Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-after-v120.receipt.json",
+        "sha256": "de6a049debb1c1f20f3ca7fa3441d5ca4234eee08668662dd5bb21d37133eba1",
+        "bytes": 1359,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-after-v120.log",
+        "sha256": "8f2f63b6bc3f5978adec75c2868d3bc000658d7a0d4a9e7e069c673c9bbc94ba",
+        "bytes": 7514,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [
+        " 6 pass",
+        " 7 fail",
+        " 78 expect() calls",
+        "Ran 13 tests across 1 file. [79.95s]"
+      ]
+    },
+    {
+      "name": "browser-lifecycle-reader-after-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+          "--test-name-pattern",
+          "logout in another mounted process",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:48:04.076Z",
+      "endedAt": "2026-11-21T17:48:16.377Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-reader-after-v120.receipt.json",
+        "sha256": "1711506e9e6ca2f3c832b66535906dc048002759ded6d4d459f501c4e2ae7edf",
+        "bytes": 1444,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-reader-after-v120.log",
+        "sha256": "933cd04cfc6d82e8c5dd8ae798bfb6aadd94cfbb309524908ff220c5c474f780",
+        "bytes": 325,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-reader-after-v120.validation.json",
+        "sha256": "67075bbb413e04b7ec9660b1a9a0fa704e0341c78a17f597c287b6f9472ac173",
+        "bytes": 502,
+        "mode": 384
+      },
+      "summary": [" 1 pass", " 0 fail", " 11 expect() calls"]
+    },
+    {
+      "name": "browser-lifecycle-final-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:03:12.013Z",
+      "endedAt": "2026-11-21T18:05:03.151Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-v120.receipt.json",
+        "sha256": "b9ab385da2f26133f9862e0834d083e040f2918131a80e8aee7bf41307ab89a3",
+        "bytes": 1359,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-v120.log",
+        "sha256": "88178039f3f028758ed54c3e94fd47e4c88049357e712a171f689ddb75dd8c7a",
+        "bytes": 1627,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-v120.validation.json",
+        "sha256": "e9b08f894bec1449f6783f40d2fc3733424322f8bdc954e644109dd8b9401cab",
+        "bytes": 489,
+        "mode": 384
+      },
+      "summary": [
+        " 13 pass",
+        " 0 fail",
+        " 117 expect() calls",
+        "Ran 13 tests across 1 file. [111.08s]"
+      ]
+    },
+    {
+      "name": "browser-lifecycle-final-lint-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-browser-quality-v120.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:03:10.954Z",
+      "endedAt": "2026-11-21T18:03:18.759Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-lint-v120.receipt.json",
+        "sha256": "d25a50598802faf3207d3925769fbe9db8e6942954011e40744a109ab88e2146",
+        "bytes": 1289,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-lint-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-lint-v120.validation.json",
+        "sha256": "ad5c40b2eae00cf62a456dc8348d9ae2834d3f2917235c70520888971cd9c74c",
+        "bytes": 496,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "browser-lifecycle-final-types-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-browser-types-v120.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:03:07.105Z",
+      "endedAt": "2026-11-21T18:03:32.958Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-types-v120.receipt.json",
+        "sha256": "82a7da555fca3f07f467dfc81dc6f02dac1cd4d5026a0fce7a96396f97f5e0e0",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-types-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-lifecycle-final-types-v120.validation.json",
+        "sha256": "2bc693fb2169e758ac846fcd45be83d330dbd0363204a59f26eb57ac0bb03a0d",
+        "bytes": 498,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "browser-migration-custody-red-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "test",
+          "./apps/wbs/be-01/src/controller/browser-lifecycle.mounted-process.db.test.ts",
+          "--test-name-pattern",
+          "mounted fixture retains SQLite",
+          "--timeout",
+          "30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:43:25.429Z",
+      "endedAt": "2026-11-21T17:43:28.796Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-migration-custody-red-v120.receipt.json",
+        "sha256": "9f6b804024f9aa6624debc301a1df1fa7e8a503fbd1f334867396f3e5c2692a0",
+        "bytes": 1439,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-migration-custody-red-v120.log",
+        "sha256": "8b3ae3a2d8ef023dd65d44efc905a6fd51a1ab668b495921fc89c1646d615d1e",
+        "bytes": 936,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-migration-custody-red-v120.validation.json",
+        "sha256": "f7cdc735e63ac1ea779ca35d050e4a18b64dacadad80e23408c5cf834fccacbc",
+        "bytes": 500,
+        "mode": 384
+      },
+      "summary": [" 0 pass", " 1 fail", " 4 expect() calls"]
+    },
+    {
+      "name": "browser-ownership-faults-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-browser-ownership-faults-v120.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T17:58:25.605Z",
+      "endedAt": "2026-11-21T17:58:38.801Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-ownership-faults-v120.receipt.json",
+        "sha256": "db48ab437d33fde040b41dd19cd49aab7b0ccddf4994c67e0ead89f778e5fcce",
+        "bytes": 1277,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-ownership-faults-v120.log",
+        "sha256": "4ce97ac19fcee7e88956acfdedf933e8568cc2e275da8099431b34f135770dd2",
+        "bytes": 33,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-ownership-faults-v120.validation.json",
+        "sha256": "ef1b44bc8c1afb65ef5a1474fa3c9a7aaeab65a4d900b578771b7d23376266d4",
+        "bytes": 489,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-node-before-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:10:45.037Z",
+      "endedAt": "2026-11-21T18:11:32.238Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-before-v120.receipt.json",
+        "sha256": "07937d2ba271fafcb7a050db723568821ee474af8ccf8cc66e6d1b1f73d26578",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-before-v120.log",
+        "sha256": "c065828e234c4621fc29101ee445c591a431fd5ad78945338d4a3483f7e8912d",
+        "bytes": 27730,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [
+        " Test Files  6 failed | 89 passed (95)",
+        "      Tests  8 failed | 1197 passed (1205)",
+        "   Duration  46.45s (import 73%, tests 23%, transform 3%)"
+      ]
+    },
+    {
+      "name": "frontend-node-after-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:15:43.294Z",
+      "endedAt": "2026-11-21T18:16:30.759Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-after-v120.receipt.json",
+        "sha256": "fa63094751931e254f6d60f6aea650c5c286ca74abdbe18650528dde534ecb39",
+        "bytes": 1392,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-after-v120.log",
+        "sha256": "5b84175053c1a35ef2285da5239820005e3a0e30825bce4b87c7dedf981b1457",
+        "bytes": 14034,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [
+        " 1 pass",
+        " 0 fail",
+        " Test Files  1 failed | 94 passed (95)",
+        "      Tests  1 failed | 1190 passed (1191)",
+        "   Duration  46.97s (import 76%, tests 21%, transform 2%)"
+      ]
+    },
+    {
+      "name": "frontend-node-final-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:20:24.788Z",
+      "endedAt": "2026-11-21T18:21:24.044Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-final-v120.receipt.json",
+        "sha256": "626d7989c74583d2a268c5add939367bf299316e8ad754bb9f5c50e80750b86e",
+        "bytes": 1392,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-final-v120.log",
+        "sha256": "65f7126bcb970df3c396f0232ac4597572abc99fd4fe0c3b90312d7bf90d4dc6",
+        "bytes": 10188,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-final-v120.validation.json",
+        "sha256": "33ab71ac244310cbf3f7997a6ddea01d7f233d820083679be98f24fd4640f995",
+        "bytes": 482,
+        "mode": 384
+      },
+      "summary": [
+        " 1 pass",
+        " 0 fail",
+        " Test Files  95 passed (95)",
+        "      Tests  1191 passed (1191)",
+        "   Duration  58.80s (import 77%, tests 21%, transform 2%)"
+      ]
+    },
+    {
+      "name": "frontend-node-sealed-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.node.config.ts",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:23:35.095Z",
+      "endedAt": "2026-11-21T18:24:24.858Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-sealed-v120.receipt.json",
+        "sha256": "6dfcf519e0cd1e7490bc3d8662c8daf3b515b4e3c30ab9bd8a2925d2d08cffd4",
+        "bytes": 1394,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-sealed-v120.log",
+        "sha256": "931e269b482260cd7234dc2b02f9e06ba02aacfae989573cd19fecea0b6c4ba0",
+        "bytes": 10259,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-node-sealed-v120.validation.json",
+        "sha256": "56bee422b15672e2063a72d2d1e568c6392193de2bfceaf919069ed16cd6d918",
+        "bytes": 484,
+        "mode": 384
+      },
+      "summary": [
+        " 1 pass",
+        " 0 fail",
+        " Test Files  95 passed (95)",
+        "      Tests  1191 passed (1191)",
+        "   Duration  49.32s (import 74%, tests 23%, transform 2%)"
+      ]
+    },
+    {
+      "name": "frontend-view-utc-before-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:03:05.730Z",
+      "endedAt": "2026-11-21T18:14:05.833Z",
+      "settled": false,
+      "exitCode": 143,
+      "signal": null,
+      "primary": "Error: Native phase outer deadline exceeded",
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-utc-before-v120.receipt.json",
+        "sha256": "4b315e40fb28eb66d886ec214159dfd55b9e619869d014ca408d198b2c7dc47b",
+        "bytes": 1502,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-utc-before-v120.log",
+        "sha256": "eb495554eca6115bdbc66e6926865dca21f5c836d717202f246be396a76d6fc3",
+        "bytes": 420275,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": []
+    },
+    {
+      "name": "frontend-view-failures-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/persisted-remote-dependencies.test.tsx",
+          "src/components/organization/agent-pools-panel.test.tsx",
+          "src/components/wbs/optimization-cue.test.tsx",
+          "src/components/wbs/plan-mermaid.test.ts",
+          "src/components/organization/machine-credentials-panel.test.tsx",
+          "src/components/wbs/resource-uses-panel.test.tsx",
+          "src/components/chrome/app-fault.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:16:06.131Z",
+      "endedAt": "2026-11-21T18:17:01.390Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-failures-v120.receipt.json",
+        "sha256": "97425d797fb59b3041fcd860eaaed46fbd6575959d2397cb72f923cd1fb60929",
+        "bytes": 1866,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-failures-v120.log",
+        "sha256": "a85a6a41ed99851455b1c7851d9020a09fb4edc596bad3efac8c3a2f8d5aa55b",
+        "bytes": 71206,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-failures-v120.validation.json",
+        "sha256": "9386d4bee81fbcd2e8219db0d7fffb9df2b2fe4442ef3e8415b87eab454df974",
+        "bytes": 488,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  7 failed (7)",
+        "      Tests  12 failed | 315 passed (327)",
+        "   Duration  54.77s (tests 59%, import 28%, transform 7%, environment 4%, setup 1%)"
+      ]
+    },
+    {
+      "name": "frontend-view-repaired-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/persisted-remote-dependencies.test.tsx",
+          "src/components/organization/agent-pools-panel.test.tsx",
+          "src/components/wbs/optimization-cue.test.tsx",
+          "src/components/wbs/plan-mermaid.test.ts",
+          "src/components/organization/machine-credentials-panel.test.tsx",
+          "src/components/wbs/resource-uses-panel.test.tsx",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:20:28.718Z",
+      "endedAt": "2026-11-21T18:21:33.679Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-repaired-v120.receipt.json",
+        "sha256": "5de959e206c4305c0aaf05d49b3ceaa8d6b76bdac664a8842ace24473938ed3a",
+        "bytes": 1815,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-repaired-v120.log",
+        "sha256": "e05a3fdf7e0095bfb88983af522a5bbc761691f19958c0b0bda368c1e6f07f67",
+        "bytes": 5386,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-view-repaired-v120.validation.json",
+        "sha256": "f3338186a8d804d6dc291c27cffcbb19ed75b13dd3f06134cd81ec75e9f3d090",
+        "bytes": 487,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  6 passed (6)",
+        "      Tests  308 passed (308)",
+        "   Duration  64.50s (tests 63%, import 27%, transform 6%, environment 3%, setup 1%)"
+      ]
+    },
+    {
+      "name": "frontend-layout-writer-sealed-v120",
+      "command": {
+        "argv": [
+          "bunx",
+          "--no-install",
+          "vitest",
+          "run",
+          "--config",
+          "vitest.view.config.ts",
+          "src/components/wbs/plan-layout.test.tsx",
+          "src/modules/plan-writer/plan-writer.test.ts",
+          "--no-file-parallelism",
+          "--maxWorkers=1",
+          "--testTimeout=30000",
+          "--hookTimeout=30000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/fe-01",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:23:39.019Z",
+      "endedAt": "2026-11-21T18:24:41.031Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-layout-writer-sealed-v120.receipt.json",
+        "sha256": "1f614650f1733d272bb39117ba83d1562499d9f9e69757bd9a924669e9e26124",
+        "bytes": 1568,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-layout-writer-sealed-v120.log",
+        "sha256": "65266eec340dcdaf71368711af54e73b5f3b8733c224913919380912843e54ec",
+        "bytes": 6302,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-layout-writer-sealed-v120.validation.json",
+        "sha256": "1a04effc1ecb5e4b50712d5e8e37dbb6cbe733f698506441d449eb719abb5d58",
+        "bytes": 501,
+        "mode": 384
+      },
+      "summary": [
+        " Test Files  2 passed (2)",
+        "      Tests  108 passed (108)",
+        "   Duration  61.39s (tests 80%, import 13%, transform 6%, environment 1%)"
+      ]
+    },
+    {
+      "name": "frontend-faults-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-frontend-faults-v120.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T18:21:47.613Z",
+      "endedAt": "2026-11-21T18:21:57.693Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-faults-v120.receipt.json",
+        "sha256": "d6b123462dea83be61963c4f3ed737cea4b36b06deb994cdf192e579830b0f2a",
+        "bytes": 1250,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-faults-v120.log",
+        "sha256": "4ce97ac19fcee7e88956acfdedf933e8568cc2e275da8099431b34f135770dd2",
+        "bytes": 33,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-faults-v120.validation.json",
+        "sha256": "40de43e12e40678a500bcc89b7507e2daca3349b1d72a126d256be86930aaf5c",
+        "bytes": 471,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "frontend-changed-types-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-frontend-changed-types-v120b.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:20:45.473Z",
+      "endedAt": "2026-11-21T18:21:17.535Z",
+      "settled": true,
+      "exitCode": 2,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-changed-types-v120.receipt.json",
+        "sha256": "f853e15bfc050a9eb95321b01fb113eb41aa421de26106213e818f1c8fe396fa",
+        "bytes": 1333,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-changed-types-v120.log",
+        "sha256": "6e3443d9ec53e01c2dd33428285383c3f5f0a299c986c5d86641a3f44f69f685",
+        "bytes": 26766,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": []
+    },
+    {
+      "name": "frontend-changed-types-final-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "node_modules/typescript/lib/tsc.js",
+          "-p",
+          "/tmp/puni-frontend-changed-types-v120c.json"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:23:29.066Z",
+      "endedAt": "2026-11-21T18:23:53.278Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-changed-types-final-v120.receipt.json",
+        "sha256": "aac45ce58c1b2b9876e5a82436651458277ef1764380906812ca3725a0eaa571",
+        "bytes": 1341,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-changed-types-final-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-changed-types-final-v120.validation.json",
+        "sha256": "c5a046619df347e116ce05723876a0381b8a2b9ee6743401e70f647432b94b68",
+        "bytes": 496,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "wbs-regression-lint-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-v120-quality.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:20:32.386Z",
+      "endedAt": "2026-11-21T18:20:57.090Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-lint-v120.receipt.json",
+        "sha256": "46d0f935c03aaca462d62dd17b05669bf755e87dc369f0be5ad941fed7e55647",
+        "bytes": 1265,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-lint-v120.log",
+        "sha256": "fe4427b3c3b38c7f574bd4fcebc7be206322b41d8e20be5f50418c99036d77c5",
+        "bytes": 445,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": []
+    },
+    {
+      "name": "wbs-regression-lint-fix-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-v120-quality.ts", "lint-fix"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:22:35.469Z",
+      "endedAt": "2026-11-21T18:22:49.454Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-lint-fix-v120.receipt.json",
+        "sha256": "d7f77dc6af2e6f161ac5f0e2e3297c90af8524c028625deda533c4e9caf55a86",
+        "bytes": 1275,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-lint-fix-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-lint-fix-v120.validation.json",
+        "sha256": "47699e4e7f1f4c29f1034c1044c225b8b53c6237cf67cb5d681899de1d0d6f90",
+        "bytes": 486,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "wbs-regression-final-lint-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-v120-quality.ts", "lint"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:23:28.780Z",
+      "endedAt": "2026-11-21T18:23:44.570Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-lint-v120.receipt.json",
+        "sha256": "a36dcfe69f7b9d8f2df0c4608501d3f19c440e9661c64d5effc954071388343b",
+        "bytes": 1275,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-lint-v120.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-lint-v120.validation.json",
+        "sha256": "71f9e1c921957963db9419114c3afcbfcf9f5a99516d0bb296362690e64c4679",
+        "bytes": 490,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "wbs-regression-final-format-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-v120-quality.ts", "format"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 180000
+      },
+      "startedAt": "2026-11-21T18:23:03.593Z",
+      "endedAt": "2026-11-21T18:23:04.607Z",
+      "settled": true,
+      "exitCode": 0,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-format-v120.receipt.json",
+        "sha256": "d5e7dcafc1c0e9c226725c9629987f2e944ec84f2c531b2c2a8e98cd738a4537",
+        "bytes": 1284,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-format-v120.log",
+        "sha256": "00e4841a471f2b7c9385008265366f90ee000941d5cb7e04efe91a0579a020f2",
+        "bytes": 1113,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/wbs-regression-final-format-v120.validation.json",
+        "sha256": "d7a0c41d85d5228827499d96f74b2b2bf2ab9b3e98f3dc008efe15479e06c73a",
+        "bytes": 497,
+        "mode": 384
+      },
+      "summary": []
+    },
+    {
+      "name": "memory-source-full-before-v120",
+      "command": {
+        "argv": [
+          "bun",
+          "--cwd",
+          "libs/wbs/adapters/store-memory",
+          "test",
+          "./src/testing/source-conformance.test.ts",
+          "--timeout",
+          "10000"
+        ],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T17:23:55.830Z",
+      "endedAt": "2026-11-21T17:25:27.453Z",
+      "settled": true,
+      "exitCode": 130,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-full-before-v120.receipt.json",
+        "sha256": "28dd1026c7ab39dfb68ef25620f6f277d45f562531393c61af95e2da09ef1f8d",
+        "bytes": 1386,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/memory-source-full-before-v120.log",
+        "sha256": "4297cccbbde15fd3b799529780de714fd13052fb27afdfd6bade03767003f318",
+        "bytes": 780834,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": [
+        " 68 expect() calls",
+        "Ran 36 tests across 9 files. \u001b[0m\u001b[2m[\u001b[1m3.79s\u001b[0m\u001b[2m]\u001b[0m",
+        " 70089 expect() calls",
+        "Ran 1915 tests across 127 files. \u001b[0m\u001b[2m[\u001b[1m11.70s\u001b[0m\u001b[2m]\u001b[0m",
+        " 3387 expect() calls",
+        "Ran 856 tests across 84 files. \u001b[0m\u001b[2m[\u001b[1m15.96s\u001b[0m\u001b[2m]\u001b[0m",
+        " 47 expect() calls",
+        "Ran 12 tests across 1 file. \u001b[0m\u001b[2m[\u001b[1m242.00ms\u001b[0m\u001b[2m]\u001b[0m",
+        " 59 expect() calls",
+        "Ran 8 tests across 2 files. \u001b[0m\u001b[2m[\u001b[1m9.21s\u001b[0m\u001b[2m]\u001b[0m",
+        " Test Files  6 failed | 89 passed (95)",
+        "      Tests  8 failed | 1197 passed (1205)",
+        "   Duration  53.04s (import 74%, tests 22%, transform 3%)"
+      ]
+    },
+    {
+      "name": "core-source-full-before-v120",
+      "command": {
+        "argv": ["bun", "/tmp/puni-core-source-run-v120.ts"],
+        "cwd": "/tmp/puni-combined-proposal-v1/tree",
+        "deadlineMs": 660000
+      },
+      "startedAt": "2026-11-21T17:29:20.027Z",
+      "endedAt": "2026-11-21T17:29:20.081Z",
+      "settled": true,
+      "exitCode": 1,
+      "signal": null,
+      "primary": null,
+      "cleanup": [],
+      "ownerState": "stopped-and-reaped",
+      "descriptorState": "closed",
+      "receipt": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-full-before-v120.receipt.json",
+        "sha256": "d89c3e033369b56df4b793d92be317e87844ca67f24bdf79d8f85bcb033867bb",
+        "bytes": 1267,
+        "mode": 384
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/core-source-full-before-v120.log",
+        "sha256": "962b44e73280434fd9492fd989a86a21b30fdb88bd40e6c00fc0658506b8fbb4",
+        "bytes": 580,
+        "mode": 384
+      },
+      "validation": null,
+      "summary": []
+    }
+  ],
+  "sourceCertificates": [
+    {
+      "source": "memory",
+      "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+      "certifiedCases": 221,
+      "exclusions": [],
+      "absentFamilies": [
+        {
+          "family": "accessDecisions",
+          "reason": "This Memory Source exposes no accessDecisions port; grant-backed package/export authority is separate."
+        },
+        {
+          "family": "livePlans",
+          "reason": "This Memory Source exposes no livePlans port; its separate export capture remains available."
+        },
+        {
+          "family": "workPackageRanks",
+          "reason": "This Memory Source exposes no workPackageRanks port or organization ordering writer."
+        }
+      ]
+    },
+    {
+      "source": "sqlite",
+      "revision": "fb18b74b372544902fca27e7d29612a88cae9e5d-dirty",
+      "certifiedCases": 224,
+      "exclusions": [],
+      "absentFamilies": []
+    }
+  ],
+  "faults": [
+    {
+      "owner": "mounted-fixture",
+      "state": {
+        "liveFault": null,
+        "completed": [
+          {
+            "name": "retention-guard",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/browser-ownership-fault-retention-guard-v120",
+            "negativeExit": 1,
+            "restoredExit": 0,
+            "exactBytesAndModeRestored": true
+          },
+          {
+            "name": "lower-close-latch",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/browser-ownership-fault-lower-close-latch-v120",
+            "negativeExit": 1,
+            "restoredExit": 0,
+            "exactBytesAndModeRestored": true
+          }
+        ]
+      },
+      "plan": {
+        "path": "/tmp/puni-combined-proposal-v1/control/browser-ownership-fault-plan-v120.json",
+        "sha256": "db2e81288709482f2c6e3b19a4a1e6ab96ad83350c92480cc026db138903f962",
+        "bytes": 57428,
+        "mode": 384
+      }
+    },
+    {
+      "owner": "frontend",
+      "state": {
+        "liveFault": null,
+        "completed": [
+          {
+            "name": "deadline-phrase",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/frontend-fault-deadline-phrase-v120",
+            "negativeExit": 1,
+            "restoredExit": 0,
+            "exactBytesAndModeRestored": true
+          },
+          {
+            "name": "shifted-origin",
+            "prefix": "/tmp/puni-combined-proposal-v1/control/frontend-fault-shifted-origin-v120",
+            "negativeExit": 1,
+            "restoredExit": 0,
+            "exactBytesAndModeRestored": true
+          }
+        ]
+      },
+      "plan": {
+        "path": "/tmp/puni-combined-proposal-v1/control/frontend-fault-plan-v120.json",
+        "sha256": "ea2d1826a11d887dad7bce9d5a09b50589e617e543608a796fe08c08932102c1",
+        "bytes": 99241,
+        "mode": 384
+      }
+    }
+  ],
+  "evidenceInventory": {
+    "path": "/tmp/puni-combined-proposal-v1/control/core-source-inventory-v120b.json",
+    "sha256": "e0d0c3e08fbd3697b9abc9904351e363027405cd3ec567573be09a540de2f37e",
+    "bytes": 29648,
+    "mode": 384
+  },
+  "cancelledMislaunch": {
+    "path": "/tmp/puni-combined-proposal-v1/control/memory-source-mislaunch-cancel-v120.json",
+    "sha256": "926cbfdffac1d274e43a9367784eade2319cab558e56618e285644f0bd0345c0",
+    "bytes": 398,
+    "mode": 436
+  },
+  "limitations": [
+    "The full UTC View run expired at660seconds with native exit143 and primary outer deadline. Its receipt remains settled:false; no complete View result is claimed. A subsequent host process query found no surviving Vitest/proposal descendant.",
+    "Seven reproduced View files retain315pass12fail327tests. Six repaired files now pass308; layout and browser writer files pass108. The hostile message-accessor assertion remains failed and unchanged. Files after the timed-out prefix, root Unit and Auckland are unverified.",
+    "Memory certification offers221cases and explicitly declares accessDecisions,livePlans,workPackageRanks absent; SQLite certifies224without exclusions/absences. These existing certificates are not complete original entity/catalogue/history/API/UI acceptance.",
+    "The accidental bun --cwd test invocation ran root Nx and was cancelled through the exact owned Nx child, native exit130. It is not gate evidence. The first direct-core inventory attempt could not findrg; the independently matched171-file roster succeeded.",
+    "Initial Node8/1205failures are superseded by the current95-file1191-pass tier, with browser writer tests moved to View and12step-value boundary tests newly included. The first Bun-test probe reached401but failed on the stdout banner; the required explicit status record now passes.",
+    "Initial scoped frontend compiler fixture omitted existing vitest.setup.ts matcher augmentation and reported assertion-type errors. Its corrected changed-test compiler check passes without any removed assertion or weakened compiler option.",
+    "All9 original requirements remain. V119 local CLI package is a controlled mutex fixture and prior cohort; actual WBS browser/performance/four Nx clients, complete Bun embedding/census, review, gates and delivery remain open.",
+    "Astra remains unavailable until recorded2026-11-22 10:09AM,timezone unspecified; no retry,substitute or new agent. No public commit,push,PR update,merge,deploy,activation or host gate occurs."
+  ],
+  "remainingFullOriginalRequirements": [
+    "Complete all wbs-work-packages entity names/contracts across WBS, engagement projects, settings inheritance and spaces; audit entire original OpenSpec, not green subset.",
+    "Finish entire deferred step catalogue: global definitions, scoped bindings, current package values, all13 fact families, SC17 previews/refusals and SC18 leaf order, frozen SC13/history/save/import/export and missing-state behavior.",
+    "Finish actual current writer/read closure: package birth/WPS, legacy StepStore retirement, measures/assignments/claims/directories/search/optimization/global reconciliation and full Source conformance. Prior memory Source84pass2fail11275 remains unresolved; SQL whole Source180s run incomplete and retained, no blind restart.",
+    "Finish mounted API closed package-values boundary and authority, remove legacy package definition mutations, add organization definition/binding/reorder/project manifest routes, generate contracts/OpenAPI/MCP tools/count, deliver organization/space/project Settings Steps and per-leaf UI/type conflict/preview.",
+    "Complete remaining ownership/cancellation/current typed leaf/history/manual runtime authority and provably breakable safeguards, including all13 first-child transfer/refusal/direction/budget coverage. Do not infer broad proofs from bounded whole-check variants.",
+    "Finish actual PUNI navigator/nav/n, burokrat/bur/b, dash/d unified CLI through agreed Optique1.3.6. Browser/performance grammar alone insufficient: typed lazy dispatch, real Bun service plan/build-preview/Playwright/native ownership, independent Burokrat judge, producer/assets/toolchain/profile/source-removal installed checks and four Nx clients all required.",
+    "Finish complete owned client-surface script inventory and Bun embedding, including gates/locks/refresh/queues/releases/bootstrap/remote/operator/generated/container/Ansible. Earlier27families/456raw leads are not accepted complete inventory.",
+    "Integrate selected WBS and CLI changes deliberately, preserve canonical/unrelated/R100132, format/lint/build/OpenSpec/secrets/migration/full product checks. Run exact-SHA full gate from clean isolated h2 or h4 tree under canonical lock; never live poller tree or raw full Nx on h2.",
+    "Complete authorized commit/push/draft PR update/merge/deploy/activation safely with reviewed concrete artifacts and observed running revision. No new routine confirmation needed; no goal completion until requirement-by-requirement evidence."
+  ],
+  "previousCheckpoint": {
+    "path": "/tmp/puni-goal-continuation-20261121-v119.json",
+    "sha256": "acf9f63b97bcb98beafd11a9cd62f858ef86ff5545be456ac1d83b606d70a68e",
+    "bytes": 39602,
+    "mode": 384
+  },
+  "goalStatus": "active",
+  "verification": {
+    "memory": {
+      "pass": 115,
+      "fail": 0,
+      "assertions": 12339,
+      "seconds": 5.41
+    },
+    "sqlite": {
+      "pass": 129,
+      "fail": 0,
+      "assertions": 13990,
+      "seconds": 379.87
+    },
+    "core": {
+      "pass": 2124,
+      "fail": 0,
+      "assertions": 12936,
+      "files": 171,
+      "seconds": 107.86
+    },
+    "mountedBrowserLifecycle": {
+      "pass": 13,
+      "fail": 0,
+      "assertions": 117,
+      "seconds": 111.08
+    },
+    "frontendNode": {
+      "pass": 1191,
+      "fail": 0,
+      "files": 95,
+      "seconds": 49.32
+    },
+    "frontendLayoutAndHttpWriter": {
+      "pass": 108,
+      "fail": 0,
+      "files": 2,
+      "seconds": 61.39
+    },
+    "frontendRepairedViewFiles": {
+      "pass": 308,
+      "fail": 0,
+      "files": 6,
+      "seconds": 64.5
+    },
+    "frontendUnrepairedReproduction": {
+      "pass": 315,
+      "fail": 12,
+      "files": 7,
+      "total": 327,
+      "seconds": 54.77
+    },
+    "finiteFaults": 4,
+    "exactRestoredFaults": 4,
+    "productionTypeScopes": ["backend", "frontend", "gateway", "mcp"],
+    "changedSourceOwners": 15,
+    "changedTypeScriptOwners": 14,
+    "frontendScopedTypeRoots": 12,
+    "existingFrontendMatcherSetupRoots": 1,
+    "backendScopedTypeRoots": 2,
+    "fullViewComplete": false,
+    "productionQualified": false
+  },
+  "supersedes": [
+    "The old84-pass/2-fail Memory summary is historical. Current fresh Source file115/0 includes221offered certified cases plus explicit absent optional ports.",
+    "The old incomplete SQLite whole Source observer is historical. The current direct file129/0/13990 reaches the224-case full certificate.",
+    "The old core failures are historical. Current171source-file inventory passes2124tests without collecting generated outputs.",
+    "Initial mounted12migration-setup failures, subsequent6/7refusing-reader failures, Node8failures and twelve reproduced View failures are diagnostics. Their named repairs have current owning GREENs except the unchanged hostile accessor case."
+  ],
+  "protectedOwners": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/wbs/be-01/src/repository/migrate.ts",
+      "sha256": "fc6610b91067bf71251746f76b899af83d69268199983f56d78fdc2421d9a519",
+      "bytes": 43,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/catalogue-database.ts",
+      "sha256": "44cdda46ca337c9dfa51a815be0c9cf36950fb20a3ef099fec4c8c84c113ca32",
+      "bytes": 5405,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/apps/puni/cli/src/entrypoint.ts",
+      "sha256": "a899485c578b8d7d677b24d57d2fd5b036249f065b91f55cc1699a64cbfba087",
+      "bytes": 7463,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/bun.lock",
+      "sha256": "983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6",
+      "bytes": 543082,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/package.json",
+      "sha256": "d1f294babbe059c1c241de434d69c6770125f3be6907311626127f55810a0e68",
+      "bytes": 5185,
+      "mode": 436
+    }
+  ],
+  "currentOpen": [
+    "Trace and fix the actual hostile error message-getter invocation without weakening its selector/disclosure assertion; the failing production source remains unchanged.",
+    "Complete all UTC View files through bounded partitions, then root Unit and Auckland. The660second prefix is unsuccessful and has no full totals.",
+    "Complete actual WBS browser/performance/native authority and all four real Nx client vectors; controlled packaged mini-service/Nx fixtures are not replacements.",
+    "Finish all original entity/settings/spaces/catalogue/13fact/15history/current writer-reader/API/MCP/UI/SC17/move/delete requirements individually.",
+    "Refresh and close the V116803-site/583-unresolved script-census snapshot and embed every client operation in the Bun PUNI CLI.",
+    "Obtain formal Astra review when available, complete full checks and an exact-SHA clean canonical h2/h4 gate, then authorized reviewed delivery."
+  ]
+}

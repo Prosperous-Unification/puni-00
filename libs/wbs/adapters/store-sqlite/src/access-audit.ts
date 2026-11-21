@@ -39,9 +39,9 @@ export function appendGrantAudit(
   const scopeId =
     grant.scope.kind === 'organization'
       ? grant.organizationId
-      : grant.scope.kind === 'project'
-        ? grant.scope.projectId
-        : grant.scope.workPackageId;
+      : grant.scope.kind === 'work_package'
+        ? grant.scope.workPackageId
+        : grant.scope.projectId;
   let subjectId: string;
   switch (grant.subject.kind) {
     case 'user':

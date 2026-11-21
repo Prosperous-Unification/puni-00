@@ -139,7 +139,7 @@ it('is the pair right after the agent pool widening, below every later folder, c
 describe(AUDIT_WIDENING, () => {
   // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
   const earlierActions = [
-    'restricted_project_recovery',
+    'restricted_work_package_recovery',
     'sso_connection_created',
     'sso_connection_updated',
     'sso_connection_deleted',
@@ -170,7 +170,7 @@ describe(AUDIT_WIDENING, () => {
   ];
   // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
   const earlierKinds = [
-    'project',
+    'work_package',
     'sso_connection',
     'provisioning_token',
     'scim_user',
@@ -194,9 +194,9 @@ describe(AUDIT_WIDENING, () => {
     run(dbPath, [
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
       "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
-      ...earlierActions.map((action, index) => audit(`a${String(index)}`, action, 'project')),
+      ...earlierActions.map((action, index) => audit(`a${String(index)}`, action, 'work_package')),
       ...earlierKinds.map((kind, index) =>
-        audit(`k${String(index)}`, 'restricted_project_recovery', kind),
+        audit(`k${String(index)}`, 'restricted_work_package_recovery', kind),
       ),
     ]);
     // The whole folder: the baseline's own copy lacks this change's migrations.

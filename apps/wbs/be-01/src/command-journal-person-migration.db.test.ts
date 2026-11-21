@@ -30,7 +30,7 @@ function baseline(): string {
   return before;
 }
 
-/** A store migrated through the column, with an account, a project and an agent person. */
+/** A store migrated through the column, with an account, a work package and an agent person. */
 function migratedStore(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'wbs-journal-person-'));
   roots.push(root);
@@ -41,7 +41,10 @@ function migratedStore(): { root: string; dbPath: string } {
     dbPath,
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
   );
-  run(dbPath, "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p', 'P', 'dany', 1)");
+  run(
+    dbPath,
+    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p', 'P', 'dany', 1)",
+  );
   run(dbPath, "INSERT INTO person (id, name, kind) VALUES ('codex', 'Codex', 'agent')");
   return { root, dbPath };
 }
@@ -50,7 +53,7 @@ function journal(dbPath: string, id: string, seq: number, personId: string | nul
   const sqlite = openDatabase(dbPath);
   try {
     sqlite.run(
-      `INSERT INTO command_journal (id, project_id, user_id, person_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+      `INSERT INTO command_journal (id, work_package_id, user_id, person_id, seq, kind, payload, inverse, preconditions, undone, created_at)
        VALUES (?, 'p', 'dany', ?, ?, 'rename', '{}', '{}', '{}', 0, 1)`,
       [id, personId, seq],
     );
@@ -98,7 +101,7 @@ function stackOf(dbPath: string, userId: string): string[] {
   try {
     return sqlite
       .query<{ id: string }, [string]>(
-        "SELECT id FROM command_journal WHERE project_id = 'p' AND user_id = ? ORDER BY seq",
+        "SELECT id FROM command_journal WHERE work_package_id = 'p' AND user_id = ? ORDER BY seq",
       )
       .all(userId)
       .map(({ id }) => id);
@@ -162,7 +165,7 @@ describe('the command journal person migration', () => {
 
   // Proof: with the DELETE removed from `add_command_journal_person/down.sql`,
   // this found `agent` among the human's rows after the rollback (watched
-  // 2026-10-26): the outgoing release reads by (project, account), so its undo
+  // 2026-10-26): the outgoing release reads by (work package, account), so its undo
   // would have reverted the agent's edit.
   it('discards only the agents’ entries on rollback, leaving every human stack whole', async () => {
     const { root, dbPath } = migratedStore();
@@ -175,7 +178,7 @@ describe('the command journal person migration', () => {
     journal(dbPath, 'human-again', 3, null);
     run(
       dbPath,
-      `INSERT INTO command_journal (id, project_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
+      `INSERT INTO command_journal (id, work_package_id, user_id, seq, kind, payload, inverse, preconditions, undone, created_at)
        VALUES ('kat-own', 'p', 'kat', 1, 'rename', '{}', '{}', '{}', 0, 1)`,
     );
 
@@ -205,14 +208,14 @@ describe('the command journal person migration', () => {
           .all()
           .map(({ detail }) => detail)
           .join(' | ');
-      const stack = "project_id = 'p' AND user_id = 'dany' AND person_id IS 'codex'";
+      const stack = "work_package_id = 'p' AND user_id = 'dany' AND person_id IS 'codex'";
       expect(plan(`SELECT * FROM command_journal WHERE ${stack} ORDER BY seq`)).toBe(
-        'SEARCH command_journal USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
+        'SEARCH command_journal USING INDEX command_journal_person_stack (work_package_id=? AND user_id=? AND person_id=?)',
       );
       expect(
         plan(`SELECT id FROM command_journal WHERE ${stack} AND undone = 1 LIMIT 1`),
       ).toContain(
-        'USING INDEX command_journal_person_stack (project_id=? AND user_id=? AND person_id=?)',
+        'USING INDEX command_journal_person_stack (work_package_id=? AND user_id=? AND person_id=?)',
       );
       expect(
         plan(`SELECT seq FROM command_journal WHERE ${stack} ORDER BY seq DESC LIMIT 1 OFFSET 49`),

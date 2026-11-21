@@ -31,7 +31,7 @@ export function inMemoryPlanEvents(
   const { held } = table;
   return {
     held,
-    listFor(projectId, filter) {
+    listFor(workPackageId, filter) {
       // Proof: with this check removed, the memory certification failed
       // `planEvents.listFor:batches-limit` (conformance), whose `limit` 0, -1
       // and 1.5 must be refused; watched 2026-10-24.
@@ -45,7 +45,7 @@ export function inMemoryPlanEvents(
         (holding.length > 0 && each.kind === 'batch' && holdsCommand(each.after, holding));
       return Promise.resolve(
         held
-          .filter((each) => each.projectId === projectId)
+          .filter((each) => each.workPackageId === workPackageId)
           .filter(
             (each) => filter.workItemId === undefined || each.workItemId === filter.workItemId,
           )

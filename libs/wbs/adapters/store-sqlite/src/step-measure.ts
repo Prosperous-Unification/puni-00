@@ -6,30 +6,20 @@ import {
   type MeasureMetric,
   type MoneyBasis,
 } from '@wbs/domain';
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
-import { listMeasuresIn } from './measure-definition';
 import { bumpWorkItems } from './revision';
-import { measure, projectOrganization, step, stepMeasure, workItem } from './schema';
-import { writingStep } from './step-reference';
-
-/**
- * A row's metric as every reader sees it (`wbs-measure-budgets` D4, design
- * D18): the legacy name when the row has one, else its definition's key.
- * Read through a left join on `measure`, so a row keyed to nothing and named
- * nothing reads NULL, which `step_measure_addressed` makes unstorable.
- */
-// Proof: with `metric` read alone, the SQLite certification's
-// `measures.set:defined-key` read a NULL metric for the gpu fact; watched 2026-10-23.
-const METRIC_OF_ROW = sql<string | null>`coalesce(${stepMeasure.metric}, ${measure.key})`;
+import { measure, stepMeasure, workItem, workPackageOrganization } from './schema';
+import { readSqliteStepWriteIn } from './step-write';
+import { readSqliteMeasureDefinitionsIn, readSqliteMeasuresIn } from './tuple-reads';
 
 /**
  * The id of the definition keyed `key` in the organization owning the work
- * item's project, or null when no organization owns it or it defines no such
+ * item's work package, or null when no organization owns it or it defines no such
  * key.
  */
 export function measureIdFor(
@@ -41,10 +31,19 @@ export function measureIdFor(
     db
       .select({ id: measure.id })
       .from(workItem)
-      .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
+      .innerJoin(
+        workPackageOrganization,
+        eq(workPackageOrganization.resourceId, workItem.workPackageId),
+      )
       .innerJoin(
         measure,
-        and(eq(measure.organizationId, projectOrganization.organizationId), eq(measure.key, key)),
+        and(
+          // Proof: omitting only this term admitted the foreign-only key through
+          // actual fact, trio and budget Sources; all three current
+          // refusal oracles received written (owned-measure-effect-sqlite-definition-organization-v1).
+          eq(measure.organizationId, workPackageOrganization.organizationId),
+          eq(measure.key, key),
+        ),
       )
       .where(eq(workItem.id, workItemId))
       .get()?.id ?? null
@@ -88,7 +87,7 @@ export function basisOf(
  * exactly as it keys the outgoing release's inserts; any other metric is a
  * definition key, written as that definition's id with no name.
  *
- * @throws when a defined metric names no definition of the project's
+ * @throws when a defined metric names no definition of the work package's
  * organization: the service decided the key against those same definitions
  * inside this unit of work, so its absence is a caller fault, not a refusal.
  */
@@ -114,7 +113,7 @@ export function storedColumnsOf(
 
 /**
  * The condition naming one fact of one step node by its metric: the legacy
- * name, or the definition the key names in the project's organization. A key
+ * name, or the definition the key names in the work package's organization. A key
  * naming no definition matches no row, so removing it changes nothing.
  */
 export function factCondition(
@@ -150,7 +149,7 @@ export function factCondition(
  * carries a third column, so `metric` is a parameter of every method that names
  * one row — {@link remove} — and a field of the record on {@link set}. It is
  * deliberately **absent** from the two methods that do not name a row:
- * {@link listByProject} hands back every metric because the roll-up folds all
+ * {@link listByWorkPackage} hands back every metric because the roll-up folds all
  * three from one read and a payload built from three queries could show three
  * different instants of the same plan, and {@link moveAll} moves every metric
  * because a leaf gaining its first child stops holding figures of **any** unit.
@@ -164,133 +163,33 @@ export class StepMeasureRepository implements MeasureStore {
     private readonly gate: Gate,
   ) {}
 
-  /**
-   * Every measure in the project, **in step order** within each work item and in
-   * metric order within each pair.
-   *
-   * Ordered for `ActualRepository.listByProject`'s reasons — floating-point
-   * addition is not associative, so the order decides the last bit of a parent's
-   * roll-up, and two reads of an unchanged plan must not disagree about the
-   * order of a row's steps on screen — plus one this table is the first to need:
-   * a pair may hold three rows, so the steps alone are not a total order.
-   * `metric` breaks that tie by its stored text, which is arbitrary but fixed.
-   */
-  async listByProject(projectId: string): Promise<StoredMeasure[]> {
-    await Promise.resolve();
-    return (
-      this.db
-        .select({
-          workItemId: stepMeasure.workItemId,
-          stepId: stepMeasure.stepId,
-          metric: METRIC_OF_ROW,
-          value: stepMeasure.value,
-          recordedAt: stepMeasure.recordedAt,
-          currency: stepMeasure.currency,
-          rateCardDigest: stepMeasure.rateCardDigest,
-        })
-        .from(stepMeasure)
-        .leftJoin(measure, eq(stepMeasure.measureId, measure.id))
-        // Inner rather than left: `step_measure.step_id` is a foreign key, so a
-        // measure whose step is gone cannot exist — `StepRepository.remove`
-        // deletes them in the same transaction as the step (task 6.3).
-        .innerJoin(step, eq(stepMeasure.stepId, step.id))
-        // And the work item, so the project is asked for in the statement that
-        // reads the rows. This was two queries until 2026-09-02 — every work item
-        // id, then `IN (…)` over the lot — which put one bound parameter per row
-        // into the read, four times over per plan read. Inner again, and for the
-        // same reason: `workItemId` is a foreign key.
-        .innerJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
-        .where(eq(workItem.projectId, projectId))
-        .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, METRIC_OF_ROW)
-        .all()
-        .map(({ currency, rateCardDigest, ...row }) => ({
-          ...row,
-          metric: metricOrThrow(row),
-          ...basisOf(currency, rateCardDigest),
-        }))
+  /** Every metric is retained, in current SC18 leaf order and metric order within its addressed pair. */
+  async listByWorkPackage(workPackageId: string): Promise<StoredMeasure[]> {
+    return await this.gate.enter(() =>
+      Promise.resolve(this.db.transaction((tx) => readSqliteMeasuresIn(tx, workPackageId, null))),
     );
   }
 
-  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]> {
-    if (ids.length === 0) return [];
-    await Promise.resolve();
-    const rows = await this.db
-      .select({
-        workItemId: stepMeasure.workItemId,
-        stepId: stepMeasure.stepId,
-        metric: METRIC_OF_ROW,
-        storedMetric: stepMeasure.metric,
-        value: stepMeasure.value,
-        recordedAt: stepMeasure.recordedAt,
-        currency: stepMeasure.currency,
-        rateCardDigest: stepMeasure.rateCardDigest,
-        workItemProjectId: workItem.projectId,
-        stepProjectId: step.projectId,
-        stepPosition: step.position,
-      })
-      .from(stepMeasure)
-      .leftJoin(measure, eq(stepMeasure.measureId, measure.id))
-      .leftJoin(step, eq(stepMeasure.stepId, step.id))
-      .leftJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
-      .where(
-        and(
-          inArray(stepMeasure.workItemId, [...ids]),
-          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
-        ),
-      )
-      .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, METRIC_OF_ROW);
-    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
-      throw new Error('targeted measure has an invalid work-item reference');
-    }
-    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
-    for (const row of admitted) {
-      if (row.stepProjectId !== projectId || row.stepPosition === null) {
-        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid step reference`);
-      }
-      // The column holds legacy names alone (`role_measure_metric`), so any
-      // other stored text bypassed the constraint.
-      // Proof: with the stored-metric test removed, `rejects malformed measure
-      // metrics after constraint-bypassing corruption` (targeted-readers.db.test.ts)
-      // resolved; watched 2026-10-23.
-      if (
-        typeof row.metric !== 'string' ||
-        (row.storedMetric !== null && !isLegacyMetric(row.storedMetric))
-      ) {
-        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid metric`);
-      }
-      if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < 0) {
-        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid value`);
-      }
-      if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
-        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
-      }
-    }
-    return admitted.map((row) => ({
-      workItemId: row.workItemId,
-      stepId: row.stepId,
-      metric: metricOrThrow(row),
-      value: row.value,
-      recordedAt: row.recordedAt,
-      ...basisOf(row.currency, row.rateCardDigest),
-    }));
+  /** Only requested owned rows are decoded; duplicate/absent/sibling ids cannot expand selection. */
+  async listByWorkItems(workPackageId: string, ids: readonly string[]): Promise<StoredMeasure[]> {
+    const retained = [...ids];
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => readSqliteMeasuresIn(tx, workPackageId, retained)),
+      ),
+    );
   }
 
-  /**
-   * The definitions of the organization owning the project, through
-   * `project_organization`, or null when no organization owns it (a store
-   * from before organizations, or a legacy project no bridge has mapped).
-   */
-  async definitionsFor(projectId: string): Promise<MeasureDefinition[] | null> {
-    await Promise.resolve();
-    const owner = this.db
-      .select({ organizationId: projectOrganization.organizationId })
-      .from(projectOrganization)
-      .where(eq(projectOrganization.resourceId, projectId))
-      .get();
-    return owner === undefined ? null : listMeasuresIn(this.db, owner.organizationId);
+  /** Current owned definitions, or null for an absent package, from the same snapshot as the scope lookup. */
+  async definitionsFor(workPackageId: string): Promise<MeasureDefinition[] | null> {
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => readSqliteMeasureDefinitionsIn(tx, workPackageId)),
+      ),
+    );
   }
 
-  async listPlacements(projectId: string, ids: readonly string[]) {
+  async listPlacements(workPackageId: string, ids: readonly string[]) {
     if (ids.length === 0) return [];
     const afterId = sql<string | null>`(
       SELECT predecessor.work_item_id FROM step_measure AS predecessor
@@ -298,7 +197,7 @@ export class StepMeasureRepository implements MeasureStore {
         AND EXISTS (
           SELECT 1 FROM work_item AS predecessor_owner
           WHERE predecessor_owner.id = predecessor.work_item_id
-            AND predecessor_owner.project_id = ${projectId}
+            AND predecessor_owner.work_package_id = ${workPackageId}
         )
       ORDER BY predecessor.work_item_id DESC LIMIT 1
     )`;
@@ -306,7 +205,9 @@ export class StepMeasureRepository implements MeasureStore {
       .selectDistinct({ id: stepMeasure.workItemId, afterId })
       .from(stepMeasure)
       .innerJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
-      .where(and(eq(workItem.projectId, projectId), inArray(stepMeasure.workItemId, [...ids])))
+      .where(
+        and(eq(workItem.workPackageId, workPackageId), inArray(stepMeasure.workItemId, [...ids])),
+      )
       .orderBy(asc(stepMeasure.workItemId));
   }
 
@@ -324,24 +225,30 @@ export class StepMeasureRepository implements MeasureStore {
    * today.
    */
   async set(toSet: StoredMeasure, stamp: WriteStamp): Promise<StepWriteOutcome> {
-    return await writingStep(this.db, toSet.stepId, async () => {
-      await this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((tx) => {
-          const columns = storedColumnsOf(tx, toSet);
+    const kept = structuredClone(toSet),
+      act = { ...stamp };
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx): StepWriteOutcome => {
+          const decision = readSqliteStepWriteIn(tx, kept.workItemId, kept.stepId);
+          // Proof: removing this refusal made sqlite stepCatalogue.pointWrite:measure-untyped
+          // return written for an unresolved step after its healthy typed write/read/remove.
+          // Restoring the guard returned the same isolated owner to passing.
+          if (decision.kind !== 'resolved') return decision.kind;
+          const columns = storedColumnsOf(tx, kept);
           // A legacy metric conflicts on its name, a defined one on its
           // definition: the two unique indexes `step_measure_metric_key` and
           // `step_measure_measure_key`, one per way a row is addressed.
-          const basis = basisColumns(toSet.basis);
+          const basis = basisColumns(kept.basis);
           tx.insert(stepMeasure)
             .values({
-              workItemId: toSet.workItemId,
-              stepId: toSet.stepId,
-              value: toSet.value,
-              recordedAt: toSet.recordedAt,
+              workItemId: kept.workItemId,
+              stepId: kept.stepId,
+              value: kept.value,
+              recordedAt: kept.recordedAt,
               ...columns,
               ...basis,
-              ...auditOnCreate(stamp),
+              ...auditOnCreate(act),
             })
             .onConflictDoUpdate({
               target:
@@ -354,17 +261,18 @@ export class StepMeasureRepository implements MeasureStore {
               // certification's `measures.set:basis` read the first card after
               // a rewrite under another (watched 2026-10-23).
               set: {
-                value: toSet.value,
-                recordedAt: toSet.recordedAt,
+                value: kept.value,
+                recordedAt: kept.recordedAt,
                 ...basis,
-                ...auditOnUpdate(stamp),
+                ...auditOnUpdate(act),
               },
             })
             .run();
-          bumpWorkItems(tx, [toSet.workItemId], stamp);
-        });
-      });
-    });
+          bumpWorkItems(tx, [kept.workItemId], act);
+          return 'written';
+        }),
+      ),
+    );
   }
 
   async remove(
@@ -419,15 +327,4 @@ export class StepMeasureRepository implements MeasureStore {
       });
     });
   }
-}
-
-function metricOrThrow(row: { workItemId: string; stepId: string; metric: string | null }): string {
-  // `step_measure_addressed` and the `measure_id` foreign key make a row with
-  // neither a name nor a definition unstorable; one here is drifted state.
-  // Proof: with this check made to pass, `rejects a stored fact naming
-  // neither a metric nor a definition after constraint-bypassing corruption`
-  // (targeted-readers.db.test.ts) resolved; watched 2026-10-24.
-  if (row.metric === null)
-    throw new Error(`measure ${row.workItemId}/${row.stepId} names no metric and no definition`);
-  return row.metric;
 }

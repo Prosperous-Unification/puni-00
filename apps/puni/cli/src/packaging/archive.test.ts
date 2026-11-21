@@ -39,12 +39,7 @@ function createDirectory(path: string, paxPath?: string): ArchiveMember {
 /** Independent ustar writer retains physical names/order; local PAX length is encoded in bytes. */
 function createArchive(members: readonly ArchiveMember[]): Uint8Array {
   const blocks: Uint8Array[] = [];
-  function appendMember(
-    path: string,
-    kind: '0' | '5' | 'x',
-    bytes: Uint8Array,
-    prefix = '',
-  ): void {
+  function appendMember(path: string, kind: '0' | '5' | 'x', bytes: Uint8Array, prefix = ''): void {
     const header = Buffer.alloc(512);
     function writeField(offset: number, width: number, text: string): void {
       const encoded = Buffer.from(text);
@@ -94,12 +89,7 @@ function createArchive(members: readonly ArchiveMember[]): Uint8Array {
         'x',
         createPaxPath(member.paxPath),
       );
-    appendMember(
-      member.path,
-      member.kind === 'directory' ? '5' : '0',
-      member.bytes,
-      member.prefix,
-    );
+    appendMember(member.path, member.kind === 'directory' ? '5' : '0', member.bytes, member.prefix);
   }
   blocks.push(Buffer.alloc(1024));
   return gzipSync(Buffer.concat(blocks), { level: 1 });
@@ -112,7 +102,9 @@ async function readMember(files: ReadonlyMap<string, File>, name: string): Promi
 }
 async function requireHealthyArchive(): Promise<void> {
   const archive = createArchive([]);
-  expect(admitArchiveMembers(archive)).toBeUndefined();
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).not.toThrow();
   const files = await new Bun.Archive(archive).files();
   expect([...files.keys()].sort()).toEqual(['package/dist/puni.mjs', 'package/package.json']);
   expect((await readMember(files, 'package/package.json')).toString()).toBe(packageMetadata);
@@ -124,7 +116,9 @@ async function requireAcceptedMembers(
 ): Promise<void> {
   await requireHealthyArchive();
   const archive = createArchive(members);
-  expect(admitArchiveMembers(archive)).toBeUndefined();
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).not.toThrow();
   const files = await new Bun.Archive(archive).files();
   expect([...files.keys()].sort()).toEqual(
     ['package/package.json', 'package/dist/puni.mjs', ...expectedPaths].sort(),
@@ -134,22 +128,30 @@ async function requireAcceptedMembers(
 it('raw archive refuses an earlier effective file followed by a descendant file', async () => {
   await requireHealthyArchive();
   const archive = createArchive([createFile('package/a'), createFile('package/a/b')]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive refuses an earlier effective file followed by a descendant directory', async () => {
   await requireHealthyArchive();
   const archive = createArchive([createFile('package/a'), createDirectory('package/a/b/')]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive refuses a later effective file above an earlier descendant file', async () => {
   await requireHealthyArchive();
   const archive = createArchive([createFile('package/a/b'), createFile('package/a')]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive refuses a later effective file above an earlier descendant directory', async () => {
   await requireHealthyArchive();
   const archive = createArchive([createDirectory('package/a/b/'), createFile('package/a')]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive admits an explicit directory after its descendants', async () => {
   await requireAcceptedMembers(
@@ -181,7 +183,9 @@ it('raw archive refuses repeated physical PAX paths with distinct effective name
     createFile('package/physical', 'first', 'package/selected-a'),
     createFile('package/physical', 'second', 'package/selected-b'),
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
 });
 it('raw archive refuses distinct physical PAX paths with the same effective name', async () => {
   await requireHealthyArchive();
@@ -189,7 +193,9 @@ it('raw archive refuses distinct physical PAX paths with the same effective name
     createFile('package/raw-one', 'first', 'package/selected'),
     createFile('package/raw-two', 'second', 'package/selected'),
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
 });
 it('raw archive refuses a PAX-selected file before a PAX-selected descendant', async () => {
   await requireHealthyArchive();
@@ -197,7 +203,9 @@ it('raw archive refuses a PAX-selected file before a PAX-selected descendant', a
     createFile('package/raw-one', 'first', 'package/selected'),
     createFile('package/raw-two', 'second', 'package/selected/child'),
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive refuses a PAX-selected file after its PAX-selected descendant', async () => {
   await requireHealthyArchive();
@@ -205,7 +213,9 @@ it('raw archive refuses a PAX-selected file after its PAX-selected descendant', 
     createFile('package/raw-one', 'first', 'package/selected/child'),
     createFile('package/raw-two', 'second', 'package/selected'),
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow(collision);
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow(collision);
 });
 it('raw archive admits physical prefix collisions with unrelated PAX effective names', async () => {
   await requireAcceptedMembers(
@@ -277,7 +287,9 @@ for (const count of [4096, 16384] as const)
         }),
       );
       const admissionStart = performance.now();
-      expect(admitArchiveMembers(archive)).toBeUndefined();
+      expect(() => {
+        admitArchiveMembers(archive);
+      }).not.toThrow();
       const rawAdmissionMs = performance.now() - admissionStart;
       const decoderStart = performance.now();
       const files = await new Bun.Archive(archive).files();
@@ -317,32 +329,39 @@ for (const count of [4096, 16384] as const)
     60000,
   );
 
-
 /** Effective paths and physical fields reproduce the retained Bun1.4.4 package's first collisions.
  * Literal payloads independently distinguish decoder identity; they do not copy dependency code. */
 const requiredPaxPair = [
-{
-  "name": "exporter-logs-otlp-proto/node_modules/@opentelemetry/convert-legacy-browser-http-options.d.ts",
-  "prefix": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry",
-  "selected": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-logs-otlp-proto/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-browser-http-options.d.ts"
-},
-{
-  "name": "exporter-logs-otlp-proto/node_modules/@opentelemetry/convert-legacy-browser-http-options.d.ts",
-  "prefix": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry",
-  "selected": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-logs-otlp-proto/node_modules/@opentelemetry/otlp-exporter-base/build/esnext/configuration/convert-legacy-browser-http-options.d.ts"
-},
+  {
+    name: 'exporter-logs-otlp-proto/node_modules/@opentelemetry/convert-legacy-browser-http-options.d.ts',
+    prefix:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry',
+    selected:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-logs-otlp-proto/node_modules/@opentelemetry/otlp-exporter-base/build/esm/configuration/convert-legacy-browser-http-options.d.ts',
+  },
+  {
+    name: 'exporter-logs-otlp-proto/node_modules/@opentelemetry/convert-legacy-browser-http-options.d.ts',
+    prefix:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry',
+    selected:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-logs-otlp-proto/node_modules/@opentelemetry/otlp-exporter-base/build/esnext/configuration/convert-legacy-browser-http-options.d.ts',
+  },
 ] as const;
 const mixedPaxPair = [
-{
-  "name": "exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts",
-  "prefix": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry",
-  "selected": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts"
-},
-{
-  "name": "exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts",
-  "prefix": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry",
-  "selected": "package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/json/index.d.ts"
-},
+  {
+    name: 'exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts',
+    prefix:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry',
+    selected:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts',
+  },
+  {
+    name: 'exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/index.d.ts',
+    prefix:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry',
+    selected:
+      'package/dist/toolkit/trusted-node-modules/@elysiajs/opentelemetry/node_modules/@opentelemetry/sdk-node/node_modules/@opentelemetry/exporter-metrics-otlp-grpc/node_modules/@opentelemetry/otlp-transformer/build/esm/logs/json/index.d.ts',
+  },
 ] as const;
 
 /** Decode exact declared names/payloads before the raw admission oracle, without normalizing headers. */
@@ -351,36 +370,63 @@ async function requirePaxFallbackArchive(members: readonly ArchiveMember[]): Pro
   const archive = createArchive(members);
   const files = await new Bun.Archive(archive).files();
   expect([...files.keys()].sort()).toEqual(
-    ['package/package.json', 'package/dist/puni.mjs', ...members.map((member) =>
-      member.paxPath ?? (member.prefix === undefined || member.prefix === ''
-        ? member.path : member.prefix + '/' + member.path))].sort(),
+    [
+      'package/package.json',
+      'package/dist/puni.mjs',
+      ...members.map(
+        (member) =>
+          member.paxPath ??
+          (member.prefix === undefined || member.prefix === ''
+            ? member.path
+            : member.prefix + '/' + member.path),
+      ),
+    ].sort(),
   );
   for (const member of members) {
-    const selected = member.paxPath ?? (member.prefix === undefined || member.prefix === ''
-      ? member.path : member.prefix + '/' + member.path);
+    const selected =
+      member.paxPath ??
+      (member.prefix === undefined || member.prefix === ''
+        ? member.path
+        : member.prefix + '/' + member.path);
     expect((await readMember(files, selected)).toString('hex')).toBe(
       Buffer.from(member.bytes).toString('hex'),
     );
   }
-  expect(admitArchiveMembers(archive)).toBeUndefined();
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).not.toThrow();
 }
 
 for (const reversed of [false, true]) {
-  it('raw archive admits required long PAX fallbacks in ' + (reversed ? 'reverse' : 'native') + ' order', async () => {
-    const members = requiredPaxPair.map((entry, index) => ({
-      ...createFile(entry.name, 'required-pax-' + String(index), entry.selected),
-      prefix: entry.prefix,
-    }));
-    await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
-  });
-  it('raw archive admits a required long PAX fallback beside its ordinary header path in ' + (reversed ? 'reverse' : 'native') + ' order', async () => {
-    const ordinary = mixedPaxPair[0], fallback = mixedPaxPair[1];
-    const members = [
-      {...createFile(ordinary.name, 'ordinary-header'), prefix: ordinary.prefix},
-      {...createFile(fallback.name, 'required-pax', fallback.selected), prefix: fallback.prefix},
-    ];
-    await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
-  });
+  it(
+    'raw archive admits required long PAX fallbacks in ' +
+      (reversed ? 'reverse' : 'native') +
+      ' order',
+    async () => {
+      const members = requiredPaxPair.map((entry, index) => ({
+        ...createFile(entry.name, 'required-pax-' + String(index), entry.selected),
+        prefix: entry.prefix,
+      }));
+      await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
+    },
+  );
+  it(
+    'raw archive admits a required long PAX fallback beside its ordinary header path in ' +
+      (reversed ? 'reverse' : 'native') +
+      ' order',
+    async () => {
+      const ordinary = mixedPaxPair[0],
+        fallback = mixedPaxPair[1];
+      const members = [
+        { ...createFile(ordinary.name, 'ordinary-header'), prefix: ordinary.prefix },
+        {
+          ...createFile(fallback.name, 'required-pax', fallback.selected),
+          prefix: fallback.prefix,
+        },
+      ];
+      await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
+    },
+  );
 }
 
 for (const [label, name, extended] of [
@@ -389,35 +435,78 @@ for (const [label, name, extended] of [
 ] as const) {
   const prefix = 'package/' + 'p'.repeat(147);
   for (const reversed of [false, true])
-    it('raw archive owns the 155-byte prefix and 100-byte ' + label + ' name boundary in ' + (reversed ? 'reverse' : 'native') + ' order', async () => {
-      expect(Buffer.byteLength(prefix)).toBe(155);
-      expect(Buffer.byteLength(name)).toBe(100);
-      expect(Buffer.byteLength(extended)).toBeGreaterThan(100);
-      const members = [
-        {...createFile(name, 'boundary-ordinary'), prefix},
-        {...createFile(name, 'boundary-pax', prefix + '/' + extended), prefix},
-      ];
-      await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
-    });
-  it('raw archive still refuses repeated physical PAX aliases representable at the ' + label + ' USTAR boundary', async () => {
-    await requireHealthyArchive();
-    const archive = createArchive([
-      createFile('package/physical-boundary', 'first', prefix + '/' + name),
-      createFile('package/physical-boundary', 'second', prefix + '/' + name.slice(0, -1) + 'q'),
-    ]);
-    expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
-  });
+    it(
+      'raw archive owns the 155-byte prefix and 100-byte ' +
+        label +
+        ' name boundary in ' +
+        (reversed ? 'reverse' : 'native') +
+        ' order',
+      async () => {
+        expect(Buffer.byteLength(prefix)).toBe(155);
+        expect(Buffer.byteLength(name)).toBe(100);
+        expect(Buffer.byteLength(extended)).toBeGreaterThan(100);
+        const members = [
+          { ...createFile(name, 'boundary-ordinary'), prefix },
+          { ...createFile(name, 'boundary-pax', prefix + '/' + extended), prefix },
+        ];
+        await requirePaxFallbackArchive(reversed ? members.toReversed() : members);
+      },
+    );
+  it(
+    'raw archive still refuses repeated physical PAX aliases representable at the ' +
+      label +
+      ' USTAR boundary',
+    async () => {
+      await requireHealthyArchive();
+      const archive = createArchive([
+        createFile('package/physical-boundary', 'first', prefix + '/' + name),
+        createFile('package/physical-boundary', 'second', prefix + '/' + name.slice(0, -1) + 'q'),
+      ]);
+      expect(() => {
+        admitArchiveMembers(archive);
+      }).toThrow('PUNI tar member is duplicated');
+    },
+  );
 }
 
 it('raw archive refuses two ordinary identities separated by a required long PAX placeholder', async () => {
   await requireHealthyArchive();
-  const ordinary = mixedPaxPair[0], fallback = mixedPaxPair[1];
+  const ordinary = mixedPaxPair[0],
+    fallback = mixedPaxPair[1];
   const archive = createArchive([
-    {...createFile(ordinary.name, 'first'), prefix: ordinary.prefix},
-    {...createFile(fallback.name, 'placeholder', fallback.selected), prefix: fallback.prefix},
-    {...createFile(ordinary.name, 'second'), prefix: ordinary.prefix},
+    { ...createFile(ordinary.name, 'first'), prefix: ordinary.prefix },
+    { ...createFile(fallback.name, 'placeholder', fallback.selected), prefix: fallback.prefix },
+    { ...createFile(ordinary.name, 'second'), prefix: ordinary.prefix },
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
+});
+
+it('raw archive remembers short PAX physical identities across a long placeholder', async () => {
+  await requireHealthyArchive();
+  const ordinary = mixedPaxPair[0],
+    fallback = mixedPaxPair[1];
+  const archive = createArchive([
+    { ...createFile(ordinary.name, 'first', 'package/short-first'), prefix: ordinary.prefix },
+    { ...createFile(fallback.name, 'placeholder', fallback.selected), prefix: fallback.prefix },
+    { ...createFile(ordinary.name, 'second', 'package/short-second'), prefix: ordinary.prefix },
+  ]);
+  const files = await new Bun.Archive(archive).files();
+  expect([...files.keys()].sort()).toEqual(
+    [
+      'package/package.json',
+      'package/dist/puni.mjs',
+      'package/short-first',
+      fallback.selected,
+      'package/short-second',
+    ].sort(),
+  );
+  expect((await readMember(files, 'package/short-first')).toString()).toBe('first');
+  expect((await readMember(files, 'package/short-second')).toString()).toBe('second');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
 });
 
 it('raw archive refuses a repeated long effective PAX name', async () => {
@@ -427,16 +516,22 @@ it('raw archive refuses a repeated long effective PAX name', async () => {
     createFile('package/long-one', 'first', selected),
     createFile('package/long-two', 'second', selected),
   ]);
-  expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
 });
 
 for (const identity of ['package/package.json', 'package/dist/puni.mjs'])
-  it('raw archive refuses a required long PAX placeholder at critical identity ' + identity, async () => {
-    await requireHealthyArchive();
-    const archive = createArchive([createFile(identity, 'alias', requiredPaxPair[0].selected)]);
-    expect(() => admitArchiveMembers(archive)).toThrow();
-  });
-
+  it(
+    'raw archive refuses a required long PAX placeholder at critical identity ' + identity,
+    async () => {
+      await requireHealthyArchive();
+      const archive = createArchive([createFile(identity, 'alias', requiredPaxPair[0].selected)]);
+      expect(() => {
+        admitArchiveMembers(archive);
+      }).toThrow();
+    },
+  );
 
 /** Bun omits directory entries from its file map; duplicate directory headers still own
  * physical identities because only regular-file required-PAX headers are placeholders. */
@@ -445,7 +540,9 @@ async function requireRepeatedPaxDirectories(members: readonly ArchiveMember[]):
   const archive = createArchive(members);
   const files = await new Bun.Archive(archive).files();
   expect([...files.keys()].sort()).toEqual(['package/dist/puni.mjs', 'package/package.json']);
-  expect(() => admitArchiveMembers(archive)).toThrow('PUNI tar member is duplicated');
+  expect(() => {
+    admitArchiveMembers(archive);
+  }).toThrow('PUNI tar member is duplicated');
 }
 
 it('raw archive refuses repeated long PAX directory physical headers', async () => {
@@ -455,10 +552,15 @@ it('raw archive refuses repeated long PAX directory physical headers', async () 
   ]);
 });
 for (const reversed of [false, true])
-  it('raw archive refuses mixed ordinary and long PAX directory physical headers in ' + (reversed ? 'reverse' : 'native') + ' order', async () => {
-    const members = [
-      createDirectory('package/directory-placeholder/'),
-      createDirectory('package/directory-placeholder/', 'package/' + 'a'.repeat(101) + '/'),
-    ];
-    await requireRepeatedPaxDirectories(reversed ? members.toReversed() : members);
-  });
+  it(
+    'raw archive refuses mixed ordinary and long PAX directory physical headers in ' +
+      (reversed ? 'reverse' : 'native') +
+      ' order',
+    async () => {
+      const members = [
+        createDirectory('package/directory-placeholder/'),
+        createDirectory('package/directory-placeholder/', 'package/' + 'a'.repeat(101) + '/'),
+      ];
+      await requireRepeatedPaxDirectories(reversed ? members.toReversed() : members);
+    },
+  );

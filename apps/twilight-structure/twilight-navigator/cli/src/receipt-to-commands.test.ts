@@ -7,7 +7,7 @@ import {
   PlanReferenceRecord,
   PlanTasks,
 } from '@twilight-burokrat/contracts';
-import { applyProjectCommands, validateSchema } from '@wbs/contracts';
+import { applyWorkPackageCommands, validateSchema } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import { runTwin, runTwinInProcess, scratchDirectory, type TwinRun } from './testing/run-twin';
@@ -331,11 +331,11 @@ describe('twin receipt-to-commands', () => {
     expect((await runTwinInProcess(receiptToCommands())).exitCode).toBe(0);
     const batch = JSON.parse(readFileSync(output, 'utf8')) as { id: string; commands: unknown };
 
-    expect(await validateSchema(applyProjectCommands.params, { id: batch.id })).toEqual({
+    expect(await validateSchema(applyWorkPackageCommands.params, { id: batch.id })).toEqual({
       value: { id: batch.id },
     });
     expect(
-      (await validateSchema(applyProjectCommands.body, { commands: batch.commands })).issues,
+      (await validateSchema(applyWorkPackageCommands.body, { commands: batch.commands })).issues,
     ).toBeUndefined();
   });
 

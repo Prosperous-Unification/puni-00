@@ -422,7 +422,7 @@ describe('decideClaim on what a claim names', () => {
     });
   });
 
-  it('answers no_steps on a leaf of a project with no steps', () => {
+  it('answers no_steps on a leaf of a work package with no steps', () => {
     const target = { ...leafRequest().target, steps: [] };
     expect(decideClaim(leafRequest({ target }))).toEqual({
       kind: 'refused',

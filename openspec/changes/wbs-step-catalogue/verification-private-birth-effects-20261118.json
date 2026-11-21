@@ -1,0 +1,855 @@
+{
+  "scope": "Five actual individual before/fault/after sequences; source-only audit, no actor by reviewer",
+  "sourceBasis": [
+    {
+      "path": "/tmp/puni-step-catalogue-birth-quality-v3/formatted-source-pins.json",
+      "sha256": "ca7bc5941097b024634a3117a0d926a58a3dff25bf111f3b64a7f04ddc9245f3",
+      "bytes": 5159545,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-wbs-memory-detachment-live-v1/next-source-pins.json",
+      "sha256": "09b8fc7442d6ac2c69affc759293f97da42b9cf69a1cb0502739dccc8f1b676e",
+      "bytes": 145510,
+      "mode": 384
+    },
+    {
+      "path": "/tmp/puni-gateway-quality-successor-checks-prep-v1/support-pins.json",
+      "sha256": "a7f854883c5898229c9f707f7ac93f782f0d31ef1772a8f8dbdaac047c3ee4d0",
+      "bytes": 76933,
+      "mode": 384
+    }
+  ],
+  "effects": [
+    {
+      "id": "C0",
+      "kind": "literal-whole-required-call-omission",
+      "title": "materializes the complete catalogue union for an empty package at actual scoped birth using current definition defaults",
+      "source": {
+        "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+        "sha256": "6c0176084f912261118b72e60520bc580319db19939ca719bf5a3d49a3aec1c4",
+        "bytes": 8049,
+        "mode": 436
+      },
+      "canonicalCopy": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/creation.canonical.ts",
+        "sha256": "6c0176084f912261118b72e60520bc580319db19939ca719bf5a3d49a3aec1c4",
+        "bytes": 8049,
+        "mode": 384
+      },
+      "effect": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/C0.ts",
+        "sha256": "9215da2001ec29a7b6f7151b986a24dc078265e81f55592fd9058eb179d3024f",
+        "bytes": 7994,
+        "mode": 384
+      },
+      "method": "createWorkPackageIn",
+      "removed": "  materializePackageStepsIn(tx, settingsTarget.chain);\n",
+      "inserted": "",
+      "runs": [
+        {
+          "phase": "before",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^materializes the complete catalogue union for an empty package at actual scoped birth using current definition defaults$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 51
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/before/native.log",
+            "sha256": "f5d30222dd59fee41d216142d26591acc11b1eda262a1d9b3f1932afdbf00d92",
+            "bytes": 324,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/before/native.receipt.json",
+            "sha256": "d2c25f49676c4893a18e4f7980ac727f9d05aa3da01c5639cafb349d1a20f2c6",
+            "bytes": 1524,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/before/native.validation.json",
+            "sha256": "e9536156c0953fcb68921d26da898b07d1aa46c1c5bc9ae585f8e35be6cdb53a",
+            "bytes": 2185,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+            "sha256": "6c0176084f912261118b72e60520bc580319db19939ca719bf5a3d49a3aec1c4",
+            "bytes": 8049,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "fault",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^materializes the complete catalogue union for an empty package at actual scoped birth using current definition defaults$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 1,
+            "filtered out": 118,
+            "expect() calls": 43
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/fault/native.log",
+            "sha256": "e2fa17ada4259a5060c8a7c930a4b3f3bb16cf9dd67285b96094d84e49881dc1",
+            "bytes": 1733,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/fault/native.receipt.json",
+            "sha256": "17a26433c9f68dc7175bfce369643aeea23e97cdc36f97a4bcf67a6cf2ee6168",
+            "bytes": 1523,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/fault/native.validation.json",
+            "sha256": "97817824574da0d895372aa3959bb667fa34e27315d6f3a21739bb922cc91dc5",
+            "bytes": 2183,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+            "sha256": "6c0176084f912261118b72e60520bc580319db19939ca719bf5a3d49a3aec1c4",
+            "bytes": 8049,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "after",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^materializes the complete catalogue union for an empty package at actual scoped birth using current definition defaults$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 51
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/after/native.log",
+            "sha256": "1aec63a0425faf455b670b71290d3e7ff976c2a45c44f9602cc9a9bb7cbfd048",
+            "bytes": 324,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/after/native.receipt.json",
+            "sha256": "9f4e13d73bf0a83d908160bbb2579b2089bca8e6b8d9a0efce440b4152e3eb46",
+            "bytes": 1522,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/C0/after/native.validation.json",
+            "sha256": "4b3cfdf25e143afc89f75dc79f155b86dcc8b2f466dabcbc0a3bb89802a108bf",
+            "bytes": 2182,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/work-package-creation.ts",
+            "sha256": "6c0176084f912261118b72e60520bc580319db19939ca719bf5a3d49a3aec1c4",
+            "bytes": 8049,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        }
+      ]
+    },
+    {
+      "id": "B0",
+      "kind": "literal-whole-binding-check-omission",
+      "title": "catalogue package birth refuses a selected binding with BLOB identity and rolls back its complete store",
+      "source": {
+        "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 436
+      },
+      "canonicalCopy": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/helper.canonical.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 384
+      },
+      "effect": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/B0.ts",
+        "sha256": "e5142214ae682195e1a59ac908b468a3da5ac1e9d38047278af30965a7b86fe8",
+        "bytes": 4768,
+        "mode": 384
+      },
+      "method": "materializePackageStepsIn",
+      "removed": "    if (\n      typeof row.binding_id !== 'string' ||\n      row.binding_id === '' ||\n      row.binding_organization_id !== chain.organizationId\n    )\n      throw new Error(\n        'package step materialization has an absent binding or inconsistent organization',\n      );\n",
+      "inserted": "",
+      "runs": [
+        {
+          "phase": "before",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected binding with BLOB identity and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/before/native.log",
+            "sha256": "522d7d8c368e7a0084f430672c3fe0edbb23700ff1fc601a160f1741c0699c6e",
+            "bytes": 308,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/before/native.receipt.json",
+            "sha256": "82cc81b6d3122496e9d4288c624ba17e542e528276c33e2785f43fa183de8b4e",
+            "bytes": 1508,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/before/native.validation.json",
+            "sha256": "922037e7cf27794b710d44b5df03688ff507ced0f3669273ce715e3d0180ed3c",
+            "bytes": 2201,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "fault",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected binding with BLOB identity and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 1,
+            "filtered out": 118,
+            "expect() calls": 47
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/fault/native.log",
+            "sha256": "1f7b880291bdd7cbe4022977a59ff04a8582bdca42a79c20f943bf7329c0260b",
+            "bytes": 859,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/fault/native.receipt.json",
+            "sha256": "f978fa2a700e55e39ec252b570910300c6919266f91cb8271ea311e6de149107",
+            "bytes": 1506,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/fault/native.validation.json",
+            "sha256": "b0580d7924fb683681a24c43fb9eecf23fd1c884338d7e64752092c3496431d8",
+            "bytes": 2198,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "after",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected binding with BLOB identity and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/after/native.log",
+            "sha256": "c748c7a8c37197ce5f6bbb58dfcb1acc5c1bf7eba81976833d130a719e896193",
+            "bytes": 308,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/after/native.receipt.json",
+            "sha256": "8adb678e28cfd078d318cff04fe94dc5320a98ef8a793324cd0bead02d15b0fd",
+            "bytes": 1506,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/B0/after/native.validation.json",
+            "sha256": "17e0a551729f8a2b1014e3ec967ef069fb06e1da9f5280d1d5219976d5e6bf96",
+            "bytes": 2198,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        }
+      ]
+    },
+    {
+      "id": "T0",
+      "kind": "literal-whole-type-check-omission",
+      "title": "catalogue package birth refuses a selected foreign type attribution and rolls back its complete store",
+      "source": {
+        "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 436
+      },
+      "canonicalCopy": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/helper.canonical.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 384
+      },
+      "effect": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/T0.ts",
+        "sha256": "0d95d669a072208b788ef8134c5d4cbdb599f3f57e9a053fc8fb4fffb5125160",
+        "bytes": 4696,
+        "mode": 384
+      },
+      "method": "materializePackageStepsIn",
+      "removed": "    if (\n      row.binding_type_id !== null &&\n      (typeof row.binding_type_id !== 'string' ||\n        row.binding_type_id === '' ||\n        row.actual_type_id !== row.binding_type_id ||\n        row.type_organization_id !== chain.organizationId)\n    )\n      throw new Error('package step materialization has an absent or inconsistent type');\n",
+      "inserted": "",
+      "runs": [
+        {
+          "phase": "before",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected foreign type attribution and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 51
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/before/native.log",
+            "sha256": "6ca88e395816f219058bd48424ba7bf4bc11951e236c3f937c02c051498153cf",
+            "bytes": 306,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/before/native.receipt.json",
+            "sha256": "826406a5a9e6290fc071e70dff6841e59e72b4b4381c73f87b274db9b34cdf78",
+            "bytes": 1506,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/before/native.validation.json",
+            "sha256": "d7ee8edf73182d67197ea0e8458adc29d80eb4c3445f142cb3c9bbfa0319126f",
+            "bytes": 2199,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "fault",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected foreign type attribution and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 1,
+            "filtered out": 118,
+            "expect() calls": 48
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/fault/native.log",
+            "sha256": "2cc16d6ec0ca61105153f67adcf6e28aa004bc1db7efc07224e42f8b239859e7",
+            "bytes": 857,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/fault/native.receipt.json",
+            "sha256": "c9a4bc78cc785948a5c7d2534de615fc0956e5c33e6fdd5e7c0f035f1d8664e6",
+            "bytes": 1504,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/fault/native.validation.json",
+            "sha256": "e1d0c481569eb1bf9c63e694ef82f4d986755b202e038fd86efacb45f63f0886",
+            "bytes": 2196,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "after",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a selected foreign type attribution and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 51
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/after/native.log",
+            "sha256": "9530f81780906d8a77adbf2ccf642127e527f43e8f2e6dc9d4445ef4562baf29",
+            "bytes": 306,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/after/native.receipt.json",
+            "sha256": "645914fdb8a793e7a99845085c877753c9486b9d22e05d0ddc68b145450b3be9",
+            "bytes": 1504,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/T0/after/native.validation.json",
+            "sha256": "9f64c607ef98cfede0e6d971f71ebf40d269a947c40aec1877014e91c4fa949b",
+            "bytes": 2196,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        }
+      ]
+    },
+    {
+      "id": "U0",
+      "kind": "raw-unit-projection-dependency-coercion-not-literal-check-omission",
+      "title": "catalogue package birth refuses an unknown definition default estimate unit and rolls back its complete store",
+      "source": {
+        "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 436
+      },
+      "canonicalCopy": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/helper.canonical.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 384
+      },
+      "effect": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/U0.ts",
+        "sha256": "bd962c3330f7310d0b046f403c3320d27dc8df8db3b078b6abe12b4fc447a9a3",
+        "bytes": 5125,
+        "mode": 384
+      },
+      "method": "materializePackageStepsIn",
+      "removed": "           definition.estimate_unit, definition.default_allowance_bps AS allowance_bps,",
+      "inserted": "           CASE WHEN definition.estimate_unit='hours' THEN 'workdays' ELSE definition.estimate_unit END AS estimate_unit, definition.default_allowance_bps AS allowance_bps,",
+      "runs": [
+        {
+          "phase": "before",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses an unknown definition default estimate unit and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/before/native.log",
+            "sha256": "6075c5859e4d0edd602d561882ea47e99ffd874f22174a4f33abbd0e172e7c29",
+            "bytes": 314,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/before/native.receipt.json",
+            "sha256": "db6e49ad8d66f1f033d749ff152c9f26f55cddd8932596d7b4c25cf7e0ec268d",
+            "bytes": 1514,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/before/native.validation.json",
+            "sha256": "66664606c707eb733da7d0b9396a58c8d63e4dc0a4b6421b26927a67e10701f1",
+            "bytes": 2250,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "fault",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses an unknown definition default estimate unit and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 1,
+            "filtered out": 118,
+            "expect() calls": 47
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/fault/native.log",
+            "sha256": "7248eac2f3d8ec8ac854fbf78bd56b20b601b4e2e3f4664a133412fac60d92a3",
+            "bytes": 865,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/fault/native.receipt.json",
+            "sha256": "dcc437be7f6acf81478e85a9a6e8f0d61b0bd42f78ca9899481faf18d3540a68",
+            "bytes": 1512,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/fault/native.validation.json",
+            "sha256": "2a4ee9facd82bb19fa8b23364edbd14506659f68bbc85d89f7b1ab3933b8ba9a",
+            "bytes": 2247,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "after",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses an unknown definition default estimate unit and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/after/native.log",
+            "sha256": "11c62173115a7ae37ffb827f577f48755e2290ab6ef38c93c8271632f0708065",
+            "bytes": 314,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/after/native.receipt.json",
+            "sha256": "1aad244b96ad6abf10fd33ddecaf776720a79463699c58710b31e80a85b27eb7",
+            "bytes": 1512,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/U0/after/native.validation.json",
+            "sha256": "9ff4e8c106d7438033989b43c3e0c79cd959979a41f4e3c997ae5618301254b2",
+            "bytes": 2247,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        }
+      ]
+    },
+    {
+      "id": "A0",
+      "kind": "raw-allowance-projection-dependency-coercion-not-literal-check-omission",
+      "title": "catalogue package birth refuses a BLOB definition default allowance before coercion and rolls back its complete store",
+      "source": {
+        "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 436
+      },
+      "canonicalCopy": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/helper.canonical.ts",
+        "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+        "bytes": 5040,
+        "mode": 384
+      },
+      "effect": {
+        "path": "/tmp/puni-step-catalogue-birth-negative-tests-v1/effects/A0.ts",
+        "sha256": "f49f83b8805749665ab84fd2e70bcf0486ad123c6e6b1d895712daf9cc98e069",
+        "bytes": 5162,
+        "mode": 384
+      },
+      "method": "materializePackageStepsIn",
+      "removed": "definition.default_allowance_bps AS allowance_bps,",
+      "inserted": "CASE WHEN typeof(definition.default_allowance_bps)='blob' THEN CAST(definition.default_allowance_bps AS INTEGER) ELSE definition.default_allowance_bps END AS allowance_bps,",
+      "runs": [
+        {
+          "phase": "before",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a BLOB definition default allowance before coercion and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/before/native.log",
+            "sha256": "f0313193a38dc68a2b5ea9d6606fed7a2ca806b3a9f25f47673d16045f9aaf9a",
+            "bytes": 322,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/before/native.receipt.json",
+            "sha256": "c9d8125040e75626e70851a111e5640fd2c3a842c71859e9b292df4e8d966c63",
+            "bytes": 1522,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/before/native.validation.json",
+            "sha256": "dff610652789e970c22301c3ec381958e3e46cbc45e6078fb0d574a433f78d35",
+            "bytes": 2255,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "fault",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a BLOB definition default allowance before coercion and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 0,
+            "fail": 1,
+            "filtered out": 118,
+            "expect() calls": 47
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/fault/native.log",
+            "sha256": "98a3991c9e824813cceb58d050c08644ed28ed0ec51cf85ca519386dc5a19686",
+            "bytes": 873,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/fault/native.receipt.json",
+            "sha256": "8ffccf6434f113f6fb830753ecae2d5a063fb60d91ae9404012ba17734b590ea",
+            "bytes": 1520,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/fault/native.validation.json",
+            "sha256": "0dfe2b736115fe1f660ed25424bb047ce341013465a4f82377f19380813ba732",
+            "bytes": 2252,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        },
+        {
+          "phase": "after",
+          "command": {
+            "argv": [
+              "/home/df/.bun/bin/bun",
+              "test",
+              "./libs/wbs/adapters/store-sqlite/src/step-catalogue-report.db.test.ts",
+              "--test-name-pattern",
+              "^catalogue package birth refuses a BLOB definition default allowance before coercion and rolls back its complete store$",
+              "--timeout=30000"
+            ],
+            "cwd": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree",
+            "deadlineMs": 180000
+          },
+          "counts": {
+            "pass": 1,
+            "fail": 0,
+            "filtered out": 118,
+            "expect() calls": 50
+          },
+          "log": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/after/native.log",
+            "sha256": "70ed355afbe3ab83ad637023b4a79bfc1123dec507a218b1a61cedf174692af0",
+            "bytes": 322,
+            "mode": 384
+          },
+          "receipt": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/after/native.receipt.json",
+            "sha256": "ad72c50f98046415a71b509640f50612e0f08544ffbbb4f8a6e12f9ce788e993",
+            "bytes": 1520,
+            "mode": 384
+          },
+          "validation": {
+            "path": "/tmp/puni-step-catalogue-birth-effects-live-v1/A0/after/native.validation.json",
+            "sha256": "46cd1ff9b3736026c0773c8da5632e318d9cfa546ffd1245daa032e82551e261",
+            "bytes": 2252,
+            "mode": 384
+          },
+          "sourceRestoration": {
+            "path": "/tmp/puni-step-catalogue-sc13-first-red-v1/tree/libs/wbs/adapters/store-sqlite/src/step-materialization.ts",
+            "sha256": "5ac4ada9c6ff3e2e893a35cbcf524281d3dc75b7170f6daf0cb493cafaad188d",
+            "bytes": 5040,
+            "mode": 436
+          },
+          "allOtherInputsMatched": true
+        }
+      ]
+    }
+  ]
+}

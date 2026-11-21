@@ -157,7 +157,7 @@ describe('isEstimateMethod', () => {
 });
 
 describe('PertWeights', () => {
-  it('accepts the coefficients a project may weigh its three points by', () => {
+  it('accepts the coefficients a work package may weigh its three points by', () => {
     const weights = parseOrThrow(PertWeights, { optimistic: 2, realistic: 3, pessimistic: 0 });
     expect(weights.realistic).toBe(3);
   });
@@ -197,7 +197,7 @@ describe('isEstimateRounding', () => {
   });
 });
 
-describe('expectedDays under a project’s own weights', () => {
+describe('expectedDays under a work package’s own weights', () => {
   const estimate = { optimistic: 2, realistic: 3, pessimistic: 10 };
 
   it('divides by the sum of the weights rather than by six', () => {
@@ -221,12 +221,12 @@ describe('finalDays rounds one step’s figure', () => {
     ...over,
   });
 
-  it('ceils by default, which is what a project that has said nothing gets', () => {
+  it('ceils by default, which is what a work package that has said nothing gets', () => {
     expect(DEFAULT_ESTIMATE_RULE.rounding).toBe('ceil');
     expect(finalDays(half, DEFAULT_ESTIMATE_RULE)).toBe(1);
   });
 
-  it('floors and rounds when the project says so', () => {
+  it('floors and rounds when the work package says so', () => {
     expect(finalDays(half, ruleWith({ rounding: 'floor' }))).toBe(0);
     expect(finalDays(half, ruleWith({ rounding: 'round' }))).toBe(1);
   });
@@ -250,7 +250,7 @@ describe('finalDays rounds one step’s figure', () => {
     expect(finalDays(spread, ruleWith({ method: 'optimistic' }))).toBe(1);
   });
 
-  it('rounds the figure the project’s own weights produced', () => {
+  it('rounds the figure the work package’s own weights produced', () => {
     // 15 / 3 = 5 exactly under a plain average, where the default weights
     // would have combined the same triple to 4.
     expect(
@@ -368,7 +368,7 @@ describe('minute estimates', () => {
     expect(chargedMinutes(trio, DEFAULT_ESTIMATE_RULE, 10)).toBe(52);
   });
 
-  it('never consults the project rounding for a minute step', () => {
+  it('never consults the work package rounding for a minute step', () => {
     for (const rounding of ['floor', 'exact', 'ceil'] as const) {
       expect(chargedMinutes(trio, { ...DEFAULT_ESTIMATE_RULE, rounding }, 10)).toBe(52);
     }

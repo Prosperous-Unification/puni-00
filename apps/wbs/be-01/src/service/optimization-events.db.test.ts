@@ -71,7 +71,7 @@ function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
        VALUES ('u-1', 'owner', 'hash', 1)`,
     );
     raw.run(
-      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
                             optimization_enabled, schedule_engine, schedule_objective)
        VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
     );
@@ -111,7 +111,9 @@ describe('optimized outcome events', () => {
       },
     });
     const tooLate: ScheduleInput = { ...INPUT, notBefore: new Map([['w-1', 50_000_000]]) };
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: tooLate })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: tooLate }),
+    ).toBeNull();
     await instance.drain();
     expect(errors).toHaveLength(2);
     expect(
@@ -165,7 +167,9 @@ describe('optimized outcome events', () => {
       notBefore: new Map([['w-1', 50_000_000]]),
     };
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: tooLate })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: tooLate }),
+    ).toBeNull();
     await instance.drain();
     expect(launches).toBe(0);
     expect(pushed).toHaveLength(2);
@@ -227,14 +231,14 @@ describe('optimized outcome events', () => {
     });
 
     expect(
-      await instance.read({ projectId: 'p-1', objective: 'pri', input: DEADLINED_INPUT }),
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: DEADLINED_INPUT }),
     ).toBeNull();
     await instance.drain();
 
     expect(pushed).toEqual([
       {
         type: 'schedule_optimization_infeasible',
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         generation: 1,
         inputHash: scheduleInputHash(DEADLINED_INPUT),
         objective: 'pri',
@@ -243,7 +247,7 @@ describe('optimized outcome events', () => {
       },
       {
         type: 'schedule_optimization_infeasible',
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         generation: 1,
         inputHash: scheduleInputHash(DEADLINED_INPUT),
         objective: 'time',
@@ -251,7 +255,9 @@ describe('optimized outcome events', () => {
         budgetMs: BUDGET,
       },
     ]);
-    expect(await new DrizzleEventLogStore(db, OPEN).rangeSince('project:p-1', -1)).toHaveLength(2);
+    expect(
+      await new DrizzleEventLogStore(db, OPEN).rangeSince('work-package:p-1', -1),
+    ).toHaveLength(2);
     const raw = openDatabase(path);
     try {
       expect(
@@ -276,7 +282,7 @@ describe('optimized outcome events', () => {
     for (const objective of ['pri', 'time'] as const) {
       expect(
         await instance.retry({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           objective,
           inputHash: scheduleInputHash(DEADLINED_INPUT),
           input: DEADLINED_INPUT,
@@ -345,12 +351,14 @@ describe('optimized outcome events', () => {
       },
     });
 
-    expect(await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    expect(
+      await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT }),
+    ).toBeNull();
     await instance.drain();
     expect(pushed).toHaveLength(2);
     expect(pushed.find(({ event }) => event.objective === 'pri')?.event).toEqual({
       type: 'schedule_optimized',
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       generation: 1,
       inputHash: HASH,
       objective: 'pri',
@@ -358,7 +366,7 @@ describe('optimized outcome events', () => {
       budgetMs: BUDGET,
     });
 
-    await instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT });
+    await instance.read({ workPackageId: 'p-1', objective: 'pri', input: INPUT });
     await instance.drain();
     expect(pushed).toHaveLength(2);
     const raw = openDatabase(path);

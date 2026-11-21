@@ -1,0 +1,2163 @@
+{
+  "recordedAt": "2026-11-19T13:55:25.738Z",
+  "goalStatus": "active",
+  "scope": "Current owned-package measure facts, trios and budgets in both actual Sources",
+  "source": [
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/measure-facts.ts",
+      "sha256": "42a99358fa7bc662ce064b43ec27307961c90b68f006780fe2051ac37272eb2f",
+      "bytes": 21873,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "sha256": "826a77dacf5139d3d188eb02ce614239a0a111e02868fa7235ecf3b82b61856f",
+      "bytes": 317449,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "sha256": "98c50d6163e349d171d692b23ec15e360b403edbed2ea9ba7d7b90a05fee2e63",
+      "bytes": 343676,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+      "sha256": "bd0170c859446bb159c5fc3e4aa35800391928d328e9f5b2af677eed01619378",
+      "bytes": 9130,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+      "sha256": "8597b5b24a7b3c16d1398a2530562dfb8336f6195bf61e1182a40887ad673e8d",
+      "bytes": 7345,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+      "sha256": "53f5bf9795390126b05001a5c395e2bdf9f89b22c4b166acbbb4ee36116ad512",
+      "bytes": 2781,
+      "mode": 436
+    },
+    {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-measure.ts",
+      "sha256": "379c46fd24f7353d65dff9481ae30d3de944727b101923f1d75af3be5e8448e4",
+      "bytes": 14451,
+      "mode": 436
+    }
+  ],
+  "assumption": "Current packages belong to actual projects and their organization. Both deterministic fixture packages share one organization, so the old unowned-second-package expectation is invalid for this current Source graph. Historical unowned fallback implementations are unchanged and are not certified by these current cases.",
+  "behavior": [
+    "Facts, trios and budgets accept the owning organization custom key on both valid sibling packages and preserve exact independent readback.",
+    "Same-key definitions remain in two organizations for usage isolation. An additional foreign-only definition is independently read before crediting cross-organization refusal; unknown-key refusals remain.",
+    "SQLite fixture organization selection precedes project/package/type/catalogue authoring. It no longer creates a second legacy organization or inserts a duplicate late package ownership mapping.",
+    "The seven touched files are formatted/import-sorted. A captured staging-clone boolean falsely narrowed by lint is represented by an equivalent observed-stage list; zero/multiple-stage refusal behavior remains. The broad memory fault suite is rerun."
+  ],
+  "controls": [
+    {
+      "name": "owned-measures-memory-first-red-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-first-red-v1.receipt.json",
+        "sha256": "e46132ee5a9e4b46db3c2778abbb015d301f23d8dde0ccca0c67760369f9b909",
+        "bytes": 1426,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:34:08.579Z",
+        "endedAt": "2026-11-19T13:34:11.580Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-first-red-v1.log",
+          "sha256": "20052188a63dafc47f3a0767fe2f65857dd6140000087b381a391e6f10af4aeb",
+          "bytes": 4742
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-first-red-v1.log",
+        "sha256": "20052188a63dafc47f3a0767fe2f65857dd6140000087b381a391e6f10af4aeb",
+        "bytes": 4742,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-first-red-v1.validation.json",
+        "sha256": "496fd0022408672073caa7af1ede8049b8313668bf46317868d41253f22a7af2",
+        "bytes": 501,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-sqlite-first-red-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-first-red-v1.receipt.json",
+        "sha256": "afbee8897d6b372d52229457a743e8ea5790e3ea54c8934492e098f06e72eedf",
+        "bytes": 1429,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-first-red-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:34:08.438Z",
+        "endedAt": "2026-11-19T13:34:13.660Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-first-red-v1.log",
+          "sha256": "509b6a1fffe49594797280a78b9844c58ac25df0f6b86ecb61256bd3c4fd1dbb",
+          "bytes": 3210
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-first-red-v1.log",
+        "sha256": "509b6a1fffe49594797280a78b9844c58ac25df0f6b86ecb61256bd3c4fd1dbb",
+        "bytes": 3210,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-first-red-v1.validation.json",
+        "sha256": "3a418a677a3ddd50387939a0b0ac9cc2f624f8e4d422210b279c7bde0277e782",
+        "bytes": 501,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-memory-after-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-after-v1.receipt.json",
+        "sha256": "02ab16b912801298e12762eb340eb46dc1ba6ecadb8197d3027f15e3d43010b1",
+        "bytes": 1417,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:35:19.101Z",
+        "endedAt": "2026-11-19T13:35:23.010Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-after-v1.log",
+          "sha256": "04a5de14206ca49d7bbdc404df97ae2b63dc827cdd72bf03d26a5ef0e5878746",
+          "bytes": 526
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-after-v1.log",
+        "sha256": "04a5de14206ca49d7bbdc404df97ae2b63dc827cdd72bf03d26a5ef0e5878746",
+        "bytes": 526,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-after-v1.validation.json",
+        "sha256": "712e682707e6d6dffd282fe212db02351e01db3825c60a3ab4edc2c7846fe630",
+        "bytes": 492,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-sqlite-after-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-after-v1.receipt.json",
+        "sha256": "2040b0740b3dcca3153d012f6bc970c62a6df51e34697c53753cec9d5ccee7e1",
+        "bytes": 1420,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-after-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:35:19.159Z",
+        "endedAt": "2026-11-19T13:35:25.634Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-after-v1.log",
+          "sha256": "f81d341c9c31202561832940b6c8c3c9dd5cfca8ec3e355dcde5eb81dc4552f4",
+          "bytes": 536
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-after-v1.log",
+        "sha256": "f81d341c9c31202561832940b6c8c3c9dd5cfca8ec3e355dcde5eb81dc4552f4",
+        "bytes": 536,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-sqlite-after-v1.validation.json",
+        "sha256": "6a0259015b585d398c672a6b0194ade71df1c59550ba78c3017a9710e034b1ab",
+        "bytes": 492,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-both-before-effects-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-both-before-effects-v1.receipt.json",
+        "sha256": "d5f2f41a1b1194ce3c1968de9ca0ce479731bb6b548a8f33efc58f55aec158f8",
+        "bytes": 1513,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-both-before-effects-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:00.168Z",
+        "endedAt": "2026-11-19T13:38:05.420Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-both-before-effects-v1.log",
+          "sha256": "8dcf3e8490961ada17212012fe97016f59fcedd85b1b6d7f8abeaca22f94d205",
+          "bytes": 947
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-both-before-effects-v1.log",
+        "sha256": "8dcf3e8490961ada17212012fe97016f59fcedd85b1b6d7f8abeaca22f94d205",
+        "bytes": 947,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-both-before-effects-v1.validation.json",
+        "sha256": "c8ac9cd972c886a32b6aa4c4df26eade080a0d2302c98ab40fbd4b8fd1913772",
+        "bytes": 506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measure-effects-root-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effects-root-v1.receipt.json",
+        "sha256": "9e1cf73009ec93c0fd3c7ebb9293c3ff37eb253b16ac4f12ca57fe9c164b7f36",
+        "bytes": 1291,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effects-root-v1",
+        "command": {
+          "argv": ["/home/df/.bun/bin/bun", "/tmp/puni-owned-measure-effects-v1.ts"],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:25.419Z",
+        "endedAt": "2026-11-19T13:38:41.917Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effects-root-v1.log",
+          "sha256": "dd7ba163615892b0bf2e3ec37d8270ac165b6bd8506db6aeee0e630a749b718b",
+          "bytes": 353
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effects-root-v1.log",
+        "sha256": "dd7ba163615892b0bf2e3ec37d8270ac165b6bd8506db6aeee0e630a749b718b",
+        "bytes": 353,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effects-root-v1.validation.json",
+        "sha256": "f7bc4585d8b3473f56989be7c8ade5ab76659d8730a9c301c45c7203f2873f4f",
+        "bytes": 490,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-final-focused-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-focused-v1.receipt.json",
+        "sha256": "b26a4a8f887e504736ff9b68a0de55db2f19ea22baf9b831391f1794ad059827",
+        "bytes": 1501,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-focused-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:00.085Z",
+        "endedAt": "2026-11-19T13:43:12.083Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-focused-v1.log",
+          "sha256": "9c05a61407b7e9fb053952e771afe61097fc5b30495f09f1af1fce857e95eba1",
+          "bytes": 953
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-focused-v1.log",
+        "sha256": "9c05a61407b7e9fb053952e771afe61097fc5b30495f09f1af1fce857e95eba1",
+        "bytes": 953,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-focused-v1.validation.json",
+        "sha256": "49230e867085c86de91a1d2c47dfc97657f81b8b7eea647ba7c214bb62fbef75",
+        "bytes": 494,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-current-regression-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-current-regression-v1.receipt.json",
+        "sha256": "e774aef2131a6a7a48806d3d6fae4055c8119e28cb616ea5cc356e88a38ad92c",
+        "bytes": 1822,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-current-regression-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/package-birth-current.test.ts",
+            "libs/wbs/adapters/store-memory/src/testing/step-catalogue-conformance.test.ts",
+            "libs/wbs/adapters/store-memory/src/plan-export.test.ts",
+            "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:36.620Z",
+        "endedAt": "2026-11-19T13:43:44.901Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-current-regression-v1.log",
+          "sha256": "2b18605a11a2961965ff2fc0996de388d836e57607e7d8fe4fa4565238fe78f5",
+          "bytes": 13376
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-current-regression-v1.log",
+        "sha256": "2b18605a11a2961965ff2fc0996de388d836e57607e7d8fe4fa4565238fe78f5",
+        "bytes": 13376,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-current-regression-v1.validation.json",
+        "sha256": "9eb1bcaeda7859c70b75f3b787e4dac54d9defdee9c0ab80ed25d96cd626ab72",
+        "bytes": 506,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-memory-regression-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-regression-v1.receipt.json",
+        "sha256": "d7b0d2d8f667a867e623b2074c471343a1c0b87671c85f89aaca963ebe67090f",
+        "bytes": 1376,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-regression-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:00.071Z",
+        "endedAt": "2026-11-19T13:43:11.249Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-regression-v1.log",
+          "sha256": "f624c43aaf15dbcdfd231b9020055934cbdae25194ef9af61dc0a74b844bec24",
+          "bytes": 13879
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-regression-v1.log",
+        "sha256": "f624c43aaf15dbcdfd231b9020055934cbdae25194ef9af61dc0a74b844bec24",
+        "bytes": 13879,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-memory-regression-v1.validation.json",
+        "sha256": "33ae1564cdc3f196c26169a10f9111c205e9d3e7432ddfeca942417bfc45798d",
+        "bytes": 504,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-final-types-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-types-v1.receipt.json",
+        "sha256": "6d4a4e80646ef46a9bfd6fd29ff326ac74547c17ff923d533436a70a8113f8ef",
+        "bytes": 1433,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:00.095Z",
+        "endedAt": "2026-11-19T13:43:15.423Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-types-v1.validation.json",
+        "sha256": "221b84dccf431e08673714e0382e82445475d54e11cf0e96e16e9c0a2645439e",
+        "bytes": 488,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-final-lint-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-lint-v1.receipt.json",
+        "sha256": "c9e4058bac6607a0c78fe9780382a7c1d515e06061badcfd252679c66aae4b1e",
+        "bytes": 1771,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/step-measure.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:00.038Z",
+        "endedAt": "2026-11-19T13:43:14.759Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-lint-v1.validation.json",
+        "sha256": "f87c4a9c929758326b9a71c356e0e1ba39182abf6efdf0a62916b7e70d4b5900",
+        "bytes": 486,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-final-format-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-format-v1.receipt.json",
+        "sha256": "c8e123b909781d24780e83dc2642d738f21bf756b0bd507f5fad7a36fbf250d1",
+        "bytes": 1798,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/step-measure.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:43:00.084Z",
+        "endedAt": "2026-11-19T13:43:03.179Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-final-format-v1.validation.json",
+        "sha256": "71bf3a991da436f607b92ea67f46bceaeaea35a76d5b73e738ab87ce413feb77",
+        "bytes": 491,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-complete-scope-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-complete-scope-v1.receipt.json",
+        "sha256": "94102f73b490964d3637ad34a6a9ce977701daa6de79862c492fbdf1604590e3",
+        "bytes": 1504,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-complete-scope-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:49:12.983Z",
+        "endedAt": "2026-11-19T13:49:33.246Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-complete-scope-v1.log",
+          "sha256": "8538a80c65b745480b166aee93389eef514560a710e23a5493d0e701a7cbf1fd",
+          "bytes": 5949
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-complete-scope-v1.log",
+        "sha256": "8538a80c65b745480b166aee93389eef514560a710e23a5493d0e701a7cbf1fd",
+        "bytes": 5949,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-complete-scope-v1.validation.json",
+        "sha256": "02c41781418f45e8dcbf5f6318388e0548d0dbcf8f34942a1d2cd85eb9bdc6e1",
+        "bytes": 497,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-scope-final-tests-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-tests-v1.receipt.json",
+        "sha256": "137eed5532dc9b07bee0102b64a9cc4d200ad266354ac260bc4126c242bd2b1c",
+        "bytes": 1510,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-tests-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:53:33.241Z",
+        "endedAt": "2026-11-19T13:54:00.474Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-tests-v1.log",
+          "sha256": "7e3b95c53c459b0d208fa4778c86097be3efc67cc8de4e742865981925cb2862",
+          "bytes": 5953
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-tests-v1.log",
+        "sha256": "7e3b95c53c459b0d208fa4778c86097be3efc67cc8de4e742865981925cb2862",
+        "bytes": 5953,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-tests-v1.validation.json",
+        "sha256": "182ad559453607ee1b9e4c32159a5309d5991196f58ae66cb443f564b9dc5120",
+        "bytes": 503,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-scope-memory-regression-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-memory-regression-v1.receipt.json",
+        "sha256": "1cfdf9848b0fe50c866955c8f8cbb5ded42e1ef1a5dfc773624ae1af6cea0827",
+        "bytes": 1388,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-memory-regression-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "--timeout=10000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:53:33.241Z",
+        "endedAt": "2026-11-19T13:53:44.177Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-memory-regression-v1.log",
+          "sha256": "727e5866ebc36461a138d8647bcb2603391abbdf8cfb86b3320da7602dd58109",
+          "bytes": 16348
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-memory-regression-v1.log",
+        "sha256": "727e5866ebc36461a138d8647bcb2603391abbdf8cfb86b3320da7602dd58109",
+        "bytes": 16348,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-memory-regression-v1.validation.json",
+        "sha256": "55ab3a9f0544df0945782fcef281f28cdfbf23437d294745dbd7782097743aa4",
+        "bytes": 516,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-scope-final-types-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-types-v1.receipt.json",
+        "sha256": "124363d7ffced71c1f6348f85e46bea49e38f332fa54b4e166b174992270a3d7",
+        "bytes": 1445,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-types-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/@typescript/native/bin/tsc",
+            "--build",
+            "--force",
+            "libs/wbs/adapters/store-memory/tsconfig.json",
+            "libs/wbs/adapters/store-sqlite/tsconfig.json"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:53:33.273Z",
+        "endedAt": "2026-11-19T13:53:48.052Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-types-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-types-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-types-v1.validation.json",
+        "sha256": "23e5c51f792396b0a9adb1d6d7eec7ba2d0ee1f964b2dc58be8e0db90262a01b",
+        "bytes": 500,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-scope-final-lint-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-lint-v1.receipt.json",
+        "sha256": "50eddafc0da428e5abd7e715d5c511c4b6ba7767279da761c7d6eccca6545dc0",
+        "bytes": 1783,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-lint-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/step-measure.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:53:33.241Z",
+        "endedAt": "2026-11-19T13:53:47.312Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-lint-v1.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-lint-v1.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-lint-v1.validation.json",
+        "sha256": "213c012167925d574965f81fc52dc1ec069274ee7b77ca0041c721e278c98ab7",
+        "bytes": 498,
+        "mode": 384
+      }
+    },
+    {
+      "name": "owned-measures-scope-final-format-v1",
+      "qualified": true,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-format-v1.receipt.json",
+        "sha256": "f26b29a9eb322bc49a69958f7260e28d09f9516117ea4f3e44254fbf34647217",
+        "bytes": 1810,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-format-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/step-measure.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:53:33.214Z",
+        "endedAt": "2026-11-19T13:53:36.133Z",
+        "exitCode": 0,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-format-v1.log",
+          "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+          "bytes": 66
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-format-v1.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66,
+        "mode": 384
+      },
+      "validation": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-scope-final-format-v1.validation.json",
+        "sha256": "3941cd009f70e1d0ee4db3ea7ae789f0f44ccb2d945dadd4a59bf1ef2f5416da",
+        "bytes": 503,
+        "mode": 384
+      }
+    }
+  ],
+  "effects": [
+    {
+      "name": "memory-measure-foreign",
+      "file": "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+      "test": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "pattern": "certifies current owned-package measures.set:defined-key",
+      "before": "if (held?.some((each) => each.key === toSet.metric) !== true)",
+      "after": "if (toSet.metric !== 'foreign_gpu_minutes' && held?.some((each) => each.key === toSet.metric) !== true)",
+      "markers": ["Received: \"written\"", "1 fail"],
+      "healthySha256": "38d496ad3d417f08a8b122e6dd34fd943246a5c4176e30cfeb15d25e121dd097",
+      "faultSha256": "7a283664140813afd35973d8a68230b261b2a34ca839493a5bf75e1441fd3ed6",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-measure-foreign-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package measures.set:defined-key",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:25.448Z",
+        "endedAt": "2026-11-19T13:38:28.316Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-measure-foreign-v1.log",
+          "sha256": "9302732c594bc9e936004634f2ef5e6056e65d93ca7130c3e21a5447690d1618",
+          "bytes": 1185
+        },
+        "settled": true
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-measure-foreign-v1.log",
+        "sha256": "9302732c594bc9e936004634f2ef5e6056e65d93ca7130c3e21a5447690d1618",
+        "bytes": 1185,
+        "mode": 384
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-measure-foreign-v1.receipt.json",
+        "sha256": "330c030a129d10912bbe20188ff1b7c0a5ee836d0cdb2b8756b945eb44955440",
+        "bytes": 1474,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-trio-foreign",
+      "file": "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+      "test": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "pattern": "certifies current owned-package measureEstimates.set:defined-key",
+      "before": "if (held === null ? key !== TOKEN_ESTIMATE_KEY : !held.some((each) => each.key === key))",
+      "after": "if (key !== 'foreign_gpu_minutes' && (held === null ? key !== TOKEN_ESTIMATE_KEY : !held.some((each) => each.key === key)))",
+      "markers": ["Received: \"written\"", "1 fail"],
+      "healthySha256": "18c9bbbbcf7ed6b497844ad07260579f299b4310d2a8b1435dc6fb673b36f3ed",
+      "faultSha256": "4ee02d636525b53743ac7b0df3885f776c0ed7328606028fb1436a7a6ecc99d4",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-trio-foreign-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package measureEstimates.set:defined-key",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:28.316Z",
+        "endedAt": "2026-11-19T13:38:31.153Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-trio-foreign-v1.log",
+          "sha256": "44fb0aec694ace80729a56eb1db1d76c4ed04ef2d67f4f96275d2566217b7955",
+          "bytes": 1193
+        },
+        "settled": true
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-trio-foreign-v1.log",
+        "sha256": "44fb0aec694ace80729a56eb1db1d76c4ed04ef2d67f4f96275d2566217b7955",
+        "bytes": 1193,
+        "mode": 384
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-trio-foreign-v1.receipt.json",
+        "sha256": "2806c01625f4dabb21dd25f21a92ba8db0205e8294e63c873af804833203240e",
+        "bytes": 1476,
+        "mode": 384
+      }
+    },
+    {
+      "name": "memory-budget-foreign",
+      "file": "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+      "test": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "pattern": "certifies current owned-package budgets.set:defined-key",
+      "before": "if (\n        !definitionsOrUnowned(definitionsOf(owner.workPackageId)).some(",
+      "after": "if (\n        budget.key !== 'foreign_gpu_minutes' &&\n        !definitionsOrUnowned(definitionsOf(owner.workPackageId)).some(",
+      "markers": ["Received: \"written\"", "1 fail"],
+      "healthySha256": "1793b6df36ae0d494bd8cc9608819d081bd020e1ae83dc200e8ced70048e6987",
+      "faultSha256": "3dd3ed53bef194ce421a6eccbcba32256e5e7c8ce8186c137fe3f71ecc5d5de4",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-budget-foreign-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package budgets.set:defined-key",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:31.154Z",
+        "endedAt": "2026-11-19T13:38:33.972Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-budget-foreign-v1.log",
+          "sha256": "f22c0db14272fb8db62043859d415fdaf723f6afc3f96ee7e77e228a74c51301",
+          "bytes": 1184
+        },
+        "settled": true
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-budget-foreign-v1.log",
+        "sha256": "f22c0db14272fb8db62043859d415fdaf723f6afc3f96ee7e77e228a74c51301",
+        "bytes": 1184,
+        "mode": 384
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-memory-budget-foreign-v1.receipt.json",
+        "sha256": "80ac60927d6e977ab9caa9153909688d8c10dd799ca4dc262623bbb8897cd7ac",
+        "bytes": 1471,
+        "mode": 384
+      }
+    },
+    {
+      "name": "sqlite-definition-organization",
+      "file": "libs/wbs/adapters/store-sqlite/src/step-measure.ts",
+      "test": "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+      "pattern": "certifies current owned-package",
+      "before": "          eq(measure.organizationId, workPackageOrganization.organizationId),\n",
+      "after": "",
+      "markers": ["3 fail", "is not defined by the organization owning work item"],
+      "healthySha256": "cf2dd5f662eacffa71eeac7f172b022372240dedc695a0b99c92d5e73de5f0bc",
+      "faultSha256": "d26702d588d19c98ae6b034a0808df559b91f2edc7ab7405a8b1739ee2bc91bf",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-sqlite-definition-organization-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "-t",
+            "certifies current owned-package",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:33.973Z",
+        "endedAt": "2026-11-19T13:38:39.147Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-sqlite-definition-organization-v1.log",
+          "sha256": "8b16216e2c2c4d8d6d825a253fa6bf107a3ef46a6db2882f5a38ca6fdd1c5c65",
+          "bytes": 3205
+        },
+        "settled": true
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-sqlite-definition-organization-v1.log",
+        "sha256": "8b16216e2c2c4d8d6d825a253fa6bf107a3ef46a6db2882f5a38ca6fdd1c5c65",
+        "bytes": 3205,
+        "mode": 384
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-sqlite-definition-organization-v1.receipt.json",
+        "sha256": "bd3265cd5336f8608efe2ffc4806b24ed54a92d8921cc4eac5ff51e7db552f1f",
+        "bytes": 1468,
+        "mode": 384
+      }
+    },
+    {
+      "name": "foreign-definition-prerequisite",
+      "file": "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+      "test": "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "pattern": "certifies current owned-package measures.set:defined-key",
+      "before": "    [B, FOREIGN_GPU_IN_B],\n",
+      "after": "",
+      "markers": ["foreign_gpu_minutes", "1 fail", "toEqual(expected)"],
+      "healthySha256": "0f2cca03974ae8b049d579b910aef441ff0f063732bcdd67e0da98fa862ecc5c",
+      "faultSha256": "76226790dad0aff798f198e5a6884f781502451a41c324ad9922b9e3a3ed71b6",
+      "restored": true,
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-foreign-definition-prerequisite-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "test",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "-t",
+            "certifies current owned-package measures.set:defined-key",
+            "--timeout=30000"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 60000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:38:39.147Z",
+        "endedAt": "2026-11-19T13:38:41.914Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-foreign-definition-prerequisite-v1.log",
+          "sha256": "96b19a54040ea067a6b36d37bfc10c4c3b8a18a00498313a78aeab4c623d0fd3",
+          "bytes": 1459
+        },
+        "settled": true
+      },
+      "logPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-foreign-definition-prerequisite-v1.log",
+        "sha256": "96b19a54040ea067a6b36d37bfc10c4c3b8a18a00498313a78aeab4c623d0fd3",
+        "bytes": 1459,
+        "mode": 384
+      },
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measure-effect-foreign-definition-prerequisite-v1.receipt.json",
+        "sha256": "5b67d49d652c6a8c2cd9819fba5bd6439041795e51cbf2007ec49666e1810324",
+        "bytes": 1492,
+        "mode": 384
+      }
+    }
+  ],
+  "final": {
+    "ownershipCases": {
+      "passed": 48,
+      "failed": 0,
+      "assertions": 1324,
+      "casesPerAdapter": 24,
+      "files": 2
+    },
+    "currentRegression": {
+      "passed": 148,
+      "failed": 0,
+      "assertions": 3421,
+      "files": 7
+    },
+    "memoryAndSqliteCompilerRoots": "passed in one serial invocation",
+    "sevenFileLint": "passed",
+    "sevenFileFormat": "passed"
+  },
+  "broaderMemory": {
+    "passed": 108,
+    "failed": 2,
+    "assertions": 11870,
+    "tests": 110,
+    "remainingAssertions": [
+      "workPackages.create:steps expects package-local identities",
+      "steps.add and steps.rename author legacy rows",
+      "creation fault and healthy after-control still own the obsolete starting-step input"
+    ],
+    "qualification": "The24 selected measure cases are now independently registered per Source; before their addition the file held86tests. The same two outer creation/legacy-authoring failures remain. Measure failures are removed; no gap relabeling."
+  },
+  "uncredited": [
+    {
+      "name": "owned-measures-lint-fix-v1",
+      "qualified": false,
+      "receiptPin": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-lint-fix-v1.receipt.json",
+        "sha256": "13e6e9fd4572d8deb119434eaa81d3da7e9273655625c4d19f0cf2be437a199b",
+        "bytes": 1784,
+        "mode": 384
+      },
+      "receipt": {
+        "schema": "activation-protected-native-v1",
+        "prefix": "/tmp/puni-combined-proposal-v1/control/owned-measures-lint-fix-v1",
+        "command": {
+          "argv": [
+            "/home/df/.bun/bin/bun",
+            "node_modules/eslint/bin/eslint.js",
+            "--fix",
+            "libs/wbs/application/conformance/src/stores/measure-facts.ts",
+            "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+            "libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+            "libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+            "libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+            "libs/wbs/adapters/store-sqlite/src/step-measure.ts"
+          ],
+          "cwd": "/tmp/puni-combined-proposal-v1/tree",
+          "deadlineMs": 180000
+        },
+        "environment": {
+          "PATH": "/home/df/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "HOME": "/home/df",
+          "TMPDIR": "/tmp",
+          "TZ": "UTC",
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8",
+          "NODE_ENV": "test",
+          "NO_COLOR": "1",
+          "NX_DAEMON": "false",
+          "NX_ISOLATE_PLUGINS": "false"
+        },
+        "startedAt": "2026-11-19T13:40:19.136Z",
+        "endedAt": "2026-11-19T13:40:30.997Z",
+        "exitCode": 1,
+        "signal": null,
+        "originalObserved": true,
+        "launched": true,
+        "primary": null,
+        "cleanup": [],
+        "ownerState": "stopped-and-reaped",
+        "descriptorState": "closed",
+        "output": {
+          "state": "acquired",
+          "stdoutFd": 5,
+          "stderrFd": 5,
+          "sameNumericFd": true
+        },
+        "transcript": {
+          "state": "owned",
+          "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-lint-fix-v1.log",
+          "sha256": "4e75e6900553a8a70d44009c015e221d8770e0a904354df6380855a3d97e0a08",
+          "bytes": 256
+        },
+        "settled": true
+      },
+      "log": {
+        "path": "/tmp/puni-combined-proposal-v1/control/owned-measures-lint-fix-v1.log",
+        "sha256": "4e75e6900553a8a70d44009c015e221d8770e0a904354df6380855a3d97e0a08",
+        "bytes": 256,
+        "mode": 384
+      }
+    }
+  ],
+  "proofScope": [
+    "Three Memory controls admit only the foreign-only key while preserving unknown-key refusal; each actual owned-package writer returns written at its intended foreign refusal oracle.",
+    "Removing only SQLite measureIdFor organization equality makes all three actual writer owners return written for the foreign-only key. Credit is the first invalid admission outcome, not unobserved later raw-table assertions.",
+    "Omitting the foreign-only seed fails the independent actual directory read before any writer refusal. This is prerequisite credit only.",
+    "All five finite controls restore exact source bytes. Runtime implementations are unchanged after restoration apart from adjacent Proof comments and mechanical formatting/import ordering."
+  ],
+  "limits": [
+    "No legacy StepStore method is aliased to global definitions. Current authoring/read contract retirement and newborn inherited-step assertion/fault owner remain next.",
+    "Only selected SQLite ownership cases are current here; the earlier incomplete full SQLite Source run is not restarted or replaced by this selection.",
+    "Earlier broad adapter488/91/34errors remains historical with no updated total inferred. Other import/runtime/resource/targeted-read fixtures and full original entity/CLI scope remain open.",
+    "No full products, exact committed h2/h4 host gate, new Astra review, public push, PR update, merge, deploy or activation. Protected PAX Source2 remains rejected/unapplied."
+  ],
+  "initialArtifact": {
+    "path": "/tmp/puni-combined-proposal-v1/tree/openspec/changes/wbs-step-catalogue/verification-owned-measures-20261119.json",
+    "sha256": "0970e53f7484bc1ca15e51c30df1fadde6a7e5d43a057b519bdf398a69ab25a5",
+    "bytes": 56295,
+    "mode": 384
+  },
+  "sourceEpochs": [
+    {
+      "scope": "initial six focused ownership cases",
+      "source": [
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/stores/measure-facts.ts",
+          "sha256": "42a99358fa7bc662ce064b43ec27307961c90b68f006780fe2051ac37272eb2f",
+          "bytes": 21873,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+          "sha256": "7a61bb39d2d15747dd986ba73db881dffdcf2a8a15b30fa410350e77dc6f8840",
+          "bytes": 317403,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts",
+          "sha256": "4d4ee679f2d9ed8e2dbb89490449a4c7460d638577f1e60351fce21602fd7005",
+          "bytes": 343630,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/measure-fixture.ts",
+          "sha256": "bd0170c859446bb159c5fc3e4aa35800391928d328e9f5b2af677eed01619378",
+          "bytes": 9130,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/measure-estimate-fixture.ts",
+          "sha256": "8597b5b24a7b3c16d1398a2530562dfb8336f6195bf61e1182a40887ad673e8d",
+          "bytes": 7345,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-memory/src/budget-fixture.ts",
+          "sha256": "53f5bf9795390126b05001a5c395e2bdf9f89b22c4b166acbbb4ee36116ad512",
+          "bytes": 2781,
+          "mode": 436
+        },
+        {
+          "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/adapters/store-sqlite/src/step-measure.ts",
+          "sha256": "379c46fd24f7353d65dff9481ae30d3de944727b101923f1d75af3be5e8448e4",
+          "bytes": 14451,
+          "mode": 436
+        }
+      ]
+    }
+  ],
+  "scopeSelection": {
+    "canonicalInventory": {
+      "path": "/tmp/puni-combined-proposal-v1/tree/libs/wbs/application/conformance/src/certification.ts",
+      "sha256": "91132113ef724c9bc17ab295544b2c8f7cd2e476d813326f05c98474e7b50161",
+      "bytes": 15949,
+      "mode": 436
+    },
+    "selection": "^(measures|measureEstimates|budgets)\\.|^directory\\.[A-Za-z]*Measure",
+    "observedCases": [
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.listPlacements:source-order"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.listByWorkItems:scope-order"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:metric-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.remove:metric-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.moveAll:all-metrics"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:unknown_step"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:alias-one-row"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:defined-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:legacy-estimate-replaces-trio"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measures.set:basis"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measureEstimates.set:defined-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measureEstimates.set:three-point-clears-flag"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measureEstimates.moveAll:every-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "measureEstimates.set:basis"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "budgets.set:defined-key"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "budgets.set:replace-remove"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.listMeasures:seeded-per-organization"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.addMeasure:index-backstop"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.patchMeasure:scoped-key-frozen"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.patchMeasure:shape-frozen"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.removeMeasure:scoped"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.usageOfMeasure:facts"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.usageOfMeasure:estimates"
+      },
+      {
+        "adapter": "SQLite",
+        "caseId": "directory.usageOfMeasure:budgets"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.listPlacements:source-order"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.listByWorkItems:scope-order"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:metric-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.remove:metric-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.moveAll:all-metrics"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:unknown_step"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:alias-one-row"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:defined-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:legacy-estimate-replaces-trio"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measures.set:basis"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measureEstimates.set:defined-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measureEstimates.set:three-point-clears-flag"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measureEstimates.moveAll:every-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "measureEstimates.set:basis"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "budgets.set:defined-key"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "budgets.set:replace-remove"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.listMeasures:seeded-per-organization"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.addMeasure:index-backstop"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.patchMeasure:scoped-key-frozen"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.patchMeasure:shape-frozen"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.removeMeasure:scoped"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.usageOfMeasure:facts"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.usageOfMeasure:estimates"
+      },
+      {
+        "adapter": "memory",
+        "caseId": "directory.usageOfMeasure:budgets"
+      }
+    ]
+  },
+  "initialFinal": {
+    "ownershipCases": {
+      "passed": 6,
+      "failed": 0,
+      "assertions": 185,
+      "files": 2
+    },
+    "currentRegression": {
+      "passed": 148,
+      "failed": 0,
+      "assertions": 3421,
+      "files": 7
+    },
+    "memoryAndSqliteCompilerRoots": "passed in one serial invocation",
+    "sevenFileLint": "passed",
+    "sevenFileFormat": "passed"
+  },
+  "initialBroaderMemory": {
+    "passed": 87,
+    "failed": 2,
+    "assertions": 11437,
+    "tests": 89,
+    "remainingAssertions": [
+      "workPackages.create:steps expects package-local identities",
+      "steps.add and steps.rename author legacy rows",
+      "creation fault and healthy after-control still own the obsolete starting-step input"
+    ],
+    "qualification": "Three newly registered focused ownership tests account for the test-count increase from86 to89. The outer failing test count stays2, while its measure/trio/budget failures are removed. This does not close the remaining contract cutover."
+  },
+  "scopeQualification": "Final48 covers every canonical measure fact/trio/budget and directory measure definition/usage case in both actual Sources. The148 current regression remains its earlier unchanged-runtime epoch. Expanded test registration changes no product runtime. Five omission controls retain their original six-owner epoch and exact hashes; their scope is not broadened to unexecuted faults."
+}

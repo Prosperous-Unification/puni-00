@@ -16,7 +16,7 @@ export interface SupervisorStartFrame {
   readonly type: 'start';
   readonly protocolVersion: typeof SUPERVISOR_PROTOCOL_VERSION;
   readonly callerId: string;
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly objective: SupervisorObjective;
   readonly attemptToken: string;
   readonly childDeadlineAt: number;
@@ -37,7 +37,7 @@ const START_KEYS = [
   'type',
   'protocolVersion',
   'callerId',
-  'projectId',
+  'workPackageId',
   'objective',
   'attemptToken',
   'childDeadlineAt',
@@ -121,9 +121,9 @@ export function decodeSupervisorStartFrame(
     throw defect('callerId does not match peer caller id');
   }
 
-  const projectId = value['projectId'];
-  if (typeof projectId !== 'string' || !UUID.test(projectId)) {
-    throw defect('projectId is not a UUID');
+  const workPackageId = value['workPackageId'];
+  if (typeof workPackageId !== 'string' || !UUID.test(workPackageId)) {
+    throw defect('workPackageId is not a UUID');
   }
   const attemptToken = value['attemptToken'];
   if (typeof attemptToken !== 'string' || !UUID.test(attemptToken)) {
@@ -170,7 +170,7 @@ export function decodeSupervisorStartFrame(
     type: 'start',
     protocolVersion: SUPERVISOR_PROTOCOL_VERSION,
     callerId: context.peerCallerId,
-    projectId,
+    workPackageId,
     objective,
     attemptToken,
     childDeadlineAt: childDeadlineAt as number,

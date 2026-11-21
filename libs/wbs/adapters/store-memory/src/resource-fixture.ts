@@ -16,8 +16,8 @@ import type {
  */
 export interface MemoryResourceTables {
   readonly resources: Map<string, Resource>;
-  /** Keyed `projectId::resourceId`; a pair with no entry is unstated. */
-  readonly capacities: Map<string, { projectId: string; resourceId: string; units: number }>;
+  /** Keyed `workPackageId::resourceId`; a pair with no entry is unstated. */
+  readonly capacities: Map<string, { workPackageId: string; resourceId: string; units: number }>;
   /** Keyed `workItemId::resourceId`. */
   readonly demands: Map<string, Demand>;
   /**
@@ -44,27 +44,33 @@ function pairKey(left: string, right: string): string {
 /**
  * A {@link ResourceCapacityStore} over {@link MemoryResourceTables}. Unlike
  * `inMemoryCapacity` it checks both ids, because the tables it reads hold the
- * resources and `hasProject` answers for the projects.
+ * resources and `hasWorkPackage` answers for the work packages.
  */
 export function inMemoryResourceCapacity(
   tables: MemoryResourceTables,
-  hasProject: (projectId: string) => Promise<boolean>,
+  hasWorkPackage: (workPackageId: string) => Promise<boolean>,
 ): ResourceCapacityStore {
   return {
-    listFor(projectId) {
+    listFor(workPackageId) {
       const listed: ResourceCapacity[] = [...tables.capacities.values()]
-        .filter((each) => each.projectId === projectId)
+        .filter((each) => each.workPackageId === workPackageId)
         .map(({ resourceId, units }) => ({ resourceId, units }))
         .sort((left, right) => left.resourceId.localeCompare(right.resourceId));
       return Promise.resolve(listed);
     },
-    async set(projectId, resourceId, units, _stamp) {
+    async set(workPackageId, resourceId, units, _stamp) {
       let written: ResourceCapacityWritten = { ok: true };
-      if (!(await hasProject(projectId))) written = { ok: false, reason: 'unknown_project' };
+      if (!(await hasWorkPackage(workPackageId)))
+        written = { ok: false, reason: 'unknown_work_package' };
       else if (!tables.resources.has(resourceId))
         written = { ok: false, reason: 'unknown_resource' };
-      else if (units === null) tables.capacities.delete(pairKey(projectId, resourceId));
-      else tables.capacities.set(pairKey(projectId, resourceId), { projectId, resourceId, units });
+      else if (units === null) tables.capacities.delete(pairKey(workPackageId, resourceId));
+      else
+        tables.capacities.set(pairKey(workPackageId, resourceId), {
+          workPackageId,
+          resourceId,
+          units,
+        });
       return written;
     },
   };
@@ -80,8 +86,8 @@ export function inMemoryDemands(
   workItems: WorkItemStore,
 ): DemandStore {
   return {
-    async listByProject(projectId) {
-      const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
+    async listByWorkPackage(workPackageId) {
+      const ids = new Set((await workItems.listByWorkPackage(workPackageId)).map(({ id }) => id));
       return [...tables.demands.values()]
         .filter((each) => ids.has(each.workItemId))
         .sort(

@@ -1,9 +1,12 @@
+import { refusingSpaceRead } from '../testing/space-fixture';
+import { refusingWorkPackageObservation } from '../testing/work-package-fixture';
+const PROJECT_ID = 'http-fixture-parent';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { clockOf, type OptimizationVariantState, type ProjectEvent } from '@wbs/core';
-import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { clockOf, type OptimizationVariantState, type WorkPackageEvent } from '@wbs/core';
+import { WorkPackageService } from '@wbs/core/module/work-package/work-package.resource';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { type CapacityMode, contractVersionOf, schedule } from '@wbs/domain';
@@ -26,12 +29,14 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
-import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
+import { WorkPackageRepository } from '../repository/work-package';
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { seedLegacyProject } from '../testing/project-fixture';
+import { refusingProjectRead } from '../testing/project-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -50,7 +55,7 @@ function note(command: string): void {
 type Owner = 'east' | 'west';
 type Objective = 'pri' | 'time';
 interface Row {
-  readonly project_id: string;
+  readonly work_package_id: string;
   readonly contract_version: string;
   readonly generation: number;
   readonly objective: string;
@@ -93,7 +98,7 @@ interface Attempt {
   readonly token: string;
   readonly owner: Owner;
   readonly incarnation: number;
-  readonly project: string;
+  readonly workPackage: string;
   readonly generation: number;
   readonly objective: Objective;
   readonly hash: string;
@@ -121,7 +126,7 @@ interface Model {
   readonly attempts: Map<
     string,
     {
-      project: string;
+      workPackage: string;
       hash: string;
       generation: number;
       objective: Objective;
@@ -136,7 +141,7 @@ interface Model {
   readonly cache: Map<
     string,
     {
-      project: string;
+      workPackage: string;
       generation: number;
       objective: Objective;
       hash: string;
@@ -206,15 +211,16 @@ function createWorld(scheduler: ReturnType<typeof sampledScheduler>): World {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-model-'));
   const path = join(dir, 'model.db');
   runMigrations(path, FOLDER);
+  seedLegacyProject(path, 'http-fixture-legacy', PROJECT_ID);
   const sql = openDatabase(path);
   try {
     sql.run(
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'owner', 'hash', 1)",
     );
-    for (const project of Array.from({ length: 9 }, (_, index) => `p-${String(index + 1)}`)) {
+    for (const workPackage of Array.from({ length: 9 }, (_, index) => `p-${String(index + 1)}`)) {
       sql.run(
-        "INSERT INTO project (id, name, owner_id, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')",
-        [project, project],
+        "INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, optimization_enabled, schedule_engine, schedule_objective) VALUES (?, ?, 'http-fixture-parent', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')",
+        [workPackage, workPackage],
       );
     }
   } finally {
@@ -255,8 +261,8 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
     now: () => world.now,
     hashInput: scheduleInputHash,
     attemptToken: () => `${owner}-${String(world.nextToken++)}`,
-    inputOf: (project) =>
-      scheduledAnswer(world, `input ${owner}/${project}`, inputAt(world.revision)),
+    inputOf: (workPackage) =>
+      scheduledAnswer(world, `input ${owner}/${workPackage}`, inputAt(world.revision)),
     enabledOf: () => Promise.resolve(true),
     spawn: (request: ReservedSpawnRequest) => {
       const exit = deferred<number>();
@@ -290,7 +296,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
         token: request.admission.attemptToken,
         owner,
         incarnation,
-        project: request.key.projectId,
+        workPackage: request.key.workPackageId,
         generation: request.generation,
         objective: request.objective,
         hash: request.key.inputHash,
@@ -367,13 +373,13 @@ function assertState(model: Model, world: World, context: string): void {
   const cache = rows(world, 'optimized_schedule_cache');
   const events = rows(world, 'event_log').filter((row) => row.message.includes('schedule_optim'));
   const generations = rows(world, 'optimization_generation');
-  expect(slots.length, `${context}: I1 project capacity`).toBeLessThanOrEqual(4);
+  expect(slots.length, `${context}: I1 work package capacity`).toBeLessThanOrEqual(4);
   expect(slots.length, `${context}: I1 global capacity`).toBeLessThanOrEqual(16);
   expect(
     new Set(
       slots.map(
         (row) =>
-          `${row.project_id}/${String(row.generation)}/${row.objective}/${String(row.budget_ms)}`,
+          `${row.work_package_id}/${String(row.generation)}/${row.objective}/${String(row.budget_ms)}`,
       ),
     ).size,
     `${context}: I1 duplicate slot`,
@@ -384,7 +390,7 @@ function assertState(model: Model, world: World, context: string): void {
     if (claim === undefined)
       throw new Error(`${context}: I2 unexpected token ${row.attempt_token}`);
     expect(row.owner_id, `${context}: I2 owner`).toBe(claim.owner);
-    expect(row.project_id, `${context}: I2 project`).toBe(claim.project);
+    expect(row.work_package_id, `${context}: I2 work package`).toBe(claim.workPackage);
     expect(row.contract_version, `${context}: I2 contract`).toBe(CONTRACT);
     expect(row.budget_ms, `${context}: I2 budget`).toBe(BUDGET);
     expect(row.generation, `${context}: I2 generation`).toBe(claim.generation);
@@ -397,7 +403,7 @@ function assertState(model: Model, world: World, context: string): void {
       token: attempt.token,
       owner: attempt.owner,
       incarnation: attempt.incarnation,
-      project: attempt.project,
+      workPackage: attempt.workPackage,
       generation: attempt.generation,
       objective: attempt.objective,
       hash: attempt.hash,
@@ -408,7 +414,7 @@ function assertState(model: Model, world: World, context: string): void {
       token,
       owner: claim.owner,
       incarnation: claim.incarnation,
-      project: claim.project,
+      workPackage: claim.workPackage,
       generation: claim.generation,
       objective: claim.objective,
       hash: claim.hash,
@@ -427,7 +433,7 @@ function assertState(model: Model, world: World, context: string): void {
   expect(
     cache
       .map((row) => ({
-        project: row.project_id,
+        workPackage: row.work_package_id,
         generation: row.generation,
         objective: row.objective,
         hash: row.input_hash,
@@ -448,14 +454,14 @@ function assertState(model: Model, world: World, context: string): void {
   }
   if (model.hash !== null && !model.draining) {
     expect(
-      generations.find((row) => row.project_id === 'p-1')?.generation,
+      generations.find((row) => row.work_package_id === 'p-1')?.generation,
       `${context}: generation`,
     ).toBe(model.generation);
   }
   expect(
     queue
       .map((row) => ({
-        project: row.project_id,
+        workPackage: row.work_package_id,
         contract: row.contract_version,
         generation: row.generation,
         objective: row.objective,
@@ -468,7 +474,7 @@ function assertState(model: Model, world: World, context: string): void {
   ).toEqual(
     [...model.queue]
       .map(([objective, entry]) => ({
-        project: 'p-1',
+        workPackage: 'p-1',
         contract: CONTRACT,
         generation: entry.generation,
         objective,
@@ -514,7 +520,7 @@ function predictRead(model: Model, world: World, owner: Owner, hash: string): vo
       continue;
     }
     model.attempts.set(token, {
-      project: 'p-1',
+      workPackage: 'p-1',
       hash,
       generation: model.generation,
       objective,
@@ -552,7 +558,7 @@ function predictPump(model: Model, world: World, owner: Owner): void {
       break;
     model.queue.delete(objective);
     model.attempts.set(token, {
-      project: 'p-1',
+      workPackage: 'p-1',
       hash: entry.hash,
       generation: entry.generation,
       objective,
@@ -595,7 +601,7 @@ function predictRetry(
     });
   } else {
     model.attempts.set(token, {
-      project: marker.project,
+      workPackage: marker.workPackage,
       hash: marker.hash,
       generation: marker.generation,
       objective: 'pri',
@@ -648,7 +654,7 @@ class ReadPlan implements Command {
     }
     if (model.enabled) predictRead(model, world, this.owner, hash);
     const read = await world.coordinators[this.owner].readPlan({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       input,
       enabled: model.enabled,
@@ -786,9 +792,9 @@ class ExitChild implements Command {
     if (current) {
       model.expectedEvents++;
       model.cache.set(
-        `${attempt.project}/${String(attempt.generation)}/${attempt.objective}/${attempt.hash}`,
+        `${attempt.workPackage}/${String(attempt.generation)}/${attempt.objective}/${attempt.hash}`,
         {
-          project: attempt.project,
+          workPackage: attempt.workPackage,
           generation: attempt.generation,
           objective: attempt.objective,
           hash: attempt.hash,
@@ -811,12 +817,12 @@ class Toggle implements Command {
   }
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
-    const service = new ProjectService({
+    const service = new WorkPackageService({
       dependencyContext: sqliteDependencyContext(
         world.connections.west,
-        new ProjectRepository(world.connections.west, OPEN),
+        new WorkPackageRepository(world.connections.west, OPEN),
       ),
-      projects: new ProjectRepository(world.connections.west, OPEN),
+      workPackages: new WorkPackageRepository(world.connections.west, OPEN),
       broadcast: recordingBroadcaster(),
       optimizerAvailable: () => true,
       clock: clockOf({
@@ -828,8 +834,8 @@ class Toggle implements Command {
       { ok: true },
     );
     if (!this.enabled && model.enabled && model.hash !== null) model.epoch++;
-    // Switching optimization OFF deletes the project's queued requests in the same
-    // project-update transaction (`libs/wbs/adapters/store-sqlite/src/project.ts`).
+    // Switching optimization OFF deletes the work package's queued requests in the same
+    // work-package-update transaction (`libs/wbs/adapters/store-sqlite/src/work-package.ts`).
     if (!this.enabled) model.queue.clear();
     model.enabled = this.enabled;
     assertState(model, world, this.toString());
@@ -974,7 +980,7 @@ class Retry implements Command {
     note('retry');
     const expected = predictRetry(model, world, this.owner);
     const decision = await world.coordinators[this.owner].retry({
-      projectId: 'p-1',
+      workPackageId: 'p-1',
       objective: 'pri',
       inputHash: scheduleInputHash(inputAt(model.revision)),
       input: inputAt(model.revision),
@@ -1085,19 +1091,19 @@ describe('OptimizationCoordinator production SQLite model', () => {
     const world = createWorld(sampledScheduler());
     try {
       await world.coordinators.east.readPlan({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
         enabled: true,
       });
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
-      const service = new ProjectService({
+      const service = new WorkPackageService({
         dependencyContext: sqliteDependencyContext(
           world.connections.west,
-          new ProjectRepository(world.connections.west, OPEN),
+          new WorkPackageRepository(world.connections.west, OPEN),
         ),
-        projects: new ProjectRepository(world.connections.west, OPEN),
+        workPackages: new WorkPackageRepository(world.connections.west, OPEN),
         broadcast: recordingBroadcaster(),
         optimizerAvailable: () => true,
         clock: clockOf({
@@ -1118,28 +1124,28 @@ describe('OptimizationCoordinator production SQLite model', () => {
     }
   });
 
-  it('predicts the global ceiling across nine projects before each production read', async () => {
+  it('predicts the global ceiling across nine work packages before each production read', async () => {
     const world = createWorld(sampledScheduler());
     const expectedSlots: {
-      project: string;
+      workPackage: string;
       generation: number;
       objective: Objective;
       owner: Owner;
       token: string;
     }[] = [];
-    const expectedQueue: { project: string; generation: number; objective: Objective }[] = [];
+    const expectedQueue: { workPackage: string; generation: number; objective: Objective }[] = [];
     try {
       for (let index = 1; index <= 9; index++) {
-        const project = `p-${String(index)}`;
+        const workPackage = `p-${String(index)}`;
         const admitted = index <= 8;
         for (const objective of ['pri', 'time'] as const) {
           const token = `east-${String(world.nextToken + (objective === 'pri' ? 0 : 1))}`;
           if (admitted)
-            expectedSlots.push({ project, generation: 1, objective, owner: 'east', token });
-          else expectedQueue.push({ project, generation: 1, objective });
+            expectedSlots.push({ workPackage, generation: 1, objective, owner: 'east', token });
+          else expectedQueue.push({ workPackage, generation: 1, objective });
         }
         const read = await world.coordinators.east.readPlan({
-          projectId: project,
+          workPackageId: workPackage,
           objective: 'pri',
           input: inputAt(0),
           enabled: true,
@@ -1150,7 +1156,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
         await answerScheduled(world);
         expect(
           rows(world, 'solver_slot').map((row) => ({
-            project: row.project_id,
+            workPackage: row.work_package_id,
             generation: row.generation,
             objective: row.objective,
             owner: row.owner_id,
@@ -1159,14 +1165,14 @@ describe('OptimizationCoordinator production SQLite model', () => {
         ).toEqual(expectedSlots);
         expect(
           rows(world, 'solver_queue').map((row) => ({
-            project: row.project_id,
+            workPackage: row.work_package_id,
             generation: row.generation,
             objective: row.objective,
           })),
         ).toEqual(expectedQueue);
         expect(
           world.attempts.map((attempt) => ({
-            project: attempt.project,
+            workPackage: attempt.workPackage,
             generation: attempt.generation,
             objective: attempt.objective,
             owner: attempt.owner,
@@ -1185,7 +1191,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
     const world = createWorld(sampledScheduler());
     try {
       await world.coordinators.east.readPlan({
-        projectId: 'p-1',
+        workPackageId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
         enabled: true,
@@ -1200,7 +1206,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       );
       expect(
         await repository.enqueueRequest({
-          projectId: 'p-1',
+          workPackageId: 'p-1',
           contractVersion: CONTRACT,
           generation: original.generation,
           objective: 'pri',
@@ -1234,7 +1240,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(resumed).toHaveLength(1);
       expect(resumed[0].token).not.toBe(original.attempt_token);
       expect(resumed[0]).toMatchObject({
-        project: 'p-1',
+        workPackage: 'p-1',
         generation: original.generation,
         objective: 'pri',
       });
@@ -1366,7 +1372,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
  * goes through `buildServices`, so readPlan observation, outcome storage,
  * Retry and the FIFO pump run inside the source-bound owners that capture
  * the organization's display and record `elsewhere_changed` before commit.
- * Projects A and B share one person in an activated shared organization.
+ * Work packages A and B share one person in an activated shared organization.
  */
 type SharedVariant = 'live' | 'shifted';
 
@@ -1376,7 +1382,7 @@ interface SharedModel {
   /** A ready selected (pri) row at the live hash whose schedule differs from Fast. */
   displayedSelected: boolean;
   mode: CapacityMode;
-  readonly events: Record<'A' | 'B', Extract<ProjectEvent, { type: 'elsewhere_changed' }>[]>;
+  readonly events: Record<'A' | 'B', Extract<WorkPackageEvent, { type: 'elsewhere_changed' }>[]>;
   readonly audits: {
     id: string;
     organization_id: string;
@@ -1413,7 +1419,11 @@ interface SharedWorld {
 
 const SHARED_CONTRACT = contractVersionOf('0.4.0');
 const SHARED_BUDGET = 60_000;
-const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
+const ELSEWHERE_B = {
+  type: 'elsewhere_changed',
+  workPackageId: 'B',
+  causeWorkPackageId: 'A',
+} as const;
 
 /** A promise that must settle within one bound; the label names the boundary it proves. */
 async function within<T>(work: Promise<T>, label: string, ms = 1500): Promise<T> {
@@ -1441,6 +1451,9 @@ function seedSharedOrganization(path: string): void {
     seed.run(
       "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-a', 'A', 1, 1)",
     );
+    seed.run(
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES('scoped-model-parent','org-a','Model parent',1)",
+    );
     seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
     seed.run(
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at, updated_at, created_by) VALUES ('org-a', 'ada', 'admin', 1, 1, 'ada')",
@@ -1458,42 +1471,42 @@ function seedSharedOrganization(path: string): void {
     seed.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
     );
-    for (const [index, projectId] of ['A', 'B'].entries()) {
+    for (const [index, workPackageId] of ['A', 'B'].entries()) {
       seed.run(
-        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding)
-         VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
-        [projectId, projectId],
+        `INSERT INTO work_package (id, name, project_id, created_by, restricted, revision, created_at, start_date, estimate_rounding)
+         VALUES (?, ?, 'scoped-model-parent', 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [workPackageId, workPackageId],
       );
       seed.run(
-        "INSERT INTO project_organization (resource_id, organization_id) VALUES (?, 'org-a')",
-        [projectId],
+        "INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, 'org-a')",
+        [workPackageId],
       );
       seed.run(
-        "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
-        [projectId, index * 10],
+        "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, created_by) VALUES (?, 'org-a', ?, 1, 'ada')",
+        [workPackageId, index * 10],
       );
-      seed.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
-        `${projectId}-step`,
-        projectId,
-        `${projectId}-step`,
+      seed.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, 10)', [
+        `${workPackageId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
       ]);
-      seed.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
-        projectId,
-        projectId,
-        projectId,
+      seed.run('INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)', [
+        workPackageId,
+        workPackageId,
+        workPackageId,
       ]);
       seed.run(
         'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
-        [projectId, `${projectId}-step`],
+        [workPackageId, `${workPackageId}-step`],
       );
       seed.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
-        projectId,
-        `${projectId}-step`,
+        workPackageId,
+        `${workPackageId}-step`,
         'ana',
       ]);
     }
     seed.run(
-      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'",
+      "UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'",
     );
   } finally {
     seed.close();
@@ -1532,6 +1545,9 @@ async function createSharedWorld(): Promise<SharedWorld> {
   };
   let pid = 9000;
   const services = buildServices({
+    createSpaceRead: () => refusingSpaceRead,
+    projectRead: refusingProjectRead,
+    createWorkPackageObservation: () => refusingWorkPackageObservation,
     commandAccess: localCommandAccess,
     clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
     source: installed,
@@ -1544,7 +1560,7 @@ async function createSharedWorld(): Promise<SharedWorld> {
       const body = JSON.parse(init.body) as SharedWorld['pushes'][number];
       pushes.push(body);
       const answer = Response.json({ delivered_to_sockets: 0 });
-      if (!flags.holdB || body.subscription !== 'project:B') return Promise.resolve(answer);
+      if (!flags.holdB || body.subscription !== 'work-package:B') return Promise.resolve(answer);
       return new Promise((resolve) => {
         held.push(() => {
           resolve(answer);
@@ -1645,9 +1661,9 @@ function clientOf(world: SharedWorld): Database {
   return (world.source.db as unknown as { $client: Database }).$client;
 }
 
-function projectRows(
+function workPackageRows(
   world: SharedWorld,
-  projectId: 'A' | 'B',
+  workPackageId: 'A' | 'B',
 ): { seq: number; message: unknown }[] {
   const sql = openDatabase(world.path);
   try {
@@ -1655,7 +1671,7 @@ function projectRows(
       .query<{ seq: number; message: string }, [string]>(
         'SELECT seq, message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
-      .all(`project:${projectId}`)
+      .all(`work-package:${workPackageId}`)
       .map(({ seq, message }) => ({ seq, message: JSON.parse(message) as unknown }));
   } finally {
     sql.close();
@@ -1670,7 +1686,7 @@ function committedGeneration(
     return (
       sql
         .query<{ generation: number; input_hash: string }, [string]>(
-          "SELECT generation, input_hash FROM optimization_generation WHERE project_id = 'A' AND contract_version = ?",
+          "SELECT generation, input_hash FROM optimization_generation WHERE work_package_id = 'A' AND contract_version = ?",
         )
         .get(SHARED_CONTRACT) ?? null
     );
@@ -1694,7 +1710,7 @@ function liveSlots(world: SharedWorld) {
         },
         []
       >(
-        "SELECT generation, objective, attempt_token, owner_id, lifecycle, cancel_requested_at FROM solver_slot WHERE project_id = 'A'",
+        "SELECT generation, objective, attempt_token, owner_id, lifecycle, cancel_requested_at FROM solver_slot WHERE work_package_id = 'A'",
       )
       .all();
   } finally {
@@ -1759,28 +1775,30 @@ async function assertShared(
       directCauses: ['A'],
     }).recipients;
     expect(
-      recipients.some(({ projectId }) => projectId === 'B'),
+      recipients.some(({ workPackageId }) => workPackageId === 'B'),
       `${context}: borrowed capture disagrees with the model`,
     ).toBe(expectChange);
     if (expectChange) model.events.B.push(ELSEWHERE_B);
   }
-  const streams = { A: projectRows(world, 'A'), B: projectRows(world, 'B') };
-  for (const projectId of ['A', 'B'] as const) {
-    const stream = streams[projectId];
+  const streams = { A: workPackageRows(world, 'A'), B: workPackageRows(world, 'B') };
+  for (const workPackageId of ['A', 'B'] as const) {
+    const stream = streams[workPackageId];
     expect(
       stream.map(({ seq }) => seq),
-      `${context}: ${projectId} sequences are not contiguous`,
+      `${context}: ${workPackageId} sequences are not contiguous`,
     ).toEqual(Array.from({ length: stream.length }, (_, seq) => seq));
     const fanout = stream
       .map(({ message }) => message)
-      .filter((message) => (message as ProjectEvent).type === 'elsewhere_changed');
-    expect(fanout, `${context}: durable ${projectId} rows`).toEqual(model.events[projectId]);
+      .filter((message) => (message as WorkPackageEvent).type === 'elsewhere_changed');
+    expect(fanout, `${context}: durable ${workPackageId} rows`).toEqual(
+      model.events[workPackageId],
+    );
     const pushed = world.pushes.filter(
-      ({ subscription }) => subscription === `project:${projectId}`,
+      ({ subscription }) => subscription === `work-package:${workPackageId}`,
     );
     expect(
       new Set(pushed.map(({ seq }) => seq)).size,
-      `${context}: a ${projectId} sequence pushed twice`,
+      `${context}: a ${workPackageId} sequence pushed twice`,
     ).toBe(pushed.length);
     for (const { seq, message } of pushed) {
       expect(message, `${context}: pushed event differs from its durable row`).toEqual(
@@ -1804,10 +1822,10 @@ async function assertShared(
       `${context}: event sequences`,
     ).toEqual(
       (['A', 'B'] as const)
-        .filter((projectId) => streams[projectId].length > 0)
-        .map((projectId) => ({
-          subscription: `project:${projectId}`,
-          next_seq: streams[projectId].length,
+        .filter((workPackageId) => streams[workPackageId].length > 0)
+        .map((workPackageId) => ({
+          subscription: `work-package:${workPackageId}`,
+          next_seq: streams[workPackageId].length,
         })),
     );
   } finally {
@@ -1865,14 +1883,16 @@ class SwitchMode implements SharedCommand {
     const before = await captureDisplay(world);
     const generation = committedGeneration(world);
     const cached = clientOf(world)
-      .query('SELECT * FROM optimized_schedule_cache ORDER BY project_id, input_hash, objective')
+      .query(
+        'SELECT * FROM optimized_schedule_cache ORDER BY work_package_id, input_hash, objective',
+      )
       .all();
     const changed = model.mode !== this.mode;
     world.nextSwitch += 1;
     const stamp = { by: 'sam', at: world.nextSwitch };
     const auditId = `switch-${String(world.nextSwitch)}`;
     const heldBefore = world.held.length;
-    const switching = world.services.projectRanks.switchCapacityMode(
+    const switching = world.services.workPackageRanks.switchCapacityMode(
       'org-a',
       this.mode,
       stamp,
@@ -1883,7 +1903,7 @@ class SwitchMode implements SharedCommand {
         expectedAccess: {
           kind: 'scoped',
           principal: { id: 'sam' },
-          scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+          scope: { organizationId: 'org-a', userId: 'sam', cap: null },
         },
       },
     );
@@ -1910,11 +1930,11 @@ class SwitchMode implements SharedCommand {
         shared_people: this.mode === 'shared' ? 1 : 0,
         created_at: stamp.at,
       });
-      for (const projectId of ['A', 'B'] as const) {
-        model.events[projectId].push({
+      for (const workPackageId of ['A', 'B'] as const) {
+        model.events[workPackageId].push({
           type: 'elsewhere_changed',
-          projectId,
-          causeProjectId: null,
+          workPackageId,
+          causeWorkPackageId: null,
         });
       }
       note(`switch:${this.mode}`);
@@ -1925,7 +1945,9 @@ class SwitchMode implements SharedCommand {
     );
     expect(
       clientOf(world)
-        .query('SELECT * FROM optimized_schedule_cache ORDER BY project_id, input_hash, objective')
+        .query(
+          'SELECT * FROM optimized_schedule_cache ORDER BY work_package_id, input_hash, objective',
+        )
         .all(),
       'switch rewrote selected cache state',
     ).toEqual(cached);
@@ -1954,11 +1976,11 @@ class DemoteBeforeSwitch implements SharedCommand {
       await release.promise;
       return { commit: true, value: undefined };
     });
-    let switching: ReturnType<SharedWorld['services']['projectRanks']['switchCapacityMode']>;
+    let switching: ReturnType<SharedWorld['services']['workPackageRanks']['switchCapacityMode']>;
     try {
       await staged.promise;
       let settled = false;
-      switching = world.services.projectRanks.switchCapacityMode(
+      switching = world.services.workPackageRanks.switchCapacityMode(
         'org-a',
         model.mode === 'shared' ? 'isolated' : 'shared',
         { by: 'sam', at: 1000 },
@@ -1969,7 +1991,7 @@ class DemoteBeforeSwitch implements SharedCommand {
           expectedAccess: {
             kind: 'scoped',
             principal: { id: 'sam' },
-            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+            scope: { organizationId: 'org-a', userId: 'sam', cap: null },
           },
         },
       );
@@ -2012,11 +2034,11 @@ class FailSwitchEvent implements SharedCommand {
     const before = await captureDisplay(world);
     const pushed = world.pushes.length;
     clientOf(world).run(
-      "CREATE TRIGGER fail_switch_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:B' BEGIN SELECT RAISE(ABORT, 'injected switch event failure'); END",
+      "CREATE TRIGGER fail_switch_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:B' BEGIN SELECT RAISE(ABORT, 'injected switch event failure'); END",
     );
     let refusal: unknown;
     try {
-      await world.services.projectRanks.switchCapacityMode(
+      await world.services.workPackageRanks.switchCapacityMode(
         'org-a',
         model.mode === 'shared' ? 'isolated' : 'shared',
         { by: 'sam', at: 1000 },
@@ -2027,7 +2049,7 @@ class FailSwitchEvent implements SharedCommand {
           expectedAccess: {
             kind: 'scoped',
             principal: { id: 'sam' },
-            scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin', cap: null },
+            scope: { organizationId: 'org-a', userId: 'sam', cap: null },
           },
         },
       );
@@ -2059,7 +2081,7 @@ class SharedReadPlan implements SharedCommand {
     const advances = model.generationHash !== hash;
     const read = await within(
       world.optimizer.readPlan({
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         input: world.inputs[this.variant],
         enabled: true,
@@ -2119,7 +2141,7 @@ class SharedExitChild implements SharedCommand {
       const input = inputFor(world, committed.input_hash);
       const write: OptimizationOutcomeWrite = {
         claim: {
-          projectId: 'A',
+          workPackageId: 'A',
           contractVersion: SHARED_CONTRACT,
           generation: slot.generation,
           objective: 'pri',
@@ -2198,7 +2220,7 @@ class SharedRetry implements SharedCommand {
     const before = await captureDisplay(world);
     const retried = await within(
       world.optimizer.retry({
-        projectId: 'A',
+        workPackageId: 'A',
         objective: 'pri',
         inputHash: committed.input_hash,
         input: inputFor(world, committed.input_hash),
@@ -2206,7 +2228,6 @@ class SharedRetry implements SharedCommand {
           principal: { id: 'ada' },
           organizationId: 'org-a',
           actorId: 'ada',
-          role: 'super_admin' as const,
         },
       }),
       'Retry decision waited for recipient transport',
@@ -2278,7 +2299,7 @@ class SecondWriter implements SharedCommand {
     try {
       second.run('PRAGMA busy_timeout = 50');
       // A rename changes no scheduling fact, so it is also a silent control.
-      second.run("UPDATE project SET name = 'second writer' WHERE id = 'B'");
+      second.run("UPDATE work_package SET name = 'second writer' WHERE id = 'B'");
     } finally {
       second.close();
     }
@@ -2306,7 +2327,7 @@ class HeldWriterRead implements SharedCommand {
     // Another owner of the same source stages generation + 100 and rolls back.
     const holding = bound.uow.run(() => {
       clientOf(world).run(
-        "UPDATE optimization_generation SET generation = generation + 100 WHERE project_id = 'A'",
+        "UPDATE optimization_generation SET generation = generation + 100 WHERE work_package_id = 'A'",
       );
       staged.resolve(undefined);
       return release.promise.then(() => ({ commit: false, value: undefined }));
@@ -2314,7 +2335,7 @@ class HeldWriterRead implements SharedCommand {
     await staged.promise;
     note('sharedHeldWriter');
     const reading = world.optimizer.readPlan({
-      projectId: 'A',
+      workPackageId: 'A',
       objective: 'pri',
       input: inputFor(world, hash),
       enabled: true,
@@ -2350,7 +2371,7 @@ class DropCaptureRead implements SharedCommand {
     try {
       await within(
         world.optimizer.readPlan({
-          projectId: 'A',
+          workPackageId: 'A',
           objective: 'pri',
           input: world.inputs[variant],
           enabled: true,
@@ -2395,7 +2416,7 @@ async function sharedTrace(commands: Iterable<SharedCommand>): Promise<void> {
   world.holdB = false;
   for (const release of world.held.splice(0)) release();
   // End held automatic edit work after admissions have been disabled for cleanup.
-  clientOf(world).run('UPDATE project SET optimization_enabled = 0');
+  clientOf(world).run('UPDATE work_package SET optimization_enabled = 0');
   for (const resume of world.edits.splice(0)) resume();
   for (const child of world.children) child.kill();
   try {
@@ -2491,7 +2512,7 @@ describe('installed shared-person owners model', () => {
         audits: [],
       };
       // Inject an early-settling switch; the real demotion writer is still suspended.
-      world.services.projectRanks.switchCapacityMode = () =>
+      world.services.workPackageRanks.switchCapacityMode = () =>
         outcome === 'answer'
           ? Promise.resolve({ ok: false, reason: 'forbidden' })
           : Promise.reject(new Error('injected early switch rejection'));

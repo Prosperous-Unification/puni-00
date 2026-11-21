@@ -46,30 +46,6 @@ const instant: ValueParser<'sync', string> = {
   },
 };
 
-/** The caller's complete ordered catalogue; duplicate and blank codes are invalid input. */
-const catalogue: ValueParser<'sync', readonly string[]> = {
-  mode: 'sync',
-  metavar: 'STEPS',
-  placeholder: ['step'],
-  format: (steps) => steps.join(','),
-  parse(value) {
-    const steps = value.split(',');
-    // Proof: removing the reserved flag, nonblank or unique checks independently fails the root
-    // repeated-flag-as-value, whitespace-segment or duplicate-segment refusal case.
-    // A repeated --steps cannot become its own catalogue value while a later word becomes the filename.
-    if (
-      value === '--steps' ||
-      steps.some((step) => !/^\S+$/u.test(step)) ||
-      new Set(steps).size !== steps.length
-    )
-      return {
-        success: false,
-        error: [text('expected distinct nonblank comma-separated step codes')],
-      };
-    return { success: true, value: steps };
-  },
-};
-
 /** A selected rule may be undated; dated evaluation still requires its explicit now downstream. */
 export const checkParser = command(
   'check',
@@ -175,17 +151,7 @@ export const templateParser = command(
   { brief: [text('List, show or verify module templates.')] },
 );
 
-/** Nested under validate alongside record validation. */
-export const workflowBindingParser = command(
-  'workflow-binding',
-  object({
-    command: constant('validate workflow-binding'),
-    file: parseOperand('FILE'),
-    // Proof: making steps optional admits the root workflow binding without --steps.
-    steps: option('--steps', catalogue),
-  }),
-  { brief: [text('Validate a workflow binding and print its digest.')] },
-);
+export { workflowBindingParser } from './workflow-binding-parser';
 
 function parseActivation() {
   return {

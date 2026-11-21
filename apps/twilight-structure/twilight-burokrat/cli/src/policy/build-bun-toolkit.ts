@@ -6,17 +6,28 @@ import { hashBytes } from '../evidence/content-manifest';
 import type { LintInterrupt, SubscribeLintInterrupts } from '../lint-interrupts';
 import type { LintRuntime } from '../lint-runtime';
 import { readInstalledTestLevelAssets } from '../packaging/installed-test-levels';
-import { createPuniTestLevelManifest, createTestLevelAssets, createTestLevelSource, testLevelPackageVersion } from '../packaging/puni-test-levels';
+import {
+  createPuniTestLevelManifest,
+  createTestLevelAssets,
+  createTestLevelSource,
+  testLevelPackageVersion,
+} from '../packaging/puni-test-levels';
 import { readBuildDependencies, readPuniBuildDependencies } from './build-dependencies';
 import { bunToolkitRoles, planBunToolkit } from './bun-release';
-import { planSelectedBunToolkit } from './selected-bun-release';
 import type { CommittedSource } from './committed-source';
-import type { WorkingSource } from './source-files';
 import { materializeProtectedSource } from './materialized-source';
 import { reserveProtectedDirectory } from './preparation-directory';
 import { readOperatorFile } from './preparation-inputs';
 import { buildPuniPrograms, buildToolkitRoles } from './preparation-roles';
-import { type BunToolkit, type SelectedBunToolkit, type BunExecutionToolkit, readBunToolkit } from './toolkit';
+import { planSelectedBunToolkit } from './selected-bun-release';
+import type { WorkingSource } from './source-files';
+import {
+  type BunExecutionToolkit,
+  type BunToolkit,
+  readBunToolkit,
+  resolveToolkitModules,
+  type SelectedBunToolkit,
+} from './toolkit';
 import { copyTrustedModules, hashTrustedModules } from './trusted-modules';
 
 interface Context {
@@ -69,7 +80,7 @@ export function buildBunToolkit(
   request: Request,
   context: Context,
 ): Promise<Outcome<BunToolkit>> {
-  return buildAssets({kind:'committed',source}, request, context, false);
+  return buildAssets({ kind: 'committed', source }, request, context, false);
 }
 
 /**
@@ -86,18 +97,44 @@ export function buildPuniAssets(
   request: Omit<Request, 'tag'>,
   context: Context,
 ): Promise<Outcome<SelectedBunToolkit>> {
-  return buildAssets({kind:'committed',source}, { ...request, tag: 'puni-v' + testLevelPackageVersion }, context, true);
+  return buildAssets(
+    { kind: 'committed', source },
+    { ...request, tag: 'puni-v' + testLevelPackageVersion },
+    context,
+    true,
+  );
 }
 
 /** Local working capture uses the same compiler/layout/closure owner; it is never labelled a committed release. */
-export function buildLocalPuniAssets(source:WorkingSource,request:Omit<Request,'tag'>,context:Context):Promise<Outcome<SelectedBunToolkit>>{
-  return buildAssets({kind:'working',source},{...request,tag:'puni-v'+testLevelPackageVersion},context,true);
+export function buildLocalPuniAssets(
+  source: WorkingSource,
+  request: Omit<Request, 'tag'>,
+  context: Context,
+): Promise<Outcome<SelectedBunToolkit>> {
+  return buildAssets(
+    { kind: 'working', source },
+    { ...request, tag: 'puni-v' + testLevelPackageVersion },
+    context,
+    true,
+  );
 }
 
-type CapturedBuildSource={readonly kind:'committed';readonly source:CommittedSource}|{readonly kind:'working';readonly source:WorkingSource};
+type CapturedBuildSource =
+  | { readonly kind: 'committed'; readonly source: CommittedSource }
+  | { readonly kind: 'working'; readonly source: WorkingSource };
 
-function buildAssets(capture:Extract<CapturedBuildSource,{kind:'committed'}>,request:Request,context:Context,packagePrograms:false):Promise<Outcome<BunToolkit>>;
-function buildAssets(capture:CapturedBuildSource,request:Request,context:Context,packagePrograms:true):Promise<Outcome<SelectedBunToolkit>>;
+function buildAssets(
+  capture: Extract<CapturedBuildSource, { kind: 'committed' }>,
+  request: Request,
+  context: Context,
+  packagePrograms: false,
+): Promise<Outcome<BunToolkit>>;
+function buildAssets(
+  capture: CapturedBuildSource,
+  request: Request,
+  context: Context,
+  packagePrograms: true,
+): Promise<Outcome<SelectedBunToolkit>>;
 async function buildAssets(
   capture: CapturedBuildSource,
   request: Request,
@@ -128,17 +165,21 @@ async function buildAssets(
     const prior = readCancellation();
     // Proof: c27-producer-prior; injected fault failed `returns producer prior cancellation before absent authority and output IO`; restoration passed.
     if (prior !== undefined) return prior;
-    const source = {readSnapshot:capture.source.readSnapshot.bind(capture.source),readFile:capture.source.readFile.bind(capture.source)};
+    const source = {
+      readSnapshot: capture.source.readSnapshot.bind(capture.source),
+      readFile: capture.source.readFile.bind(capture.source),
+    };
     const readSelection = () => {
-      if(capture.kind==='working')return capture.source.readSelection();
+      if (capture.kind === 'working') return capture.source.readSelection();
       const snapshot = capture.source.readSnapshot();
-    // Proof: c27-producer-committed; ordering/diagnostic: noncommitted selection otherwise reaches absent installation refusal; injected fault failed `refuses a noncommitted source selection before producer authority and output IO`; restoration passed.
-    if (snapshot.selection.kind !== 'committed')
-      throw new Error('toolkit producer requires a committed source capture');
+      // Proof: c27-producer-committed; ordering/diagnostic: noncommitted selection otherwise reaches absent installation refusal; injected fault failed `refuses a noncommitted source selection before producer authority and output IO`; restoration passed.
+      if (snapshot.selection.kind !== 'committed')
+        throw new Error('toolkit producer requires a committed source capture');
       return snapshot.selection;
     };
-    const sourceSelection=readSelection();
-    const sourceRevision=sourceSelection.kind==='committed'?sourceSelection.revision:sourceSelection.base;
+    const sourceSelection = readSelection();
+    const sourceRevision =
+      sourceSelection.kind === 'committed' ? sourceSelection.revision : sourceSelection.base;
     const dependencies = packagePrograms
       ? readPuniBuildDependencies(source, installationDirectory)
       : readBuildDependencies(source, installationDirectory);
@@ -233,22 +274,33 @@ async function buildAssets(
     const beforeCopy = readCancellation();
     // Proof: c27-producer-before-copy; injected fault failed `retains producer roots after cancellation following actual settled role building`; restoration passed.
     if (beforeCopy !== undefined) return beforeCopy;
-    const closure = join(destination, 'trusted-node-modules');
+    const closure = resolveToolkitModules({
+      directory: destination,
+      schemaVersion: packagePrograms ? 3 : 2,
+    });
     copyTrustedModules(closure, join(materialized.directory, 'node_modules'), dependencies.names);
     const identity = hashTrustedModules(closure);
     // Proof: c27-producer-closure-copy; injected fault failed `refuses delivery closure drift after the authenticated build copy settles`; restoration passed.
     if (identity !== dependencies.identity)
       throw new Error('toolkit delivery dependency copy differs from admitted closure');
-    const plan = packagePrograms ? planSelectedBunToolkit({
-      tag: selected.tag,
-      sourceRevision,
-      bunVersion: dependencies.bunVersion,
-      roleBytes: built.roleBytes,
-      trustedNodeModules: dependencies.names,
-      trustedNodeModulesIdentity: identity,
-      sourceSelection,
-    }) : planBunToolkit({tag:selected.tag,sourceRevision,bunVersion:dependencies.bunVersion,roleBytes:built.roleBytes,
-      trustedNodeModules:dependencies.names,trustedNodeModulesIdentity:identity});
+    const plan = packagePrograms
+      ? planSelectedBunToolkit({
+          tag: selected.tag,
+          sourceRevision,
+          bunVersion: dependencies.bunVersion,
+          roleBytes: built.roleBytes,
+          trustedNodeModules: dependencies.names,
+          trustedNodeModulesIdentity: identity,
+          sourceSelection,
+        })
+      : planBunToolkit({
+          tag: selected.tag,
+          sourceRevision,
+          bunVersion: dependencies.bunVersion,
+          roleBytes: built.roleBytes,
+          trustedNodeModules: dependencies.names,
+          trustedNodeModulesIdentity: identity,
+        });
     const files = [
       ...bunToolkitRoles.map((role) => ({
         path: role,
@@ -262,12 +314,23 @@ async function buildAssets(
       { path: 'toolkit.json', bytes: plan.descriptor, executable: false },
       { path: 'SHA256SUMS', bytes: plan.checksums, executable: false },
     ].map((file) => ({ ...file, directory: destination }));
-    const testLevelSource = packagePrograms ? createTestLevelSource(source, sourceSelection) : undefined;
-    const testLevelAssets = packageBuilt?.kind === 'built' && testLevelSource !== undefined
-      ? createTestLevelAssets(sourceSelection, dependencies.bunVersion, identity, hashBytes(packageBuilt.roleBytes['performance-judge.mjs']), hashBytes(testLevelSource))
+    const testLevelSource = packagePrograms
+      ? createTestLevelSource(source, sourceSelection)
       : undefined;
+    const testLevelAssets =
+      packageBuilt?.kind === 'built' && testLevelSource !== undefined
+        ? createTestLevelAssets(
+            sourceSelection,
+            dependencies.bunVersion,
+            identity,
+            hashBytes(packageBuilt.roleBytes['performance-judge.mjs']),
+            hashBytes(testLevelSource),
+          )
+        : undefined;
     const packageFiles =
-      packageBuilt?.kind === 'built' && testLevelAssets !== undefined && testLevelSource !== undefined
+      packageBuilt?.kind === 'built' &&
+      testLevelAssets !== undefined &&
+      testLevelSource !== undefined
         ? [
             {
               path: 'puni.mjs',
@@ -289,17 +352,36 @@ async function buildAssets(
             },
             {
               path: 'runtime-asset-loads.json',
-              bytes: Buffer.from(JSON.stringify({ format: 'puni-runtime-asset-loads', version: 1,
-                sourceRevision, loaders: packageBuilt.runtimeAssetLoads }, null, 2) + '\n'),
+              bytes: Buffer.from(
+                JSON.stringify(
+                  {
+                    format: 'puni-runtime-asset-loads',
+                    version: 1,
+                    sourceRevision,
+                    loaders: packageBuilt.runtimeAssetLoads,
+                  },
+                  null,
+                  2,
+                ) + '\n',
+              ),
               executable: false,
               directory: join(packageRoot, 'dist'),
             },
             {
               path: 'forge-supervisor.json',
-              bytes: Buffer.from(JSON.stringify({
-                format: 'puni-forge-runtime', version: 1, entrypoint: 'forge-supervisor.mjs',
-                sha256: hashBytes(packageBuilt.roleBytes['forge-supervisor.mjs']), sourceRevision,
-              }, null, 2) + '\n'),
+              bytes: Buffer.from(
+                JSON.stringify(
+                  {
+                    format: 'puni-forge-runtime',
+                    version: 1,
+                    entrypoint: 'forge-supervisor.mjs',
+                    sha256: hashBytes(packageBuilt.roleBytes['forge-supervisor.mjs']),
+                    sourceRevision,
+                  },
+                  null,
+                  2,
+                ) + '\n',
+              ),
               executable: false,
               directory: join(packageRoot, 'dist'),
             },
@@ -323,7 +405,11 @@ async function buildAssets(
             },
             {
               path: 'package-manifest.json',
-              bytes: createPuniTestLevelManifest(sourceSelection, hashBytes(plan.descriptor), hashBytes(testLevelAssets)),
+              bytes: createPuniTestLevelManifest(
+                sourceSelection,
+                hashBytes(plan.descriptor),
+                hashBytes(testLevelAssets),
+              ),
               executable: false,
               directory: join(packageRoot, 'dist'),
             },

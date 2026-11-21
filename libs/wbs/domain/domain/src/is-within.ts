@@ -9,7 +9,7 @@ export interface ParentedRow {
  *
  * Separate from {@link isWithin} because the question is asked twice per edge
  * and once per drag candidate, and the three call sites that used to build this
- * inline built it inside the walk — once per question over the whole project.
+ * inline built it inside the walk — once per question over the whole work package.
  */
 export function parentIndexOf(rows: readonly ParentedRow[]): Map<string, string | null> {
   return new Map(rows.map((row) => [row.id, row.parentId]));
@@ -24,7 +24,7 @@ export function parentIndexOf(rows: readonly ParentedRow[]): Map<string, string 
  * and both refusals are this walk returning true on its first step.
  *
  * An id `parentOf` has no entry for ends the walk and answers `false` — that is
- * how a cross-project id arrives at `canDepend`, and it is the same reading
+ * how a cross-work-package id arrives at `canDepend`, and it is the same reading
  * `expandToLeaves` gives an end it has no row for.
  */
 export function isWithin(

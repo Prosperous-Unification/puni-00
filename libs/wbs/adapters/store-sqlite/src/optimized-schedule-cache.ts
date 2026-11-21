@@ -23,11 +23,11 @@ import { toOptimizedScheduleCacheRow, toSolverSlotRow } from './optimizer-rows';
 import { scheduleInputHash } from './schedule-input-hash';
 import {
   optimizedScheduleCache,
-  project,
   type SolverFailureReason,
   type SolverObjectiveName,
   solverQueue,
   solverSlot,
+  workPackage,
 } from './schema';
 
 export {
@@ -71,7 +71,7 @@ type Reader = SQLiteBunDatabase | OptimizedOutcomeTransaction;
  * serve a 60 s answer to a release configured for 120 s.
  */
 export interface OptimizedCacheKey {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly inputHash: string;
   readonly contractVersion: string;
   readonly budgetMs: number;
@@ -95,10 +95,10 @@ export interface OptimizedCacheKey {
  * 4. the one designed escape, an explicit Retry, refuses with `already-running`
  *    because it asks this same predicate first.
  *
- * So the state that frees the project was reachable only through the state it
+ * So the state that frees the work package was reachable only through the state it
  * was masking. Observed on 2026-09-08 as a plan stuck on `Optimizing…` for
  * hours with `status=failed` sitting in the cache, and freed only incidentally
- * when an unrelated project's admission ran the global sweep.
+ * when an unrelated work package's admission ran the global sweep.
  *
  * `now` is the caller's already-captured instant rather than a clock read here:
  * `readPlan` and `retry` each take one, and a predicate that read its own would
@@ -130,7 +130,7 @@ export function optimizedVariantIsLive(
   now: number,
 ): boolean {
   const identity = [
-    eq(solverSlot.projectId, key.projectId),
+    eq(solverSlot.workPackageId, key.workPackageId),
     eq(solverSlot.contractVersion, key.contractVersion),
     eq(solverSlot.generation, generation),
     eq(solverSlot.objective, objective),
@@ -139,7 +139,7 @@ export function optimizedVariantIsLive(
   ] as const;
   if (
     db
-      .select({ projectId: solverSlot.projectId })
+      .select({ workPackageId: solverSlot.workPackageId })
       .from(solverSlot)
       .where(and(...identity))
       .get()
@@ -148,11 +148,11 @@ export function optimizedVariantIsLive(
   }
   return (
     db
-      .select({ projectId: solverQueue.projectId })
+      .select({ workPackageId: solverQueue.workPackageId })
       .from(solverQueue)
       .where(
         and(
-          eq(solverQueue.projectId, key.projectId),
+          eq(solverQueue.workPackageId, key.workPackageId),
           eq(solverQueue.contractVersion, key.contractVersion),
           eq(solverQueue.generation, generation),
           eq(solverQueue.objective, objective),
@@ -173,7 +173,7 @@ const MISS: CachedOutcome = { kind: 'miss' };
  * Allocation deletes the superseded rows, but a read that ran between the
  * allocation and its delete would otherwise serve an answer computed against a
  * plan that no longer exists — the ABA the 4.6 fence is about. So a row whose
- * `generation` is not the current one for `(projectId, contractVersion)` is a
+ * `generation` is not the current one for `(workPackageId, contractVersion)` is a
  * miss, and a key with no generation row at all serves nothing: nothing can
  * have been admitted before the first allocation, so any row present is a
  * leftover.
@@ -189,7 +189,7 @@ const MISS: CachedOutcome = { kind: 'miss' };
 export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): OptimizedPair {
   const pair: Record<SolverObjectiveName, CachedOutcome> = { pri: MISS, time: MISS };
 
-  const current = readGeneration(db, key.projectId, key.contractVersion);
+  const current = readGeneration(db, key.workPackageId, key.contractVersion);
   if (current === null) return pair;
 
   const rows = db
@@ -197,9 +197,12 @@ export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): Optimized
     .from(optimizedScheduleCache)
     .where(
       and(
-        eq(optimizedScheduleCache.projectId, key.projectId),
+        eq(optimizedScheduleCache.workPackageId, key.workPackageId),
         // Proof: omitting only this predicate made a captured H2 return H1 as ready while G stayed unchanged.
         eq(optimizedScheduleCache.inputHash, key.inputHash),
+        // Proof: cache19-local-contract removes only this predicate; 'current19 local cache excludes equal-hash contract18 before payload decoding with a live generation' returned corrupt instead of miss, then restored GREEN.
+        // Proof: removing this predicate failed current20's equal-hash contract19 local-cache
+        // test with corrupt instead of miss; restored after the bounded actor settled (2026-11-20).
         eq(optimizedScheduleCache.contractVersion, key.contractVersion),
         eq(optimizedScheduleCache.budgetMs, key.budgetMs),
         eq(optimizedScheduleCache.generation, current.generation),
@@ -221,7 +224,7 @@ export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): Optimized
  * Everything the seam below hands a spawner, and nothing it has to look up.
  *
  * The `key` is the one the read ran against rather than a rebuilt one, because
- * `budgetMs` and `contractVersion` are key columns: a spawner given the project
+ * `budgetMs` and `contractVersion` are key columns: a spawner given the work package
  * and the objective alone would have to guess which of the two live budgets a
  * blue/green pair asked for, and 4.1b's whole point is that those are two rows.
  */
@@ -299,7 +302,7 @@ export function retryOptimizedPair(
  * case the token exists to fence.
  */
 export interface SlotClaim {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly objective: SolverObjectiveName;
@@ -315,7 +318,7 @@ function heldSolverSlot(db: Reader, claim: SlotClaim): { readonly startedAt: num
     .from(solverSlot)
     .where(
       and(
-        eq(solverSlot.projectId, claim.projectId),
+        eq(solverSlot.workPackageId, claim.workPackageId),
         eq(solverSlot.contractVersion, claim.contractVersion),
         eq(solverSlot.generation, claim.generation),
         eq(solverSlot.objective, claim.objective),
@@ -353,7 +356,7 @@ function heldSolverSlot(db: Reader, claim: SlotClaim): { readonly startedAt: num
  *
  * The remaining conditions of 4.1's write live in
  * {@link admissionStillCurrent} (the generation and the cancel epoch) and
- * {@link optimizationStillEnabled} (the project switch). Each is proved on its
+ * {@link optimizationStillEnabled} (the work package switch). Each is proved on its
  * own and all three are composed, inside one transaction, by
  * {@link storeOptimizedOutcome}.
  */
@@ -371,7 +374,7 @@ export function writerStillHolds(db: Reader, claim: SlotClaim): boolean {
  * into one indistinguishable state.
  */
 export interface AdmissionClaim {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly contractVersion: string;
   readonly generation: number;
   readonly admittedCancelEpoch: number;
@@ -382,13 +385,13 @@ export interface AdmissionClaim {
  * admitted (tasks.md 4.1's second and third conditions).
  *
  * Read as one row rather than as two lookups on purpose: both numbers live in
- * `optimization_generation` keyed `(projectId, contractVersion)`, and reading
+ * `optimization_generation` keyed `(workPackageId, contractVersion)`, and reading
  * them separately would let a concurrent allocation land between the two and
  * produce a verdict that was never true of any single state of the row.
  *
  * A **missing** generation row is not current. Nothing can have been admitted
  * before the first allocation, so a claim against a key with no row is a claim
- * by a run whose own allocation has since been deleted — the project was
+ * by a run whose own allocation has since been deleted — the work package was
  * dropped, or its rows were retired.
  *
  * It reads through {@link readGeneration}, so an `admission_state` no `CHECK`
@@ -404,11 +407,11 @@ export interface AdmissionClaim {
  *
  * The fourth condition of 4.1's write — `optimization_enabled` still 1 — is
  * {@link optimizationStillEnabled}, kept separate because it is a fact about
- * the *project* rather than about this attempt's generation.
+ * the *work package* rather than about this attempt's generation.
  * {@link storeOptimizedOutcome} composes all three inside one transaction.
  */
 export function admissionStillCurrent(db: Reader, claim: AdmissionClaim): boolean {
-  const current = readGeneration(db, claim.projectId, claim.contractVersion);
+  const current = readGeneration(db, claim.workPackageId, claim.contractVersion);
   if (current === null) return false;
   return (
     current.generation === claim.generation && current.cancelEpoch === claim.admittedCancelEpoch
@@ -416,37 +419,37 @@ export function admissionStillCurrent(db: Reader, claim: AdmissionClaim): boolea
 }
 
 /**
- * Whether this project is still allowed to spend solver time at all — 4.1's
+ * Whether this work package is still allowed to spend solver time at all — 4.1's
  * fourth and last write condition.
  *
  * **This is the condition that blocked the write half of 4.1 for three runs**,
  * and it is not interchangeable with the other three. The slot token fences a
  * superseded attempt and the generation and cancel epoch fence a superseded
- * input; this one fences a project whose owner switched the optimizer off
+ * input; this one fences a work package whose owner switched the optimizer off
  * while a solve that was legitimately admitted was still running. Nothing else
  * in the pipeline observes that, because admission happened before the switch
- * was thrown — so without it a project can be switched off and still acquire a
+ * was thrown — so without it a work package can be switched off and still acquire a
  * fresh optimized plan seconds later, which is the one behaviour the switch
  * exists to forbid.
  *
- * A **missing** project row is not enabled. `optimized_schedule_cache` cascades
- * on `project.id`, so a claim against a project that is gone is a claim by a
+ * A **missing** work package row is not enabled. `optimized_schedule_cache` cascades
+ * on `workPackage.id`, so a claim against a work package that is gone is a claim by a
  * run whose whole key has already been deleted; returning `true` there would
- * re-create a row for a deleted project between the cascade and the commit.
+ * re-create a row for a deleted work package between the cascade and the commit.
  *
  * The column is `integer … NOT NULL DEFAULT 0` with
  * `CHECK (optimization_enabled IN (0, 1))` in the database
- * (`20260904140000_add_project_settings`), so there is no third value for the
+ * (`20260904140000_add_work_package_settings`), so there is no third value for the
  * boolean mapping to be lossy about and this needs no 3.8 boundary of its own.
  * The default is what makes the predicate safe on a release that has never
- * heard of the switch: every existing project reads `false` until somebody
+ * heard of the switch: every existing work package reads `false` until somebody
  * turns it on.
  */
-export function optimizationStillEnabled(db: Reader, projectId: string): boolean {
+export function optimizationStillEnabled(db: Reader, workPackageId: string): boolean {
   const row = db
-    .select({ enabled: project.optimizationEnabled })
-    .from(project)
-    .where(eq(project.id, projectId))
+    .select({ enabled: workPackage.optimizationEnabled })
+    .from(workPackage)
+    .where(eq(workPackage.id, workPackageId))
     .get();
   if (row === undefined) return false;
   return row.enabled;
@@ -473,7 +476,7 @@ export type OutcomeToStore =
  *
  * `claim` is the {@link SlotClaim} the attempt has been holding all along
  * rather than a fresh set of key fields, because the seat and the row must be
- * the *same* project, contract version, generation, objective and budget. Two
+ * the *same* work package, contract version, generation, objective and budget. Two
  * parallel copies of those five columns would let a caller commit against a
  * seat it does not hold by mistyping one of them, and every predicate below
  * would still pass.
@@ -511,7 +514,7 @@ export function currentOutcomeWriter(
   if (held === null) return null;
   if (
     !admissionStillCurrent(tx, {
-      projectId: claim.projectId,
+      workPackageId: claim.workPackageId,
       contractVersion: claim.contractVersion,
       generation: claim.generation,
       admittedCancelEpoch,
@@ -519,7 +522,7 @@ export function currentOutcomeWriter(
   ) {
     return null;
   }
-  if (!optimizationStillEnabled(tx, claim.projectId)) return null;
+  if (!optimizationStillEnabled(tx, claim.workPackageId)) return null;
   if (now < held.startedAt) {
     throw new Error('outcome timestamp predates the solver slot that produced it');
   }
@@ -534,7 +537,7 @@ export function currentOutcomeWriter(
  * **Not a blind upsert, and that is the whole design.** A superseded run must
  * not be able to store, evict, overwrite an `ok` with a `failed`, or emit a
  * second outcome record for one key. The primary key is
- * `(projectId, inputHash, objective, contractVersion, budgetMs)` and does
+ * `(workPackageId, inputHash, objective, contractVersion, budgetMs)` and does
  * **not** include `generation`, so two generations of the same key collide by
  * construction. An ordinary result remains insert-only. The one conditional
  * update is an explicit Retry: a `failed`/`corrupt` row older than the attempt's
@@ -554,7 +557,7 @@ export function currentOutcomeWriter(
  *
  * **The order is cheapest-fence-first and is not arbitrary.** The slot token is
  * the condition that fails most often (every reclaimed child), the generation
- * and cancel epoch next, the project switch last because it changes rarely.
+ * and cancel epoch next, the work package switch last because it changes rarely.
  * All three are single-row primary-key lookups, so the ordering buys clarity
  * rather than time — but a reader tracing a `superseded` return reaches the
  * likely cause first.
@@ -586,7 +589,7 @@ export function storeOptimizedOutcomeIn(
   let written = tx
     .insert(optimizedScheduleCache)
     .values({
-      projectId: claim.projectId,
+      workPackageId: claim.workPackageId,
       inputHash: write.inputHash,
       objective: claim.objective,
       contractVersion: claim.contractVersion,
@@ -599,7 +602,7 @@ export function storeOptimizedOutcomeIn(
 
   if (written.length === 0) {
     const key = {
-      projectId: claim.projectId,
+      workPackageId: claim.workPackageId,
       inputHash: write.inputHash,
       contractVersion: claim.contractVersion,
       budgetMs: claim.budgetMs,
@@ -616,7 +619,7 @@ export function storeOptimizedOutcomeIn(
       .set(storedOutcome)
       .where(
         and(
-          eq(optimizedScheduleCache.projectId, claim.projectId),
+          eq(optimizedScheduleCache.workPackageId, claim.workPackageId),
           eq(optimizedScheduleCache.inputHash, write.inputHash),
           eq(optimizedScheduleCache.objective, claim.objective),
           eq(optimizedScheduleCache.contractVersion, claim.contractVersion),
@@ -631,7 +634,7 @@ export function storeOptimizedOutcomeIn(
   }
 
   enforceLiveBudgetBound(tx, {
-    projectId: claim.projectId,
+    workPackageId: claim.workPackageId,
     objective: claim.objective,
     contractVersion: claim.contractVersion,
     inputHash: write.inputHash,
@@ -648,7 +651,7 @@ export function storeOptimizedOutcome(
 }
 
 /**
- * How many budgets one project keeps per objective per live contract version
+ * How many budgets one work package keeps per objective per live contract version
  * (tasks.md 4.1b, rule 2).
  *
  * **A bound, not an exclusion, and the difference is a livelock.** The rule this
@@ -661,14 +664,14 @@ export function storeOptimizedOutcome(
  * version; only a bound can, because under a bound both rows survive.
  *
  * Two, so the pair of budgets a blue/green swap has in flight both fit. With
- * both objectives that is at most four outcome rows per project per live
+ * both objectives that is at most four outcome rows per work package per live
  * contract version — never "two rows total".
  */
 const MAX_LIVE_BUDGETS = 2;
 
 /** The tuple 4.1b's bound counts within: everything but `budgetMs`. */
 interface LiveBudgetKey {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly objective: SolverObjectiveName;
   readonly contractVersion: string;
   readonly inputHash: string;
@@ -698,7 +701,7 @@ export function enforceLiveBudgetBound(tx: OptimizedOutcomeTransaction, key: Liv
     .from(optimizedScheduleCache)
     .where(
       and(
-        eq(optimizedScheduleCache.projectId, key.projectId),
+        eq(optimizedScheduleCache.workPackageId, key.workPackageId),
         eq(optimizedScheduleCache.objective, key.objective),
         eq(optimizedScheduleCache.contractVersion, key.contractVersion),
         eq(optimizedScheduleCache.inputHash, key.inputHash),
@@ -711,7 +714,7 @@ export function enforceLiveBudgetBound(tx: OptimizedOutcomeTransaction, key: Liv
     tx.delete(optimizedScheduleCache)
       .where(
         and(
-          eq(optimizedScheduleCache.projectId, key.projectId),
+          eq(optimizedScheduleCache.workPackageId, key.workPackageId),
           eq(optimizedScheduleCache.objective, key.objective),
           eq(optimizedScheduleCache.contractVersion, key.contractVersion),
           eq(optimizedScheduleCache.inputHash, key.inputHash),
@@ -772,13 +775,13 @@ export function publishedScheduleReaderOf(
   db: Reader,
   options: PublishedScheduleOptions,
 ): (ask: {
-  readonly projectId: string;
+  readonly workPackageId: string;
   readonly objective: SolverObjectiveName;
   readonly input: ScheduleInput;
 }) => Schedule | null {
   return (ask) => {
     const pair = readOptimizedPair(db, {
-      projectId: ask.projectId,
+      workPackageId: ask.workPackageId,
       inputHash: scheduleInputHash(ask.input),
       contractVersion: options.contractVersion,
       budgetMs: options.budgetMs,

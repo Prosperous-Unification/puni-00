@@ -121,7 +121,7 @@ function rowOf(
   return {
     ...grouped,
     id: workItem.id,
-    projectId: workItem.projectId,
+    workPackageId: workItem.workPackageId,
     parentId: workItem.parentId,
     number: workItem.number,
     name: workItem.name,
@@ -148,7 +148,7 @@ export function slicesByWorkItem(slices: readonly TreeSlice[]): ReadonlyMap<stri
  * Each work item's depth, a top-level one being 1.
  *
  * @throws when a work item names a parent the tree does not hold: the tree
- * read answers whole projects, so that is corrupt trusted state.
+ * read answers whole work packages, so that is corrupt trusted state.
  */
 function depthsOf(workItems: readonly TreeWorkItem[]): ReadonlyMap<string, number> {
   const parents = new Map(workItems.map((workItem) => [workItem.id, workItem.parentId]));
@@ -156,7 +156,7 @@ function depthsOf(workItems: readonly TreeWorkItem[]): ReadonlyMap<string, numbe
   const depthOf = (id: string): number => {
     const known = depths.get(id);
     if (known !== undefined) return known;
-    if (!parents.has(id)) throw new Error(`work item "${id}" is not in its project's tree`);
+    if (!parents.has(id)) throw new Error(`work item "${id}" is not in its work package's tree`);
     const parentId = parents.get(id) ?? null;
     const depth = parentId === null ? 1 : depthOf(parentId) + 1;
     depths.set(id, depth);
@@ -178,7 +178,8 @@ function depthsOf(workItems: readonly TreeWorkItem[]): ReadonlyMap<string, numbe
  */
 export function depthIn(depths: ReadonlyMap<string, number>, id: string): number {
   const depth = depths.get(id);
-  if (depth === undefined) throw new Error(`work item "${id}" has no depth in its project's tree`);
+  if (depth === undefined)
+    throw new Error(`work item "${id}" has no depth in its work package's tree`);
   return depth;
 }
 
@@ -201,8 +202,8 @@ export type WorkItemPage =
   | { ok: false; refusal: 'stale_cursor' | 'unknown_parent' };
 
 /**
- * One page of a project's work items (spec `list-reads`), in the tree read's
- * own order over the whole project, which the filters never reorder. Each
+ * One page of a work package's work items (spec `list-reads`), in the tree read's
+ * own order over the whole work package, which the filters never reorder. Each
  * derived field is the tree's own, so a page shows the numbers and dates the
  * whole-tree read would.
  *

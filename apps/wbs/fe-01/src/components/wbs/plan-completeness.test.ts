@@ -62,7 +62,7 @@ describe('findEstimateGaps', () => {
     expect(gaps).toEqual({ leaves: [], perStep: [] });
   });
 
-  it('has nothing to say about an empty project', () => {
+  it('has nothing to say about an empty work package', () => {
     expect(findEstimateGaps([], STEPS)).toEqual({ leaves: [], perStep: [] });
   });
 
@@ -114,7 +114,7 @@ describe('findEstimateGaps', () => {
     ]);
   });
 
-  it('finds no gap in a project with no steps', () => {
+  it('finds no gap in a work package with no steps', () => {
     expect(findEstimateGaps([item('a', null)], [])).toEqual({ leaves: [], perStep: [] });
   });
 

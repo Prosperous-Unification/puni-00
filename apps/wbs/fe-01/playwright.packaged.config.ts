@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * The **built** fe-01, served by the image's own web server.
  *
- * A configuration of its own rather than a project inside
+ * A configuration of its own rather than a work package inside
  * `playwright.config.ts`, because it shares nothing with that file: no be-01,
  * no gw-01, no Vite. What it starts is `caddy:2-alpine` over
  * `dist/apps/wbs/fe-01` with **`apps/wbs/fe-01/Caddyfile`** — the exact file

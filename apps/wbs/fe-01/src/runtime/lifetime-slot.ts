@@ -6,7 +6,7 @@ import { type DisclosedFault, discloseFault } from '@/components/chrome/fault-di
  * How long a required disposal is waited for before the transition fails.
  *
  * One deterministic number for every lifetime, because the budget is an
- * implementation choice and not a reader's: a page whose old project will not
+ * implementation choice and not a reader's: a page whose old work package will not
  * let go has to say so rather than sit blank. Five seconds is the same order as
  * the reread this page already waits through, and it is long enough that a
  * socket close and an aborted fetch settle inside it.
@@ -58,7 +58,7 @@ export class PartialAcquisitionError extends Error {
  * A request that a newer one replaced before it could publish.
  *
  * Modelled and thrown rather than resolved with somebody else's services: three
- * project selections in one page still leave one runtime live, and the losers are
+ * work package selections in one page still leave one runtime live, and the losers are
  * told they lost instead of being handed a runtime they do not own.
  */
 export class TransitionSupersededError extends Error {

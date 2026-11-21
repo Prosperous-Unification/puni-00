@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { AuthenticatedUser } from '@wbs/contracts';
 import type { CredentialPin, PlanCommand, ResourceAccess } from '@wbs/core';
-import { clockOf, CREATOR_ADMISSION } from '@wbs/core';
+import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
@@ -19,6 +19,7 @@ import fc from 'fast-check';
 import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
@@ -36,7 +37,7 @@ type Run = (typeof RUNS)[number];
 const admin: ResourceAccess = {
   principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture: preserve the same person's optional run in command admission. */
@@ -83,6 +84,7 @@ async function openWorld(clock: { now: number }) {
   source = opened;
   opened.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   opened.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
+  seedPackageParent(dbPath, 'org-a', 'fixture-project');
   opened.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
   );
@@ -96,21 +98,25 @@ async function openWorld(clock: { now: number }) {
     sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${AGENT}, 'org-a', ${AGENT})`,
   );
   const options = {
-    admission: CREATOR_ADMISSION,
+    admission: LEGACY_EDIT_ADMISSION,
     clock: clockOf({ now: () => clock.now, newId: () => crypto.randomUUID() }),
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(opened.stores),
   };
   const graph = servicesOver(opened.stores, options);
-  const created = await graph.projects.create('Runs', 'dany');
-  if (typeof created === 'string') throw new Error(`run fixture project refused: ${created}`);
-  const projectId = created.project.id;
+  const created = await seedOrganizationPackage(
+    opened.stores.workPackages,
+    options.clock,
+    'org-a',
+    'fixture-project',
+    'dany',
+    'Runs',
+  );
+  const workPackageId = created.workPackage.id;
   const firstStep = created.steps.at(0);
   if (firstStep === undefined) throw new Error('run fixture first step missing');
-  opened.db.run(
-    sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'org-a')`,
-  );
+
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
     uow: opened.uow,
@@ -129,7 +135,7 @@ async function openWorld(clock: { now: number }) {
     run === null ? { personId: AGENT } : { personId: AGENT, runId: run };
   const run = (commands: PlanCommand[], pin: CredentialPin | null) =>
     runner.runWithin(
-      projectId,
+      workPackageId,
       principalOf(pin),
       // Model claims use the first runnable step; later steps retain their workflow prerequisites.
       commands.map((command) =>
@@ -152,7 +158,7 @@ async function openWorld(clock: { now: number }) {
     sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
   );
   const leafIds = plan.results.map(({ id }) => id ?? '');
-  return { db: opened.db, projectId, runner, run, pinOf, leafIds };
+  return { db: opened.db, workPackageId, runner, run, pinOf, leafIds };
 }
 
 type World = Awaited<ReturnType<typeof openWorld>>;
@@ -315,7 +321,7 @@ class Sweep implements fc.AsyncCommand<Model, Real> {
   check = () => true;
   async run(model: Model, real: Real): Promise<void> {
     sweepIn(model);
-    await real.world.runner.releaseExpiredLeases(real.world.projectId);
+    await real.world.runner.releaseExpiredLeases(real.world.workPackageId);
     expectStoreMatches(model, real.world);
   }
   toString = () => 'sweep';

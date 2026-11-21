@@ -120,7 +120,7 @@ describe('schedule — float and the critical path', () => {
     });
   });
 
-  it('measures float against the project finish, not against a neighbour', () => {
+  it('measures float against the work package finish, not against a neighbour', () => {
     // `b` can slip two days and still make the day-6 finish `c` sets.
     const rows = [item('a'), item('b'), item('c')];
 
@@ -228,7 +228,7 @@ describe('schedule — what it refuses and what it admits', () => {
     expect(found.get('parent')?.estimated).toBe(true);
   });
 
-  it('schedules an empty project without complaint', () => {
+  it('schedules an empty work package without complaint', () => {
     expect(schedule([], [], days({})).size).toBe(0);
   });
 });
@@ -308,7 +308,7 @@ describe('schedule — a work item’s steps run one after another', () => {
     expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
-  it('runs them in the order they are given, which is the project’s step order', () => {
+  it('runs them in the order they are given, which is the work package’s step order', () => {
     const rows = [item('a')];
 
     const found = planSlices(rows, [], [work('a', QA, 2), work('a', DEV, 3)]);
@@ -446,12 +446,12 @@ describe('schedule — the projection back onto the work item', () => {
 
     expect(found.workItems.get('long')).toMatchObject({ float: 0, critical: true });
     // `short`'s unestimated `QA` stands at 1→1, so the row ends on day 1 in a
-    // six-day project and has five days of slack.
+    // six-day work package and has five days of slack.
     expect(found.workItems.get('short')).toMatchObject({ float: 5, critical: false });
   });
 
-  it('schedules a leaf in a project that holds no steps at all', () => {
-    // Reachable: a project's last step can be removed. The rows must still be in
+  it('schedules a leaf in a work package that holds no steps at all', () => {
+    // Reachable: a work package's last step can be removed. The rows must still be in
     // the graph — a neighbour depends on one of them.
     const rows = [item('a'), item('b')];
 
@@ -461,7 +461,7 @@ describe('schedule — the projection back onto the work item', () => {
       [work('a', null, null), work('b', null, null)],
     );
 
-    // A project with no steps gives each leaf one unestimated slice of zero
+    // A work package with no steps gives each leaf one unestimated slice of zero
     // schedule time, so `a` ends where it starts and `b` waits on that finish.
     expect(found.workItems.get('a')).toMatchObject({ estimated: false, earliestFinish: 0 });
     expect(found.workItems.get('b')).toMatchObject({ estimated: false, earliestStart: 0 });

@@ -3,7 +3,7 @@ import { installSavedPlans } from '@wbs/core/module/saved-plans/check';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { readSavedConnectedScheduleBody, readSavedPlanInput } from '@wbs/domain';
-import { testProjectService } from '@wbs/store-memory/testing/service-fixtures';
+import { testWorkPackageService } from '@wbs/store-memory/testing/service-fixtures';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { openSqliteSource } from '@wbs/store-sqlite/source';
 import { expect, test } from 'bun:test';
@@ -47,7 +47,7 @@ test.each(['isolated', 'shared'] as const)(
       });
       const save = () =>
         writer.save({
-          projectId: 'a1',
+          workPackageId: 'a1',
           createdBy: 'Ada',
           createdById: 'ada',
           access,
@@ -55,7 +55,7 @@ test.each(['isolated', 'shared'] as const)(
             principal: { id: 'ada' },
             organizationId: 'org-a',
             actorId: 'ada',
-            role: 'member',
+
             operation: 'save',
           },
         });
@@ -84,16 +84,16 @@ test.each(['isolated', 'shared'] as const)(
         expect(
           relationshipEditor
             .query(
-              "SELECT id,type,predecessor_project_id,predecessor_work_item_id,predecessor_step_id,successor_project_id,successor_work_item_id,successor_step_id FROM external_dependency WHERE id='ab'",
+              "SELECT id,type,predecessor_work_package_id,predecessor_work_item_id,predecessor_step_id,successor_work_package_id,successor_work_item_id,successor_step_id FROM external_dependency WHERE id='ab'",
             )
             .get(),
         ).toEqual({
           id: 'ab',
           type: 'FS',
-          predecessor_project_id: 'a1',
+          predecessor_work_package_id: 'a1',
           predecessor_work_item_id: 'a',
           predecessor_step_id: 'design',
-          successor_project_id: 'a2',
+          successor_work_package_id: 'a2',
           successor_work_item_id: 'b',
           successor_step_id: 'build',
         });
@@ -122,16 +122,25 @@ test.each(['isolated', 'shared'] as const)(
           const app = mountEndpoints(
             savedPlanRoutes(
               history,
-              testProjectService(source.stores.projects),
+              testWorkPackageService(source.stores.workPackages),
               recordingBroadcaster(),
               { resolve: () => Promise.resolve({ ok: true, access }) },
+              source.createWorkPackageObservation({
+                activeOrganizationOf: () => () => Promise.resolve(access.scope.organizationId),
+                now: () => 12,
+              }),
             ),
             {
               appOrigin: 'http://localhost',
               resolveIdentity: () =>
                 Promise.resolve({
                   ok: true,
-                  principal: { id: 'ada', username: 'Ada', scopes: ['read', 'write'] },
+                  principal: {
+                    id: 'ada',
+                    username: 'Ada',
+                    scopes: ['read', 'write'],
+                    authentication: { kind: 'first_party', issuedAt: 1 },
+                  },
                 }),
               reportUnexpectedFailure: (failure) => {
                 throw failure;
@@ -144,7 +153,7 @@ test.each(['isolated', 'shared'] as const)(
           expect(httpRead.status).toBe(200);
           const httpComparison = await app.handle(
             new Request(
-              `http://localhost/api/projects/a1/saved-plans/compare?left=${stored.id}&right=${second.record.id}`,
+              `http://localhost/api/work-packages/a1/saved-plans/compare?left=${stored.id}&right=${second.record.id}`,
             ),
           );
           expect(httpComparison.status).toBe(200);
@@ -162,8 +171,8 @@ test.each(['isolated', 'shared'] as const)(
           expect(input.dependencyHistory.relationships[0]).toMatchObject({
             id: 'ab',
             type: 'SS',
-            predecessor: { projectId: 'a1', workItemId: 'a', scope: 'node', stepId: 'design' },
-            successor: { projectId: 'a2', workItemId: 'b', scope: 'node', stepId: 'build' },
+            predecessor: { workPackageId: 'a1', workItemId: 'a', scope: 'node', stepId: 'design' },
+            successor: { workPackageId: 'a2', workItemId: 'b', scope: 'node', stepId: 'build' },
           });
           expect(opened.plan.input.sha256).toBe(await nodeDigest.sha256(opened.plan.input.bytes));
           const compared = await history.compare(
@@ -197,13 +206,16 @@ test.each(['isolated', 'shared'] as const)(
       const live = openDatabase(path);
       try {
         live.run(
-          "UPDATE project SET name='Renamed foreign project',start_date='2026-11-02' WHERE id='a2'",
+          "UPDATE work_package SET name='Renamed foreign work_package',start_date='2026-11-02' WHERE id='a2'",
         );
-        live.run("UPDATE project_abbreviation SET abbreviation='RENAMED' WHERE project_id='a2'");
+        live.run(
+          "UPDATE work_package_abbreviation SET abbreviation='RENAMED' WHERE work_package_id='a2'",
+        );
         live.run(
           "UPDATE work_item SET name='Renamed foreign work',position=80,frozen_number='990',fact_start='2026-10-01',fact_end='2026-10-02' WHERE id='b'",
         );
-        live.run("UPDATE step SET name='Renamed foreign step',position=90 WHERE id='build'");
+        live.run("UPDATE step_definition SET name='Renamed foreign step' WHERE id='build'");
+        live.run("UPDATE step_binding SET position=90 WHERE id='build:saved-connected'");
         live.run(
           "UPDATE estimate SET optimistic=9,realistic=9,pessimistic=9 WHERE work_item_id='b'",
         );
@@ -218,10 +230,44 @@ test.each(['isolated', 'shared'] as const)(
         live.run('DELETE FROM external_dependency');
         live.run("DELETE FROM estimate WHERE work_item_id='b'");
         live.run("DELETE FROM assignment WHERE work_item_id='b'");
-        live.run("DELETE FROM work_item WHERE project_id='a2'");
-        live.run("DELETE FROM step WHERE project_id='a2'");
-        live.run("DELETE FROM project WHERE id='a2'");
-        expect(live.query("SELECT id FROM project WHERE id='a2'").all()).toEqual([]);
+        live.run("DELETE FROM work_item WHERE work_package_id='a2'");
+        const retirement = openSqliteSource({
+          dbPath: path,
+          dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+        });
+        let primary: { cause: unknown } | undefined;
+        try {
+          expect(
+            await retirement.stores.stepCatalogue.unbindStep(
+              'org-a',
+              'build:saved-connected',
+              { dryRun: false },
+              { at: 1, by: 'ada' },
+            ),
+          ).toMatchObject({ kind: 'unbound' });
+          expect(
+            await retirement.stores.stepCatalogue.retireStepDefinition('org-a', 'build', {
+              at: 1,
+              by: 'ada',
+            }),
+          ).toEqual({ ok: true });
+        } catch (cause: unknown) {
+          primary = { cause };
+        }
+        try {
+          await retirement.close();
+        } catch (cleanup: unknown) {
+          if (primary !== undefined)
+            throw new AggregateError(
+              [primary.cause, cleanup],
+              'historical fixture retirement and close failed',
+              { cause: cleanup },
+            );
+          throw cleanup;
+        }
+        if (primary !== undefined) throw primary.cause;
+        live.run("DELETE FROM work_package WHERE id='a2'");
+        expect(live.query("SELECT id FROM work_package WHERE id='a2'").all()).toEqual([]);
         expect(live.query('SELECT id FROM external_dependency').all()).toEqual([]);
         expect(await inspect()).toEqual(before);
       } finally {

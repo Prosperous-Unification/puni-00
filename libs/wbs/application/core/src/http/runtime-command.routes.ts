@@ -1,7 +1,7 @@
 import {
   acquireRuntimeAuthority,
-  applyProjectCommands,
   applyRuntimeCommands,
+  applyWorkPackageCommands,
   type ClaimReceipt,
   commandParserRefusal,
   lookupRuntimeReceipt,
@@ -71,9 +71,9 @@ async function answerRuntime<T extends RuntimeReceipt | RuntimeState>(outcome: R
 /** Existing closed declarations own the status and required holder/resource detail. */
 async function answerCommandRefusal(
   outcome: RuntimeCommandRefusal,
-): Promise<Extract<HttpReply<typeof applyProjectCommands>, { ok: false }>> {
+): Promise<Extract<HttpReply<typeof applyWorkPackageCommands>, { ok: false }>> {
   const body = { error: outcome.reason, at: outcome.at, kind: outcome.kind, ...outcome.detail };
-  for (const declaration of applyProjectCommands.refusals) {
+  for (const declaration of applyWorkPackageCommands.refusals) {
     const checked = await validateSchema<Refusal>(declaration.schema, body);
     // Proof: P6-14 bypassed this validation; malformed trusted holder detail
     // lost this producer diagnostic and reached the mounted response backstop.
@@ -81,7 +81,7 @@ async function answerCommandRefusal(
       // This heterogeneous table boundary has validated the body against the
       // very declaration supplying its status, preserving their correlation.
       return { ok: false, status: declaration.status, body: checked.value } as Extract<
-        HttpReply<typeof applyProjectCommands>,
+        HttpReply<typeof applyWorkPackageCommands>,
         { ok: false }
       >;
     }
@@ -112,7 +112,7 @@ export function runtimeCommandRoutes(
         const { personId, ...request } = query;
         return answerRuntime(
           await receiver.readRuntimeState(
-            { projectId: params.id, personId, actor: principal, access: resolved.access },
+            { workPackageId: params.id, personId, actor: principal, access: resolved.access },
             request,
           ),
         );
@@ -126,7 +126,7 @@ export function runtimeCommandRoutes(
         const { personId, ...request } = body;
         return answerRuntime(
           await receiver.acquireRuntimeAuthority(
-            { projectId: params.id, personId, actor: principal, access: resolved.access },
+            { workPackageId: params.id, personId, actor: principal, access: resolved.access },
             request,
           ),
         );
@@ -159,7 +159,7 @@ export function runtimeCommandRoutes(
           }
         }
         const context = {
-          projectId: params.id,
+          workPackageId: params.id,
           personId,
           actor: principal,
           access: resolved.access,
@@ -187,7 +187,7 @@ export function runtimeCommandRoutes(
         return answerRuntime(
           await receiver.lookupRuntimeReceipt(
             {
-              projectId: params.id,
+              workPackageId: params.id,
               personId: query.personId,
               actor: principal,
               access: resolved.access,

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * The by-person read (`GET /api/projects/:id/people/:personId/work`,
+ * The by-person read (`GET /api/work-packages/:id/people/:personId/work`,
  * `wbs-resources` task 4.2) under organization isolation, over real SQLite and
  * the production organization access; see {@link OrganizationHarness}. Rows,
  * assignments and claims are seeded as SQL: the command tests cover the writes.
@@ -49,7 +49,7 @@ beforeEach(async () => {
     ['w-080-3', 'w-080', 2, null],
   ] as const) {
     h.sqlite.run(
-      'INSERT INTO work_item (id, project_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, frozen_number) VALUES (?, ?, ?, ?, ?, ?)',
       [id, own, parent, position, `Item ${id}`, frozen],
     );
   }
@@ -80,23 +80,24 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  return (answer.body as { workPackage: { id: string } }).workPackage.id;
 }
 
-async function stepsOf(username: string, projectId: string): Promise<[string, string]> {
-  const answer = await h.call(username, 'GET', `/api/projects/${projectId}`);
+async function stepsOf(username: string, workPackageId: string): Promise<[string, string]> {
+  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
   const { steps } = answer.body as { steps: { id: string }[] };
   const first = steps.at(0);
   const second = steps.at(1);
-  if (first === undefined || second === undefined) throw new Error('the project has no two steps');
+  if (first === undefined || second === undefined)
+    throw new Error('the work package has no two steps');
   return [first.id, second.id];
 }
 
 describe('the by-person read', () => {
   it("lists kat's three assignments and one claim to a member and a viewer alike", async () => {
-    const forMember = await h.call('ada', 'GET', `/api/projects/${own}/people/pe-kat/work`);
+    const forMember = await h.call('ada', 'GET', `/api/work-packages/${own}/people/pe-kat/work`);
     const address = (id: string, index: number) => ({
       workItemId: id,
       number: `080.${String(index)}`,
@@ -125,10 +126,10 @@ describe('the by-person read', () => {
         ],
       },
     });
-    expect(await h.call('vic', 'GET', `/api/projects/${own}/people/pe-kat/work`)).toEqual(
+    expect(await h.call('vic', 'GET', `/api/work-packages/${own}/people/pe-kat/work`)).toEqual(
       forMember,
     );
-    expect(await h.call('vic', 'GET', `/api/projects/${own}/people/pe-ada/work`)).toEqual({
+    expect(await h.call('vic', 'GET', `/api/work-packages/${own}/people/pe-ada/work`)).toEqual({
       status: 200,
       body: {
         person: { personId: 'pe-ada', name: 'Ada' },
@@ -153,11 +154,11 @@ describe('the by-person read', () => {
 
   it('refuses a stranger exactly as the tree read does', async () => {
     for (const tail of ['work-items', 'people/pe-kat/work']) {
-      const toForeign = await h.call('ada', 'GET', `/api/projects/${foreign}/${tail}`);
+      const toForeign = await h.call('ada', 'GET', `/api/work-packages/${foreign}/${tail}`);
       expect({ tail, ...toForeign }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      const stranger = await h.call('grace', 'GET', `/api/projects/${own}/${tail}`);
+      const stranger = await h.call('grace', 'GET', `/api/work-packages/${own}/${tail}`);
       expect({ tail, ...stranger }).toEqual({ tail, status: 404, body: { error: 'not_found' } });
-      expect(await h.call('nell', 'GET', `/api/projects/${own}/${tail}`)).toEqual({
+      expect(await h.call('nell', 'GET', `/api/work-packages/${own}/${tail}`)).toEqual({
         status: 403,
         body: { error: 'no_active_organization' },
       });
@@ -166,7 +167,9 @@ describe('the by-person read', () => {
 
   it("refuses a person the caller's organization does not hold", async () => {
     for (const personId of ['pe-bea', 'pe-nobody'])
-      expect(await h.call('ada', 'GET', `/api/projects/${own}/people/${personId}/work`)).toEqual({
+      expect(
+        await h.call('ada', 'GET', `/api/work-packages/${own}/people/${personId}/work`),
+      ).toEqual({
         status: 404,
         body: { error: 'unknown_person' },
       });

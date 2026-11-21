@@ -4,12 +4,12 @@ import type {
   ExternalSystemView,
   PersonView,
   PlanRead,
-  ProjectApi,
   ServiceView,
   StepView,
   TagView,
   TeamView,
   WorkItemTypeView,
+  WorkPackageApi,
 } from './wbs-api';
 
 export type RefreshResource = 'tree' | 'steps' | 'directory' | 'markers' | 'claims';
@@ -42,6 +42,7 @@ export function resourcesFor(changed?: string | null): readonly RefreshResource[
   if (changed === 'claims_changed') return ['claims'];
   if (
     changed === 'step_added' ||
+    changed === 'step_catalogue_changed' ||
     changed === 'step_renamed' ||
     changed === 'step_updated' ||
     changed === 'step_removed'
@@ -49,7 +50,7 @@ export function resourcesFor(changed?: string | null): readonly RefreshResource[
     return ['tree', 'steps'];
   }
   if (changed === 'calendar_markers_changed') return ['markers'];
-  // Bookings in a project above moved (`share-people-across-projects`): this
+  // Bookings in a work package above moved (`share-people-across-work-packages`): this
   // plan's dates may have, and nothing it names or lists did.
   // Proof: this line removed made `refetches only the tree when bookings
   // above move` (`plan-refresh.test.ts`) ask for every resource; re-watched
@@ -101,7 +102,7 @@ export interface PlanRefreshSnapshot {
   directory: ResourceRead<DirectoryRead>;
   markers: ResourceRead<readonly CalendarMarkerView[]>;
   /**
-   * Every claim held in the project (`wbs-claim-display` C3): optional, so its
+   * Every claim held in the work package (`wbs-claim-display` C3): optional, so its
    * failure is its own stale state and never the plan's (C12), and it holds no
    * acknowledgement (C20). Reread on `tree_replaced` and `claims_changed`.
    */
@@ -212,12 +213,12 @@ export interface PlanRefresh {
  *
  * The five resources and nothing else — the tree, the steps, the six
  * vocabularies of the grouped directory, the calendar markers and the claims. A refresh
- * owner can write nothing and cannot reach another project's catalogue entry.
- * The project composition root (`modules/project/composition.ts`) supplies it
+ * owner can write nothing and cannot reach another work package's catalogue entry.
+ * The work package composition root (`modules/work-package/composition.ts`) supplies it
  * from the one client; delivery never sees it (rule K2).
  */
 export type PlanReadRoutes = Pick<
-  ProjectApi,
+  WorkPackageApi,
   | 'tree'
   | 'steps'
   | 'listTeams'
@@ -231,7 +232,7 @@ export type PlanReadRoutes = Pick<
 >;
 
 /**
- * Owns reads for one project/API lifetime. React consumes installed generations;
+ * Owns reads for one work-package/API lifetime. React consumes installed generations;
  * no transport promise, URL cache or unrelated resource decides their authority.
  * See openspec/changes/plan-refresh/design.md for bootstrap and sequence coverage.
  *
@@ -243,11 +244,11 @@ export type PlanReadRoutes = Pick<
  * with claims stale (C12).
  */
 export function createPlanRefresh({
-  projectId,
+  workPackageId,
   routes,
   monotonicNow,
 }: {
-  projectId: string;
+  workPackageId: string;
   routes: PlanReadRoutes;
   /** A monotonic clock in milliseconds; production passes `performance.now`. */
   monotonicNow: () => number;
@@ -265,13 +266,13 @@ export function createPlanRefresh({
   const waiters = new Set<Waiter>();
   const events = new Map<number, readonly Obligation[]>();
   const tree = resourceRead(
-    () => routes.tree(projectId),
+    () => routes.tree(workPackageId),
     () => true,
     () => disposed,
     publish,
   );
   const steps = resourceRead(
-    () => routes.steps(projectId),
+    () => routes.steps(workPackageId),
     () => unsequencedAllowed,
     () => disposed,
     publish,
@@ -293,14 +294,14 @@ export function createPlanRefresh({
     publish,
   );
   const markers = resourceRead(
-    () => routes.listCalendarMarkers(projectId),
+    () => routes.listCalendarMarkers(workPackageId),
     () => unsequencedAllowed,
     () => disposed,
     publish,
   );
   const claims = resourceRead(
     async (): Promise<InstalledClaims> => {
-      const read = await routes.readClaims(projectId);
+      const read = await routes.readClaims(workPackageId);
       return { ...read, installedAt: monotonicNow() };
     },
     // Readable at any time, anchored or not: a claims read is a complete

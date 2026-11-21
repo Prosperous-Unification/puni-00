@@ -33,11 +33,11 @@ import {
   organizationLimits,
   person,
   personOrganization,
-  projectOrganization,
-  projectResourceCapacity,
   resource,
   resourceOrganization,
   workItem,
+  workPackageOrganization,
+  workPackageResourceCapacity,
 } from './schema';
 import { runSecurityTransaction } from './security-transaction';
 
@@ -111,7 +111,7 @@ export function countAgentPersons(db: Reader, organizationId: string): number {
 }
 
 /**
- * How many bound claims the organization's projects hold (L5): distinct
+ * How many bound claims the organization's work packages hold (L5): distinct
  * `(work item, person, run)` triples with at least one claim row, so a
  * whole-leaf claim writing four step rows is one and two persons on one leaf
  * are two. Two claims without a run on one leaf by one person are one triple.
@@ -131,8 +131,11 @@ export function countBoundClaims(db: Reader, organizationId: string): number {
     })
     .from(claim)
     .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-    .innerJoin(projectOrganization, eq(projectOrganization.resourceId, workItem.projectId))
-    .where(eq(projectOrganization.organizationId, organizationId))
+    .innerJoin(
+      workPackageOrganization,
+      eq(workPackageOrganization.resourceId, workItem.workPackageId),
+    )
+    .where(eq(workPackageOrganization.organizationId, organizationId))
     .as('bound_claim');
   const row = db.select({ n: count() }).from(triples).get();
   if (row === undefined) throw new Error('bound claim count answered no row');
@@ -141,12 +144,12 @@ export function countBoundClaims(db: Reader, organizationId: string): number {
 
 /**
  * Per resource of the organization with at least one stated capacity, its
- * stated units summed over the organization's projects, in resource-id order
- * (L5, L8). Only the organization's own projects and resources are read (L16).
+ * stated units summed over the organization's work packages, in resource-id order
+ * (L5, L8). Only the organization's own work packages and resources are read (L16).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
- * project's organization predicate failed `sums stated capacity per resource
- * over A’s projects only…`, B's statement of A's resource counted (11 pass, 1 fail).
+ * work package's organization predicate failed `sums stated capacity per resource
+ * over A’s workPackages only…`, B's statement of A's resource counted (11 pass, 1 fail).
  */
 export function readCapacityUsage(
   db: Reader,
@@ -157,21 +160,21 @@ export function readCapacityUsage(
       resourceId: resourceOrganization.resourceId,
       name: resourceOrganization.name,
       unitLabel: resource.unitLabel,
-      units: sql<number>`${sum(projectResourceCapacity.units)}`.mapWith(Number),
+      units: sql<number>`${sum(workPackageResourceCapacity.units)}`.mapWith(Number),
     })
-    .from(projectResourceCapacity)
+    .from(workPackageResourceCapacity)
     .innerJoin(
-      projectOrganization,
-      eq(projectOrganization.resourceId, projectResourceCapacity.projectId),
+      workPackageOrganization,
+      eq(workPackageOrganization.resourceId, workPackageResourceCapacity.workPackageId),
     )
     .innerJoin(
       resourceOrganization,
-      eq(resourceOrganization.resourceId, projectResourceCapacity.resourceId),
+      eq(resourceOrganization.resourceId, workPackageResourceCapacity.resourceId),
     )
-    .innerJoin(resource, eq(resource.id, projectResourceCapacity.resourceId))
+    .innerJoin(resource, eq(resource.id, workPackageResourceCapacity.resourceId))
     .where(
       and(
-        eq(projectOrganization.organizationId, organizationId),
+        eq(workPackageOrganization.organizationId, organizationId),
         eq(resourceOrganization.organizationId, organizationId),
       ),
     )
@@ -181,12 +184,12 @@ export function readCapacityUsage(
 }
 
 /**
- * The units of `resourceId` the organization's projects other than
- * `exceptProjectId` state, summed; 0 when none does, and 0 for a resource the
- * organization does not own. What a capacity write to `exceptProjectId` adds
+ * The units of `resourceId` the organization's work packages other than
+ * `exceptWorkPackageId` state, summed; 0 when none does, and 0 for a resource the
+ * organization does not own. What a capacity write to `exceptWorkPackageId` adds
  * its own units to (L9), read by {@link OrganizationLimitGaugeRepository.readCapacityCap}. Reads exactly the rows
- * {@link readCapacityUsage} sums, less the excluded project's: both require the
- * project and the resource to be the organization's (L16).
+ * {@link readCapacityUsage} sums, less the excluded work package's: both require the
+ * work package and the resource to be the organization's (L16).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
  * resource's organization predicate failed `never sums a resource the
@@ -197,38 +200,38 @@ export function readCapacityUsage(
  * resource's 64 refusing one unit of `worktrees` (11 pass, 1 fail).
  *
  * Proof, watched 2026-10-22 in `organization-limits.db.test.ts`: dropping the
- * excluded project's predicate failed `sums another project’s units, never the
+ * excluded work package's predicate failed `sums another workPackage’s units, never the
  * one being written` (11 pass, 1 fail).
  */
 export function sumStatedCapacity(
   db: Reader,
   organizationId: string,
   resourceId: string,
-  exceptProjectId: string,
+  exceptWorkPackageId: string,
 ): number {
   const row = db
-    .select({ units: sum(projectResourceCapacity.units).mapWith(Number) })
-    .from(projectResourceCapacity)
+    .select({ units: sum(workPackageResourceCapacity.units).mapWith(Number) })
+    .from(workPackageResourceCapacity)
     .innerJoin(
-      projectOrganization,
-      eq(projectOrganization.resourceId, projectResourceCapacity.projectId),
+      workPackageOrganization,
+      eq(workPackageOrganization.resourceId, workPackageResourceCapacity.workPackageId),
     )
     .innerJoin(
       resourceOrganization,
-      eq(resourceOrganization.resourceId, projectResourceCapacity.resourceId),
+      eq(resourceOrganization.resourceId, workPackageResourceCapacity.resourceId),
     )
     .where(
       and(
-        eq(projectOrganization.organizationId, organizationId),
+        eq(workPackageOrganization.organizationId, organizationId),
         eq(resourceOrganization.organizationId, organizationId),
-        eq(projectResourceCapacity.resourceId, resourceId),
-        ne(projectResourceCapacity.projectId, exceptProjectId),
+        eq(workPackageResourceCapacity.resourceId, resourceId),
+        ne(workPackageResourceCapacity.workPackageId, exceptWorkPackageId),
       ),
     )
     .get();
   if (row === undefined) throw new Error('stated capacity sum answered no row');
   // SUM over no rows is NULL, which `mapWith(Number)` leaves as null: no
-  // other project states this resource.
+  // other work package states this resource.
   return row.units ?? 0;
 }
 
@@ -550,19 +553,19 @@ export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge 
   }
 
   // Proof: answering `maxConcurrentClaims` as the cap here failed the SQLite
-  // certification's `organizationLimits.readCapacityCap:per-resource-except-project`,
+  // certification's `organizationLimits.readCapacityCap:per-resource-except-work-package`,
   // both orders of capacity-limit-race.db.test.ts and its model (74 pass, 4 fail);
   // watched 2026-10-22.
   async readCapacityCap(
     organizationId: string,
     resourceId: string,
-    exceptProjectId: string,
+    exceptWorkPackageId: string,
   ): Promise<CapReading> {
     await Promise.resolve();
     return {
       cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits
         .maxCapacityUnitsPerResource,
-      current: sumStatedCapacity(this.db, organizationId, resourceId, exceptProjectId),
+      current: sumStatedCapacity(this.db, organizationId, resourceId, exceptWorkPackageId),
     };
   }
 }
