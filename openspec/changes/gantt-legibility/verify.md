@@ -123,3 +123,136 @@ was refused by the required canonical lock (exit **70**, missing
 `/home/puni1/.cache`). A deterministic delayed estimate/schedule response
 negative and a green browser run on the host remain unverified and must be
 recorded before release approval.
+
+## Historical ownership reconciliation
+
+The fact requirement stays in the unknown-time change. This change now owns the
+ordinary visual label and retains the lane stack's single label, width fallback, spill and SVG
+export. The retired fact overlay and older question-mark wording below are historical.
+The later number-first and lane-stack decisions are recorded in
+[755f8213e](https://github.com/Prosperous-Unification/puni-00/commit/755f8213e),
+[68d9a7b90](https://github.com/Prosperous-Unification/puni-00/commit/68d9a7b90) and
+[7456f741a](https://github.com/Prosperous-Unification/puni-00/commit/7456f741a).
+The zero-schedule-time and done-bar contracts remain in their existing owners.
+The strip-sizing task stays open. This supplement supplies no runtime evidence.
+
+### Retired Legibility fact overlay
+
+Source at local parent `7f8a426a2823f81b01e8fe1307d4b092941e8920`,
+`openspec/changes/gantt-legibility/specs/wbs-domain/spec.md`, blob
+`90207bc30ef962a3b07d5b80f86b428f6e3f59cf`.
+
+```text
+### Requirement: An assumed duration is not an estimate
+
+The system SHALL NOT write an estimate for a slice it has assumed a duration
+for. Everything that reports whether work has been estimated SHALL continue to
+report that it has not: the days column, the roll-up, the readiness badge and
+its walk to the next gap, the export, the filter's estimated-steps facet, and
+the anchor-slice reach's choice of first **estimated** slice.
+
+An unestimated slice's bar SHALL continue to be painted as a guess — its dotted
+outline and its translucent fill unchanged — and SHALL say so in words: its
+on-bar label SHALL open with the row's number, as every bar label does, and
+the phrase SHALL yield to the number as a name does on an estimated bar:
+`<number> · no estimate` (the phrase cropped by the box) where the number and
+the crop mark fit, the number alone where only it fits, and nothing where the
+number does not fit whole. It SHALL NOT lead with `?`, and SHALL write the
+number at most once.
+
+#### Scenario: an unestimated item still reports no estimate
+
+- **GIVEN** a work item with no estimates, scheduled after this change
+- **THEN** its days column SHALL be blank
+- **AND** it SHALL be counted as an estimate gap
+- **AND** the export SHALL report it as unestimated
+
+#### Scenario: the anchor reach still means first _estimated_
+
+- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
+  step is unestimated and whose second step is estimated
+- **WHEN** the plan is scheduled
+- **THEN** the successor SHALL wait for the **second** step's finish
+- **AND** it SHALL NOT wait for the first step's assumed finish
+
+#### Scenario: the bar still says it is a guess
+
+- **GIVEN** an unestimated slice with detail shown
+- **WHEN** its bar is drawn
+- **THEN** it SHALL carry the assumed marking it carried before this change
+
+```
+
+### Earlier estimate-fact wording
+
+Source at local parent `7f8a426a2823f81b01e8fe1307d4b092941e8920`,
+`openspec/changes/unestimated-steps-take-no-schedule-time/specs/wbs-domain/spec.md`, blob
+`67d320bb56de9ec2aed456ee4362b28546a82de3`.
+
+```text
+### Requirement: An assumed duration is not an estimate
+
+The assumed span SHALL describe only how an unknown slice is drawn. A slice whose days are null SHALL remain unestimated in the days column, roll-up, readiness badge and next-gap walk, export, estimated-steps filter, and anchor-slice reach. Its bar SHALL retain its dotted outline, translucent fill and question mark. An explicitly estimated zero-day slice SHALL remain estimated and SHALL not gain an assumed placeholder.
+
+#### Scenario: An unknown step remains a gap
+
+- **GIVEN** a slice whose days are null
+- **WHEN** the plan is scheduled and drawn
+- **THEN** it remains an estimate gap in the table, readiness report and export
+- **AND** its bar is marked as an uncertain placeholder
+
+#### Scenario: An explicit zero is an estimate
+
+- **GIVEN** a slice explicitly estimated as zero days
+- **WHEN** it is scheduled and drawn
+- **THEN** it remains estimated and has no assumed-width bar
+
+#### Scenario: an unestimated item still reports no estimate
+
+- **GIVEN** a work item with no estimates, scheduled after this change
+- **THEN** its days column SHALL be blank
+- **AND** it SHALL be counted as an estimate gap
+- **AND** the export SHALL report it as unestimated
+
+#### Scenario: the anchor reach still means first _estimated_
+
+- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
+  step is unestimated and whose second step is estimated
+- **WHEN** the plan is scheduled
+- **THEN** the successor SHALL wait for the **second** step's finish
+- **AND** it SHALL NOT wait for the first step's assumed finish
+
+#### Scenario: the bar still says it is a guess
+
+- **GIVEN** an unestimated slice with detail shown
+- **WHEN** its bar is drawn
+- **THEN** it SHALL carry the assumed marking it carried before this change
+
+```
+
+### Earlier placeholder wording
+
+Source at local parent `7f8a426a2823f81b01e8fe1307d4b092941e8920`,
+`openspec/changes/unestimated-steps-take-no-schedule-time/specs/wbs-domain/spec.md`, blob
+`67d320bb56de9ec2aed456ee4362b28546a82de3`.
+
+```text
+### Requirement: Unknown steps retain an independent Gantt placeholder
+
+The Gantt SHALL draw each unknown slice from its scheduled start across ASSUMED_SLICE_WORKDAYS workdays, currently two, as a distinct dotted or translucent placeholder with a question mark. Its tooltip SHALL say the step is unestimated, identify the displayed N-workday span, and state that it is excluded from the schedule. The chart viewport MAY extend to contain the drawing, but schedule finish, parent bounds, dates and dependency endpoints SHALL use the zero-time position. Multiple unknown slices at one instant SHALL remain individually identifiable without inventing sequential schedule dates.
+
+#### Scenario: A two-day drawing has a zero-time schedule
+
+- **GIVEN** a slice with days null and ASSUMED_SLICE_WORKDAYS equal to two
+- **WHEN** its bar and schedule dates are read
+- **THEN** the bar is visibly two workdays wide and marked as unestimated
+- **AND** its tooltip says it is excluded from the schedule
+- **AND** its scheduled start and finish are equal
+
+#### Scenario: Several unknown slices share an instant
+
+- **GIVEN** successive unknown steps at one scheduled instant
+- **WHEN** the Gantt is drawn
+- **THEN** each placeholder remains individually discoverable
+- **AND** their drawing does not create sequential scheduled dates
+```
