@@ -14,17 +14,25 @@ read or run while writing the plan, on 2026-11-21, in a worktree at `origin/main
    from scratch.
 2. Commit `cf86bd350` planned that rebuild on Flux with assumptions R1 to R18 and a staged,
    reversible switch. A review at that commit returned "not ready" with three findings of the
-   first rank. The owner then made two more decisions, quoted here:
-   - "For the new from scratch plan let's use the ArgoCD", with "rebuild it the way it is
-     supposed to be built / no legacy shit".
+   first rank. The owner then made two more decisions:
+   - "For the new from scratch plan let's use the ArgoCD", and that the cluster is rebuilt the
+     way it is meant to be built, with nothing carried over for its own sake.
    - "we can make the switch unsafe that's ok / no prod users yet".
 
-This draft keeps the R ids that still mean what they meant. Reworded: R1, R2, R5, R6, R8, R10,
-R12, R13 and R17. Withdrawn: R14 (the old side kept for 14 days) and R18 (certificates cross as
-Secrets). New: R19 to R27. Attended steps are renumbered A1 to A22 and agent slices are grouped
-in three phases.
+The third draft, commit `d5cef1bfd`, keeps the R ids that still mean what they meant. Reworded
+then: R1, R2, R5, R6, R8, R10, R12, R13 and R17. Withdrawn: R14 (the old side kept for 14 days)
+and R18 (certificates cross as Secrets). New then: R19 to R27. Attended steps were renumbered
+A1 to A22 and agent slices grouped in three phases.
 
-## Review findings and what became of them
+A second review read `d5cef1bfd` and returned "not ready" with two findings of the first rank
+and nine of the second. This revision answers it. Changed: R2 (disk floor), R12, R13, R17, R20
+(the cluster follows `main`; the deploy branch is gone), R22 (count), R23, R25 (the taint).
+New: R28 and slice 3.5. The unit table has thirteen waves. Attended steps keep their numbers.
+
+## First review (at `cf86bd350`) and what became of its findings
+
+Outcomes as the third draft recorded them. The second review, below, revised several: the
+disk floor is 180 GiB, the taint and the h1claw pulls changed, and wave numbers moved.
 
 | Finding                                                             | Outcome                                                                                                                            |
 | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -52,6 +60,55 @@ Made moot by the unsafe switch (R26), beyond S2-11: testing against the ingress 
 DNS, lowered record TTLs, the certificate carry-over rehearsal, and the 14-day retention of the
 old side. What R26 does not relax is design decision 7's list of guards.
 
+## Second review (at `d5cef1bfd`) and what became of its findings
+
+| Finding                                                             | Outcome                                                                                                                                 |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| S1-1 WBS production loses its backup between A11 and A20            | Fixed: the h2puni pull stays until A22; the CI host gets a second set; freshness is judged per set (R13, guard 6, A11, A22)             |
+| S1-2 wave 3 reads a Secret that arrives in wave 4                   | Fixed: waves re-derived from what each unit reads; the `otel-server` pair is its own unit one wave after its Secret (design decision 3) |
+| S2-3 node agents contradict the taint rule                          | Fixed: a named exemption for three DaemonSets, with a negative for a fourth (design decision 1, slice 2.4(f), spec)                     |
+| S2-4 k3s system pods do not tolerate a custom taint                 | Fixed by a simpler choice: `CriticalAddonsOnly=true:NoSchedule`, which the packaged components tolerate. Read, see "k3s behaviour"      |
+| S2-5 the deploy branch cannot enforce "a gated commit of `main`"    | Removed by a simpler rule: the cluster follows `main` and the pull-request rules are the control (R20, task 0.6). Rollback is a revert  |
+| S2-6 Flux-only apply semantics lost in render-equal copies          | Fixed: the inventory table in design decision 3, checks 2.3 and 2.4(i), rehearsal items (i)                                             |
+| S2-7 A20 needs a Flux unit                                          | Recorded as a gap with an owner: slice 3.5 and R28; A20 cannot start before it                                                          |
+| S2-8 waves order only the root's sync; break-glass is reverted      | Fixed: stated in design decision 3 and the spec; retry with backoff on every Application; break-glass disables the root first           |
+| S2-9 projects and cluster-scoped resources; the root's own project  | Fixed: `apps` admits `ClusterIssuer` only; the playbook applies both AppProjects with the root (slice 2.5)                              |
+| S2-10 A7 powers off the jump                                        | Fixed: the fallback jump is the target's own public SSH endpoint, which `k3s.nft.j2` keeps open (R17, A7)                               |
+| S3 disk floor                                                       | Fixed: (114 + 30) / 0.8 = 180 GiB, against eviction at 10% and 15%                                                                      |
+| S3 Traefik in an early wave                                         | Fixed: its Application lands with the production apps node (wave 11, A18); nothing earlier needs it                                     |
+| S3 `argocd-secret` and server-side apply                            | Fixed: `ServerSideApply=true` on the `argocd` Application; rehearsal (d) asserts the hash and keys; fallback stated                     |
+| S3 scenarios without negatives; one fault for several checks        | Fixed: slices 2.1, 2.4 and 3.1 name a negative and a fault per check                                                                    |
+| S3 step fields                                                      | Fixed: A17 has a Stop; A21 and A22 need the pool owner's word and open question 8; guard 2 and task 0.5 name the same four secrets      |
+| S3 app secrets, the seal key, the count                             | Fixed: the owner writes app Secrets into OpenBao in A19 and A20; the playbook's second run is tested (slice 2.5); the count is fifteen  |
+| S3 chart lock                                                       | Fixed: one entry per chart version; a bump adds, never rewrites                                                                         |
+| S3 data claim overstated                                            | Fixed: operator-created claims are named, their custom resources carry the options, and what delivery cannot protect is stated          |
+| S3 hygiene: a quote, a location, new ids and addresses              | The quote is paraphrased and the location removed. Ids and addresses: disputed in part, see below                                       |
+| S3 task 0.1 lets 2.7 start early; A9 restores production data on CI | Fixed: 2.7 follows 2.1 to 2.5; A9 and A11 restore the dev members only                                                                  |
+
+Disputed in part: that slice 1.3 must not publish machine ids and private addresses. The fleet
+model needs both in `infra/fleet/desired.yaml` and the inventory (`desired.yaml:21,26`,
+`production-existing-hosts.yml:22-26,41-44` carry them for the two existing nodes), and
+`require-enrollment-identity.yml` compares them at enrollment. Slice 1.3 follows that
+convention and keeps public addresses and provider ids out of the repository. Whether the
+inventory should move to the private repository first is open question 13.
+
+## k3s behaviour
+
+Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
+
+| Relied on                                                                                            | Where it was read                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| CoreDNS, the volume provisioner and the metrics server tolerate the key `CriticalAddonsOnly`         | `manifests/coredns.yaml`, `local-storage.yaml`, `metrics-server/metrics-server-deployment.yaml` at the tag |
+| The same three tolerate nothing else but the control-plane taint                                     | the same files; `kubectl get deploy -n kube-system` on the live cluster                                    |
+| k3s names `CriticalAddonsOnly` for a dedicated control plane                                         | k3s documentation, `datastore/ha.md` (its example uses the `NoExecute` effect)                             |
+| Packaged manifests are applied again on start and when the file changes                              | k3s documentation, `installation/packaged-components.md`                                                   |
+| A patched toleration does not last: the live CoreDNS lacks the enrollment toleration once patched in | the live Deployment, against `validate-enrollment.yml:79-83`                                               |
+| `node-taint` is applied only when the node registers                                                 | k3s documentation, `cli/agent.md`                                                                          |
+| The only DaemonSet on the live cluster is Traefik; Flannel and kube-proxy are not pods               | `kubectl get ds -A`                                                                                        |
+| The enrollment probes are bound by `nodeName` and so are not held back by a `NoSchedule` taint       | `validate-enrollment.yml:108-114,152-158`                                                                  |
+
+Not run: a one-node cluster registered with the taint. Slice 1.2 owns it.
+
 ## Argo CD behaviour
 
 Read on 2026-11-21 from the documentation at the `stable` ref and from source at tag `v3.6.2`
@@ -75,12 +132,23 @@ Read on 2026-11-21 from the documentation at the `stable` ref and from source at
 | Self-management from a kustomize application; server-side apply for the install  | `docs/operator-manual/declarative-setup.md`, `installation.md`   |
 | `policy.default`, `role:readonly`, local accounts, disabling `admin`             | `docs/operator-manual/rbac.md`, user management guide            |
 | Deleting an Application without the finalizer leaves its resources               | `docs/operator-manual/cluster-bootstrapping.md`                  |
+| `RespectIgnoreDifferences=true` acts only on an object that already exists       | `docs/user-guide/sync-options.md`                                |
+| `Force=true` needs `Replace=true` and is ignored under server-side apply         | `docs/user-guide/sync-options.md`, "Force Sync"                  |
+| Retry with exponential backoff; self-heal retries after its timeout              | `docs/user-guide/auto_sync.md`                                   |
+| Child applications are not ordered or awaited without the health customization   | `docs/operator-manual/cluster-bootstrapping.md`                  |
+| A kustomize source may inflate a Helm chart with `--enable-helm`                 | `docs/user-guide/kustomize.md`                                   |
+| Cluster-scoped kinds are admitted to a project by an allow list                  | `docs/user-guide/projects.md`                                    |
 
 Not read or not provable from reading; slice 2.7 owns each:
 
-- Whether helm itself follows a linked archive in `charts/`.
-- Whether self-management overwrites the generated keys in `argocd-secret`.
-- The health Argo CD reports for a DaemonSet with no eligible node.
+- Whether helm itself follows a linked archive in `charts/`, and whether kustomize inflates a
+  chart from a local archive without fetching.
+- Whether self-management overwrites the password hash or the generated keys in
+  `argocd-secret`.
+- That the bundled health check keeps an ExternalSecret unhealthy until its value arrives. The
+  health customization files were not read.
+- That later changes in several children converge by retry in practice. The documentation says
+  what waves order; it gives no guarantee for this case.
 - Which fields need `ignoreDifferences` for these charts.
 - Argo CD's memory on this cluster. 1,536 MiB is an assumption (R24).
 - The ApplicationSet documentation was not read; the choice against it rests on the
@@ -97,7 +165,7 @@ it must inject. This table is filled as slices land.
 
 ## Owner decisions
 
-Recorded above under "Replaced drafts". Overrules of R1 to R27: none yet (task 0.1).
+Recorded above under "Replaced drafts". Overrules of R1 to R28: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -117,22 +185,27 @@ Recorded above under "Replaced drafts". Overrules of R1 to R27: none yet (task 0
 | User timers on h1claw                        | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy |
 | The fleet repository's file list             | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                 |
 | `/dev/kvm` on the operator workstation       | present; the workstation's disk was full, so no lab ran                                                                        |
+| Tolerations of the packaged components       | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else   |
+| DaemonSets on the live cluster               | Traefik only, selecting `capability-ingress`                                                                                   |
+| Rules on this repository's `main`            | one active ruleset with the rule types `pull_request` and `required_status_checks`; none against forced or deleting pushes     |
+| Members of h1claw's hourly set               | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                  |
 
 ## Repository checks
 
 Dependencies were not installed in the worktree: the laptop's disk was full. The binaries of the
-main checkout were used through a temporary `node_modules` link, removed afterwards.
+main checkout were used through a temporary `node_modules` link, removed afterwards. The rows
+below were run again on this revision.
 
 | Command                                                                                                     | Result                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `openspec validate separate-node-roles --strict`                                                            | `Change 'separate-node-roles' is valid`, exit 0                           |
 | `openspec validate --all --json`                                                                            | 349 items, 349 passed, 0 failed                                           |
-| `prettier --check` on the six changed files                                                                 | `All matched files use Prettier code style!`                              |
+| `prettier --check` on the five plan files and `CONTEXT.md`                                                  | `All matched files use Prettier code style!`                              |
 | `env -u CLAUDECODE bun test` on `adr-index`, `repo-namespacing-handoff`, `current-documents` (tool-devsync) | 34 pass, 0 fail, 109 assertions, 3 files. Changed files were staged first |
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
-| `plaintext-secrets.ts` and `private-nesting.ts` on the six changed files (`tools/tool-git-hooks/src/hooks`) | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 395                                                                       |
+| `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 398                                                                       |
 
 ## Checks not run
 
@@ -142,7 +215,7 @@ main checkout were used through a temporary `node_modules` link, removed afterwa
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This draft has not been reviewed. The review recorded above read the second draft.
+- This revision has not been reviewed. The two reviews recorded above read earlier commits.
 
 ## Primary sources read
 
@@ -163,3 +236,10 @@ main checkout were used through a temporary `node_modules` link, removed afterwa
 - `openspec/changes/adopt-harbor-registry`: design decisions 2, 4 and 10, the assumption table
   and the task list.
 - The Argo CD documentation and source listed above.
+- For the second review: every Flux unit under `infra/clusters/platform/production` with its
+  `dependsOn`; the Flux annotations and `HelmRelease` fields under `infra/platform`;
+  `policy/trusted-images.yaml`; the Velero `HelmRelease`; `certificates/platform/production`;
+  `registry/production/issuers.yaml`; `docs/infra/cutover-plan.md` prerequisites and steps 6
+  and 8; `tools/tool-deploy/src/k8s/first-start-source.ts`; the kubelet arguments in both k3s
+  templates; `docs/infra/gate-hosts.md` on the controller's jump; the k3s manifests and
+  documentation listed under "k3s behaviour".

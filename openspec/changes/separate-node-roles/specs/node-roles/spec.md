@@ -5,7 +5,8 @@
 Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
 observability, or production apps. A host's capabilities MUST be those of its role. The
 continuous integration role covers everything that runs branch code: gates, release builds and
-the Compose dev stacks.
+the Compose dev stacks. A production database MUST NOT be restored on a continuous integration
+host.
 
 #### Scenario: Declared fleet
 
@@ -36,8 +37,8 @@ The fleet model SHALL define the capability `platform-services` for platform clu
 ### Requirement: The control plane runs on a tainted platform node
 
 In a platform cluster that requires `platform-services`, the control-plane node SHALL carry
-`platform-services`, MUST NOT carry `product` or `ingress`, and SHALL carry the taint
-`puni.dev/role=platform:NoSchedule`.
+`platform-services`, MUST NOT carry `product` or `ingress`, and SHALL be registered with the
+taint `CriticalAddonsOnly=true:NoSchedule`, which the components k3s packages tolerate.
 
 #### Scenario: Server on the production apps node
 
@@ -49,10 +50,18 @@ In a platform cluster that requires `platform-services`, the control-plane node 
 - **WHEN** the server configuration of a `platform-services` node is rendered without the taint
 - **THEN** the role test fails
 
+#### Scenario: One tainted node
+
+- **WHEN** a cluster of one server registered with the taint is validated
+- **THEN** CoreDNS, the metrics server and the volume provisioner are Ready without a patch and
+  enrollment validation passes
+
 ### Requirement: Workloads are pinned to their role
 
 Every pod template that the rebuilt cluster's tree renders SHALL select the node capability of
-its role. Only workloads that select `platform-services` MAY tolerate the platform taint.
+its role, except three node agents that run on every node: the node exporter, the OTel
+collector and the Velero node agent. Only workloads that select `platform-services`, and those
+three agents, MAY tolerate the platform taint.
 
 #### Scenario: Workload without a role selector
 
@@ -61,8 +70,15 @@ its role. Only workloads that select `platform-services` MAY tolerate the platfo
 
 #### Scenario: Toleration without the selector
 
-- **WHEN** a pod template tolerates the platform taint and does not select `platform-services`
+- **WHEN** a pod template tolerates `CriticalAddonsOnly` or every taint, does not select
+  `platform-services`, and is not one of the three named node agents
 - **THEN** the check fails and names the workload
+
+#### Scenario: Node agent
+
+- **WHEN** the node exporter, the OTel collector or the Velero node agent is rendered with no
+  capability selector and a toleration for every taint
+- **THEN** the check passes, and the agent runs on the platform node
 
 #### Scenario: Running placement
 
@@ -118,15 +134,39 @@ MUST NOT render a Flux object, read a remote base, or hold an encrypted Secret.
 - **WHEN** an Application source renders a Distribution registry workload
 - **THEN** the delivery check fails and names it
 
-### Requirement: Units are delivered in dependency order
+### Requirement: Units are created in dependency order and converge by retry
 
-The root Application SHALL order its child Applications by sync wave as the design's unit table
-states, and Argo CD SHALL assess the health of Application objects so that a wave completes
-only when its Applications are Healthy.
+The root Application SHALL order the creation of its child Applications by sync wave as the
+design's unit table states, and Argo CD SHALL assess the health of Application objects so that,
+during a sync of the root, a wave completes only when its Applications are Healthy. A unit that
+reads a Secret MUST be in a later wave than the unit that provides it. Sync waves do not order
+later changes inside the children; every Application SHALL therefore retry a failed sync with
+backoff.
 
 #### Scenario: Wave differs from the table
 
 - **WHEN** an Application's sync wave differs from the unit table
+- **THEN** the delivery check fails and names the Application
+
+#### Scenario: Consumer before its Secret
+
+- **WHEN** an Issuer that reads a Secret is in a wave at or below the wave of the unit that
+  provides the Secret
+- **THEN** the delivery check fails and names the Issuer
+
+#### Scenario: Build from an empty cluster
+
+- **WHEN** the root is synced on an empty cluster
+- **THEN** each wave's Applications are created only after the previous wave is Healthy
+
+#### Scenario: Two dependent units change in one merge
+
+- **WHEN** one merge changes a unit and a unit that depends on it
+- **THEN** both converge to Synced and Healthy by retry, with no ordering guarantee between them
+
+#### Scenario: No retry policy
+
+- **WHEN** an Application has no retry policy
 - **THEN** the delivery check fails and names the Application
 
 #### Scenario: Health assessment missing
@@ -136,20 +176,32 @@ only when its Applications are Healthy.
 
 ### Requirement: Git is the only write path
 
-Every Application SHALL sync automatically with pruning and self-healing from the protected
-deploy branch to the cluster it runs in. The Argo CD interface MUST have no public route, MUST
-grant read access only, and the built-in `admin` account MUST be disabled.
+Every Application SHALL sync automatically with pruning and self-healing from `main` to the
+cluster it runs in; the WBS Application alone MAY pin a commit. A change SHALL reach `main`
+only through a pull request with its required checks. The Argo CD interface MUST have no
+public route, MUST grant read access only, and the built-in `admin` account MUST be disabled.
 
 #### Scenario: Manual change
 
 - **WHEN** a managed object is edited in the cluster
-- **THEN** Argo CD restores the state of the deploy branch without operator action
+- **THEN** Argo CD restores the state of `main` without operator action
 
 #### Scenario: Other revision or destination
 
-- **WHEN** an Application names a revision other than the deploy branch or a destination other
-  than the in-cluster API
+- **WHEN** an Application other than the WBS one names a revision other than `main`, or any
+  Application names a destination other than the in-cluster API
 - **THEN** the delivery check fails and names the Application
+
+#### Scenario: Apps project reaches cluster scope
+
+- **WHEN** the `apps` project admits a cluster-scoped kind other than `ClusterIssuer`
+- **THEN** the delivery check fails
+
+#### Scenario: Field owned by another writer
+
+- **WHEN** the release coordinator has rewritten `solverImages` in the trusted-workload
+  ConfigMap and its Application syncs
+- **THEN** the value is left as the coordinator wrote it
 
 #### Scenario: Interface exposed or writable
 
@@ -157,16 +209,16 @@ grant read access only, and the built-in `admin` account MUST be disabled.
   the `admin` account enabled
 - **THEN** the delivery check fails
 
-#### Scenario: Non-fast-forward push
+#### Scenario: Push without a pull request
 
-- **WHEN** a push to the deploy branch is not a fast-forward
+- **WHEN** a commit is pushed to `main` directly, or `main` is force-pushed
 - **THEN** the repository ruleset refuses it
 
 ### Requirement: Delivery cannot delete data
 
-Every PersistentVolumeClaim in the rebuilt cluster's tree, and every namespace that holds one,
-SHALL carry the sync options `Prune=false` and `Delete=false`. No Application SHALL carry the
-resources finalizer.
+Every PersistentVolumeClaim in the rebuilt cluster's tree, every namespace that holds one, and
+every custom resource from which an operator creates claims SHALL carry the sync options
+`Prune=false` and `Delete=false`. No Application SHALL carry the resources finalizer.
 
 #### Scenario: Claim without the options
 
@@ -175,7 +227,7 @@ resources finalizer.
 
 #### Scenario: Manifest removed
 
-- **WHEN** a claim's manifest is removed from the deploy branch and the Application syncs
+- **WHEN** a claim's manifest is removed from `main` and the Application syncs
 - **THEN** the claim and its volume remain
 
 ### Requirement: SQLite backups are kept and watched from inside the cluster
@@ -249,3 +301,14 @@ is calibrated.
 
 - **WHEN** the new CI host has no recorded calibration
 - **THEN** neither old gate host is deleted
+
+### Requirement: A store keeps its scheduled backup while it moves
+
+A store SHALL keep a scheduled backup for as long as it lives on its old host, and the
+freshness of each host's backups SHALL be judged separately.
+
+#### Scenario: Dev stacks moved, production not yet
+
+- **WHEN** the dev stacks run on the new CI host and WBS production still runs on its old host
+- **THEN** the old host's backup set is still pulled and judged, and a fresh set from the CI
+  host does not silence a stale one from the old host

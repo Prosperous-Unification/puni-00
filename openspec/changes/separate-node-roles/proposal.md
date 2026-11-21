@@ -15,11 +15,11 @@ switch may be unsafe while there are no production users.
 - The platform node is the k3s server. It hosts Argo CD, cert-manager, Harbor, and OpenBao with
   the External Secrets Operator, behind a taint.
 - The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
-  `puni-user-platform` (the WBS app; nothing is renamed).
+  `puni-user-platform` (the WBS app).
 - The observability node hosts Elasticsearch and Prometheus, sized by measurement.
 - The CI host runs branch code outside the cluster: gates, release builds, the dev stacks.
-- Argo CD delivers the new cluster from a tree of its own, `infra/argocd`, following a
-  protected deploy branch. Git is the only write path; the interface is private and read-only.
+- Argo CD delivers the new cluster from a tree of its own, `infra/argocd`, following `main`.
+  Git is the only write path; the interface is private and read-only.
 - No decryption runs in the cluster: a few bootstrap Secrets come from Ansible, the rest from
   OpenBao.
 - Each app is stopped, backed up once, restored on the new cluster and re-pointed. Downtime is
@@ -29,8 +29,8 @@ switch may be unsafe while there are no production users.
 
 No rename of WBS resources. No design of Harbor, OpenBao or the WBS cutover. No move of workers
 clusters or labs off Flux. No continuous SQLite replication, high availability or single
-sign-on. h1claw is neither rebuilt nor deleted; its two pulls are re-pointed. No host, cluster
-or provider resource is changed by this plan.
+sign-on. h1claw is neither rebuilt nor deleted; it gains a pull for the CI host. No host,
+cluster or provider resource is changed by this plan.
 
 ## Constraints
 
@@ -38,7 +38,7 @@ The repository is public: no prices, provider ids or new addresses appear here. 
 writer on a node-local `Retain` volume. The fleet model allows one server in a `single` cluster.
 No path that the old cluster, a workers cluster or a lab reconciles is edited. Website registry
 routing, the fleet's website pins and `release-pin.ts` are not changed. Gates never stop for
-other sessions. Bun and Nx only.
+other sessions, and no store loses its scheduled backup while it moves.
 
 ## Capabilities
 
@@ -68,5 +68,5 @@ next number. Two records, node roles and delivery by Argo CD, stay in
 bootstrap playbook, `infra/versions/toolchain.json`, the `k3s_server` template,
 `tools/tool-fleet` (contracts, a `delivery` check, health, recovery, the observability source,
 a lab profile), the SQLite backup tooling and the infrastructure runbooks. Follow-ups in the
-Harbor change, the OpenBao design, the fleet repository, the gate pool and the WBS cutover plan
-are listed, not made.
+Harbor change, the OpenBao design, the fleet repository, the gate pool, h1claw's backup sets
+and the WBS cutover plan with its first-start coordinator are listed, not made.
