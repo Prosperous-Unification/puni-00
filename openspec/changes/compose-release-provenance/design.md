@@ -23,6 +23,6 @@ Public API rate limits and unsupported origins now refuse execution rather than 
 
 No schema migration. Operators use a release built from an accepted exact source and the matching installed bundles. Credentialed image reads reuse PUNI_REGISTRY_AUTH or REGISTRY_USER/REGISTRY_PASS with an explicit REGISTRY authority. Main publishes the tool change; a live application rollout remains dependent on the accepted release, installed executor, env/migration/solver and recovery prerequisites.
 
-## Open Questions
+## Release boundary
 
-The user is clarifying whether release also includes an application production rollout; implementation, push and merge of this guard are authorized either way.
+Implementation, push and merge of this guard are authorized. Application production rollout, installed-executor adoption, secret changes and global host/pool/catalogue changes require separate authorization.
