@@ -1,3 +1,4 @@
+import { INITIAL_ACCESS_ROLES, PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape, type EndpointShape } from './endpoint-shape';
@@ -23,7 +24,15 @@ const refusals = [
       type({ error: "'insufficient_scope' | 'invalid_origin' | 'onboarding_inactive'" }),
     ),
   },
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
   organizationRefusal,
   organizationContextRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
@@ -57,7 +66,7 @@ export const listJoinRequests = defineEndpointShape({
   document: { summary: 'List join requests in the active organization.' },
 });
 
-/** Resolves a pending request by issuing one viewer or member invitation. */
+/** Resolves a pending request with an explicitly selected initial-access offer or none. */
 export const approveJoinRequest = defineEndpointShape({
   method: 'POST',
   path: '/api/organization/join-requests/:id/approve',
@@ -65,8 +74,9 @@ export const approveJoinRequest = defineEndpointShape({
   humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
-  // Proof: 2026-09-28, admitting `admin` failed `rejects an admin approval role at the HTTP boundary` (400 became success).
-  body: requestSchema(type({ role: "'viewer' | 'member'" })),
+  body: requestSchema(
+    type({ 'initialRoleId?': type.enumerated(...INITIAL_ACCESS_ROLES).or('null') }),
+  ),
   responses: [
     { kind: 'json', status: 200, schema: responseSchema(type({ invitationId: 'string' })) },
   ],

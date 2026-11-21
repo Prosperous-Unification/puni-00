@@ -42,7 +42,7 @@ export function InvitationAcceptance({
           setMessage(failureMessage(reply.failure));
           return;
         case 'refusal':
-          setMessage(acceptRefusal(reply.body.error));
+          setMessage(acceptRefusal(reply.body));
           return;
         default:
           return unreachable(reply);
@@ -83,9 +83,9 @@ export function InvitationAcceptance({
  * failed `renders the recipient_mismatch acceptance refusal`.
  */
 function acceptRefusal(
-  error: Extract<ClientReply<typeof acceptInvitation>, { kind: 'refusal' }>['body']['error'],
+  refusal: Extract<ClientReply<typeof acceptInvitation>, { kind: 'refusal' }>['body'],
 ): string {
-  switch (error) {
+  switch (refusal.error) {
     case 'invitation_invalid':
       return 'This invitation expired, was revoked or was already used. Ask for a new one.';
     case 'not_found':
@@ -101,6 +101,9 @@ function acceptRefusal(
     case 'unauthenticated':
       return 'Your session ended. Sign in again.';
     case 'forbidden':
+      return 'permission' in refusal && refusal.permission !== undefined
+        ? `The invitation issuer is missing permission: ${refusal.permission}. Ask for a new invitation.`
+        : 'The invitation issuer can no longer grant this initial access. Ask for a new invitation.';
     case 'invalid_body':
     case 'invalid_json':
     case 'invalid_query':
@@ -108,6 +111,6 @@ function acceptRefusal(
     case 'invalid_origin':
       return 'Could not accept the invitation. Reload and try again.';
     default:
-      return unreachable(error);
+      return unreachable(refusal);
   }
 }

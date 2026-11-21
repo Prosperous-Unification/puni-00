@@ -43,6 +43,7 @@ describe('admittedWrites', () => {
     const log: string[] = [];
     const graph = (_scope: Scope, broadcast: Broadcaster): AdmittedServices => ({
       projects: {
+        createWithin: () => Promise.reject(new Error('creation not asked')),
         updateWithin: async (id) => {
           log.push('update');
           await broadcast.publish(id, { type: 'project_settings_changed' } as never);
@@ -74,7 +75,10 @@ describe('admittedWrites', () => {
       commandAccess: localCommandAccess,
       uow: recordingUnitOfWork(log),
       batch: (_scope, broadcast) => ({
-        projects: { updateWithin: () => Promise.reject(new Error('not asked')) },
+        projects: {
+          createWithin: () => Promise.reject(new Error('not asked')),
+          updateWithin: () => Promise.reject(new Error('not asked')),
+        },
         steps: {
           removeWithin: async (projectId) => {
             log.push('remove');

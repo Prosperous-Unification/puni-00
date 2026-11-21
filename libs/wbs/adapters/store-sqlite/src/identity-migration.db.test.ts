@@ -132,6 +132,8 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -297,6 +299,8 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',
@@ -427,6 +431,8 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20261103110000_add_initial_access_offers',
+        '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',

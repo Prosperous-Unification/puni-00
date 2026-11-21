@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -67,7 +68,15 @@ export const moveProjectRank = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Move a project in the active organization’s project rank.' },

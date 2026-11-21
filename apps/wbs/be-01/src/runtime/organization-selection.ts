@@ -69,6 +69,19 @@ export function organizationSelection(
   return {
     endpoints: {
       async list(principal) {
+        // Proof: selection-list; removed the private entry snapshot.
+        // 'selection list retains private verified identity before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified authentication before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified delegation before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified digest before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified kind before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified credential-user before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // Proof: selection-list-deep; replaced the private deep snapshot with a shallow copy.
+        // 'selection list retains private verified authentication before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified digest before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified kind before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection list retains private verified credential-user before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        principal = structuredClone(principal);
         // The marker first: before activation every caller receives the
         // refusing composition's answer, whatever credential it presents.
         // Proof: reading it after the evidence check made the booted
@@ -97,6 +110,21 @@ export function organizationSelection(
         return { kind: 'listed', memberships: marked };
       },
       async select(principal, organizationId) {
+        // Proof: selection-select; removed the private entry snapshot.
+        // 'selection select retains private verified identity before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified authentication before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified delegation before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified digest before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified kind before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified credential-user before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified expiry before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // Proof: selection-select-deep; replaced the private deep snapshot with a shallow copy.
+        // 'selection select retains private verified authentication before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified digest before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified kind before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified credential-user before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        // 'selection select retains private verified expiry before choices await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+        principal = structuredClone(principal);
         // The marker first, as in `list`; the snapshot it returns is the
         // membership check below, so a revoked credential still learns nothing.
         // Proof: the same reordering here alone failed the same matrix
@@ -132,6 +160,11 @@ export function organizationSelection(
       },
     },
     activeOrganizationOf: async (principal) => {
+      // Proof: active-binding; removed the private entry snapshot.
+      // 'active organization binding retains its original valid cookie credential pair across revocation await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // Proof: active-binding-deep; replaced the private deep snapshot with a shallow copy.
+      // 'active organization binding retains its original valid cookie credential pair across revocation await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      principal = structuredClone(principal);
       const presented = principal.organizationBinding;
       if (presented?.cookie == null) return null;
       // Proof: removing this read made the mounted old token/cookie pair keep

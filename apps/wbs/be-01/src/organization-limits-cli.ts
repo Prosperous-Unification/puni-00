@@ -10,6 +10,7 @@ import {
   type OrganizationLimitValues,
 } from '@wbs/domain';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { OrganizationLimitsRepository } from '@wbs/store-sqlite/organization-limits';
 
 import { loadOrganizationDefaultLimits } from './config';
@@ -229,7 +230,7 @@ else {
   const defaults = loadOrganizationDefaultLimits(process.env);
   const connection = openExistingConnection(dbPath);
   try {
-    const store = new OrganizationLimitsRepository(connection.db, defaults);
+    const store = new OrganizationLimitsRepository(connection.db, defaults, new WriteCoordinator());
     if (command.kind === 'show') {
       const reading = await store.inspect(command.organizationId);
       if (typeof reading === 'string')

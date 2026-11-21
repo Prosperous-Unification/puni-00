@@ -56,11 +56,11 @@ describe('measure definitions in an organization', () => {
     for (const username of ['ada', 'grace', 'moe', 'sue', 'vic']) await h.register(username);
     h.organization('org-a');
     h.organization('org-b');
-    h.member('org-a', 'ada', 'admin');
-    h.member('org-a', 'moe', 'member');
-    h.member('org-a', 'sue', 'super_admin');
-    h.member('org-a', 'vic', 'viewer');
-    h.member('org-b', 'grace', 'member');
+    h.member('org-a', 'ada', 'admin', ['org-admin']);
+    h.member('org-a', 'moe', 'member', ['project-contributor']);
+    h.member('org-a', 'sue', 'super_admin', ['org-super-admin']);
+    h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+    h.member('org-b', 'grace', 'member', ['org-admin']);
     for (const username of ['ada', 'moe', 'sue', 'vic']) h.bind(username, 'org-a');
     h.bind('grace', 'org-b');
     h.activate();
@@ -178,9 +178,9 @@ describe('measure definitions in an organization', () => {
       { kind: 'patchMeasure', measureId: tokens, patch: { name: 'Member tokens' } },
       { kind: 'deleteMeasure', measureId: tokens },
     ])
-      expect(await directory('moe', [command]), command.kind).toEqual({
+      expect(await directory('moe', [command]), command.kind).toMatchObject({
         status: 403,
-        body: { at: 0, kind: command.kind, error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_directory' },
       });
     expect((await listed('moe')).map(({ key }) => key)).toEqual(SEEDED_KEYS);
     expect((await listed('moe')).find(({ key }) => key === 'tokens')?.name).toBe('Tokens');
@@ -199,7 +199,10 @@ describe('measure definitions in an organization', () => {
   });
 
   it('refuses a viewer every write and a malformed command at the boundary', async () => {
-    expect(await directory('vic', [GPU])).toEqual({ status: 403, body: { error: 'forbidden' } });
+    expect(await directory('vic', [GPU])).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(await directory('ada', [{ ...GPU, key: 'GPU' }])).toEqual({
       status: 400,
       body: { at: 0, kind: 'createMeasure', error: 'key_must_be_a_measure_key' },
@@ -213,7 +216,7 @@ describe('budgets and money bases in an organization', () => {
     h = OrganizationHarness.openComposed();
     await h.register('ada');
     h.organization('org-a');
-    h.member('org-a', 'ada', 'member');
+    h.member('org-a', 'ada', 'member', ['org-admin']);
     h.bind('ada', 'org-a');
     h.activate();
   });

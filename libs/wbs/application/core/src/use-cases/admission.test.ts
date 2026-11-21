@@ -1,8 +1,15 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
+import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
 import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
+import { inMemorySteps } from '@wbs/store-memory/step-fixture';
+import {
+  testCalendarMarkerService,
+  testProjectService,
+  testStepService,
+} from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, test } from 'bun:test';
 
 import { retentionSweep } from '../module/bounded-replay-sweep/bounded-replay-sweep.feature';
@@ -213,3 +220,55 @@ test('retention refuses a noninternal principal without pruning either store', a
   ).toEqual({ outcome: 'forbidden' });
   expect(calls).toEqual([]);
 });
+
+for (const operation of [
+  'project-write',
+  'project-retry',
+  'project-settings',
+  'step',
+  'marker',
+] as const) {
+  test('retains the legacy restricted creator refusal at ' + operation, async () => {
+    const projects = inMemoryProjects();
+    await projects.create(
+      projectRow({ id: 'restricted', ownerId: 'owner', restricted: true }),
+      [],
+      { at: 1, by: 'owner' },
+    );
+    const steps = inMemorySteps();
+    const markers = inMemoryCalendarMarkers();
+    const projectService = testProjectService(projects);
+    const before = await projects.findById('restricted');
+    const answer =
+      operation === 'project-write'
+        ? await projectService.authorizeWrite('restricted', 'stranger', LEGACY_ACCESS)
+        : operation === 'project-retry'
+          ? await projectService.authorizeRetry('restricted', 'stranger', LEGACY_ACCESS)
+          : operation === 'project-settings'
+            ? await projectService.updateWithin(
+                'restricted',
+                'stranger',
+                { name: 'Must not rename' },
+                LEGACY_ACCESS,
+              )
+            : operation === 'step'
+              ? await testStepService(projects, steps).addWithin(
+                  'restricted',
+                  'stranger',
+                  'Must not add',
+                  0,
+                  undefined,
+                  LEGACY_ACCESS,
+                )
+              : await testCalendarMarkerService(projects, markers).createWithin(
+                  'restricted',
+                  'stranger',
+                  { date: '2026-11-10', name: 'Must not add', color: '#ff0000' },
+                  LEGACY_ACCESS,
+                );
+    expect(answer).toMatchObject({ ok: false, reason: 'forbidden' });
+    expect(await projects.findById('restricted')).toEqual(before);
+    expect(await steps.listByProject('restricted')).toEqual([]);
+    expect(await markers.listFor('restricted')).toEqual([]);
+  });
+}

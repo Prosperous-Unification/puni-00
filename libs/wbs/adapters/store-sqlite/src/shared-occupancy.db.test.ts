@@ -106,6 +106,10 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
               "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, 'admin', 1)",
               [ORG, accountId],
             );
+            sqlite.run(
+              "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('occupancy-authority',?,'organization',?,'user',?,'org-admin','route',1)",
+              [ORG, ORG, accountId],
+            );
             for (const id of personIds)
               sqlite.run(
                 'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
@@ -418,8 +422,9 @@ for (const store of STORES) {
             ]);
           opened.activate(F, people);
           const admin = {
+            principal: { id: F },
             kind: 'scoped',
-            scope: { organizationId: ORG, userId: F, role: 'admin' },
+            scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
           } as const;
           const claimIn = (projectId: string, workItemId: string, personId: string) =>
             runner.runWithin(

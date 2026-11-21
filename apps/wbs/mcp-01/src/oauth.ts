@@ -322,6 +322,15 @@ export interface OAuthRouteEvidence {
  * restart; codes, pending logins, organization choices and reauthentication markers are short
  * lived and stay in this process.
  */
+/** A bounded end sweep; blocked ends remain durably unacknowledged for retry after CP14 repair. */
+export type ConsentEndSweep =
+  | number
+  | {
+      readonly kind: 'blocked';
+      readonly reason: 'last_super_admin';
+      readonly acknowledged: number;
+    };
+
 export class McpOAuthServer implements McpOAuthHandler {
   /**
    * Clients whose promotion to proven is reserved while their code exchange signs a token; they
@@ -2261,19 +2270,28 @@ export class McpOAuthServer implements McpOAuthHandler {
    * mcp-01 → be-01 of the two-way revocation: the store keeps each end until be-01 acknowledges
    * it, so a report lost to a crash or an unreachable be-01 is sent again by the next sweep.
    * `mcp-01`'s main runs it once a minute; the end is therefore visible in WBS within about a
-   * minute, not at once.
+   * minute when CP14 permits it. A last_super_admin conflict remains durably pending
+   * until an audited operator repair restores a direct human holder; local revocation
+   * and expiry remain enforced while be-01 retains its unchanged authority.
    *
-   * @returns how many ends be-01 acknowledged; it stops at the first unavailable answer.
+   * @returns the acknowledged count, or a visible modeled blocked outcome with that count.
+   * Stops at the first unavailable or blocked answer; each sweep is bounded.
    * @throws {OrganizationAuthorityDefect} on an answer this release does not model.
    */
-  async reportEndedConsents(): Promise<number> {
+  async reportEndedConsents(): Promise<ConsentEndSweep> {
     const organizations = this.organizations;
     if (organizations === undefined) return 0;
     let acknowledged = 0;
     for (const ended of this.store.endedConsents(this.now(), CONSENT_END_REPORT_BATCH)) {
       // Proof: 2026-10-22, acknowledging without asking be-01 made `a family mcp-01 ends marks
       // its credential revoked in WBS` (organization-delegation.boot.test.ts) keep it live.
-      if ((await organizations.reportConsentEnded(ended)) === 'unavailable') break;
+      const reported = await organizations.reportConsentEnded(ended);
+      if (reported === 'unavailable') break;
+      /* Proof: consent-end-no-ack: removed/changed production boundary.
+       * keeps a CP14-blocked family end pending while local revocation remains denied
+       * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+      if (typeof reported !== 'string')
+        return { kind: 'blocked', reason: reported.reason, acknowledged };
       this.store.acknowledgeConsentEnd(ended, this.now());
       acknowledged += 1;
     }

@@ -5,6 +5,7 @@ import { exportJWK, generateKeyPair } from 'jose';
 
 import {
   addAgentPerson,
+  grantCredential,
   issueApiKey,
   MACHINE_BEARER_NOT_ACCEPTED,
   revokeMachineCredential,
@@ -67,9 +68,9 @@ beforeEach(async () => {
   for (const username of ['dany', 'mem', 'bob']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-b', 'bob', 'admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.member('org-b', 'bob', 'admin', ['org-admin']);
   h.bind('dany', 'org-a');
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
@@ -122,12 +123,14 @@ async function createProject(username: string, name: string): Promise<string> {
 }
 
 /** Claire's key: issued by Dany for the agent person bound to Dany's account. */
-function claireKey() {
-  return issueApiKey(h.sqlite, {
+async function claireKey() {
+  const credential = await issueApiKey(h.sqlite, {
     organizationId: 'org-a',
     personId: 'claire',
     issuedBy: h.userId('dany'),
   });
+  grantCredential(h.sqlite, 'org-a', credential.id, 'project-contributor', 'organization', 'org-a');
+  return credential;
 }
 
 /**
@@ -264,7 +267,7 @@ describe('an API key on the MCP path', () => {
     h = openHarness();
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     const { key } = await claireKey();
     expect(await viaMcp(key, 'GET', '/api/projects')).toEqual({
@@ -329,7 +332,7 @@ describe('an API key as a Bearer on /api', () => {
     h = openHarness();
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
     const { key } = await claireKey();
     expect(await as(key, 'GET', '/api/projects')).toEqual(NOT_ACCEPTED);
@@ -399,10 +402,15 @@ describe('an API key’s stored state on the MCP path', () => {
   });
 });
 
-describe('machine restricted-project role ceiling', () => {
+describe('machine restricted-project grant and cap boundaries', () => {
+  beforeEach(() => {
+    h.grantPermissions('org-a', 'mem', ['organization.create_project', 'package.manage_settings']);
+  });
   /** Acquire the MCP grant before measuring the protected call's complete effects. */
-  async function admitMachine() {
-    const { key } = await claireKey();
+  async function admitMachine(workPackageId?: string) {
+    const { id, key } = await claireKey();
+    if (workPackageId !== undefined)
+      grantCredential(h.sqlite, 'org-a', id, 'package-contributor', 'work_package', workPackageId);
     const issued = await requestGrant(h, { kind: 'api_key', key });
     expect(issued.status).toBe(200);
     const { grant } = (await issued.json()) as { grant: string };
@@ -444,7 +452,7 @@ describe('machine restricted-project role ceiling', () => {
                 ? { objective: 'pri', inputHash: 'ignored' }
                 : undefined;
       expect((await callMachine('POST', `/api/projects/${restricted}/${route}`, body)).status).toBe(
-        403,
+        404,
       );
       expect(snapshot()).toEqual(before);
     },
@@ -471,16 +479,16 @@ describe('machine restricted-project role ceiling', () => {
       ['PATCH', `/api/saved-plans/${savedId}`, { name: 'Outside cap' }],
       ['DELETE', `/api/saved-plans/${savedId}`, undefined],
     ] as const) {
-      expect((await callMachine(method, path, body)).status).toBe(403);
+      expect((await callMachine(method, path, body)).status).toBe(404);
       expect(snapshot()).toEqual(before);
     }
   });
 
-  it('allows an admin-bound machine to write its own restricted project', async () => {
+  it('allows a machine with its own explicit package grant to write a restricted project', async () => {
     expect(
       (await h.call('dany', 'PATCH', `/api/projects/${projectA}`, { restricted: true })).status,
     ).toBe(200);
-    const callMachine = await admitMachine();
+    const callMachine = await admitMachine(projectA);
     expect(
       (
         await callMachine('POST', `/api/projects/${projectA}/commands`, {
@@ -566,7 +574,7 @@ describe('recording an API key’s last use on the MCP path', () => {
     h = openHarness(() => at);
     await h.register('dany');
     h.organization('org-a');
-    h.member('org-a', 'dany', 'super_admin');
+    h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
     h.bind('dany', 'org-a');
     h.activate();
     addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
@@ -648,7 +656,10 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
           { kind: 'patchPerson', personId: 'codex', patch: { accountId: h.userId('mem') } },
         ],
       }),
-    ).toEqual({ status: 403, body: { error: 'forbidden', at: 0, kind: 'patchPerson' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
+    });
     expect(h.sqlite.query("SELECT account_id FROM person WHERE id = 'codex'").get()).toEqual({
       account_id: h.userId('dany'),
     });
@@ -658,7 +669,10 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
       send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
-    expect(await batch([claim('mems-agent')])).toEqual(refused('person_not_bound'));
+    expect(await batch([claim('mems-agent')])).toEqual({
+      status: 404,
+      body: { error: 'unknown_person', at: 0, kind: 'claimWorkItem' },
+    });
     expect(claimsOf('mems-agent')).toBe(0);
   });
 
@@ -666,7 +680,10 @@ describe.each(TRANSPORTS)('a key pinned to one person, %s', (_, send) => {
     const { key } = await claireKey();
     const batch = (commands: unknown[]) =>
       send(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
-    expect(await batch([claim('loose')])).toEqual(refused('person_not_bound'));
+    expect(await batch([claim('loose')])).toEqual({
+      status: 404,
+      body: { error: 'unknown_person', at: 0, kind: 'claimWorkItem' },
+    });
     expect(claimsOf('loose')).toBe(0);
   });
 });

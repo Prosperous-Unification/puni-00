@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ORGANIZATION_AUDIT_ACTIONS, ORGANIZATION_AUDIT_SUBJECT_KINDS } from '@wbs/core';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { duplicateMigrationStamps } from '@wbs/store-sqlite/migrate-down';
@@ -19,6 +18,7 @@ const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
 /** `wbs-permissions`' access grants, the newest folder, which reverses first. */
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
+const ACCESS_AUDIT = '20261102130000_widen_organization_audit_access';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -49,7 +49,13 @@ function baselineStore(): { root: string; dbPath: string } {
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY, HOST_JOB_PROJECTION])
+  for (const name of [
+    AUDIT_WIDENING,
+    DIRECTORY_CAPACITY,
+    HOST_JOB_PROJECTION,
+    ACCESS_AUDIT,
+    '20261103110000_add_initial_access_offers',
+  ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   runMigrations(dbPath, join(root, 'drizzle'));
   return { root, dbPath };
@@ -131,8 +137,50 @@ it('is the pair right after the agent pool widening, below every later folder, c
 
 /** The audit vocabulary widening (`wbs-shared-occupancy` task 1.0). */
 describe(AUDIT_WIDENING, () => {
-  const earlierActions = ORGANIZATION_AUDIT_ACTIONS.filter((action) => action !== NEW_ACTION);
-  const earlierKinds = ORGANIZATION_AUDIT_SUBJECT_KINDS.filter((kind) => kind !== NEW_KIND);
+  // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
+  const earlierActions = [
+    'restricted_project_recovery',
+    'sso_connection_created',
+    'sso_connection_updated',
+    'sso_connection_deleted',
+    'sso_connection_proven',
+    'sso_enforcement_changed',
+    'provisioning_token_issued',
+    'provisioning_token_rotated',
+    'provisioning_token_revoked',
+    'scim_user_provisioned',
+    'scim_user_updated',
+    'scim_user_deprovisioned',
+    'pending_membership_activated',
+    'session_policy_changed',
+    'machine_credential_created',
+    'machine_credential_rotated',
+    'machine_credential_revoked',
+    'trusted_issuer_registered',
+    'trusted_issuer_removed',
+    'organization_limits_changed',
+    'compute_provider_registered',
+    'compute_provider_updated',
+    'compute_provider_removed',
+    'machine_token_issued',
+    'machine_token_issued_overflow',
+    'agent_pool_created',
+    'agent_pool_revoked',
+    'agent_pool_rekeyed',
+  ];
+  // Pinned to the actual agent-pool-era schema; later access actions are not historical inputs.
+  const earlierKinds = [
+    'project',
+    'sso_connection',
+    'provisioning_token',
+    'scim_user',
+    'session_policy',
+    'machine_credential',
+    'trusted_issuer',
+    'organization_limits',
+    'compute_provider',
+    'agent_pool',
+  ];
 
   // Every earlier value is main's latest vocabulary: the machine token and
   // agent pool acts and the `agent_pool` kind included.
@@ -215,7 +263,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
     );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
@@ -260,7 +308,7 @@ describe(DIRECTORY_CAPACITY, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
     );
     expect(
       count(

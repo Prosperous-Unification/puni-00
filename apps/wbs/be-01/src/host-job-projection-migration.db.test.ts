@@ -143,7 +143,9 @@ describe(HOST_JOB_PROJECTION, () => {
     const down = await rollBack(root, dbPath, DIRECTORY_CAPACITY);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}\n`);
+    expect(down.stdout).toContain(
+      `rolled back: 20261103110000_add_initial_access_offers, 20261102130000_widen_organization_audit_access, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}\n`,
+    );
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_units');
     expect(columnsOf(dbPath, 'resource_capacity_report')).not.toContain('reserved_dimension');
     expect(columnsOf(dbPath, 'resource_host_job')).toEqual([]);

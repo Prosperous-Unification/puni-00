@@ -77,6 +77,7 @@ describe('shared people restore approval schema', () => {
       expect(
         await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
           'org-a',
+          { id: 'ada' },
           'restore-1',
           'a'.repeat(64),
           'approval-1',
@@ -94,12 +95,15 @@ describe('shared people restore approval schema', () => {
       "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
     );
     execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
+    execute(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('approval-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
+    );
     const rival = openDatabase(path);
     rival.run('PRAGMA busy_timeout = 0');
     let observed = false;
     const connection = openConnection(path, {
       logQuery(query) {
-        if (!query.includes('from "organization_membership"')) return;
+        if (!query.includes('FROM organization_membership m')) return;
         observed = true;
         expect(() =>
           rival.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = 'ada'"),
@@ -110,6 +114,7 @@ describe('shared people restore approval schema', () => {
       expect(
         await new SharedPeopleRestoreApprovalRepository(connection.db, OPEN).approve(
           'org-a',
+          { id: 'ada' },
           'restore-1',
           'a'.repeat(64),
           'approval-1',

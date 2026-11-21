@@ -251,7 +251,10 @@ describe('a headless agent on /mcp', () => {
     await fixture('activate');
     Object.assign(
       agent,
-      await fixture<{ id: string; key: string }>('api-key', { personId: 'claire' }),
+      await fixture<{ id: string; key: string }>('api-key', {
+        personId: 'claire',
+        grantRoleId: 'project-contributor',
+      }),
     );
   });
 
@@ -265,11 +268,11 @@ describe('a headless agent on /mcp', () => {
     );
 
     const created = await call('postApiProjects', { name: 'Fleet' });
-    expect(created.isError).toBe(false);
-    const project = JSON.parse(created.text) as {
-      project: { id: string };
-      steps: { id: string }[];
-    };
+    expect(created.isError).toBe(true);
+    expect(created.text).toContain('HTTP 403 forbidden');
+    const project = await fixture<{ project: { id: string }; steps: { id: string }[] }>('project', {
+      name: 'Fleet',
+    });
     ids.project = project.project.id;
     const firstStep = project.steps.at(0);
     if (firstStep === undefined) throw new Error('created project has no first workflow step');

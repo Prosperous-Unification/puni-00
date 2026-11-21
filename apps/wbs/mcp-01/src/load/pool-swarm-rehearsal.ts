@@ -356,6 +356,21 @@ interface KeysDocument {
     key: string;
   }[];
 }
+async function grantPool(document: KeysDocument): Promise<void> {
+  for (const agent of document.agents) {
+    const response = await fetch(`${backendUrl}/__fixture/grant-credential`, {
+      method: 'POST',
+      body: JSON.stringify({
+        credentialId: agent.credentialId,
+        roleId: 'package-contributor',
+        scopeKind: 'work_package',
+        scopeId: projectId,
+      }),
+    });
+    if (response.status !== 200)
+      throw new Error(`explicit pool credential grant refused: ${String(response.status)}`);
+  }
+}
 interface StoredPool {
   readonly agents: readonly { personId: string; run: string; mcpConfig: string; keyFile: string }[];
 }
@@ -611,6 +626,7 @@ try {
   const created = await admin('POST', '/api/organization/agent-pools', { name: 'fleet', size: 3 });
   expect('the admin creates a pool of 3 (201)', created.status === 201, created.status);
   const first = created.body as KeysDocument;
+  await grantPool(first);
   note('admin', 'agent_pool_created', `pool ${first.poolId.slice(0, 8)}, 3 keys`);
   const stored = importPool(first, 'create');
   const afterCreate = await limits();
@@ -731,6 +747,7 @@ try {
   const rekeyed = await admin('POST', `/api/organization/agent-pools/${first.poolId}/rekey`, {});
   expect('the admin re-keys the pool (201)', rekeyed.status === 201, rekeyed.status);
   const second = rekeyed.body as KeysDocument;
+  // Rekey transfers the original scoped grants through the real pool writer.
   note('admin', 'agent_pool_rekeyed', `${String(second.agents.length)} new keys`);
   expect(
     're-key keys the same persons with new credentials',
@@ -918,6 +935,7 @@ try {
   });
   expect('the admin creates a spare pool of 1', spareCreated.status === 201, spareCreated.status);
   const spare = spareCreated.body as KeysDocument;
+  await grantPool(spare);
   const spareStored = importPool(spare, 'spare');
   const spareAgentEntry = spareStored.agents.at(0);
   if (spareAgentEntry === undefined) throw new Error('the spare pool has no agent');

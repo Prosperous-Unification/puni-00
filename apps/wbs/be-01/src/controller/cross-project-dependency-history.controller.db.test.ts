@@ -725,13 +725,20 @@ test('synthetic mounted undo refuses a legally destroyed predecessor before rest
   const pushes: string[] = [];
   const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
   harness.sqlite
     .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
     .run(harness.userId('grace'), fixture.predecessor.projectId);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   const selected = await harness.request('/api/organization/active', {
     method: 'POST',
     headers: {
@@ -762,6 +769,13 @@ test('synthetic mounted undo refuses a legally destroyed predecessor before rest
     ).status,
   ).toBe(200);
   expect(harness.sqlite.query('SELECT * FROM external_dependency').all()).toEqual([]);
+  harness.grant(
+    'org-a',
+    'grace',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   const destroyed = await harness.request(
     `/api/projects/${fixture.predecessor.projectId}/commands`,
     {

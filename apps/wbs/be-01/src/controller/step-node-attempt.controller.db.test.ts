@@ -29,7 +29,8 @@ async function populate(): Promise<void> {
   activateTestStepBlockages(h.sqlite.filename);
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project', 'package.manage_settings']);
   h.bind('ada', 'org-a');
   h.activate();
   const created = await h.call('ada', 'POST', '/api/projects', { name: 'Rewire the shed' });

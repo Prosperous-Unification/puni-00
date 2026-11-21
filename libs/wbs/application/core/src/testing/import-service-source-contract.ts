@@ -418,8 +418,6 @@ function heldSolutionUnitOfWork(
           findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
           editInOrganization: (id, patch, stamp, organizationId, editor) =>
             stored.editInOrganization(id, patch, stamp, organizationId, editor),
-          admitEditInOrganization: (projectId, organizationId, actorId, detail, role) =>
-            stored.admitEditInOrganization(projectId, organizationId, actorId, detail, role),
           findCrossReferences: (projectId, organizationId) =>
             stored.findCrossReferences(projectId, organizationId),
           listForInOrganization: (userId, organizationId) =>

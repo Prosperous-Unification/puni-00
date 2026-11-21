@@ -15,11 +15,11 @@ beforeEach(async () => {
   for (const username of ['dany', 'sup', 'mem', 'vic', 'out']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'dany', 'admin');
-  h.member('org-a', 'sup', 'super_admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'out', 'admin');
+  h.member('org-a', 'dany', 'admin', ['org-admin']);
+  h.member('org-a', 'sup', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'out', 'admin', ['org-admin']);
   for (const username of ['dany', 'sup', 'mem', 'vic']) h.bind(username, 'org-a');
   h.bind('out', 'org-b');
   h.activate();
@@ -63,7 +63,7 @@ describe('binding a person to an account', () => {
     });
     expect((await bind('dany', 'claire-worker', dany)).status).toBe(200);
 
-    const people = await h.call('mem', 'GET', '/api/people');
+    const people = await h.call('dany', 'GET', '/api/people');
     expect(people.status).toBe(200);
     expect(people.body).toEqual({
       people: [
@@ -89,7 +89,7 @@ describe('binding a person to an account', () => {
   it('refuses a member binding a person to an account', async () => {
     expect(await bind('mem', 'claire', h.userId('mem'))).toEqual({
       status: 403,
-      body: { error: 'forbidden', at: 0, kind: 'patchPerson' },
+      body: { error: 'forbidden', permission: 'organization.manage_directory' },
     });
     expect(bindings().every(({ account_id }) => account_id === null)).toBe(true);
   });

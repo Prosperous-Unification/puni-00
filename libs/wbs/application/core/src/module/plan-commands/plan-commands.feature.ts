@@ -16,6 +16,7 @@ import type {
   LeaseStanding,
   MeasureDefinition,
   MixedRateCards,
+  Permission,
   ResourceUnits,
   WorkItemStatus,
 } from '@wbs/domain';
@@ -156,6 +157,7 @@ export type AppliedCommand =
     }[EntityKind];
 
 export type Refusal =
+  | { reason: 'forbidden'; permission: Permission; detail?: never }
   | { reason: PlainReason; detail?: never }
   | {
       reason: 'deadline_before_project_start';
@@ -265,7 +267,7 @@ export type BatchOutcome =
  */
 export type WholeBatchRefusal =
   | { readonly ok: false; readonly refusal: 'not_found' }
-  | { readonly ok: false; readonly refusal: 'forbidden' };
+  | { readonly ok: false; readonly refusal: 'forbidden'; readonly permission?: Permission };
 
 /** A whole-request refusal, retaining any credential-rule body from current admission. */
 export type AuthorityRefusal =
@@ -524,7 +526,15 @@ export class PlanCommandRunner {
     );
     if ('runtime' in outcome) return outcome.runtime;
     if (outcome.ok) throw new Error('runtime command completed without acceptance');
-    if ('refusal' in outcome) return { ok: false, reason: outcome.refusal };
+    if ('refusal' in outcome)
+      return outcome.refusal === 'forbidden'
+        ? // Proof: runtime-second-permission-projection fault failed 'second current grant denial at runtime command admission' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+          {
+            ok: false,
+            reason: 'forbidden',
+            ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+          }
+        : { ok: false, reason: 'not_found' };
     return outcome;
   }
 
@@ -675,12 +685,19 @@ export class PlanCommandRunner {
             const refusal = await scope.refuseOutsideScope(
               projectId,
               actorId,
-              commandAccess.scope,
+              commandAccess,
               {
                 commands: commands.map(({ kind }) => kind),
               },
+              commands,
             );
-            if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
+            if (refusal !== null)
+              return refusal.reason === 'not_found'
+                ? { commit: false, value: { ok: false, refusal: 'not_found' } }
+                : {
+                    commit: false,
+                    value: { ok: false, refusal: 'forbidden', permission: refusal.permission },
+                  };
             if (projectId !== null) grant = grantAdmission(projectId, actorId);
           }
           const workingPlan = scope.openCommandGraph(projectId, collector, {
@@ -987,10 +1004,15 @@ export class PlanCommandRunner {
           if (!resolved.ok)
             return { commit: false, value: { result: resolved, recordings: [], dirty: false } };
           const access = resolved.access;
-          const refuse = (reason: 'not_found' | 'forbidden') => ({
+          // Proof: projecting only reason dropped package.write in both mounted viewer undo/redo admission tests; watched RED and restored GREEN, 2026-11-09.
+          const refuse = (refusal: {
+            readonly reason: 'not_found' | 'forbidden';
+            readonly permission?: Permission;
+          }) => ({
             commit: false as const,
             value: {
-              result: { ok: false as const, reason, detail: null },
+              // Proof: walk-permission-projection fault failed 'visible viewer is denied.*admission' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+              result: { ok: false as const, ...refusal, detail: null },
               recordings: [],
               dirty: false,
             },
@@ -1000,7 +1022,7 @@ export class PlanCommandRunner {
             // foreign project as of an absent one` in
             // `command-organization.controller.db.test.ts` answer the foreign
             // undo with 409 instead of 404; watched 2026-09-27.
-            const refusal = await scope.refuseOutsideScope(projectId, actorId, access.scope, {
+            const refusal = await scope.refuseOutsideScope(projectId, actorId, access, {
               journal,
             });
             if (refusal !== null) return refuse(refusal);
@@ -1040,7 +1062,7 @@ export class PlanCommandRunner {
                 projectId,
                 access.scope.organizationId,
               );
-              if (crossing.length > 0) return refuse('not_found');
+              if (crossing.length > 0) return refuse({ reason: 'not_found' });
             }
             if (collected.result.ok) return { commit: true, value: collected };
             const entryId = collected.result.entryId;
@@ -1152,7 +1174,7 @@ export class PlanCommandRunner {
       }
       if (access.kind === 'scoped') {
         if (projectId !== null) {
-          await refuseForeignReferences(graph, projectId, command, context, access.scope);
+          await refuseForeignReferences(graph, projectId, command, context, access);
         }
       }
       applied.push(await applyCommand(bindings, command, context));

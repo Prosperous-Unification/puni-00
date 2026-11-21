@@ -1,15 +1,37 @@
-import { canEditProject, type ProjectOwnership } from './project-ownership';
-import type { OrganizationRole } from './stored-vocabularies';
+import type { Permission } from './access-role';
 
 /**
- * The organization a request acts in, the acting user, and that user's current
- * role there. Only a server-side resolution of trusted session state and current
- * membership produces one; a caller-supplied organization id or role never does.
+ * The organization a request acts in, the acting user, and its permission
+ * cap. Current membership establishes presence; actual grants establish authority.
+ * Only resolution of trusted session state and current membership produces
+ * one; a caller-supplied organization id never does.
+ *
+ * Proof: retired-domain-canWriteInOrganization; reintroduced the retired callable.
+ * 'does not expose canWriteInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayBindAccountInOrganization; reintroduced the retired callable.
+ * 'does not expose mayBindAccountInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayDefineMeasuresInOrganization; reintroduced the retired callable.
+ * 'does not expose mayDefineMeasuresInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayRemoveResourceInOrganization; reintroduced the retired callable.
+ * 'does not expose mayRemoveResourceInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayStateDirectoryCapacityInOrganization; reintroduced the retired callable.
+ * 'does not expose mayStateDirectoryCapacityInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-canEditProjectInOrganization; reintroduced the retired callable.
+ * 'does not expose canEditProjectInOrganization' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayAdministerMembership; reintroduced the retired callable.
+ * 'does not expose mayAdministerMembership' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-mayInvite; reintroduced the retired callable.
+ * 'does not expose mayInvite' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: retired-domain-classifyProjectEdit; reintroduced the retired callable.
+ * 'does not expose classifyProjectEdit' (organization-access.test.ts) failed; restored GREEN, 2026-11-10.
+ * Proof: scope-type-role; restored an optional compatibility role to OrganizationScope; only the intended TS2578 appeared.
+ * organization-access.test.ts rejects this scope field with the sole unused-expect-error TS2578.
  */
 export interface OrganizationScope {
   readonly organizationId: string;
   readonly userId: string;
-  readonly role: OrganizationRole;
+  /** Contributor permissions for a machine/consent credential; null for an uncapped account. */
+  readonly cap: ReadonlySet<Permission> | null;
   /**
    * Present, and true, when the request acts through a delegation or a
    * machine credential's direct context rather than as the user themself
@@ -17,155 +39,4 @@ export interface OrganizationScope {
    * credential, by route or by a person's cascade.
    */
   readonly delegated?: true;
-}
-
-/**
- * Whether `role` may create and edit ordinary resources: every role but viewer,
- * per the role matrix in `organization-ownership-and-access/specs/organization-access`.
- *
- * Proof: answering `true` for every role failed `refuses a viewer every project
- * write and lets the viewer read and open` in
- * `project-organization.controller.db.test.ts`; watched 2026-09-27.
- */
-export function canWriteInOrganization(role: OrganizationRole): boolean {
-  return role !== 'viewer';
-}
-
-/**
- * Whether `role` may say which account acts as which person (`wbs-team-claims`
- * D5): an admin or a super-admin. The same two roles may claim on behalf of a
- * person bound to another account.
- *
- * Proof: answering `canWriteInOrganization(role)` here made `refuses a member
- * binding a person to an account` in `person-account.controller.db.test.ts`
- * answer 200 with the binding written (watched 2026-10-19).
- */
-export function mayBindAccountInOrganization(role: OrganizationRole): boolean {
-  return role === 'admin' || role === 'super_admin';
-}
-
-/**
- * Whether `role` may define, change or remove the organization's measure
- * definitions, directly or by importing a plan that names one the
- * organization lacks (`wbs-measure-budgets` D70, superseding D16): an admin
- * or a super-admin. A definition changes what every project's figures mean,
- * so it is an organization act, like ranking projects.
- */
-export function mayDefineMeasuresInOrganization(role: OrganizationRole): boolean {
-  return role === 'admin' || role === 'super_admin';
-}
-
-/**
- * Whether `role` may remove a directory resource (`wbs-resources` R8a, Dany's
- * decision of 2026-10-25): an admin or a super-admin. A removal cascades into
- * every project of the organization, dropping each demand and capacity that
- * names it, so it is an organization act; creating and editing one stays open
- * to every writing role ({@link canWriteInOrganization}).
- */
-export function mayRemoveResourceInOrganization(role: OrganizationRole): boolean {
-  return role === 'admin' || role === 'super_admin';
-}
-
-/**
- * Whether `role` may state, change or clear a resource's directory capacity,
- * or preview that change or read the resource's holders across projects
- * (`wbs-shared-occupancy` S11, S12): an admin or a super-admin, as
- * {@link mayRemoveResourceInOrganization} decides a removal. The units of a
- * shared resource bind every project of the organization, so stating them is
- * an organization act. `role` is the one `organizationRoleOf` answered, so a
- * machine credential and an MCP consent delegation acting as an agent person
- * arrive as at most a member and are refused, while an admin's own MCP
- * session keeps the admin's role.
- */
-export function mayStateDirectoryCapacityInOrganization(role: OrganizationRole): boolean {
-  return role === 'admin' || role === 'super_admin';
-}
-
-/**
- * Whether the scoped user may write to a project of that organization: a writing
- * role, and for a restricted project its creator.
- *
- * A super-admin's recovery override of a restricted project is deliberately
- * absent: it must be audited in the same transaction, and task 3.7 owns that
- * audit. Until then a non-creator super-admin is refused like any other role,
- * which fails closed.
- *
- * Proof: dropping the creator rule made `lets only the creator edit a restricted
- * project, super-admin included` in `project-organization.controller.db.test.ts`
- * answer the super-admin's PATCH with the renamed project instead of 403;
- * watched 2026-09-27.
- */
-export function canEditProjectInOrganization(
-  project: ProjectOwnership,
-  scope: OrganizationScope,
-): boolean {
-  return canWriteInOrganization(scope.role) && canEditProject(project, scope.userId);
-}
-
-/** The roles an admin administers; every other role is a super-admin's alone. */
-const ORDINARY_ROLES: readonly OrganizationRole[] = ['member', 'viewer'];
-
-/**
- * Whether `actor` may change a member's role from `current` to `requested`,
- * or remove them when `requested` is null, per the role matrix in
- * `organization-ownership-and-access/specs/organization-access`: an admin
- * moves viewers and members between those two roles or removes them; only a
- * super-admin grants, revokes or removes an admin or super-admin role. Never
- * leaving the organization without a super-admin is the store's check, made
- * in the same transaction as the write.
- *
- * Proof: letting an admin change any role made `refuses an admin promoting
- * a member to admin, or changing or removing an admin` in
- * `membership-organization.controller.db.test.ts` answer 200 with the
- * promoted admin; watched 2026-09-27.
- */
-export function mayAdministerMembership(
-  actor: OrganizationRole,
-  current: OrganizationRole,
-  requested: OrganizationRole | null,
-): boolean {
-  if (actor === 'super_admin') return true;
-  if (actor !== 'admin') return false;
-  return (
-    ORDINARY_ROLES.includes(current) && (requested === null || ORDINARY_ROLES.includes(requested))
-  );
-}
-
-/**
- * Whether `actor` may invite someone into `role`: an admin invites viewers and
- * members, a super-admin also admins, and no invitation grants super-admin
- * (`organization-onboarding` spec, "Invitations are bound and single use";
- * `organization_invitation.role` refuses it too). Issuing, revoking and
- * accepting an invitation are onboarding's (task 4.4); this is the authority
- * they check.
- *
- * Proof: letting an admin invite any role made `lets an admin invite viewers
- * and members, a super-admin also admins, and nobody super-admins` fail, and
- * so did dropping the super-admin refusal; watched 2026-09-27.
- */
-export function mayInvite(actor: OrganizationRole, role: OrganizationRole): boolean {
-  if (role === 'super_admin') return false;
-  if (actor === 'super_admin') return true;
-  return actor === 'admin' && ORDINARY_ROLES.includes(role);
-}
-
-/**
- * How the scoped user's write to a project is authorized: `ordinary` under
- * the role and restricted-creator rules, `recovery` for a super-admin's
- * write to a restricted project someone else created, which is permitted
- * only as an audited act in the write's own transaction, and `refused`
- * otherwise. Any restricted project qualifies, whether or not its creator is
- * still a member; the creator stays recorded.
- *
- * Proof: answering `ordinary` for the super-admin case made `calls a
- * super-admin's edit of someone else's restricted project a recovery` in
- * `organization-access.test.ts` fail; watched 2026-09-27.
- */
-export function classifyProjectEdit(
-  project: ProjectOwnership,
-  scope: OrganizationScope,
-): 'ordinary' | 'recovery' | 'refused' {
-  if (canEditProjectInOrganization(project, scope)) return 'ordinary';
-  if (scope.role === 'super_admin' && project.restricted) return 'recovery';
-  return 'refused';
 }

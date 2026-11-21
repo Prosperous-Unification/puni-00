@@ -24,7 +24,11 @@ async function fixture(push?: () => Promise<Response>, onCaptured?: () => void) 
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'package.manage_settings',
+  ]);
   harness.bind('ada', 'org-a');
   harness.activate();
   const create = async (name: string) => {
@@ -44,7 +48,11 @@ async function fixture(push?: () => Promise<Response>, onCaptured?: () => void) 
   const tail = await create('Tail');
   const unrelated = await create('Unrelated');
   harness.organization('org-b');
-  harness.member('org-b', 'ada', 'member');
+  harness.member('org-b', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-b', 'ada', [
+    'organization.create_project',
+    'package.manage_settings',
+  ]);
   harness.bind('ada', 'org-b');
   const foreign = await create('Protected foreign name');
   const foreignTail = await create('Protected foreign successor');
@@ -258,6 +266,7 @@ it.each([false, true])(
           [project.rowId, project.stepId],
         );
     }
+    harness.grantPermissions('org-a', 'ada', ['organization.manage_spaces']);
     const move = (id: string, afterProjectId: string | null) =>
       harness.call('ada', 'POST', `/api/organization/projects/${id}/rank`, { afterProjectId });
     const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Unrelated' });

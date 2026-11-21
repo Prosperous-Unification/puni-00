@@ -22,9 +22,9 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['org-admin']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
+  h.member('org-b', 'grace', 'member', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
@@ -94,7 +94,19 @@ afterEach(() => {
 async function create(username: string, name: string): Promise<string> {
   const answer = await h.call(username, 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  if (
+    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
+      ?.state === 'activated'
+  )
+    h.grant(
+      username === 'grace' ? 'org-b' : 'org-a',
+      username,
+      'package-manager',
+      'work_package',
+      projectId,
+    );
+  return projectId;
 }
 
 /**

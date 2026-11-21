@@ -53,6 +53,11 @@ export default defineConfig({
         '../../../libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts',
       ),
       '@': resolve(__dirname, 'src'),
+      // Proof: omitting this leaf failed real app/suite alias parity; observed RED/GREEN, 2026-11-09.
+      '@wbs/domain/access-role': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/access-role.ts',
+      ),
       '@wbs/domain/typed-dependency': resolve(
         __dirname,
         '../../../libs/wbs/domain/domain/src/typed-dependency.ts',

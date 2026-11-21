@@ -563,3 +563,31 @@ it('a terminal Retry refusal waits for authoritative reconciliation before relea
   expect(await pending).toBe('refused');
   expect(recorded.busyChanges).toEqual([true, false]);
 });
+
+it.each(['postApiProjectsByIdUndo', 'postApiProjectsByIdRedo'] as const)(
+  'reports unavailable older history from %s without retry or reread',
+  async (operation) => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter(recorded.host);
+    let requests = 0;
+    expect(
+      await writer.run(async (write) => {
+        await write.perform(['tree'], () => {
+          requests += 1;
+          return Promise.reject(
+            new WbsRequestError({
+              kind: 'refusal',
+              operation,
+              refusal: { error: 'replay_provenance_unavailable', detail: null },
+            }),
+          );
+        });
+      }),
+    ).toBe('refused');
+    expect(requests).toBe(1);
+    expect(recorded.rereads).toEqual([]);
+    expect(recorded.refusals).toEqual([
+      { sentence: 'Undo and redo are unavailable for this older history entry.' },
+    ]);
+  },
+);

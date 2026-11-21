@@ -1,8 +1,8 @@
+import type { Permission } from '@wbs/domain';
 import {
   cleanName,
   decideMeasureCreate,
   decideMeasurePatch,
-  mayDefineMeasuresInOrganization,
   type MeasureDefinition,
   type MeasureDefinitionPatch,
   type MeasureDefinitionRefusal,
@@ -12,9 +12,11 @@ import {
   refuseMeasureRemoval,
 } from '@wbs/domain';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type { Clock } from '../../ports/clock';
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { ResourceAccess } from '../../ports/organization-access';
+import { authorize } from '../../service/authorize';
 
 /**
  * Why a measure definition read or write was refused (`wbs-measure-budgets`
@@ -41,7 +43,8 @@ export type MeasureRefusalReason =
 
 /** What a measure definition read or write answered. */
 export type MeasureOutcome<T> =
-  { ok: true; value: T } | { ok: false; reason: MeasureRefusalReason };
+  | { ok: true; value: T }
+  | { ok: false; reason: MeasureRefusalReason; readonly permission?: Permission };
 
 /**
  * A create as the command boundary normalized it: key, unit, kind, scale,
@@ -62,6 +65,7 @@ export interface MeasureInput {
 }
 
 export interface MeasureDefinitionsOptions {
+  readonly accessDecisions?: AccessDecisions;
   directory: DirectoryStore;
   clock: Clock;
   /**
@@ -113,7 +117,9 @@ export class MeasureDefinitions {
     // Proof: with this refusal skipped, `refuses a member every definition
     // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
     // answered the member's createMeasure 200; watched 2026-10-24.
-    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
+    // Proof: dropping permission failed the corresponding actual borrowed measure creation/patch/removal denial, 2026-11-09.
+    if (!(await mayDefineMeasures(this.opts.accessDecisions, access)))
+      return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
     const owner = await this.ownerOf(access);
     if (owner === null) return { ok: false, reason: 'organization_required' };
     const name = cleanName(input.name);
@@ -158,7 +164,9 @@ export class MeasureDefinitions {
     // Proof: with this refusal skipped, `refuses a member every definition
     // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
     // answered the member's patchMeasure 200; watched 2026-10-24.
-    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
+    // Proof: dropping permission failed the corresponding actual borrowed measure creation/patch/removal denial, 2026-11-09.
+    if (!(await mayDefineMeasures(this.opts.accessDecisions, access)))
+      return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
     if (Object.values(patch).every((value) => value === undefined))
       return { ok: false, reason: 'nothing_to_change' };
     const owner = await this.ownerOf(access);
@@ -195,7 +203,9 @@ export class MeasureDefinitions {
     // write, an admin and a super-admin allowed` (measure-organization.controller.db.test.ts)
     // answered the member's deleteMeasure of tokens 409 measure_in_use instead
     // of 403; watched 2026-10-24.
-    if (!mayDefineMeasures(access)) return { ok: false, reason: 'forbidden' };
+    // Proof: dropping permission failed the corresponding actual borrowed measure creation/patch/removal denial, 2026-11-09.
+    if (!(await mayDefineMeasures(this.opts.accessDecisions, access)))
+      return { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
     const owner = await this.ownerOf(access);
     if (owner === null) return { ok: false, reason: 'organization_required' };
     const target = (await this.opts.directory.listMeasures(owner)).find(
@@ -236,9 +246,21 @@ export class MeasureDefinitions {
 
 /**
  * Whether `access` may write measure definitions (design D70): under scoped
- * access an admin or a super-admin; legacy access carries no role, and every
- * legacy caller already writes the whole directory, so it may.
+ * access requires organization.manage_directory from the admitted grant port.
+ * Legacy access retains deployment-wide writes.
  */
-function mayDefineMeasures(access: ResourceAccess): boolean {
-  return access.kind === 'legacy' || mayDefineMeasuresInOrganization(access.scope.role);
+async function mayDefineMeasures(
+  decisions: AccessDecisions | undefined,
+  access: ResourceAccess,
+): Promise<boolean> {
+  if (access.kind === 'legacy') return true;
+  // Proof: measure-grant fault failed 'borrowed directory measure' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+  return (
+    await authorize(
+      decisions,
+      access.principal,
+      { kind: 'organization', organizationId: access.scope.organizationId },
+      'organization.manage_directory',
+    )
+  ).ok;
 }

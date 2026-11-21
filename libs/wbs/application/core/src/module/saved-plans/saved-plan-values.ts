@@ -1,3 +1,4 @@
+import type { Permission } from '@wbs/domain';
 import type { PlanDiff, PlanSide } from '@wbs/domain';
 
 import type { SavedComparisonSide } from './saved-plan-comparison';
@@ -154,6 +155,6 @@ export type SavedPlanTouchResult =
    */
   | { readonly outcome: 'touched'; readonly projectId: string }
   | { readonly outcome: 'not_found' }
-  | { readonly outcome: 'forbidden' }
+  | { readonly outcome: 'forbidden'; readonly permission?: Permission }
   /** Another connection held the write lock. Nothing changed; a retry may succeed. */
   | { readonly outcome: 'snapshot_busy' };

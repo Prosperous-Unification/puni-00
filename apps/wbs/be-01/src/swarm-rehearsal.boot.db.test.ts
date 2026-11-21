@@ -669,6 +669,8 @@ describe('a swarm of two fleets on one plan', () => {
     ]);
     expect(activation()).toBe('activated');
     ids.organizationId = activated.organization.id;
+    h.grant(ids.organizationId, 'dany', 'org-super-admin');
+    h.grant(ids.organizationId, 'ada', 'project-contributor');
     sessions.set('dany', await select(h.token('dany'), ids.organizationId));
     sessions.set('ada', await select(h.token('ada'), ids.organizationId));
 
@@ -704,6 +706,10 @@ describe('a swarm of two fleets on one plan', () => {
       const { id, key } = issued.body as { id?: string; key?: string };
       if (issued.status !== 201 || id === undefined || key === undefined)
         throw new Error(`the ${fleet} key was refused: ${JSON.stringify(issued)}`);
+      h.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'machine_credential',?,'project-contributor','route',1)",
+        ['fleet-' + id, ids.organizationId, ids.organizationId, id],
+      );
       fleetCredentials.set(fleet, id);
       fleetKeys.set(fleet, key);
       // `wbs-mcp-agent-surface` M9: the key itself is no `/api` bearer.

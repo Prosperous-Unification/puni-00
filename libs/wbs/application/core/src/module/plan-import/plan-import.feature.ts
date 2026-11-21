@@ -5,8 +5,8 @@ import {
   decideMeasureCreate,
   definitionsOrUnowned,
   type LimitCrossed,
-  mayDefineMeasuresInOrganization,
   type MeasureDefinition,
+  type Permission,
 } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
@@ -67,6 +67,7 @@ export interface ImportSourceRefusal {
 export interface ImportForbidden {
   ok: false;
   code: 'forbidden';
+  readonly permission?: Permission;
   /** The whole document: nothing in it was read. */
   path: '';
   detail: null;
@@ -224,8 +225,18 @@ async function resolveMeasures(
     // Proof: with this refusal skipped, `refuses a member's import that would
     // define a measure, writing nothing` (measure-export.controller.db.test.ts)
     // answered 201 with gpu_minutes defined; watched 2026-10-24.
-    if (access.kind === 'scoped' && !mayDefineMeasuresInOrganization(access.scope.role))
-      return { ok: false, refusal: { ok: false, code: 'forbidden', path: '', detail: null } };
+    // Proof: import-measure-grant fault failed 'import defining measure rows' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (access.kind === 'scoped' && !(await writes.mayDefineDirectory()))
+      return {
+        ok: false,
+        refusal: {
+          ok: false,
+          code: 'forbidden',
+          path: '',
+          detail: null,
+          permission: 'organization.manage_directory',
+        },
+      };
     if (definition.derived) return refused(`${path}.derived`, 'derived_measure');
     const measure: MeasureDefinition = { id: newId(), ...definition };
     const decided = decideMeasureCreate(held, measure);
@@ -241,7 +252,9 @@ async function resolveMeasures(
 async function resolveNamed(
   entries: ReadonlyMap<string, PreparedNamedEntry>,
   existing: Map<string, string>,
-  create: (name: string) => Promise<{ id: string } | null>,
+  create: (
+    name: string,
+  ) => Promise<{ ok: true; value: { id: string } } | { ok: false; reason: string }>,
 ): Promise<Map<string, string>> {
   const resolved = new Map<string, string>();
   for (const entry of entries.values()) {
@@ -251,8 +264,8 @@ async function resolveNamed(
       continue;
     }
     const created = await create(entry.name);
-    if (created === null) throw new Error(`prepared directory name became invalid: ${entry.name}`);
-    resolved.set(entry.fileId, created.id);
+    if (!created.ok) throw new Error(`prepared directory creation was refused: ${created.reason}`);
+    resolved.set(entry.fileId, created.value.id);
   }
   return resolved;
 }
@@ -291,6 +304,8 @@ export class ImportService {
    * `Release` tag instead of resolving A's own; watched 2026-09-27.
    */
   async import(document: PlanDocumentImport, caller: CommandCaller): Promise<ImportOutcome> {
+    // Proof: removing this snapshot admitted owning-account grants after queued machine evidence removal; queued import admission fault/restored pass, 2026-11-09.
+    caller = structuredClone(caller);
     // Proof: omitting this guard let the direct read-scope integration import enter the writer and commit (2026-10-22).
     if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
       return { ok: false, error: 'insufficient_scope' };
@@ -300,7 +315,13 @@ export class ImportService {
     const collector = new AnnouncementCollector(this.opts.announcements);
     const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
       caller,
-      { ok: false, code: 'forbidden', path: '', detail: null },
+      (permission) => ({
+        ok: false,
+        code: 'forbidden',
+        path: '',
+        detail: null,
+        ...(permission === undefined ? {} : { permission }),
+      }),
       collector,
       async ({ writes, services: graph }, access) => {
         const external = preparation.value.externalDependencies.at(0);
@@ -356,6 +377,18 @@ export class ImportService {
           importsNewName(prepared.typeByFileId, types) ||
           importsNewName(prepared.externalSystemByFileId, systems) ||
           importsNewName(prepared.resourceByFileId, resources);
+        // Proof: import-directory-grant fault failed 'import defining directory rows' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+        if (directoryChanged && !(await writes.mayDefineDirectory()))
+          return {
+            commit: false,
+            value: {
+              ok: false,
+              code: 'forbidden',
+              path: '',
+              detail: null,
+              permission: 'organization.manage_directory',
+            },
+          };
         const servicesByFileId = await resolveNamed(
           prepared.serviceByFileId,
           existingIds(services),
@@ -370,7 +403,7 @@ export class ImportService {
             continue;
           }
           const created = await directory.addWithin('teams', actorId, team.name, access);
-          if (created === null) throw new Error(`prepared team name became invalid: ${team.name}`);
+          if (!created.ok) throw new Error(`prepared team creation was refused: ${created.reason}`);
           const serviceIds = team.serviceFileIds.map((fileId) => {
             const id = servicesByFileId.get(fileId);
             if (id === undefined)
@@ -378,13 +411,13 @@ export class ImportService {
             return id;
           });
           const patched = await directory.patchTeamWithin(
-            created.id,
+            created.value.id,
             actorId,
             { serviceIds },
             access,
           );
           if (!patched.ok) throw new Error(`created team metadata was refused: ${patched.reason}`);
-          teamsByFileId.set(team.fileId, created.id);
+          teamsByFileId.set(team.fileId, created.value.id);
         }
         const heldPeople = existingIds(people);
         const peopleByFileId = new Map<string, string>();

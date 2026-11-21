@@ -34,8 +34,9 @@ const AGENT = 'codex';
 const RUNS = ['a', 'b', null] as const;
 type Run = (typeof RUNS)[number];
 const admin: ResourceAccess = {
+  principal: { id: 'dany' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'dany', role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'dany' },
 };
 
 /** Verified-principal fixture: preserve the same person's optional run in command admission. */
@@ -84,6 +85,9 @@ async function openWorld(clock: { now: number }) {
   opened.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
   opened.db.run(
     sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'admin', 1)`,
+  );
+  opened.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('race-dany','org-a','organization','org-a','user','dany','org-admin','route',1),('race-credential','org-a','organization','org-a','machine_credential','fixture-credential','project-contributor','route',1)`,
   );
   opened.db.run(
     sql`INSERT INTO person (id, name, kind, account_id) VALUES (${AGENT}, ${AGENT}, 'agent', 'dany')`,

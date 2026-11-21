@@ -15,7 +15,22 @@ const member = (userId: string, username: string, role: string, email: string | 
   userId,
   username,
   email,
-  role,
+  effectiveRole:
+    role === 'none'
+      ? null
+      : {
+          permissions: ['organization.read'],
+          via: [
+            {
+              scopeKind: 'organization',
+              scopeId: 'org',
+              subjectKind: 'user',
+              subjectId: userId,
+              roleId: role === 'super_admin' ? 'org-super-admin' : 'org-viewer',
+            },
+          ],
+        },
+  grantCount: role === 'none' ? 0 : 2,
   createdAt: 1,
 });
 
@@ -58,23 +73,35 @@ describe('members', () => {
     );
   });
 
-  it('changes a role to the chosen one and re-reads the list', async () => {
-    const sent = stubServer({
+  it('shows effective organization access and grant counts without a membership role editor', async () => {
+    stubServer({
       'GET /api/organization/members': [
-        () => answer(200, { members: [member('u2', 'vic', 'viewer')] }),
-        () => answer(200, { members: [member('u2', 'vic', 'member')] }),
-      ],
-      'PATCH /api/organization/members/u2': [
-        () => answer(200, { membership: { userId: 'u2', role: 'member' } }),
+        () =>
+          answer(200, {
+            members: [member('u1', 'sam', 'super_admin'), member('u2', 'vic', 'none')],
+          }),
       ],
     });
     renderPanel();
-    const change = await screen.findByRole('button', { name: 'Change the role of vic' });
-    expect(change).toHaveProperty('disabled', true);
-    fireEvent.change(screen.getByLabelText('Role for vic'), { target: { value: 'member' } });
-    fireEvent.click(change);
-    expect(await screen.findByText('vic is now Member.')).toBeDefined();
-    expect(sent.find((call) => call.route.startsWith('PATCH'))?.body).toEqual({ role: 'member' });
+    expect(await screen.findByText('org-super-admin')).toBeDefined();
+    expect(screen.getByText('2 access grants')).toBeDefined();
+    expect(screen.getByText('No organization role')).toBeDefined();
+    expect(screen.getByText('0 access grants')).toBeDefined();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Change.*role/ })).toBeNull();
+  });
+
+  it('renders a named missing member permission', async () => {
+    stubServer({
+      'GET /api/organization/members': [
+        () => answer(403, { error: 'forbidden', permission: 'organization.read' }),
+      ],
+    });
+    renderPanel();
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Missing permission: organization.read.',
+    );
   });
 
   it('removes only after confirmation', async () => {
@@ -102,11 +129,11 @@ describe('members', () => {
       'GET /api/organization/members': [
         () => answer(200, { members: [member('u1', 'sam', 'super_admin')] }),
       ],
-      'PATCH /api/organization/members/u1': [() => answer(status, { error })],
+      'DELETE /api/organization/members/u1': [() => answer(status, { error })],
     });
     renderPanel();
-    fireEvent.change(await screen.findByLabelText('Role for sam'), { target: { value: 'admin' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Change the role of sam' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove sam' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm removing sam' }));
     expect(await screen.findByRole('status')).toHaveProperty('textContent', copy);
   });
 

@@ -26,7 +26,8 @@ beforeEach(async () => {
 async function populate(): Promise<void> {
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.activate();
   const created = await h.call('ada', 'POST', '/api/projects', { name: 'Rewire the shed' });
@@ -187,7 +188,7 @@ describe('public step blockage commands over mounted SQLite', () => {
   );
   it('refuses a viewer and another organization before an equivalent clear', async () => {
     await h.register('bea');
-    h.member('org-a', 'bea', 'viewer');
+    h.member('org-a', 'bea', 'viewer', ['org-viewer']);
     h.bind('bea', 'org-a');
     const before = snapshot();
     expect(
@@ -199,7 +200,8 @@ describe('public step blockage commands over mounted SQLite', () => {
     ).toBe(403);
     expect(snapshot()).toEqual(before);
     h.organization('org-b');
-    h.member('org-b', 'bea', 'member');
+    h.member('org-b', 'bea', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org-b', 'bea', ['organization.create_project']);
     h.bind('bea', 'org-b');
     expect(
       (

@@ -1,5 +1,3 @@
-import type { OrganizationRole } from './stored-vocabularies';
-
 /** Where a machine credential's proof comes from (`wbs-machine-credentials` A3, A8, A21). */
 export type MachineCredentialSource = 'api_key' | 'oidc' | 'mcp_consent';
 
@@ -28,10 +26,10 @@ export interface MachineCredentialRecord {
   /** `person.account_id` read now; null when the person was unbound. */
   readonly boundAccountId: string | null;
   /**
-   * The bound account's role in the credential's organization, read now; null
-   * when the person is unbound or the account is no member there.
+   * Whether the bound account is a current member of this credential's own
+   * organization. Membership labels never determine credential authority.
    */
-  readonly boundAccountRole: OrganizationRole | null;
+  readonly boundAccountIsMember: boolean;
   readonly revokedAt: number | null;
   /**
    * When the credential stops admitting (an agent pool's `expiresAt`,
@@ -74,8 +72,8 @@ export interface MachineActor {
   readonly accountId: string;
   readonly organizationId: string;
   readonly personId: string;
-  /** {@link MachineCredentialRecord.boundAccountRole}, as admission read it. */
-  readonly accountRole: OrganizationRole | null;
+  /** {@link MachineCredentialRecord.boundAccountIsMember}, as admission read it. */
+  readonly accountIsMember: boolean;
   readonly scopes: typeof MACHINE_SCOPES;
 }
 
@@ -183,7 +181,7 @@ export function admitMachineCredential(
       accountId: credential.boundAccountId,
       organizationId: credential.organizationId,
       personId: credential.personId,
-      accountRole: credential.boundAccountRole,
+      accountIsMember: credential.boundAccountIsMember,
       scopes: MACHINE_SCOPES,
     },
     proofExpiresAt: proof.expiresAt,
@@ -241,7 +239,9 @@ function matchesProof(
         credential.id === presented.credentialId &&
           credential.personId === presented.personId &&
           credential.organizationId === presented.organizationId &&
-          credential.boundAccountRole !== null,
+          // Proof: grant-current-member; bypassed current membership refusal.
+          // 'refuses a nonmember grant before reading its absent account' (machine-key.test.ts) failed; restored GREEN, 2026-11-10.
+          credential.boundAccountIsMember,
       );
   }
 }

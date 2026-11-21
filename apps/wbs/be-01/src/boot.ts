@@ -15,7 +15,6 @@ import {
   AgentPoolRepository,
   computeProvidersOver,
   ConsentCredentialRepository,
-  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
@@ -31,6 +30,7 @@ import {
   OrganizationLimitsRepository,
   OrganizationRepository,
   ProvisioningTokenRepository,
+  readMembershipIn,
   readOrganizationActivation,
   ScimUserRepository,
   SessionPolicyRepository,
@@ -330,7 +330,7 @@ function mcpDelegationComposition(
         access.credentialFactsOf(principal, organizationId),
       mappedUserOf,
       isMember: (userId, organizationId) =>
-        Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+        Promise.resolve(readMembershipIn(db, organizationId, userId) !== null),
       activationState: () => readOrganizationActivation(db),
       signingKey: keys?.signingKey ?? null,
       consents: new ConsentCredentialRepository(db, services.gate),
@@ -755,6 +755,8 @@ export async function bootBe01(
               organizationLimits: new OrganizationLimitsRepository(
                 db,
                 opts.organizationDefaultLimits,
+                // Proof: limits-boot-gate-dependency failed `serves the organization limits with the configured defaults once activated` with the injected fault; restored GREEN.
+                services.gate,
               ),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
@@ -809,6 +811,7 @@ export async function bootBe01(
               // left the cold boot rank move without its second durable a2 event
               // in boot.db.test.ts (R5 boot-rank-binding).
               projectRanks: services.projectRanks,
+              accessDecisions: services.accessDecisions,
               // Proof: retaining the refusing sink made boot's real-TLS challenge test answer503 instead of201.
               emailDelivery,
               steps: services.steps,

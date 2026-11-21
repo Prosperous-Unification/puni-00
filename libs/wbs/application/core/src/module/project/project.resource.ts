@@ -1,7 +1,6 @@
+import type { Permission } from '@wbs/domain';
 import {
   canEditProject,
-  canWriteInOrganization,
-  classifyProjectEdit,
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   isTimezone,
@@ -11,6 +10,7 @@ import {
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
+import type { AccessDecisions } from '../../ports/access-decisions';
 import type { Clock } from '../../ports/clock';
 import {
   type ServiceDependencyContext,
@@ -20,7 +20,6 @@ import type { BeforeProjectUpdate } from '../../ports/fanout-capture-store';
 import {
   findProjectWithin,
   LEGACY_ACCESS as LEGACY,
-  mayEditProjectWithin,
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
@@ -38,6 +37,7 @@ import type {
 } from '../../ports/project-store';
 import { isBudgetFactor } from '../../ports/project-values';
 import type { OptimizerAvailability } from '../../ports/scheduler';
+import { authorize, authorizePackage, authorizePackageSettings } from '../../service/authorize';
 
 export type {
   ProjectWithSteps,
@@ -59,6 +59,7 @@ export type UpdateOutcome =
   | { ok: true; value: ZonedProject }
   | {
       ok: false;
+      readonly permission?: Permission;
       reason:
         | 'invalid_abbreviation'
         | 'abbreviation_taken'
@@ -91,20 +92,23 @@ export type UpdateOutcome =
         | 'dependency_cycle';
     };
 
-/** A scoped viewer may not create; legacy access and every writing role may. */
+/** Scoped creation requires current organization.create_project; legacy access retains its existing admission. */
 export type CreateOutcome =
   | { ok: true; value: ProjectWithSteps }
   | {
       ok: false;
+      readonly permission?: Permission;
       reason:
         'forbidden' | 'invalid_abbreviation' | 'abbreviation_taken' | 'abbreviation_exhausted';
     };
 
 /** Whether the caller may write `project`, found through the caller's access. */
 export type EditAuthorization =
-  { ok: true; project: Project } | { ok: false; reason: 'not_found' | 'forbidden' };
+  | { ok: true; project: Project }
+  | { ok: false; reason: 'not_found' | 'forbidden'; readonly permission?: Permission };
 
 export interface ProjectServiceOptions {
+  readonly accessDecisions?: AccessDecisions;
   projects: ProjectStore;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
@@ -195,8 +199,23 @@ export class ProjectService {
     access: ResourceAccess,
     abbreviation?: string,
   ): Promise<CreateOutcome> {
-    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
-      return { ok: false, reason: 'forbidden' };
+    if (access.kind === 'scoped') {
+      // Proof: removing this invariant reached grant reads and accepted a different owner in the actual direct project-creation negative, 2026-11-09.
+      // Proof: direct-project-owner fault failed 'direct project creation names another owner' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      if (access.principal.id !== ownerId || access.scope.userId !== ownerId)
+        throw new Error('project creation principal differs from its owner');
+      // Proof: project-create-grant fault failed 'missing permission on the direct package creation route' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      const decision = await authorize(
+        this.opts.accessDecisions,
+        access.principal,
+        { kind: 'organization', organizationId: access.scope.organizationId },
+        'organization.create_project',
+      );
+      if (!decision.ok) {
+        if (decision.reason === 'not_found')
+          throw new Error('organization creation authorization returned not_found');
+        return decision;
+      }
     }
     const parsed = abbreviation === undefined ? undefined : parseProjectAbbreviation(abbreviation);
     if (parsed !== undefined && !parsed.ok) return parsed;
@@ -347,17 +366,31 @@ export class ProjectService {
     return { project: await this.zoned(project), steps: await this.opts.projects.stepsOf(id) };
   }
 
-  /**
-   * Checks the Retry route before computing its schedule input. A scoped
-   * super-admin can pass the read for a restricted project; the optimizer's
-   * immediate transaction reclassifies any accepted retry and records its
-   * recovery there. Legacy access keeps the creator rule.
-   *
-   * Proof: returning the legacy `canEditProject` answer for scoped access (now
-   * inside `mayEditProjectWithin`) failed
-   * `refuses a viewer every project write and lets the viewer read and open` in
-   * `project-organization.controller.db.test.ts`; watched 2026-09-27.
-   */
+  /** Current package.write authority for dependent writes such as saved-plan capture; legacy access retains its creator rule. */
+  async authorizeWrite(
+    id: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<EditAuthorization> {
+    const project = await this.find(id, access);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (access.kind === 'legacy')
+      // Proof: legacy-project-write; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-write' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+      return canEditProject(project, actorId)
+        ? { ok: true, project }
+        : { ok: false, reason: 'forbidden' };
+    // Proof: saved-capture-service-grant fault failed 'borrowed saved-capture authorization' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    const decision = await authorizePackage(
+      this.opts.accessDecisions,
+      access,
+      project,
+      actorId,
+      'package.write',
+    );
+    return decision.ok ? { ok: true, project } : decision;
+  }
+
   async authorizeRetry(
     id: string,
     actorId: string,
@@ -365,12 +398,21 @@ export class ProjectService {
   ): Promise<EditAuthorization> {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    return mayEditProjectWithin(project, actorId, access) ||
-      (access.kind === 'scoped' &&
-        access.scope.userId === actorId &&
-        access.scope.role === 'super_admin')
-      ? { ok: true, project }
-      : { ok: false, reason: 'forbidden' };
+    if (access.kind === 'legacy')
+      // Proof: legacy-project-retry; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-retry' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+      return canEditProject(project, actorId)
+        ? { ok: true, project }
+        : { ok: false, reason: 'forbidden' };
+    // Proof: retry-service-grant fault failed 'contributor retry without' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    const decision = await authorizePackage(
+      this.opts.accessDecisions,
+      access,
+      project,
+      actorId,
+      'package.manage_settings',
+    );
+    return decision.ok ? { ok: true, project } : decision;
   }
 
   /**
@@ -467,19 +509,21 @@ export class ProjectService {
     }
     const found = await this.find(id, access);
     if (found === null) return { ok: false, reason: 'not_found' };
-    // Under scoped access a super-admin may also recover a restricted project
-    // someone else created, as an audited act (task 3.7); every other write
-    // family still refuses it through `mayEditProjectWithin`.
-    // Proof: refusing the recovery made `recovers a restricted project as an
-    // audited super-admin edit` in `project-organization.controller.db.test.ts`
-    // answer 403; watched 2026-09-27.
-    const edit =
-      access.kind === 'scoped'
-        ? classifyProjectEdit(found, access.scope)
-        : mayEditProjectWithin(found, actorId, access)
-          ? 'ordinary'
-          : 'refused';
-    if (edit === 'refused') return { ok: false, reason: 'forbidden' };
+    // Scoped settings use current grants; the only recovery is an exact
+    // restricted:false patch, recorded by the owning repository.
+    if (access.kind === 'scoped') {
+      // Proof: project-settings-grant fault failed 'borrowed project settings before reaching' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      const decision = await authorizePackageSettings(
+        this.opts.accessDecisions,
+        access.principal,
+        access.scope.organizationId,
+        found,
+        patch,
+      );
+      if (!decision.ok) return decision;
+      // Proof: legacy-project-settings; bypassed the legacy creator refusal.
+      // 'retains the legacy restricted creator refusal at project-settings' (admission.test.ts) failed; restored GREEN, 2026-11-10.
+    } else if (!canEditProject(found, actorId)) return { ok: false, reason: 'forbidden' };
     return withDependencyContext(
       this.opts.dependencyContext,
       id,
@@ -510,7 +554,7 @@ export class ProjectService {
           if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
         }
         if (this.opts.beforeUpdate !== undefined) {
-          const observed = await this.opts.beforeUpdate(id, actorId, access);
+          const observed = await this.opts.beforeUpdate(id, actorId, access, patch);
           if (!observed.ok) return observed;
         }
         dependencyContext.assertUsable(id, actorId);
@@ -526,7 +570,11 @@ export class ProjectService {
                 patch,
                 stamp,
                 access.scope.organizationId,
-                { actorId, auditId: this.clock.newId(), role: access.scope.role },
+                {
+                  actorId,
+                  auditId: this.clock.newId(),
+                  principal: access.principal,
+                },
               );
         // The in-transaction classification refused: demoted, or the project
         // changed hands or restriction, since the request was read.

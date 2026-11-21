@@ -1,4 +1,4 @@
-import type { MachineActor, OrganizationRole } from '@wbs/domain';
+import { MACHINE_SCOPES, type MachineActor } from '@wbs/domain';
 
 /**
  * The longest a machine grant lives (`wbs-mcp-agent-surface` M3, M4): mcp-01's
@@ -42,8 +42,8 @@ export interface MachineGrantTerms {
  *   secret expiry)`, floored to a whole second: be-01 is the one owner of the
  *   lifetime, an OIDC grant never outlives its assertion, and a key's grant
  *   never outlives the rotated secret that minted it.
- * - Scopes come from the credential's account role, never from the request:
- *   `read` for a `viewer`, `read write` otherwise.
+ * - Fresh scopes are the fixed read/write {@link MACHINE_SCOPES} envelope.
+ *   Actual operations still require the credential's own grants under the contributor cap.
  * - The run is carried through as asked; none is never defaulted.
  *
  * `unknown_identity` when the account is no member of the credential's
@@ -55,7 +55,9 @@ export function machineGrantTermsOf(
   request: MachineGrantBounds,
   now: number,
 ): MachineGrantTerms | 'unknown_identity' | 'no_lifetime' {
-  if (actor.accountRole === null) return 'unknown_identity';
+  // Proof: terms-current-member; bypassed current membership refusal.
+  // 'uses fixed machine scopes for current members and refuses missing membership' (machine-grant.test.ts) failed; restored GREEN, 2026-11-10.
+  if (!actor.accountIsMember) return 'unknown_identity';
   const issuedAt = Math.floor(now / 1000);
   // Proof: with the secret term dropped, `never outlives the rotated secret
   // that minted it` (be-01 machine-grant.controller.db.test.ts) issued the
@@ -75,18 +77,13 @@ export function machineGrantTermsOf(
     personId: actor.personId,
     organizationId: actor.organizationId,
     accountId: actor.accountId,
-    scopes: machineGrantScopesOf(actor.accountRole),
+    // Proof: machine-issue-envelope; narrowed the fresh envelope to read only.
+    // 'issues the fixed machine envelope independently of a viewer compatibility label' (machine-grant.controller.db.test.ts) failed; restored GREEN, 2026-11-10.
+    // Proof: machine-issue-fresh-array; returned shared MACHINE_SCOPES instead of a fresh array.
+    // 'keeps later machine grant terms independent of a previously returned scope array' (machine-grant.test.ts) failed; restored GREEN, 2026-11-10.
+    scopes: [...MACHINE_SCOPES],
     runId: request.runId,
     issuedAt,
     expiresAt,
   };
-}
-
-/**
- * The scopes a machine grant carries, from its credential's account role
- * alone (M3): `read` for a `viewer`, `read write` for every other role, never
- * `editor`.
- */
-export function machineGrantScopesOf(role: OrganizationRole): readonly ('read' | 'write')[] {
-  return role === 'viewer' ? ['read'] : ['read', 'write'];
 }

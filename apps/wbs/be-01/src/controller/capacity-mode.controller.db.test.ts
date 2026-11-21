@@ -22,7 +22,9 @@ const MODE = '/api/organization';
 async function create(name: string): Promise<string> {
   const answer = await h.call('ada', 'POST', '/api/projects', { name });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { project: { id: string } }).project.id;
+  const projectId = (answer.body as { project: { id: string } }).project.id;
+  h.grant('org-a', 'ada', 'package-manager', 'work_package', projectId);
+  return projectId;
 }
 
 async function plan(projectId: string): Promise<void> {
@@ -91,10 +93,10 @@ beforeEach(async () => {
 async function populate(): Promise<void> {
   for (const username of ['sam', 'ada', 'mel', 'vic']) await h.register(username);
   h.organization('org-a');
-  h.member('org-a', 'sam', 'super_admin');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-a', 'mel', 'member');
-  h.member('org-a', 'vic', 'viewer');
+  h.member('org-a', 'sam', 'super_admin', ['org-super-admin']);
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-a', 'mel', 'member', ['project-contributor']);
+  h.member('org-a', 'vic', 'viewer', ['project-viewer']);
   for (const username of ['sam', 'ada', 'mel', 'vic']) h.bind(username, 'org-a');
   h.activate();
   h.sqlite.run("INSERT INTO person (id, name) VALUES ('pe-a', 'root-Ana')");
@@ -167,7 +169,7 @@ describe('the capacity mode', () => {
       expect({
         username,
         answer: await h.call(username, 'PATCH', MODE, { sharedPeople: true }),
-      }).toEqual({ username, answer: { status: 403, body: { error: 'forbidden' } } });
+      }).toMatchObject({ username, answer: { status: 403, body: { error: 'forbidden' } } });
     }
     expect(await h.call('sam', 'GET', MODE)).toMatchObject({ body: { sharedPeople: false } });
     expect(switches()).toEqual([]);
@@ -176,24 +178,28 @@ describe('the capacity mode', () => {
 
   it('refuses an admin the switch even in a release that supports shared people', async () => {
     await open(SHARED_RELEASE);
-    expect(await h.call('ada', 'PATCH', MODE, { sharedPeople: true })).toEqual({
+    expect(await h.call('ada', 'PATCH', MODE, { sharedPeople: true })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });
     expect(switches()).toEqual([]);
   });
 
-  it('refuses a super-admin demoted after route admission, storing nothing', async () => {
+  it('refuses revoked capacity-mode authority after route admission, storing nothing', async () => {
     let demote = false;
     await open(SHARED_RELEASE, () => {
       if (!demote) return;
+      h.sqlite.run(
+        "UPDATE access_grant SET role_id = 'org-admin' WHERE subject_kind = 'user' AND subject_id = ?",
+        [h.userId('sam')],
+      );
       h.sqlite.run(
         "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('sam')],
       );
     });
     demote = true;
-    expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: true })).toEqual({
+    expect(await h.call('sam', 'PATCH', MODE, { sharedPeople: true })).toMatchObject({
       status: 403,
       body: { error: 'forbidden' },
     });

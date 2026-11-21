@@ -44,8 +44,9 @@ beforeEach(async () => {
   h.organization('org-a');
   h.organization('org-b');
   // An admin: definition writes are an admin's (design D70).
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();

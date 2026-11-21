@@ -59,7 +59,7 @@ for (const corruptAudit of [false, true]) {
       .get();
     if (peer === null) throw new Error('local peer missing');
     await harness.register('grace');
-    harness.member('org-a', 'grace', 'member');
+    harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite
       .query(
         "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
@@ -125,6 +125,13 @@ for (const corruptAudit of [false, true]) {
     ).toBe(403);
     expect(readTables()).toEqual(forbiddenBefore);
     expect(pushes).toEqual(forbiddenPushes);
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.successor.projectId,
+    );
     const readLinks = () =>
       harness.sqlite
         .query<IncidentRow, []>(
@@ -251,7 +258,7 @@ for (const direction of ['undo', 'redo'] as const)
     const fixture = await openFixture({ pushes });
     const route = `/api/projects/${fixture.owner.projectId}`;
     await harness.register('grace');
-    harness.member('org-a', 'grace', 'member');
+    harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite.run(
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
       [fixture.principal.id],
@@ -330,6 +337,13 @@ for (const direction of ['undo', 'redo'] as const)
       );
       return { commit: true, value: undefined };
     });
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.successor.projectId,
+    );
     const compound = await fixture.request(`${route}/commands`, {
       commands: [
         { kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Revoked first child' },
@@ -429,7 +443,7 @@ for (const direction of ['undo', 'redo'] as const)
       await held;
       const response = await pending;
       expect(response.status).toBe(403);
-      expect(await response.json()).toEqual({ error: 'forbidden' });
+      expect(await response.json()).toEqual({ error: 'forbidden', permission: 'package.write' });
       expect(readTables()).toEqual(before);
       expect(readLinks()).toEqual(links);
       expect(readSelected()).toEqual(journal);

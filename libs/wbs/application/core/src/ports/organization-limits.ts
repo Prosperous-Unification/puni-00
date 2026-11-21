@@ -3,7 +3,16 @@ import type {
   OrganizationLimitsSource,
   OrganizationLimitUsage,
   OrganizationLimitValues,
+  Permission,
 } from '@wbs/domain';
+
+import type { SecurityPrincipal } from './security-principal';
+
+/** Named organization permission denial; usage is never included. */
+export interface OrganizationLimitsRefusal {
+  readonly kind: 'forbidden';
+  readonly permission: Permission;
+}
 
 /**
  * Organization limits (`organization-limits`): the caps an organization holds,
@@ -15,13 +24,14 @@ import type {
 export interface OrganizationLimits {
   /**
    * The organization's caps and usage, read in one transaction so they agree
-   * (L8): `inactive` before activation, `forbidden` for anyone but a current
-   * `admin` or `super_admin` of it, who reads no usage.
+   * (L8): `inactive` before activation; the actual authenticated principal needs
+   * current `organization.read`. A named denial carries no usage. The owner
+   * shares the source's gate with operator inspect/set/reset and retains no caller aliases.
    */
   read(
     organizationId: string,
-    actorId: string,
-  ): Promise<OrganizationLimitsReading | 'inactive' | 'forbidden'>;
+    principal: SecurityPrincipal,
+  ): Promise<OrganizationLimitsReading | 'inactive' | OrganizationLimitsRefusal>;
   /**
    * The organization's caps and usage for a host operator (L12), who holds no
    * membership: `inactive` before activation, `unknown_organization` when no

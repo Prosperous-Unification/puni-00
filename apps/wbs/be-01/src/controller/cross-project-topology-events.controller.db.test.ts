@@ -22,7 +22,8 @@ it('mounted topology replacement refreshes separate old and new components atomi
   seedDependencyAuthority(opened.databasePath());
   await opened.register('ada');
   opened.organization('org-a');
-  opened.member('org-a', 'ada', 'member');
+  opened.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  opened.grantPermissions('org-a', 'ada', ['organization.create_project']);
   opened.bind('ada', 'org-a');
   opened.activate();
   const create = async (name: string) => {
@@ -42,7 +43,8 @@ it('mounted topology replacement refreshes separate old and new components atomi
   const newSource = await create('New source');
   const unrelated = await create('Unrelated');
   opened.organization('org-b');
-  opened.member('org-b', 'ada', 'member');
+  opened.member('org-b', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  opened.grantPermissions('org-b', 'ada', ['organization.create_project']);
   opened.bind('ada', 'org-b');
   const foreign = await create('Protected foreign name');
   const foreignTail = await create('Protected foreign tail');

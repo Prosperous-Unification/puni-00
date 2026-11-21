@@ -67,6 +67,7 @@ beforeEach(async () => {
   await harness.register('member');
   harness.organization('org-a');
   harness.member('org-a', 'owner', 'super_admin');
+  harness.grantPermissions('org-a', 'owner', ['organization.manage_security']);
   harness.member('org-a', 'member', 'member');
   harness.bind('owner', 'org-a');
   harness.bind('member', 'org-a');
@@ -135,6 +136,7 @@ describe('mounted organization domain challenges', () => {
   it('releases ownership and requires a fresh claim before another organization can verify', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const owner = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -177,6 +179,7 @@ describe('mounted organization domain challenges', () => {
   it('keeps unrelated pending claims when an owner releases its domain', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const owner = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -203,6 +206,7 @@ describe('mounted organization domain challenges', () => {
   it('rolls back pending proof deletion when owner deletion fails', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const owner = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -297,6 +301,7 @@ describe('mounted organization domain challenges', () => {
   it('retains a suspended owner until release and refuses a stale recovery after release', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const owner = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -326,16 +331,17 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 404, body: { error: 'not_found' } });
   });
 
-  it('refuses release before activation, after demotion, and for a foreign claim', async () => {
+  it('refuses release before activation, after grant revocation, and for a foreign claim', async () => {
     expect(await harness.call('owner', 'DELETE', '/api/organization/domains/missing')).toEqual({
       status: 403,
       body: { error: 'no_active_organization' },
     });
-    expect(await harness.releaseDomainClaim('org-a', harness.userId('owner'), 'missing')).toBe(
-      'inactive',
-    );
+    expect(
+      await harness.releaseDomainClaim('org-a', { id: harness.userId('owner') }, 'missing'),
+    ).toBe('inactive');
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const owner = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -352,12 +358,12 @@ describe('mounted organization domain challenges', () => {
     });
     harness.bind('owner', 'org-a');
     harness.sqlite.run(
-      "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
+      "DELETE FROM access_grant WHERE organization_id = 'org-a' AND subject_id = ?",
       [harness.userId('owner')],
     );
     expect(await harness.call('owner', 'DELETE', `/api/organization/domains/${owner.id}`)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
   });
   it('rotates an owned proof and accepts the old proof only during overlap', async () => {
@@ -471,6 +477,7 @@ describe('mounted organization domain challenges', () => {
     await harness.checkDomains(start + 14 * 86_400_000);
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.bind('owner', 'org-b');
     const contender = (await harness.call('owner', 'POST', path, { domain: 'example.org' }))
       .body as { id: string; dnsValue: string };
@@ -710,14 +717,16 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 500, body: 'Internal Server Error' });
   });
 
-  it('refuses rotation before activation and after super-admin demotion', async () => {
+  it('refuses rotation before activation and after security grant revocation', async () => {
     const planted = 'owned';
     harness.sqlite.run(
       "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, last_checked_at, created_at, updated_at) VALUES (?, 'org-a', 'example.org', 'verified', 'digest', 1, 1, 1, 1)",
       [planted],
     );
     const rotate = `/api/organization/domains/${planted}/rotate`;
-    expect(await harness.rotateDomainClaim('org-a', harness.userId('owner'), planted)).toEqual({
+    expect(
+      await harness.rotateDomainClaim('org-a', { id: harness.userId('owner') }, planted),
+    ).toEqual({
       kind: 'inactive',
     });
     expect(await harness.call('owner', 'POST', rotate)).toEqual({
@@ -726,12 +735,12 @@ describe('mounted organization domain challenges', () => {
     });
     harness.activate();
     harness.sqlite.run(
-      "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
+      "DELETE FROM access_grant WHERE organization_id = 'org-a' AND subject_id = ?",
       [harness.userId('owner')],
     );
     expect(await harness.call('owner', 'POST', rotate)).toEqual({
       status: 403,
-      body: { error: 'forbidden' },
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
     });
     expect(
       harness.sqlite
@@ -750,6 +759,7 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 409, body: { error: 'stale' } });
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.bind('owner', 'org-b');
     expect(
       await harness.call('owner', 'POST', `/api/organization/domains/${pending.id}/rotate`),
@@ -1191,6 +1201,7 @@ describe('mounted organization domain challenges', () => {
   it('refuses an old token, an expired challenge and a foreign claim id', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -1220,6 +1231,7 @@ describe('mounted organization domain challenges', () => {
   it('lets only one pending organization become the verified owner', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -1244,6 +1256,7 @@ describe('mounted organization domain challenges', () => {
     await harness.register('owner-b');
     harness.organization('org-b');
     harness.member('org-b', 'owner-b', 'super_admin');
+    harness.grantPermissions('org-b', 'owner-b', ['organization.manage_security']);
     harness.bind('owner-b', 'org-b');
     harness.activate();
     const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
@@ -1309,7 +1322,7 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 'pending' });
   });
 
-  it('rechecks current super-admin authority after the lookup', async () => {
+  it('rechecks current security grants after the lookup', async () => {
     harness.activate();
     const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -1319,13 +1332,16 @@ describe('mounted organization domain challenges', () => {
     beforeDnsReply = () => {
       beforeDnsReply = undefined;
       harness.sqlite.run(
-        "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
+        "DELETE FROM access_grant WHERE organization_id = 'org-a' AND subject_id = ?",
         [harness.userId('owner')],
       );
     };
     expect(
       await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
-    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    ).toEqual({
+      status: 403,
+      body: { error: 'forbidden', permission: 'organization.manage_security' },
+    });
   });
 
   it('refuses verification when authoritative DNS is unavailable without promoting the claim', async () => {
@@ -1348,7 +1364,7 @@ describe('mounted organization domain challenges', () => {
         .get(),
     ).toEqual({ status: 'pending' });
   });
-  it('is inert until activation and requires current super-admin authority', async () => {
+  it('is inert until activation and requires current security grants', async () => {
     expect((await harness.callWith('none', 'POST', path, { domain: 'example.org' })).status).toBe(
       401,
     );
@@ -1358,9 +1374,7 @@ describe('mounted organization domain challenges', () => {
       403,
     );
     expect((await harness.call('member', 'GET', '/api/organization/domains')).status).toBe(403);
-    harness.sqlite.run("UPDATE organization_membership SET role = 'member' WHERE user_id = ?", [
-      harness.userId('owner'),
-    ]);
+    harness.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [harness.userId('owner')]);
     expect((await harness.call('owner', 'POST', path, { domain: 'example.org' })).status).toBe(403);
     harness.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [
       harness.userId('member'),
@@ -1368,12 +1382,12 @@ describe('mounted organization domain challenges', () => {
     expect((await harness.call('member', 'GET', '/api/organization/domains')).status).toBe(403);
   });
 
-  it('rechecks super-admin authority after request access resolves', async () => {
+  it('rechecks security grants after request access resolves', async () => {
     let demote = false;
     const contender = OrganizationHarness.openComposed(false, () => {
       if (!demote) return;
       demote = false;
-      contender.sqlite.run("UPDATE organization_membership SET role = 'member' WHERE user_id = ?", [
+      contender.sqlite.run('DELETE FROM access_grant WHERE subject_id = ?', [
         contender.userId('late-owner'),
       ]);
     });
@@ -1381,21 +1395,19 @@ describe('mounted organization domain challenges', () => {
       await contender.register('late-owner');
       contender.organization('late-org');
       contender.member('late-org', 'late-owner', 'super_admin');
+      contender.grantPermissions('late-org', 'late-owner', ['organization.manage_security']);
       contender.bind('late-owner', 'late-org');
       contender.activate();
       demote = true;
       expect(await contender.call('late-owner', 'POST', path, { domain: 'example.org' })).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_security' },
       });
-      contender.sqlite.run(
-        "UPDATE organization_membership SET role = 'super_admin' WHERE user_id = ?",
-        [contender.userId('late-owner')],
-      );
+      contender.grantPermissions('late-org', 'late-owner', ['organization.manage_security']);
       demote = true;
       expect(await contender.call('late-owner', 'GET', '/api/organization/domains')).toEqual({
         status: 403,
-        body: { error: 'forbidden' },
+        body: { error: 'forbidden', permission: 'organization.manage_security' },
       });
       expect(contender.sqlite.query('SELECT id FROM organization_domain_claim').all()).toEqual([]);
     } finally {
@@ -1414,6 +1426,9 @@ describe('mounted organization domain challenges', () => {
       await delegated.register('delegated-owner');
       delegated.organization('delegated-org');
       delegated.member('delegated-org', 'delegated-owner', 'super_admin');
+      delegated.grantPermissions('delegated-org', 'delegated-owner', [
+        'organization.manage_security',
+      ]);
       delegated.bind('delegated-owner', 'delegated-org');
       delegated.sqlite.run(
         'INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?, 1)',
@@ -1555,6 +1570,7 @@ describe('mounted organization domain challenges', () => {
   it('lists only the active organization and never a foreign challenge', async () => {
     harness.organization('org-b');
     harness.member('org-b', 'owner', 'super_admin');
+    harness.grantPermissions('org-b', 'owner', ['organization.manage_security']);
     harness.activate();
     harness.sqlite.run(
       "INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, challenge_expires_at, created_at) VALUES ('foreign', 'org-b', 'example.org', 'pending', 'foreign-digest', 99999999, 1)",

@@ -55,6 +55,7 @@ export const ACCESS_CONFORMANCE_ORGANIZATION = 'access-conformance-org';
 export interface ExistingStoreOpeners {
   readonly livePlans?: OpenCase<'livePlans'>;
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
+  readonly spaces?: OpenCase<'spaces'>;
   readonly projectRanks?: OpenCase<'projectRanks'>;
   /** Absent where a source installs no grant decisions (memory fixtures). */
   readonly accessDecisions?: OpenCase<'accessDecisions'>;
@@ -134,6 +135,34 @@ export function existingStoreRegistrations(
           ),
         ]),
     ...projectRegistrations(openers.projects),
+    ...(openers.spaces === undefined
+      ? [{ family: 'spaces' as const, caseId: 'spaces.create:scoped-round-trip' as const }]
+      : [
+          storeCase(
+            'spaces',
+            'spaces.create:scoped-round-trip',
+            openers.spaces,
+            async ({ port, seed }) => {
+              if (port === undefined)
+                throw new Error('declared borrowed space capability is absent');
+              const created = await port.create(
+                {
+                  id: 'conformance-space',
+                  organizationId: 'space-conformance-org',
+                  name: 'Scoped space',
+                },
+                seed.stamps[0],
+              );
+              expect(created.ok).toBe(true);
+              expect(await port.findIn('space-conformance-org', 'conformance-space')).toMatchObject(
+                { id: 'conformance-space', name: 'Scoped space' },
+              );
+              expect(await port.findIn('other-org', 'conformance-space')).toBeNull();
+              expect(await port.remove('space-conformance-org', 'conformance-space')).toBe(true);
+              expect(await port.findIn('space-conformance-org', 'conformance-space')).toBeNull();
+            },
+          ),
+        ]),
     ...(openers.projectRanks === undefined
       ? [{ family: 'projectRanks' as const, caseId: 'projectRanks.orderIn:scoped-move' as const }]
       : [

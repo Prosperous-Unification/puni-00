@@ -342,3 +342,87 @@ for (const missing of ['all', 'capture', 'detach', 'restore'] as const)
       ),
     ).toThrow('incident persistence is missing');
   });
+
+for (const phase of ['before-call', 'ownership-read', 'grant-read'] as const) {
+  test('refuses typed write authorization after context closes at ' + phase, async () => {
+    const source = openMemorySource();
+    for (const id of ['a', 'b'])
+      await source.stores.projects.createInOrganization(
+        projectRow({ id, ownerId: 'actor' }),
+        [],
+        { at: 1, by: 'actor' },
+        'org',
+      );
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    let ownershipReads = 0;
+    let grantReads = 0;
+    const opened = createDependencyContext(
+      {
+        ...source.stores,
+        projects: {
+          ...source.stores.projects,
+          findInOrganization: async (id, organizationId) => {
+            ownershipReads += 1;
+            if (phase === 'ownership-read') {
+              entered.resolve(undefined);
+              await release.promise;
+            }
+            return source.stores.projects.findInOrganization(id, organizationId);
+          },
+        },
+        accessDecisions: {
+          effectiveRoleAt: async (principal, target) => {
+            if (
+              principal.id !== 'actor' ||
+              target.kind !== 'work_package' ||
+              target.chain.organizationId !== 'org'
+            )
+              throw new Error('unexpected grant subject/scope');
+            grantReads += 1;
+            if (phase === 'grant-read') {
+              entered.resolve(undefined);
+              await release.promise;
+            }
+            return { permissions: new Set(['package.read', 'package.write'] as const), via: [] };
+          },
+          readablePackageIds: () => Promise.reject(new Error('unexpected grant listing')),
+        },
+      },
+      {
+        projectId: 'a',
+        actorId: 'actor',
+        admission: CREATOR_ADMISSION,
+        access: {
+          kind: 'scoped',
+          principal: { id: 'actor' },
+          scope: { userId: 'actor', organizationId: 'org', cap: null },
+        },
+      },
+      () => undefined,
+      { kind: 'raw' },
+    );
+    const capability = opened.context.authorizeTypedWrites;
+    if (capability === undefined) throw new Error('actual factory omitted write authorization');
+    if (phase === 'before-call') opened.close();
+    const pending = capability([
+      {
+        id: 'relation',
+        projectId: 'b',
+        type: 'FS',
+        predecessor: { projectId: 'a', scope: 'whole', workItemId: 'a1' },
+        successor: { projectId: 'b', scope: 'whole', workItemId: 'b1' },
+      },
+    ]);
+    if (phase !== 'before-call') {
+      await entered.promise;
+      opened.close();
+      release.resolve(undefined);
+    }
+    await rejects(pending, 'closed');
+    if (phase === 'before-call') expect(ownershipReads).toBe(0);
+    if (phase === 'ownership-read') expect(grantReads).toBe(0);
+    if (phase === 'grant-read') expect(ownershipReads).toBe(1);
+    await source.close();
+  });
+}

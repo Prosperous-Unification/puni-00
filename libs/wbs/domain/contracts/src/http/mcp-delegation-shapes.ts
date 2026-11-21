@@ -152,7 +152,11 @@ export const endMcpConsentCredential = defineEndpointShape({
       schema: responseSchema(type({ outcome: "'revoked' | 'already_revoked' | 'absent'" })),
     },
   ],
-  refusals: [malformed, internalUnauthorized],
+  refusals: [
+    malformed,
+    internalUnauthorized,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
+  ],
   document: { summary: 'Revoke a consent credential whose MCP family mcp-01 ended.' },
 });
 

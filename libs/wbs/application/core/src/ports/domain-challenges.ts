@@ -1,3 +1,4 @@
+import type { SecurityPrincipal } from './security-principal';
 import type { WriteStamp } from './write-stamp';
 
 /** A claim visible to a member of its organization; the secret TXT value is never stored. */
@@ -85,11 +86,11 @@ export interface DomainChallenges {
   readonly resolver: DomainResolver;
   listClaims(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
   ): Promise<readonly DomainClaimSummary[] | 'forbidden'>;
   reissueClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     domain: string,
     challengeDigest: string,
     challengeExpiresAt: number,
@@ -100,12 +101,12 @@ export interface DomainChallenges {
   >;
   readClaimForVerification(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
   ): Promise<DomainVerificationSnapshot | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
   verifyClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
@@ -113,7 +114,7 @@ export interface DomainChallenges {
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
   rotateClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
     token: string,
     stamp: WriteStamp,
@@ -124,7 +125,7 @@ export interface DomainChallenges {
   /** Refused with `sso_connection_exists` while an enterprise connection names the claim. */
   releaseClaim(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     claimId: string,
   ): Promise<
     'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive' | 'sso_connection_exists'

@@ -17,6 +17,9 @@ export function installProject(requirements: ProjectRequirements): ProjectExport
   const bag = DiBag.createBuilder()
     .withInstalledModules([projectModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),

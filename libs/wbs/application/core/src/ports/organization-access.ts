@@ -1,11 +1,7 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
-import {
-  canEditProject,
-  canEditProjectInOrganization,
-  type OrganizationScope,
-  type ProjectOwnership,
-} from '@wbs/domain';
+import type { OrganizationScope } from '@wbs/domain';
 
+import type { ScopedPrincipal } from './access-decisions';
 import type { CredentialRuleRefusal } from './credential-rules';
 import type { Project, ProjectStore } from './project-store';
 
@@ -19,7 +15,12 @@ import type { Project, ProjectStore } from './project-store';
  * legacy: a caller that forgot to resolve access cannot compile.
  */
 export type ResourceAccess =
-  { readonly kind: 'legacy' } | { readonly kind: 'scoped'; readonly scope: OrganizationScope };
+  | { readonly kind: 'legacy' }
+  | {
+      readonly kind: 'scoped';
+      readonly scope: OrganizationScope;
+      readonly principal: Readonly<ScopedPrincipal>;
+    };
 
 /**
  * Why an authenticated request may not act in any organization, before any
@@ -80,6 +81,9 @@ export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };
 /**
  * Finds a project through the caller's access: under scoped access a foreign
  * project is null exactly like an absent one, so every caller answers one 404.
+ *
+ * Proof: retired-helper-mayEditProjectWithin; reintroduced the retired callable.
+ * 'does not expose the retired server role helper mayEditProjectWithin' (organization-authorization.db.test.ts) failed; restored GREEN, 2026-11-10.
  */
 export function findProjectWithin(
   projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
@@ -89,23 +93,4 @@ export function findProjectWithin(
   return access.kind === 'scoped'
     ? projects.findInOrganization(id, access.scope.organizationId)
     : projects.findById(id);
-}
-
-/**
- * Whether the caller may write `project`: the organization role and the
- * restricted-creator rule under scoped access, the creator rule alone under
- * legacy access.
- *
- * Proof: answering the legacy rule under scoped access failed `refuses a
- * viewer every step and marker write and lets the viewer list markers` in
- * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
- */
-export function mayEditProjectWithin(
-  project: ProjectOwnership,
-  actorId: string,
-  access: ResourceAccess,
-): boolean {
-  return access.kind === 'scoped'
-    ? canEditProjectInOrganization(project, access.scope)
-    : canEditProject(project, actorId);
 }

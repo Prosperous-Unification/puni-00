@@ -634,3 +634,45 @@ schedule SHALL change.
 - **WHEN** `report` counts 330, one more doomed work package is created, and `apply
 --expect-count=330` runs
 - **THEN** it exits non-zero naming 331 and deletes nothing
+
+### Requirement: Frozen solver wire vocabulary is isolated at the internal boundary
+
+Current host/domain/client models SHALL use work-package terminology. Solver boundary code SHALL explicitly project those models to frozen wire v5 keys and validate response scope/input/question identity before returning host outcomes. Both copies of wire schemas v1–v5 and Python solver 0.4.0 SHALL remain unchanged. Frozen internal protocol keys SHALL NOT leak into current public WBS or CLI shapes.
+
+#### Scenario: A mixed connected request preserves frozen protocol ownership
+
+- **WHEN** renamed host models with scope ownership, member work packages, fixed placements, occupancy and incoming/outgoing boundaries pass through the real solver request builder and unchanged Python CLI
+- **THEN** every frozen wire owner is correct, the request is accepted and the returned host/public outcome uses work-package fields
+
+#### Scenario: A substituted response identity is refused before projection
+
+- **WHEN** a solver response changes its scope owner, input hash or question hash
+- **THEN** production response validation refuses it before mapping or publishing a host result
+
+### Requirement: Renamed canonical host inputs receive new scheduling identities
+
+Current canonical host scheduler bytes SHALL use work-package fields, and scheduler contract SHALL advance from 18 to 19. Numerical scheduling and quantum semantics SHALL remain unchanged. Request contract/hash changes SHALL be distinguished from unchanged wire grammar. Old contract-18 cache entries SHALL miss before current-codec decoding, including when the plan input hash itself is unchanged.
+
+#### Scenario: An old cache row cannot satisfy a current request
+
+- **WHEN** a contract-18 row has the same input hash as a contract-19 request, or carries an old connected DTO
+- **THEN** it is rejected before current DTO decoding and cannot serve or publish as the current result
+
+#### Scenario: Renaming changes only permitted solver request identities
+
+- **WHEN** corresponding pre/post-rename plans are scheduled through contract 19 with unchanged Python 0.4.0
+- **THEN** corpus request differences are attributable to the renamed canonical host keys and resulting contract/input/question identities, and numerical scheduling and quantization outcomes remain equivalent
+
+### Requirement: Changed connected host formats have explicit versions
+
+Renamed connected host formats SHALL use stored-stage DTO 2, durable-success DTO 3, boundary-certificate DTO 2 and public connected-boundary version 2. Current plan exports SHALL rename nested `question.stageBytes` and `boundary.canonical` contents. Supported historical records SHALL validate their original bytes/hashes before read-time upgrades; historical stored bytes and hashes SHALL NOT be rewritten.
+
+#### Scenario: Nested current export evidence uses renamed host fields
+
+- **WHEN** a version-12 current plan export includes a connected stage and boundary evidence
+- **THEN** the nested stage/canonical contents use work-package vocabulary and the connected format versions identify their changed shapes
+
+#### Scenario: Historical integrity is checked before conversion
+
+- **WHEN** a supported historical saved-plan or connected-evidence body/hash is corrupted and then read through an upgrade path
+- **THEN** integrity validation fails before translation and no replacement stored bytes/hashes are written

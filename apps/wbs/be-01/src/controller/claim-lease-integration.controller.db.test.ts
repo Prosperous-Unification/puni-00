@@ -11,7 +11,11 @@ import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it, spyOn } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
@@ -32,7 +36,7 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'super_admin');
+  harness.member('org-a', 'ada', 'super_admin', ['org-super-admin']);
   harness.bind('ada', 'org-a');
   harness.activate();
   addAgentPerson(harness.sqlite, 'codex', 'org-a', harness.userId('ada'));
@@ -41,6 +45,14 @@ async function fixture(options: ComposedHarnessOptions = {}) {
     personId: 'codex',
     issuedBy: harness.userId('ada'),
   });
+  grantCredential(
+    harness.sqlite,
+    'org-a',
+    credential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
   const projects: { projectId: string; stepId: string; workItemId: string }[] = [];
   for (const [index, name] of ['A', 'B', 'C', 'Unconnected'].entries()) {
     const answer = await harness.call('ada', 'POST', '/api/projects', { name });

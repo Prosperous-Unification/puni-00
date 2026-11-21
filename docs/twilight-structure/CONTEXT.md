@@ -31,22 +31,22 @@ Burokrat. Short form twist; it named the factory service itself until
 [2026-09-19](names.md#what-changed).
 _Avoid_: Using it for the product or for the execution runtime
 
-**Twilight Navigator**:
+**PUNI Navigator**:
 The human-facing planning tool of the suite: it turns a person's request into code structure
-and a plan for execution. Short form twin.
-_Avoid_: Planner, secretary
+and a plan for execution.
+_Avoid_: Twilight Navigator, twin, planner, secretary
 
-**Twilight Dash**:
+**PUNI Dash**:
 The execution tool of the suite: it runs, builds, tests, deploys, generates code and operates
-environments. Short form twid.
-_Avoid_: Twilight Structure, control plane, as the tool's name
+environments.
+_Avoid_: Twilight Dash, twid, Twilight Structure, control plane, as the tool's name
 
-**Twilight Burokrat**:
+**PUNI Burokrat**:
 The rules tool of the suite, a reusable toolkit for module knowledge, review evidence and trusted
 repository admission that supports [Radical Modularity](../../CONTEXT.md#architecture): it judges
 whether an artifact conforms, from a Git revision and recorded evidence alone, and holds templates
-and structure. Short form twib.
-_Avoid_: Tool Wiki, tool-wiki, wiki CLI, LLM wiki (as the product name)
+and structure.
+_Avoid_: Twilight Burokrat, twib, Tool Wiki, tool-wiki, wiki CLI, LLM wiki (as the product name)
 
 **Personal phase**:
 The first product phase, intended for Dany's own use of the assistant and

@@ -18,8 +18,8 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'admin');
-  h.member('org-b', 'grace', 'admin');
+  h.member('org-a', 'ada', 'admin', ['org-admin']);
+  h.member('org-b', 'grace', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
 });

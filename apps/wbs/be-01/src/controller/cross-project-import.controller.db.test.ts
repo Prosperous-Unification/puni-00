@@ -104,8 +104,9 @@ async function assertIncomingImportRoundTrip(
       kind: 'human',
       principal,
       expectedAccess: {
+        principal: { id: principal.id },
         kind: 'scoped',
-        scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+        scope: { cap: null, organizationId: 'org-a', userId: principal.id },
       },
     });
     expect(admitted.ok).toBe(true);
@@ -294,8 +295,9 @@ async function importTransfer(classified: Awaited<ReturnType<typeof exported>>['
     kind: 'human',
     principal,
     expectedAccess: {
+      principal: { id: principal.id },
       kind: 'scoped',
-      scope: { organizationId: 'org-a', userId: principal.id, role: 'member' },
+      scope: { cap: null, organizationId: 'org-a', userId: principal.id },
     },
   });
 }

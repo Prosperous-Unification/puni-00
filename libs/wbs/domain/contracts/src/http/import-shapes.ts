@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -60,7 +61,15 @@ export const importProject = defineEndpointShape({
     organizationRefusal,
     organizationContextRefusal,
     // A viewer, after organization activation: reading is not importing.
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     {
       kind: 'import-refusal',
       status: 409,

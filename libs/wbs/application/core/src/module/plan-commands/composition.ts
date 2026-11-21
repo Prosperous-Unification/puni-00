@@ -9,13 +9,13 @@ import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-acc
 import type { Broadcaster } from '../../ports/project-event';
 import type { Digest } from '../../ports/runtime';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { authorizePackage } from '../../service/authorize';
 import {
   type CommittedFanoutDelivery,
   type CommittedProjectEvent,
   recordCommittedFanout,
 } from '../../service/committed-fanout';
 import { createDependencyContext } from '../../service/dependency-context';
-import { isClaimAdmin } from '../work-item/claims';
 import {
   type AdmittedGraphFactory,
   AdmittedScope,
@@ -166,7 +166,7 @@ export function commandTransaction(
             refuseOutsideScope: async (...args) => {
               const refusal = await scope.refuseOutsideScope(...args);
               if (refusal !== null) return refusal;
-              captureState.organizationId = args[2].organizationId;
+              captureState.organizationId = args[2].scope.organizationId;
               const capture = rawScope.fanoutCapture;
               if (capture === undefined) {
                 // Legacy fixtures have no live-plan source; a shared production source must fail closed.
@@ -283,7 +283,7 @@ export function commandTransaction(
 export function createAdmittedWrites(source: AdmittedWriteSource) {
   const transaction: AdmittedWriteTransaction = {
     run: async <T>(
-      projectId: string,
+      projectId: string | null,
       caller: CommandCaller,
       broadcast: Broadcaster,
       act: (
@@ -300,7 +300,12 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
           before: null,
           organizationId: null,
         };
-        const beforeProjectUpdate: BeforeProjectUpdate = async (projectId, actorId, access) => {
+        const beforeProjectUpdate: BeforeProjectUpdate = async (
+          projectId,
+          actorId,
+          access,
+          patch,
+        ) => {
           if (access.kind === 'legacy') return { ok: true };
           const capture = scope.fanoutCapture;
           if (capture === undefined) {
@@ -310,7 +315,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
           }
           // Proof: bypassing this borrowed-store recheck sent a queued-demoted
           // project edit into broken capture (500 instead of typed 403).
-          const admitted = await capture.authorizeProjectUpdate(projectId, actorId, access);
+          const admitted = await capture.authorizeProjectUpdate(projectId, actorId, access, patch);
           if (!admitted.ok) return admitted;
           captureState.organizationId = access.scope.organizationId;
           captureState.before = await capture.capture(access.scope.organizationId);
@@ -495,13 +500,29 @@ async function authorizeRuntimeScope(
   // Proof: F18 skipped refusal forwarding; the viewer negative threw instead of returning forbidden.
   if (!admission.ok) return admission;
   // Proof: F05 substituted incoming scope; queued admin-to-member demotion incorrectly read an unbound person.
-  const access = { kind: 'scoped', scope: admission.scope } as const;
+  const access = {
+    kind: 'scoped',
+    scope: admission.scope,
+    principal: structuredClone({ id: actorId, authentication }),
+  } as const;
   const people = await scope.stores.directory.listInOrganization('people', organizationId);
   // Proof: F06 bypassed person ownership; a bound foreign person received local facts.
   if (!people.some(({ id }) => id === personId)) return { ok: false, reason: 'unknown_person' };
   // Proof: F07 bypassed binding; an otherwise authorized unbound-person read succeeded.
-  if (!isClaimAdmin(access) && (await scope.stores.claims.boundAccountOf(personId)) !== actorId)
-    return { ok: false, reason: 'person_not_bound' };
+  if ((await scope.stores.claims.boundAccountOf(personId)) !== actorId) {
+    const project = await scope.stores.projects.findInOrganization(projectId, organizationId);
+    if (project === null) throw new Error('runtime claim project disappeared');
+    const authority = await authorizePackage(
+      scope.stores.accessDecisions,
+      access,
+      project,
+      actorId,
+      'package.claim_for_others',
+    );
+    // Proof: converting the decision to person_not_bound failed the mounted current-runtime-person permission test, 2026-11-09.
+    // Proof: runtime-claim-grant-projection fault failed 'claim_for_others on current runtime person refusal' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+    if (!authority.ok) return authority;
+  }
   const pinnedPersonId = await scope.stores.claims.pinnedPersonOf(credential);
   // Proof: F08 bypassed pin comparison; the real pinned admin credential read as another person.
   if (pinnedPersonId !== null && pinnedPersonId !== personId)

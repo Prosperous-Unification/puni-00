@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -56,7 +57,16 @@ export const approveSharedPeopleRestore = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          // Proof: dropping this permission property (schema-shared-people-restore-shapes) failed `keeps the catalog permission vocabulary at postApiOrganizationSharedPeopleRestoreApprovals`; restored GREEN.
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     // Two arms rather than one enumerated error: `organization_required` also
     // carries a command position from a measure batch, so its refusal variants
     // are a union TypeScript cannot match against an enumerated `error`.

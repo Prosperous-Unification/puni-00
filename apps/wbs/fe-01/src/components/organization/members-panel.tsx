@@ -1,5 +1,5 @@
 import { Button } from '@ui/saas-01';
-import { changeMemberRole, type ClientReply, listMembers, removeMember } from '@wbs/contracts';
+import { type ClientReply, listMembers, removeMember } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
 import { failureMessage, unreachable } from '@/lib/http';
@@ -20,26 +20,23 @@ import {
   OrganizationSection,
   ROW_ACTIONS_CLASS,
   ROW_CLASS,
-  ROW_SELECT_CLASS,
   STATUS_CLASS,
 } from './organization-section';
 
-const MEMBERS_SHAPES = [listMembers, changeMemberRole, removeMember] as const;
+const MEMBERS_SHAPES = [listMembers, removeMember] as const;
 
 type Member = Extract<
   ClientReply<typeof listMembers>,
   { kind: 'success' }
 >['body']['members'][number];
-type Role = Member['role'];
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
   | { kind: 'ready'; members: readonly Member[] };
 
 /**
- * The active organization's members, for an administrator: change a role or
- * remove a member. Only admin and super-admin may read the list; the server's
- * role matrix decides every change, and each change re-reads the list.
+ * Current member access summaries and confirmed removal. The server authorizes
+ * every read/removal through current grants and each removal refreshes the list.
  */
 export function MembersPanel({
   onAccessLost,
@@ -48,7 +45,6 @@ export function MembersPanel({
 }): React.JSX.Element {
   const members = useResourceClient(MEMBERS_SHAPES);
   const [view, setView] = useState<View>({ kind: 'loading' });
-  const [chosen, setChosen] = useState<Readonly<Record<string, Role>>>({});
   const [removing, setRemoving] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
@@ -59,7 +55,6 @@ export function MembersPanel({
     switch (reply.kind) {
       case 'success':
         setView({ kind: 'ready', members: reply.body.members });
-        setChosen({});
         return;
       case 'failure':
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
@@ -83,10 +78,7 @@ export function MembersPanel({
 
   if (fault !== null) throw fault;
 
-  async function change(
-    send: () => Promise<ClientReply<typeof changeMemberRole | typeof removeMember>>,
-    success: string,
-  ) {
+  async function change(send: () => Promise<ClientReply<typeof removeMember>>, success: string) {
     setSending(true);
     setMessage('');
     try {
@@ -133,7 +125,6 @@ export function MembersPanel({
       {view.kind === 'ready' && view.members.length > 0 && (
         <ul aria-label="Members" className={`${LIST_CLASS} divide-border -my-3 divide-y`}>
           {view.members.map((member) => {
-            const role = chosen[member.userId] ?? member.role;
             return (
               <li key={member.userId} className={ROW_CLASS}>
                 <span className="flex min-w-0 flex-col">
@@ -143,45 +134,16 @@ export function MembersPanel({
                   </span>
                 </span>
                 <span className={ROW_ACTIONS_CLASS}>
-                  <label htmlFor={`member-role-${member.userId}`} className="sr-only">
-                    Role for {member.username}
-                  </label>
-                  <select
-                    id={`member-role-${member.userId}`}
-                    className={ROW_SELECT_CLASS}
-                    value={role}
-                    onChange={(event) => {
-                      const next = roleOf(event.target.value);
-                      setChosen((current) => ({ ...current, [member.userId]: next }));
-                    }}
-                  >
-                    <option value="viewer">Viewer</option>
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                    <option value="super_admin">Super-admin</option>
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={CONTROL_HEIGHT}
-                    disabled={sending || role === member.role}
-                    aria-label={`Change the role of ${member.username}`}
-                    onClick={() => {
-                      // Proof: 2026-09-29, sending the listed role instead of the
-                      // chosen one failed `changes a role to the chosen one and
-                      // re-reads the list`: expected { role: 'viewer' } to deeply equal { role: 'member' }.
-                      void change(
-                        () =>
-                          members.patchApiOrganizationMembersByUserId({
-                            params: { userId: member.userId },
-                            body: { role },
-                          }),
-                        `${member.username} is now ${ROLE_NAMES[role]}.`,
-                      );
-                    }}
-                  >
-                    Change role
-                  </Button>
+                  <span className="text-muted-foreground text-sm">
+                    <span>
+                      {member.effectiveRole === null
+                        ? 'No organization role'
+                        : [...new Set(member.effectiveRole.via.map((grant) => grant.roleId))].join(
+                            ', ',
+                          )}
+                    </span>
+                    <span className="block">{member.grantCount} access grants</span>
+                  </span>
                   {removing === member.userId ? (
                     <>
                       <Button
@@ -245,23 +207,8 @@ export function MembersPanel({
   );
 }
 
-/** The words each membership role reads as. */
-export const ROLE_NAMES: Record<Role, string> = {
-  super_admin: 'Super-admin',
-  admin: 'Admin',
-  member: 'Member',
-  viewer: 'Viewer',
-};
-
-/** The select offers only the four membership roles; anything else is a programming error. */
-function roleOf(value: string): Role {
-  if (value === 'super_admin' || value === 'admin' || value === 'member' || value === 'viewer')
-    return value;
-  throw new Error(`Unexpected membership role option: ${value}`);
-}
-
 type MemberRefusal = Extract<
-  ClientReply<typeof listMembers | typeof changeMemberRole | typeof removeMember>,
+  ClientReply<typeof listMembers | typeof removeMember>,
   { kind: 'refusal' }
 >['body'];
 
@@ -283,7 +230,11 @@ function memberRefusal(refusal: MemberRefusal, action: string): RefusalOutcome {
     case 'reauthentication_required':
       return lostAccess(refusal);
     case 'forbidden':
-      return said(`Your role cannot ${action}.`);
+      return said(
+        !('permission' in refusal) || refusal.permission === undefined
+          ? `Your role cannot ${action}.`
+          : `Missing permission: ${refusal.permission}.`,
+      );
     case 'last_super_admin':
       return said('The organization needs at least one super-admin.');
     case 'not_found':
@@ -292,7 +243,6 @@ function memberRefusal(refusal: MemberRefusal, action: string): RefusalOutcome {
       return said(READ_ONLY);
     case 'invalid_query':
     case 'invalid_body':
-    case 'invalid_json':
     case 'invalid_params':
     case 'invalid_origin':
       return said(RELOAD);

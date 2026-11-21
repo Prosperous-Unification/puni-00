@@ -7,7 +7,7 @@ import {
   recordProjectOpen,
   retryProjectOptimization,
 } from '@wbs/contracts';
-import type { OrganizationRole } from '@wbs/domain';
+import type { Permission } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -17,6 +17,7 @@ import type { admittedWrites } from '../module/plan-commands/admitted-write';
 import { installPlanDocument } from '../module/plan-document/check';
 import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
+import type { ScopedPrincipal } from '../ports/access-decisions';
 import type { Clock } from '../ports/clock';
 import type { OptimizationInput } from '../ports/optimization-input';
 import type { OrganizationAccess } from '../ports/organization-access';
@@ -38,10 +39,11 @@ export interface OptimizationRetry {
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<
-    | { readonly kind: 'forbidden' | 'not_found' }
+    | { readonly kind: 'forbidden'; readonly permission?: Permission }
+    | { readonly kind: 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
     | {
         readonly kind: 'not-retryable';
@@ -147,10 +149,10 @@ function projectPageQueryOf(query: PageQueryInput, url: URL) {
  * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
  */
 export function projectRoutes(
-  projects: Pick<
-    ProjectService,
-    'authorizeRetry' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin'
-  > & { updateWithin: ReturnType<typeof admittedWrites>['updateProjectWithin'] },
+  projects: Pick<ProjectService, 'authorizeRetry' | 'listWithin' | 'openWithin' | 'readWithin'> & {
+    updateWithin: ReturnType<typeof admittedWrites>['updateProjectWithin'];
+    createWithin: ReturnType<typeof admittedWrites>['createProjectWithin'];
+  },
   organizations: OrganizationAccess,
   workItems: WorkItemService,
   directory: DirectoryService,
@@ -175,14 +177,23 @@ export function projectRoutes(
         if (!resolved.ok) return organizationRefusal(resolved);
         const outcome = await projects.createWithin(
           body.name,
-          principal.id,
+          principal,
           resolved.access,
           body.abbreviation,
         );
         if (outcome.ok) return { ok: true, status: 200, body: outcome.value };
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         switch (outcome.reason) {
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: outcome.reason } };
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: outcome.reason,
+                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+              },
+            };
           case 'invalid_abbreviation':
             return { ok: false, status: 422, body: { error: outcome.reason } };
           case 'abbreviation_taken':
@@ -348,7 +359,14 @@ export function projectRoutes(
           case 'not_found':
             return { ok: false, status: 404, body: { error: outcome.reason } };
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: outcome.reason } };
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: outcome.reason,
+                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+              },
+            };
           case 'bad_start_date':
           case 'bad_pert_weights':
           case 'invalid_abbreviation':
@@ -380,7 +398,16 @@ export function projectRoutes(
         if (!authorization.ok) {
           return authorization.reason === 'not_found'
             ? { ok: false, status: 404, body: { error: 'not_found' } }
-            : { ok: false, status: 403, body: { error: 'forbidden' } };
+            : {
+                ok: false,
+                status: 403,
+                body: {
+                  error: 'forbidden',
+                  ...(authorization.permission === undefined
+                    ? {}
+                    : { permission: authorization.permission }),
+                },
+              };
         }
         // Proof: building input without this human scope made the crossing-row
         // Retry case answer 409 instead of 500 and could reveal a foreign chain.
@@ -431,14 +458,23 @@ export function projectRoutes(
                 scoped: {
                   organizationId: resolved.access.scope.organizationId,
                   actorId: principal.id,
-                  role: resolved.access.scope.role,
+                  principal: resolved.access.principal,
                 },
               }
             : {}),
         });
         switch (outcome.kind) {
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            // Proof: omitting this permission failed mounted Retry after writer grant revocation, 2026-11-09.
+            // Proof: retry-route-permission fault failed 'writer grant revocation' (connected-retry.controller.db.test.ts); restored GREEN, 2026-11-09.
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: 'forbidden',
+                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+              },
+            };
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'stale-input-hash':

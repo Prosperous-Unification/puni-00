@@ -32,6 +32,14 @@ if (role === 'writer') {
   sqlite.run(
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1), ('org-z', 'grace', 'member', 1)",
   );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['fanout-ada', 'org-a', 'org-a', 'ada', 'org-admin'],
+  );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['fanout-grace', 'org-z', 'org-z', 'grace', 'project-contributor'],
+  );
   sqlite.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
   sqlite.run(

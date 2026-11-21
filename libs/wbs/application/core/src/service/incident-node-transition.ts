@@ -1,6 +1,7 @@
 import type { ScopedDependencyEndpoint } from '@wbs/domain';
 
 import type {
+  AuthorizeTypedWrites,
   CommandGraphAuthority,
   DependencyEndpointEvidence,
   WorkItemAddress,
@@ -63,6 +64,7 @@ export function createIncidentNodeTransition(
   assertActive: () => void,
   retention: IncidentRetention,
   localOnly: boolean,
+  authorizeTypedWrites: AuthorizeTypedWrites,
 ): IncidentNodeTransition {
   const assertAuthority = (projectId: string, actorId: string) => {
     assertActive();
@@ -197,6 +199,13 @@ export function createIncidentNodeTransition(
       assertAuthority(projectId, actorId);
       if (!revisions.ok) return revisions;
       const evidence = { receipts, externalBefore: revisions.revisions };
+      // Proof: omitting old/new receipt authorization remapped an outgoing remote node with only read access; `remote write for implicit first-child-outgoing`
+      // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+      const authorization = await authorizeTypedWrites(
+        receipts.flatMap((receipt) => [receipt.from.dependency, receipt.to.dependency]),
+      );
+      assertAuthority(projectId, actorId);
+      if (authorization !== null) return authorization;
       for (const receipt of receipts) {
         await stores.typedDependencies.incidents.detach(receipt.from);
         assertAuthority(projectId, actorId);

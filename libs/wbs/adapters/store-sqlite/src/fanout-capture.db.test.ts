@@ -485,23 +485,42 @@ it.each(['restricted-project', 'viewer-project', 'viewer-step', 'viewer-import']
       );
       connection.db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'a1'"));
       const member = {
+        principal: { id: 'sam' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'sam', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'sam', role: 'member' as const },
       };
       const viewer = {
+        principal: member.principal,
         kind: 'scoped' as const,
         scope: { ...member.scope, role: 'viewer' as const },
       };
+      for (const workPackageId of ['a1', 'a2'])
+        connection.db.run(
+          sql`INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES (${crypto.randomUUID()}, 'org-a', 'work_package', ${workPackageId}, 'user', 'sam', 'package-viewer', 'route', 1)`,
+        );
       const lifetime = createReadSnapshotLifetime();
       const refusal =
         operation === 'restricted-project'
-          ? await authorizeProjectFanoutIn(connection.db, lifetime)('a1', 'sam', member)
+          ? await authorizeProjectFanoutIn(connection.db, lifetime)('a1', 'sam', member, {
+              name: 'No',
+            })
           : operation === 'viewer-project'
-            ? await authorizeProjectFanoutIn(connection.db, lifetime)('a2', 'sam', viewer)
+            ? await authorizeProjectFanoutIn(connection.db, lifetime)('a2', 'sam', viewer, {
+                name: 'No',
+              })
             : operation === 'viewer-step'
               ? await authorizeStepFanoutIn(connection.db, lifetime)('a2', 'sam', viewer)
               : await authorizeImportIn(connection.db)('sam', viewer);
-      expect(refusal).toEqual({ ok: false, reason: 'forbidden' });
+      expect(refusal).toEqual({
+        ok: false,
+        reason: 'forbidden',
+        permission:
+          operation === 'viewer-import'
+            ? 'organization.create_project'
+            : operation === 'viewer-step'
+              ? 'package.write'
+              : 'package.manage_settings',
+      });
     } finally {
       connection.close();
     }
@@ -894,6 +913,40 @@ it('refuses an attempt read that completes after its borrowed snapshot expires',
     ).rejects.toThrow('read snapshot is closed');
   } finally {
     read.mockRestore();
+    connection.close();
+  }
+});
+
+it('rechecks manage_settings before project fanout observation after its grant is revoked', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-permission-'));
+  directories.push(directory);
+  const path = await openSpaceDatabase(directory);
+  const connection = openConnection(path);
+  try {
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      ),
+    );
+    connection.db.run(
+      sql.raw(
+        "INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES ('read', 'org-a', 'organization', 'org-a', 'user', 'ada', 'project-viewer', 'route', 1)",
+      ),
+    );
+    const access = {
+      kind: 'scoped' as const,
+      principal: { id: 'ada' },
+      scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
+    };
+    expect(
+      await authorizeProjectFanoutIn(connection.db, createReadSnapshotLifetime())(
+        'a1',
+        'ada',
+        access,
+        { name: 'Denied' },
+      ),
+    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.manage_settings' });
+  } finally {
     connection.close();
   }
 });

@@ -62,6 +62,15 @@ export function organizationSelectionRoutes(
 ) {
   return [
     bind(readActiveOrganization, async ({ principal }) => {
+      // Proof: active-route; removed the private entry snapshot.
+      // 'bound active discovery retains private verified identity across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // 'bound active discovery retains private verified authentication across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // 'bound active discovery retains private verified delegation across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // 'bound active discovery retains private verified binding across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // Proof: active-route-deep; replaced the private deep snapshot with a shallow copy.
+      // 'bound active discovery retains private verified authentication across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      // 'bound active discovery retains private verified binding across its list to resolve await' (organization-selection.db.test.ts) failed; restored GREEN, 2026-11-10.
+      principal = structuredClone(principal);
       if (principal.delegation !== undefined)
         return { ok: false, status: 403, body: { error: 'insufficient_scope' } } as const;
       const choices = await selection.list(principal);
@@ -73,7 +82,7 @@ export function organizationSelectionRoutes(
       if (!resolved.ok) return organizationRefusal(resolved);
       if (resolved.access.kind === 'legacy')
         return { ok: false, status: 403, body: { error: 'onboarding_inactive' } } as const;
-      const { organizationId, role } = resolved.access.scope;
+      const { organizationId } = resolved.access.scope;
       const membership = choices.memberships.find(
         (choice) => choice.organizationId === organizationId,
       );
@@ -82,7 +91,7 @@ export function organizationSelectionRoutes(
       return {
         ok: true,
         status: 200,
-        body: { organizationId, name: membership.name, role },
+        body: { organizationId, name: membership.name, role: membership.role },
       } as const;
     }),
     bind(listOrganizationMemberships, async ({ principal }) => {

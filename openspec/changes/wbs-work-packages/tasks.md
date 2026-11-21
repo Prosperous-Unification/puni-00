@@ -51,12 +51,15 @@
       pass on a valid report; each watched.
 - [ ] 1.3 Red: `rename-project-to-work-package.db.test.ts` over a dev-shaped fixture store:
       every table, column, index and trigger renamed (no index or trigger in `sqlite_master`
-      names `project` in name or body), audit rows rewritten, trees, startable, history,
+      names `project` in name or body), audit rows rewritten while preserving the earlier
+      access/member actions, subjects and indexes from permissions 4.1, trees, startable, history,
       saved-plan compare, budget headroom and undo answer the same, the guard refuses an
       unmapped work package; a replay of every journal kind proves no payload names
       `projectId` (or the migration's `json_set` rewrite is proven instead);
-      `SCHEDULE_BODY_SCHEMA_VERSION` and the canonical schedule input hash are shown
-      unchanged; `down.sql` refuses and leaves schema and ledger unchanged (E38). Green:
+      `SCHEDULE_BODY_SCHEMA_VERSION` is checked against its actual changed shape;
+      scheduler contract 18 → 19 and renamed current canonical host inputs are proven,
+      with unchanged numerical scheduling and quantum; old contract-18 cache rows miss
+      before current-codec decoding and old saved-plan bytes/hashes stay intact; `down.sql` refuses and leaves schema and ledger unchanged (E38). Green:
       `migration.sql` (no compatible-rebuild marker, E39), `down.sql`. R5 faults: the guard
       replaced by `CHECK (1)`; one trigger left under its old name (the
       `claim_step_project_*` pair); the `down.sql` guard removed (the refusal test sees a
@@ -80,11 +83,20 @@
       `unsupported_version`), `canonical-plan-input.test.ts` (9 → 10 upgrade; a 9 body
       compares equal to its 10 re-save). R5 faults: the 11 → 12 converter dropped (import of
       the v11 fixture fails); the upgrade step removed (`input_version_unreadable`); watched.
-- [ ] 1.6 Solver wire unchanged (E26): `ElsewhereBooking.projectId` is renamed host-side by
-      the script; `SOLVER_WIRE_VERSION` stays 4 and the existing golden request test passes
-      byte-identical after `apply`; no solver-py change, no image rebuild or repin; both
-      copies of `solver-wire.v1–v4.json` are allow-listed (E11, WP-13) and byte-identical to
-      `main`.
+- [ ] 1.6 Frozen solver wire v5 with explicit host mapping (E26): rename host fields
+      everywhere, mapping current work-package ownership/member/fixed/occupancy/boundary
+      fields to frozen wire `projectId`/`projects`/`foreignProjectId` keys only at the
+      solver boundary. Preserve both schema copies v1–v5 byte-for-byte, Python 0.4.0 and its
+      image/package. Tests: mixed connected fixture through the actual request builder and
+      unchanged installed Python CLI; response scope/input/question identity validation;
+      corpus prefix `19+0.4.0` and explicitly permitted version/hash request differences.
+      Advance host-shaped stored connected stage DTO to 2, success DTO to 3, certificate
+      DTO to 2 and public connected boundary to 2. Test old contract-18 cache rejection
+      before decoding, including equal input hashes, and current exported nested stageBytes
+      and boundary.canonical for renamed vocabulary. Historical saved body/header hashes
+      validate before read-time upgrade and remain untouched. R5 faults: mutate each owner
+      projection/response identity check, bypass old-cache contract matching or historical
+      integrity validation; watch each named production-path negative fail, then restore.
 - [ ] 1.7 Twilight Navigator: `plan-reference.test.ts` reads `plan-export.v12.json` and keeps
       v7–v11; JSDoc and README name `/api/work-packages`. R5 fault: the v12 reader keyed on
       `project` again; the v12 fixture fails; watched.
@@ -123,6 +135,8 @@
 - [ ] 2.3 Executed on dev with the receipt recorded in `verify.md`.
 
 ## 3. The project entity (slice 2, `feat/wbs-work-packages-2`)
+
+- [ ] Permissions budget/replay follow-up: prove an explicit owning-project budget grant permits a restricted work-package budget write without requiring package.write; record a budget operation, move its work package to another engagement project, then prove undo/redo resolve project.manage_budgets at the current parent and preserve immutable authorization requirements through undo→redo→undo and restamp. InterimPackageChain cannot express this parent move before this slice; see wbs-permissions tasks 2.2–2.3 amendment.
 
 Precondition (design "Dependency graph"): `wbs-permissions` 1.4, 3.3 and 4.1 merged and 2.3
 executed on dev.
@@ -330,42 +344,19 @@ Precondition (design "Dependency graph"): 3.8 executed and `wbs-permissions` 3.4
 - [ ] 4.9 Runbook window executed on dev (E36–E38; precondition: one budget factor per
       project, E20); `verify.md`.
 
-## 5. Steps as project entities (slice 3b, `feat/wbs-work-packages-3b`)
+## 5. Step catalogue (replaces the superseded slice 3b)
 
-_Blocked 2026-10-25 by Dany:_ E21 is deferred to the separate design `wbs-step-catalogue`
-(steps per work item type, configured at the organization and added at space and project).
-No task below starts until that design lands; it may replace them. E33's one-time JSON
-rewrite stays the rule for any step re-key.
+The settled `wbs-step-catalogue` design replaces the old four slice-3b tasks; none of their
+JSON history rewrites is an implementation obligation. SC13 supersedes E33: preserve stored
+history bytes/hashes and translate historical identities only after integrity validation.
+SC14 owns this later transition's guarded down script; snapshot restoration remains its
+window rollback of record. The 2026-11-09 instruction to implement the complete entity
+scope authorizes continuing this settled design; actual merge rules remain concrete
+operator inputs with fingerprint and applicability checks.
 
-- [ ] 5.1 Red: `lift-steps-to-project.db.test.ts` over a dev-shaped fixture (E21, E33): project
-      steps deduplicated by code in first-occurrence order, the first occurrence's id kept,
-      one `work_package_step` row per project step per package carrying the old allowance,
-      allowance revision and unit; every lifted step id re-keyed to the kept id in `actual`,
-      `assignment`, `claim`, `estimate`, `measure_estimate`, `step_blockage`,
-      `step_measure`, `step_node_attempt`, `step_node_attempt_issued`, `step_parallel`,
-      `step_progress`, `typed_dependency` (both columns) and `plan_event.step_id`, with
-      `PRAGMA foreign_key_check` empty and no map table left behind; step ids in
-      `command_journal.payload`/`inverse` and saved-plan input bodies rewritten once with
-      `json_set`; the six owner triggers rebuilt (a claim on a step of another project
-      refused); the guard refuses naming the package for a code-less step, refuses
-      `step_name_clash` naming the project and packages for two codes sharing a name, and
-      refuses naming the journal row for an unrecognised payload shape; replaying a batch
-      journaled before the lift yields the same tree as before it, and history and a saved
-      plan stored before it read the same after it. Green:
-      `<merge-date>100000_lift_steps_to_project` in the compatible rebuild form, `down.sql`
-      refusing while any project step is used by two packages' rows (the backup is the
-      rollback, D72). R5 faults: the code dedupe removed (duplicate project steps observed);
-      `step_node_attempt_issued` left out of the re-key (`foreign_key_check` names it); the
-      journal rewrite removed (replaying the pre-lift entry fails on an unknown step id); the
-      unrecognised-shape check removed (the fixture's odd payload migrates unchanged instead
-      of the migration refusing naming its row); each watched.
-- [ ] 5.2 Steps (E21): step create, rename and reorder as project routes, per-package
-      allowance and estimate unit, `step_code_not_in_project` and re-key on move, import
-      adding the file's missing codes to the project; mcp-01's README count raised (WP-10).
-      Tests named in the spec scenarios. R5 fault: the move's step-code check removed;
-      watched.
-- [ ] 5.3 fe-01: step editing as a project write seen by every package of the project;
-      browser test. R5 fault: the handler that renders `409 step_code_not_in_project` as a
-      state removed; the browser test naming that refusal fails; watched. UI reviewed by eye.
-- [ ] 5.4 Runbook window executed on dev (precondition: `backfill-step-codes-cli.ts` run and
-      step-name clashes renamed, E21); `verify.md`.
+- [ ] 5.1 Complete every task in [wbs-step-catalogue](../wbs-step-catalogue/tasks.md),
+      including report/apply, catalogue/bindings/resolution, migrations/history readers,
+      protected-fact/application invariants, scheduler, routes/commands/documents, UI,
+      window rehearsal/activation and all R5 proofs. Verify the combined scope against
+      that change's spec and the work-package/permissions integration before marking
+      this parent obligation complete.

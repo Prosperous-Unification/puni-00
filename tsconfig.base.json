@@ -69,6 +69,7 @@
       "@wbs/conformance": ["./libs/wbs/application/conformance/src/index.ts"],
       "@wbs/conformance/*": ["./libs/wbs/application/conformance/src/*"],
       "@wbs/domain": ["./libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/access-role": ["./libs/wbs/domain/domain/src/access-role.ts"],
       "@wbs/domain/connected-history-fixture": [
         "./libs/wbs/domain/domain/src/saved-plan/connected-history.fixture.ts"
       ],

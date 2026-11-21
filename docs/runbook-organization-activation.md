@@ -308,8 +308,9 @@ docker exec -u <login> -e DB_PATH=/data/wbs.db wbs-dev-src \
 
 Success prints one JSON line on stdout with the grant id, `origin: operator`, the actor
 `operator:<os login>` and `superAdminCount`, the organization's direct human super-admins
-afterwards. The `access_granted`/`access_revoked` audit row is not written until task 4.1
-widens `organization_audit`; the output says `audit: deferred to wbs-permissions 4.1`.
+afterwards. The `access_granted`/`access_revoked` audit row commits in the same
+transaction as its grant change, with origin `operator` and that OS actor; output says
+`audit: recorded`. An unavailable audit rolls the change back and prints no success.
 
 | Exit | Refusal                | Meaning                                                    |
 | ---- | ---------------------- | ---------------------------------------------------------- |

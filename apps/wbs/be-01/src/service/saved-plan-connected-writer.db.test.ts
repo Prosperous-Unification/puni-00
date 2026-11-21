@@ -24,8 +24,9 @@ test.each([
         dbPath: path,
       });
       const access = {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       };
       let captures = 0;
       let replaceAfterCapture = false;
@@ -65,7 +66,13 @@ test.each([
           createdBy: 'ada',
           createdById: 'ada',
           access,
-          scoped: { organizationId: 'org-a', actorId: 'ada', role: 'member', operation: 'save' },
+          scoped: {
+            principal: { id: 'ada' },
+            organizationId: 'org-a',
+            actorId: 'ada',
+
+            operation: 'save',
+          },
         });
         expect(saved.outcome).toBe('saved');
         if (saved.outcome !== 'saved' || !current.schedule.present)
@@ -133,8 +140,9 @@ test('installed connected writer refuses missing required evidence without parti
             createdBy: 'ada',
             createdById: 'ada',
             access: {
+              principal: { id: 'ada' },
               kind: 'scoped',
-              scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+              scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
             },
           });
         } catch (cause) {

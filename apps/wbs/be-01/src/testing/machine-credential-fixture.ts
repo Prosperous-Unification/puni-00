@@ -78,3 +78,18 @@ export function addAgentPerson(
     [id, organizationId, name],
   );
 }
+
+/** Grants the named fixture credential exactly one role at the explicit addressed scope. */
+export function grantCredential(
+  sqlite: Database,
+  organizationId: string,
+  credentialId: string,
+  roleId: string,
+  scopeKind: 'organization' | 'work_package',
+  scopeId: string,
+): void {
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,?,?,'machine_credential',?,?,'route',1)",
+    [crypto.randomUUID(), organizationId, scopeKind, scopeId, credentialId, roleId],
+  );
+}

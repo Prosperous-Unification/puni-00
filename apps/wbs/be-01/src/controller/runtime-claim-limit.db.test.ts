@@ -15,7 +15,7 @@ beforeEach(async () => {
   harness = OrganizationHarness.openComposed();
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'admin');
+  harness.member('org-a', 'ada', 'admin', ['org-admin']);
   harness.bind('ada', 'org-a');
   harness.activate();
   const created = await harness.call('ada', 'POST', '/api/projects', { name: 'Runtime cap' });
@@ -180,9 +180,7 @@ test('mounted below-cap claim commits once and exact replay survives a lower cap
   capClaims(0);
   expect(await submit(request)).toEqual(accepted);
   expect(readEffects()).toEqual(committed);
-  harness.sqlite.run(
-    "UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a'",
-  );
+  harness.sqlite.run("UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a'");
   expect(await submit(request)).toMatchObject({
     kind: 'refusal',
     status: 403,

@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   addSpaceProject,
   createSpace,
@@ -10,7 +11,9 @@ import {
   removeSpaceProject,
   renameSpace,
 } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 
+import type { RefusedOrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { OrganizationAccess } from '../ports/organization-access';
 import {
   IN_PROGRESS_LIMIT,
@@ -20,6 +23,7 @@ import {
 } from '../service/space.resource';
 import { bind, EMPTY } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import type { RecoveryWriteBoundary } from './recovery-write';
 
 /** Each refusal word paired with its status and body, once. */
 const REFUSED = {
@@ -63,14 +67,58 @@ function limitOf(query: string | undefined): number | null {
 }
 
 /** Narrowed by the refusals the calling method can answer, so each route declares only those. */
-const refused = <R extends SpaceRefusal>(refusal: R): (typeof REFUSED)[R] => REFUSED[refusal];
+const refused = <R extends SpaceRefusal>(
+  refusal: R,
+  permission?: Permission,
+): (typeof REFUSED)[R] => ({
+  ...REFUSED[refusal],
+  body: { ...REFUSED[refusal].body, ...(permission === undefined ? {} : { permission }) },
+});
 
 /**
  * The space routes (`add-spaces`, slice 2). Every route resolves organization
  * access before anything else; the service owns the owner, role, virtual-space
  * and leak rules. Membership edits are not plan commands: no journal, no undo.
  */
-export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAccess) {
+export function spaceRoutes(
+  spaces: SpaceResource,
+  organizations: OrganizationAccess,
+  boundary: Pick<RecoveryWriteBoundary, 'uow' | 'commandAccess'>,
+) {
+  const write = async <T extends { readonly ok: boolean }>(
+    actor: AuthenticatedUser,
+    expectedAccess: ResourceAccess,
+    act: (writer: SpaceResource, access: ResourceAccess, actorId: string) => Promise<T>,
+  ): Promise<T | { readonly ok: false; readonly authority: RefusedOrganizationAccess }> => {
+    actor = structuredClone(actor);
+    expectedAccess = structuredClone(expectedAccess);
+    return boundary.uow.run<
+      T | { readonly ok: false; readonly authority: RefusedOrganizationAccess }
+    >(async (scope) => {
+      const resolved = await boundary.commandAccess.resolve({
+        kind: 'human',
+        principal: actor,
+        expectedAccess,
+      });
+      if (!resolved.ok) return { commit: false, value: { ok: false, authority: resolved } };
+      // Proof: space-actor-coherence fault failed 'mismatched space.*before grant reads' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      if (
+        resolved.access.kind === 'scoped' &&
+        (resolved.access.scope.userId !== actor.id || resolved.access.principal.id !== actor.id)
+      )
+        throw new Error('space principal differs from its acting account');
+      const borrowed = scope.stores.spaces;
+      // Proof: space-no-public-fallback fault failed 'real space route closed when the admitted spaces' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      if (borrowed === undefined) throw new Error('space writer lacks its borrowed store');
+      // Proof: space-no-default-grants fault failed 'real space route closed when the admitted accessDecisions' (command-permission.controller.db.test.ts); restored GREEN, 2026-11-09.
+      const outcome = await act(
+        spaces.over(borrowed, scope.stores.accessDecisions),
+        resolved.access,
+        actor.id,
+      );
+      return { commit: outcome.ok, value: outcome };
+    });
+  };
   return [
     bind(listSpaces, async ({ principal }) => {
       const resolved = await organizations.resolve(principal);
@@ -80,17 +128,20 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
         ? {
             ok: true,
             status: 200,
-            body: { spaces: outcome.value, writable: spaces.mayWrite(resolved.access) },
+            body: { spaces: outcome.value, writable: await spaces.mayWrite(resolved.access) },
           }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(createSpace, async ({ body, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.create(principal.id, resolved.access, body.name);
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.create(actorId, access, body.name),
+      );
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
       return outcome.ok
         ? { ok: true, status: 201, body: { space: outcome.value } }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(readSpace, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
@@ -102,10 +153,10 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
             status: 200,
             body: {
               ...outcome.value,
-              writable: !outcome.value.space.virtual && spaces.mayWrite(resolved.access),
+              writable: !outcome.value.space.virtual && (await spaces.mayWrite(resolved.access)),
             },
           }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(readSpaceRollUps, async ({ params, query, principal }) => {
       const projectIds = projectIdsOf(query.projectIds);
@@ -116,7 +167,7 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       if ('kind' in outcome) return organizationRefusal(outcome.refusal);
       return outcome.ok
         ? { ok: true, status: 200, body: { rollUps: outcome.value } }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(readSpaceInProgress, async ({ params, query, principal }) => {
       const limit = limitOf(query.limit);
@@ -125,60 +176,70 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       if (!resolved.ok) return organizationRefusal(resolved);
       const outcome = await spaces.inProgress(principal.id, resolved.access, params.id, limit);
       if ('kind' in outcome) return organizationRefusal(outcome.refusal);
-      return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
+      return outcome.ok
+        ? { ok: true, status: 200, body: outcome.value }
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(renameSpace, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.rename(principal.id, resolved.access, params.id, body.name);
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.rename(actorId, access, params.id, body.name),
+      );
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
       return outcome.ok
         ? { ok: true, status: 200, body: { space: outcome.value } }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(removeSpace, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.remove(resolved.access, params.id);
-      return outcome.ok ? { ok: true, status: 204, body: EMPTY } : refused(outcome.refusal);
+      const outcome = await write(principal, resolved.access, (writer, access) =>
+        writer.remove(access, params.id),
+      );
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
+      return outcome.ok
+        ? { ok: true, status: 204, body: EMPTY }
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(addSpaceProject, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.addProject(
-        principal.id,
-        resolved.access,
-        params.id,
-        body.projectId,
-        body.afterProjectId ?? null,
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.addProject(actorId, access, params.id, body.projectId, body.afterProjectId ?? null),
       );
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
       return outcome.ok
         ? { ok: true, status: 201, body: { position: outcome.value } }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(removeSpaceProject, async ({ params, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.removeProject(
-        principal.id,
-        resolved.access,
-        params.id,
-        params.projectId,
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.removeProject(actorId, access, params.id, params.projectId),
       );
-      return outcome.ok ? { ok: true, status: 204, body: EMPTY } : refused(outcome.refusal);
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
+      return outcome.ok
+        ? { ok: true, status: 204, body: EMPTY }
+        : refused(outcome.refusal, outcome.permission);
     }),
     bind(moveSpaceProject, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved);
-      const outcome = await spaces.moveProject(
-        principal.id,
-        resolved.access,
-        params.id,
-        params.projectId,
-        body.afterProjectId ?? null,
+      const outcome = await write(principal, resolved.access, (writer, access, actorId) =>
+        writer.moveProject(
+          actorId,
+          access,
+          params.id,
+          params.projectId,
+          body.afterProjectId ?? null,
+        ),
       );
+      if ('authority' in outcome) return organizationRefusal(outcome.authority);
       return outcome.ok
         ? { ok: true, status: 200, body: { position: outcome.value } }
-        : refused(outcome.refusal);
+        : refused(outcome.refusal, outcome.permission);
     }),
   ] as const;
 }

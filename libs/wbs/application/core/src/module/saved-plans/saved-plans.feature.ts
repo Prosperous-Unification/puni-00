@@ -1,3 +1,4 @@
+import type { Permission } from '@wbs/domain';
 import {
   bodyBytesRefusal,
   buildScheduleBody,
@@ -129,7 +130,7 @@ export interface SavedPlanSaveRequest {
  */
 export type SavedPlanSaveOutcome =
   | { readonly outcome: 'saved'; readonly record: SavedPlanWrite }
-  | { readonly outcome: 'forbidden' }
+  | { readonly outcome: 'forbidden'; readonly permission?: Permission }
   | { readonly outcome: 'refused'; readonly refusal: SavedPlanQuotaRefusal }
   | { readonly outcome: 'no_project' }
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
@@ -551,7 +552,10 @@ export class SavedPlanService {
       case 'snapshot_busy':
         return { outcome: 'snapshot_busy' };
       case 'forbidden':
-        return { outcome: 'forbidden' };
+        return {
+          outcome: 'forbidden',
+          ...(written.permission === undefined ? {} : { permission: written.permission }),
+        };
       case 'not_found':
         return { outcome: 'no_project' };
     }

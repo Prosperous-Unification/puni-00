@@ -12,6 +12,7 @@ import type {
 } from '@wbs/contracts';
 import type { ResourceRuntimeActor } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
+import { resourceUseActorOf } from '@wbs/core/http/resource-use.routes';
 import {
   createPlanCommandRunner,
   createRuntimeReceiver,
@@ -30,7 +31,7 @@ import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { CLAIM_LEASE_MS } from '@wbs/domain';
+import { CLAIM_LEASE_MS, CONTRIBUTOR_CAP } from '@wbs/domain';
 import { SqliteCommandAccess } from '@wbs/store-sqlite/command-access';
 import { MachineCredentialRepository } from '@wbs/store-sqlite/machine-credential';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
@@ -47,7 +48,11 @@ import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
 const context: RuntimeContext = {
   actor,
-  access: { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'member' } },
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
+  },
   projectId: 'a1',
   personId: 'agent',
 };
@@ -87,6 +92,21 @@ async function seeded(shared = false, runtimeContext = context, clock: Clock = t
   sqlite.db.run(
     "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
   );
+  sqlite.db.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
+  );
+  for (const credentialId of [
+    'verified-machine',
+    'verified-consent',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  ])
+    sqlite.db.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-" +
+        credentialId +
+        "','org-a','organization','org-a','machine_credential','" +
+        credentialId +
+        "','project-contributor','route',1)",
+    );
   await source.stores.directory.addPerson({ id: 'agent', name: 'Agent', kind: 'agent' }, [], stamp);
   await source.stores.directory.mapInOrganization('people', 'agent', 'org-a', 'Agent');
   await source.stores.directory.addPerson(
@@ -327,6 +347,11 @@ const T = 1_900_000_000_000;
 // Verified-principal dependency seam: these runner tests do not exercise credential cryptography.
 const machineContext: RuntimeContext = {
   ...context,
+  access: {
+    principal: { id: 'ada' },
+    kind: 'scoped',
+    scope: { organizationId: 'org-a', userId: 'ada', cap: CONTRIBUTOR_CAP },
+  },
   actor: {
     ...actor,
     authentication: { kind: 'machine', credentialId: 'verified-machine', personId: 'agent' },
@@ -909,10 +934,16 @@ describe('runtime write transaction boundaries', () => {
       reason: 'runtime_scope_unavailable',
     });
     sqlite.db.run("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-viewer' WHERE id='runtime-ada'");
     const before = await snapshot();
-    expect(await runner.writeRuntime(context, request)).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await runner.writeRuntime(context, request)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.write',
+    });
     expect(await snapshot()).toEqual(before);
     sqlite.db.run("UPDATE organization_membership SET role='admin' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'");
     expect(
       await source.stores.directory.patchPerson('agent', { accountId: null }, stamp),
     ).toMatchObject({ ok: true });
@@ -920,18 +951,20 @@ describe('runtime write transaction boundaries', () => {
       ok: true,
     });
     sqlite.db.run("UPDATE organization_membership SET role='member' WHERE user_id='ada'");
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runner.writeRuntime(
         {
           ...context,
           access: {
+            principal: { id: 'ada' },
             kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
+            scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
           },
         },
         request,
       ),
-    ).toEqual({ ok: false, reason: 'person_not_bound' });
+    ).toEqual({ ok: false, reason: 'forbidden', permission: 'package.claim_for_others' });
   });
 
   it('rejects malformed and unsupported shapes before queued admission', async () => {
@@ -974,8 +1007,9 @@ describe('runtime write transaction boundaries', () => {
       personId: 'agent',
       actor: { ...actor, scopes: [...actor.scopes] },
       access: {
+        principal: { id: 'ada' },
         kind: 'scoped' as const,
-        scope: { organizationId: 'org-a', userId: 'ada', role: 'member' as const },
+        scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' as const },
       },
     };
     const entered = Promise.withResolvers<undefined>();
@@ -1085,27 +1119,36 @@ describe('runtime write transaction boundaries', () => {
       "INSERT INTO resource (id,name,kind,unit_label,provider_id) VALUES ('release-disk','Release disk','divisible','GB','resource-provider')",
       "INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('release-disk','org-a','Release disk')",
       "INSERT INTO machine_credential (id,organization_id,person_id,issued_by,source,name,created_at,created_by) VALUES ('00000000-0000-4000-8000-000000000001','org-a','other-agent','ada','api_key','Release controller',2,'ada')",
-      "UPDATE organization_membership SET role='admin' WHERE organization_id='org-a' AND user_id='ada'",
+      "UPDATE access_grant SET role_id='org-admin' WHERE id='runtime-ada'",
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('release-controller-write','org-a','work_package','a1','machine_credential','00000000-0000-4000-8000-000000000001','package-contributor','route',1)",
     ])
       sqlite.db.run(statement);
+    if (context.access.kind !== 'scoped') throw new Error('expected scoped runtime fixture');
+    const controllerPrincipal = {
+      id: actor.id,
+      authentication: { kind: 'machine' as const, credentialId, personId: 'other-agent' },
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' as const },
+    };
     const controller: ResourceRuntimeActor = {
-      id: 'ada',
-      personId: 'other-agent',
+      ...resourceUseActorOf(controllerPrincipal, {
+        kind: 'scoped',
+        scope: { ...context.access.scope, cap: CONTRIBUTOR_CAP },
+        principal: {
+          id: controllerPrincipal.id,
+          authentication: structuredClone(controllerPrincipal.authentication),
+        },
+      }),
       credentialId,
-      fingerprint: 'release-controller',
-      access: { ...context.access },
     };
     expect(
       await runtime.bind(
         'release-runtime',
-        { ...controller, credentialId: null, personId: null },
+        { ...resourceUseActorOf(actor, context.access), credentialId: null },
         { providerId: 'resource-provider', credentialId, epoch: 'release-epoch' },
         2,
       ),
     ).toMatchObject({ ok: true });
-    sqlite.db.run(
-      "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id='ada'",
-    );
+    sqlite.db.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='runtime-ada'");
     expect(
       await runtime.ingest(
         'release-runtime',

@@ -1,4 +1,6 @@
+import type { AccessDecisions } from '../ports/access-decisions';
 import type {
+  AuthorizeTypedWrites,
   CommandGraphAuthority,
   DependencyContext,
   ServiceDependencyContext,
@@ -7,6 +9,7 @@ import { NO_ADMISSION } from '../ports/edit-admission';
 import type { IncidentRetention } from '../ports/incident-node-transition';
 import { findProjectWithin, LEGACY_ACCESS } from '../ports/organization-access';
 import type { TypedDependencyStore } from '../ports/typed-dependency-store';
+import { authorizePackage } from './authorize';
 import {
   ConnectedDependencyGraphReader,
   type ConnectedDependencyGraphReads,
@@ -18,6 +21,7 @@ import { createIncidentNodeTransition } from './incident-node-transition';
 type DependencyReads = ConnectedDependencyGraphReads &
   Parameters<typeof createEndpointEvidence>[0] & {
     readonly typedDependencies: TypedDependencyStore;
+    readonly accessDecisions?: AccessDecisions;
   };
 
 /** One graph lifetime nested inside the admitted writer observation. */
@@ -99,10 +103,12 @@ function openContext(
   if (
     access.kind === 'scoped' &&
     (access.scope.userId !== actorId ||
+      access.principal.id !== actorId ||
       typeof access.scope.organizationId !== 'string' ||
       access.scope.organizationId.length === 0)
   )
     throw new Error('dependency context actor does not match current access');
+  access = structuredClone(access);
   let open = true;
   const assertActive = () => {
     assertObservation();
@@ -169,7 +175,42 @@ function openContext(
             kind: 'scoped',
           });
   const graph = new DependencyGraphGuard(reader, projectId, assertActive);
+  const authorizeTypedWrites: AuthorizeTypedWrites = async (relationships) => {
+    // Proof: removing this fence failed 'refuses typed write authorization after context closes at before-call'; fault/restored pass, 2026-11-09.
+    assertActive();
+    if (access.kind === 'legacy') return null;
+    const packageIds = new Set(
+      relationships.flatMap((relationship) => [
+        relationship.predecessor.projectId,
+        relationship.successor.projectId,
+      ]),
+    );
+    for (const workPackageId of packageIds) {
+      const project = await reads.projects.findInOrganization(
+        workPackageId,
+        access.scope.organizationId,
+      );
+      // Proof: removing this fence read grants after closure in the ownership-read lifetime test; fault/restored pass, 2026-11-09.
+      assertActive();
+      if (project === null) return { ok: false, reason: 'not_found', authorization: true };
+      const decision = await authorizePackage(
+        reads.accessDecisions,
+        access,
+        project,
+        actorId,
+        'package.write',
+      );
+      // Proof: removing this fence returned authority after closure in the grant-read lifetime test; fault/restored pass, 2026-11-09.
+      assertActive();
+      if (!decision.ok)
+        return decision.reason === 'not_found'
+          ? { ok: false, reason: 'not_found', authorization: true }
+          : { ok: false, reason: 'forbidden', permission: 'package.write', authorization: true };
+    }
+    return null;
+  };
   const context: DependencyContext = {
+    authorizeTypedWrites,
     incidents: createIncidentNodeTransition(
       reads,
       { projectId, actorId, access, admission },
@@ -178,6 +219,7 @@ function openContext(
       assertActive,
       retention,
       localOnly,
+      authorizeTypedWrites,
     ),
     endpoints,
     graph,

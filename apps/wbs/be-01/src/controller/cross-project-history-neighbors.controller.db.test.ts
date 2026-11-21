@@ -3,7 +3,11 @@ import { DEPENDENCY_SEMANTICS, DEPENDENCY_SEMANTICS_HEADER } from '@wbs/contract
 import { readPreconditions } from '@wbs/core/service/compensating';
 import { afterEach, expect, test } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { closeFixture, harness, openFixture, readTables } from './cross-project-dependency-fixture';
@@ -160,6 +164,15 @@ test('connected replay rebases only its acting person stack and discards only it
     expect(typeof grant).toBe('string');
     return grant;
   };
+  for (const credential of [first, second])
+    grantCredential(
+      harness.sqlite,
+      'org-a',
+      credential.id,
+      'project-contributor',
+      'organization',
+      'org-a',
+    );
   const firstGrant = await issueGrant(first.key);
   const secondGrant = await issueGrant(second.key);
   const serviceHeaders = {

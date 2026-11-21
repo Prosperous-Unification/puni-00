@@ -50,9 +50,9 @@ beforeEach(async () => {
   });
   for (const username of ['dany', 'mem', 'kat']) await h.register(username);
   h.organization('org-a');
-  h.member('org-a', 'dany', 'admin');
-  h.member('org-a', 'mem', 'member');
-  h.member('org-a', 'kat', 'member');
+  h.member('org-a', 'dany', 'admin', ['org-admin']);
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.member('org-a', 'kat', 'member', ['project-contributor', 'org-viewer']);
   for (const username of ['dany', 'mem', 'kat']) h.bind(username, 'org-a');
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Claims' });
@@ -113,10 +113,10 @@ function claimsOf(personId: string): number {
   );
 }
 
-const refused = (error: string) => ({
-  status: 403,
-  body: { error, at: 0, kind: 'claimWorkItem' },
-});
+const hiddenPerson = {
+  status: 404,
+  body: { error: 'unknown_person', at: 0, kind: 'claimWorkItem' },
+};
 
 describe('who may claim as a person', () => {
   // Proof: `ClaimRepository.boundAccountOf` answering null (slice 1's interim
@@ -127,12 +127,12 @@ describe('who may claim as a person', () => {
   });
 
   it('refuses a member claiming as a person bound to another account', async () => {
-    expect(await batch('mem', [claim('kats-agent')])).toEqual(refused('person_not_bound'));
+    expect(await batch('mem', [claim('kats-agent')])).toEqual(hiddenPerson);
     expect(claimsOf('kats-agent')).toBe(0);
   });
 
   it('refuses a member claiming as a person bound to nobody', async () => {
-    expect(await batch('mem', [claim('loose')])).toEqual(refused('person_not_bound'));
+    expect(await batch('mem', [claim('loose')])).toEqual(hiddenPerson);
     expect(claimsOf('loose')).toBe(0);
   });
 
@@ -153,8 +153,12 @@ describe('who may claim as a person', () => {
     expect(
       await batch('mem', [{ kind: 'releaseWorkItem', workItemId: leaf, personId: 'kats-agent' }]),
     ).toEqual({
-      status: 403,
-      body: { error: 'person_not_bound', at: 0, kind: 'releaseWorkItem' },
+      status: 404,
+      body: {
+        error: 'unknown_person',
+        at: 0,
+        kind: 'releaseWorkItem',
+      },
     });
     expect(claimsOf('kats-agent')).toBeGreaterThan(0);
   });

@@ -74,6 +74,8 @@ beforeEach(() => {
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    '20261103110000_add_initial_access_offers',
+    '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
     '20261101120000_add_host_job_projection',
     '20261101100100_add_resource_directory_capacity',
@@ -199,6 +201,8 @@ describe(MIGRATION, () => {
     const before = facts();
     db.close();
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',

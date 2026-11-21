@@ -231,10 +231,23 @@ test('a member reads a restricted project it does not own and cannot edit it, be
     },
   );
   expect(activated.exitCode).toBe(0);
+  const owner = process.sqlite
+    .query<{ organization_id: string }, [string]>(
+      'SELECT organization_id FROM project_organization WHERE resource_id=?',
+    )
+    .get(projectId);
+  if (owner === null) throw new Error('activated project owner missing');
+  process.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('ada-restricted-reader',?,'work_package',?,'user',?,'package-viewer','route',1)",
+    [owner.organization_id, projectId, process.userId('ada')],
+  );
 
   // Proof: 2026-10-20, granting every other user `super_admin` instead of `member` made this
   // edit answer 200 and rename the project (an audited recovery) instead of 403 `forbidden`.
-  expect(await answers(await selectSession(process, 'ada'))).toEqual(before);
+  expect(await answers(await selectSession(process, 'ada'))).toEqual({
+    read: 200,
+    edit: { status: 403, body: { error: 'forbidden', permission: 'package.manage_settings' } },
+  });
   const project = await call(
     process,
     'GET',

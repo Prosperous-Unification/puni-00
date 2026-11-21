@@ -248,10 +248,10 @@ for (const fault of ['existing-destination', 'foreign-destination', 'detached-ch
     expect(readTables()).toEqual(before);
   });
 
-test('restricted readable remote successor permits derived handdown while ordinary foreign typed editing refuses', async () => {
+test('restricted readable remote successor refuses derived handdown until both remote write grants exist', async () => {
   const fixture = await seedIncidents();
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query(
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
@@ -289,6 +289,18 @@ test('restricted readable remote successor permits derived handdown while ordina
     ),
   ).toMatchObject({ ok: false, reason: 'forbidden' });
   expect(readTables()).toEqual(before);
+  expect(
+    await runSemantic(fixture, (service) =>
+      service.create(fixture.owner.projectId, fixture.principal.id, {
+        parentId: fixture.owner.workItemId,
+        afterId: null,
+        name: 'Refused child',
+      }),
+    ),
+  ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.write' });
+  expect(readTables()).toEqual(before);
+  for (const endpoint of [fixture.successor, fixture.secondSuccessor])
+    harness.grant('org-a', 'ada', 'package-contributor', 'work_package', endpoint.projectId);
   const child = await runSemantic(fixture, (service) =>
     service.create(fixture.owner.projectId, fixture.principal.id, {
       parentId: fixture.owner.workItemId,
@@ -890,13 +902,20 @@ test('synthetic mounted successor deletion removes only owned links and restores
   const fixture = await openFixture({ syntheticExternalCommands: true });
   activateTestStepBlockages(harness.databasePath());
   await harness.register('grace');
-  harness.member('org-a', 'grace', 'member');
+  harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
   harness.sqlite
     .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
     .run('member', 'org-a', fixture.principal.id);
   harness.sqlite
     .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
     .run(harness.userId('grace'), fixture.predecessor.projectId);
+  harness.grant(
+    'org-a',
+    'ada',
+    'package-contributor',
+    'work_package',
+    fixture.predecessor.projectId,
+  );
   const route = `/api/projects/${fixture.owner.projectId}`;
   expect(
     (
@@ -994,6 +1013,10 @@ test('synthetic mounted successor deletion removes only owned links and restores
     if (entry === null) throw new Error('mounted journal missing');
     return entry;
   };
+  harness.sqlite.run(
+    "UPDATE access_grant SET role_id='package-viewer' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=? AND role_id='package-contributor'",
+    [fixture.principal.id, fixture.predecessor.projectId],
+  );
   const forbiddenBefore = readTables();
   expect(
     (
@@ -1009,6 +1032,10 @@ test('synthetic mounted successor deletion removes only owned links and restores
     ).status,
   ).toBe(403);
   expect(readTables()).toEqual(forbiddenBefore);
+  harness.sqlite.run(
+    "UPDATE access_grant SET role_id='package-contributor' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=? AND role_id='package-viewer'",
+    [fixture.principal.id, fixture.predecessor.projectId],
+  );
   expect(
     (
       await fixture.request(`${route}/commands`, {
@@ -1068,13 +1095,20 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
     activateTestStepBlockages(harness.databasePath());
     await harness.register('grace');
-    harness.member('org-a', 'grace', 'member');
+    harness.member('org-a', 'grace', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite
       .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
       .run('member', 'org-a', fixture.principal.id);
     harness.sqlite
       .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
       .run(harness.userId('grace'), fixture.predecessor.projectId);
+    harness.grant(
+      'org-a',
+      'ada',
+      'package-contributor',
+      'work_package',
+      fixture.predecessor.projectId,
+    );
     const route = `/api/projects/${fixture.owner.projectId}`;
     expect(
       (
@@ -1255,6 +1289,10 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
       return;
     }
     const treeBefore = readTree();
+    harness.sqlite.run(
+      "UPDATE access_grant SET role_id='package-viewer' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=? AND role_id='package-contributor'",
+      [fixture.principal.id, fixture.predecessor.projectId],
+    );
     const forbiddenBefore = readTables();
     expect(
       (
@@ -1270,6 +1308,10 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
       ).status,
     ).toBe(403);
     expect(readTables()).toEqual(forbiddenBefore);
+    harness.sqlite.run(
+      "UPDATE access_grant SET role_id='package-contributor' WHERE subject_id=? AND scope_kind='work_package' AND scope_id=? AND role_id='package-viewer'",
+      [fixture.principal.id, fixture.predecessor.projectId],
+    );
     expect(
       (
         await fixture.request(`${route}/commands`, {
@@ -1403,3 +1445,65 @@ for (const scenario of ['replay', 'stale', 'outgoing'] as const) {
     ).toEqual(remoteHistory);
   });
 }
+
+test('semantic owner lease refuses a legacy super-admin without current package write before mutation', async () => {
+  const fixture = await openFixture();
+  harness.sqlite
+    .query('DELETE FROM access_grant WHERE organization_id=? AND subject_kind=? AND subject_id=?')
+    .run('org-a', 'user', fixture.principal.id);
+  const before = readTables();
+  const failure = await runSemantic(fixture, (service) =>
+    service.create(fixture.owner.projectId, fixture.principal.id, {
+      parentId: null,
+      afterId: null,
+      name: 'Must not be written',
+    }),
+  ).then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : failure).toMatch(
+    /fixture owner admission refused/,
+  );
+  expect(readTables()).toEqual(before);
+});
+
+test('semantic source refuses an expired writer while its real owner and current package grant remain live', async () => {
+  const fixture = await openFixture();
+  const before = readTables();
+  const outcome = await runSemantic(
+    fixture,
+    (service) =>
+      service.create(fixture.owner.projectId, fixture.principal.id, {
+        parentId: null,
+        afterId: null,
+        name: 'Expired writer must not create',
+      }),
+    undefined,
+    { state: 'inactive' },
+    (admission) => {
+      admission.expire();
+    },
+  );
+  expect(readTables()).toEqual(before);
+  expect(outcome).toEqual({ ok: false, reason: 'forbidden' });
+});
+
+test('semantic source throws for missing current grant decisions before mutation', async () => {
+  const fixture = await openFixture();
+  const before = readTables();
+  const pending = harness.publicWrites().uow.run(async (scope) => {
+    await requireOwnerEdit({ ...scope.stores, accessDecisions: undefined }, fixture);
+    return { commit: true, value: undefined };
+  });
+  const failure = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  expect(readTables()).toEqual(before);
+  expect(failure).toBeInstanceOf(Error);
+  expect(failure instanceof Error ? failure.message : failure).toContain(
+    'the catalog carries no access decisions',
+  );
+});

@@ -23,7 +23,8 @@ async function fixture(push?: () => Promise<Response>) {
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
   const create = async (name: string) => {
@@ -43,7 +44,8 @@ async function fixture(push?: () => Promise<Response>) {
   const tail = await create('Tail');
   const unrelated = await create('Unrelated same-organization project');
   harness.organization('org-b');
-  harness.member('org-b', 'ada', 'member');
+  harness.member('org-b', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-b', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-b');
   const foreign = await create('Protected foreign name');
   const foreignTail = await create('Protected foreign successor');

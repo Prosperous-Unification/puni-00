@@ -22,7 +22,8 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposed();
   await h.register('ada');
   h.organization('org-a');
-  h.member('org-a', 'ada', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project', 'project.manage_budgets']);
   h.bind('ada', 'org-a');
   h.activate();
   const created = await h.call('ada', 'POST', '/api/projects', { name: 'Admission' });

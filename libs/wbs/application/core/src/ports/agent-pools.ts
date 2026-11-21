@@ -1,7 +1,8 @@
-import type { LimitCrossed } from '@wbs/domain';
+import type { LimitCrossed, Permission } from '@wbs/domain';
 
 import type { MachineCredentialSummary } from './machine-credentials';
 import type { AuditedAct } from './organization-audit';
+import type { SecurityPrincipal } from './security-principal';
 
 /** The most agent persons one pool creates (`wbs-mcp-agent-surface` M7). */
 export const MOST_AGENT_POOL_SIZE = 100;
@@ -67,15 +68,21 @@ export interface AgentPoolIssued {
 
 /**
  * Why a pool act was refused before anything was read about the pool:
- * `inactive` before activation, `forbidden` for anyone but a current `admin`
- * or `super_admin` (M7: only an admin's browser session makes a pool).
+ * inactive before activation, or a named current organization.manage_directory
+ * denial from the actual authenticated principal and fixed credential cap.
  */
-export type AgentPoolActorRefusal = 'inactive' | 'forbidden';
+export interface AgentPoolPermissionRefusal {
+  readonly kind: 'forbidden';
+  readonly permission: Permission;
+}
+
+/** Activation refusal or the current grant/cap denial before pool facts. */
+export type AgentPoolActorRefusal = 'inactive' | AgentPoolPermissionRefusal;
 
 /**
  * Agent pools (`wbs-mcp-agent-surface` M7). Every act rechecks activation and
- * the actor's admin role inside the one immediate transaction that also
- * writes its audit rows, so the act and its audit commit or roll back
+ * the retained actual principal's directory grant inside the same Gate and
+ * immediate connection owner that also writes its audit rows, so the act and its audit commit or roll back
  * together. Only a SHA-256 digest of a key's secret ever reaches the store,
  * and no audit detail holds a key, a secret or a digest.
  *
@@ -90,13 +97,13 @@ export interface AgentPools {
   /** Every pool of the organization, revoked ones included, oldest first. */
   list(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     at: number,
   ): Promise<readonly AgentPoolSummary[] | AgentPoolActorRefusal>;
   /**
-   * Creates the pool, one agent person per draft agent bound to `actorId`'s
-   * account, and one API key each issued by `actorId`, with one
-   * `machine_credential_created` row per key and one `agent_pool_created`.
+   * Creates the pool, one agent person per draft agent bound to `principal.id`'s
+   * account, and one API key each issued by `principal.id`, with one
+   * `machine_credential_issued` row per key and one `agent_pool_created`.
    * The agent-person cap is judged once for the whole pool, by the same
    * reading and decision `addPerson` uses, inside this transaction
    * (`wbs-organization-limits` L9, L10). `name_taken` when a live pool, an
@@ -105,12 +112,13 @@ export interface AgentPools {
    */
   create(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     draft: AgentPoolDraft,
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'created'; readonly issued: AgentPoolIssued }
-    | { readonly kind: AgentPoolActorRefusal | 'name_taken' }
+    | { readonly kind: 'inactive' | 'name_taken' }
+    | AgentPoolPermissionRefusal
     | ({ readonly kind: 'agent_person_limit' } & LimitCrossed)
   >;
   /**
@@ -121,7 +129,7 @@ export interface AgentPools {
    */
   personsOf(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     poolId: string,
   ): Promise<
     | readonly { readonly personId: string; readonly personName: string }[]
@@ -139,13 +147,17 @@ export interface AgentPools {
    */
   rekey(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     poolId: string,
     renewal: AgentPoolRenewal,
     act: AuditedAct,
   ): Promise<
     | { readonly kind: 'rekeyed'; readonly issued: AgentPoolIssued }
-    | { readonly kind: AgentPoolActorRefusal | 'not_found' | 'pool_changed' | 'pool_expired' }
+    | {
+        readonly kind:
+          'inactive' | 'not_found' | 'pool_changed' | 'pool_expired' | 'last_super_admin';
+      }
+    | AgentPoolPermissionRefusal
   >;
   /**
    * Revokes the live pool `poolId` and every live key of it at
@@ -156,7 +168,7 @@ export interface AgentPools {
    */
   revoke(
     organizationId: string,
-    actorId: string,
+    principal: SecurityPrincipal,
     poolId: string,
     act: AuditedAct,
   ): Promise<
@@ -165,7 +177,8 @@ export interface AgentPools {
         readonly revokedCredentials: number;
         readonly personIds: readonly string[];
       }
-    | { readonly kind: AgentPoolActorRefusal | 'not_found' }
+    | { readonly kind: 'inactive' | 'not_found' | 'last_super_admin' }
+    | AgentPoolPermissionRefusal
   >;
 }
 

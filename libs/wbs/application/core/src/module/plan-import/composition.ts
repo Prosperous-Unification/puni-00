@@ -1,3 +1,5 @@
+import type { Permission } from '@wbs/domain';
+
 import type { Clock } from '../../ports/clock';
 import type { CommandAccess, CommandCaller } from '../../ports/command-access';
 import { NO_ADMISSION } from '../../ports/edit-admission';
@@ -57,7 +59,7 @@ function importTransaction(
   return {
     run: async <T>(
       caller: CommandCaller,
-      forbidden: T,
+      forbidden: (permission?: Permission) => T,
       broadcast: Broadcaster,
       act: (plan: ImportedPlan, access: ResourceAccess) => Promise<ImportDecision<T>>,
     ): Promise<T | RefusedOrganizationAccess> => {
@@ -129,7 +131,10 @@ function importTransaction(
           // a queued membership demotion instead of returning typed forbidden.
           const authority = await capture.authorizeImport(actorId, access);
           if (!authority.ok)
-            return { commit: false as const, value: { value: forbidden, delivery: null } };
+            return {
+              commit: false as const,
+              value: { value: forbidden(authority.permission), delivery: null },
+            };
           const before = await capture.capture(access.scope.organizationId);
           const decision = await act(
             {

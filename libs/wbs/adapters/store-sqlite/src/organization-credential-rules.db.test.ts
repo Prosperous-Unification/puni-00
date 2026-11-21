@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { OrganizationPrincipal } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -131,5 +132,99 @@ describe('the organization access credential facts', () => {
       () => 1000,
     );
     expect(access.resolve(principal)).rejects.toThrow(/belongs to another user/);
+  });
+
+  for (const entrypoint of ['admitTo', 'credentialFactsOf'] as const) {
+    it(`retains the original identity before the ${entrypoint} early await`, async () => {
+      const aliased: OrganizationPrincipal = structuredClone(principal);
+      const access = new SqliteOrganizationAccess(
+        openDrizzle(path),
+        () => Promise.resolve('org-a'),
+        () => 2000,
+      );
+      const pending = access[entrypoint](aliased, 'org-a');
+      aliased.id = 'removed-account';
+      const answer = await pending;
+      if (entrypoint === 'admitTo') expect(answer).toBeNull();
+      else
+        expect(answer).toMatchObject({
+          facts: { lifecycle: { openedAt: 1000, reauthenticatedAt: null } },
+        });
+    });
+
+    it(`retains the private OIDC digest before the ${entrypoint} early await`, async () => {
+      const replacement = 'e'.repeat(64);
+      const db = openDatabase(path);
+      try {
+        db.run(`INSERT INTO browser_auth_lifecycle (session_digest, user_id, generation, state, current_kind, current_digest, current_expires_at, opened_at)
+          VALUES ('${'f'.repeat(64)}', 'mia', 1, 'active', 'oidc', '${replacement}', 9999999999999, 0)`);
+        db.run(`INSERT INTO browser_auth_association (session_digest, generation, kind, credential_digest, expires_at)
+          VALUES ('${'f'.repeat(64)}', 1, 'oidc', '${replacement}', 9999999999999)`);
+      } finally {
+        db.close();
+      }
+      const credential = { ...principal.organizationBinding.credential };
+      const aliased = {
+        ...principal,
+        organizationBinding: { ...principal.organizationBinding, credential },
+      };
+      const access = new SqliteOrganizationAccess(
+        openDrizzle(path),
+        () => Promise.resolve('org-a'),
+        () => 28_800_500,
+      );
+      const pending = access[entrypoint](aliased, 'org-a');
+      credential.digest = replacement;
+      const answer = await pending;
+      if (entrypoint === 'admitTo') expect(answer).toBeNull();
+      else {
+        expect(answer).toMatchObject({
+          facts: { lifecycle: { openedAt: 1000, reauthenticatedAt: null } },
+        });
+        expect(Object.keys(answer ?? {}).sort()).toEqual(['facts']);
+        const encoded = JSON.stringify(answer);
+        expect(encoded).not.toContain(DIGEST);
+        expect(encoded).not.toContain(replacement);
+        expect(encoded).not.toContain('selected');
+        expect(encoded).not.toContain('organizationBinding');
+      }
+    });
+  }
+
+  it('retains the original authentication before the admitTo early await', async () => {
+    const aliased: OrganizationPrincipal = structuredClone(principal);
+    const access = new SqliteOrganizationAccess(
+      openDrizzle(path),
+      () => Promise.resolve('org-a'),
+      () => 28_801_001,
+    );
+    const pending = access.admitTo(aliased, 'org-a');
+    aliased.authentication = {
+      kind: 'machine',
+      credentialId: 'substituted-key',
+      personId: 'substituted-agent',
+    };
+    expect(await pending).toMatchObject({
+      refusal: 'reauthentication_required',
+      reason: 'max_session',
+    });
+  });
+
+  it('retains the original delegation before the admitTo early await', async () => {
+    const aliased: OrganizationPrincipal = {
+      ...structuredClone(principal),
+      delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' },
+    };
+    const access = new SqliteOrganizationAccess(
+      openDrizzle(path),
+      () => Promise.resolve('org-a'),
+      () => 2000,
+    );
+    const pending = access.admitTo(aliased, 'org-a');
+    delete aliased.delegation;
+    expect(await pending).toMatchObject({
+      refusal: 'reauthentication_required',
+      reason: 'max_session',
+    });
   });
 });

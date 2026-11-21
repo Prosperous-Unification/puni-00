@@ -29,6 +29,7 @@ export const projectModule = DiBag.createBuilder()
     projectOptions: DiBag.createProvider(
       ({
         projectStore,
+        accessDecisions,
         clock,
         broadcast,
         optimizerAvailable,
@@ -36,6 +37,7 @@ export const projectModule = DiBag.createBuilder()
         beforeUpdate,
       }: {
         projectStore: ProjectStore;
+        accessDecisions: ProjectServiceOptions['accessDecisions'];
         clock: Clock;
         broadcast: Broadcaster;
         optimizerAvailable: OptimizerAvailability | undefined;
@@ -43,6 +45,7 @@ export const projectModule = DiBag.createBuilder()
         beforeUpdate: ProjectServiceOptions['beforeUpdate'];
       }): ProjectServiceOptions => ({
         projects: projectStore,
+        accessDecisions,
         clock,
         broadcast,
         // Proof (2026-09-24): leaving `optimizerAvailable` out of the returned options left

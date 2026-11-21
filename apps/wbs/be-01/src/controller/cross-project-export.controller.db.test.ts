@@ -20,7 +20,8 @@ async function open(options: ComposedHarnessOptions = {}) {
   harness = OrganizationHarness.openComposedWith(options);
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
@@ -371,6 +372,7 @@ test('mounted transfer fixture authors exactly successor-owned links and archive
 
 test('connected version12 retains the published measure lists factor and priced figures', async () => {
   const { target } = await open();
+  harness.grantPermissions('org-a', 'ada', ['project.manage_budgets']);
   const written = await harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
     commands: [
       {

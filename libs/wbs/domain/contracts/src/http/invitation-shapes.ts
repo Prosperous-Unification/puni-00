@@ -1,3 +1,4 @@
+import { INITIAL_ACCESS_ROLES, PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -12,7 +13,7 @@ const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 const summary = type({
   id: 'string',
   email: 'string',
-  role: "'admin' | 'member' | 'viewer'",
+  initialRoleId: type.enumerated(...INITIAL_ACCESS_ROLES).or('null'),
   expiresAt: 'number',
   revokedAt: 'number | null',
   consumedAt: 'number | null',
@@ -31,7 +32,15 @@ const common = [
       type({ error: "'insufficient_scope' | 'invalid_origin' | 'onboarding_inactive'" }),
     ),
   },
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
 ] as const;
 
 /** Lists offers in the session's active organization without exposing token material. */
@@ -55,8 +64,12 @@ export const createInvitation = defineEndpointShape({
   operationId: 'postApiOrganizationInvitations',
   humanOnly: true,
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
-  // Proof: 2026-09-28, admitting super_admin here failed `rejects malformed recipient addresses and a super-admin offer` (403 instead of 400).
-  body: requestSchema(type({ email: 'string', role: "'admin' | 'member' | 'viewer'" })),
+  body: requestSchema(
+    type({
+      email: 'string',
+      'initialRoleId?': type.enumerated(...INITIAL_ACCESS_ROLES).or('null'),
+    }),
+  ),
   responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ invitation: summary })) }],
   refusals: [
     ...common,
@@ -102,7 +115,6 @@ export const acceptInvitation = defineEndpointShape({
         type({
           membership: {
             organizationId: 'string',
-            role: "'super_admin' | 'admin' | 'member' | 'viewer'",
           },
         }),
       ),

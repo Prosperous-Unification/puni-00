@@ -226,7 +226,11 @@ export class CommandContext {
           detail: { cap: outcome.cap, current: outcome.current },
         });
       case 'resources_on_subtree':
+        return this.refuse({ reason: outcome.reason });
       case 'person_not_bound':
+        if (this.access.kind === 'scoped')
+          return this.refuse({ reason: 'forbidden', permission: 'package.claim_for_others' });
+        return this.refuse({ reason: outcome.reason });
       case 'credential_not_for_person':
       case 'run_mismatch':
       case 'parent_claim_unknown':
@@ -248,6 +252,14 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
+    // Proof: dropping the permission projection encoded a bare forbidden body; `remote write for implicit duplicate`
+    // (command-permission.controller.db.test.ts) failed with the fault and passed restored, 2026-11-09.
+    if (
+      outcome.reason === 'forbidden' &&
+      'permission' in outcome &&
+      outcome.permission !== undefined
+    )
+      return this.refuse({ reason: 'forbidden', permission: outcome.permission });
     if (
       outcome.reason === 'descendant_step_on_leaf' ||
       outcome.reason === 'node_on_parent' ||
@@ -357,12 +369,10 @@ async function createDirectoryEntry<
 >(
   context: CommandContext,
   command: { kind: Kind; ref?: string; name: string },
-  create: (actorId: string, name: string) => Promise<Entity | null>,
+  create: (actorId: string, name: string) => Promise<{ ok: true; value: Entity } | ServiceRefusal>,
 ): Promise<MintedBase & { kind: Kind; entity: Entity }> {
   context.assertRefAvailable(command.ref);
-  const entity = context.requireValue(await create(context.actorId, command.name), {
-    reason: 'name_required',
-  });
+  const entity = context.value(await create(context.actorId, command.name));
   return { ...context.mint(command.ref, entity.id), kind: command.kind, entity };
 }
 
@@ -868,9 +878,8 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
     },
     createTeam: async (command, context) => {
       context.assertRefAvailable(command.ref);
-      const team = context.requireValue(
+      const team = context.value(
         await directory.addWithin('teams', context.actorId, command.name, context.access),
-        { reason: 'name_required' },
       );
       return {
         ...context.mint(command.ref, team.id),

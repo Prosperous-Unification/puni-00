@@ -19,6 +19,9 @@ export function installCalendarMarker(
   const bag = DiBag.createBuilder()
     .withInstalledModules([calendarMarkerModule])
     .withServices({
+      accessDecisions: DiBag.createProvider(() => requirements.accessDecisions, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),
@@ -27,9 +30,6 @@ export function installCalendarMarker(
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
-        factoryReturnKind: 'sync-value',
-      }),
-      recoveryAdmission: DiBag.createProvider(() => requirements.recoveryAdmission, {
         factoryReturnKind: 'sync-value',
       }),
     })

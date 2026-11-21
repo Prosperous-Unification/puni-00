@@ -39,8 +39,9 @@ const FOREIGN_PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 30_000 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 
 /**

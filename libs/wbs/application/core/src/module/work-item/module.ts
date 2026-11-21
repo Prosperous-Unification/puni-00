@@ -55,6 +55,7 @@ export const workItemModule = DiBag.createBuilder()
         workItemStore,
         stepParallelStore,
         projectStore,
+        accessDecisions,
         estimateStore,
         actualStore,
         measureStore,
@@ -87,6 +88,7 @@ export const workItemModule = DiBag.createBuilder()
         livePlans: LivePlanStore | undefined;
         workItemStore: WorkItemStore;
         stepParallelStore: Pick<StepParallelStore, 'listByWorkItems'>;
+        accessDecisions: WorkItemServiceOptions['accessDecisions'];
         projectStore: ProjectStore;
         estimateStore: EstimateStore;
         actualStore: ActualStore;
@@ -123,6 +125,7 @@ export const workItemModule = DiBag.createBuilder()
         workItems: workItemStore,
         stepParallels: stepParallelStore,
         projects: projectStore,
+        accessDecisions,
         estimates: estimateStore,
         actuals: actualStore,
         measures: measureStore,

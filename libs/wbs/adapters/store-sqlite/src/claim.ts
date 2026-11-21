@@ -26,8 +26,7 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import { type Connection, type Drizzle, observeCommitted } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
-import type { ImmediateTransaction } from './immediate-write';
-import { currentMembershipAccess } from './organization-access';
+import { readMembershipIn } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { signalClaimResourceUses } from './resource-use';
 import { bumpWorkItems } from './revision';
@@ -568,12 +567,12 @@ function observeIn(db: Drizzle, projectId: string, access: ResourceAccess): Clai
     // watched 2026-10-23.
     if (!activated) return { kind: 'access_refused', refusal: 'no_active_organization' };
     const { organizationId, userId } = access.scope;
-    const member = currentMembershipAccess(db, organizationId, userId);
+    const member = readMembershipIn(db, organizationId, userId);
     // Proof: with this recheck skipped, `refuses a member removed between
     // admission and the observation, as the tree read does`
     // (project-claims-organization.controller.db.test.ts) answered 200 with
     // the claims (7 pass, 1 fail); watched 2026-10-23.
-    if (!member.ok) return { kind: 'access_refused', refusal: member.refusal };
+    if (member === null) return { kind: 'access_refused', refusal: 'not_a_member' };
     const owned = db
       .select({ id: project.id })
       .from(project)
@@ -702,7 +701,7 @@ function stampedOf({ claimedAt, ...each }: StoredClaim): StampedClaim {
  * same snapshot. Answers how many leases it ended.
  */
 export function endLeasesOfUncredentialed(
-  tx: ImmediateTransaction,
+  tx: Pick<Drizzle, 'select' | 'update'>,
   personId: string,
   at: number,
 ): number {

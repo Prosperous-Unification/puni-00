@@ -456,3 +456,14 @@ describe('the directory capacity audit rebuild', () => {
     expect(await lintMigration(file, root)).toBeNull();
   });
 });
+
+describe('the access audit rebuild', () => {
+  it('accepts the guarded current-vocabulary access audit rebuild', async () => {
+    const root = new URL('.', WORKSPACE).pathname.replace(/\/$/, '');
+    const file = join(
+      root,
+      'apps/wbs/be-01/drizzle/20261102130000_widen_organization_audit_access/migration.sql',
+    );
+    expect(await lintMigration(file, root)).toBeNull();
+  });
+});

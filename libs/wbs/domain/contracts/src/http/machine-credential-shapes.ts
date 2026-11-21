@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
@@ -215,7 +216,12 @@ export const revokeMachineCredential = defineEndpointShape({
   policies: [...writePolicy, { kind: 'organization-resource', operation: 'mutation' }],
   params: requestSchema(type({ id: 'string' })),
   responses: [{ kind: 'empty', status: 204 }],
-  refusals: [...common, malformed, notFound],
+  refusals: [
+    ...common,
+    malformed,
+    notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
+  ],
   document: { summary: 'Revoke a machine credential immediately.' },
 });
 
@@ -249,7 +255,16 @@ const trustedIssuerCommon = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
   // A member or a viewer: only an admin trusts an issuer for every person.
-  { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type({
+        error: "'forbidden'",
+        // Proof: dropping this permission property (schema-machine-credential-shapes) failed `keeps the catalog permission vocabulary at getApiOrganizationTrusted-issuers`; restored GREEN.
+        'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+      }),
+    ),
+  },
 ] as const;
 
 /**
@@ -343,6 +358,7 @@ export const removeTrustedIssuer = defineEndpointShape({
     ...trustedIssuerCommon,
     malformed,
     notFound,
+    { status: 409, schema: responseSchema(type({ error: "'last_super_admin'" })) },
     {
       status: 409,
       schema: responseSchema(type({ error: "'in_use'", machineCredentials: 'number' })),

@@ -510,7 +510,7 @@ function checkedMember<T extends string>(
  * @throws {PermissionKindRow} for a permission the role's kind may not hold.
  * @throws {EmptyRoleSet} for a grant whose role has no row.
  * @throws Error for a scope, subject or object kind outside its vocabulary, or
- * one grant read with two different identities.
+ * an incompatible role/scope pair, or one grant read with two different identities.
  *
  * Proof, each alone in `access-decisions.db.test.ts`, watched 2026-11-08:
  * skipping an unknown row instead of throwing made `throws
@@ -531,11 +531,22 @@ export function reachingGrantsOf(rows: readonly StoredGrantRow[]): ReachingGrant
       row.objectKind,
       'access_role.object_kind',
     );
+    const scopeKind = checkedMember(ACCESS_OBJECT_KINDS, row.scopeKind, 'access_grant.scope_kind');
+    // Proof: raw-role-scope-compatibility removed only this check.
+    // `throws on a misbound raw role before actual resource registration despite valid authority`
+    // and `throws on a misbound nonorganization target grant before member summary filtering`
+    // returned successful HTTP replies; all four `throws for an incompatible role scope through`
+    // native cases and `rejects recognized raw role/scope pairs that the grant writer prohibits`
+    // also failed. Restored all eight cases, including the valid broad-scope control.
+    if (!roleFitsScope(objectKind, scopeKind))
+      throw new Error(
+        `grant ${row.grantId} role ${row.roleId} of ${objectKind} kind cannot be held at ${scopeKind} scope`,
+      );
     let entry = grants.get(row.grantId);
     if (entry === undefined) {
       entry = {
         grant: {
-          scopeKind: checkedMember(ACCESS_OBJECT_KINDS, row.scopeKind, 'access_grant.scope_kind'),
+          scopeKind,
           scopeId: row.scopeId,
           subjectKind: checkedMember(
             GRANT_SUBJECT_KINDS,
@@ -612,4 +623,22 @@ export function effectiveRoleOn(
     );
   const effective = combineGrants(grants, target, cap);
   return effective.permissions.has(READ_PERMISSION_OF[target.kind]) ? effective : null;
+}
+
+/** The P11 catalogue roles a personal invitation or join approval may offer at organization scope. */
+export const INITIAL_ACCESS_ROLES = [
+  'org-admin',
+  'org-viewer',
+  'project-contributor',
+  'project-viewer',
+] as const;
+export type InitialAccessRole = (typeof INITIAL_ACCESS_ROLES)[number];
+
+/** Initial access is an explicit catalogue role or none, separate from membership. */
+export type InitialAccess =
+  { readonly kind: 'none' } | { readonly kind: 'role'; readonly roleId: InitialAccessRole };
+
+/** Normalizes the HTTP boundary's optional nullable selection into a fresh internal value. */
+export function selectInitialAccess(roleId: InitialAccessRole | null): InitialAccess {
+  return roleId === null ? { kind: 'none' } : { kind: 'role', roleId };
 }

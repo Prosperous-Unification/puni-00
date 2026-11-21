@@ -53,7 +53,7 @@ function prepare(saved: unknown = backup) {
     "INSERT INTO shared_people_restore_approval VALUES ('approval-a', 'restore-1', 'org-a', 'ada', 1)",
   );
 }
-function invoke(
+async function invoke(
   saved: unknown = backup,
   approvalIds: readonly string[] = ['approval-a'],
   operationId = 'restore-1',
@@ -61,7 +61,12 @@ function invoke(
 ) {
   const connection = openConnection(path);
   try {
-    return restoreApprovedSharedPeople(connection.db, saved, { operationId, approvalIds }, at);
+    return await restoreApprovedSharedPeople(
+      connection.db,
+      saved,
+      { operationId, approvalIds },
+      at,
+    );
   } finally {
     connection.close();
   }
@@ -87,14 +92,24 @@ beforeEach(async () => {
     execute(
       `INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('${organizationId}', 'ada', 'super_admin', 1)`,
     );
+  for (const organizationId of ['org-a', 'org-b'])
+    execute(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('restore-grant-" +
+        organizationId +
+        "','" +
+        organizationId +
+        "','organization','" +
+        organizationId +
+        "','user','ada','org-super-admin','route',1)",
+    );
   prepare();
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-it('commits historical ranks, personal mode audit, every owned project event and bound receipt together', () => {
-  const restored = invoke();
+it('commits historical ranks, personal mode audit, every owned project event and bound receipt together', async () => {
+  const restored = await invoke();
   expect(restored).toEqual({
     operationId: 'restore-1',
     backupDigest: digestSharedPeople(backup),
@@ -159,7 +174,7 @@ it('commits historical ranks, personal mode audit, every owned project event and
     },
   ]);
 });
-it('restores isolated ranks with consumption and receipt but no mode audit or event', () => {
+it('restores isolated ranks with consumption and receipt but no mode audit or event', async () => {
   const isolated = {
     ...backup,
     organizations: backup.organizations.map((organization) => ({
@@ -168,7 +183,7 @@ it('restores isolated ranks with consumption and receipt but no mode audit or ev
     })),
   };
   prepare(isolated);
-  expect(invoke(isolated)).toMatchObject({
+  expect(await invoke(isolated)).toMatchObject({
     organizations: 2,
     ranks: 1,
     modeChanges: 0,
@@ -186,7 +201,7 @@ it('restores isolated ranks with consumption and receipt but no mode audit or ev
     { approval_id: 'approval-a' },
   ]);
 });
-it('preserves extra isolated organizations and records shared changes for each independently approved organization', () => {
+it('preserves extra isolated organizations and records shared changes for each independently approved organization', async () => {
   const saved = {
     ...backup,
     organizations: backup.organizations.map((organization) => ({
@@ -199,7 +214,7 @@ it('preserves extra isolated organizations and records shared changes for each i
   execute(
     "INSERT INTO shared_people_restore_approval VALUES ('approval-b', 'restore-1', 'org-b', 'ada', 1)",
   );
-  expect(invoke(saved, ['approval-b', 'approval-a'])).toMatchObject({
+  expect(await invoke(saved, ['approval-b', 'approval-a'])).toMatchObject({
     organizations: 2,
     modeChanges: 2,
     events: 5,
@@ -212,24 +227,28 @@ it('preserves extra isolated organizations and records shared changes for each i
     ['a1', 'a2', 'a3', 'a4', 'b1'].map((id) => ({ subscription: 'project:' + id })),
   );
 });
-it('returns the cold durable receipt after later edits without replay or membership rechecks', () => {
-  const receipt = invoke();
+it('returns the cold durable receipt after later edits without replay or membership rechecks', async () => {
+  const receipt = await invoke();
   execute("UPDATE organization SET shared_people=0, updated_at=50 WHERE id='org-a'");
   execute('UPDATE project_rank SET position=999');
   execute("DELETE FROM organization_membership WHERE organization_id='org-a'");
   const before = snapshot();
-  expect(invoke(backup, ['approval-a'], 'restore-1', 100)).toEqual(receipt);
+  expect(await invoke(backup, ['approval-a'], 'restore-1', 100)).toEqual(receipt);
   expect(snapshot()).toEqual(before);
 });
-it('refuses changed backup or approval IDs on a completed operation without replay', () => {
-  invoke();
+it('refuses changed backup or approval IDs on a completed operation without replay', async () => {
+  await invoke();
   const before = snapshot();
-  expect(() => invoke({ ...backup, ranks: [] })).toThrow('operation binding');
-  expect(() => invoke(backup, ['different-approval'])).toThrow('receipt approval set');
-  expect(() => invoke(backup, [])).toThrow('receipt approval set');
+  expect((await rejectionOf(invoke({ ...backup, ranks: [] }))).message).toContain(
+    'operation binding',
+  );
+  expect((await rejectionOf(invoke(backup, ['different-approval']))).message).toContain(
+    'receipt approval set',
+  );
+  expect((await rejectionOf(invoke(backup, []))).message).toContain('receipt approval set');
   expect(snapshot()).toEqual(before);
 });
-it('requires exact personal approval sets bound to the original operation digest', () => {
+it('requires exact personal approval sets bound to the original operation digest', async () => {
   execute(`INSERT INTO shared_people_restore_operation VALUES ('foreign', '${'b'.repeat(64)}', 1)`);
   execute(
     "INSERT INTO shared_people_restore_approval VALUES ('foreign-approval', 'foreign', 'org-a', 'ada', 1)",
@@ -246,19 +265,23 @@ it('requires exact personal approval sets bound to the original operation digest
     ['extra-approval'],
     ['approval-a', 'extra-approval'],
   ])
-    expect(() => invoke(backup, ids)).toThrow('approval');
-  expect(() => invoke({ ...backup, ranks: [] })).toThrow('operation binding');
-  expect(() => invoke(backup, ['approval-a'], 'missing-operation')).toThrow('operation binding');
+    expect((await rejectionOf(invoke(backup, ids))).message).toContain('approval');
+  expect((await rejectionOf(invoke({ ...backup, ranks: [] }))).message).toContain(
+    'operation binding',
+  );
+  expect(
+    (await rejectionOf(invoke(backup, ['approval-a'], 'missing-operation'))).message,
+  ).toContain('operation binding');
   expect(snapshot()).toEqual(before);
 });
-it('requires current super-admin membership for the recorded actor in that exact organization', () => {
-  execute("UPDATE organization_membership SET role='admin' WHERE organization_id='org-a'");
+it('requires current security grants and membership for the recorded actor in that exact organization', async () => {
+  execute("DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id='ada'");
   const before = snapshot();
-  expect(() => invoke()).toThrow('super-admin');
+  expect((await rejectionOf(invoke())).message).toContain('organization.manage_security');
   expect(snapshot()).toEqual(before);
   execute("DELETE FROM organization_membership WHERE organization_id='org-a'");
   const removed = snapshot();
-  expect(() => invoke()).toThrow('super-admin');
+  expect((await rejectionOf(invoke())).message).toContain('organization.manage_security');
   expect(snapshot()).toEqual(removed);
   execute(
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('other', 'other', 'hash', 1)",
@@ -267,30 +290,30 @@ it('requires current super-admin membership for the recorded actor in that exact
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'other', 'super_admin', 1)",
   );
   const foreignActor = snapshot();
-  expect(() => invoke()).toThrow('super-admin');
+  expect((await rejectionOf(invoke())).message).toContain('organization.manage_security');
   expect(snapshot()).toEqual(foreignActor);
 });
-it('requires activated state, present saved organizations, all isolated modes and globally empty ranks', () => {
+it('requires activated state, present saved organizations, all isolated modes and globally empty ranks', async () => {
   // Fixture fault removes marker permanence to exercise a valid pre-activation state after setup.
   execute('DROP TRIGGER organization_activation_no_revert');
   execute("UPDATE organization_activation SET state='pre_activation', activated_at=NULL");
   const before = snapshot();
-  expect(() => invoke()).toThrow('activated');
+  expect((await rejectionOf(invoke())).message).toContain('activated');
   expect(snapshot()).toEqual(before);
   execute("UPDATE organization_activation SET state='activated', activated_at=1");
   execute(
     "INSERT INTO organization (id, name, created_at, shared_people) VALUES ('extra', 'Extra', 1, 1)",
   );
   const shared = snapshot();
-  expect(() => invoke()).toThrow('isolated modes and no ranks');
+  expect((await rejectionOf(invoke())).message).toContain('isolated modes and no ranks');
   expect(snapshot()).toEqual(shared);
   execute("UPDATE organization SET shared_people=0 WHERE id='extra'");
   execute("INSERT INTO project_rank VALUES ('b1', 'org-b', 0, 1, NULL, 'ada')");
   const ranked = snapshot();
-  expect(() => invoke()).toThrow('isolated modes and no ranks');
+  expect((await rejectionOf(invoke())).message).toContain('isolated modes and no ranks');
   expect(snapshot()).toEqual(ranked);
 });
-it('refuses a missing saved organization and invalid historical rank ownership or author atomically', () => {
+it('refuses a missing saved organization and invalid historical rank ownership or author atomically', async () => {
   for (const saved of [
     {
       ...backup,
@@ -301,7 +324,7 @@ it('refuses a missing saved organization and invalid historical rank ownership o
   ]) {
     prepare(saved);
     const before = snapshot();
-    expect(() => invoke(saved)).toThrow();
+    expect(await rejectionOf(invoke(saved))).toBeInstanceOf(Error);
     expect(snapshot()).toEqual(before);
   }
 });
@@ -310,40 +333,56 @@ for (const table of [
   'shared_people_restore_receipt',
   'shared_people_restore_consumption',
 ]) {
-  it(`rolls back modes, ranks, audit, sequences and evidence on late ${table} insertion failure`, () => {
+  it(`rolls back modes, ranks, audit, sequences and evidence on late ${table} insertion failure`, async () => {
     execute(
       `CREATE TRIGGER fail_restore BEFORE INSERT ON ${table} BEGIN SELECT RAISE(ABORT, 'injected restore fault'); END`,
     );
     const before = snapshot();
-    expect(() => invoke()).toThrow();
+    expect(await rejectionOf(invoke())).toBeInstanceOf(Error);
     expect(snapshot()).toEqual(before);
   });
 }
 it('does not add approvals to a completed operation while preserving an identical issuance retry', async () => {
-  invoke();
+  await invoke();
   const before = snapshot();
   const connection = openConnection(path);
   try {
     const repository = new SharedPeopleRestoreApprovalRepository(connection.db, OPEN);
     expect(
-      await repository.approve('org-b', 'restore-1', digestSharedPeople(backup), 'new-approval', {
-        by: 'ada',
-        at: 100,
-      }),
+      await repository.approve(
+        'org-b',
+        { id: 'ada' },
+        'restore-1',
+        digestSharedPeople(backup),
+        'new-approval',
+        {
+          by: 'ada',
+          at: 100,
+        },
+      ),
     ).toEqual({ ok: false, refusal: 'restore_approval_conflict' });
     expect(
-      await repository.approve('org-a', 'restore-1', digestSharedPeople(backup), 'new-id', {
-        by: 'ada',
-        at: 100,
-      }),
+      await repository.approve(
+        'org-a',
+        { id: 'ada' },
+        'restore-1',
+        digestSharedPeople(backup),
+        'new-id',
+        {
+          by: 'ada',
+          at: 100,
+        },
+      ),
     ).toMatchObject({ ok: true, approval: { id: 'approval-a' } });
   } finally {
     connection.close();
   }
   expect(snapshot()).toEqual(before);
 });
-it('refuses rollback over receipt/consumption evidence without removing its ledger entry', () => {
-  invoke();
+it('refuses rollback over receipt/consumption evidence without removing its ledger entry', async () => {
+  await invoke();
+  // The completed fixture no longer needs its explicit runtime grants; remove them to reach the historical receipt rollback boundary.
+  execute("DELETE FROM access_grant WHERE subject_id='ada'");
   // Scope the snapshot to receipts; newer empty admission down commits independently.
   rollbackTo(path, MIGRATIONS_FOLDER, '20261014130000_add_shared_people_restore_receipts');
   const before = snapshot();
@@ -370,7 +409,7 @@ it('keeps legacy shared restore refused even if a test release supports shared',
   expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
 });
 
-it('holds one immediate writer before reading current roles and borrows rank savepoints', () => {
+it('holds one immediate writer before reading current grants and borrows the rank body', async () => {
   const rival = openDatabase(path);
   rival.run('PRAGMA busy_timeout = 0');
   let observed = false;
@@ -379,7 +418,7 @@ it('holds one immediate writer before reading current roles and borrows rank sav
     path,
     {
       logQuery(query) {
-        if (!query.includes('from "organization_membership"')) return;
+        if (!query.includes('FROM organization_membership m')) return;
         observed = true;
         expect(() =>
           rival.run(
@@ -394,7 +433,7 @@ it('holds one immediate writer before reading current roles and borrows rank sav
   );
   try {
     expect(
-      restoreApprovedSharedPeople(
+      await restoreApprovedSharedPeople(
         connection.db,
         backup,
         { operationId: 'restore-1', approvalIds: ['approval-a'] },
@@ -402,20 +441,20 @@ it('holds one immediate writer before reading current roles and borrows rank sav
       ),
     ).toMatchObject({ ranks: 1, events: 4 });
     expect(observed).toBe(true);
-    expect(transactions).toBe(1);
+    expect(transactions).toBe(0);
   } finally {
     connection.close();
     rival.close();
   }
 });
-it('refuses an incomplete durable consumption set on cold retry instead of replaying writes', () => {
-  invoke();
+it('refuses an incomplete durable consumption set on cold retry instead of replaying writes', async () => {
+  await invoke();
   execute('DELETE FROM shared_people_restore_consumption');
   const before = snapshot();
-  expect(() => invoke()).toThrow('receipt approval set');
+  expect((await rejectionOf(invoke())).message).toContain('receipt approval set');
   expect(snapshot()).toEqual(before);
 });
-it('enforces durable receipt digest and consumption operation/organization bindings', () => {
+it('enforces durable receipt digest and consumption operation/organization bindings', async () => {
   expect(() =>
     execute(
       "INSERT INTO shared_people_restore_consumption VALUES ('approval-a', 'restore-1', 'org-a')",
@@ -426,7 +465,7 @@ it('enforces durable receipt digest and consumption operation/organization bindi
       `INSERT INTO shared_people_restore_receipt VALUES ('restore-1', '${'b'.repeat(64)}', 20, 2, 1, 1, 4)`,
     ),
   ).toThrow();
-  invoke();
+  await invoke();
   execute(
     `INSERT INTO shared_people_restore_operation VALUES ('other', '${digestSharedPeople(backup)}', 1)`,
   );
@@ -477,8 +516,8 @@ it('rejects noninteger or negative receipt counts and noninteger completion time
   }
   expect(execute('SELECT * FROM shared_people_restore_receipt')).toEqual([]);
 });
-it('enforces receipt/approval consumption uniqueness even when approval uniqueness is broken', () => {
-  invoke();
+it('enforces receipt/approval consumption uniqueness even when approval uniqueness is broken', async () => {
+  await invoke();
   execute('DROP INDEX shared_people_restore_approval_operation_organization');
   execute(
     "INSERT INTO shared_people_restore_approval VALUES ('duplicate-org', 'restore-1', 'org-a', 'ada', 1)",
@@ -493,19 +532,19 @@ it('enforces receipt/approval consumption uniqueness even when approval uniquene
   ]);
 });
 
-it('requires an approval for rank-only changes in a second isolated organization', () => {
+it('requires an approval for rank-only changes in a second isolated organization', async () => {
   const saved = {
     ...backup,
     ranks: [{ ...backup.ranks[0], projectId: 'b1', organizationId: 'org-b' }],
   };
   prepare(saved);
   const before = snapshot();
-  expect(() => invoke(saved)).toThrow('exact personal approval set');
+  expect((await rejectionOf(invoke(saved))).message).toContain('exact personal approval set');
   expect(snapshot()).toEqual(before);
   execute(
     "INSERT INTO shared_people_restore_approval VALUES ('approval-b', 'restore-1', 'org-b', 'ada', 1)",
   );
-  expect(invoke(saved, ['approval-b', 'approval-a'])).toMatchObject({
+  expect(await invoke(saved, ['approval-b', 'approval-a'])).toMatchObject({
     ranks: 1,
     modeChanges: 1,
     events: 4,
@@ -513,21 +552,23 @@ it('requires an approval for rank-only changes in a second isolated organization
   });
   expect(execute("SELECT subscription FROM event_log WHERE subscription='project:b1'")).toEqual([]);
 });
-it('rejects duplicate or empty external references at their named boundary', () => {
+it('rejects duplicate or empty external references at their named boundary', async () => {
   for (const ids of [['approval-a', 'approval-a'], ['']])
-    expect(() => invoke(backup, ids)).toThrow('invalid restore operation/approval references');
-  expect(() => invoke(backup, ['approval-a'], '')).toThrow(
+    expect((await rejectionOf(invoke(backup, ids))).message).toContain(
+      'invalid restore operation/approval references',
+    );
+  expect((await rejectionOf(invoke(backup, ['approval-a'], ''))).message).toContain(
     'invalid restore operation/approval references',
   );
 });
-it('records durable events on the borrowed writer even when public async event writing is broken', () => {
+it('records durable events on the borrowed writer even when public async event writing is broken', async () => {
   const publicWriter = spyOn(DrizzleEventLogStore.prototype, 'recordEvent').mockImplementation(
     () => {
       throw new Error('public async event writer must not run');
     },
   );
   try {
-    expect(invoke()).toMatchObject({ events: 4 });
+    expect(await invoke()).toMatchObject({ events: 4 });
     expect(execute('SELECT subscription FROM event_log')).toHaveLength(4);
   } finally {
     publicWriter.mockRestore();
@@ -538,12 +579,58 @@ it('enforces completion receipt uniqueness independently of consumption foreign 
   execute(insert);
   expect(() => execute(insert)).toThrow();
 });
-it('enforces approval consumption uniqueness when its other constraint is broken', () => {
-  invoke();
+it('enforces approval consumption uniqueness when its other constraint is broken', async () => {
+  await invoke();
   execute('DROP INDEX shared_people_restore_consumption_organization');
   expect(() =>
     execute(
       "INSERT INTO shared_people_restore_consumption VALUES ('approval-a', 'restore-1', 'org-a')",
     ),
   ).toThrow();
+});
+
+it('executes a personally approved restore through current security grants despite a viewer role', async () => {
+  execute("UPDATE organization_membership SET role='viewer' WHERE user_id='ada'");
+  expect(await invoke()).toMatchObject({ ranks: 1, modeChanges: 1, events: 4 });
+});
+
+it('refuses a personally approved restore after security grant revocation before any effect', async () => {
+  execute("DELETE FROM access_grant WHERE subject_id='ada'");
+  const before = snapshot();
+  expect((await rejectionOf(invoke())).message).toContain('organization.manage_security');
+  expect(snapshot()).toEqual(before);
+});
+
+async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
+  const failure: unknown = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  if (!(failure instanceof Error))
+    throw new Error('expected the production operation to reject with an Error', {
+      cause: failure,
+    });
+  return failure;
+}
+
+it('retains the offline restore binding before a delayed owner entry', async () => {
+  const held = Promise.withResolvers<undefined>();
+  const enter = spyOn(OPEN, 'enter').mockImplementation((work) => held.promise.then(work));
+  const connection = openConnection(path);
+  const binding = { operationId: 'restore-1', approvalIds: ['approval-a'] };
+  try {
+    const pending = restoreApprovedSharedPeople(connection.db, backup, binding, 20);
+    binding.operationId = 'substituted-operation';
+    binding.approvalIds[0] = 'substituted-approval';
+    held.resolve(undefined);
+    expect(await pending).toMatchObject({
+      operationId: 'restore-1',
+      approvalIds: ['approval-a'],
+      ranks: 1,
+    });
+  } finally {
+    held.resolve(undefined);
+    enter.mockRestore();
+    connection.close();
+  }
 });

@@ -7,6 +7,7 @@ import type {
 import type { ConnectedSolverOutcome } from '@wbs/contracts/solver/connected-solver-outcome';
 import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
+import type { ScopedPrincipal } from '@wbs/core/ports/access-decisions';
 import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { ProjectEvent } from '@wbs/core/ports/project-event';
 import type { RecordedEvent } from '@wbs/core/ports/recorded-event';
@@ -15,8 +16,8 @@ import type {
   ConnectedVariantState,
 } from '@wbs/core/ports/scheduler';
 import type { OptimizationVariantState } from '@wbs/core/ports/scheduler';
+import type { Permission } from '@wbs/domain';
 import type { ConnectedOptimizationStage } from '@wbs/domain';
-import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -283,7 +284,8 @@ export type OptimizationRetryDecision =
         { state: 'boundary-infeasible' }
       >['certificate'];
     }
-  | { readonly kind: 'forbidden' | 'not_found' }
+  | { readonly kind: 'forbidden'; readonly permission?: Permission }
+  | { readonly kind: 'not_found' }
   | {
       readonly kind: 'not-retryable';
       readonly state: OptimizationVariantState['state'];
@@ -364,7 +366,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly scoped?: {
       readonly organizationId: string;
       readonly actorId: string;
-      readonly role: OrganizationRole;
+      readonly principal: Readonly<ScopedPrincipal>;
     };
   }): Promise<CommittedDecision<OptimizationRetryDecision>>;
   /** Commit the outcome and event before returning downstream envelopes; slot release is separate. */

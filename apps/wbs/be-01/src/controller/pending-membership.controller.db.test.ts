@@ -107,6 +107,10 @@ describe('pending membership activation', () => {
     ]);
     expect(record('u-1')).toMatchObject({ subject: 'samlp|acme-saml|carol' });
     expect(activations()).toHaveLength(1);
+    expect(harness.sqlite.query('SELECT * FROM access_grant').all()).toEqual([]);
+    expect(
+      harness.sqlite.query("SELECT id FROM organization_audit WHERE action='access_granted'").all(),
+    ).toEqual([]);
   });
 
   // Proof: activating on the email alone (skipping the proven-prefix lookup in

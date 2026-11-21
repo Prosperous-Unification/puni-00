@@ -137,6 +137,11 @@ async function serveActivatedOrganization({
     try {
       insertOrganization(sqlite, ORGANIZATION);
       insertMembership(sqlite, ORGANIZATION, ownerId, 'super_admin');
+      // This named development owner has an explicit organization grant; membership alone grants no writes.
+      sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-super-admin','route',?)",
+        [crypto.randomUUID(), ORGANIZATION, ORGANIZATION, ownerId, Date.now()],
+      );
       activateOrganizations(sqlite);
     } finally {
       sqlite.close();

@@ -20,6 +20,7 @@ import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { RuntimeCommandRepository } from './runtime-command';
+import { SpaceRepository } from './space';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -42,6 +43,7 @@ export function buildStores(
    * for a batch's own catalog, whose reads must see its uncommitted writes.
    */
   claimObservation?: { readonly openConnection: () => Connection },
+  writeScope: 'owned' | 'borrowed' = 'owned',
 ) {
   return {
     ...(livePlans === undefined ? {} : { livePlans }),
@@ -49,7 +51,8 @@ export function buildStores(
     externalDependencyAuthoring: () => {
       throw new Error('external dependency authority requires an admitted writer');
     },
-    projects: new ProjectRepository(db, gate),
+    projects: new ProjectRepository(db, gate, writeScope),
+    spaces: new SpaceRepository(db, gate),
     projectRanks: new ProjectRankRepository(db, gate),
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),

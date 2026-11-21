@@ -87,7 +87,7 @@ for (const operation of ['add', 'update', 'remove'] as const)
     const pushes: string[] = [];
     const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
     await harness.register('owner');
-    harness.member('org-a', 'owner', 'member');
+    harness.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
     harness.sqlite.run('UPDATE project SET owner_id=? WHERE id=?', [
       harness.userId('owner'),
       fixture.owner.projectId,
@@ -200,9 +200,9 @@ for (const operation of ['add', 'update', 'remove'] as const)
         await held;
         const response = await pending;
         expect(response.status).toBe(403);
-        expect(await response.json()).toEqual({ error: 'forbidden' });
+        expect(await response.json()).toEqual({ error: 'forbidden', permission: 'package.write' });
         expect(dispatch).not.toHaveBeenCalled();
-        expect(projectEvidence).not.toHaveBeenCalled();
+        expect(projectEvidence).toHaveBeenCalledTimes(1);
         expect(rowEvidence).not.toHaveBeenCalled();
         expect(readTables()).toEqual(before);
         expect(pushes).toEqual(sent);

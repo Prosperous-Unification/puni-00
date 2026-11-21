@@ -30,7 +30,7 @@ describe('join requests', () => {
     expect(await screen.findByText('No pending join requests.')).toBeDefined();
   });
 
-  it('approves at the chosen role, then re-reads the list', async () => {
+  it('approves at the chosen initial access, then re-reads the list', async () => {
     const sent = stubServer({
       'GET /api/organization/join-requests': [
         () => answer(200, { requests: [request('r', 'ada@acme.test')] }),
@@ -39,14 +39,16 @@ describe('join requests', () => {
       'POST /api/organization/join-requests/r/approve': [() => answer(200, { invitationId: 'i' })],
     });
     renderPanel();
-    fireEvent.change(await screen.findByLabelText('Role for ada@acme.test'), {
-      target: { value: 'viewer' },
+    fireEvent.change(await screen.findByLabelText('Initial access for ada@acme.test'), {
+      target: { value: 'org-viewer' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Approve ada@acme.test' }));
     expect(await screen.findByText('Invitation sent to ada@acme.test.')).toBeDefined();
     const resolved = await screen.findByRole('list', { name: 'Resolved join requests' });
     expect(resolved.textContent).toBe('ada@acme.test Approved');
-    expect(sent.find((call) => call.route.endsWith('/approve'))?.body).toEqual({ role: 'viewer' });
+    expect(sent.find((call) => call.route.endsWith('/approve'))?.body).toEqual({
+      initialRoleId: 'org-viewer',
+    });
   });
 
   it('denies a request', async () => {
@@ -124,4 +126,36 @@ describe('join requests', () => {
       expect(losses).toEqual(['removed']);
     });
   });
+});
+
+it('approves without initial access by default', async () => {
+  const sent = stubServer({
+    'GET /api/organization/join-requests': [
+      () => answer(200, { requests: [request('r', 'ada@acme.test')] }),
+    ],
+    'POST /api/organization/join-requests/r/approve': [() => answer(200, { invitationId: 'i' })],
+  });
+  renderPanel();
+  fireEvent.click(await screen.findByRole('button', { name: 'Approve ada@acme.test' }));
+  await screen.findByText('Invitation sent to ada@acme.test.');
+  expect(sent.find((call) => call.route.endsWith('/approve'))?.body).toEqual({
+    initialRoleId: null,
+  });
+});
+it('renders the named missing initial-grant permission', async () => {
+  stubServer({
+    'GET /api/organization/join-requests': [
+      () => answer(200, { requests: [request('r', 'ada@acme.test')] }),
+    ],
+    'POST /api/organization/join-requests/r/approve': [
+      () =>
+        answer(403, { error: 'forbidden', permission: 'organization.manage_organization_roles' }),
+    ],
+  });
+  renderPanel();
+  fireEvent.click(await screen.findByRole('button', { name: 'Approve ada@acme.test' }));
+  expect(await screen.findByRole('status')).toHaveProperty(
+    'textContent',
+    'Missing permission: organization.manage_organization_roles.',
+  );
 });

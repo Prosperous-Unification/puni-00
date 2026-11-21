@@ -14,7 +14,11 @@ interface TransferProject {
 export async function connectedTransferFixture(harness: OrganizationHarness) {
   await harness.register('ada');
   harness.organization('org-a');
-  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'ada', 'member', ['project-contributor']);
+  harness.grantPermissions('org-a', 'ada', [
+    'organization.create_project',
+    'organization.manage_directory',
+  ]);
   harness.bind('ada', 'org-a');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
@@ -142,6 +146,7 @@ export async function connectedTransferFixture(harness: OrganizationHarness) {
   harness.sqlite
     .query('UPDATE project SET restricted=1,owner_id=? WHERE id=?')
     .run(harness.userId('bea'), remote.projectId);
+  harness.grant('org-a', 'ada', 'package-contributor', 'work_package', remote.projectId);
   return { remote, source, downstream, unrelated };
 }
 

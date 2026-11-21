@@ -64,6 +64,7 @@ describe('the closed case manifest', () => {
     expect(Object.keys(CASE_MANIFEST)).toEqual([
       'livePlans',
       'projects',
+      'spaces',
       'projectRanks',
       'accessDecisions',
       'users',

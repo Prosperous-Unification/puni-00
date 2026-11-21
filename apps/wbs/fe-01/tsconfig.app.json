@@ -6,6 +6,7 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
+      "@wbs/domain/access-role": ["../../../libs/wbs/domain/domain/src/access-role.ts"],
       "@wbs/domain/typed-dependency": ["../../../libs/wbs/domain/domain/src/typed-dependency.ts"],
       "@wbs/domain/project-address": ["../../../libs/wbs/domain/domain/src/project-address.ts"],
       "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],

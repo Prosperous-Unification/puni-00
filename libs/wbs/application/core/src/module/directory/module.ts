@@ -25,10 +25,12 @@ export const directoryModule = DiBag.createBuilder()
     directoryOptions: DiBag.createProvider(
       ({
         directoryStore,
+        accessDecisions,
         broadcast,
         clock,
         organizationLimits,
       }: {
+        accessDecisions: DirectoryServiceOptions['accessDecisions'];
         directoryStore: DirectoryStore;
         broadcast: Broadcaster;
         clock: Clock;
@@ -39,6 +41,7 @@ export const directoryModule = DiBag.createBuilder()
         // wires` failing (4 pass, 1 fail): the team's id read "unsupplied".
       }): DirectoryServiceOptions => ({
         directory: directoryStore,
+        accessDecisions,
         broadcast,
         clock,
         ...(organizationLimits === null ? {} : { organizationLimits }),

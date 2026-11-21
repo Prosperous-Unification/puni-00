@@ -1,4 +1,6 @@
-import type { OrganizationRole } from '@wbs/domain';
+import type { Permission } from '@wbs/domain';
+
+import type { ScopedPrincipal } from './access-decisions';
 
 /** The saved-plan header exactly as a source returns it. */
 export interface SavedPlanRow {
@@ -48,11 +50,11 @@ export interface SavedPlanWrite {
   readonly schedule: SavedPlanScheduleWrite;
 }
 
-/** Scoped actor and authenticated ceiling, intersected with current membership in the writer's transaction. */
+/** Actual scoped principal, rechecked against current grants in the writer's transaction. */
 export interface ScopedSavedPlanWrite {
+  readonly principal: ScopedPrincipal;
   readonly organizationId: string;
   readonly actorId: string;
-  readonly role: OrganizationRole;
   readonly operation: 'save' | 'rename' | 'delete';
 }
 
@@ -61,7 +63,7 @@ export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'written' }
   | { readonly outcome: 'refused'; readonly refusal: Refusal }
   | { readonly outcome: 'snapshot_busy' }
-  | { readonly outcome: 'forbidden' | 'not_found' };
+  | { readonly outcome: 'forbidden' | 'not_found'; readonly permission?: Permission };
 
 /** A stored header and its independently stored bodies. */
 export interface StoredSavedPlan {
@@ -78,7 +80,12 @@ export interface SavedPlanHoldingRow {
   readonly bytes: number;
 }
 
-export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy' | 'forbidden';
+export type SavedPlanTouchOutcome =
+  | 'touched'
+  | 'no_such_plan'
+  | 'snapshot_busy'
+  | 'forbidden'
+  | { readonly outcome: 'forbidden'; readonly permission: Permission };
 
 /** The identities used to authorize a rename or deletion. */
 export interface SavedPlanPrincipals {

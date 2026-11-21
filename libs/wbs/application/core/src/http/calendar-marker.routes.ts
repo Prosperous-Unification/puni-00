@@ -5,6 +5,7 @@ import {
   removeCalendarMarker,
   updateCalendarMarker,
 } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 import {
   automaticColor,
   isHexTriple,
@@ -200,10 +201,14 @@ const isCreateProblem = (parsed: NewMarkerBody | BodyProblem): parsed is BodyPro
   'reason' in parsed;
 
 /** Keeps each modeled state paired with its existing HTTP status. */
-function bareState(reason: CalendarMarkerRefusal) {
+function bareState(reason: CalendarMarkerRefusal, permission?: Permission) {
   switch (reason) {
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: reason } } as const;
+      return {
+        ok: false,
+        status: 403,
+        body: { error: reason, ...(permission === undefined ? {} : { permission }) },
+      } as const;
     case 'not_found':
       return { ok: false, status: 404, body: { error: reason } } as const;
     case 'taken':
@@ -215,7 +220,7 @@ function bareState(reason: CalendarMarkerRefusal) {
 function stateRefused(outcome: CalendarMarkerRefused, named: boolean) {
   // Proof: removing the project subject branch added field: markerId to the direct missing-project reply.
   if (!named || outcome.about === 'project' || outcome.reason === 'forbidden')
-    return bareState(outcome.reason);
+    return bareState(outcome.reason, outcome.permission);
   return outcome.reason === 'not_found'
     ? ({ ok: false, status: 404, body: { error: 'not_found', field: 'markerId' } } as const)
     : ({ ok: false, status: 409, body: { error: 'taken', field: 'markerId' } } as const);
@@ -285,9 +290,10 @@ export function calendarMarkerRoutes(
     perform: (
       service: CalendarMarkerService,
       access: ResourceAccess,
+      actorId: string,
     ) => Promise<CalendarMarkerOutcome>,
   ): Promise<CalendarMarkerOutcome | AuthorityRefusal> => {
-    if (access.kind === 'legacy') return perform(markers, access);
+    if (access.kind === 'legacy') return perform(markers, access, actor.id);
     if (recovery === undefined) throw new Error('scoped marker write has no recovery boundary');
     return runRecoveryWrite(
       recovery,
@@ -295,8 +301,14 @@ export function calendarMarkerRoutes(
       projectId,
       actor,
       detail,
-      (services, freshAccess) => perform(services.calendarMarkers, freshAccess),
-      (reason) => ({ ok: false, reason, about: 'project' }),
+      (services, freshAccess, retainedActorId) =>
+        perform(services.calendarMarkers, freshAccess, retainedActorId),
+      (reason, permission) => ({
+        ok: false,
+        reason,
+        about: 'project',
+        ...(permission === undefined ? {} : { permission }),
+      }),
     );
   };
   return [
@@ -320,10 +332,10 @@ export function calendarMarkerRoutes(
           params.id,
           principal,
           { marker: 'create' },
-          (service, access) =>
+          (service, access, actorId) =>
             service.createWithin(
               params.id,
-              principal.id,
+              actorId,
               {
                 date: created.date,
                 name: created.name,
@@ -355,28 +367,16 @@ export function calendarMarkerRoutes(
                 params.id,
                 principal,
                 { marker: 'rename' },
-                (service, access) =>
-                  service.renameWithin(
-                    params.id,
-                    params.markerId,
-                    principal.id,
-                    change.name,
-                    access,
-                  ),
+                (service, access, actorId) =>
+                  service.renameWithin(params.id, params.markerId, actorId, change.name, access),
               )
             : await write(
                 resolved.access,
                 params.id,
                 principal,
                 { marker: 'recolor' },
-                (service, access) =>
-                  service.recolorWithin(
-                    params.id,
-                    params.markerId,
-                    principal.id,
-                    change.color,
-                    access,
-                  ),
+                (service, access, actorId) =>
+                  service.recolorWithin(params.id, params.markerId, actorId, change.color, access),
               );
         if ('refusal' in outcome) return organizationRefusal(outcome);
         if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
@@ -394,7 +394,8 @@ export function calendarMarkerRoutes(
         params.id,
         principal,
         { marker: 'remove' },
-        (service, access) => service.removeWithin(params.id, params.markerId, principal.id, access),
+        (service, access, actorId) =>
+          service.removeWithin(params.id, params.markerId, actorId, access),
       );
       if ('refusal' in outcome) return organizationRefusal(outcome);
       if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };

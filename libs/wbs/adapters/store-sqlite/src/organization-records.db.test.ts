@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { DomainVerificationSnapshot, WriteStamp } from '@wbs/core';
+import type { DomainVerificationSnapshot, SecurityPrincipal, WriteStamp } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
@@ -74,10 +74,75 @@ const ORGANIZATION_TABLES = [
 ];
 
 const stamp = (by: string, at = 10): WriteStamp => ({ at, by });
+const membershipAct = (actor: string) => ({
+  stamp: stamp(actor),
+  actor,
+  auditId: crypto.randomUUID(),
+});
+
+function grantRole(organizationId: string, userId: string, roleId: string): void {
+  connection.db.run(
+    sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(${crypto.randomUUID()},${organizationId},'organization',${organizationId},'user',${userId},${roleId},'route',1)`,
+  );
+}
 
 let dir: string;
 let path: string;
 let connection: Connection;
+
+/** Pure storage setup only: no creator admission, grant, audit or runtime authorization. */
+function seedOrganization(
+  created: { readonly id: string; readonly name: string },
+  userId: string,
+  stamp: WriteStamp,
+): void {
+  connection.db.run(
+    sql`INSERT INTO organization(id,name,legacy,created_at,created_by) VALUES(${created.id},${created.name},0,${stamp.at},${stamp.by})`,
+  );
+  seedMembership(created.id, userId, 'super_admin', stamp);
+}
+
+/** Compatibility labels are storage fixtures; every tested authority grant stays explicit. */
+function seedMembership(
+  organizationId: string,
+  userId: string,
+  role: string,
+  stamp: WriteStamp,
+): void {
+  connection.db.run(
+    sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at,created_by) VALUES(${organizationId},${userId},${role},${stamp.at},${stamp.by})`,
+  );
+}
+
+/** A planted pending row used only before exercising the actual authorized challenge API. */
+function seedPendingClaim(
+  claim: {
+    readonly id: string;
+    readonly organizationId: string;
+    readonly domain: string;
+    readonly challengeDigest: string;
+    readonly challengeExpiresAt: number;
+  },
+  stamp: WriteStamp,
+): void {
+  connection.db.run(
+    sql`INSERT INTO organization_domain_claim(id,organization_id,domain,status,challenge_digest,challenge_expires_at,created_at,created_by) VALUES(${claim.id},${claim.organizationId},${claim.domain},'pending',${claim.challengeDigest},${claim.challengeExpiresAt},${stamp.at},${stamp.by})`,
+  );
+}
+
+/** Captures and verifies through both real current-grant owners, like the DNS service. */
+async function verifyDomainClaim(
+  claims: DomainClaimRepository,
+  organizationId: string,
+  principal: SecurityPrincipal,
+  claimId: string,
+  digest: string,
+  stamp: WriteStamp,
+) {
+  const snapshot = await claims.readClaimForVerification(organizationId, principal, claimId);
+  if (typeof snapshot === 'string') return snapshot;
+  return claims.verifyClaim(organizationId, principal, snapshot, digest, stamp, () => stamp.at);
+}
 
 async function seedUsers(ids: readonly string[]): Promise<void> {
   const users = new UserRepository(connection.db, OPEN);
@@ -150,145 +215,69 @@ describe('ExternalIdentityRepository', () => {
 });
 
 describe('OrganizationRepository', () => {
-  it('commits the organization and its first super-admin together', async () => {
+  it('preserves the final direct super-admin grant on removal despite its viewer display label', async () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
-
-    expect(
-      await organizations.createForUnaffiliatedUser(
-        { id: 'org-a', name: 'A' },
-        'u-a',
-        stamp('u-a'),
-      ),
-    ).toBe('created');
-    expect(await organizations.listMemberships('u-a')).toEqual([
-      { organizationId: 'org-a', role: 'super_admin' },
-    ]);
-  });
-
-  it('leaves no organization behind when the first membership cannot be written', async () => {
-    const organizations = new OrganizationRepository(connection.db, OPEN);
-
-    let refusal: unknown;
-    try {
-      await organizations.createForUnaffiliatedUser(
-        { id: 'org-x', name: 'X' },
-        'no-such-user',
-        stamp('u-a'),
-      );
-    } catch (err) {
-      refusal = err;
-    }
-    expect(messagesOf(refusal).join(' ')).toContain('FOREIGN KEY constraint failed');
-    const db = openDatabase(path);
-    try {
-      expect(db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM organization').get()?.n).toBe(
-        0,
-      );
-    } finally {
-      db.close();
-    }
-  });
-
-  it('refuses a second creation by one user across two connections', async () => {
-    // Two connections, as blue and green would hold. bun:sqlite runs each
-    // transaction to completion synchronously, so these serialize rather than
-    // interleave: this watches the recheck, not lock contention. Contention
-    // cannot create a duplicate either way — a deferred loser would fail its
-    // lock upgrade with SQLITE_BUSY — and `immediate` turns that error into
-    // the modeled refusal. The cross-process onboarding race is task 4.3's.
-    const other = openConnection(path);
-    try {
-      const outcomes = await Promise.all([
-        new OrganizationRepository(connection.db, OPEN).createForUnaffiliatedUser(
-          { id: 'org-1', name: 'One' },
-          'u-a',
-          stamp('u-a'),
-        ),
-        new OrganizationRepository(other.db, OPEN).createForUnaffiliatedUser(
-          { id: 'org-2', name: 'Two' },
-          'u-a',
-          stamp('u-a'),
-        ),
-      ]);
-      expect([...outcomes].sort()).toEqual(['already-member', 'created']);
-      const db = openDatabase(path);
-      try {
-        expect(db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM organization').get()?.n).toBe(
-          1,
-        );
-      } finally {
-        db.close();
-      }
-    } finally {
-      other.close();
-    }
-  });
-
-  it('refuses demoting or removing the final super-admin and keeps the role', async () => {
-    const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-
-    expect(await organizations.changeRole('org-a', 'u-a', 'admin', stamp('u-a'))).toBe(
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    connection.db.run(
+      sql`UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a' AND user_id='u-a'`,
+    );
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    expect(await organizations.removeMember('org-a', 'u-a', membershipAct('u-a'), 'route')).toBe(
       'last-super-admin',
     );
-    expect(await organizations.removeMember('org-a', 'u-a')).toBe('last-super-admin');
     expect(await organizations.listMemberships('u-a')).toEqual([
-      { organizationId: 'org-a', role: 'super_admin' },
+      { organizationId: 'org-a', role: 'viewer' },
     ]);
   });
 
-  it('lets one of two super-admins step down, and adds and removes ordinary members', async () => {
+  it('removes ordinary memberships while preserving a surviving direct super-admin grant', async () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-c', 'viewer', stamp('u-a'));
-
-    expect(await organizations.changeRole('org-a', 'u-a', 'member', stamp('u-b'))).toBe('changed');
-    expect(await organizations.removeMember('org-a', 'u-c')).toBe('removed');
-    expect(await organizations.removeMember('org-a', 'u-c')).toBe('not-member');
-    expect(await organizations.changeRole('org-a', 'u-c', 'member', stamp('u-b'))).toBe(
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedMembership('org-a', 'u-b', 'viewer', stamp('u-a'));
+    grantRole('org-a', 'u-b', 'org-super-admin');
+    seedMembership('org-a', 'u-c', 'viewer', stamp('u-a'));
+    expect(await organizations.removeMember('org-a', 'u-c', membershipAct('u-a'), 'route')).toBe(
+      'removed',
+    );
+    expect(await organizations.removeMember('org-a', 'u-c', membershipAct('u-a'), 'route')).toBe(
       'not-member',
     );
-    expect(await organizations.listMemberships('u-a')).toEqual([
-      { organizationId: 'org-a', role: 'member' },
+    expect(await organizations.listMemberships('u-b')).toEqual([
+      { organizationId: 'org-a', role: 'viewer' },
     ]);
   });
 });
 
 describe('OrganizationRepository.administer', () => {
-  /** org-a with u-a and u-b as super-admins and u-c as a member; u-c is also a member of org-b. */
-  async function seeded(): Promise<OrganizationRepository> {
+  function seeded() {
     const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
-    const db = openDatabase(path);
-    try {
-      db.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)");
-      db.run(
-        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)",
-      );
-    } finally {
-      db.close();
-    }
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedMembership('org-a', 'u-b', 'super_admin', stamp('u-a'));
+    seedMembership('org-a', 'u-c', 'member', stamp('u-a'));
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    grantRole('org-a', 'u-b', 'org-super-admin');
+    connection.db.run(
+      sql`INSERT INTO organization(id,name,legacy,created_at) VALUES('org-b','B',0,1)`,
+    );
+    connection.db.run(
+      sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-b','u-c','member',1)`,
+    );
     return organizations;
   }
-
   it('lets exactly one of two super-admins leave when both try across two connections', async () => {
-    // bun:sqlite runs each immediate transaction to completion, so these
-    // serialize: this watches the recheck inside the transaction, which is
-    // what refuses the second leaver.
-    const organizations = await seeded();
+    seeded();
+    const gate = new WriteCoordinator();
+    const organizations = new OrganizationRepository(connection.db, gate);
     const other = openConnection(path);
     try {
       const outcomes = await Promise.all([
-        organizations.administer('org-a', 'u-a', 'u-a', null, stamp('u-a')),
-        new OrganizationRepository(other.db, OPEN).administer(
+        organizations.administer('org-a', { id: 'u-a' }, 'u-a', membershipAct('u-a'), 'self_leave'),
+        new OrganizationRepository(other.db, gate).administer(
           'org-a',
+          { id: 'u-b' },
           'u-b',
-          'u-b',
-          null,
-          stamp('u-b'),
+          membershipAct('u-b'),
+          'self_leave',
         ),
       ]);
       expect(outcomes.map((each) => (each.ok ? 'removed' : each.refusal)).sort()).toEqual([
@@ -299,91 +288,103 @@ describe('OrganizationRepository.administer', () => {
       other.close();
     }
   });
-
-  it("refuses an actor demoted on another connection after the request's access resolved", async () => {
-    const organizations = await seeded();
+  it('refuses an actor whose grant was revoked on another connection after access resolved', async () => {
+    const organizations = seeded();
     const other = openConnection(path);
     try {
-      await new OrganizationRepository(other.db, OPEN).administer(
-        'org-a',
-        'u-b',
-        'u-a',
-        'member',
-        stamp('u-b'),
-      );
-      expect(await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).toEqual(
-        { ok: false, refusal: 'forbidden' },
-      );
+      other.db.run(sql`DELETE FROM access_grant WHERE subject_id='u-a'`);
+      expect(
+        await organizations.administer(
+          'org-a',
+          { id: 'u-a' },
+          'u-c',
+          membershipAct('u-a'),
+          'route',
+        ),
+      ).toEqual({ ok: false, refusal: 'forbidden', permission: 'organization.manage_members' });
     } finally {
       other.close();
     }
   });
-
-  it('changes and removes only the membership in the given organization', async () => {
-    const organizations = await seeded();
-    expect((await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).ok).toBe(
-      true,
-    );
-    expect(await organizations.listMemberships('u-c')).toEqual([
-      { organizationId: 'org-a', role: 'viewer' },
-      { organizationId: 'org-b', role: 'member' },
-    ]);
-    expect((await organizations.administer('org-a', 'u-a', 'u-c', null, stamp('u-a'))).ok).toBe(
-      true,
-    );
+  it('removes only the membership in the given organization', async () => {
+    const organizations = seeded();
+    expect(
+      await organizations.administer('org-a', { id: 'u-a' }, 'u-c', membershipAct('u-a'), 'route'),
+    ).toEqual({ ok: true, membership: null });
     expect(await organizations.listMemberships('u-c')).toEqual([
       { organizationId: 'org-b', role: 'member' },
     ]);
+  });
+  it('preserves fresh removed-actor refusal in reciprocal removal across two connections', async () => {
+    seeded();
+    const gate = new WriteCoordinator();
+    const organizations = new OrganizationRepository(connection.db, gate);
+    const other = openConnection(path);
+    try {
+      const outcomes = await Promise.all([
+        organizations.administer('org-a', { id: 'u-a' }, 'u-b', membershipAct('u-a'), 'route'),
+        new OrganizationRepository(other.db, gate).administer(
+          'org-a',
+          { id: 'u-b' },
+          'u-a',
+          membershipAct('u-b'),
+          'route',
+        ),
+      ]);
+      expect(outcomes).toEqual([
+        { ok: true, membership: null },
+        { ok: false, refusal: 'forbidden' },
+      ]);
+    } finally {
+      other.close();
+    }
   });
 });
 
 describe('OrganizationRepository.listMembers', () => {
-  /** org-a: u-a super-admin, u-b admin, u-c member; org-b: u-c member. */
-  async function seeded(): Promise<OrganizationRepository> {
+  function seeded() {
     const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-b', 'admin', stamp('u-a'));
-    await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedMembership('org-a', 'u-b', 'viewer', stamp('u-a'));
+    seedMembership('org-a', 'u-c', 'member', stamp('u-a'));
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    grantRole('org-a', 'u-b', 'org-viewer');
     connection.db.run(
-      sql`INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)`,
+      sql`INSERT INTO organization(id,name,legacy,created_at) VALUES('org-b','B',0,1)`,
     );
     connection.db.run(
-      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)`,
+      sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-b','u-c','member',1)`,
     );
     return organizations;
   }
-
-  const activate = () =>
-    connection.db.run(
-      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
-    );
-
   it('refuses before activation', async () => {
-    const organizations = await seeded();
-    expect(await organizations.listMembers('org-a', 'u-a')).toEqual({
+    const organizations = seeded();
+    expect(await organizations.listMembers('org-a', { id: 'u-a' })).toEqual({
       ok: false,
       refusal: 'onboarding_inactive',
     });
   });
-
-  it('lists only the given organization to an admin, and refuses a member', async () => {
-    const organizations = await seeded();
-    activate();
-    const listed = await organizations.listMembers('org-a', 'u-b');
-    if (!listed.ok) throw new Error(`refused: ${listed.refusal}`);
-    expect(listed.members.map((member) => [member.userId, member.role]).sort()).toEqual([
-      ['u-a', 'super_admin'],
-      ['u-b', 'admin'],
-      ['u-c', 'member'],
+  it('lists only the given organization under organization.read and refuses a role-only member', async () => {
+    const organizations = seeded();
+    connection.db.run(
+      sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+    );
+    const listed = await organizations.listMembers('org-a', { id: 'u-b' });
+    if (!listed.ok) throw new Error('unexpected refusal ' + listed.refusal);
+    expect(listed.members.map((member) => [member.userId, member.grantCount]).sort()).toEqual([
+      ['u-a', 1],
+      ['u-b', 1],
+      ['u-c', 0],
     ]);
-    expect(await organizations.listMembers('org-b', 'u-b')).toEqual({
-      ok: false,
-      refusal: 'forbidden',
-    });
-    expect(await organizations.listMembers('org-a', 'u-c')).toEqual({
-      ok: false,
-      refusal: 'forbidden',
-    });
+    for (const [org, user] of [
+      ['org-b', 'u-b'],
+      ['org-a', 'u-c'],
+    ])
+      expect(await organizations.listMembers(org, { id: user })).toEqual({
+        ok: false,
+        refusal: 'forbidden',
+        permission: 'organization.read',
+      });
   });
 });
 
@@ -418,7 +419,7 @@ describe('DomainClaimRepository', () => {
     expect([acceptsPendingWithoutExpiry, acceptsRotationWithoutDeadline]).toEqual([false, false]);
   });
   it('refuses a challenge that expires while verification waits for the write gate', async () => {
-    await twoOrganizationsClaiming('example.org');
+    twoOrganizationsClaiming('example.org');
     connection.db.run(
       sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
     );
@@ -434,7 +435,7 @@ describe('DomainClaimRepository', () => {
     let now = 100;
     const verification = claims.verifyClaim(
       'org-a',
-      'u-a',
+      { id: 'u-a' },
       {
         id: 'c-a',
         domain: 'example.org',
@@ -457,10 +458,9 @@ describe('DomainClaimRepository', () => {
     ).toEqual([{ status: 'pending', challenge_digest: 'digest-c-a' }]);
   });
   it('keeps both verification phases inert before activation', async () => {
-    const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     const claims = new DomainClaimRepository(connection.db, OPEN);
-    await claims.openClaim(
+    seedPendingClaim(
       {
         id: 'c-a',
         organizationId: 'org-a',
@@ -470,11 +470,11 @@ describe('DomainClaimRepository', () => {
       },
       stamp('u-a'),
     );
-    expect(await claims.readClaimForVerification('org-a', 'u-a', 'c-a')).toBe('inactive');
+    expect(await claims.readClaimForVerification('org-a', { id: 'u-a' }, 'c-a')).toBe('inactive');
     expect(
       await claims.verifyClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         {
           id: 'c-a',
           domain: 'example.org',
@@ -488,73 +488,132 @@ describe('DomainClaimRepository', () => {
       ),
     ).toBe('inactive');
   });
-  async function twoOrganizationsClaiming(domain: string): Promise<DomainClaimRepository> {
-    const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
-    await organizations.createForUnaffiliatedUser({ id: 'org-b', name: 'B' }, 'u-b', stamp('u-b'));
+  function twoOrganizationsClaiming(domain: string): DomainClaimRepository {
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedOrganization({ id: 'org-b', name: 'B' }, 'u-b', stamp('u-b'));
+    connection.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('domain-admin-a','org-a','organization','org-a','user','u-a','org-super-admin','route',1), ('domain-admin-b','org-b','organization','org-b','user','u-b','org-super-admin','route',1)`,
+    );
     const claims = new DomainClaimRepository(connection.db, OPEN);
     for (const [id, organizationId, by] of [
       ['c-a', 'org-a', 'u-a'],
       ['c-b', 'org-b', 'u-b'],
     ] as const)
-      await claims.openClaim(
+      seedPendingClaim(
         { id, organizationId, domain, challengeDigest: `digest-${id}`, challengeExpiresAt: 1000 },
         stamp(by),
       );
     return claims;
   }
 
-  it('lets exactly one organization own a verified domain', async () => {
-    const claims = await twoOrganizationsClaiming('example.org');
-
-    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 20))).toBe('verified');
-    expect(await claims.promoteClaim('c-b', 'digest-c-b', stamp('u-b', 20))).toBe('taken');
+  it('lets exactly one organization own a verified domain through current challenge authorization', async () => {
+    const claims = twoOrganizationsClaiming('example.org');
+    connection.db.run(
+      sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+    );
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-a',
+        { id: 'u-a' },
+        'c-a',
+        'digest-c-a',
+        stamp('u-a', 20),
+      ),
+    ).toBe('verified');
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-b',
+        { id: 'u-b' },
+        'c-b',
+        'digest-c-b',
+        stamp('u-b', 20),
+      ),
+    ).toBe('taken');
     expect(await claims.findOwner('example.org')).toBe('org-a');
   });
 
-  it('never opens or promotes a claim on a public domain', async () => {
-    const claims = await twoOrganizationsClaiming('example.org');
-
+  it('never issues or verifies a claim on a public domain through current challenge authorization', async () => {
+    const claims = twoOrganizationsClaiming('example.org');
+    connection.db.run(
+      sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+    );
     expect(
-      await claims.openClaim(
+      await claims.reissueClaim(
+        'org-a',
+        { id: 'u-a' },
+        'gmail.com',
+        'digest-gmail',
+        1000,
+        stamp('u-a', 20),
+      ),
+    ).toEqual({ kind: 'unclaimable' });
+    expect(
+      connection.db.all(sql`SELECT id FROM organization_domain_claim WHERE id='c-gmail'`),
+    ).toEqual([]);
+    seedPendingClaim(
+      {
+        id: 'c-planted',
+        organizationId: 'org-a',
+        domain: 'outlook.com',
+        challengeDigest: 'digest-planted',
+        challengeExpiresAt: 1000,
+      },
+      stamp('u-a'),
+    );
+    expect(await claims.readClaimForVerification('org-a', { id: 'u-a' }, 'c-planted')).toBe(
+      'stale',
+    );
+    expect(
+      await claims.verifyClaim(
+        'org-a',
+        { id: 'u-a' },
         {
-          id: 'c-gmail',
-          organizationId: 'org-a',
-          domain: 'gmail.com',
-          challengeDigest: 'digest-gmail',
+          id: 'c-planted',
+          domain: 'outlook.com',
+          phase: 'pending',
+          challengeDigest: 'digest-planted',
           challengeExpiresAt: 1000,
         },
-        stamp('u-a'),
+        'digest-planted',
+        stamp('u-a', 20),
+        () => 20,
       ),
-    ).toBe('unclaimable');
-    const db = openDatabase(path);
-    try {
-      expect(
-        db.query("SELECT id FROM organization_domain_claim WHERE id = 'c-gmail'").all(),
-      ).toEqual([]);
-      db.run(
-        `INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, challenge_expires_at, created_at)
-         VALUES ('c-planted', 'org-a', 'outlook.com', 'pending', 'digest-planted', 1000, 1)`,
-      );
-    } finally {
-      db.close();
-    }
-    expect(await claims.promoteClaim('c-planted', 'digest-planted', stamp('u-a', 20))).toBe(
-      'unclaimable',
-    );
+    ).toBe('stale');
     expect(await claims.findOwner('outlook.com')).toBeNull();
   });
 
-  it('refuses promotion with a stale or expired challenge', async () => {
-    const claims = await twoOrganizationsClaiming('example.org');
-
-    expect(await claims.promoteClaim('c-a', 'digest-old', stamp('u-a', 20))).toBe('stale');
-    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 1000))).toBe('stale');
+  it('refuses current challenge verification with a stale or expired proof', async () => {
+    const claims = twoOrganizationsClaiming('example.org');
+    connection.db.run(
+      sql`UPDATE organization_activation SET state='activated',activated_at=5 WHERE singleton=1`,
+    );
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-a',
+        { id: 'u-a' },
+        'c-a',
+        'digest-old',
+        stamp('u-a', 20),
+      ),
+    ).toBe('stale');
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-a',
+        { id: 'u-a' },
+        'c-a',
+        'digest-c-a',
+        stamp('u-a', 1000),
+      ),
+    ).toBe('stale');
     expect(await claims.findOwner('example.org')).toBeNull();
   });
 
   it('reissues a pending claim in place and invalidates its old digest', async () => {
-    const claims = await twoOrganizationsClaiming('example.org');
+    const claims = twoOrganizationsClaiming('example.org');
     const marker = openDatabase(path);
     marker.run(
       "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -563,23 +622,41 @@ describe('DomainClaimRepository', () => {
     expect(
       await claims.reissueClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         'example.org',
         'digest-new',
         2000,
         stamp('u-a', 20),
       ),
     ).toEqual({ kind: 'issued', id: 'c-a' });
-    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 21))).toBe('stale');
-    expect(await claims.promoteClaim('c-a', 'digest-new', stamp('u-a', 21))).toBe('verified');
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-a',
+        { id: 'u-a' },
+        'c-a',
+        'digest-c-a',
+        stamp('u-a', 21),
+      ),
+    ).toBe('stale');
+    expect(
+      await verifyDomainClaim(
+        claims,
+        'org-a',
+        { id: 'u-a' },
+        'c-a',
+        'digest-new',
+        stamp('u-a', 21),
+      ),
+    ).toBe('verified');
   });
 
   it('does not issue a challenge before activation', async () => {
-    const claims = await twoOrganizationsClaiming('example.org');
+    const claims = twoOrganizationsClaiming('example.org');
     expect(
       await claims.reissueClaim(
         'org-a',
-        'u-a',
+        { id: 'u-a' },
         'example.org',
         'digest-new',
         2000,
@@ -589,7 +666,7 @@ describe('DomainClaimRepository', () => {
   });
 
   it('waits for a batch rollback before issuing a durable challenge', async () => {
-    await twoOrganizationsClaiming('example.org');
+    twoOrganizationsClaiming('example.org');
     const marker = openDatabase(path);
     marker.run(
       "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
@@ -608,7 +685,7 @@ describe('DomainClaimRepository', () => {
     await entered.promise;
     let settled = false;
     const issuance = claims
-      .reissueClaim('org-a', 'u-a', 'example.org', 'digest-after', 2000, stamp('u-a', 20))
+      .reissueClaim('org-a', { id: 'u-a' }, 'example.org', 'digest-after', 2000, stamp('u-a', 20))
       .then((issued) => {
         settled = true;
         return issued;
@@ -741,14 +818,15 @@ describe('20260927120000_add_organization_records', () => {
     }
   });
 
-  it('rolls back before activation, taking only its tables and keeping users', async () => {
-    const organizations = new OrganizationRepository(connection.db, OPEN);
-    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+  it('rolls back before activation, taking only its tables and keeping users', () => {
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     const withTables = tableNames();
     for (const table of ORGANIZATION_TABLES) expect(withTables).toContain(table);
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261103110000_add_initial_access_offers',
+      '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -881,3 +959,138 @@ describe('20260927120000_add_organization_records', () => {
     connection = openConnection(path);
   });
 });
+
+for (const fault of ['actor', 'stamp', 'source', 'self-leave']) {
+  it(
+    'refuses inconsistent trusted membership removal provenance before owner entry at ' + fault,
+    async () => {
+      const performed = membershipAct('u-a');
+      if (fault === 'actor') performed.actor = 'u-b';
+      if (fault === 'stamp') Object.assign(performed.stamp, { by: 'u-b' });
+      const repository = new OrganizationRepository(connection.db, {
+        enter: () => {
+          throw new Error('unexpected membership owner entry');
+        },
+      });
+      const pending = repository.administer(
+        'org-a',
+        { id: 'u-a' },
+        'u-c',
+        performed,
+        fault === 'source'
+          ? ('unknown' as 'route')
+          : fault === 'self-leave'
+            ? 'self_leave'
+            : 'route',
+      );
+      expect((await rejectionOf(pending)).message).toContain(
+        fault === 'source'
+          ? 'membership removal source is malformed'
+          : fault === 'self-leave'
+            ? 'self-leave actor differs from its target'
+            : 'membership audit identity differs from its actor',
+      );
+    },
+  );
+}
+for (const operation of ['raw', 'administer']) {
+  it('retains the actual membership audit owner before the queue at ' + operation, async () => {
+    seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    seedMembership('org-a', 'u-c', 'member', stamp('u-a'));
+    grantRole('org-a', 'u-a', 'org-super-admin');
+    const gate = new WriteCoordinator();
+    const repository = new OrganizationRepository(connection.db, gate);
+    const held = Promise.withResolvers<undefined>();
+    const entered = Promise.withResolvers<undefined>();
+    const blocker = gate.enter(async () => {
+      entered.resolve(undefined);
+      await held.promise;
+    });
+    await entered.promise;
+    const performed = membershipAct('u-a');
+    const expectedId = performed.auditId;
+    const pending =
+      operation === 'raw'
+        ? repository.removeMember('org-a', 'u-c', performed, 'route')
+        : repository.administer('org-a', { id: 'u-a' }, 'u-c', performed, 'route');
+    Object.assign(performed, { actor: 'u-b', auditId: 'replacement' });
+    Object.assign(performed.stamp, { at: 999, by: 'u-b' });
+    held.resolve(undefined);
+    await blocker;
+    await pending;
+    expect(
+      connection.db.get<{ id: string; actor_id: string; created_at: number }>(
+        sql`SELECT id,actor_id,created_at FROM organization_audit WHERE action='organization_member_removed'`,
+      ),
+    ).toEqual({ id: expectedId, actor_id: 'u-a', created_at: 10 });
+  });
+}
+
+it('throws and rolls back when borrowed membership state disappears after the owning admission', async () => {
+  seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+  seedMembership('org-a', 'u-b', 'super_admin', stamp('u-a'));
+  grantRole('org-a', 'u-a', 'org-super-admin');
+  grantRole('org-a', 'u-b', 'org-super-admin');
+  const before = connection.db.all(sql`SELECT * FROM organization_membership ORDER BY user_id`);
+  let injected = false;
+  let targetReads = 0;
+  const observed: Connection = openConnection(path, {
+    logQuery(query, parameters) {
+      if (
+        query.startsWith('select "user_id"') &&
+        query.includes('organization_membership') &&
+        parameters.includes('u-b')
+      )
+        targetReads++;
+      if (!injected && targetReads === 2) {
+        injected = true;
+        observed.db.run(
+          sql`DELETE FROM organization_membership WHERE organization_id='org-a' AND user_id='u-b'`,
+        );
+      }
+    },
+  });
+  try {
+    expect(
+      (
+        await rejectionOf(
+          new OrganizationRepository(observed.db, OPEN).administer(
+            'org-a',
+            { id: 'u-a' },
+            'u-b',
+            membershipAct('u-a'),
+            'route',
+          ),
+        )
+      ).message,
+    ).toContain('guarded membership removal changed inside its owner');
+    expect(injected).toBe(true);
+    expect(connection.db.all(sql`SELECT * FROM organization_membership ORDER BY user_id`)).toEqual(
+      before,
+    );
+    expect(connection.db.all(sql`SELECT * FROM organization_audit`)).toEqual([]);
+  } finally {
+    observed.close();
+  }
+});
+
+async function rejectionOf(pending: Promise<unknown>): Promise<Error> {
+  const failure: unknown = await pending.then(
+    () => null,
+    (failure: unknown) => failure,
+  );
+  if (!(failure instanceof Error))
+    throw new Error('expected the production operation to reject', { cause: failure });
+  return failure;
+}
+
+for (const method of ['createForUnaffiliatedUser', 'addMember', 'changeRole']) {
+  it('does not expose the retired organization role API ' + method, () => {
+    expect(Reflect.has(OrganizationRepository.prototype, method)).toBe(false);
+  });
+}
+for (const method of ['openClaim', 'promoteClaim']) {
+  it('does not expose the retired ungated domain API ' + method, () => {
+    expect(Reflect.has(DomainClaimRepository.prototype, method)).toBe(false);
+  });
+}

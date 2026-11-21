@@ -1,7 +1,11 @@
 import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
@@ -32,7 +36,7 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({ now: () => T, machineGrants });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
@@ -49,13 +53,13 @@ beforeEach(async () => {
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
   for (const person of ['codex', 'claude'])
     addAgentPerson(h.sqlite, person, 'org-a', h.userId('dany'));
-  codexKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'codex',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const credential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'codex',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(h.sqlite, 'org-a', credential.id, 'project-contributor', 'organization', 'org-a');
+  codexKey = credential.key;
 });
 
 afterEach(async () => {

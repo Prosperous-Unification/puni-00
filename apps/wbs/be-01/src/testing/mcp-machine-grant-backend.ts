@@ -9,7 +9,12 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-capability'
 import { admitDependencyClient } from '../runtime/dependency-client';
 import { importMachineGrantKeys, type MachineGrantKey } from '../runtime/machine-grant';
 import { LocalOidcIssuers } from './local-oidc-issuer';
-import { addAgentPerson, issueApiKey, revokeMachineCredential } from './machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+  revokeMachineCredential,
+} from './machine-credential-fixture';
 import { OrganizationHarness } from './organization-harness';
 
 /**
@@ -89,8 +94,8 @@ const h = OrganizationHarness.openComposedWith({
 await h.register('dany');
 await h.register('vic');
 h.organization('org-a');
-h.member('org-a', 'dany', 'super_admin');
-h.member('org-a', 'vic', 'viewer');
+h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
+h.member('org-a', 'vic', 'viewer', ['org-viewer']);
 h.bind('dany', 'org-a');
 addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
 addAgentPerson(h.sqlite, 'vics-agent', 'org-a', h.userId('vic'));
@@ -115,14 +120,25 @@ async function fixture(request: Request, path: string): Promise<Response | undef
     return Response.json({ activated: true });
   }
   if (request.method === 'POST' && path === '/__fixture/api-key') {
-    const { personId } = (await request.json()) as { personId: string };
+    const { personId, grantRoleId } = (await request.json()) as {
+      personId: string;
+      grantRoleId?: string;
+    };
     const { id, key } = await issueApiKey(h.sqlite, {
       organizationId: 'org-a',
       personId,
       issuedBy: issuedBy(personId),
       name: `key ${crypto.randomUUID()}`,
     });
+    if (grantRoleId !== undefined)
+      grantCredential(h.sqlite, 'org-a', id, grantRoleId, 'organization', 'org-a');
     return Response.json({ id, key });
+  }
+  if (request.method === 'POST' && path === '/__fixture/project') {
+    const { name } = (await request.json()) as { name: string };
+    const created = await h.call('dany', 'POST', '/api/projects', { name });
+    if (created.status !== 200) return Response.json(created, { status: 500 });
+    return Response.json(created.body);
   }
   if (request.method === 'POST' && path === '/__fixture/revoke') {
     const { id } = (await request.json()) as { id: string };

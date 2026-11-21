@@ -24,6 +24,10 @@ async function fixture() {
   await running.register('ada');
   running.organization('org-a');
   running.member('org-a', 'ada', 'super_admin');
+  running.sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+    ['backend-v1-ada', 'org-a', 'org-a', running.userId('ada'), 'org-super-admin'],
+  );
   running.activate();
   const selection = await running.app.handle(
     new Request('http://localhost/api/organization/active', {

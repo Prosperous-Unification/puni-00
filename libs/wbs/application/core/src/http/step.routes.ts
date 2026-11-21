@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import { addStep, removeStep, renameStep } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 import { allowancePercentOf, isEstimateUnit, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
@@ -19,14 +20,25 @@ type NamedReply = Extract<HttpReply<typeof renameStep>, HttpReply<typeof addStep
 function namedReply(
   outcome:
     | { ok: true; value: Step }
-    | { ok: false; reason: 'not_found' | 'forbidden' | 'taken' | 'name_required' },
+    | {
+        ok: false;
+        reason: 'not_found' | 'forbidden' | 'taken' | 'name_required';
+        readonly permission?: Permission;
+      },
 ): NamedReply {
   if (outcome.ok) return { ok: true, status: 200, body: { step: outcome.value } };
   switch (outcome.reason) {
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome.reason } };
     case 'forbidden':
-      return { ok: false, status: 403, body: { error: outcome.reason } };
+      return {
+        ok: false,
+        status: 403,
+        body: {
+          error: outcome.reason,
+          ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+        },
+      };
     case 'taken':
       return { ok: false, status: 409, body: { error: outcome.reason } };
     case 'name_required':
@@ -49,7 +61,11 @@ function addedReply(outcome: StepOutcome | AuthorityRefusal): HttpReply<typeof a
     case 'code_taken':
       return { ok: false, status: 409, body: { error: outcome.reason } };
     default:
-      return namedReply({ ok: false, reason: outcome.reason });
+      return namedReply({
+        ok: false,
+        reason: outcome.reason,
+        ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+      });
   }
 }
 
@@ -69,7 +85,11 @@ function renamedReply(outcome: StepUnitOutcome | AuthorityRefusal): HttpReply<ty
     case 'code_taken':
       throw new Error(`a rename answered ${outcome.reason}, which only a chosen code can earn`);
     default:
-      return namedReply({ ok: false, reason: outcome.reason });
+      return namedReply({
+        ok: false,
+        reason: outcome.reason,
+        ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+      });
   }
 }
 
@@ -103,8 +123,8 @@ export function stepRoutes(
     projectId: string,
     actor: AuthenticatedUser,
     detail: { readonly step: 'add' | 'rename' | 'remove' },
-    perform: (service: typeof steps, access: ResourceAccess) => Promise<T>,
-    refuse: (reason: 'not_found' | 'forbidden') => T,
+    perform: (service: typeof steps, access: ResourceAccess, actorId: string) => Promise<T>,
+    refuse: (reason: 'not_found' | 'forbidden', permission?: Permission) => T,
   ): Promise<T | AuthorityRefusal> => {
     return runRecoveryWrite(
       recovery,
@@ -112,7 +132,8 @@ export function stepRoutes(
       projectId,
       actor,
       detail,
-      (services, freshAccess) => perform(services.steps, freshAccess),
+      (services, freshAccess, retainedActorId) =>
+        perform(services.steps, freshAccess, retainedActorId),
       refuse,
     );
   };
@@ -139,17 +160,21 @@ export function stepRoutes(
           params.id,
           principal,
           { step: 'add' },
-          (service, access) =>
+          (service, access, actorId) =>
             service.addWithin(
               params.id,
-              principal.id,
+              actorId,
               body.name,
               allowance,
               body.code,
               access,
               estimateUnit,
             ),
-          (reason): StepOutcome => ({ ok: false, reason }),
+          (reason, permission): StepOutcome => ({
+            ok: false,
+            reason,
+            ...(permission === undefined ? {} : { permission }),
+          }),
         ),
       );
     }),
@@ -174,9 +199,13 @@ export function stepRoutes(
             params.id,
             principal,
             { step: 'rename' },
-            (service, access) =>
-              service.renameWithin(params.id, params.stepId, principal.id, name, access),
-            (reason): StepOutcome => ({ ok: false, reason }),
+            (service, access, actorId) =>
+              service.renameWithin(params.id, params.stepId, actorId, name, access),
+            (reason, permission): StepOutcome => ({
+              ok: false,
+              reason,
+              ...(permission === undefined ? {} : { permission }),
+            }),
           ),
         );
       }
@@ -199,10 +228,9 @@ export function stepRoutes(
         },
         async (graph, access) => {
           // The step is checked through the batch's own graph, inside its unit
-          // of work: after activation that graph carries the grant the unit of
-          // work admitted, so a super-admin's audited recovery reaches the step
-          // as the batch does, and a step of another project is `not_found`
-          // before anything is written.
+          // of work. Current package.write admits the lookup; the allowance
+          // command also requires package.manage_settings. A step of another
+          // project is not_found before anything is written.
           // Proof: skipping this check made `refuses an allowance edit of a
           // foreign step or project, changing nothing` in
           // `step-marker-organization.controller.db.test.ts` fail (16 pass,
@@ -243,12 +271,28 @@ export function stepRoutes(
           return organizationRefusal(outcome);
         return outcome.refusal === 'not_found'
           ? { ok: false, status: 404, body: { error: 'not_found' } }
-          : { ok: false, status: 403, body: { error: 'forbidden' } };
+          : // Proof: dropping admission.permission failed 'encodes step allowance admission permission through the mounted route'; restored GREEN, 2026-11-09.
+            {
+              ok: false,
+              status: 403,
+              body: {
+                error: 'forbidden',
+                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+              },
+            };
       }
       if (!outcome.ok) {
         switch (outcome.reason) {
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: 'forbidden' } };
+            // Proof: dropping command.permission failed 'encodes step allowance command permission through the mounted route'; restored GREEN, 2026-11-09.
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: 'forbidden',
+                ...('permission' in outcome ? { permission: outcome.permission } : {}),
+              },
+            };
           case 'not_found':
             return { ok: false, status: 404, body: { error: 'not_found' } };
           // Proof: with this case removed, `is a typed 422 over HTTP and in a
@@ -279,15 +323,16 @@ export function stepRoutes(
           params.id,
           principal,
           { step: 'remove' },
-          (service, access) =>
+          (service, access, actorId) =>
             service.removeWithin(
               params.id,
               params.stepId,
-              principal.id,
+              actorId,
               query.cascade === 'true',
               access,
             ),
-          (reason) => ({ ok: false, reason }) as const,
+          (reason, permission) =>
+            ({ ok: false, reason, ...(permission === undefined ? {} : { permission }) }) as const,
         );
         if ('refusal' in outcome) return organizationRefusal(outcome);
         if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
@@ -319,7 +364,14 @@ export function stepRoutes(
           case 'not_found':
             return { ok: false, status: 404, body: { error: outcome.reason } };
           case 'forbidden':
-            return { ok: false, status: 403, body: { error: outcome.reason } };
+            return {
+              ok: false,
+              status: 403,
+              body: {
+                error: outcome.reason,
+                ...(outcome.permission === undefined ? {} : { permission: outcome.permission }),
+              },
+            };
         }
       },
     ),

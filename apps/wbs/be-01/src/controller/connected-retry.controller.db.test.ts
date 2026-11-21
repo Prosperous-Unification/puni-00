@@ -39,8 +39,9 @@ import { testLocalAuthService } from '../testing/auth-fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
 const access = {
+  principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
 } as const;
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
@@ -62,6 +63,9 @@ async function fixture(failedPri = false, installedReader = true) {
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
   sqlite.run(
     "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
+  );
+  sqlite.run(
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('retry-manager','org-a','organization','org-a','user','ada','org-admin','route',1)",
   );
   sqlite.run("UPDATE project SET estimate_rounding='exact',start_date='2026-10-05'");
   sqlite.run("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'");
@@ -174,6 +178,7 @@ async function fixture(failedPri = false, installedReader = true) {
   });
   const app = testApp({
     ...graph,
+    accessDecisions: source.stores.accessDecisions,
     workItems: graph.workItems,
     optimizer: coordinator,
     auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),
@@ -381,6 +386,23 @@ it('mounted connected Retry authorizes before capture and rechecks membership in
   const reply = await f.send(hash);
   expect(reply.status).toBe(403);
   expect(await reply.json()).toEqual({ error: 'forbidden' });
+  expect(f.snapshot()).toEqual(before);
+  expect(f.openReads()).toBe(0);
+});
+
+it('mounted connected Retry preserves package.manage_settings after writer grant revocation', async () => {
+  const f = await fixture();
+  const captured = await f.capture();
+  await f.coordinator.admitCaptured({ projectId: 'a1', ...captured });
+  await f.coordinator.drain();
+  const hash = captureConnectedQuestion(captured.input.stage, 'time', installed).inputHash;
+  const before = f.snapshot();
+  f.afterRead(() => {
+    f.sqlite.run("UPDATE access_grant SET role_id='project-contributor' WHERE id='retry-manager'");
+  });
+  const reply = await f.send(hash);
+  expect(reply.status).toBe(403);
+  expect(await reply.json()).toEqual({ error: 'forbidden', permission: 'package.manage_settings' });
   expect(f.snapshot()).toEqual(before);
   expect(f.openReads()).toBe(0);
 });

@@ -3,6 +3,7 @@ import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
+import type { AccessDecisions } from '../../ports/access-decisions';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
@@ -1703,4 +1704,92 @@ it('borrows permanent runtime storage only during the working plan lifetime', as
   } finally {
     await source.close();
   }
+});
+
+for (const method of ['effectiveRoleAt', 'readablePackageIds'] as const) {
+  it(
+    'refuses a retained ' + method + ' call before touching the grant port after plan close',
+    async () => {
+      const source = openMemorySource();
+      let reads = 0;
+      const decisions: AccessDecisions = {
+        effectiveRoleAt: () => {
+          reads += 1;
+          return Promise.resolve({ permissions: new Set(), via: [] });
+        },
+        readablePackageIds: () => {
+          reads += 1;
+          return Promise.resolve(new Set<string>());
+        },
+      };
+      const plan = createWorkingPlan(
+        { stores: { ...source.stores, accessDecisions: decisions } },
+        'project-a',
+      );
+      const retained = plan.stores.accessDecisions;
+      if (retained === undefined) throw new Error('fixture grant port disappeared');
+      plan.close();
+      const pending =
+        method === 'effectiveRoleAt'
+          ? retained.effectiveRoleAt(
+              { id: 'actor' },
+              { kind: 'organization', organizationId: 'org-a' },
+            )
+          : retained.readablePackageIds({ id: 'actor' }, 'org-a');
+      expect(
+        await pending.then(
+          () => 'unexpected success',
+          (failure: unknown) => (failure instanceof Error ? failure.message : failure),
+        ),
+      ).toContain('closed');
+      expect(reads).toBe(0);
+    },
+  );
+
+  it('refuses a suspended ' + method + ' answer after plan close', async () => {
+    const source = openMemorySource();
+    const entered = Promise.withResolvers<undefined>();
+    const released = Promise.withResolvers<undefined>();
+    const decisions: AccessDecisions = {
+      effectiveRoleAt: async () => {
+        entered.resolve(undefined);
+        await released.promise;
+        return { permissions: new Set(), via: [] };
+      },
+      readablePackageIds: async () => {
+        entered.resolve(undefined);
+        await released.promise;
+        return new Set<string>();
+      },
+    };
+    const plan = createWorkingPlan(
+      { stores: { ...source.stores, accessDecisions: decisions } },
+      'project-a',
+    );
+    const retained = plan.stores.accessDecisions;
+    if (retained === undefined) throw new Error('fixture grant port disappeared');
+    const pending =
+      method === 'effectiveRoleAt'
+        ? retained.effectiveRoleAt(
+            { id: 'actor' },
+            { kind: 'organization', organizationId: 'org-a' },
+          )
+        : retained.readablePackageIds({ id: 'actor' }, 'org-a');
+    await entered.promise;
+    plan.close();
+    released.resolve(undefined);
+    expect(
+      await pending.then(
+        () => 'unexpected success',
+        (failure: unknown) => (failure instanceof Error ? failure.message : failure),
+      ),
+    ).toContain('closed');
+  });
+}
+
+it('refuses to hand out its grant capability after plan close', () => {
+  const source = openMemorySource();
+  const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+  plan.close();
+  expect(() => plan.stores.accessDecisions).toThrow('closed');
 });

@@ -7,7 +7,10 @@ import type {
   OrganizationLimits,
   OrganizationLimitsChange,
   OrganizationLimitsChanged,
+  OrganizationLimitsRefusal,
+  SecurityPrincipal,
 } from '@wbs/core';
+import { authorize, retainSecurityPrincipal } from '@wbs/core';
 import {
   isOrganizationLimit,
   type OrganizationLimitsReading,
@@ -19,8 +22,9 @@ import {
 import { and, asc, count, eq, ne, sql, sum, TransactionRollbackError } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { AccessDecisionRepository } from './access-decisions';
 import { auditOnOperatorCreate, auditOnUpdate } from './audit';
-import { roleIn } from './organization';
+import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { appendOrganizationAudit } from './organization-audit-log';
 import {
@@ -35,6 +39,7 @@ import {
   resourceOrganization,
   workItem,
 } from './schema';
+import { runSecurityTransaction } from './security-transaction';
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 type Reader = Pick<SQLiteBunDatabase, 'select' | 'selectDistinct'>;
@@ -227,27 +232,6 @@ export function sumStatedCapacity(
   return row.units ?? 0;
 }
 
-/**
- * Whether `actorId` may read `organizationId`'s limits now: `inactive` before
- * activation, `forbidden` for anyone but a current `admin` or `super_admin`,
- * null when permitted. Read inside the caller's transaction.
- *
- * Proof, each watched 2026-10-22: with the role test answering null, `answers
- * a member and a viewer 403 forbidden with no usage in the body`
- * (organization-limits.controller.db.test.ts) answered 200, and `answers caps and usage to an admin and a super-admin, and
- * forbidden to everyone else` (organization-limits.db.test.ts) failed; with the
- * activation test removed, `answers inactive before activation` failed.
- */
-function limitsReaderRefusal(
-  tx: Transaction,
-  organizationId: string,
-  actorId: string,
-): 'inactive' | 'forbidden' | null {
-  if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
-  const role = roleIn(tx, organizationId, actorId);
-  return role === 'admin' || role === 'super_admin' ? null : 'forbidden';
-}
-
 /** The organization's usage against each cap, read in the caller's transaction (L5, L8). */
 function readUsage(db: Reader, organizationId: string): OrganizationLimitUsage {
   return {
@@ -354,7 +338,10 @@ function changedLimits(
 
 /**
  * {@link OrganizationLimits} over the shared database, with the deployment
- * defaults be-01 read at boot (L7).
+ * defaults be-01 read at boot (L7). Every public owner takes the same source
+ * gate: a personal read retains its transaction across the awaited current
+ * grant decision, so inspect and operator writes cannot enter that connection
+ * until it settles. The gauge remains a separate borrowed reader.
  */
 export class OrganizationLimitsRepository implements OrganizationLimits {
   private readonly defaults: OrganizationLimitValues;
@@ -363,18 +350,32 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
   constructor(
     private readonly db: SQLiteBunDatabase,
     defaults: OrganizationLimitValues,
+    private readonly gate: Gate,
   ) {
     this.defaults = checkedLimits(defaults, 'the deployment default');
   }
 
   async read(
     organizationId: string,
-    actorId: string,
-  ): Promise<OrganizationLimitsReading | 'inactive' | 'forbidden'> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const refusal = limitsReaderRefusal(tx, organizationId, actorId);
-      if (refusal !== null) return refusal;
+    principal: SecurityPrincipal,
+  ): Promise<OrganizationLimitsReading | 'inactive' | OrganizationLimitsRefusal> {
+    // Proof: limits-read-principal-snapshot failed `rechecks the retained queued limits principal after its read grant is revoked` with the injected fault; restored GREEN.
+    // Proof: limits-read-machine-snapshot failed `retains queued limits machine authentication and its contributor cap despite account read authority` with the injected fault; restored GREEN.
+    principal = retainSecurityPrincipal(principal);
+    // Proof: limits-current-owner failed `keeps the limits grant decision inside its immediate transaction` with the injected fault; restored GREEN.
+    return runSecurityTransaction(this.db, this.gate, async (tx) => {
+      // Proof: limits-activation failed `answers inactive before activation` with the injected fault; restored GREEN.
+      if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
+      const decision = await authorize(
+        new AccessDecisionRepository(tx),
+        principal,
+        { kind: 'organization', organizationId },
+        'organization.read',
+      );
+      // Proof: limits-current-grant failed `names organization.read when a role-only super-admin requests limits` with the injected fault; restored GREEN.
+      // Proof: limits-direct-nondelegation failed `refuses a delegated personal read grant at the direct limits owner` with the injected fault; restored GREEN.
+      if (principal.delegation !== undefined || !decision.ok)
+        return { kind: 'forbidden', permission: 'organization.read' };
       return {
         ...readEffectiveLimits(tx, organizationId, this.defaults),
         usage: readUsage(tx, organizationId),
@@ -385,15 +386,19 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
   async inspect(
     organizationId: string,
   ): Promise<OrganizationLimitsReading | 'inactive' | 'unknown_organization'> {
-    await Promise.resolve();
-    return this.db.transaction((tx) => {
-      const refusal = operatorRefusal(tx, organizationId);
-      if (refusal !== null) return refusal;
-      return {
-        ...readEffectiveLimits(tx, organizationId, this.defaults),
-        usage: readUsage(tx, organizationId),
-      };
-    });
+    // Proof: limits-inspect-gate failed `serializes limits inspect behind an awaited personal grant decision` with the injected fault; restored GREEN.
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => {
+          const refusal = operatorRefusal(tx, organizationId);
+          if (refusal !== null) return refusal;
+          return {
+            ...readEffectiveLimits(tx, organizationId, this.defaults),
+            usage: readUsage(tx, organizationId),
+          };
+        }),
+      ),
+    );
   }
 
   async set(
@@ -402,33 +407,41 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
     act: OperatorLimitsAct,
     mode: LimitsWriteMode,
   ): Promise<OrganizationLimitsChanged | 'inactive' | 'unknown_organization'> {
-    await Promise.resolve();
-    return this.write(mode, (tx) => {
-      const refusal = operatorRefusal(tx, organizationId);
-      if (refusal !== null) return refusal;
-      const before = readEffectiveLimits(tx, organizationId, this.defaults);
-      const after: EffectiveOrganizationLimits = {
-        source: 'organization',
-        limits: changedLimits(before.limits, change, organizationId),
-      };
-      const usage = readUsage(tx, organizationId);
-      if (before.source === 'organization' && isSameLimits(before.limits, after.limits))
-        return { change: 'unchanged', before, after: before, usage };
-      if (before.source === 'default')
-        tx.insert(organizationLimits)
-          .values({ organizationId, ...after.limits, ...auditOnOperatorCreate(act.at) })
-          .run();
-      else
-        tx.update(organizationLimits)
-          .set({ ...after.limits, ...auditOnUpdate(act) })
-          .where(eq(organizationLimits.organizationId, organizationId))
-          .run();
-      // Proof: 2026-10-22, appending this in its own transaction after the
-      // write committed left the row of 8 behind in `writes nothing and exits
-      // non-zero naming the failure when the audit cannot be written`.
-      appendLimitsAudit(tx, organizationId, act, before, after);
-      return { change: 'set', before, after, usage };
-    });
+    // Proof: limits-set-change-snapshot failed `retains queued limits set operator provenance and requested caps` with the injected fault; restored GREEN.
+    change = structuredClone(change);
+    // Proof: limits-set-act-snapshot failed `retains queued limits set operator provenance and requested caps` with the injected fault; restored GREEN.
+    act = { ...act };
+    // Proof: limits-set-gate failed `serializes limits set behind an awaited personal grant decision` with the injected fault; restored GREEN.
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.write(mode, (tx) => {
+          const refusal = operatorRefusal(tx, organizationId);
+          if (refusal !== null) return refusal;
+          const before = readEffectiveLimits(tx, organizationId, this.defaults);
+          const after: EffectiveOrganizationLimits = {
+            source: 'organization',
+            limits: changedLimits(before.limits, change, organizationId),
+          };
+          const usage = readUsage(tx, organizationId);
+          if (before.source === 'organization' && isSameLimits(before.limits, after.limits))
+            return { change: 'unchanged', before, after: before, usage };
+          if (before.source === 'default')
+            tx.insert(organizationLimits)
+              .values({ organizationId, ...after.limits, ...auditOnOperatorCreate(act.at) })
+              .run();
+          else
+            tx.update(organizationLimits)
+              .set({ ...after.limits, ...auditOnUpdate(act) })
+              .where(eq(organizationLimits.organizationId, organizationId))
+              .run();
+          // Proof: 2026-10-22, appending this in its own transaction after the
+          // write committed left the row of 8 behind in `writes nothing and exits
+          // non-zero naming the failure when the audit cannot be written`.
+          appendLimitsAudit(tx, organizationId, act, before, after);
+          return { change: 'set', before, after, usage };
+        }),
+      ),
+    );
   }
 
   async reset(
@@ -436,19 +449,25 @@ export class OrganizationLimitsRepository implements OrganizationLimits {
     act: OperatorLimitsAct,
     mode: LimitsWriteMode,
   ): Promise<OrganizationLimitsChanged | 'inactive' | 'unknown_organization' | 'no_row'> {
-    await Promise.resolve();
-    return this.write(mode, (tx) => {
-      const refusal = operatorRefusal(tx, organizationId);
-      if (refusal !== null) return refusal;
-      const before = readEffectiveLimits(tx, organizationId, this.defaults);
-      if (before.source === 'default') return 'no_row';
-      const after: EffectiveOrganizationLimits = { source: 'default', limits: this.defaults };
-      tx.delete(organizationLimits)
-        .where(eq(organizationLimits.organizationId, organizationId))
-        .run();
-      appendLimitsAudit(tx, organizationId, act, before, after);
-      return { change: 'reset', before, after, usage: readUsage(tx, organizationId) };
-    });
+    // Proof: limits-reset-act-snapshot failed `retains queued limits reset operator provenance and requested caps` with the injected fault; restored GREEN.
+    act = { ...act };
+    // Proof: limits-reset-gate failed `serializes limits reset behind an awaited personal grant decision` with the injected fault; restored GREEN.
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.write(mode, (tx) => {
+          const refusal = operatorRefusal(tx, organizationId);
+          if (refusal !== null) return refusal;
+          const before = readEffectiveLimits(tx, organizationId, this.defaults);
+          if (before.source === 'default') return 'no_row';
+          const after: EffectiveOrganizationLimits = { source: 'default', limits: this.defaults };
+          tx.delete(organizationLimits)
+            .where(eq(organizationLimits.organizationId, organizationId))
+            .run();
+          appendLimitsAudit(tx, organizationId, act, before, after);
+          return { change: 'reset', before, after, usage: readUsage(tx, organizationId) };
+        }),
+      ),
+    );
   }
 
   /**

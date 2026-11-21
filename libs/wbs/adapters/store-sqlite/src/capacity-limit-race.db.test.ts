@@ -31,8 +31,9 @@ const RESOURCES = ['ram', 'worktrees'] as const;
 const SEED = 20261022;
 
 const accessOf = (userId: string): ResourceAccess => ({
+  principal: { id: userId },
   kind: 'scoped',
-  scope: { organizationId: 'org-a', userId, role: 'admin' },
+  scope: { cap: null, organizationId: 'org-a', userId },
 });
 
 /**
@@ -90,6 +91,10 @@ async function seeded(cap: number, counting: { source: CountSource }) {
   for (const id of ACCOUNTS)
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ${id}, 'admin', 1)`,
+    );
+  for (const id of ACCOUNTS)
+    source.db.run(
+      sql`INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(${'race-' + id},'org-a','organization','org-a','user',${id},'org-admin','route',1)`,
     );
   source.db.run(
     sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES ('org-a', 50, 200, ${cap}, 1)`,

@@ -8,7 +8,8 @@ test('context route stays inert before activation and production binding', async
   try {
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
     expect(
       await harness.call('ada', 'POST', '/api/auth/context', { organizationId: 'org-a' }),
     ).toEqual({
@@ -48,8 +49,10 @@ test('issues a native direct context only for its own current membership', async
     await harness.register('bob');
     harness.organization('org-a');
     harness.organization('org-b');
-    harness.member('org-a', 'ada', 'member');
-    harness.member('org-b', 'bob', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
+    harness.member('org-b', 'bob', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-b', 'bob', ['organization.create_project']);
     harness.activate();
     expect(
       await harness.callWith('other', 'POST', '/api/auth/context', { organizationId: 'org-a' }),
@@ -181,7 +184,8 @@ test('enabled context issuance reports inactive before activation', async () => 
   try {
     await harness.register('ada');
     harness.organization('org-a');
-    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+    harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
     expect(
       await harness.call('ada', 'POST', '/api/auth/context', {
         organizationId: 'org-a',

@@ -14,6 +14,10 @@ test('boot composition refuses stale cookie context without effects', async () =
   for (const organizationId of ['org-a', 'org-b']) {
     be.organization(organizationId);
     be.member(organizationId, 'ada', 'super_admin');
+    be.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,'org-super-admin','route',1)",
+      ['context-' + organizationId, organizationId, organizationId, be.userId('ada')],
+    );
   }
   be.activate();
   const process = be;

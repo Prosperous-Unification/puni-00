@@ -31,6 +31,7 @@ const operationId = 'process-restore';
 const tables = [
   'organization',
   'organization_membership',
+  'access_grant',
   'project_rank',
   'shared_people_audit',
   'event_log',
@@ -137,11 +138,14 @@ beforeEach(async () => {
     ] as const) {
       harness.organization(org);
       harness.member(org, username, 'super_admin');
+      harness.grantPermissions(org, username, ['organization.manage_security']);
       harness.bind(username, org);
     }
     // Cross-org authority must never replace the locally recorded personal approver.
     harness.member('org-a', 'bob', 'super_admin');
+    harness.grantPermissions('org-a', 'bob', ['organization.manage_security']);
     harness.member('org-b', 'alice', 'super_admin');
+    harness.grantPermissions('org-b', 'alice', ['organization.manage_security']);
     harness.activate();
     for (const [project, org, owner] of [
       ['a1', 'org-a', actorA],
@@ -296,19 +300,31 @@ it('recovers authenticated two-organization evidence in a cold host process and 
   });
   expect(snapshot()).toEqual(before);
 });
-// Proof: independently dropping actor identity, organization identity or role admitted the demoted/deleted approver.
-it('rechecks the recorded actor and local role after the app has stopped', async () => {
+it('rechecks the personally recorded actor current grant and local membership after the app has stopped', async () => {
   for (const actor of [actorA, actorB]) {
-    execute(
-      `UPDATE organization_membership SET role='admin' WHERE user_id='${actor}' AND organization_id='${actor === actorA ? 'org-a' : 'org-b'}'`,
-    );
-    await refused('no longer a super-admin');
-    execute(`UPDATE organization_membership SET role='super_admin' WHERE user_id='${actor}'`);
     const organization = actor === actorA ? 'org-a' : 'org-b';
+    const grants = query(
+      `SELECT id,role_id FROM access_grant WHERE subject_kind='user' AND subject_id='${actor}' AND organization_id='${organization}'`,
+    ) as { id: string; role_id: string }[];
+    expect(grants).toHaveLength(1);
+    execute(
+      `DELETE FROM access_grant WHERE subject_kind='user' AND subject_id='${actor}' AND organization_id='${organization}'`,
+    );
+    await refused('no longer holds organization.manage_security');
+    const sqlite = openDatabase(database);
+    try {
+      for (const grant of grants)
+        sqlite.run(
+          "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES (?,?,'organization',?,'user',?,?,'route',1)",
+          [grant.id, organization, organization, actor, grant.role_id],
+        );
+    } finally {
+      sqlite.close();
+    }
     execute(
       `DELETE FROM organization_membership WHERE user_id='${actor}' AND organization_id='${organization}'`,
     );
-    await refused('no longer a super-admin');
+    await refused('no longer holds organization.manage_security');
     execute(
       `INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('${organization}', '${actor}', 'super_admin', 1)`,
     );

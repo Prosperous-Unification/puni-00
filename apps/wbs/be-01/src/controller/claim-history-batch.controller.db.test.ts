@@ -18,7 +18,8 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({});
   await h.register('mem');
   h.organization('org-a');
-  h.member('org-a', 'mem', 'member');
+  h.member('org-a', 'mem', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'mem', ['organization.create_project']);
   h.bind('mem', 'org-a');
   h.activate();
   const created = await h.call('mem', 'POST', '/api/projects', { name: 'Claims' });

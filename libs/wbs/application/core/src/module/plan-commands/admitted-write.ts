@@ -10,7 +10,7 @@ import type { AuthorityRefusal } from './plan-commands.feature';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
-  readonly projects: Pick<ProjectService, 'updateWithin'>;
+  readonly projects: Pick<ProjectService, 'updateWithin' | 'createWithin'>;
   readonly steps: Pick<StepService, 'removeWithin'>;
 }
 
@@ -19,7 +19,7 @@ export type AdmittedWriteDecision<T> = { commit: true; value: T } | { commit: fa
 /** One admitted route write over a mapped graph, with no source capability. */
 export interface AdmittedWriteTransaction {
   run<T>(
-    projectId: string,
+    projectId: string | null,
     caller: CommandCaller,
     broadcast: Broadcaster,
     act: (services: AdmittedServices, access: ResourceAccess) => Promise<AdmittedWriteDecision<T>>,
@@ -45,11 +45,14 @@ export interface AdmittedWriteOptions {
  */
 export function admittedWrites(options: AdmittedWriteOptions) {
   const admit = async <T extends { ok: boolean }>(
-    projectId: string,
+    projectId: string | null,
     actor: AuthenticatedUser,
     expectedAccess: ResourceAccess,
-    act: (graph: AdmittedServices, access: ResourceAccess) => Promise<T>,
+    act: (graph: AdmittedServices, access: ResourceAccess, actorId: string) => Promise<T>,
   ): Promise<T | AuthorityRefusal> => {
+    // Proof: removing this snapshot admitted substituted account grants in queued project admission; named machine-provenance test fault/restored pass, 2026-11-09.
+    actor = structuredClone(actor);
+    expectedAccess = structuredClone(expectedAccess);
     // Proof: removing this guard made direct read-only project update and bare step removal commit (command-current-authority.controller.db.test.ts).
     if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
     const collector = new AnnouncementCollector(options.announcements);
@@ -58,7 +61,7 @@ export function admittedWrites(options: AdmittedWriteOptions) {
       { kind: 'human', principal: actor, expectedAccess },
       collector,
       async (graph, access) => {
-        const value = await act(graph, access);
+        const value = await act(graph, access, actor.id);
         return value.ok ? { commit: true, value } : { commit: false, value };
       },
     );
@@ -66,14 +69,23 @@ export function admittedWrites(options: AdmittedWriteOptions) {
     return outcome;
   };
   return {
+    createProjectWithin: (
+      name: string,
+      actor: AuthenticatedUser,
+      expectedAccess: ResourceAccess,
+      abbreviation?: string,
+    ) =>
+      admit(null, actor, expectedAccess, (graph, access, actorId) =>
+        graph.projects.createWithin(name, actorId, access, abbreviation),
+      ),
     updateProjectWithin: (
       projectId: string,
       actor: AuthenticatedUser,
       patch: Parameters<ProjectService['updateWithin']>[2],
       expectedAccess: ResourceAccess,
     ) =>
-      admit(projectId, actor, expectedAccess, (graph, access) =>
-        graph.projects.updateWithin(projectId, actor.id, patch, access),
+      admit(projectId, actor, expectedAccess, (graph, access, actorId) =>
+        graph.projects.updateWithin(projectId, actorId, patch, access),
       ),
     removeStepWithin: (
       projectId: string,
@@ -82,8 +94,8 @@ export function admittedWrites(options: AdmittedWriteOptions) {
       cascade: boolean,
       expectedAccess: ResourceAccess,
     ) =>
-      admit(projectId, actor, expectedAccess, (graph, access) =>
-        graph.steps.removeWithin(projectId, stepId, actor.id, cascade, access),
+      admit(projectId, actor, expectedAccess, (graph, access, actorId) =>
+        graph.steps.removeWithin(projectId, stepId, actorId, cascade, access),
       ),
   };
 }

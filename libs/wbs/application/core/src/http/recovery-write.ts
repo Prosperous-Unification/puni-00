@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
+import type { Permission } from '@wbs/domain';
 
 import type { WritingServices } from '../compose';
 import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
@@ -15,6 +16,7 @@ import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { RecoveryAuditDetail } from '../ports/project-store';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
+import { authorizePackage } from '../service/authorize';
 import {
   type CommittedFanoutDelivery,
   type CommittedProjectEvent,
@@ -51,9 +53,12 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   projectId: string,
   actor: AuthenticatedUser,
   detail: RecoveryAuditDetail,
-  perform: (services: WritingServices, access: ResourceAccess) => Promise<T>,
-  refuse: (reason: 'not_found' | 'forbidden') => T,
+  perform: (services: WritingServices, access: ResourceAccess, actorId: string) => Promise<T>,
+  refuse: (reason: 'not_found' | 'forbidden', permission?: Permission) => T,
 ): Promise<T | AuthorityRefusal> {
+  // Proof: removing this snapshot admitted owning-account grants after queued machine evidence removal; queued step admission fault/restored pass, 2026-11-09.
+  actor = structuredClone(actor);
+  expectedAccess = structuredClone(expectedAccess);
   // Proof: removing this guard committed a direct read-only recovery removal and its audit (command-current-authority.controller.db.test.ts).
   if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
   const actorId = actor.id;
@@ -72,21 +77,28 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
     // revoked after access resolution before step admission` return 200 instead
     // of 403 (1 fail). The earlier force-ordinary mutation made the mounted
     // recovery matrix find no audit, which proved audit presence only.
-    const admitted =
-      access.kind === 'scoped'
-        ? await scope.stores.projects.admitEditInOrganization(
-            projectId,
-            access.scope.organizationId,
-            actorId,
-            detail,
-            access.scope.role,
-          )
-        : 'ordinary';
-    // Proof: skipping this refusal let a non-creator member add a step to a
-    // restricted project (200 instead of 403) in the mounted refusal case;
-    // watched 2026-09-28.
-    if (admitted === null || admitted === 'forbidden')
-      return { commit: false, value: refuse(admitted === null ? 'not_found' : 'forbidden') };
+    if (access.kind === 'scoped') {
+      const project = await scope.stores.projects.findInOrganization(
+        projectId,
+        access.scope.organizationId,
+      );
+      if (project === null) return { commit: false, value: refuse('not_found') };
+      const decision = await authorizePackage(
+        scope.stores.accessDecisions,
+        access,
+        project,
+        actorId,
+        'package.write',
+      );
+      if (!decision.ok)
+        return {
+          commit: false,
+          value: refuse(
+            decision.reason,
+            decision.reason === 'forbidden' ? decision.permission : undefined,
+          ),
+        };
+    }
     // Proof (2026-09-28): granting `wrong-project` made mounted step recovery
     // answer 403 instead of 200; that established correct grant plumbing.
     // Removing project equality, actor equality and expiry separately made
@@ -158,7 +170,8 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           beforeStepRemoval,
           beforeStepWrite,
         );
-        const written = await perform(services, access);
+        // Proof: dropping the retained actor argument failed 'passes the retained actor into a queued step writer'; fault/restored pass, 2026-11-09.
+        const written = await perform(services, access, actorId);
         if (written.ok && captureState.before !== null && captureState.organizationId !== null) {
           const capture = scope.fanoutCapture;
           if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');

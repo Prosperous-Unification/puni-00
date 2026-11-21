@@ -1,5 +1,8 @@
+import type { Permission } from '@wbs/domain';
 import type { CapacityMode } from '@wbs/domain';
 
+import type { CommandCaller } from './command-access';
+import type { RefusedOrganizationAccess } from './organization-access';
 import type { WriteStamp } from './write-stamp';
 
 /** One project's place in its organization's project rank (CONTEXT "Project rank"). */
@@ -12,7 +15,9 @@ export interface RankedProject {
 }
 
 export type RankMoved =
-  { ok: true; order: RankedProject[] } | { ok: false; reason: 'not_found' | 'forbidden' };
+  | { ok: true; order: RankedProject[] }
+  | { ok: false; reason: 'not_found' | 'forbidden'; readonly permission?: Permission }
+  | { ok: false; authority: RefusedOrganizationAccess };
 
 /**
  * The organization's total order over its projects
@@ -36,6 +41,7 @@ export interface ProjectRankStore {
     projectId: string,
     afterProjectId: string | null,
     stamp: WriteStamp,
+    caller?: CommandCaller,
   ): Promise<RankMoved>;
 }
 
@@ -67,11 +73,13 @@ export interface SharedPeopleStore {
 }
 
 export type CapacityModeSwitched =
-  { ok: true; changed: boolean } | { ok: false; reason: 'forbidden' };
+  | { ok: true; changed: boolean }
+  | { ok: false; reason: 'forbidden'; readonly permission?: Permission }
+  | { ok: false; authority: RefusedOrganizationAccess };
 
 /**
  * The public capacity-mode owner: one complete write turn that re-checks the
- * actor's current super-admin membership on the writer, sets and audits the
+ * authenticated caller and current manage_capacity_mode grants on the writer, sets and audits the
  * mode, and records one `elsewhere_changed` per project of the organization
  * when it changed; delivery follows the turn.
  */
@@ -82,5 +90,6 @@ export interface CapacityModeSwitch {
     mode: CapacityMode,
     stamp: WriteStamp,
     auditId: string,
+    caller?: CommandCaller,
   ): Promise<CapacityModeSwitched>;
 }

@@ -20,9 +20,7 @@ import {
 } from './db';
 import {
   authorizeImportIn,
-  authorizeModeSwitchIn,
   authorizeProjectFanoutIn,
-  authorizeRankMoveIn,
   authorizeStepFanoutIn,
   readFanoutObservationIn,
   resolveDirectoryWriteIn,
@@ -141,7 +139,10 @@ function openSqliteSourceWithSeams(
   );
   const claimObservation = { openConnection: () => reads.acquire() };
   const stores = buildStores(process.db, coordinator, lateWrite, undefined, claimObservation);
-  const admitted = { ...buildStores(process.db, OPEN, lateWrite), ...limits };
+  const admitted = {
+    ...buildStores(process.db, OPEN, lateWrite, undefined, undefined, 'borrowed'),
+    ...limits,
+  };
   /** Intersects immutable binary support with fresh durable authority on the exact admitted writer. */
   const createWriterAuthority = (lifetime: ReadSnapshotLifetime) => () => {
     // Proof: removing expiry admitted retained authority after settlement in writer-authority-binding.db.test.ts.
@@ -187,7 +188,7 @@ function openSqliteSourceWithSeams(
               });
               return {
                 stores: {
-                  ...buildStores(process.db, OPEN, lateWrite, commandPlans),
+                  ...buildStores(process.db, OPEN, lateWrite, commandPlans, undefined, 'borrowed'),
                   ...limits,
                   externalDependencyAuthoring: createWriterAuthority(lifetime),
                 },
@@ -227,8 +228,6 @@ function openSqliteSourceWithSeams(
                       lifetime,
                       authorizeStepFanoutIn(process.db, lifetime),
                     ),
-                    authorizeRankMove: guardRead(lifetime, authorizeRankMoveIn(process.db)),
-                    authorizeModeSwitch: guardRead(lifetime, authorizeModeSwitchIn(process.db)),
                     // Proof: removing this borrowed binding made a valid mounted
                     // scoped import answer 500 before capture rather than 201.
                     authorizeImport: guardRead(lifetime, authorizeImportIn(process.db)),

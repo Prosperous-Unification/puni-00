@@ -185,6 +185,7 @@ function claimHistoryReadCode(refusal: RefusalOf<'getApiProjectsByIdClaim-histor
 }
 
 // Proof: omitting external_dependencies_inactive made the real writer dormant-admission test throw (2026-10-22).
+// Proof: omitting replay_provenance_unavailable threw for both older-history writer tests; observed RED/GREEN, 2026-11-09.
 function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
   switch (refusal.error) {
     case 'invalid_params':
@@ -198,6 +199,7 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'external_dependencies_inactive':
     case 'nothing_to_undo':
+    case 'replay_provenance_unavailable':
     case 'stale_undo':
     case 'organization_context_changed':
     case 'no_active_organization':
@@ -478,6 +480,11 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'not_before_reason_needs_a_date':
     case 'invalid_kind':
     case 'nothing_to_change':
+    /* Proof: cp14-command-bridge: removed/changed production boundary.
+     * renders CP14 through the actual typed command error bridge
+     * These grouped codes fall through to the shared projection.
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    case 'last_super_admin':
     case 'forbidden':
     case 'not_found':
     case 'unknown_step':
@@ -947,6 +954,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
     // Proof: absent sentence made the dormant writer test receive the generic fallback (2026-10-22).
     external_dependencies_inactive: 'Dependencies between projects are not enabled on this server.',
+    replay_provenance_unavailable: 'Undo and redo are unavailable for this older history entry.',
     project_deleting: 'This project is being deleted. Nothing was changed.',
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
@@ -959,6 +967,11 @@ export const PLAN_REFUSALS: RefusalWords = {
     // watched 2026-10-27.
     already_claimed: 'Somebody else already holds a claim on this row. Nothing was changed.',
     person_required: 'A claim from here names a person, and none was named. Nothing was changed.',
+    /* Proof: cp14-command-presenter: removed/changed production boundary.
+     * renders CP14 directory command refusal
+     * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+    last_super_admin:
+      'Restore a direct organization super-admin grant before retrying. Nothing was changed.',
     person_not_bound:
       'Your account is not bound to that person — an organization admin binds it in the Directory. Nothing was changed.',
     credential_not_for_person: 'This credential may not act for that person. Nothing was changed.',

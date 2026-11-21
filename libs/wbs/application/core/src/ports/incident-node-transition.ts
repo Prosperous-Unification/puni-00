@@ -1,3 +1,4 @@
+import type { TypedWriteRefusal } from './dependency-context';
 import type { ScopedRevision } from './dependency-context';
 import type { IncidentReceipt } from './typed-dependency-store';
 import type { WriteStamp } from './write-stamp';
@@ -27,6 +28,7 @@ export type IncidentRetention =
   | { readonly kind: 'owner'; readonly refresh: (workItemIds: readonly string[]) => Promise<void> };
 
 export type IncidentTransitionOutcome<T> =
+  | TypedWriteRefusal
   | { readonly ok: true; readonly value: T; readonly evidence: IncidentTransitionEvidence }
   | {
       readonly ok: false;

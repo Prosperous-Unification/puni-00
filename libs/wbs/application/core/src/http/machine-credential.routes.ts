@@ -94,7 +94,7 @@ export function machineCredentialRoutes(
         if (typeof organizationId !== 'string') return organizationId;
         const listed = await credentials.list(
           organizationId,
-          principal.id,
+          principal,
           {
             ...(query.personId === undefined ? {} : { personId: query.personId }),
             includeRevoked: query.include === 'revoked',
@@ -138,7 +138,7 @@ export function machineCredentialRoutes(
             return { ok: false, status: 400, body: { error: 'audience_not_wbs' } };
           const created = await credentials.createOidc(
             organizationId,
-            principal.id,
+            principal,
             {
               id,
               name: body.name,
@@ -173,7 +173,7 @@ export function machineCredentialRoutes(
         const { key, secret } = newMachineKey(id);
         const created = await credentials.createApiKey(
           organizationId,
-          principal.id,
+          principal,
           {
             id,
             name: body.name,
@@ -208,7 +208,7 @@ export function machineCredentialRoutes(
         const secretId = crypto.randomUUID();
         const rotated = await credentials.rotateApiKey(
           organizationId,
-          principal.id,
+          principal,
           params.id,
           { secretId, digest: await digestMachineSecret(secret) },
           act(principal.id),
@@ -235,14 +235,12 @@ export function machineCredentialRoutes(
     bind(
       revokeMachineCredential,
       async ({ principal, params }): Promise<HttpReply<typeof revokeMachineCredential>> => {
+        // Proof: route-snapshot-machine: removing this boundary failed `retains the machine revoke route actor across resolution: id`;
+        // restored GREEN with the named diagnostic (task-4.1 guard-faults receipt, 2026-11-10).
+        const actor = structuredClone(principal);
         const organizationId = await sessionOrganization(principal);
         if (typeof organizationId !== 'string') return organizationId;
-        const revoked = await credentials.revoke(
-          organizationId,
-          principal.id,
-          params.id,
-          act(principal.id),
-        );
+        const revoked = await credentials.revoke(organizationId, actor, params.id, act(actor.id));
         switch (revoked) {
           case 'inactive':
             return organizationRefusal('no_active_organization');
@@ -250,6 +248,11 @@ export function machineCredentialRoutes(
             return forbidden;
           case 'not_found':
             return notFound;
+          case 'last_super_admin':
+            /* Proof: cp14-machine-http409: removed/changed production boundary.
+             * returns a named CP14 conflict on the actual machine credential revoke route
+             * failed with the injected fault and passed after restoration (task-2.5 current receipt). */
+            return { ok: false, status: 409, body: { error: 'last_super_admin' } };
           case 'revoked':
             // The revoke ended the person's leases if it was the last live
             // credential; the claims go on the tick this asks for, not the

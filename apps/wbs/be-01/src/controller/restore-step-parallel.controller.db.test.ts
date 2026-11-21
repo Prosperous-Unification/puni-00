@@ -29,8 +29,9 @@ for (const operation of ['redo-create', 'undo-delete'] as const) {
         await h.register('owner');
         await h.register('viewer');
         h.organization('org');
-        h.member('org', 'owner', 'member');
-        h.member('org', 'viewer', 'viewer');
+        h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+        h.grantPermissions('org', 'owner', ['organization.create_project']);
+        h.member('org', 'viewer', 'viewer', ['org-viewer']);
         h.bind('owner', 'org');
         h.bind('viewer', 'org');
         h.activate();
@@ -249,7 +250,8 @@ it('redo-duplicate restores its historical snapshot without rereading newly auth
     activateTestStepBlockages(h.sqlite.filename);
     await h.register('owner');
     h.organization('org');
-    h.member('org', 'owner', 'member');
+    h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+    h.grantPermissions('org', 'owner', ['organization.create_project']);
     h.bind('owner', 'org');
     h.activate();
     const created = await h.call('owner', 'POST', '/api/projects', { name: 'Duplicate history' });
@@ -317,7 +319,8 @@ for (const policy of ['source', 'destination'] as const) {
       activateTestStepBlockages(h.sqlite.filename);
       await h.register('owner');
       h.organization('org');
-      h.member('org', 'owner', 'member');
+      h.member('org', 'owner', 'member', ['project-contributor', 'org-viewer']);
+      h.grantPermissions('org', 'owner', ['organization.create_project']);
       h.bind('owner', 'org');
       h.activate();
       const created = await h.call('owner', 'POST', '/api/projects', {

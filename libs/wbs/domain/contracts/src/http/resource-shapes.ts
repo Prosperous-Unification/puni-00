@@ -1,3 +1,4 @@
+import { PERMISSIONS } from '@wbs/domain/access-role';
 import { type } from 'arktype';
 
 import { capacityReport, providerKind } from './compute-provider-shapes';
@@ -141,7 +142,15 @@ export const previewDirectoryCapacity = defineEndpointShape({
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
     // A member, a viewer or any agent: only an admin previews an organization act.
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'forbidden'",
+          'permission?': type.enumerated(...PERMISSIONS.map(({ id }) => id)),
+        }),
+      ),
+    },
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
     organizationRefusal,
     organizationContextRefusal,

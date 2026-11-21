@@ -35,6 +35,7 @@ async function seeded() {
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
+    accessDecisions: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => source.stores.projects, {
       factoryReturnKind: 'sync-value',
     }),
@@ -63,7 +64,6 @@ const completeHost = () =>
       clock: DiBag.createProvider(() => clockOf({ now: () => 0, newId: () => 'unused' }), {
         factoryReturnKind: 'sync-value',
       }),
-      recoveryAdmission: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();
 

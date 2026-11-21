@@ -22,6 +22,7 @@ import type {
   referencesOf as _referencesOf,
   stepRevisionKey as _stepRevisionKey,
 } from './compensating';
+import type { ReplayAuthorization } from './replay-authorization';
 
 /**
  * One command, expressed so that it can be applied without knowing what it is
@@ -488,6 +489,7 @@ export interface AttemptKey {
 
 /** What a journalled command did, in the words an undo says back. */
 export interface JournalPayload {
+  readonly authorization: ReplayAuthorization | null;
   /** `rename “Strip”` — the sentence, already built, so it never re-derives a number that has moved. */
   label: string;
   /** What a redo re-applies. */

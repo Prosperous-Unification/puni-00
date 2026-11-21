@@ -171,6 +171,29 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-ada', 'member', 1), ('org-b', 'u-grace', 'member', 1)",
   );
   process.activate();
+  // Named contributor grants model these members; setup creation has its own temporary permission.
+  for (const [organizationId, accountId] of [
+    ['org-a', 'u-ada'],
+    ['org-b', 'u-grace'],
+  ]) {
+    const roleId = 'seed-create-' + organizationId;
+    process.sqlite.run(
+      "INSERT INTO access_role(id,name,object_kind,level,reaches_restricted,organization_id,created_at) VALUES(?,?,'organization',NULL,0,?,1)",
+      [roleId, 'Seed creator', organizationId],
+    );
+    process.sqlite.run(
+      "INSERT INTO access_role_permission(role_id,permission) VALUES(?,'organization.create_project')",
+      [roleId],
+    );
+    for (const [grantId, grantedRole] of [
+      ['contributor-' + organizationId, 'project-contributor'],
+      ['setup-create-' + organizationId, roleId],
+    ])
+      process.sqlite.run(
+        "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,?,'organization',?,'user',?,?,'route',1)",
+        [grantId, organizationId, organizationId, accountId, grantedRole],
+      );
+  }
   const created = await call(
     process,
     'POST',
@@ -197,6 +220,9 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
     { name: 'B plan' },
   );
   expect(foreign.status).toBe(200);
+  process.sqlite.run(
+    "DELETE FROM access_grant WHERE id IN ('setup-create-org-a','setup-create-org-b')",
+  );
   return (foreign.body as { project: { id: string } }).project.id;
 }
 
@@ -940,10 +966,34 @@ describe('MCP consent as an agent person (wbs-machine-credentials A20)', () => {
     });
   });
 
+  test('returns a named CP14 conflict for an ended consent and preserves all backend authority', async () => {
+    const booted = await boot();
+    be = booted;
+    await activateWithAgents(booted);
+    expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
+    const snapshot = () => ({
+      credentials: consentRows(booted),
+      grants: booted.sqlite.query('SELECT * FROM access_grant ORDER BY id').all(),
+      claims: booted.sqlite.query('SELECT * FROM claim ORDER BY id').all(),
+      audits: booted.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all(),
+    });
+    const before = snapshot();
+    expect(
+      await call(booted, 'POST', '/internal/mcp/credentials/ended', INTERNAL, {
+        credentialId: CREDENTIAL,
+        family: 'family-claire',
+      }),
+    ).toEqual({ status: 409, body: { error: 'last_super_admin' } });
+    expect(snapshot()).toEqual(before);
+  });
+
   test('revokes a consent credential whose family mcp-01 ended, once', async () => {
     const booted = await boot();
     be = booted;
     await activateWithAgents(booted);
+    booted.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('consent-end-surviving-human','org-a','organization','org-a','user','u-ada','org-super-admin','route',1)",
+    );
     expect((await requestMint(booted, 'auth0|ada')).status).toBe(201);
     const end = (body: Record<string, string>) =>
       call(booted, 'POST', '/internal/mcp/credentials/ended', INTERNAL, body);
@@ -1018,6 +1068,10 @@ describe('undo through an MCP consent session', () => {
       ({ name }) => name === 'A plan',
     )?.id;
     if (projectId === undefined) throw new Error(`no A plan: ${JSON.stringify(listed)}`);
+    booted.sqlite.run(
+      "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('consent-undo','org-a','work_package',?,'machine_credential',?,'package-contributor','route',1)",
+      [projectId, CREDENTIAL],
+    );
     const created = await call(
       booted,
       'POST',

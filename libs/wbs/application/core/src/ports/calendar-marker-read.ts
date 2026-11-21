@@ -1,3 +1,5 @@
+import type { Permission } from '@wbs/domain';
+
 import type { CalendarMarker } from './calendar-marker-store';
 
 /**
@@ -38,6 +40,7 @@ export type CalendarMarkerSubject = 'project' | 'marker';
 export interface CalendarMarkerRefused {
   ok: false;
   reason: CalendarMarkerRefusal;
+  readonly permission?: Permission;
   about: CalendarMarkerSubject;
 }
 

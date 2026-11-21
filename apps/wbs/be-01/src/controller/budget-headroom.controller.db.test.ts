@@ -22,9 +22,11 @@ beforeEach(async () => {
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
-  h.member('org-a', 'ada', 'member');
-  h.member('org-a', 'vic', 'viewer');
-  h.member('org-b', 'grace', 'member');
+  h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-a', 'ada', ['organization.create_project', 'project.manage_budgets']);
+  h.member('org-a', 'vic', 'viewer', ['org-viewer']);
+  h.member('org-b', 'grace', 'member', ['project-contributor', 'org-viewer']);
+  h.grantPermissions('org-b', 'grace', ['organization.create_project', 'project.manage_budgets']);
   h.bind('ada', 'org-a');
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');

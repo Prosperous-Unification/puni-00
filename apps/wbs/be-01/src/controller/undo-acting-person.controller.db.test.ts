@@ -1,6 +1,10 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
-import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  issueApiKey,
+} from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
   type Answer,
@@ -34,7 +38,7 @@ beforeEach(async () => {
   h = OrganizationHarness.openComposedWith({ machineGrants });
   await h.register('dany');
   h.organization('org-a');
-  h.member('org-a', 'dany', 'super_admin');
+  h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Plan of A' });
@@ -56,20 +60,34 @@ beforeEach(async () => {
   [humanLeaf = '', codexLeaf = '', claudeLeaf = ''] = ids;
   for (const person of ['codex', 'claude'])
     addAgentPerson(h.sqlite, person, 'org-a', h.userId('dany'));
-  codexKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'codex',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
-  claudeKey = (
-    await issueApiKey(h.sqlite, {
-      organizationId: 'org-a',
-      personId: 'claude',
-      issuedBy: h.userId('dany'),
-    })
-  ).key;
+  const codexCredential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'codex',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    codexCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
+  codexKey = codexCredential.key;
+  const claudeCredential = await issueApiKey(h.sqlite, {
+    organizationId: 'org-a',
+    personId: 'claude',
+    issuedBy: h.userId('dany'),
+  });
+  grantCredential(
+    h.sqlite,
+    'org-a',
+    claudeCredential.id,
+    'project-contributor',
+    'organization',
+    'org-a',
+  );
+  claudeKey = claudeCredential.key;
 });
 
 afterEach(async () => {
@@ -195,27 +213,26 @@ describe('undo per acting person over HTTP', () => {
     expect(names()[codexLeaf]).toBe('Codex 50');
   }, 30_000);
 
-  // The step PATCH journals through `runCommandBatchAfter`, whose acting
-  // person is its own derivation.
-  // Proof: with `actingPersonOf(...)` in `runCommandBatchAfter` replaced by
-  // null, the agent's undo answered 409 nothing_to_undo instead of 200 here
-  // (5 pass, 1 fail; watched 2026-10-26).
-  it("an agent's step allowance edit is undone on its own stack, never the human's", async () => {
+  it("a capped agent's refused step allowance leaves both undo stacks unchanged", async () => {
     await rename('dany', humanLeaf, 'Human, renamed');
     const before = await qaAllowance();
+    const history = h.sqlite.query('SELECT * FROM command_journal').all();
     expect(
       await as('codex', 'PATCH', `/api/projects/${projectId}/steps/${qa}`, {
         allowancePercent: 25,
       }),
-    ).toMatchObject({ status: 200 });
-    expect(await qaAllowance()).toBe(25);
-
-    expect(await press('codex', 'undo')).toMatchObject({ status: 200 });
+    ).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden', permission: 'package.manage_settings' },
+    });
     expect(await qaAllowance()).toBe(before);
-    expect(names()[humanLeaf]).toBe('Human, renamed');
-    expect(await press('dany', 'undo')).toMatchObject({ status: 200 });
+    expect(h.sqlite.query('SELECT * FROM command_journal').all()).toEqual(history);
+    expect(await press('codex', 'undo')).toMatchObject({
+      status: 409,
+      body: { error: 'nothing_to_undo' },
+    });
+    expect((await press('dany', 'undo')).status).toBe(200);
     expect(names()[humanLeaf]).toBe('Human');
-    expect(await qaAllowance()).toBe(before);
   });
 });
 
@@ -226,6 +243,7 @@ it('two credentials pinned to the same person share one undo stack', async () =>
     issuedBy: h.userId('dany'),
     name: 'Second codex credential',
   });
+  grantCredential(h.sqlite, 'org-a', rotated.id, 'project-contributor', 'organization', 'org-a');
   await rename('codex', codexLeaf, 'First credential edit');
   expect(
     (await callForwarded(h, rotated.key, 'POST', `/api/projects/${projectId}/undo`)).status,
