@@ -537,9 +537,13 @@ jobs:
             NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
           fi
           export NODE_OPTIONS
+          # A-CI-LEAF-RECORDER-1: the heavy leaf's GH_TOKEN (issues: write) is for the recorder below
+          # alone. It is moved out of the exported environment before the capture, so it never reaches
+          # the scope's argv, sudo's journal line or the suite; the workspace step has none.
+          recorder_token="${GH_TOKEN:-}"
+          unset GH_TOKEN
           # The scope gets this exported environment through argv, so it also appears in sudo's journal
-          # line and briefly in the root processes' /proc/<pid>/cmdline; this step exports no secret
-          # (`permissions: contents: read`).
+          # line and briefly in the root processes' /proc/<pid>/cmdline; it holds no secret.
           mapfile -d '' -t gate_environment < <(env -0)
           run_in_scope() {
             local unit=$1
@@ -675,6 +679,99 @@ jobs:
               printf 'runtime headroom kernel oom since=@%s\n' "$phase_epoch" &&
               awk 'tolower($0) ~ /out of memory|oom-kill|killed process/' <<< "$kernel" | tail -20
           }
+          # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
+          # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
+          # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
+          # every 120 s: run, job, attempt and head, the phase's elapsed time, the last three samples,
+          # the last 15 other nx-gate.log lines (the running test's file and name), the largest
+          # processes, the task count and the last kernel lines. A lost runner leaves its last PATCH
+          # there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
+          # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
+          # recorder patch failed: …`, and neither changes the gate status. The log carries no secret;
+          # as a cheap guard a line matching token|secret|wbs_mk_ is replaced before posting, and the
+          # body is capped at 60 KiB, under GitHub's 65536-character comment limit. After the phase it
+          # is stopped and a final PATCH adds the phase end and scope events lines. Remove it once
+          # #963's cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on
+          # any partition made the workspace step call gh; dropping the stored comment id created a
+          # comment on every tick; dropping the cap posted 92254 bytes; dropping the guard posted a
+          # `token=` line verbatim; without the final publish's fallback a 403 failed the step 1;
+          # without the `unavailable` marker the final report retried the create; leaving GH_TOKEN
+          # exported put it in the runtime's environment.
+          recorder_issue=963
+          recorder_interval=120
+          recorder_body_limit=61440
+          recorder_comment="$(mktemp)"
+          recorder_error="$(mktemp)"
+          recorder_pid=
+          recorder_section() {
+            local text
+            printf '\n### %s\n\n````text\n' "$1"
+            shift
+            if text="$("$@" 2>&1)"; then
+              printf '%s\n' "$text"
+            else
+              printf 'unavailable\n'
+            fi
+            printf '````\n'
+          }
+          # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
+          {
+            recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
+            recorder_log_tail() { awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | tail -15 | tail -c 40960; }
+            recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
+            recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
+          }
+          recorder_report() {
+            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
+            printf 'run=%s job=%s attempt=%s head=%s partition=%s\n' "${GITHUB_RUN_ID:-absent}" \
+              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition"
+            printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
+            recorder_section 'headroom samples, last 3' recorder_samples
+            recorder_section 'processes by RSS' recorder_processes
+            recorder_section 'task count' pgrep -c .
+            recorder_section 'kernel, last 3 minutes' recorder_kernel
+            if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
+            recorder_section 'nx-gate.log tail without samples' recorder_log_tail
+          }
+          # The HTTP status gh printed on stderr, or its exit status.
+          recorder_failure() {
+            local http
+            http="$(awk 'match($0, /HTTP [0-9]+/) { found = substr($0, RSTART, RLENGTH) } END { print found }' "$recorder_error")"
+            printf '%s' "${http:-exit=$1}"
+          }
+          # Returns 1 when no comment can be created, now or after an earlier refusal (the `unavailable`
+          # marker), so a fork PR's token is refused once; the loop then stops.
+          recorder_publish() {
+            local body comment status=0
+            comment="$(cat "$recorder_comment")"
+            if [ "$comment" = unavailable ]; then return 1; fi
+            body="$(recorder_report "$1" |
+              awk 'tolower($0) ~ /token|secret|wbs_mk_/ { print "[line redacted: matched token|secret|wbs_mk_]"; next } { print }')"
+            local LC_ALL=C
+            if [ "${#body}" -gt "$recorder_body_limit" ]; then
+              body="${body:0:$((recorder_body_limit - 128))}"$'\n\n'"[truncated to the ${recorder_body_limit}-byte cap]"
+            fi
+            if [ -z "$comment" ]; then
+              comment="$(GH_TOKEN="$recorder_token" timeout 30 gh api \
+                "repos/${GITHUB_REPOSITORY:-absent}/issues/$recorder_issue/comments" -f "body=$body" --jq .id \
+                2> "$recorder_error")" || status=$?
+              if [ "$status" -eq 0 ] && is_count "$comment"; then
+                printf '%s\n' "$comment" > "$recorder_comment"
+                printf 'runtime recorder comment id=%s issue=%s\n' "$comment" "$recorder_issue"
+                return 0
+              fi
+              printf 'runtime recorder unavailable: %s\n' "$(recorder_failure "$status")"
+              printf 'unavailable\n' > "$recorder_comment"
+              return 1
+            fi
+            GH_TOKEN="$recorder_token" timeout 30 gh api -X PATCH \
+              "repos/${GITHUB_REPOSITORY:-absent}/issues/comments/$comment" -f "body=$body" --silent \
+              2> "$recorder_error" || status=$?
+            if [ "$status" -ne 0 ]; then
+              printf 'runtime recorder patch failed: %s\n' "$(recorder_failure "$status")"
+            fi
+          }
           phase_started=$SECONDS
           phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
@@ -704,6 +801,28 @@ jobs:
           ) >> nx-gate.log 2>&1 &
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
+          if [ "$partition" = heavy-tool-fleet ]; then
+            # TERM lets a tick in flight finish (gh is bounded by its 30 s timeout), so a created
+            # comment's id is always stored for the final PATCH.
+            (
+              nap=
+              stop=
+              trap 'stop=1; [ -z "$nap" ] || kill "$nap" 2> /dev/null' TERM
+              tick=0
+              while [ -z "$stop" ]; do
+                tick=$((tick + 1))
+                if ! NO_COLOR=1 recorder_publish "tick $tick" || [ -n "$stop" ]; then break; fi
+                sleep "$recorder_interval" &
+                nap=$!
+                wait "$nap" || break
+                nap=
+              done
+              exit 0
+            ) >> nx-gate.log 2>&1 &
+            recorder_pid=$!
+            printf 'runtime recorder pid=%s issue=%s interval=%ss\n' "$recorder_pid" "$recorder_issue" \
+              "$recorder_interval" >> nx-gate.log
+          fi
           set +e
           run_in_scope "$scope_unit" bash -c "$scope_gate" "$cgroup_root" "$scope_events" \
             timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
@@ -719,8 +838,20 @@ jobs:
           kill "$sampler_pid" || sampler_status=$?
           wait "$sampler_pid" || sampler_status=$?
           printf 'runtime headroom sampler stopped status=%s\n' "$sampler_status" >> nx-gate.log
+          if [ -n "$recorder_pid" ]; then
+            recorder_kill=0
+            recorder_wait=0
+            kill "$recorder_pid" 2> /dev/null || recorder_kill=$?
+            wait "$recorder_pid" || recorder_wait=$?
+            printf 'runtime recorder stopped kill=%s wait=%s\n' "$recorder_kill" "$recorder_wait" >> nx-gate.log
+          fi
           NO_COLOR=1 record_headroom_end >> nx-gate.log 2>&1 ||
             printf 'runtime headroom end unavailable utc=%s\n' "$(headroom_utc)" >> nx-gate.log
+          # The final report creates the comment if the phase ended before the first tick posted.
+          if [ -n "$recorder_pid" ]; then
+            NO_COLOR=1 recorder_publish final >> nx-gate.log 2>&1 ||
+              printf 'runtime recorder final not posted\n' >> nx-gate.log
+          fi
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then
@@ -751,6 +882,14 @@ jobs:
     # publishes the selected leaves with their budgets (phase plus a 15-minute reserve; R5-32 and
     # docs/findings/ci-gate-duration.md give the measured task times).
     timeout-minutes: ${{ matrix.job }}
+    # A-CI-LEAF-RECORDER-1: issues: write lets the tool-fleet leaf's recorder keep one comment on
+    # #963, the only evidence a lost runner leaves. On push, merge_group, dispatch and same-repo PRs
+    # the token can write issues and nothing else beyond contents: read; on a fork PR GitHub hands a
+    # read-only token, the first call fails and the recorder stops. The step moves the token out of
+    # the exported environment before the scope, so no test sees it.
+    permissions:
+      contents: read
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -832,6 +971,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUNTIME_PARTITION: heavy-${{ matrix.project }}
           PHASE_MINUTES: ${{ matrix.phase }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ "$GATE_MODE" = affected ]; then
@@ -943,9 +1083,13 @@ jobs:
             NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }$gate_node_heap"
           fi
           export NODE_OPTIONS
+          # A-CI-LEAF-RECORDER-1: the heavy leaf's GH_TOKEN (issues: write) is for the recorder below
+          # alone. It is moved out of the exported environment before the capture, so it never reaches
+          # the scope's argv, sudo's journal line or the suite; the workspace step has none.
+          recorder_token="${GH_TOKEN:-}"
+          unset GH_TOKEN
           # The scope gets this exported environment through argv, so it also appears in sudo's journal
-          # line and briefly in the root processes' /proc/<pid>/cmdline; this step exports no secret
-          # (`permissions: contents: read`).
+          # line and briefly in the root processes' /proc/<pid>/cmdline; it holds no secret.
           mapfile -d '' -t gate_environment < <(env -0)
           run_in_scope() {
             local unit=$1
@@ -1081,6 +1225,99 @@ jobs:
               printf 'runtime headroom kernel oom since=@%s\n' "$phase_epoch" &&
               awk 'tolower($0) ~ /out of memory|oom-kill|killed process/' <<< "$kernel" | tail -20
           }
+          # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
+          # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
+          # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
+          # every 120 s: run, job, attempt and head, the phase's elapsed time, the last three samples,
+          # the last 15 other nx-gate.log lines (the running test's file and name), the largest
+          # processes, the task count and the last kernel lines. A lost runner leaves its last PATCH
+          # there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
+          # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
+          # recorder patch failed: …`, and neither changes the gate status. The log carries no secret;
+          # as a cheap guard a line matching token|secret|wbs_mk_ is replaced before posting, and the
+          # body is capped at 60 KiB, under GitHub's 65536-character comment limit. After the phase it
+          # is stopped and a final PATCH adds the phase end and scope events lines. Remove it once
+          # #963's cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on
+          # any partition made the workspace step call gh; dropping the stored comment id created a
+          # comment on every tick; dropping the cap posted 92254 bytes; dropping the guard posted a
+          # `token=` line verbatim; without the final publish's fallback a 403 failed the step 1;
+          # without the `unavailable` marker the final report retried the create; leaving GH_TOKEN
+          # exported put it in the runtime's environment.
+          recorder_issue=963
+          recorder_interval=120
+          recorder_body_limit=61440
+          recorder_comment="$(mktemp)"
+          recorder_error="$(mktemp)"
+          recorder_pid=
+          recorder_section() {
+            local text
+            printf '\n### %s\n\n````text\n' "$1"
+            shift
+            if text="$("$@" 2>&1)"; then
+              printf '%s\n' "$text"
+            else
+              printf 'unavailable\n'
+            fi
+            printf '````\n'
+          }
+          # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
+          {
+            recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
+            recorder_log_tail() { awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | tail -15 | tail -c 40960; }
+            recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
+            recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
+          }
+          recorder_report() {
+            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
+            printf 'run=%s job=%s attempt=%s head=%s partition=%s\n' "${GITHUB_RUN_ID:-absent}" \
+              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition"
+            printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
+            recorder_section 'headroom samples, last 3' recorder_samples
+            recorder_section 'processes by RSS' recorder_processes
+            recorder_section 'task count' pgrep -c .
+            recorder_section 'kernel, last 3 minutes' recorder_kernel
+            if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
+            recorder_section 'nx-gate.log tail without samples' recorder_log_tail
+          }
+          # The HTTP status gh printed on stderr, or its exit status.
+          recorder_failure() {
+            local http
+            http="$(awk 'match($0, /HTTP [0-9]+/) { found = substr($0, RSTART, RLENGTH) } END { print found }' "$recorder_error")"
+            printf '%s' "${http:-exit=$1}"
+          }
+          # Returns 1 when no comment can be created, now or after an earlier refusal (the `unavailable`
+          # marker), so a fork PR's token is refused once; the loop then stops.
+          recorder_publish() {
+            local body comment status=0
+            comment="$(cat "$recorder_comment")"
+            if [ "$comment" = unavailable ]; then return 1; fi
+            body="$(recorder_report "$1" |
+              awk 'tolower($0) ~ /token|secret|wbs_mk_/ { print "[line redacted: matched token|secret|wbs_mk_]"; next } { print }')"
+            local LC_ALL=C
+            if [ "${#body}" -gt "$recorder_body_limit" ]; then
+              body="${body:0:$((recorder_body_limit - 128))}"$'\n\n'"[truncated to the ${recorder_body_limit}-byte cap]"
+            fi
+            if [ -z "$comment" ]; then
+              comment="$(GH_TOKEN="$recorder_token" timeout 30 gh api \
+                "repos/${GITHUB_REPOSITORY:-absent}/issues/$recorder_issue/comments" -f "body=$body" --jq .id \
+                2> "$recorder_error")" || status=$?
+              if [ "$status" -eq 0 ] && is_count "$comment"; then
+                printf '%s\n' "$comment" > "$recorder_comment"
+                printf 'runtime recorder comment id=%s issue=%s\n' "$comment" "$recorder_issue"
+                return 0
+              fi
+              printf 'runtime recorder unavailable: %s\n' "$(recorder_failure "$status")"
+              printf 'unavailable\n' > "$recorder_comment"
+              return 1
+            fi
+            GH_TOKEN="$recorder_token" timeout 30 gh api -X PATCH \
+              "repos/${GITHUB_REPOSITORY:-absent}/issues/comments/$comment" -f "body=$body" --silent \
+              2> "$recorder_error" || status=$?
+            if [ "$status" -ne 0 ]; then
+              printf 'runtime recorder patch failed: %s\n' "$(recorder_failure "$status")"
+            fi
+          }
           phase_started=$SECONDS
           phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
@@ -1110,6 +1347,28 @@ jobs:
           ) >> nx-gate.log 2>&1 &
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
+          if [ "$partition" = heavy-tool-fleet ]; then
+            # TERM lets a tick in flight finish (gh is bounded by its 30 s timeout), so a created
+            # comment's id is always stored for the final PATCH.
+            (
+              nap=
+              stop=
+              trap 'stop=1; [ -z "$nap" ] || kill "$nap" 2> /dev/null' TERM
+              tick=0
+              while [ -z "$stop" ]; do
+                tick=$((tick + 1))
+                if ! NO_COLOR=1 recorder_publish "tick $tick" || [ -n "$stop" ]; then break; fi
+                sleep "$recorder_interval" &
+                nap=$!
+                wait "$nap" || break
+                nap=
+              done
+              exit 0
+            ) >> nx-gate.log 2>&1 &
+            recorder_pid=$!
+            printf 'runtime recorder pid=%s issue=%s interval=%ss\n' "$recorder_pid" "$recorder_issue" \
+              "$recorder_interval" >> nx-gate.log
+          fi
           set +e
           run_in_scope "$scope_unit" bash -c "$scope_gate" "$cgroup_root" "$scope_events" \
             timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
@@ -1125,8 +1384,20 @@ jobs:
           kill "$sampler_pid" || sampler_status=$?
           wait "$sampler_pid" || sampler_status=$?
           printf 'runtime headroom sampler stopped status=%s\n' "$sampler_status" >> nx-gate.log
+          if [ -n "$recorder_pid" ]; then
+            recorder_kill=0
+            recorder_wait=0
+            kill "$recorder_pid" 2> /dev/null || recorder_kill=$?
+            wait "$recorder_pid" || recorder_wait=$?
+            printf 'runtime recorder stopped kill=%s wait=%s\n' "$recorder_kill" "$recorder_wait" >> nx-gate.log
+          fi
           NO_COLOR=1 record_headroom_end >> nx-gate.log 2>&1 ||
             printf 'runtime headroom end unavailable utc=%s\n' "$(headroom_utc)" >> nx-gate.log
+          # The final report creates the comment if the phase ended before the first tick posted.
+          if [ -n "$recorder_pid" ]; then
+            NO_COLOR=1 recorder_publish final >> nx-gate.log 2>&1 ||
+              printf 'runtime recorder final not posted\n' >> nx-gate.log
+          fi
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then
