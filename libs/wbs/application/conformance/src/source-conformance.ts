@@ -232,6 +232,10 @@ export function existingStoreRegistrations(
             family: 'organizationLimits' as const,
             caseId: 'organizationLimits.readCapacityCap:per-resource-except-project' as const,
           },
+          {
+            family: 'organizationLimits' as const,
+            caseId: 'organizationLimits.readDirectoryCapacityLimit:owned-raw-statements' as const,
+          },
         ]
       : organizationLimitRegistrations(openers.organizationLimits)),
     ...userRegistrations(openers.users),

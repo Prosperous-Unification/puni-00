@@ -2,7 +2,7 @@ import {
   type ClientReply,
   type createAgentPool,
   type listAgentPools,
-  type readOrganizationLimits,
+  type readOrganizationLimitsCompat,
   type rekeyAgentPool,
   type revokeAgentPool,
 } from '@wbs/contracts';
@@ -18,7 +18,7 @@ import { lostAccess, READ_ONLY, type RefusalOutcome, RELOAD, said } from './orga
 export type AgentPoolRefusal = Extract<
   ClientReply<
     | typeof listAgentPools
-    | typeof readOrganizationLimits
+    | typeof readOrganizationLimitsCompat
     | typeof createAgentPool
     | typeof rekeyAgentPool
     | typeof revokeAgentPool

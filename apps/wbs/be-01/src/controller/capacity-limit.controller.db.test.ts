@@ -121,6 +121,43 @@ describe('the capacity cap, activated', () => {
     expect(stated(q, ram)).toBe(16);
   });
 
+  for (const directoryUnits of [16, 0]) {
+    it(`checks each project alone with a directory statement of ${String(directoryUnits)}`, async () => {
+      const third = await create('ada', 'Third');
+      expect(
+        (
+          await batch(p, [
+            { kind: 'setDirectoryCapacity', resourceId: ram, units: directoryUnits },
+            state(ram, 32),
+          ])
+        ).status,
+      ).toBe(200);
+      expect((await batch(q, [state(ram, 32)])).status).toBe(200);
+      expect((await batch(third, [state(ram, 32)])).status).toBe(200);
+      expect([stated(p, ram), stated(q, ram), stated(third, ram)]).toEqual([32, 32, 32]);
+      expect(await batch(third, [state(ram, 65)])).toEqual(limitRefusal(0, ram, 64, 0, 65));
+    });
+  }
+
+  it('checks an import alone while directory capacity is stated', async () => {
+    capUnits('org-a', 96);
+    expect((await batch(p, [state(ram, 48)])).status).toBe(200);
+    expect((await batch(q, [state(ram, 32)])).status).toBe(200);
+    capUnits('org-a', 64);
+    const document = await documentStating(32);
+    const before = projectCount();
+    expect(await h.call('ada', 'POST', '/api/projects/import', document)).toEqual({
+      status: 409,
+      body: { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 80, asked: 32 },
+    });
+    expect(projectCount()).toBe(before);
+    expect(
+      (await batch(p, [{ kind: 'setDirectoryCapacity', resourceId: ram, units: 16 }])).status,
+    ).toBe(200);
+    expect((await h.call('ada', 'POST', '/api/projects/import', document)).status).toBe(201);
+    expect(projectCount()).toBe(before + 1);
+  });
+
   it('raises a project’s own statement within the cap, its own units not counted', async () => {
     expect((await batch(p, [state(ram, 48)])).status).toBe(200);
 

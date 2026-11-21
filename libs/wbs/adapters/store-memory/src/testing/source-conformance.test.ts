@@ -4,6 +4,8 @@ import {
   assertSeedState,
   brokenSource,
   type Capabilities,
+  CAPTURE_ORGANIZATION,
+  CAPTURE_RESOURCE,
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
@@ -527,6 +529,13 @@ async function openMemorySavedPlanCase(
   };
 }
 
+function seedCapture(source: MemorySource, stores = source.stores): Promise<void> {
+  return seedSavedPlanCapture(stores, DETERMINISTIC_SEED, () => {
+    source.addOrganization(CAPTURE_ORGANIZATION, { legacy: false });
+    source.ownResourceInOrganization(CAPTURE_RESOURCE, CAPTURE_ORGANIZATION);
+  });
+}
+
 async function openMemorySavedPlanCaptureCase(
   caseId: CaseId,
 ): Promise<CaseFixture<SavedPlanCaptureStore>> {
@@ -556,7 +565,7 @@ async function openMemorySavedPlanCaptureCase(
           )
       : openConformanceMemorySource;
   const source = await seedMemorySource(openSource, async (seeded) => {
-    await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+    await seedCapture(seeded);
   });
   return {
     fixtureId: `memory:${caseId}`,
@@ -1226,6 +1235,7 @@ function emptyMissingCapture(): PlanInputReads {
     capacity: new Map(),
     demands: [],
     resourceCapacities: [],
+    directoryCapacities: [],
     resources: [],
     priorityBands: [],
     people: [],
@@ -4330,8 +4340,7 @@ async function proveFault(
           if (fault.caseId.startsWith('progress.')) await seedProgressStep(seeded);
           if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(seeded);
           if (fault.caseId.startsWith('subtrees.')) await seedSubtreeRecords(seeded);
-          if (fault.caseId.startsWith('savedPlanCapture.'))
-            await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+          if (fault.caseId.startsWith('savedPlanCapture.')) await seedCapture(seeded);
         },
       );
       try {
@@ -4544,7 +4553,7 @@ async function proveCoherentCaptureFault(
             ),
           run,
         ),
-        async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+        async (seeded) => seedCapture(seeded),
       );
       let wasOpened = false;
       const registrations = existingStoreRegistrations({
@@ -6400,7 +6409,7 @@ describe('memory existing source conformance', () => {
               ? Promise.reject(new Error('injected capture capacity setup failure'))
               : set(projectId, teamId, size, stamp);
         });
-        await seedSavedPlanCapture({ ...source.stores, capacity }, DETERMINISTIC_SEED);
+        await seedCapture(source, { ...source.stores, capacity });
       });
     } catch (cause) {
       failure = cause;
@@ -6609,7 +6618,7 @@ describe('memory existing source conformance', () => {
           return (tag, stamp) =>
             tag.id === 'capture-tag-only' ? Promise.resolve(tag) : addTag(tag, stamp);
         });
-        await seedSavedPlanCapture({ ...source.stores, directory }, DETERMINISTIC_SEED);
+        await seedCapture(source, { ...source.stores, directory });
       });
     } catch (cause) {
       failure = cause;
@@ -6743,7 +6752,7 @@ describe('memory existing source conformance', () => {
             },
           }),
         ),
-      async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+      async (seeded) => seedCapture(seeded),
     );
     const held = source.history.savedPlanCapture.readPlanInput('project-a');
     await entered;
@@ -6771,7 +6780,7 @@ describe('memory existing source conformance', () => {
 
   it('Task 6.4 rejects capture and writer work in one staged memory owner', async () => {
     const source = await seedMemorySource(openConformanceMemorySource, async (seeded) => {
-      await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+      await seedCapture(seeded);
     });
     let reached = false;
     let failure: unknown;

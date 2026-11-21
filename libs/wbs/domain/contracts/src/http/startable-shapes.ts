@@ -1,5 +1,6 @@
 import { type } from 'arktype';
 
+import { directoryTotals } from './directory-totals';
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
@@ -77,7 +78,7 @@ const unfitLeaf = type({
   fits: 'false',
   exhausted: exhaustion,
 });
-const resourceFree = type({
+const resourceFreeFields = {
   resourceId: 'string',
   name: 'string',
   unitLabel: 'string',
@@ -85,7 +86,17 @@ const resourceFree = type({
   capacity: 'number',
   occupied: 'number',
   free: 'number',
-});
+} as const;
+const resourceFree = type({
+  ...resourceFreeFields,
+  // Proof: removing these optional-never fields let a partial pair validate.
+  'occupancyScope?': 'never',
+  'directory?': 'never',
+})
+  .or(type({ ...resourceFreeFields, occupancyScope: "'project'", directory: 'null' }))
+  .or(
+    type({ ...resourceFreeFields, occupancyScope: "'organization'", directory: directoryTotals }),
+  );
 const claimedStep = type({
   ...address,
   stepId: 'string',
@@ -112,10 +123,10 @@ const heldSubtree = type({
  * the claimed steps of the same leaves, each with its assignee, and every
  * subtree claim of the project (`wbs-team-claims`, spec `startable-work`).
  * With `wbs-resources` R6 a leaf's steps are in `leaves` only when its demand
- * fits the project's free units now; otherwise in `doesNotFit` with the first
- * exhausted resource and its shortfall. `resources` lists every stated
- * capacity with its occupied and free units; an unstated capacity is not
- * listed and excludes nothing. Occupancy is counted within the project only.
+ * fits within the applicable project and directory capacities; otherwise in
+ * `doesNotFit` with the first exhausted resource and its shortfall. The
+ * resource summary includes project capacities and shared resources demanded
+ * by its leaves, with the scope and totals of each.
  * `team` narrows the first two to one team's allotment. A caller
  * the tree read refuses is refused alike: an organization's viewer reads it,
  * a foreign or absent project is 404 `not_found`.
@@ -159,7 +170,8 @@ export const readStartableWork = defineEndpointShape({
   ],
   document: {
     summary: 'List the steps a team may claim now, and the steps already claimed.',
+    // Proof: reverting this resource-summary block failed the connected listTools description assertion.
     description:
-      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the project’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every project of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (project or organization: which count bound it). `resources` lists each resource the project states a capacity for with capacity, occupied and free units of this project; an unstated capacity is not listed. `occupancyScope: project` means each listed number is this project’s; the fit of a resource with a directory capacity also counts the other projects. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
+      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the project’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every project of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (project or organization: which count bound it). `resources` lists every capacity stated by this project and every resource with a directory capacity that a leaf of this project demands. Each entry’s `occupied` counts this project’s leaves; its `capacity` is the project capacity when stated or the directory capacity otherwise. For a shared resource, entry `occupancyScope` is organization, `directory` gives organization-wide capacity, occupied and free units, and `free` is directory free limited by project free when the project states a capacity. For a project-only resource, entry `occupancyScope` is project, `directory` is null and `free` is project free. Top-level `occupancyScope` stays project. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
   },
 });

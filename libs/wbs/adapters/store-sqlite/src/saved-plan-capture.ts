@@ -1,5 +1,6 @@
 import type { ChainAccess, PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 import { captureLocalTypedDependency } from '@wbs/core';
+import { scheduleResourceIdsOf } from '@wbs/domain';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
@@ -13,7 +14,11 @@ import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
-import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import {
+  createReadSnapshotLifetime,
+  type ReadSnapshotLifetime,
+  readWhileOpen,
+} from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -265,6 +270,15 @@ async function readPlanInputValuesIn(
   lifetime.assertOpen();
   const resourceCapacities = await new ResourceCapacityRepository(db, OPEN).listFor(projectId);
   lifetime.assertOpen();
+  const resourceIds = scheduleResourceIdsOf(workItems, resourceCapacities, demands);
+  // Proof: omitting the read lost 16 during the competing-write SQLite
+  // capture test. Removing its lifetime checks let a late directory query
+  // and a later priority query through the borrowed capture expiry tests.
+  const directoryCapacities =
+    resourceIds.length === 0
+      ? []
+      : await readWhileOpen(lifetime)(() => directory.directoryCapacitiesOf(resourceIds));
+  lifetime.assertOpen();
   const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
   // Capture the directory whole for independent saved-plan history;
   // the live tree's assigned-name projection cannot replace these reads.
@@ -326,6 +340,7 @@ async function readPlanInputValuesIn(
     capacity,
     demands,
     resourceCapacities,
+    directoryCapacities,
     resources: resourceCatalog,
     priorityBands,
     people,

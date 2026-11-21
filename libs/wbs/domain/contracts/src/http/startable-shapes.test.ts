@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 
+import { readProjectResources } from './resource-shapes';
 import { validateSchema } from './schema-shape';
 import { readStartableWork } from './startable-shapes';
 
@@ -87,5 +88,86 @@ test('keeps an old shortage and requires names and hidden units together when su
   ]) {
     const variant = read(partial);
     expect(await validateSchema(schema, variant)).not.toEqual({ value: variant });
+  }
+});
+
+test('checks the new entry scope and directory as a complete pair', async () => {
+  const schema = readStartableWork.responses[0].schema;
+  const base = {
+    resourceId: 'ram',
+    name: 'host ram',
+    kind: 'divisible',
+    unitLabel: 'GB',
+    capacity: 4,
+    occupied: 5,
+    free: -1,
+  };
+  const read = (entry: object) => ({
+    leaves: [],
+    claimed: [],
+    subtreeClaims: [],
+    resources: [{ ...base, ...entry }],
+    occupancyScope: 'project',
+  });
+  const shared = { capacity: 4, occupied: 5, free: -1 };
+  for (const entry of [
+    {},
+    { occupancyScope: 'project', directory: null },
+    { occupancyScope: 'organization', directory: shared },
+  ]) {
+    const wire = read(entry);
+    const parsed: unknown = await validateSchema(schema, wire);
+    expect(parsed).toEqual({ value: wire });
+  }
+  for (const entry of [
+    { directory: null },
+    { occupancyScope: 'project' },
+    { occupancyScope: 'project', directory: shared },
+    { occupancyScope: 'organization', directory: null },
+    { occupancyScope: 'organization', directory: { ...shared, occupied: -5 } },
+    { occupancyScope: 'organization', directory: { ...shared, free: '-1' } },
+  ]) {
+    const wire = read(entry);
+    expect((await validateSchema(schema, wire)).issues).toBeDefined();
+  }
+});
+
+test('reads earlier provider resources and checks supplied directory pairs', async () => {
+  const schema = readProjectResources.responses[0].schema;
+  const ram = {
+    id: 'ram',
+    name: 'host ram',
+    kind: 'divisible',
+    unitLabel: 'GB',
+    providerId: 'host',
+    provider: { kind: 'ssh_host', name: 'host' },
+  };
+  const body = (fields: object) => ({
+    resources: [{ ...ram, ...fields }],
+    capacities: [],
+    demands: [],
+  });
+  const directory = { capacity: 0, occupied: 5, free: -5 };
+  for (const fields of [
+    {},
+    { directoryCapacity: null },
+    { directoryCapacity: 0 },
+    { directoryCapacity: null, directory: null },
+    { directoryCapacity: 0, directory },
+  ]) {
+    const wire = body(fields);
+    const parsed: unknown = await validateSchema(schema, wire);
+    expect(parsed).toEqual({ value: wire });
+  }
+  for (const fields of [
+    { directory: null },
+    { directory },
+    { directoryCapacity: null, directory },
+    { directoryCapacity: 0, directory: null },
+    { directoryCapacity: -1, directory },
+    { directoryCapacity: 0, directory: { ...directory, occupied: -1 } },
+  ]) {
+    const wire = body(fields);
+    expect((await validateSchema(schema, wire)).issues).toBeDefined();
   }
 });

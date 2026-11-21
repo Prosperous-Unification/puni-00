@@ -115,6 +115,10 @@ export interface ServicesOverOptions {
   readonly scheduler: Scheduler;
   /** The public graph may borrow the source's detached occupancy observation. */
   readonly resourceOccupancy?: Source['resourceOccupancy'];
+  /** The public graph may borrow the source's detached capacity preview. */
+  readonly capacityPreview?: Source['capacityPreview'];
+  /** Committed report observations are installed on the public graph only. */
+  readonly projectReportSnapshot?: Source['projectReportSnapshot'];
   /** Live connected target admission; borrowed graphs never receive this capability. */
   readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
@@ -203,6 +207,10 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       ...(shared.resourceOccupancy === undefined
         ? {}
         : { resourceOccupancy: shared.resourceOccupancy }),
+      ...(shared.capacityPreview === undefined ? {} : { capacityPreview: shared.capacityPreview }),
+      ...(shared.projectReportSnapshot === undefined
+        ? {}
+        : { projectReportSnapshot: shared.projectReportSnapshot }),
       clock,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
@@ -372,6 +380,11 @@ export function composeServices(
     ...(source.resourceOccupancy === undefined
       ? {}
       : { resourceOccupancy: source.resourceOccupancy }),
+    ...(source.capacityPreview === undefined ? {} : { capacityPreview: source.capacityPreview }),
+    // Proof: omitting this binding refused the real public Memory report.
+    ...(source.projectReportSnapshot === undefined
+      ? {}
+      : { projectReportSnapshot: source.projectReportSnapshot }),
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
@@ -406,6 +419,7 @@ export function composeServices(
     // project-null command attempt a nested UoW (typed 500 instead of 200)
     // before its one durable fan-out could commit.
     servicesOver(scope.stores, {
+      // Proof: forwarding the committed report observer here attempted to open it from a scoped command.
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,

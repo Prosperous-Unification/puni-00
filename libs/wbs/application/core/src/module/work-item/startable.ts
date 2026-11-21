@@ -2,7 +2,6 @@ import {
   deriveNumbers,
   effectiveTeamsOf,
   type ExecutionPrerequisite,
-  freeUnitsOf,
   type HiddenHolders,
   indexTree,
   isStartableStatus,
@@ -20,8 +19,10 @@ import {
 
 import type { StampedClaim } from '../../ports/claim-store';
 import type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
+import type { DirectoryTotals } from '../../ports/project-report-store';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
 import type { NamedOccupancyHolder } from './claims';
+import { directoryTotalsOf } from './project-resources';
 import { nameOccupancyHolder, sharedHolders } from './shared-holders';
 
 /** A person as the startable read names them: id and the caller's display name. */
@@ -73,8 +74,8 @@ export interface StartableLeaf extends LeafSteps {
 }
 
 /**
- * A leaf whose steps are otherwise startable but whose demand the project's
- * free units do not cover, listed apart from {@link StartableWork.leaves}.
+ * A leaf whose steps are otherwise startable but whose demand the available
+ * units do not cover, listed apart from {@link StartableWork.leaves}.
  */
 export interface UnfitLeaf extends LeafSteps {
   readonly fits: false;
@@ -83,8 +84,8 @@ export interface UnfitLeaf extends LeafSteps {
 
 /**
  * The first resource, in resource-id order, a leaf's demand does not fit:
- * `free` is the stated capacity minus what the project's other leaves hold,
- * and `shortfall` is `asked - free`.
+ * `free` is the binding capacity minus what the other leaves in that scope
+ * hold, and `shortfall` is `asked - free`.
  */
 export type Shortfall = {
   readonly resourceId: string;
@@ -108,12 +109,11 @@ export type Shortfall = {
 );
 
 /**
- * One resource the project states a capacity for, with the units its leaves'
- * claims hold and the units left. `free` reads below 0 when a capacity was
- * lowered under units already held. An unstated resource is not listed: it
- * constrains nothing (`docs/capacity.md`).
+ * A resource this project states a capacity for, or a resource with a directory
+ * capacity demanded by one of the project's leaves. `occupied` counts the project's
+ * leaves. `free` is limited by each stated capacity and may be negative after lowering.
  */
-export interface ResourceFree {
+export type ResourceFree = {
   readonly resourceId: string;
   readonly name: string;
   readonly unitLabel: string;
@@ -121,7 +121,10 @@ export interface ResourceFree {
   readonly capacity: number;
   readonly occupied: number;
   readonly free: number;
-}
+} & (
+  | { readonly occupancyScope: 'project'; readonly directory: null }
+  | { readonly occupancyScope: 'organization'; readonly directory: DirectoryTotals }
+);
 
 /** A claimed step of a leaf the read covers, so an operator sees silent claims. */
 export interface ClaimedStep extends WorkItemAddress {
@@ -164,7 +167,7 @@ export interface StepPrerequisites {
 /**
  * The startable read: leaves with startable steps that fit now, and apart the
  * leaves that do not fit, the claimed steps of those leaves and every subtree
- * claim of the project, with the project's free units per resource.
+ * claim of the project, with the resource summary across applicable scopes.
  */
 export interface StartableWork {
   readonly prerequisites: StepPrerequisites[];
@@ -173,7 +176,7 @@ export interface StartableWork {
   readonly doesNotFit: UnfitLeaf[];
   readonly claimed: ClaimedStep[];
   readonly subtreeClaims: HeldSubtree[];
-  /** Every stated capacity of the project, in resource-id order. */
+  /** Project capacity statements and shared leaf demands, in resource-id order. */
   readonly resources: ResourceFree[];
   /**
    * The `resources` summary counts this project's occupancy. Fit also checks
@@ -432,22 +435,34 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     occupancyByResource(reads.occupancy).map((each) => [each.resourceId, each.occupied]),
   );
   const capacityOf = new Map(reads.capacities.map((each) => [each.resourceId, each.units]));
-  const resources = freeUnitsOf(reads.capacities, reads.occupancy).map(
-    ({ resourceId, units }): ResourceFree => {
-      const { name, unitLabel, kind } = resourceOf(resourceId);
-      const capacity = capacityOf.get(resourceId);
-      if (capacity === undefined) throw new Error(`resource ${resourceId} has no stated capacity`);
+  const directory = directoryTotalsOf(reads.directoryCapacities, reads.organizationOccupied);
+  const resourceIds = [...new Set([...capacityOf.keys(), ...directory.keys()])].sort();
+  const resources = resourceIds.map((resourceId): ResourceFree => {
+    const { name, unitLabel, kind } = resourceOf(resourceId);
+    const local = capacityOf.get(resourceId);
+    const held = occupied.get(resourceId) ?? 0;
+    const shared = directory.get(resourceId);
+    // Proof: substituting directory occupied made the two-store report show 12 local units where it held 4.
+    const resource = { resourceId, name, unitLabel, kind, occupied: held };
+    if (shared !== undefined)
       return {
-        resourceId,
-        name,
-        unitLabel,
-        kind,
-        capacity,
-        occupied: occupied.get(resourceId) ?? 0,
-        free: units,
+        ...resource,
+        capacity: local ?? shared.capacity,
+        // Proof: using local free alone reported 6 instead of 4 while the shortage remained correct.
+        free: local === undefined ? shared.free : Math.min(local - held, shared.free),
+        // Proof: using project scope here failed the actual shared summaries on both stores.
+        occupancyScope: 'organization',
+        directory: shared,
       };
-    },
-  );
+    if (local === undefined) throw new Error(`resource ${resourceId} has no stated capacity`);
+    return {
+      ...resource,
+      capacity: local,
+      free: local - held,
+      occupancyScope: 'project',
+      directory: null,
+    };
+  });
   return {
     prerequisites,
     leaves,
@@ -455,6 +470,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     claimed,
     subtreeClaims: held,
     resources,
+    // Proof: changing this literal on the serialized shared reply failed the immutable old validator.
     occupancyScope: 'project',
   };
 }

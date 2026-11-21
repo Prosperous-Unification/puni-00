@@ -4,6 +4,7 @@ import type {
   ChainSnapshot,
   ChainSnapshotStore,
   ConnectedPlanCapture,
+  DirectoryCatalog,
   LivePlanAggregate,
   LivePlanRead,
   LivePlanStore,
@@ -20,10 +21,11 @@ import type {
 } from '@wbs/core';
 import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
 import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readProjectResources } from '@wbs/core/module/work-item/project-resources';
 import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
 import { readHolderNames } from '@wbs/core/module/work-item/shared-holders';
 import { findStartableWork, startableWithHolders } from '@wbs/core/module/work-item/startable';
-import type { OrganizationScope } from '@wbs/domain';
+import type { OrganizationLimitValues, OrganizationScope } from '@wbs/domain';
 import { eq } from 'drizzle-orm';
 
 import { CalendarMarkerRepository } from './calendar-marker';
@@ -50,9 +52,14 @@ import {
   SqliteOrganizationAccess,
 } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
+import { OrganizationLimitGaugeRepository } from './organization-limits';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
-import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import {
+  createReadSnapshotLifetime,
+  type ReadSnapshotLifetime,
+  readWhileOpen,
+} from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
@@ -366,12 +373,12 @@ function currentOrganizationRead(
 
 /** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
 export function createLivePlanStore(
-  options: LiveCaptureOptions &
-    (
+  options: LiveCaptureOptions & { readonly organizationDefaultLimits?: OrganizationLimitValues } & (
       | { readonly kind: 'owned'; readonly openConnection: () => Connection }
       | { readonly kind: 'borrowed'; readonly db: Drizzle; readonly lifetime: ReadSnapshotLifetime }
     ),
 ): LivePlanStore {
+  const defaults = options.organizationDefaultLimits;
   // Proof: omitted acquisition check returned a new reader for the expired-scope factory test.
   if (options.kind === 'borrowed') options.lifetime.assertOpen();
   async function observe<T>(
@@ -424,18 +431,59 @@ export function createLivePlanStore(
     }
   }
   return {
+    readProjectResources: (projectId, access) =>
+      // Proof: omitting the owned transaction mixed the old capacity with released units in the mounted catalog.
+      observe(async (db, lifetime) => {
+        // Proof: bypassing parity admitted a legacy resource read after activation.
+        const activation = readOrganizationActivation(db);
+        if ((access.kind === 'legacy') !== (activation === 'pre_activation'))
+          return { kind: 'access_refused', refusal: 'no_active_organization' };
+        if (access.kind === 'scoped') {
+          const membership = currentMembershipAccess(
+            db,
+            access.scope.organizationId,
+            access.scope.userId,
+          );
+          // Proof: ignoring a removed viewer answered 200 in the mounted catalog route.
+          if (!membership.ok) return { kind: 'access_refused', refusal: membership.refusal };
+        }
+        const captured = await readProjectResources(
+          {
+            projects: new ProjectRepository(db, OPEN),
+            directory: new DirectoryRepository(db, OPEN),
+            claims: new ClaimRepository(db, OPEN),
+            resourceCapacity: new ResourceCapacityRepository(db, OPEN),
+            demands: new DemandRepository(db, OPEN),
+          },
+          projectId,
+          access,
+          // Proof: omitting this fence let an expired borrowed catalog dispatch its aggregate.
+          readWhileOpen(lifetime),
+        );
+        lifetime.assertOpen();
+        return captured;
+      }),
     readStartableWithin: (projectId, actorId, access, teamId) =>
       observe(async (db, lifetime) => {
         const captured = await readExecutionIn(db, projectId, access, teamId, lifetime);
         if (captured.kind !== 'ready') return captured;
+        const read = readWhileOpen(lifetime);
+        const claims = new ClaimRepository(db, OPEN);
+        const projects = new ProjectRepository(db, OPEN);
         const value = await startableWithHolders(findStartableWork(captured.reads), {
-          claims: new ClaimRepository(db, OPEN),
-          projects: new ProjectRepository(db, OPEN),
+          // Proof: a suspended borrowed holder query otherwise dispatched visibility SQL after rollback.
+          claims: {
+            organizationOccupancyOf: (ids) => read(() => claims.organizationOccupancyOf(ids)),
+          },
+          projects: {
+            mayReadProjectWithin: (origin, viewerId, viewerAccess) =>
+              read(() => projects.mayReadProjectWithin(origin, viewerId, viewerAccess)),
+          },
           // Proof: an extra catalog read for decoration made the mounted reopened grant read twice.
           holderNames: (ids) =>
             access.kind === 'scoped'
               ? Promise.resolve(captured.reads.personNames)
-              : readHolderNames(new DirectoryRepository(db, OPEN), access, ids),
+              : read(() => readHolderNames(new DirectoryRepository(db, OPEN), access, ids)),
           askingProject: projectId,
           actorId,
           access,
@@ -449,15 +497,21 @@ export function createLivePlanStore(
         const admitted = currentOrganizationRead(db, actorId, scope);
         if (!admitted.ok) return admitted;
         const preview = await previewCapacity(
-          {
+          () => ({
+            limits:
+              defaults === undefined
+                ? undefined
+                : new OrganizationLimitGaugeRepository(db, defaults),
             claims: new ClaimRepository(db, OPEN),
             projects: new ProjectRepository(db, OPEN),
             directory: new DirectoryRepository(db, OPEN),
-          },
+          }),
           resourceId,
           units,
           actorId,
           admitted.scope,
+          // Proof: checking only entry and exit allowed further SQL after catalog or gauge expiry.
+          readWhileOpen(lifetime),
         );
         lifetime.assertOpen();
         return preview;
@@ -466,12 +520,41 @@ export function createLivePlanStore(
       observe(async (db, lifetime) => {
         const admitted = currentOrganizationRead(db, actorId, scope);
         if (!admitted.ok) return admitted;
+        const read = readWhileOpen(lifetime);
         const occupancy = await readResourceOccupancy(
-          () => ({
-            claims: new ClaimRepository(db, OPEN),
-            projects: new ProjectRepository(db, OPEN),
-            directory: new DirectoryRepository(db, OPEN),
-          }),
+          () => {
+            const claims = new ClaimRepository(db, OPEN);
+            const projects = new ProjectRepository(db, OPEN);
+            const directory = new DirectoryRepository(db, OPEN);
+            // Proof: the unfenced catalog continuation dispatched capacity and holder SQL after commit.
+            return {
+              claims: {
+                organizationOccupancyOf: (ids: readonly string[]) =>
+                  read(() => claims.organizationOccupancyOf(ids)),
+                listStampedByIds: (projectId: string, ids: readonly string[]) =>
+                  read(() => claims.listStampedByIds(projectId, ids)),
+              },
+              projects: {
+                findInOrganization: (projectId: string, organizationId: string) =>
+                  read(() => projects.findInOrganization(projectId, organizationId)),
+                mayReadProjectWithin: (
+                  ...args: Parameters<ProjectRepository['mayReadProjectWithin']>
+                ) => read(() => projects.mayReadProjectWithin(...args)),
+              },
+              directory: {
+                listInOrganization: <Catalog extends DirectoryCatalog>(
+                  catalog: Catalog,
+                  organizationId: string,
+                ) => read(() => directory.listInOrganization(catalog, organizationId)),
+                directoryCapacitiesOf: (ids: readonly string[]) =>
+                  read(() => directory.directoryCapacitiesOf(ids)),
+                personNamesInOrganization: (organizationId: string, ids: readonly string[]) =>
+                  read(() => directory.personNamesInOrganization(organizationId, ids)),
+                namesOf: (catalog: 'people' | 'teams', ids: readonly string[]) =>
+                  read(() => directory.namesOf(catalog, ids)),
+              },
+            };
+          },
           resourceId,
           actorId,
           admitted.scope,

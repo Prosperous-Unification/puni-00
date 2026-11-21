@@ -7,6 +7,7 @@ import {
   type OrganizationScope,
   PERSON_KINDS,
   type PersonKind,
+  refuseDirectoryCapacity,
   refuseLimit,
   type ResourceKind,
 } from '@wbs/domain';
@@ -78,9 +79,8 @@ export interface DirectoryServiceOptions {
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
   /**
-   * The organization limits an agent person's creation consults
-   * (`wbs-organization-limits` L9). Absent from legacy fixture graphs and
-   * the memory source; a scoped acquisition without it throws.
+   * Limits on agent person creation and directory capacity. An admitted scoped
+   * write without a bound gauge throws.
    */
   organizationLimits?: OrganizationLimitGauge;
 }
@@ -605,8 +605,10 @@ export class DirectoryService {
    * it then announces `directory_changed` to every project that demands or
    * states the resource (S7).
    *
-   * `confirm` is carried for the clearing check of `wbs-organization-limits`
-   * (S10, task 7.1), which is not built yet; nothing reads it here.
+   * Confirmation allows clearing a directory statement that exposes an above-cap
+   * project sum. An above-cap directory statement is always refused.
+   *
+   * @throws when an admitted write has no scoped limit gauge.
    *
    * Proof, each watched 2026-10-25: with the role check skipped, `refuses a
    * member and a viewer on either route`, the agent key case and the MCP
@@ -621,7 +623,7 @@ export class DirectoryService {
     resourceId: string,
     actorId: string,
     units: number | null,
-    _confirm: boolean,
+    confirm: boolean,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<null>> {
     this.refuseStandaloneResourceWrite();
@@ -636,6 +638,12 @@ export class DirectoryService {
       return { ok: false, reason: 'forbidden' };
     if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
       return { ok: false, reason: 'not_found' };
+    const gauge = this.opts.organizationLimits;
+    if (gauge === undefined)
+      throw new Error('a directory capacity write was admitted without organization limits');
+    const reading = await gauge.readDirectoryCapacityLimit(scope.organizationId, resourceId);
+    const refusal = refuseDirectoryCapacity(resourceId, reading, units, confirm);
+    if (refusal !== null) return { ok: false, reason: 'capacity_limit', ...refusal };
     const written = await this.opts.directory.setDirectoryCapacity(resourceId, units, {
       stamp: this.clock.stampFor(actorId),
       actor: actorId,
@@ -643,6 +651,8 @@ export class DirectoryService {
     });
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.refuseForeignProjects(written.projectIds, scope);
+    // Proof: suppressing this event kept the mounted isolated roll-up's warm
+    // cache on its old end date after stating a binding directory capacity.
     await this.announce(written.projectIds);
     return { ok: true, value: null };
   }

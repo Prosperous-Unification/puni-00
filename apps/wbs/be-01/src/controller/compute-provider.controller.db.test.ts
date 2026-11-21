@@ -178,19 +178,7 @@ async function readResources(username: string) {
   const parsed = await validateSchema(success.schema, answer.body);
   if (parsed.issues !== undefined)
     throw new Error(`the resources read failed its contract: ${JSON.stringify(parsed.issues)}`);
-  return answer.body as {
-    resources: {
-      id: string;
-      name: string;
-      kind: string;
-      unitLabel: string;
-      directoryCapacity?: number | null;
-      providerId: string | null;
-      provider?: { kind: string; name: string };
-      report?: Record<string, unknown>;
-      measurement?: { state: string } & Record<string, unknown>;
-    }[];
-  };
+  return parsed.value;
 }
 
 /** An agent's API key in org-a, and one pinned to Dany's own person. */
@@ -320,6 +308,16 @@ describe('provider instance administration', () => {
         body: { error: 'insufficient_scope' },
       });
     expect(rows('SELECT id FROM compute_provider')).toHaveLength(1);
+  });
+
+  it('refuses the limits read for a forwarded machine grant from a super-admin account', async () => {
+    const { agent } = await keys();
+    const path = '/api/organization/limits';
+    expect(await callForwarded(h, agent, 'GET', path)).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(await h.callWith(agent, 'GET', path)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
   });
 
   it('answers every route no_active_organization before activation', async () => {
@@ -484,6 +482,7 @@ describe("a resource's provider reference", () => {
       unitLabel: 'GB',
       providerId: null,
       directoryCapacity: null,
+      directory: null,
     });
     const listed = (await h.call('dany', 'GET', PATH)).body as {
       computeProviders: { resources: number }[];
@@ -630,10 +629,85 @@ describe('a capacity report', () => {
     ({ agent, human, stranger } = await keys());
   });
 
+  it('adopts a stored report on the directory and compensates outside plan Undo', async () => {
+    const plan = `/api/projects/${projectA}`;
+    const send = (units: number) =>
+      h.call('dany', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'setDirectoryCapacity', resourceId: ram, units }],
+      });
+    expect(
+      (
+        await h.call('dany', 'POST', `${plan}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 9 }],
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(32)).status).toBe(200);
+    const observedAt = Date.now() - 240_000;
+    expect((await report(agent, h4claw, ram, measured(observedAt))).status).toBe(200);
+    const history = await h.call('dany', 'GET', `${plan}/history`);
+    expect(history.status).toBe(200);
+    const read = async (directoryCapacity: number) => {
+      const observed = await readResources('dany');
+      expect(observed.resources.find(({ id }) => id === ram)).toMatchObject({
+        directoryCapacity,
+        measurement: { declared: 9, measured: 15, measuredAt: observedAt, state: 'measured' },
+      });
+      expect(observed.capacities).toContainEqual({ resourceId: ram, units: 9 });
+    };
+    await read(32);
+    const findLeaf = () =>
+      h.sqlite.query<{ id: string }, [string]>('SELECT id FROM work_item WHERE id = ?').get(leaf);
+    expect(findLeaf()).toEqual({ id: leaf });
+    const directoryAudit = () =>
+      h.sqlite
+        .query<{ detail: string }, [string]>(
+          "SELECT detail FROM organization_audit WHERE action = 'directory_capacity_changed' AND subject_kind = 'resource' AND subject_id = ? ORDER BY created_at, rowid",
+        )
+        .all(ram);
+    const audited = directoryAudit();
+    expect(audited.map(({ detail }): unknown => JSON.parse(detail))).toEqual([
+      { before: null, after: 32 },
+    ]);
+    expect((await send(15)).status).toBe(200);
+    await read(15);
+    expect(await h.call('dany', 'GET', `${plan}/history`)).toEqual(history);
+    expect(await h.call('dany', 'POST', `${plan}/undo`)).toMatchObject({
+      status: 200,
+      body: { done: 'add “Leaf”' },
+    });
+    await read(15);
+    const undone = await h.call('dany', 'GET', `${plan}/history`);
+    expect(undone.status).toBe(200);
+    expect(undone).toEqual(history);
+    expect(findLeaf()).toBeNull();
+    expect((await send(32)).status).toBe(200);
+    await read(32);
+    expect(await h.call('dany', 'GET', `${plan}/history`)).toEqual(undone);
+    expect(
+      directoryAudit()
+        .slice(audited.length)
+        .map(({ detail }): unknown => JSON.parse(detail)),
+    ).toEqual([
+      { before: 32, after: 15 },
+      { before: 15, after: 32 },
+    ]);
+  });
+
   it('stores h4claw at 15 GB with 8 in use, idempotently, beside the declared 32', async () => {
     await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
       commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }],
     });
+    expect(
+      (
+        await h.call('dany', 'POST', '/api/directory/commands', {
+          commands: [
+            { kind: 'setDirectoryCapacity', resourceId: ram, units: 24 },
+            { kind: 'setDirectoryCapacity', resourceId: staging, units: 0 },
+          ],
+        })
+      ).status,
+    ).toBe(200);
     const observedAt = Date.now() - 240_000;
     const first = await report(agent, h4claw, ram, measured(observedAt));
     expect(first.status).toBe(200);
@@ -651,6 +725,13 @@ describe('a capacity report', () => {
       providerId: h4claw,
       report: first.body,
       measurement: { declared: 32, measured: 15, measuredAt: observedAt, state: 'measured' },
+      directoryCapacity: 24,
+      directory: { capacity: 24, occupied: 0, free: 24 },
+    });
+    expect(read.resources.find((each) => each.id === staging)).toMatchObject({
+      providerId: null,
+      directoryCapacity: 0,
+      directory: { capacity: 0, occupied: 0, free: 0 },
     });
     // No audit row per report (P6), only the two registrations.
     expect(auditRows()).toHaveLength(2);

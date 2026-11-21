@@ -1,4 +1,4 @@
-import type { LimitCrossed } from '@wbs/domain';
+import type { CapacityLimitCrossed, LimitCrossed } from '@wbs/domain';
 
 /**
  * Why a directory write was refused. Every one is a state of the directory or
@@ -49,4 +49,5 @@ export type DirectoryOutcome<T> =
    * (`wbs-organization-limits` L9): the cap, what it held and what the write
    * would have added, read inside the write's transaction.
    */
-  | ({ ok: false; reason: 'agent_person_limit' } & LimitCrossed);
+  | ({ ok: false; reason: 'agent_person_limit' } & LimitCrossed)
+  | ({ ok: false; reason: 'capacity_limit' } & CapacityLimitCrossed);

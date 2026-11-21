@@ -11,6 +11,7 @@ import { deriveConnectedPlan } from './connected-plan';
 import type { ConnectedPlanCapture } from './connected-plan-values';
 import { deriveConnectedReadiness } from './connected-readiness';
 import { projectConnectedTree } from './connected-tree';
+import * as preparation from './schedule-parts';
 
 type ConnectedRead = Extract<LivePlanRead, { kind: 'connected' }>;
 const live = (capture: ConnectedPlanCapture = connectedCapture()): ConnectedRead => {
@@ -985,6 +986,7 @@ it.each(['tree', 'treeWithin'] as const)(
         readStartableWithin: unused,
         previewDirectoryCapacityWithin: unused,
         readResourceOccupancyWithin: unused,
+        readProjectResources: unused,
         readAggregate: unused,
       },
     });
@@ -1032,6 +1034,7 @@ for (const method of ['tree', 'treeWithin'] as const) {
             resources,
             demands: [{ workItemId: 'b', resourceId: 'target', units: 2 }],
             resourceCapacities: [{ resourceId: 'target', units: 2 }],
+            directoryCapacities: [{ resourceId: 'target', units: 1 }],
           },
         ),
       );
@@ -1048,14 +1051,17 @@ for (const method of ['tree', 'treeWithin'] as const) {
           readStartableWithin: unused,
           previewDirectoryCapacityWithin: unused,
           readResourceOccupancyWithin: unused,
+          readProjectResources: unused,
           readAggregate: unused,
         },
       });
       const calls = [
         spyOn(fixture.stores.demands, 'listByProject').mockImplementation(unused),
         spyOn(fixture.stores.directory, 'listResources').mockImplementation(unused),
+        spyOn(fixture.stores.directory, 'directoryCapacitiesOf').mockImplementation(unused),
         spyOn(fixture.stores.directory, 'listInOrganization').mockImplementation(unused),
       ];
+      const prepare = spyOn(preparation, 'prepareScheduleParts');
       try {
         const tree =
           method === 'tree'
@@ -1066,8 +1072,10 @@ for (const method of ['tree', 'treeWithin'] as const) {
         expect(tree.demands).toEqual([{ workItemId: 'b', resourceId: 'target', units: 2 }]);
         expect(tree.demandedResources).toEqual([resources[0]]);
         expect(packet).toEqual(before);
+        expect(prepare.mock.calls.at(-1)?.[10]).toEqual([{ resourceId: 'target', units: 1 }]);
         for (const call of calls) expect(call).not.toHaveBeenCalled();
       } finally {
+        prepare.mockRestore();
         for (const call of calls) call.mockRestore();
       }
     },

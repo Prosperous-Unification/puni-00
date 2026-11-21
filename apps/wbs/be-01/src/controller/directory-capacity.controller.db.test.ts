@@ -1,3 +1,4 @@
+import { validateSchema } from '@wbs/contracts';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import { DirectoryRepository } from '@wbs/store-sqlite/directory';
@@ -13,6 +14,7 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { preSharingStartable } from '../testing/pre-sharing-startable';
 import { delegationFor, mapUpstream } from '../testing/scim-fixture';
 
 /**
@@ -29,6 +31,16 @@ let h: OrganizationHarness;
 let projectA: string;
 let projectB: string;
 let ram: string;
+
+function readPrototypeMethod<Owner extends object, Method extends keyof Owner>(
+  prototype: Owner,
+  method: Method,
+): Owner[Method] {
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, method);
+  if (typeof descriptor?.value !== 'function')
+    throw new Error('fixture prototype lacks ' + String(method));
+  return descriptor.value as Owner[Method];
+}
 
 const DIRECTORY = '/api/directory/commands';
 const previewPath = (resourceId: string) =>
@@ -164,6 +176,133 @@ describe('setDirectoryCapacity', () => {
     ).toMatchObject({ status: 200 });
     expect(await directoryCapacityRead('ada', projectB)).toEqual([null]);
     expect(stated(h, ram)).toBeNull();
+  });
+
+  it('serves the exact project resource catalog with directory units to a viewer', async () => {
+    const gpu = await declare(h, 'ada', 'idle GPU');
+    expect(
+      (await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16), state(gpu, 0)] }))
+        .status,
+    ).toBe(200);
+    const path = `/api/projects/${projectB}/resources`;
+    const read = () => h.call('vic', 'GET', path);
+    const ramWire = {
+      id: ram,
+      name: 'host ram',
+      kind: 'divisible',
+      unitLabel: 'GB',
+      providerId: null,
+    };
+    const gpuWire = {
+      id: gpu,
+      name: 'idle GPU',
+      kind: 'divisible',
+      unitLabel: 'GB',
+      providerId: null,
+      directoryCapacity: 0,
+      directory: { capacity: 0, occupied: 0, free: 0 },
+    };
+    const withRam = (units: number | null, occupied: number) => ({
+      status: 200,
+      body: {
+        resources: [
+          {
+            ...ramWire,
+            directoryCapacity: units,
+            directory:
+              units === null ? null : { capacity: units, occupied, free: units - occupied },
+          },
+          gpuWire,
+        ].sort((left, right) => left.name.localeCompare(right.name)),
+        capacities: [],
+        demands: [],
+      },
+    });
+    expect(await read()).toEqual(withRam(16, 0));
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, null)] })).status).toBe(
+      200,
+    );
+    expect(await read()).toEqual(withRam(null, 0));
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(gpu, null)] })).status).toBe(
+      200,
+    );
+    const aggregate = spyOn(ClaimRepository.prototype, 'organizationUnitsOf');
+    try {
+      expect(await read()).toMatchObject({
+        status: 200,
+        body: {
+          resources: [
+            { id: ram, directoryCapacity: null, directory: null },
+            { id: gpu, directoryCapacity: null, directory: null },
+          ],
+        },
+      });
+      expect(aggregate).not.toHaveBeenCalled();
+    } finally {
+      aggregate.mockRestore();
+    }
+  });
+
+  it('keeps the wire startable response parseable at the pre-sharing boundary', async () => {
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 12 }],
+        })
+      ).status,
+    ).toBe(200);
+    const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+    expect(read).toMatchObject({
+      status: 200,
+      body: {
+        occupancyScope: 'project',
+        resources: [
+          {
+            resourceId: ram,
+            capacity: 12,
+            occupied: 0,
+            free: 12,
+            occupancyScope: 'organization',
+            directory: { capacity: 16, occupied: 0, free: 16 },
+          },
+        ],
+      },
+    });
+    const parsed: unknown = await validateSchema(preSharingStartable, read.body);
+    expect(parsed).toEqual({ value: read.body });
+    const incompatible = { ...(read.body as object), occupancyScope: 'organization' };
+    expect(await validateSchema(preSharingStartable, incompatible)).not.toEqual({
+      value: incompatible,
+    });
+  });
+
+  it('rechecks viewer membership after route admission before listing resources', async () => {
+    const original = readPrototypeMethod(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolve = spyOn(SqliteOrganizationAccess.prototype, 'resolve').mockImplementation(
+      async function (this: SqliteOrganizationAccess, principal) {
+        const admitted = await original.call(this, principal);
+        if (admitted.ok && principal.id === h.userId('vic'))
+          h.sqlite.run(
+            'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
+            ['org-a', principal.id],
+          );
+        return admitted;
+      },
+    );
+    const catalog = spyOn(DirectoryRepository.prototype, 'listInOrganization');
+    try {
+      expect(await h.call('vic', 'GET', `/api/projects/${projectB}/resources`)).toEqual({
+        status: 403,
+        body: { error: 'not_a_member' },
+      });
+      expect(catalog).not.toHaveBeenCalled();
+    } finally {
+      catalog.mockRestore();
+      resolve.mockRestore();
+    }
   });
 
   it('refuses a member and a viewer on either route, writing nothing', async () => {
@@ -324,6 +463,166 @@ describe('previewing and lowering a directory capacity', () => {
         throw new Error(`the claim was refused: ${JSON.stringify(answer)}`);
     }
   }
+
+  function capRam(): void {
+    h.sqlite.run(
+      'INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES (?, 50, 200, 64, 1)',
+      ['org-a'],
+    );
+  }
+
+  function readEffects() {
+    return {
+      audits: auditRows(h),
+      journal: journalEntries(h),
+      events: h.sqlite.query('SELECT * FROM event_log ORDER BY subscription, seq').all(),
+      capacities: h.sqlite
+        .query('SELECT * FROM project_resource_capacity ORDER BY project_id, resource_id')
+        .all(),
+      claims: h.sqlite.query('SELECT * FROM claim ORDER BY id').all(),
+    };
+  }
+
+  it('refuses an above-cap ask on both routes even with confirmation', async () => {
+    capRam();
+    const other = await declare(h, 'ada', 'other RAM');
+    const detail = { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 0, asked: 65 };
+    const before = readEffects();
+    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+      expect(
+        await h.call('sue', 'POST', path, {
+          commands: [state(other, 64), { ...state(ram, 65), confirm: true }],
+        }),
+      ).toEqual({ status: 409, body: { at: 1, kind: 'setDirectoryCapacity', ...detail } });
+    }
+    expect(stated(h, ram)).toBeNull();
+    expect(stated(h, other)).toBeNull();
+    expect(readEffects()).toEqual(before);
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 64)] })).status).toBe(
+      200,
+    );
+    expect(stated(h, ram)).toBe(64);
+  });
+
+  it('previews an above-cap directory statement without writing', async () => {
+    capRam();
+    const detail = { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 0, asked: 65 };
+    const before = readEffects();
+    expect(await h.call('sue', 'POST', previewPath(ram), { units: 65 })).toMatchObject({
+      status: 200,
+      body: { before: null, after: 65, refusal: detail },
+    });
+    expect(stated(h, ram)).toBeNull();
+    expect(readEffects()).toEqual(before);
+  });
+
+  it('predicts a clear from the whole raw project sum and clears only with confirmation', async () => {
+    capRam();
+    const third = await create(h, 'ada', 'Third');
+    const other = await declare(h, 'ada', 'other RAM');
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).status).toBe(
+      200,
+    );
+    for (const projectId of [projectA, projectB, third]) {
+      h.sqlite.run(
+        'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 32)',
+        [projectId, ram],
+      );
+    }
+    await hold([8, 6]);
+    const before = readEffects();
+    const detail = { error: 'capacity_limit', resourceId: ram, cap: 64, declared: 96, asked: 0 };
+    expect(await h.call('sue', 'POST', previewPath(ram), { units: null })).toMatchObject({
+      status: 200,
+      body: { before: 16, after: null, free: null, refusal: detail },
+    });
+    for (const path of [DIRECTORY, `/api/projects/${projectA}/commands`]) {
+      expect(
+        await h.call('sue', 'POST', path, { commands: [state(other, 8), state(ram, null)] }),
+      ).toEqual({ status: 409, body: { at: 1, kind: 'setDirectoryCapacity', ...detail } });
+    }
+    expect(
+      await h.call('ada', 'POST', DIRECTORY, {
+        commands: [{ ...state(ram, null), confirm: true }],
+      }),
+    ).toEqual({ status: 403, body: { at: 0, kind: 'setDirectoryCapacity', error: 'forbidden' } });
+    expect(readEffects()).toEqual(before);
+    expect(stated(h, ram)).toBe(16);
+    expect(stated(h, other)).toBeNull();
+
+    expect(
+      (
+        await h.call('sue', 'POST', DIRECTORY, {
+          commands: [{ ...state(ram, null), confirm: true }],
+        })
+      ).status,
+    ).toBe(200);
+    expect(stated(h, ram)).toBeNull();
+    const after = readEffects();
+    expect(after.capacities).toEqual(before.capacities);
+    expect(after.claims).toEqual(before.claims);
+    expect(after.journal).toBe(before.journal);
+    expect(after.audits.map(({ detail }): unknown => JSON.parse(detail))).toEqual([
+      { before: null, after: 16 },
+      { before: 16, after: null },
+    ]);
+    expect(after.events.length).toBe(before.events.length + 3);
+    expect(
+      await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+        commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 33 }],
+      }),
+    ).toEqual({
+      status: 409,
+      body: { at: 0, kind: 'setResourceCapacity', ...detail, declared: 64, asked: 33 },
+    });
+  });
+
+  it('does not require confirmation for an already unstated directory capacity', async () => {
+    capRam();
+    for (const projectId of [projectA, projectB])
+      h.sqlite.run(
+        'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 48)',
+        [projectId, ram],
+      );
+    expect(await h.call('sue', 'POST', previewPath(ram), { units: null })).toMatchObject({
+      status: 200,
+      body: { before: null, after: null, refusal: null },
+    });
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, null)] })).status).toBe(
+      200,
+    );
+    expect(stated(h, ram)).toBeNull();
+  });
+
+  it('reads a staged project increase before clearing a stated zero', async () => {
+    capRam();
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 0)] })).status).toBe(
+      200,
+    );
+    h.sqlite.run(
+      'INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, ?, 64)',
+      [projectB, ram],
+    );
+    const before = readEffects();
+    expect(
+      await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+        commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }, state(ram, null)],
+      }),
+    ).toEqual({
+      status: 409,
+      body: {
+        at: 1,
+        kind: 'setDirectoryCapacity',
+        error: 'capacity_limit',
+        resourceId: ram,
+        cap: 64,
+        declared: 96,
+        asked: 0,
+      },
+    });
+    expect(stated(h, ram)).toBe(0);
+    expect(readEffects()).toEqual(before);
+  });
 
   it('previews a lowering of 16 to 10 with A at 8 and B at 6, writing nothing', async () => {
     await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] });
@@ -814,6 +1113,167 @@ describe('shared holder visibility through the mounted organization', () => {
     }
   });
 
+  it('batches the project catalog directory totals without reading holder identities', async () => {
+    const shared = await declare(h, 'ada', otherResource);
+    const unstated = await declare(h, 'ada', 'unstated resource');
+    await declareCapacity([ram, shared], 24);
+    createHiddenCopies([ram, shared]);
+    stageHolder('catalog-local-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    await demand(projectB, 'w-b', [ram], 4);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 9 }],
+        })
+      ).status,
+    ).toBe(200);
+    expect((await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 10)] })).status).toBe(
+      200,
+    );
+
+    const units = spyOn(ClaimRepository.prototype, 'organizationUnitsOf');
+    const holdings = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf');
+    const names = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
+    const visibility = denyOrigins(new Set([projectA]), h.userId('vic'));
+    try {
+      const read = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      expect(read).toEqual({
+        status: 200,
+        body: {
+          resources: [
+            {
+              id: ram,
+              name: 'host ram',
+              kind: 'divisible',
+              unitLabel: 'GB',
+              providerId: null,
+              directoryCapacity: 10,
+              directory: { capacity: 10, occupied: 20, free: -10 },
+            },
+            {
+              id: shared,
+              name: otherResource,
+              kind: 'divisible',
+              unitLabel: 'GB',
+              providerId: null,
+              directoryCapacity: 24,
+              directory: { capacity: 24, occupied: 16, free: 8 },
+            },
+            {
+              id: unstated,
+              name: 'unstated resource',
+              kind: 'divisible',
+              unitLabel: 'GB',
+              providerId: null,
+              directoryCapacity: null,
+              directory: null,
+            },
+          ],
+          capacities: [{ resourceId: ram, units: 9 }],
+          demands: [{ workItemId: 'w-b', resourceId: ram, units: 4 }],
+        },
+      });
+      absence(read.body);
+      expect(units.mock.calls.map(([ids]) => [...ids].sort())).toEqual([[ram, shared].sort()]);
+      expect(holdings).not.toHaveBeenCalled();
+      expect(names).not.toHaveBeenCalled();
+      expect(visibility.reads).toEqual([]);
+    } finally {
+      visibility.restore();
+      names.mockRestore();
+      holdings.mockRestore();
+      units.mockRestore();
+    }
+  });
+
+  it('keeps the project catalog coherent across a mid-read release and capacity update', async () => {
+    await declareCapacity([ram], 24);
+    createHiddenCopies([ram]);
+    stageHolder('catalog-local-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    const original = readPrototypeMethod(ClaimRepository.prototype, 'organizationUnitsOf');
+    let released = false;
+    const aggregate = spyOn(ClaimRepository.prototype, 'organizationUnitsOf').mockImplementation(
+      async function (this: ClaimRepository, ids) {
+        if (!released) {
+          released = true;
+          for (const [personId, path] of [
+            [hiddenPerson, `/api/projects/${projectA}/commands`],
+            ['agent-a', `/api/projects/${projectA}/commands`],
+          ] as const)
+            expect(
+              (
+                await h.call('sue', 'POST', path, {
+                  commands: [{ kind: 'releaseWorkItem', workItemId: hiddenLeaf, personId }],
+                })
+              ).status,
+            ).toBe(200);
+          h.sqlite.transaction(() => {
+            h.sqlite.run('UPDATE resource_directory_capacity SET units = 8 WHERE resource_id = ?', [
+              ram,
+            ]);
+            h.sqlite.run(
+              'INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES (?, ?, 2)',
+              ['w-b', ram],
+            );
+          })();
+        }
+        return original.call(this, ids);
+      },
+    );
+    try {
+      const path = `/api/projects/${projectB}/resources`;
+      expect(await h.call('vic', 'GET', path)).toMatchObject({
+        status: 200,
+        body: {
+          resources: [
+            { directoryCapacity: 24, directory: { capacity: 24, occupied: 20, free: 4 } },
+          ],
+          demands: [],
+        },
+      });
+      expect(await h.call('vic', 'GET', path)).toMatchObject({
+        status: 200,
+        body: {
+          resources: [{ directoryCapacity: 8, directory: { capacity: 8, occupied: 4, free: 4 } }],
+          demands: [{ workItemId: 'w-b', resourceId: ram, units: 2 }],
+        },
+      });
+      expect(aggregate.mock.calls).toEqual([[[ram]], [[ram]]]);
+    } finally {
+      aggregate.mockRestore();
+    }
+  });
+
+  it('aborts a resource report whose catalog omits a referenced resource', async () => {
+    await demand(projectB, 'w-b', [ram], 2);
+    const catalog = spyOn(
+      DirectoryRepository.prototype,
+      'listInOrganization',
+    ).mockResolvedValueOnce([]);
+    try {
+      const reply = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      expect(reply.status).toBe(500);
+      expect(catalog.mock.calls).toEqual([['resources', 'org-a']]);
+    } finally {
+      catalog.mockRestore();
+    }
+  });
+
+  it('aborts a resource report if the aggregate dependency fails', async () => {
+    await declareCapacity([ram], 16);
+    const aggregate = spyOn(ClaimRepository.prototype, 'organizationUnitsOf').mockRejectedValue(
+      new Error('private aggregate failure'),
+    );
+    try {
+      const reply = await h.call('vic', 'GET', `/api/projects/${projectB}/resources`);
+      expect(reply.status).toBe(500);
+      expect(JSON.stringify(reply.body)).not.toContain('private aggregate failure');
+      expect(aggregate.mock.calls).toEqual([[[ram]]]);
+    } finally {
+      aggregate.mockRestore();
+    }
+  });
+
   it('previews distinct denied projects including a zero-held origin with no writes', async () => {
     await declareCapacity([ram], 24);
     createHiddenCopies([ram]);
@@ -1196,16 +1656,6 @@ describe('occupancy inventory authority and observation', () => {
       hiddenPerson,
     ]);
     h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', [hiddenProject, projectA]);
-  }
-
-  function readPrototypeMethod<Owner extends object, Method extends keyof Owner>(
-    prototype: Owner,
-    method: Method,
-  ): Owner[Method] {
-    const descriptor = Object.getOwnPropertyDescriptor(prototype, method);
-    if (typeof descriptor?.value !== 'function')
-      throw new Error('fixture prototype lacks ' + String(method));
-    return descriptor.value as Owner[Method];
   }
 
   function beforeContent() {

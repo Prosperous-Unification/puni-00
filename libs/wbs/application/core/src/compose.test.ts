@@ -19,6 +19,7 @@ import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
+import { withDependencyContext } from './ports/dependency-context';
 import { CREATOR_ADMISSION } from './ports/edit-admission';
 import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
 import { LEGACY_ACCESS } from './ports/organization-access';
@@ -78,6 +79,10 @@ function accountlessSource(source: ReturnType<typeof openMemorySource>): Account
     ...(source.resourceOccupancy === undefined
       ? {}
       : { resourceOccupancy: source.resourceOccupancy }),
+    ...(source.capacityPreview === undefined ? {} : { capacityPreview: source.capacityPreview }),
+    ...(source.projectReportSnapshot === undefined
+      ? {}
+      : { projectReportSnapshot: source.projectReportSnapshot }),
     uow,
     health: () => source.health(),
     close: () => source.close(),
@@ -159,6 +164,322 @@ test('the composed memory graph reads owned resource occupancy through its publi
     expect(() => direct.workItems.readResourceOccupancyWithin(resourceId, actorId, scope)).toThrow(
       'observation is unavailable',
     );
+  } finally {
+    await source.close();
+  }
+});
+
+test('denies a memory preview without waiting for the committed coordinator', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const { graph } = fixture(source);
+  const entered = signal();
+  const release = signal();
+  const writer = source.uow.run(async () => {
+    entered.resolve();
+    await release.promise;
+    return { commit: false, value: null };
+  });
+  const actorId = 'preview-member';
+  await entered.promise;
+  const preview = graph.workItems.previewDirectoryCapacityWithin('ram', 65, actorId, {
+    userId: actorId,
+    organizationId: 'preview-organization',
+    role: 'member',
+  });
+  try {
+    const nextTurn = new Promise((resolve) => setImmediate(resolve, 'waiting for the write turn'));
+    expect(await Promise.race([preview, nextTurn])).toEqual({ ok: false, reason: 'forbidden' });
+  } finally {
+    release.resolve();
+    await writer;
+    await preview;
+    await source.close();
+  }
+});
+
+test('memory public and staged preview use the same capacity decision in their own epochs', async () => {
+  const limits = { maxAgentPersons: 50, maxConcurrentClaims: 200, maxCapacityUnitsPerResource: 64 };
+  const memory = openMemorySourceFixture({ organizationDefaultLimits: limits });
+  const { source } = memory;
+  const { graph, clock } = fixture(source);
+  const actorId = 'preview-admin';
+  const organizationId = 'preview-organization';
+  const resourceId = 'preview-ram';
+  const scope = { userId: actorId, organizationId, role: 'admin' } as const;
+  try {
+    const projectId = expectCreated(await graph.projects.create('Preview project', actorId)).project
+      .id;
+    memory.ownProjectInOrganization(projectId, organizationId);
+    const stamp = { at: 1, by: actorId };
+    expect(
+      await source.stores.directory.addResource(
+        { id: resourceId, name: 'RAM', unitLabel: 'GB', kind: 'divisible' },
+        stamp,
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(resourceId, organizationId);
+    expect(
+      await graph.workItems.previewDirectoryCapacityWithin(resourceId, 65, actorId, scope),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        before: null,
+        refusal: {
+          error: 'capacity_limit',
+          resourceId,
+          cap: 64,
+          declared: 0,
+          asked: 65,
+        },
+      },
+    });
+    await source.uow.run(async ({ stores }) => {
+      const current = servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        broadcast: recordingBroadcaster(),
+        clock,
+        dependencyContext: createLocalDependencyContext(stores),
+        scheduler: fastScheduler,
+      });
+      expect(
+        await current.directory.setDirectoryCapacityWithin(resourceId, actorId, 0, false, {
+          kind: 'scoped',
+          scope,
+        }),
+      ).toEqual({ ok: true, value: null });
+      expect(await stores.resourceCapacity.set(projectId, resourceId, 65, stamp)).toMatchObject({
+        ok: true,
+      });
+      expect(
+        await current.workItems.previewDirectoryCapacityWithin(resourceId, null, actorId, scope),
+      ).toMatchObject({
+        ok: true,
+        value: {
+          before: 0,
+          refusal: {
+            error: 'capacity_limit',
+            resourceId,
+            cap: 64,
+            declared: 65,
+            asked: 0,
+          },
+        },
+      });
+      return { commit: false, value: null };
+    });
+    expect(
+      await graph.workItems.previewDirectoryCapacityWithin(resourceId, null, actorId, scope),
+    ).toMatchObject({ ok: true, value: { before: null, refusal: null, projects: [] } });
+  } finally {
+    await source.close();
+  }
+});
+
+test('memory public project reports hold one committed epoch across a rival release', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const capture = source.projectReportSnapshot;
+  if (capture === undefined) throw new Error('memory source lacks project reporting');
+  const actorId = 'report-reader';
+  const organizationId = 'report-organization';
+  const ram = 'report-ram';
+  const stamp = { at: 1, by: actorId };
+  const reportScope = {
+    kind: 'scoped',
+    scope: { organizationId, userId: actorId, role: 'viewer' },
+  } as const;
+  let afterCapacity: (() => Promise<void>) | undefined;
+  const { graph, runner } = fixture({
+    ...source,
+    projectReportSnapshot: (read) =>
+      capture(async (stores) =>
+        read({
+          ...stores,
+          directory: {
+            ...stores.directory,
+            async directoryCapacitiesOf(ids) {
+              const found = await stores.directory.directoryCapacitiesOf(ids);
+              const release = afterCapacity;
+              afterCapacity = undefined;
+              await release?.();
+              return found;
+            },
+          },
+        }),
+      ),
+  });
+  try {
+    const first = expectCreated(await graph.projects.create('Earlier holder', actorId));
+    const second = expectCreated(await graph.projects.create('Viewer plan', actorId));
+    for (const project of [first, second]) {
+      memory.ownProjectInOrganization(project.project.id, organizationId);
+      for (const step of project.steps)
+        await source.stores.steps.add(
+          {
+            id: step.id,
+            name: step.name,
+            projectId: project.project.id,
+            estimateUnit: 'workdays',
+            allowancePercent: 0,
+          },
+          stamp,
+        );
+      expect(
+        await runner.run(project.project.id, actorId, [
+          {
+            kind: 'createWorkItem',
+            name: 'Leaf',
+            parentId: null,
+            afterId: null,
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+    }
+    const holder = (await source.stores.workItems.listByProject(first.project.id)).at(0);
+    const viewer = (await source.stores.workItems.listByProject(second.project.id)).at(0);
+    const step = first.steps.at(0);
+    if (holder === undefined || viewer === undefined || step === undefined)
+      throw new Error('memory report fixture lacks a leaf or step');
+    expect(
+      await source.stores.directory.addResource(
+        { id: ram, name: 'Host RAM', kind: 'divisible', unitLabel: 'GB' },
+        stamp,
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(ram, organizationId);
+    const setCapacity = (units: number) =>
+      source.stores.directory.setDirectoryCapacity(ram, units, {
+        stamp,
+        actor: actorId,
+        auditId: `capacity-${String(units)}`,
+      });
+    const claim = {
+      id: 'earlier-claim',
+      workItemId: holder.id,
+      stepId: step.id,
+      personId: 'holder',
+      accountId: actorId,
+      runId: null,
+      parentClaimId: null,
+    };
+    const hold = () =>
+      source.stores.claims.add([claim], [], stamp, [
+        { claimId: claim.id, resourceId: ram, units: 8 },
+      ]);
+    expect(await setCapacity(16)).toMatchObject({ ok: true });
+    expect(await hold()).toBe('written');
+    expect(
+      await source.stores.resourceCapacity.set(second.project.id, ram, 12, stamp),
+    ).toMatchObject({ ok: true });
+    const later = async () => {
+      await source.stores.claims.remove([claim], [], stamp);
+      expect(await setCapacity(4)).toMatchObject({ ok: true });
+      expect(await source.stores.demands.set(viewer.id, ram, 2, stamp)).toBe('written');
+    };
+    afterCapacity = later;
+    expect(await graph.workItems.resourcesWithin(second.project.id, reportScope)).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [{ directoryCapacity: 16, directory: { capacity: 16, occupied: 8, free: 8 } }],
+        demands: [],
+      },
+    });
+    expect(await graph.workItems.resourcesWithin(second.project.id, reportScope)).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [{ directoryCapacity: 4, directory: { capacity: 4, occupied: 0, free: 4 } }],
+        demands: [{ workItemId: viewer.id, resourceId: ram, units: 2 }],
+      },
+    });
+
+    expect(await setCapacity(16)).toMatchObject({ ok: true });
+    expect(await hold()).toBe('written');
+    afterCapacity = later;
+    const before = await graph.workItems.readStartableWithin(
+      second.project.id,
+      actorId,
+      reportScope,
+      null,
+    );
+    expect(before).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [
+          {
+            resourceId: ram,
+            capacity: 12,
+            occupied: 0,
+            free: 8,
+            directory: { capacity: 16, occupied: 8, free: 8 },
+          },
+        ],
+      },
+    });
+    expect(
+      await graph.workItems.readStartableWithin(second.project.id, actorId, reportScope, null),
+    ).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [
+          {
+            resourceId: ram,
+            capacity: 12,
+            occupied: 0,
+            free: 4,
+            directory: { capacity: 4, occupied: 0, free: 4 },
+          },
+        ],
+      },
+    });
+  } finally {
+    await source.close();
+  }
+});
+
+test('scoped memory command graphs cannot use the committed reporting reader', async () => {
+  const source = openMemorySource();
+  const capture = source.projectReportSnapshot;
+  if (capture === undefined) throw new Error('memory source lacks project reporting');
+  let writing = false;
+  const given = fixture({
+    ...source,
+    projectReportSnapshot: (read) => {
+      if (writing) throw new Error('command graph opened a committed report');
+      return capture(read);
+    },
+  });
+  try {
+    const { project } = expectCreated(await given.graph.projects.create('Reports', 'owner'));
+    expect(await given.graph.workItems.resourcesWithin(project.id, LEGACY_ACCESS)).toEqual({
+      kind: 'ready',
+      value: { resources: [], capacities: [], demands: [] },
+    });
+    await given.source.uow.run(async (scope) => {
+      writing = true;
+      const context = createLocalDependencyContext(scope.stores);
+      await withDependencyContext(context, project.id, 'owner', async (dependencies) => {
+        const graph = given.graph.batch(
+          scope,
+          recordingBroadcaster(),
+          CREATOR_ADMISSION,
+          dependencies,
+        );
+        expect(() => graph.workItems.resourcesWithin(project.id, LEGACY_ACCESS)).toThrow(
+          'project resource observation is unavailable',
+        );
+        await graph.workItems.readStartableWithin(project.id, 'owner', LEGACY_ACCESS, null).then(
+          () => {
+            throw new Error('command graph answered an unbound startable read');
+          },
+          (failure: unknown) => {
+            expect(failure).toBeInstanceOf(Error);
+            expect(String(failure)).toContain('startable observation is unavailable');
+          },
+        );
+      });
+      return { commit: false, value: undefined };
+    });
   } finally {
     await source.close();
   }

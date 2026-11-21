@@ -951,7 +951,9 @@ export function workItemRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
         const read = await workItems.resourcesWithin(params.id, resolved.access);
-        if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (read.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (read.kind === 'access_refused') return organizationRefusal(read.refusal);
         // The provider columns are added after the planned read and never
         // reach it (`compute-providers` P4).
         // Proof: with this call replaced by the planned read alone, `sets,
@@ -961,7 +963,7 @@ export function workItemRoutes(
         return {
           ok: true,
           status: 200,
-          body: await withProviderReadings(read, providers.reports, providers.clock.now()),
+          body: await withProviderReadings(read.value, providers.reports, providers.clock.now()),
         };
       },
     ),

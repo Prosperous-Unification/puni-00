@@ -800,6 +800,30 @@ describe('the tools derived from the real document', () => {
     expect(silent.map((tool) => tool.name)).toEqual([]);
   });
 
+  it('serves the two updated resource descriptions and preserves every other description', async () => {
+    const { client } = await connected(tools, failingFetch);
+    const listed = await client.listTools();
+    const changed = {
+      getApiProjectsByIdStartable:
+        'List the steps a team may claim now, and the steps already claimed.\n\nStartable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim, write instant and lease expiry (null for a claim no agent renews); `subtreeClaims` lists every subtree claim of the project with its holder, write instant and lease expiry. A leaf is listed under `leaves` only when its resource demand fits now, exactly as a claim would decide: within the project’s stated capacities, and, for a resource with a directory capacity (the units that exist for the whole organization, set by setDirectoryCapacity), within what every project of the organization holds too; otherwise under `doesNotFit` with `exhausted` naming the resource, the units asked and free, the shortfall, and, for a resource with a directory capacity, `scope` (project or organization: which count bound it). `resources` lists every capacity stated by this project and every resource with a directory capacity that a leaf of this project demands. Each entry’s `occupied` counts this project’s leaves; its `capacity` is the project capacity when stated or the directory capacity otherwise. For a shared resource, entry `occupancyScope` is organization, `directory` gives organization-wide capacity, occupied and free units, and `free` is directory free limited by project free when the project states a capacity. For a project-only resource, entry `occupancyScope` is project, `directory` is null and `free` is project free. Top-level `occupancyScope` stays project. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
+      getApiProjectsByIdResources:
+        'List the resources, this project’s resource capacities, and its demands.\n\nresources: every resource the caller’s directory holds, with its kind (exclusive: identical units demanded one at a time; divisible: demanded k at a time), unit label, and providerId (the compute provider instance that fulfils it, or null); one with a providerId also carries provider (that instance’s kind and name, never its locator), its latest capacity report, if any, and measurement (declared units of this project, measured units, measuredAt, and state no_report, measured, unreachable or stale past three report cadences), and hostJobs (the host jobs that instance’s resource authority published and has not seen returned: label, type, host and reservations per dimension, beside the report’s reservedUnits), shown only, never used to plan. capacities: the stated pairs of this project, in resource-id order; an absent project capacity constrains nothing only when the resource also has no directory capacity, and a stated 0 means the plan may use none. Each resource carries `directoryCapacity` and `directory`, both null when unstated; otherwise `directory` gives the organization’s capacity, occupied and free units without naming holders. demands: what each work item needs of each resource while any of its steps runs, never inherited down the tree. Write them with postApiDirectoryCommands kinds createResource, patchResource, deleteResource and postApiProjectsByIdCommands kinds setResourceCapacity, setDemand.',
+    };
+    const untouched: [string, string | undefined][] = [];
+    for (const { name, description } of listed.tools) {
+      if (name === 'getApiProjectsByIdStartable' || name === 'getApiProjectsByIdResources')
+        expect(description, name).toBe(changed[name]);
+      else untouched.push([name, description]);
+    }
+    for (const name of Object.keys(changed))
+      expect(listed.tools.filter((tool) => tool.name === name)).toHaveLength(1);
+    untouched.sort(([left], [right]) => (left < right ? -1 : left === right ? 0 : 1));
+    // SHA-256 of sorted [name, full served description] pairs at 820f8aa93036.
+    expect(new Bun.CryptoHasher('sha256').update(JSON.stringify(untouched)).digest('hex')).toBe(
+      '8452300516831170c44f077b6d9caef803f92af1c86a45333c3862b8fcb631c7',
+    );
+  });
+
   it('serves every one of them, and answers tools/list with the whole set', async () => {
     const { client } = await connected(tools, failingFetch);
 

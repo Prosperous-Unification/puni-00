@@ -115,7 +115,7 @@ export class ClaimRepository implements ClaimStore {
   }
 
   async listStampedByIds(projectId: string, ids: readonly string[]): Promise<StampedClaim[]> {
-    await Promise.resolve();
+    // Proof: yielding first issued the stamped-claim SELECT after the borrowed commit.
     const stamped: StampedClaim[] = [];
     // Proof: removing the ID predicate read a corrupt unasked claim and failed the mounted inventory.
     // Bound the number of SQLite parameters without widening the read to the project.
@@ -128,7 +128,7 @@ export class ClaimRepository implements ClaimStore {
           inArray(claim.id, ids.slice(start, start + batchSize)),
         ).map(stampedOf),
       );
-    return stamped;
+    return await Promise.resolve(stamped);
   }
 
   async occupancyOf(projectId: string): Promise<OccupancyRow[]> {
@@ -157,7 +157,6 @@ export class ClaimRepository implements ClaimStore {
   async organizationOccupancyOf(
     resourceIds: readonly string[],
   ): Promise<OrganizationOccupancyRow[]> {
-    await Promise.resolve();
     if (resourceIds.length === 0) return [];
     // One read: the project's organization is left-joined, so a row whose
     // project belongs to none is seen here and thrown on, as the units read
@@ -185,22 +184,26 @@ export class ClaimRepository implements ClaimStore {
       .where(inArray(claimOccupancy.resourceId, [...resourceIds]))
       .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId))
       .all();
-    return rows.flatMap(({ owner, organizationId, ...row }) => {
-      // Proof: with this throw removed (the row skipped instead), the holder
-      // read of `throws on a holder in a project of no organization`
-      // (shared-occupancy.db.test.ts) answered it; watched 2026-10-25.
-      if (organizationId === null)
-        throw new Error(
-          `resource ${row.resourceId} is held in a project of no organization: corrupt trusted state`,
-        );
-      return organizationId === owner ? [{ ...row, organizationId }] : [];
-    });
+    return await Promise.resolve(
+      rows.flatMap(({ owner, organizationId, ...row }) => {
+        // Proof: with this throw removed (the row skipped instead), the holder
+        // read of `throws on a holder in a project of no organization`
+        // (shared-occupancy.db.test.ts) answered it; watched 2026-10-25.
+        if (organizationId === null)
+          throw new Error(
+            `resource ${row.resourceId} is held in a project of no organization: corrupt trusted state`,
+          );
+        return organizationId === owner ? [{ ...row, organizationId }] : [];
+      }),
+    );
   }
 
   /**
    * Each leaf's largest copy summed per resource in SQL, with no rows
    * materialised and no ordering: what the claim check counts, on this
    * repository's connection (inside a batch, the batch's own, after its turn).
+   * Resource and project ownership are constant per leaf. Group the step
+   * copies first so their owner lookups operate once per occupied leaf.
    * A row on a resource some organization owns whose project belongs to no
    * organization is corrupt trusted state, counted in the same statement and
    * thrown on: after activation every project has its `project_organization`
@@ -213,6 +216,13 @@ export class ClaimRepository implements ClaimStore {
    * a leaf (one per step) counted again: shared-occupancy.db.test.ts went
    * 23 pass, 9 fail with the race test, both one-process orders among them;
    * watched 2026-10-25.
+   *
+   * Proof in shared-occupancy.db.test.ts, watched 2026-11-21: SUM counted
+   * 32 instead of 20. Omitting the resource key lost staging and RAM units.
+   * Accepting any project owner counted four foreign units. Omitting the
+   * missing-owner marker accepted mixed owned and orphan holders.
+   * A separate committed reader admitted the second claim in one batch
+   * because it could not see the first staged acquisition.
    */
   async organizationUnitsOf(resourceIds: readonly string[]): Promise<ResourceUnits[]> {
     await Promise.resolve();
@@ -226,17 +236,20 @@ export class ClaimRepository implements ClaimStore {
              SUM(CASE WHEN leaf.owned THEN leaf.units END) AS units,
              SUM(CASE WHEN leaf.unowned THEN 1 ELSE 0 END) AS unowned
       FROM (
-        SELECT co.resource_id AS resource_id,
-               MAX(co.units) AS units,
-               MAX(po.organization_id = ro.organization_id) AS owned,
-               MAX(po.resource_id IS NULL) AS unowned
-        FROM claim_occupancy AS co
-        JOIN claim AS c ON c.id = co.claim_id
-        JOIN work_item AS wi ON wi.id = c.work_item_id
-        JOIN resource_organization AS ro ON ro.resource_id = co.resource_id
+        SELECT held.resource_id,
+               held.units,
+               po.organization_id = ro.organization_id AS owned,
+               po.resource_id IS NULL AS unowned
+        FROM (
+          SELECT co.resource_id, c.work_item_id, MAX(co.units) AS units
+          FROM claim_occupancy AS co
+          JOIN claim AS c ON c.id = co.claim_id
+          WHERE co.resource_id IN (${ids})
+          GROUP BY co.resource_id, c.work_item_id
+        ) AS held
+        JOIN work_item AS wi ON wi.id = held.work_item_id
+        JOIN resource_organization AS ro ON ro.resource_id = held.resource_id
         LEFT JOIN project_organization AS po ON po.resource_id = wi.project_id
-        WHERE co.resource_id IN (${ids})
-        GROUP BY co.resource_id, c.work_item_id
       ) AS leaf
       GROUP BY leaf.resource_id`);
     const corrupt = rows.find(({ unowned }) => unowned > 0);

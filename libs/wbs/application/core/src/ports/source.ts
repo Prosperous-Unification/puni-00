@@ -1,4 +1,5 @@
-import type { ResourceOccupancyStore } from './chain-snapshot-store';
+import type { CapacityPreviewStore, ResourceOccupancyStore } from './chain-snapshot-store';
+import type { ProjectReportSnapshot } from './project-report-store';
 import type { HistoryStores, PlanTransactionalStores } from './stores';
 import type { UnitOfWork } from './unit-of-work';
 
@@ -11,6 +12,10 @@ export interface Source<S extends PlanTransactionalStores = PlanTransactionalSto
   readonly history: HistoryStores;
   /** Detached public organization occupancy for sources without an installed live-plan reader. */
   readonly resourceOccupancy?: ResourceOccupancyStore;
+  /** Committed capacity preview for a public graph without a live-plan reader. */
+  readonly capacityPreview?: CapacityPreviewStore;
+  /** Committed project reporting for a public graph without a live-plan reader. */
+  readonly projectReportSnapshot?: ProjectReportSnapshot;
   readonly uow: UnitOfWork<S>;
   health(): Promise<SourceHealth>;
   close(): Promise<void>;

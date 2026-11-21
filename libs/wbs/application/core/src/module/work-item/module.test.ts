@@ -75,6 +75,10 @@ const hostRequirements = () => {
     }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     resourceOccupancy: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    capacityPreview: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    projectReportSnapshot: DiBag.createProvider(() => undefined, {
+      factoryReturnKind: 'sync-value',
+    }),
     projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {
       factoryReturnKind: 'sync-value',

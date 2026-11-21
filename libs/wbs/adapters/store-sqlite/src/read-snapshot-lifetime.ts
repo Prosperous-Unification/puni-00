@@ -16,3 +16,13 @@ export function createReadSnapshotLifetime(): ReadSnapshotLifetime & { expire():
     },
   };
 }
+
+/** Binds query dispatch and completion to the same read observation. */
+export function readWhileOpen(lifetime: ReadSnapshotLifetime) {
+  return async <T>(query: () => Promise<T>): Promise<T> => {
+    lifetime.assertOpen();
+    const captured = await query();
+    lifetime.assertOpen();
+    return captured;
+  };
+}

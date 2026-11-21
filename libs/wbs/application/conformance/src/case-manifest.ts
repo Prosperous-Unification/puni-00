@@ -77,6 +77,7 @@ export const CASE_MANIFEST = {
     'organizationLimits.readAgentPersonCap:organization-scope',
     'organizationLimits.readConcurrentClaimCap:bound-triples',
     'organizationLimits.readCapacityCap:per-resource-except-project',
+    'organizationLimits.readDirectoryCapacityLimit:owned-raw-statements',
   ],
   capacity: [
     'capacity.set:project-team-key',

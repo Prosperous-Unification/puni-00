@@ -11,6 +11,7 @@ import type {
   RefusedOrganizationAccess,
   ResourceAccess,
 } from './organization-access';
+import type { ProjectResourceRead } from './project-report-store';
 import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { CapturedScheduler } from './scheduler';
@@ -69,6 +70,8 @@ export interface ResourceOccupancyStore {
 
 /** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */
 export interface LivePlanStore extends ResourceOccupancyStore {
+  /** Captures an admitted project catalog, plan statements and directory totals. */
+  readProjectResources(projectId: string, access: ResourceAccess): Promise<ProjectResourceRead>;
   /** Holder decisions and the first shared shortage are completed inside one read snapshot. */
   readStartableWithin(
     projectId: string,
@@ -103,3 +106,6 @@ export interface LivePlanStore extends ResourceOccupancyStore {
   /** Captures readable shared or isolated connected aggregates in one authorized observation; ordinary isolated reads retain their uncaptured path. */
   readAggregate(actorId: string, access: ResourceAccess): Promise<LivePlanAggregate>;
 }
+
+/** Detached organization capacity preview for a source without a live-plan reader. */
+export type CapacityPreviewStore = Pick<LivePlanStore, 'previewDirectoryCapacityWithin'>;
