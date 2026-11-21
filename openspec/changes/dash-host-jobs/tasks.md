@@ -494,3 +494,12 @@
       `bin/h2puni-gate.test.sh` case 48; negatives: the pin block deleted, the refusal branch
       deleted (verify.md, 2026-11-20). The host proof is the next gate on a launcher carrying
       this change (S26-A3).
+- [x] 6.27 the host gate prunes the solver smoke's BuildKit cache (A-GATE-SMOKE-CACHE-1; PR #965):
+      each gate's smoke left 3.72 GB of build cache on h2puni, whose calibration admission needs
+      23.62 GB free, so a three-run calibration series refused its second run without an
+      operator prune. `bin/h2puni-gate-steps.sh` keeps the smoke's status, runs
+      `docker builder prune -af` whatever it was, and exits with the smoke's status, or non-zero
+      naming the prune when the prune fails. Test: `bin/h2puni-gate.test.sh` case 49; negatives:
+      the prune deleted, its status ignored, the smoke's status dropped, the prune moved above
+      the smoke, the smoke unguarded (verify.md, 2026-11-21). The host proof is the next
+      calibration series on h2puni (S27-A3).

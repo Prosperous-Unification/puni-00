@@ -71,6 +71,26 @@ such as the `website-dev-build` lane's builds on h2puni.
 Between merging task 6.21 and the fleet apply of `playbooks/gate-host.yml`, launch no pool gate:
 the operator sequence is merge, apply the playbook on h2puni and h4claw, then the next gate.
 
+Since 2026-11-21 every host gate ends by pruning the host daemon's BuildKit cache with
+`docker builder prune -af`, after the solver smoke and whatever its result (assumption
+A-GATE-SMOKE-CACHE-1, `dash-host-jobs` task 6.27, awaiting Dany). The pool admits a calibration
+on h2puni only with 23.62 GB free: the 12 units of 1 GiB (12.88 GB) of the pool's pinned
+`diskBudgetUnits`, all of which a calibration reserves (not the catalogue's `tmpDiskGib`), plus
+the 10 GiB headroom (10.74 GB). The smoke's builds left 3.72 GB of build cache per gate: the 2026-11-20 cold
+calibration started at 25.2 GB free and ended at 16.9 GB, and a prune on 2026-11-21 took the host
+from 20 to 23 GiB free, about 1 GB above admission. Without it, the second run of a three-run
+calibration series is refused for lack of disk unless an operator prunes in between. The prune
+returns only the cache: pulled images such as `registry:2` stay, and so does whatever else a gate
+leaves, so the margin is still thin and an operator still checks `df` before a series. Every
+`docker build` on the host shares that cache, so the prune also empties what puni-pr-00's
+`website-dev-build` left on h2puni, and its next build runs cold. It cannot be narrowed to the
+smoke, because build cache records carry no labels. No website build overlaps the prune today:
+puni-pr-00's `build-release.sh` takes the same canonical heavy lock (`with-heavy-lock.sh`) that
+the gate holds through `run_heavy_job`, and does so until the lock retires (Phase 7). A failed prune fails the gate with
+`h2puni gate: docker builder prune -af failed`, and a failed smoke keeps its own exit status.
+Restoring the smoke as the last line of `bin/h2puni-gate-steps.sh` and deleting case 49 of
+`bin/h2puni-gate.test.sh` reverts it.
+
 ## What the role sets up
 
 `infra/ansible/roles/gate_host` makes the host match h2puni's gate environment:
