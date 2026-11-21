@@ -11,6 +11,18 @@ The complete set of immutable product artifacts delivered together as one releas
 including every tier required by that product.
 _Avoid_: A single image tag as a release
 
+**Release qualification**:
+The evidence that a product's selected artifacts and their dependency closure satisfy that product's release requirements.
+_Avoid_: A whole-repository gate as every product's release prerequisite
+
+**Release preflight**:
+The source and custody evidence authorizing a product build to begin before its release qualification is complete.
+_Avoid_: A passing release or completed validation
+
+**Repository gate**:
+The verification of a complete repository revision across its projects for repository integration.
+_Avoid_: Product release qualification
+
 **Image protection**:
 An owned obligation to retain an image and everything needed to retrieve it for
 an environment, a rollback, a recovery or unfinished factory work.
