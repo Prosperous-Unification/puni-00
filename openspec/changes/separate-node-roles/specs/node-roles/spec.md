@@ -3,7 +3,8 @@
 ### Requirement: One node role per host
 
 Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
-observability, or production apps. A host's capabilities MUST be those of its role. The
+observability, production apps, or non-production. A host's capabilities MUST be those of its
+role, and no node SHALL carry both `product` and `nonproduction`. The
 continuous integration role covers gates and image builds only; no app and no database SHALL
 run on a continuous integration host.
 
@@ -11,22 +12,28 @@ run on a continuous integration host.
 
 - **WHEN** the desired state of the rebuilt production cluster is decoded
 - **THEN** the platform node carries `control-plane` and `platform-services`, the observability
-  node carries `observability`, the production apps node carries `product`, `staging` and
-  `ingress`, and no node carries the capabilities of two roles
+  node carries `observability`, the production apps node carries `product` and `ingress`, the
+  non-production node carries `nonproduction` and `ingress`, and no node carries the capabilities of
+  two roles other than `ingress`
+
+#### Scenario: Production and staging on one node
+
+- **WHEN** the desired state gives one node both `product` and `nonproduction`
+- **THEN** the placement check fails and names the node
 
 #### Scenario: Gate host listed as a k3s node
 
 - **WHEN** an inventory lists one host under `gate_hosts` and under a k3s group
 - **THEN** the placement check fails and names the host
 
-### Requirement: Platform services and staging capabilities
+### Requirement: Platform services and non-production capabilities
 
-The fleet model SHALL define the capabilities `platform-services` and `staging` for platform
+The fleet model SHALL define the capabilities `platform-services` and `nonproduction` for platform
 clusters only.
 
 #### Scenario: Workers node carries one
 
-- **WHEN** a workers-cluster node declares `platform-services` or `staging`
+- **WHEN** a workers-cluster node declares `platform-services` or `nonproduction`
 - **THEN** the fleet decoder refuses the fleet
 
 #### Scenario: Floor not met
@@ -37,7 +44,7 @@ clusters only.
 ### Requirement: The control plane runs on a tainted platform node
 
 In a platform cluster that requires `platform-services`, the control-plane node SHALL carry
-`platform-services`, MUST NOT carry `product`, `staging` or `ingress`, and SHALL be registered
+`platform-services`, MUST NOT carry `product`, `nonproduction` or `ingress`, and SHALL be registered
 with the taint `CriticalAddonsOnly=true:NoSchedule`, which the components k3s packages
 tolerate.
 
@@ -68,9 +75,8 @@ tolerate.
 Every pod template that the rebuilt cluster's tree renders SHALL select a node capability,
 except three node agents that run on every node: the node exporter, the OTel collector and the
 Velero node agent. Only workloads that select `platform-services`, and those three agents, MAY
-tolerate the platform taint. A staging workload SHALL select `staging` and a production app
-workload SHALL select `product`, so that staging can move to a node of its own without a
-manifest change.
+tolerate the platform taint. A staging or dev workload SHALL select `nonproduction` and a production app
+workload SHALL select `product`, so that the two run on different nodes.
 
 #### Scenario: Workload without a role selector
 
@@ -89,18 +95,19 @@ manifest change.
   capability selector and a toleration for every taint
 - **THEN** the check passes, and the agent runs on the platform node
 
-#### Scenario: Staging workload selects the production label
+#### Scenario: Workload selects another environment's label
 
-- **WHEN** a pod template of a `staging` Application does not select `staging`, or one of a
+- **WHEN** a pod template of a `staging` or `dev` Application does not select `nonproduction`, or one of a
   `production` Application does not select `product`
 - **THEN** the check fails and names the workload
 
 #### Scenario: Running placement
 
-- **WHEN** the rebuilt cluster is observed with all three nodes joined
-- **THEN** every Argo CD, OpenBao and cert-manager pod runs on the platform node, every Traefik
-  pod runs on the production apps node, and no app pod runs on the platform or observability
-  node
+- **WHEN** the rebuilt cluster is observed with all four nodes joined
+- **THEN** every Argo CD, OpenBao and cert-manager pod runs on the platform node, a Traefik pod
+  runs on the production apps node and on the non-production node, every production app pod
+  runs on the production apps node, every staging and dev pod runs on the non-production node, and no
+  app pod runs on the platform or observability node
 
 ### Requirement: Inventory and desired state agree for every production cluster
 
@@ -246,13 +253,13 @@ Staging Applications SHALL retry a failed sync with backoff.
 - **WHEN** one merge changes a staging unit and a staging unit that depends on it
 - **THEN** both converge to Synced and Healthy by retry, with no ordering guarantee between them
 
-### Requirement: Staging follows main; production and the platform change on command
+### Requirement: Staging follows main; production, dev and the platform change on command
 
 A staging Application SHALL sync automatically from `main` with pruning, self-healing and
-retry. A production Application and a platform unit SHALL track `main` with automated sync off
-and change only when a person syncs them. The root Application SHALL manage only Application
-and AppProject objects, self-heal and never prune. No Application file SHALL carry an
-`operation` block. The delivery check SHALL run inside a check that `main` requires.
+retry. Production, dev and platform Applications SHALL have automated sync off and change only
+when a person syncs them. The root SHALL manage only Application and AppProject objects and
+never prune. Each project's destinations SHALL be exactly its own namespaces. The delivery
+check SHALL run inside a check that `main` requires.
 
 #### Scenario: Merge to a staging overlay
 
@@ -314,16 +321,40 @@ and AppProject objects, self-heal and never prune. No Application file SHALL car
   in-cluster API
 - **THEN** the delivery check fails and names the Application
 
-#### Scenario: Project reaches the other environment
+#### Scenario: Project reaches beyond its namespaces
 
-- **WHEN** the `staging` or `production` project admits a cluster-scoped kind, a Namespace, or
-  a namespace of the other environment
-- **THEN** the delivery check fails
+- **WHEN** a project's destinations include a wildcard, `argocd`, the store's namespace, a
+  namespace of another project, or any namespace not declared for it, or the `staging` or
+  `production` project admits a cluster-scoped kind or a Namespace
+- **THEN** the delivery check fails and names the project
 
-#### Scenario: Staging claims a production name
+#### Scenario: Dev synced from a branch
 
-- **WHEN** an Ingress or Certificate of a staging Application names a host that a production
-  Application names, or the reverse
+- **WHEN** the dev account syncs a dev Application at a revision other than `main`
+- **THEN** the sync runs, and the same account is refused on a staging, production or platform
+  Application
+
+#### Scenario: Dev with automation
+
+- **WHEN** a dev Application has automated sync
+- **THEN** the delivery check fails and names the Application
+
+#### Scenario: Project grants itself access
+
+- **WHEN** an AppProject file carries `roles` or `syncWindows`, or a file in the root's path
+  defines an object named like the root or its project
+- **THEN** the delivery check fails and names the file
+
+#### Scenario: One environment names another's Service
+
+- **WHEN** a rendered object of a dev, staging or production Application names a namespace of
+  another of the three, or a Service in one
+- **THEN** the delivery check fails and names the object
+
+#### Scenario: One environment claims another's name
+
+- **WHEN** an Ingress or Certificate of a dev, staging or production Application names a host
+  that an Application of another of the three names
 - **THEN** the delivery check fails and names the host
 
 #### Scenario: Change under the tree alone
@@ -346,8 +377,8 @@ and AppProject objects, self-heal and never prune. No Application file SHALL car
 
 The Argo CD interface MUST have no public route. Its one local account SHALL read every
 Application and MAY sync Applications of the `production` project only, at the revision the
-Application names, and MUST NOT roll one back. The built-in `admin` account MUST be disabled. Platform units SHALL be
-synced by the sync playbook with the node's credential.
+Application names, and MUST NOT roll one back. The built-in `admin` account MUST be disabled.
+Platform units SHALL be synced by the sync playbook with the node's credential.
 
 #### Scenario: Interface exposed or over-privileged
 
@@ -369,14 +400,28 @@ synced by the sync playbook with the node's credential.
 
 #### Scenario: Sync playbook given an app
 
-- **WHEN** the sync playbook is given a unit of the `staging` or `production` project
+- **WHEN** the sync playbook is given a unit of the `staging` or `production` project to sync
 - **THEN** it refuses before syncing anything
+
+#### Scenario: Removing an app's Application
+
+- **WHEN** the playbook's removal mode is given a staging or production unit that has no file
+  on `main` and whose live source is its marker alone
+- **THEN** it deletes the Application object
 
 ### Requirement: Delivery cannot delete data
 
 Every PersistentVolumeClaim in the rebuilt cluster's tree, every namespace that holds one, and
 every custom resource from which an operator creates claims SHALL carry the sync options
-`Prune=false` and `Delete=false`. No Application SHALL carry the resources finalizer.
+`Prune=false` and `Delete=false`. No Application SHALL carry the resources finalizer. Every
+claim in the tree SHALL be mounted by a backup job of its unit or be named, with a reason, in
+the check's exemption table.
+
+#### Scenario: Claim without a backup
+
+- **WHEN** a rendered PersistentVolumeClaim is mounted by no backup job of its unit and is not
+  in the exemption table
+- **THEN** the delivery check fails and names the claim
 
 #### Scenario: Claim without the options
 
@@ -412,6 +457,11 @@ A staging backup job MUST NOT read the object storage credential of a production
 - **WHEN** a staging overlay reads the object storage credential that a production overlay
   reads
 - **THEN** the delivery check fails and names the overlay
+
+#### Scenario: Staging credential against a production prefix
+
+- **WHEN** a production backup prefix is listed with the staging credential
+- **THEN** the object store refuses, and the staging move does not start otherwise
 
 #### Scenario: Retention
 
@@ -481,9 +531,9 @@ job suspended.
 
 #### Scenario: Production data offered to staging
 
-- **WHEN** a staging store is to be restored from a backup of a production store
-- **THEN** the move stops; a staging restore names its source file, and only the dev store's
-  file is accepted
+- **WHEN** the file offered to a staging restore does not have the SHA-256 recorded for the dev
+  store's final backup
+- **THEN** the check fails and nothing is restored
 
 ### Requirement: Gates do not stop
 
@@ -496,14 +546,17 @@ A gate host SHALL NOT be deleted before the new CI host is calibrated.
 
 ### Requirement: The solver is bound per environment
 
-On the rebuilt cluster the admission policy SHALL trust one solver namespace, one host
-directory and one node selector for each environment, with a parameter ConfigMap of its own,
-and each environment SHALL have its own solver supervisor.
+On the rebuilt cluster the admission policy SHALL trust one solver namespace and one node
+selector for each environment, with a parameter ConfigMap of its own. A node SHALL run one
+solver supervisor: the production node's serves production alone, and the non-production
+node's serves staging and dev. A supervisor SHALL accept only the caller names in its closed
+list.
 
-#### Scenario: Staging backend mounts production's directory
+#### Scenario: Staging caller not listed
 
-- **WHEN** a pod in the staging solver namespace mounts the production solver directory
-- **THEN** admission denies it
+- **WHEN** a pod in the staging solver namespace calls a supervisor whose list lacks the
+  staging caller name
+- **THEN** the supervisor refuses it
 
 #### Scenario: Image trusted for the other environment only
 
@@ -513,14 +566,20 @@ and each environment SHALL have its own solver supervisor.
 
 #### Scenario: Third trusted namespace
 
-- **WHEN** a namespace other than the two solver namespaces carries the trusted label
+- **WHEN** a namespace other than the declared solver namespaces carries the trusted label
 - **THEN** admission denies it
 
-### Requirement: Builds triggered by a merge never run code from a pull request
+#### Scenario: Supervisor on a node with both environments
 
-A workflow whose job runs on the CI host's build runner SHALL be triggered only by a push to
-`main` or a manual run, SHALL start its build through the host pool's launcher, and MUST NOT
-pass a GitHub secret to the registry push.
+- **WHEN** the solver play targets a node that carries both `product` and `nonproduction`
+- **THEN** the role's assertion fails before anything is installed
+
+### Requirement: One executor on the CI host, and no build from a pull request
+
+Every job on the CI host SHALL be a catalogue job admitted by the host pool, whatever triggered
+it. A workflow on the build runner SHALL be triggered only by a push to `main` or a manual run
+at `main`, SHALL start its build through the pool's launcher, and MUST NOT pass a GitHub secret
+to the build or write to this repository. The runner SHALL refuse any other workflow reference.
 
 #### Scenario: Pull request trigger
 
@@ -532,3 +591,15 @@ pass a GitHub secret to the registry push.
 
 - **WHEN** a job on the build runner's label does not start through the host pool's launcher
 - **THEN** the workflow check fails
+
+#### Scenario: Workflow from a branch
+
+- **WHEN** a job reaches the build runner from a pull request, from a workflow file on a branch
+  other than `main`, or from a manual run on another ref
+- **THEN** the runner's job-started hook fails the job before any step
+
+#### Scenario: Workflow writes to this repository
+
+- **WHEN** a workflow that names the build runner's label grants `contents: write` or pushes
+  to this repository
+- **THEN** the workflow check fails and names the workflow

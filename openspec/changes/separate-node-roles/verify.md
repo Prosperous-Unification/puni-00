@@ -215,6 +215,34 @@ slices, 22 steps, R1 to R32, three open questions.
 
 Nothing was disputed in this round.
 
+## Sixth review (at `6fd22d49a`) and what became of its findings
+
+The review returned "not ready" with no finding of the first rank and three of the second.
+Before it was answered the owner made three more decisions (below). This revision, the sixth
+draft, answers both. Reworded: R2, R3, R12, R29 (now decided: a non-production node), R30 (now
+decided), R31 (now decided: one executor, several triggers), R32. New: R33 (what staging and dev are for), rule
+2.4(n), slice 3.9 (the dev environment), the role "non-production" with its host `h9stg`, and
+the capability `nonproduction`, which replaces the fifth draft's `staging` capability. Rules
+now run (a) to (n). Attended steps keep their numbers: A16 creates two servers and A17 joins
+both. 23 slices, 22 steps, R1 to R33, three open questions.
+
+| Finding                                                                                                  | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 the supervisor program is literal too: caller name, node-wide sweep and cap, uid, per-digest writes | Resolved by the owner's decision and a smaller slice: staging and dev run on a node of their own (R29), away from production's supervisor; that node keeps one supervisor, which serves both as two callers, so the uid and the role's files are unchanged and the node-wide sweep and cap are an accepted non-production residual. Slice 3.8 adds the staging caller name to the closed list, a policy row per environment and the role's assertion. Staging's admission list is owned by its overlay and its supervisor rule names no caller image, so a merged pin deploys the WBS backend with no command; only a new solver image needs `solver.yml`. The claim that a separate node would not help is withdrawn: it is true of the policy and the caller name and false of the host half |
+| S2-2 the runner restriction was insufficient                                                             | Fixed: the runner group limited to the workflow file at `refs/heads/main` and a job-started hook with an allow-list are preconditions of A11 with receipts; a manual run counts only at `main`; the App is never installed on this repository; the three credentials, their user and mode are stated; A11 has negatives for a same-repository branch pull request and a non-main run. The sentence about the existing runner is corrected: it is already restricted that way. Not as the review asked: the plan does not claim that gate code cannot read the credentials. The gate user is in the `docker` group, which the role calls root-equivalent; the plan bounds the credentials' scope to staging and asks the owner (open question 2)                                                |
+| S2-3 rule (a) narrower than the design                                                                   | Fixed: an allow-list of each project's own namespaces, with negatives for `argocd` and the store's namespace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-1 AppProject `roles` and `syncWindows`; name collisions                                               | Fixed: rule (l)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| S3-2 nobody can delete a staging or production Application                                               | Fixed: the removal mode takes a unit of any project; negative in 2.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| S3-3 the credential requirement against the accepted risk                                                | Fixed: the requirement stands; the risk is removed; A18 needs a live refusal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-4 guard 6 has no mechanical check                                                                     | Fixed: the restore is bound to the recorded SHA-256 with `sha256sum --check`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-5 backup table: website alert, four databases, `wbs-mcp`, an undefined rule                           | Fixed: the website row says its alert ends too; the two other databases and the configuration archive are named and not carried, with the owner's word needed in A22; `wbs-mcp` is stated as not carried; the rule is 2.4(n)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| S3-6 stage-0 receipt and 1.3; task 0.1 and decision 10; orders 8 to 12 at A14                            | Fixed in decision 6, task 0.1 and A14                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| S3-7 staging configuration can name production Services                                                  | Fixed: rule (k) and slice 3.5's negative                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S3-8 a build queues behind a gate                                                                        | Stated in decision 9 and under Risks; asked of the pool owner                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+Disputed in part: S2-2's request to state that gate jobs cannot read the build credentials. It
+would be false on a host where the gate user is root-equivalent.
+
 ## k3s behaviour
 
 Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
@@ -313,12 +341,12 @@ words where they carry the decision:
 - "i want the main to act like staging ...; so what merges to main - gets deployed on
   staging; however prod deployment is done by hand/on command" (R20).
 - MLflow is kept (R15).
-- h1claw: the owner said it may be deleted at any time. That sentence is a paraphrase by the
-  planning session, and the two consequences in R30 were stated to him, not decided by him.
-  Task 0.1 records his confirmation in his own words.
+- h1claw: the owner said it may be deleted at any time (a paraphrase by the planning
+  session). The consequences in R30 were stated to him then and confirmed later the same day,
+  below.
 - Alerts go to the Slack channel `#puni-alerts-dev`.
-- Staging images: he leans to building on the CI host and asked how CI is triggered. R31 is
-  the planning session's recommendation and awaits his confirmation (open question 2).
+- Staging images: he leaned to building on the CI host and asked how CI is triggered; decided
+  later the same day, below.
 - Server shapes confirmed: three of 8 vCPUs and 16 GiB, one CI host of 16 vCPUs and 32 GiB
   (R2).
 - Staging on the apps node as namespaces confirmed, with the remark that production may want a
@@ -330,7 +358,21 @@ words where they carry the decision:
   (R28); backups inside the new cluster (R13); the website's fleet directory written by its
   owning session, moved after its release bootstrap (R11); one local account (R23).
 
-Overrules of R1 to R32 beyond these: none yet (task 0.1).
+Later on 2026-11-23, after the fifth and sixth reviews:
+
+- Backup windows: asked to choose between accepting the gap after h1claw's deletion and
+  keeping h1claw until WBS has moved, he answered "backup - ok" (R30). This replaces the two
+  bullets above that call R30 unconfirmed.
+- The Slack webhook: "webhook - ok", meaning it comes later.
+- "let's keep the custom runner that can be triggered either by github actions or by agents
+  through cli/mcp/call to 'wbs' api (it will all converge to puni-user-platform)" (R31). He
+  had asked about Argo Workflows and did not take it.
+- "let's do dev & staging on a sep node" (R29), after the sixth review's finding on the solver
+  supervisor. It replaces "staging on the apps node" above.
+- "yeah - staging and dev must be separate envs" (R29). What each is for he has not said; R33
+  is the planning session's reading and awaits him.
+
+Overrules of R1 to R33 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -361,7 +403,21 @@ Overrules of R1 to R32 beyond these: none yet (task 0.1).
 | Controller image                                  | installs `kubectl` only; no `sops`                                                                                                                                   |
 | Helm release names                                | no `HelmRelease` sets `releaseName`; `otlp-ingress.yaml` selects `app.kubernetes.io/instance: otel-collector`                                                        |
 | Roles of `bootstrap.yml` and `join.yml`           | `base`, `network`, `storage` and the k3s role; `registry_client` runs only from `registry.yml`                                                                       |
-| Members of h1claw's hourly set                    | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                                                        |
+| Members of h1claw's hourly set                    | five per stamp, all pulled from h2puni: WBS production, WBS dev, `aivn-dev`, `aivn-cms-dev` and a configuration archive                                              |
+
+Read for the sixth draft, in source at the same commit:
+
+| Reading                                                             | Result                                                                                                                                     |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `solver-supervisor-image-map.ts`                                    | the caller list is closed: `be-01-blue`, `be-01-green`, `wbs-dev-src`, `k8s_wbs-solver_backend`; a rule's caller image may be null         |
+| `solver-supervisor-docker-output.ts`                                | a pod's caller name is `k8s_<namespace>_<container>`                                                                                       |
+| `solver-supervisor-lifecycle.ts`                                    | the start-up sweep kills every managed container on the node; the cap counts them node-wide                                                |
+| `solver-supervisor-config.ts`                                       | a solver container's memory limit is at most 512 MiB                                                                                       |
+| `roles/solver`                                                      | asserts `product`; one uid (10001, the backend pod's), one sudoers entry, one tmpfiles link to `/run/puni/solver`                          |
+| `roles/gate_host/tasks/main.yml`                                    | the gate user is added to the `docker` group, which the role's comment calls root-equivalent on the host                                   |
+| `docs/infra/deployment.md`, `infra/ci/deploy-runner/job-started.sh` | the `puni-deploy` runner is to sit in a group limited to `deploy-k3s.yml@refs/heads/main`, and its hook fails any other workflow reference |
+| `infra/jobs/catalogue.json`                                         | `gate`, `release-build`, `test-queued`, `solver-image-publish`                                                                             |
+| `docs/infra/gate-hosts.md`                                          | a gate reserves the whole pool and may not be listed in `concurrencyEligible`                                                              |
 
 ## Repository checks
 
@@ -378,7 +434,7 @@ below were run again on this revision, on 2026-11-23.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 397                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 398                                                                       |
 
 ## Checks not run
 
@@ -388,10 +444,13 @@ below were run again on this revision, on 2026-11-23.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The five reviews recorded above read earlier commits.
+- This revision has not been reviewed. The six reviews recorded above read earlier commits.
 
 ## Primary sources read
 
+- For the sixth draft: the five supervisor sources and the `solver` and `gate_host` roles named
+  under "Read-only readings"; `docs/infra/deployment.md` on the deploy runner and its hook;
+  `docs/infra/recovery.md` on the h1claw sets.
 - For the fifth draft: `infra/platform/policy/trusted-workloads.yaml`, the `solver` role's
   tasks, `deploy/k8s/wbs/base/backend.yaml` and both overlays' namespaces (the solver binding);
   `.github/workflows/ci.yml` and `deploy-k3s.yml` (triggers and the one self-hosted runner);

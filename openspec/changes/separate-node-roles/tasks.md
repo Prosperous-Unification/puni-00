@@ -14,12 +14,10 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R32 and the three open questions in design.md and
-      overrules by id. Rows marked decided record his answers of 2026-11-21 and 2026-11-23.
-      He confirms R31, and states in his own words what he takes of R30: h1claw deleted after
-      A20, or sooner with the windows of design decision 7's table accepted. Receipt: the
-      overrules and both statements, dated and quoted, in verify.md. Until then only slices 1.1, 1.2 and 2.1 to
-      2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows them.
+- [ ] 0.1 Owner reads assumptions R1 to R33 and the three open questions in design.md and
+      overrules by id. He confirms or corrects R33, what staging and dev are each for. Rows marked decided record his answers of 2026-11-21 and 2026-11-23.
+      Receipt: the overrules, dated and quoted, in verify.md. Until then only slices 1.1,
+      1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows them.
 - [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
@@ -29,7 +27,7 @@ input directory. "Sync" of a platform unit means
       `./node_modules/.bin/openspec validate --all --json`.
 - [ ] 0.4 After 0.1: tell the owners of pull request #935, of `dash-host-jobs`, of the release
       bootstrap and of the WBS deploy tooling what decision 9 asks of each, slice 3.7's list
-      included, and that this
+      and the build's place beside a gate included, and that this
       change edits no path the old cluster reconciles, so its pin needs no freeze. Receipt:
       the four messages, dated, in verify.md.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
@@ -62,7 +60,7 @@ input directory. "Sync" of a platform unit means
 
 ## 1. Fleet model and roles (agent slices)
 
-- [ ] 1.1 Add the capabilities `platform-services` and `staging` to `CapabilitySchema`,
+- [ ] 1.1 Add the capabilities `platform-services` and `nonproduction` to `CapabilitySchema`,
       `fleetCapabilities`, `purposeCapabilities.platform` and `RequiredCapabilitiesSchema` in
       `tools/tool-fleet/src/contracts.ts`. Test: `contracts.test.ts` accepts a platform node
       that carries each. Negatives, for each capability: a workers node carrying it is
@@ -71,8 +69,9 @@ input directory. "Sync" of a platform unit means
       wrongly.
 - [ ] 1.2 Role rules and the platform taint. In the production placement check: the
       `control-plane` node of a platform cluster that requires `platform-services` carries it
-      and none of `product`, `staging` and `ingress`; no host in `gate_hosts` is in a k3s group of the
-      same inventory. In the `k3s_server` template: a server with `platform-services` writes
+      and none of `product`, `nonproduction` and `ingress`; no node carries both `product`
+      and `nonproduction` (design decision 1); no host in `gate_hosts` is in a k3s group of the same
+      inventory. In the `k3s_server` template: a server with `platform-services` writes
       the taint `CriticalAddonsOnly=true:NoSchedule` (R25). In `validate-enrollment.yml`: the
       CoreDNS step appends the enrollment toleration when it is absent (a JSON patch that adds
       one list entry) where it now replaces the whole list with a strategic patch, so the
@@ -81,8 +80,9 @@ input directory. "Sync" of a platform unit means
       registered with both taints brings CoreDNS to Ready, `validate-enrollment.yml` passes,
       and CoreDNS, the metrics server and the volume provisioner are Ready afterwards.
       Negatives, each with its own fault: a server with `product` is refused (fault: drop the
-      capability comparison); a gate host under `k3s_agents` is refused (fault: skip the
-      gate-host comparison); a `platform-services` server whose rendered config lacks the
+      capability comparison); a node with `product` and `nonproduction` is refused (fault: check
+      the server only); a gate host under `k3s_agents` is refused (fault: skip the gate-host
+      comparison); a `platform-services` server whose rendered config lacks the
       taint fails the role test (fault: remove the template branch); a play whose CoreDNS
       step replaces the toleration list fails the contract test (fault: restore the strategic
       patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
@@ -171,12 +171,16 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       wired into `tool-fleet:check`. The check refuses each of the following. Each letter has
       its own negative and its own row in `check-faults.ts`, whose fault is that rule removed.
       (a) An Application outside its project's sources or destinations, with a destination
-      other than the in-cluster API, or with a `targetRevision` other than `main`. A
-      `staging` or `production` project that admits a cluster-scoped kind, a Namespace, or a
-      namespace of the other environment. A fleet-sourced Application in `platform` other
-      than `public-issuers` at its one path. (b) Automation in the wrong place: a `staging`
-      Application without automated `prune`, `selfHeal` and a retry policy; a `production` or
-      `platform` Application with automated sync; a root without automated self-heal, or with
+      other than the in-cluster API, or with a `targetRevision` other than `main` in its file. A project
+      whose destinations are not exactly the namespaces the `namespaces` unit declares for
+      it, named one by one: a wildcard, `argocd`, a namespace of another project, or any
+      namespace outside that list is refused. A `dev`, `staging` or `production` project that
+      admits a cluster-scoped kind or a Namespace. A fleet-sourced Application in `platform`
+      other than `public-issuers` at its one path. Two negatives of its own: a `staging`
+      project widened to `argocd`, and one widened to the store's namespace (fault: refuse
+      only a namespace of the other environment, as the fifth draft did). (b) Automation in the wrong place: a `staging`
+      Application without automated `prune`, `selfHeal` and a retry policy; a `production`,
+      `dev` or `platform` Application with automated sync; a root without automated self-heal, or with
       prune; any Application with the resources finalizer. (c) A `puni.dev/sync-order`,
       `puni.dev/needs` or project that is missing or differs from the table of design
       decision 3; a need of the same or a higher order; and a unit ordered at or below the
@@ -196,13 +200,21 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `includeCRDs: true`, or a Helm source of such a chart with `skipCrds`. (k) A `staging`
       Application whose source is a production overlay, or the reverse; an ExternalSecret
       in one environment whose store path names the other; a pod template of a `staging`
-      Application that does not select the capability `staging`, or one of a `production`
-      Application that does not select `product`. (l) Anything in the root's source path
+      or `dev` Application that does not select the capability `nonproduction`, or one of a
+      `production` Application that does not select `product`; a rendered object of a dev,
+      staging or production Application (an environment value, a ConfigMap value, a
+      NetworkPolicy peer, an ExternalName) that names a namespace of another of the three or
+      a Service in one. (l) Anything in the root's source path
       that is not an Application or an AppProject; a `root` project that admits another kind
       or a destination other than the `argocd` namespace; an Application file with an
-      `operation` block; an Application in the `root` project other than the root. (m) An
-      Ingress or Certificate of a `staging` Application that names a host a `production`
-      Application names, or the reverse. The family also runs as
+      `operation` block; an Application in the `root` project other than the root; an
+      AppProject file with `roles` or `syncWindows`; a file in the root's path that defines
+      an Application or an AppProject named like the root or its project. (m) An
+      Ingress or Certificate of a dev, staging or production Application that names a host
+      an Application of another of the three names. (n) A PersistentVolumeClaim in the tree that no
+      backup CronJob of its unit mounts, unless a short exemption table names it with its
+      reason; the table starts with `wbs-mcp` (design decision 7) and the stores an operator
+      snapshots. The family also runs as
       `argocd.test.ts` over the repository's real tree, as `platform.test.ts` does for
       `validatePlatform`, and that project's inputs name `infra/argocd/**`, so the required
       `gate` check selects it for a change under that path alone. Negative: a change to one
@@ -220,8 +232,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       in the `platform` project, and a unit while one of the units its `puni.dev/needs`
       names is not Synced and Healthy; sync each in order with the locked `argocd` CLI in core
       mode on the server and wait for Synced and Healthy. Its removal mode deletes the
-      Application object of a unit and refuses one that still has a file on `main` or whose
-      live source renders more than the marker ConfigMap. The controller: add the locked `sops` binary to
+      Application object of a unit of any project, since nothing else can delete a staging or
+      production Application, and refuses one that still has a file on `main` or whose live
+      source renders more than the marker ConfigMap. The controller: add the locked `sops` binary to
       `infra/controller/Containerfile`, and a read-only mount of a fleet repository checkout
       to `fleet_ansible`, named by an input in `$OPS`. Test: `infra/ansible/tests`, including
       a second run of `argocd.yml` with one more secret file, which changes that Secret and
@@ -234,7 +247,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       drop the project comparison) and a unit one of whose needs is unhealthy (fault: skip
       the needs read), and syncs a unit whose needs are healthy while an unrelated unit of a
       lower order is not (fault: compare orders, as the fourth draft did); the removal mode
-      refuses a unit whose file is still on `main` (fault: skip the file read).
+      refuses a unit whose file is still on `main` (fault: skip the file read) and removes a
+      fixture production Application reduced to its marker (fault: apply the sync mode's
+      project comparison to removal).
 - [ ] 2.6 Health and recovery for a cluster delivered by Argo CD. `tool-fleet:health` gains a
       rule that reads Applications where the cluster's delivery is Argo CD and no longer
       reports "no Flux objects" there. It fails on a Degraded Application, on a staging
@@ -363,17 +378,20 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       `bunx nx run tool-fleet:check`.
 - [ ] 3.5 Before A18's WBS part and A20. Owner: the WBS deploy tooling's owner; this change
       only names the gap. The `staging` overlay renders namespaces of its own, the solver
-      one being `wbs-solver-staging` (slice 3.8), so it can run beside production; both
+      one being `wbs-solver-staging` (slice 3.8), and carries that namespace's parameter
+      ConfigMap with its pinned backend digests (design decision 1); both
       overlays carry the selector patches of design decision 1, a backup prefix per decision
       7, ExternalSecrets in place of the SOPS Secrets they expect, the stale-backup rule of
       3.1, default-deny NetworkPolicies for every new namespace, and image references that
       name Harbor (R28); the WBS alert group is added to `alerts` with each. The `delivery`
-      check reads both under rules (f), (g), (k) and (m) and the rules of 3.1. Test: both
+      check reads both under rules (f), (g), (k), (m) and (n) and the rules of 3.1. Test: both
       overlays render together into one fixture cluster with no object in common. Negatives:
       an overlay that renders `wbs` or `wbs-solver` for staging is refused; a WBS workload
-      without a selector is refused; a new namespace without a default-deny policy is refused.
-      Faults to inject: compare the two renders by kind only and watch the shared namespace
-      pass; exempt new namespaces from the policy rule.
+      without a selector is refused; a new namespace without a default-deny policy is
+      refused; a staging value that names `wbs`, `wbs-solver` or a Service in either is
+      refused. Faults to inject: compare the two renders by kind only and watch the shared
+      namespace pass; exempt new namespaces from the policy rule; search object names only
+      and watch the staging value that names a production Service pass.
 - [ ] 3.6 Before A15 (R15). A unit `mlflow` under `infra/argocd/units`: the MLflow server
       pinned by digest, selecting `observability`, with a `Retain` claim carrying
       `Prune=false` and `Delete=false`, the apps' backup and verify CronJobs with a prefix
@@ -381,44 +399,70 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       h3mon is read first and recorded; if it is more than one SQLite file and one
       directory, the slice stops and reports. Test: the render passes the `delivery` check
       and the backup runner's suite restores a fixture store. Negative: the unit without its
-      backup CronJob fails the check for a claim with no backup. Fault to inject: exempt
-      `mlflow` from that rule.
-- [ ] 3.7 Blocks no step; until it lands a staging pin is moved by hand. Awaits the owner's
-      confirmation of R31 (open question 2). Owners: the release bootstrap's and the WBS
-      deploy tooling's owners for each app's build entrypoint and pin write; the gate pool's
-      owner for the catalogue entry, its launcher checkout, `concurrencyEligible` and the
-      runner's user in the gate-host role; this change for the workflow's shape and its
-      check. A workflow on `push` to `main`, filtered by the app's paths, and on manual
-      dispatch, with no `pull_request` trigger, whose job runs on a self-hosted runner on
-      h8ci under a label of its own, starts the build through `run_heavy_job`, pushes to
-      Harbor by digest with a robot secret that is a file on the host, and opens and merges
-      a pull request that writes the digests into the staging overlay (design decision 9).
-      The runner group, the approval setting for outside contributors and the GitHub App are
-      set by the owner and read back in A11. Test: the workflow lint in `gate`. Negatives: a
-      workflow that names the build label and has a `pull_request`, `pull_request_target` or
-      `issue_comment` trigger is refused; one that passes a GitHub secret to the push step is
-      refused; a job on the build label that does not go through `run_heavy_job` is refused.
-      Faults to inject, one per negative: drop the trigger rule; drop the secret rule; drop
-      the launcher rule.
-- [ ] 3.8 Before A17's solver step and A18's WBS part (R32). The solver binding as a table of
-      environments. In the new tree's `policy` unit only (the Flux copy is not edited): the
-      trusted-hostpath policy admits, per environment, one namespace, one host directory and
-      one selector (`wbs-solver`, `/run/puni/solver`, `product`; `wbs-solver-staging`,
-      `/run/puni/solver-staging`, `staging`); the namespace-label policy reserves both
-      names; each environment has its own parameter ConfigMap and binding, so the two lists
-      of trusted solver images are separate. In the `solver` role: a list of instances, each
-      with its own user, runtime directory and socket; the default is the one instance of
-      today, so the old cluster's play is unchanged. Test: the policy suite on disposable
-      k3d, and the role's tests for one instance and for two. Negatives, each with its own
-      fault and `Proof:` comment: a staging backend that mounts production's directory is
-      denied (fault: admit any listed directory in any listed namespace); a production
-      backend that selects `staging` is denied (fault: compare the selector against the
-      union); a pod in the staging namespace with an image from production's list only is
-      denied (fault: bind both namespaces to one ConfigMap); a third namespace carrying the
-      trusted label is denied (fault: match the label alone); two instances given one socket
-      path fail the role's validation (fault: drop the uniqueness check). Stop: the
-      supervisor cannot run twice on one node. Then the owner chooses between R32's
-      alternatives and a node of its own for staging.
+      backup CronJob fails rule 2.4(n). Fault to inject: add `mlflow` to that rule's
+      exemption table.
+- [ ] 3.7 Blocks no step; until it lands a staging pin is moved by hand (R31, design decision
+      9). Owners: the release bootstrap's and the WBS deploy tooling's owners for each app's
+      build entrypoint, pin write and pin-only check; the gate pool's owner for the catalogue
+      entry, its launcher checkout, `concurrencyEligible`, the build user and how it submits
+      to the pool; this change for the trigger's shape, the hook and the lint. In this
+      repository: a workflow on `push` to `main`, filtered by the app's paths, and on manual
+      dispatch, with no other trigger, whose one job runs on the build label, starts a
+      catalogue job through `run_heavy_job` and reports its exit; and
+      `infra/ci/deploy-runner/job-started.sh` generalised to an allow-list of workflow files
+      at `refs/heads/main` read from the runner's own `.env`, with the existing deploy runner
+      keeping its one entry. Nothing in the workflow writes to this repository. Test: the
+      hook's existing proof, for one entry and for two; the workflow lint in `gate`.
+      Negatives, each with its own fault: the hook fails a job whose workflow reference is a
+      pull-request ref, a branch other than `main`, or a workflow not on the list (fault:
+      compare the file name without the ref); a workflow that names the build label and has
+      a `pull_request`, `pull_request_target` or `issue_comment` trigger is refused (fault:
+      drop the trigger rule); one that passes a GitHub secret to a build or push step is
+      refused (fault: drop the secret rule); one whose job on the build label does not go
+      through `run_heavy_job` is refused (fault: drop the launcher rule); one that grants
+      `contents: write` or pushes to this repository is refused (fault: drop the permission
+      rule).
+- [ ] 3.8 Before A17's solver step and A18's WBS part (R32, R29). The solver bound per
+      environment, on a node each. In `tools/tool-remote-scripts`: the supervisor's closed
+      caller list gains `k8s_wbs-solver-staging_backend` and `k8s_wbs-solver-dev_backend`. In the new tree's `policy` unit
+      only (the Flux copy is not edited): the trusted-hostpath policy admits, per
+      environment, one namespace and one selector (`wbs-solver` with `product`;
+      `wbs-solver-staging` and `wbs-solver-dev` with `nonproduction`) and the one host directory; the namespace-label
+      policy reserves both names; each environment has its own parameter ConfigMap and
+      binding, production's left out of the tree as today and staging's read from the
+      staging overlay. In the `solver` role: the assertion accepts a node that carries
+      exactly one of `product` and `nonproduction`, and the non-production inventory gives
+      one rule per caller, staging's and dev's, each with no caller image. The old cluster's play and bundle are
+      unchanged. Test: the supervisor's image-map suite, the policy suite on disposable k3d,
+      and the role's tests for a product node and a staging node. Negatives, each with its
+      own fault and `Proof:` comment: a staging pod presenting its caller name is refused by
+      a supervisor whose list lacks it (fault: accept any name that begins with
+      `k8s_wbs-solver`); a production backend that selects `nonproduction` is denied
+      (fault: compare the selector against the union); a pod in the staging namespace with
+      an image from production's list only is denied (fault: bind both namespaces to one
+      ConfigMap); a third namespace carrying the trusted label is denied (fault: match the
+      label alone); a node with both capabilities fails the role's assertion (fault: accept
+      either). Stop: the role's inventory or the copied policy cannot express a rule with no
+      caller image or a ConfigMap owned by the overlay. Then staging's lists are written by
+      the build job's catalogue entry, and the owner is told that a staging backend deploy
+      needs that job to have run.
+
+- [ ] 3.9 After A18's receipt; blocks no step (R29, R33). The dev environment, added once
+      staging works. A `dev` AppProject whose destinations are the dev namespaces alone, with
+      automated sync off; a dev copy of each app's Application, selecting `nonproduction`,
+      with hostnames, certificates, claims, OpenBao paths and a backup prefix of its own and
+      no backup job, since its data is disposable (exempt under rule 2.4(n), with that
+      reason); a second local account that may `sync` and `override` in `dev/*` and nothing
+      else; the dev rows of slice 3.8; a catalogue job that builds a named ref on request
+      through the same runner and pool (R31). The app overlays are their owners'. Test: the
+      `delivery` check over the tree with the dev project. Negatives, each with its own
+      fault: a dev Application with automated sync is refused (fault: exempt `dev` from rule
+      (b)); a `dev` project whose destinations include a staging namespace is refused
+      (fault: compare against the union of non-production namespaces); a dev Ingress that
+      names a staging host is refused (fault: compare dev with production only); a policy
+      that grants the dev account anything outside `dev/*` is refused (fault: widen the
+      grant to `staging/*`). Receipt, in the rehearsal lab: a dev Application synced at a
+      branch revision by the dev account, and the same account refused on staging.
 
 ## 4. Attended steps
 
@@ -516,11 +560,24 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       per gate. Stop: a gate fails for a reason the old hosts do not show on the same SHA.
       Rollback: keep gating on the old hosts; they are untouched until stage 5.
 - [ ] A11 Builds on the CI host. Who: the session that owns the release bootstrap, by its own
-      procedure; owner for the runner, once slice 3.7 has landed. Receipt: one release
-      record that names h8ci; then, for 3.7, the runner group's repositories and workflow
-      limit read back, the approval setting read back, the GitHub App's repository list, and
-      a pull request from a fork that names the build label left queued and unrun. Stop: the build needs
-      something only h2puni has; name it. Rollback: keep building on h2puni.
+      procedure, for release builds; the owner and the operator for the runner, once slice
+      3.7 has landed and open question 3 is answered. Commands, for the runner: create the
+      build user and its 0700 directories through the gate-host role; create the runner
+      group, limited to the building repositories and to selected workflows, the build
+      workflow file at `refs/heads/main`; register the runner into that group as ephemeral;
+      install the root-owned hook and set `ACTIONS_RUNNER_HOOK_JOB_STARTED` and its
+      allow-list in the runner's `.env`; create the GitHub App and install it on the private
+      pin repositories only; place its key and, from the Harbor change's reconciler, the push
+      robot's Docker config. Receipt: one release record that names h8ci; the runner group's
+      repositories and selected workflows read back; the approval setting for outside
+      contributors read back; the App's repository list, which does not name this
+      repository; the three credential files with their owner and mode; a pull request from a
+      branch of this repository that adds a workflow naming the build label, left without a
+      runner; a manual run of the build workflow on a branch other than `main`, failed by the
+      hook before any step; a push to `main` building and moving one staging pin. Stop: the
+      organisation cannot limit the group to selected workflows, or either negative reaches
+      a step. Then the runner is removed and staging pins stay moved by hand. Rollback:
+      remove the runner and the App; keep building release images as before.
 
 ### Stage 3: observability
 
@@ -540,7 +597,8 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       ExternalSecrets; sync `secret-sync`, then those units in order; after 24 hours read
       `kubectl top pods -n observability`, each container's `memory.stat` and each claim's
       use; raise one test alert. Receipt: "escrowed" for the Velero repository password;
-      orders 8 to 12 Healthy; no alert firing other than the test alert; the per-pod memory
+      orders 8 to 12 Healthy, `mlflow` and `sqlite-custody` excepted, which A15 and A18
+      sync; no alert firing other than the test alert; the per-pod memory
       table; disk used and its growth per day; the test alert seen in Alertmanager, and in
       `#puni-alerts-dev` if open question 1 is answered, or "delivery unproven" if not; the
       owner's decision on the node's size. Stop: a pod is killed for memory, the node's
@@ -560,41 +618,47 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
 
 ### Stage 4: apps
 
-- [ ] A16 Create the production apps server. Who: owner, as A1. Receipt: as A1.
-      Stop: as A1, or the host has no public IPv4 address for ports 80 and 443.
-      Rollback: delete the server.
-- [ ] A17 Join it, after its 1.3 revision. Who: operator. Commands: `playbooks/firewall.yml`
-      limited to h5plat and h7obs; then as A13 for h6apps; then `playbooks/solver.yml`, with both instances once slice 3.8
-      has landed; then
-      merge the revision that adds the `traefik` Application and sync it.
-      Receipt: h6apps Ready with `product`, `staging` and `ingress`; the Traefik pod Ready there and
-      answering on ports 80 and 443. Stop: Traefik cannot bind 80 or 443.
-      Rollback: reduce `traefik` to its marker and sync, remove its Application file, then as
-      A13.
-- [ ] A18 Staging (R29, R26), after 3.1, the receipt 2.7/A18 and the fleet repository's
-      directory of design decision 9; its WBS part also after 3.5, 3.8 and Harbor. Who: operator, with the website's
-      owner; owner for the Secrets. The owner writes the staging Secrets of design decision
-      5 into OpenBao, reading the website's present ones with the old cluster's age identity
-      on the controller. Sync `secret-sync`, `sqlite-custody` and `public-issuers`. Then, for the website and request app in
+- [ ] A16 Create the production apps server and the non-production server (R29). Who:
+      owner, as A1 for each. Receipt: as A1, for each. Stop: as A1, or a host has no public
+      IPv4 address for ports 80 and 443. Rollback: delete the server.
+- [ ] A17 Join both, after the 1.3 revision of each. Who: operator. Commands:
+      `playbooks/firewall.yml` limited to the nodes already joined; then as A13 for h9stg
+      and for h6apps; then `playbooks/solver.yml` limited to each, once slice 3.8 has landed;
+      then merge the revision that adds the `traefik` Application and sync it. Receipt: h6apps
+      Ready with `product` and `ingress`, h9stg Ready with `nonproduction` and `ingress`, neither
+      with the other's capability; a Traefik pod Ready on each and answering on ports 80 and
+      443; one supervisor on each node, the non-production one with a rule for each of its two
+      callers. Stop: Traefik cannot bind 80 or 443. Rollback: reduce
+      `traefik` to its marker and sync, remove its Application file, then as A13.
+- [ ] A18 Staging, on h9stg (R29, R26), after 3.1, the receipt 2.7/A18 and the fleet
+      repository's directory of design decision 9; its WBS part also after 3.5, 3.8 and
+      Harbor. Who: operator, with the website's owner; owner for the Secrets. The owner
+      writes the staging Secrets of design decision 5 into OpenBao, reading the website's
+      present ones with the old cluster's age identity on the controller; the staging backup
+      credential is one that cannot read production's backups. Sync `secret-sync`,
+      `sqlite-custody` and `public-issuers`. Then, for the website and request app in
       `website-dev` first and WBS staging second: stop the old side (scale the old
       Deployments to zero and suspend the old backup CronJob and its Flux unit; stop the
-      Compose dev stack and the dev poller on h2puni); take the final backup as design
-      decision 7 states, name the file, and note its stamp; a file that is not the dev
-      store's stops the step (guard 6); merge the staging Application with the workload
-      at zero replicas and its backup CronJob suspended, which syncs by itself; restore that
-      stamp into the new claim; merge one replica and the CronJob resumed; point the names
-      the staging overlay declares at h6apps; wait for the certificates from the issuer each
-      overlay names; run the new backup job once. Receipt, per
-      app: the stamp and SHA-256; no pod of the app and no backup run on the new side before
-      the restore finished; the restored store's check equals the backup's; for WBS, the
-      project list of the tracker read back through its API; the pages read back on their
+      Compose dev stack and the dev poller on h2puni); take the final backup of the dev store
+      as design decision 7 states and record its file name, stamp and SHA-256; merge the
+      staging Application with the workload at zero replicas and its backup CronJob
+      suspended, which syncs by itself; check the file against the recorded value with
+      `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
+      merge one replica and the CronJob resumed; point the names the staging overlay declares
+      at h9stg; wait for the certificates from the issuer each overlay names; run the new
+      backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
+      listing of a production prefix refused with the staging credential; no pod of the app
+      and no backup run on the new side before the restore finished; the restored store's
+      check equals the backup's; for WBS, the project list of the tracker read back through
+      its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
       names with a Ready certificate, which for WBS staging comes from the ACME staging
-      issuer its overlay names and is not trusted by a browser; one backup and one verify under the staging prefix,
-      taken after the restore and holding a restored record; a later merge to the staging
-      overlay applied with no command. Stop: the restore differs from the backup, a backup
-      under the new prefix predates the restore or is empty, or a certificate is not Ready
-      after 15 minutes. Rollback, while the old hosts exist: point the names back and start
-      the old side again.
+      issuer its overlay names and is not trusted by a browser; one backup and one verify
+      under the staging prefix, taken after the restore and holding a restored record; a
+      later merge to the staging overlay applied with no command. Stop: the SHA-256 differs;
+      the staging credential can list a production prefix; the restore differs from the
+      backup; a backup under the new prefix predates the restore or is empty; or a
+      certificate is not Ready after 15 minutes. Rollback, while the old hosts exist: point
+      the names back and start the old side again.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
       production: the owner writes the production Secrets into OpenBao; the old side is
@@ -627,7 +691,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       confirmations, dated. Stop: a DNS record still points at either host. Rollback: none;
       that is why the preconditions are receipts.
 - [ ] A22 Delete h2puni. Who: owner. Preconditions: A18's WBS receipt and A20's receipt, or
-      the owner's word for each that the data is not wanted; a test alert delivered in
+      the owner's word for each that the data is not wanted; the owner's word that the two
+      other dev databases there and the configuration archive may go (design decision 7); a
+      test alert delivered in
       `#puni-alerts-dev`; A11's receipt; A10's receipt,
       no caller launching gates on h2puni, and the pool owner's withdrawal of h2puni or
       written confirmation that none is needed; the controller no longer runs there (design

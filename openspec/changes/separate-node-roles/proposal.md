@@ -2,24 +2,25 @@
 
 One host, h4claw, is the k3s server, the public edge, the product node, the registry host and a
 gate host. A gate holds the whole host, so Harbor does not fit beside it, and the secret store
-would sit next to the internet-facing ingress. On 2026-11-21 the owner decided that each host
+would sit next to the public ingress. On 2026-11-21 the owner decided that each host
 gets one node role, that the cluster is recreated from scratch and delivered by Argo CD, and
-that the switch may be unsafe while there are no users. On 2026-11-23 he added:
-OpenBao comes first, `main` deploys to staging, and production deploys on command.
+that the switch may be unsafe while there are no users. On 2026-11-23 he added: OpenBao comes
+first, `main` deploys to staging, production deploys on command, and dev and staging are
+separate environments on a node of their own.
 
 ## What Changes
 
 - A new cluster is built from this repository on new servers, one node role per host.
-- The platform node is the tainted k3s server. It hosts Argo CD, then OpenBao with the
-  External Secrets Operator before any other service, then Harbor.
-- The production apps node hosts Traefik and two copies of `puni-website`, `puni-request-app`
-  and `puni-user-platform` (the WBS app): production, and staging, which replaces today's dev
-  stacks and has a capability of its own.
+- The platform node is the tainted k3s server. It hosts Argo CD, then OpenBao and the
+  External Secrets Operator, then Harbor.
+- The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
+  `puni-user-platform` (the WBS app). A non-production node hosts two more environments of
+  them: staging, which replaces today's dev stacks, and dev.
 - The observability node hosts Elasticsearch, Prometheus and MLflow.
-- The CI host runs gates and builds, outside the cluster.
+- The CI host runs gates and builds outside the cluster, as jobs of one host pool.
 - Argo CD delivers the new cluster from a tree of its own, `infra/argocd`. Staging syncs from
-  `main` by itself; production apps and platform units change only when a person syncs them.
-  The interface is private, and its one account can sync production only, never roll back.
+  `main` by itself; production, dev and platform units change only when a person syncs them.
+  The interface is private; its account syncs production only and cannot roll back.
 - Workload Secrets come from OpenBao. Ansible applies only what Argo CD and OpenBao need.
 - Each app is stopped, backed up once, restored and re-pointed. Data that cannot be
   regenerated is verified before its old host is deleted.
@@ -65,6 +66,6 @@ next number. Two records, node roles and delivery by Argo CD, stay in
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
 bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template,
 `tools/tool-fleet` (contracts, a `delivery` check, health, recovery, the observability source,
-a lab profile), the controller image, the SQLite backup tooling and the infrastructure
-runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
+a lab profile), the controller image, the solver supervisor's caller list and role, the
+runner's job-started hook, the SQLite backup tooling and the infrastructure runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
 pool, the WBS overlays and the release tooling are listed, not made.
