@@ -2,25 +2,29 @@
 
 ### Requirement: One node role per host
 
-Every fleet host SHALL hold exactly one node role: production apps, platform services,
-observability, or continuous integration. A host's capabilities MUST be those of its role.
+Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
+observability, or production apps. A host's capabilities MUST be those of its role.
 
 #### Scenario: Declared fleet
 
-- **WHEN** the production desired state is decoded
-- **THEN** the production apps node carries `product` and `ingress`, the platform node carries
-  `platform-services`, the observability node carries `observability`, and no node carries the
-  capabilities of two roles
+- **WHEN** the desired state of the rebuilt production cluster is decoded
+- **THEN** the platform node carries `control-plane` and `platform-services`, the observability
+  node carries `observability`, the production apps node carries `product` and `ingress`, and
+  no node carries the capabilities of two roles
 
 #### Scenario: Continuous integration host
 
-- **WHEN** the production inventory is read
-- **THEN** every gate host is absent from every k3s group, and no k3s node is a gate host
+- **WHEN** a production inventory is read
+- **THEN** every gate host is absent from every k3s group of that inventory
+
+#### Scenario: Gate host listed as a k3s node
+
+- **WHEN** an inventory lists one host under `gate_hosts` and under a k3s group
+- **THEN** the placement check fails and names the host
 
 ### Requirement: Platform services capability
 
-The fleet model SHALL define the capability `platform-services` for platform clusters only, and
-the production platform cluster MUST require at least one node that carries it.
+The fleet model SHALL define the capability `platform-services` for platform clusters only.
 
 #### Scenario: Workers node carries it
 
@@ -31,6 +35,21 @@ the production platform cluster MUST require at least one node that carries it.
 
 - **WHEN** a platform cluster requires `platform-services` and no present node carries it
 - **THEN** the fleet decoder refuses the fleet
+
+### Requirement: The control plane runs on the platform node
+
+In a platform cluster that requires `platform-services`, the control-plane node SHALL carry
+`platform-services` and MUST NOT carry `product` or `ingress`.
+
+#### Scenario: Server on the production apps node
+
+- **WHEN** the desired state gives the control-plane node the capability `product` or `ingress`
+- **THEN** the placement check fails and names the node
+
+#### Scenario: Server without the platform capability
+
+- **WHEN** the control-plane node does not carry `platform-services`
+- **THEN** the placement check fails and names the node
 
 ### Requirement: Workloads are pinned to their role
 
@@ -52,42 +71,62 @@ the observability stack MUST select `observability`.
 
 #### Scenario: Running placement
 
-- **WHEN** the cluster is observed after the controllers have moved
+- **WHEN** the rebuilt cluster is observed with all three nodes joined
 - **THEN** every Flux and cert-manager pod runs on the platform node and every Traefik pod runs
   on the production apps node
 
-### Requirement: The cluster keeps one server through the move
+### Requirement: Inventory and desired state agree for every production cluster
 
-The platform cluster SHALL have exactly one control-plane node in every committed desired
-state, and the control plane MUST change hosts by a snapshot restore, never by a second server.
+Each production cluster in the desired state SHALL be bound to one static inventory, and the
+two MUST name the same nodes with the same machine ids, addresses and capabilities.
 
-#### Scenario: Two servers declared
+#### Scenario: Machine id differs
 
-- **WHEN** a desired state for the `single` platform cluster names two present control-plane
-  nodes
-- **THEN** the fleet decoder refuses it
+- **WHEN** a node's machine id in an inventory differs from the desired state
+- **THEN** the placement test fails and names the node
 
-#### Scenario: Old server still active
+#### Scenario: Node in one file only
 
-- **WHEN** a restore onto the platform node is planned while the old server's k3s unit is
-  active or its datastore directory is in place
-- **THEN** the plan is refused and nothing on either host changes
+- **WHEN** a node is present in an inventory and absent from its cluster's desired state, or
+  the reverse
+- **THEN** the placement test fails and names the node
 
-#### Scenario: Node-local data after the move
+### Requirement: The rebuilt cluster runs no interim registry
 
-- **WHEN** the control plane has moved and the old server has rejoined as an agent
-- **THEN** that agent has its old node name, every `Retain` volume bound to that name is Bound,
-  and data written before the move is readable
+The production `platform` stage SHALL NOT install the Distribution registry.
 
-### Requirement: Gates do not share a host with production apps
+#### Scenario: Distribution in the stage
 
-A host that carries `product` or `ingress` SHALL NOT be a gate host once production WBS runs on
-it.
+- **WHEN** the production `platform` stage renders a Distribution workload
+- **THEN** the platform check fails and names it
 
-#### Scenario: Cutover precondition
+### Requirement: SQLite backups are kept and watched from inside the cluster
 
-- **WHEN** the WBS production cutover is authorised
-- **THEN** its target node is not listed in `gate_hosts` and is enrolled in no host pool
+The cluster SHALL apply the documented retention to the `sqlite/<database>/` prefixes and SHALL
+alert when the newest backup report is older than two backup intervals, without depending on a
+host outside the cluster.
+
+#### Scenario: Retention
+
+- **WHEN** the retention job reads a prefix
+- **THEN** it keeps every stamp of the last 48 hours, the last of each UTC day for 60 days and
+  the last of each UTC week for 52 weeks, deletes a snapshot only together with its report, and
+  never deletes the newest report
+
+#### Scenario: Snapshot without a report
+
+- **WHEN** a snapshot has no report
+- **THEN** the job keeps it and reports it
+
+#### Scenario: Listing fails
+
+- **WHEN** the prefix cannot be listed completely
+- **THEN** the job deletes nothing and exits nonzero
+
+#### Scenario: Stale backup
+
+- **WHEN** the newest report of a database is older than two backup intervals
+- **THEN** the alert for that database fires
 
 ### Requirement: Each node is watched from outside itself
 
