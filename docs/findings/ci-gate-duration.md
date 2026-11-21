@@ -221,3 +221,30 @@ job. The workspace shard stays at 105 of 120. Parallel-1 timings are unknown unt
 full-mode heavy logs. Both shards start together, so the slowest
 required shard sets the gate's wall time. That is the heavy shard or Twilight, not the
 workspace shard.
+
+## One job per heavy project, 2026-11-21
+
+The single heavy job was lost on main `982f36697` (job 136597156506, [R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+`gate workspace-heavy` is now one matrix leaf per project (A-CI-WORKSPACE-MEMORY-3), each at
+`--parallel=1`.
+
+The task times below are per project from the full-mode run 44496836205, measured at
+parallelism two. Each budget adds a finite allowance and a 15-minute reserve:
+
+| Leaf               | test     | lint    | typecheck (+ module) | Total    | Phase  | Job    |
+| ------------------ | -------- | ------- | -------------------- | -------- | ------ | ------ |
+| `tool-fleet`       | 40.9 min | 1.6 min | 0.3 min              | 42.9 min | 75 min | 90 min |
+| `tool-devsync`     | 22.0 min | 0.3 min | 0.03 min             | 22.4 min | 45 min | 60 min |
+| `wbs-store-sqlite` | 18.5 min | 0.8 min | 0.4 min              | 19.7 min | 45 min | 60 min |
+| `wbs-core`         | 3.8 min  | 1.4 min | 0.5 + 2.6 min        | 8.2 min  | 30 min | 45 min |
+
+Dependency builds come on top of these figures. The first hosted heavy run (#958, job 136558782678) ran only `tool-devsync`:
+
+- The phase took 17m06s (`elapsedSeconds=1031`).
+- `tool-devsync:test` alone took 16m59s at parallelism one, against 22.0 minutes at parallelism
+  two.
+- Its 14 dependency builds totalled 4.5 seconds.
+- Setup to phase start took 55 to 63 seconds, and the registry fixtures took 2 seconds.
+
+The leaves start together with the other shards, so the gate's wall time is now set by the
+`tool-fleet` leaf or by Twilight.

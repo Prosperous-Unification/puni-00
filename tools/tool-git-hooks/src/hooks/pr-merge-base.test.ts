@@ -180,11 +180,12 @@ const runtimeSteps = [
   ['gate_remote', 'Remote — test, lint, typecheck, build'],
   ['gate_remote_model', 'Remote isolated leaf — test'],
   ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
-  ['gate_heavy', 'Heavy — test, lint, typecheck, build'],
+  ['gate_heavy', 'Heavy leaf — test, lint, typecheck, build'],
 ] as const;
 function runtimePartition(job: string): string {
   if (job === 'gate_remote') return 'remote-rest';
   if (job === 'gate_remote_model') return 'remote-model';
+  if (job === 'gate_heavy') return 'heavy-tool-fleet';
   return job.slice(5);
 }
 
@@ -239,7 +240,12 @@ exec '${process.execPath}' "$@"
       ...h.env,
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
-      RUNTIME_PARTITION: 'remote-model',
+      // Matrix values the shared runtime steps read: the remote-model leaf, and for the heavy
+      // leaf step (the one that reads PHASE_MINUTES) the tool-fleet leaf with its 75m phase.
+      RUNTIME_PARTITION: script.includes('phase_limit="$PHASE_MINUTES"')
+        ? 'heavy-tool-fleet'
+        : 'remote-model',
+      PHASE_MINUTES: '75',
       PATH: `${bin}:${process.env['PATH'] ?? ''}`,
       ...env,
     },
@@ -388,28 +394,48 @@ describe('production workflow PR consumers', () => {
 // localise a death in a run whose log survives.
 const headroomShards = [
   ['gate_workspace', 'Gate — test, lint, typecheck, build', 'workspace'],
-  ['gate_heavy', 'Heavy — test, lint, typecheck, build', 'heavy'],
+  ['gate_heavy', 'Heavy leaf — test, lint, typecheck, build', 'heavy-tool-fleet'],
 ] as const;
 
-// A-CI-WORKSPACE-MEMORY-2: the heavy shard reuses the workspace step text. Only two tokens may
-// differ: the partition name and the phase budget (105m workspace, 135m heavy). Any other drift,
-// in the headroom sampler or status handling for example, fails this test.
-// Proof (2026-11-20): a 60 s sampler interval in gate_heavy alone failed it, and so did gate_heavy's
-// phase set back to 105m.
-test('the heavy gate step differs from the workspace step only in partition and phase budget', () => {
+// A-CI-WORKSPACE-MEMORY-3: every heavy leaf runs the workspace step text. Exactly two lines may
+// differ, the partition and phase-budget assignments, which the leaf takes from its matrix entry.
+// Any other drift, in the headroom sampler or status handling for example, fails this test.
+// Proof (2026-11-21): a 60 s sampler interval in gate_heavy alone failed it, and so did a literal
+// `135m` budget in place of "${phase_limit}m".
+test('the heavy leaf step differs from the workspace step only in partition and phase budget', () => {
   const workspace = step('gate_workspace', 'Gate — test, lint, typecheck, build');
-  const heavy = step('gate_heavy', 'Heavy — test, lint, typecheck, build');
-  const budget = (minutes: string) => `timeout --signal=TERM --kill-after=30s ${minutes} \\`;
-  expect(workspace.split(budget('105m'))).toHaveLength(2);
-  expect(heavy.split(budget('135m'))).toHaveLength(2);
-  expect(heavy.split('ci-run-runtime.ts heavy ')).toHaveLength(2);
-  expect(heavy).not.toContain('partition=workspace');
+  const heavy = step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build');
+  const assignments = [
+    ['partition=workspace\n', 'partition="$RUNTIME_PARTITION"\n'],
+    ['phase_limit=105\n', 'phase_limit="$PHASE_MINUTES"\n'],
+  ] as const;
+  for (const [fixed, leaf] of assignments) {
+    expect(workspace.split(fixed)).toHaveLength(2);
+    expect(heavy.split(leaf)).toHaveLength(2);
+  }
+  expect(
+    workspace.split('timeout --signal=TERM --kill-after=30s "${phase_limit}m" \\'),
+  ).toHaveLength(2);
   expect(heavy).toBe(
-    workspace
-      .replaceAll('partition=workspace', 'partition=heavy')
-      .replace('ci-run-runtime.ts workspace ', 'ci-run-runtime.ts heavy ')
-      .replace(budget('105m'), budget('135m')),
+    assignments.reduce((text, [fixed, leaf]) => text.replace(fixed, leaf), workspace),
   );
+});
+
+test('the heavy leaf step refuses a missing, non-numeric or zero phase budget before runtime work', async () => {
+  // `0` would make `timeout 0m` run without a limit.
+  for (const budget of ['', '75m', 'x', '0', '00', '075']) {
+    const h = history();
+    const execution = runStep(h, step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build'), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      PHASE_MINUTES: budget,
+    });
+    expect(execution.invocation.exitCode, budget).not.toBe(0);
+    expect(execution.invocation.stderr.toString(), budget).toContain(
+      'invalid runtime phase budget',
+    );
+    expect(await execution.calls.text(), budget).not.toContain('ci-run-runtime.ts');
+  }
 });
 
 function headroomLog(text: string) {
