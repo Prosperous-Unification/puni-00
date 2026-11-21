@@ -406,6 +406,92 @@ The proof plan is the next full-mode main run. At least three leaves should be g
 lost, that project gets its own issue. Telemetry from the surviving leaves should also show
 which suite's samples were climbing.
 
+### Amendment, 2026-11-21: a hard memory cap, so the hungry suite fails with a log
+
+The one-job-per-project split did its job on its first full-mode run. On main `e8e568784`
+(run 44859286080) `gate workspace` passed in 21 minutes and three leaves passed: `wbs-core` in 5.5
+minutes, `wbs-store-sqlite` in 11 and `tool-devsync` in 17.5. `gate workspace-heavy (tool-fleet)`
+(job 136708786587, 03:05:42 to 04:12:45Z) was lost with the same annotation, no step conclusion
+and no artifact. This is the fifteenth identified loss, and the first one attributed to a single
+suite: `tool-fleet:test`. Its owners' fix is tracked in #963.
+
+GitHub declared the loss 67 minutes after the job started. The leaf's task time at parallelism
+two was 42.9 minutes, and `tool-devsync` ran faster at parallelism one than at two. A leaf still
+running about 24 minutes past its estimate, before the runner died, matches memory thrashing.
+It does not prove it, because a declaration time is not the time of death. On the gate hosts
+(15 GiB, `MemoryHigh` 13 GiB) `tool-fleet:test` passes inside the five-hour gate.
+
+The samples from the surviving leaves of that run give the scale. Consumption is the start
+record's `available` minus the lowest `memAvailableKiB` sample:
+
+| Shard                    | Start available | Lowest sample | Consumed | Largest process |
+| ------------------------ | --------------- | ------------- | -------- | --------------- |
+| `workspace`              | 14311 MiB       | 11271 MiB     | 3040 MiB | `tsc` 2.6 GiB   |
+| `heavy-tool-devsync`     | 14375 MiB       | 9236 MiB      | 5139 MiB | `bun` 5.0 GiB   |
+| `heavy-wbs-store-sqlite` | 14610 MiB       | 13023 MiB     | 1587 MiB | `node` 1.7 GiB  |
+| `heavy-wbs-core`         | 14419 MiB       | 8574 MiB      | 5845 MiB | `bun` 5.7 GiB   |
+
+Every runner reported 3071 MiB of swap. Swap lets a hungry suite slow the runner down for a long
+time without the kernel ever killing anything, which fits a leaf that overruns and then goes
+silent.
+
+**The lever (A-CI-LEAF-MEMORYMAX-1).** A lost runner leaves no log, so the hungry test is still
+unknown. The workspace and heavy-leaf gate steps now run their Nx phase, with `timeout` and
+`ci-run-runtime.ts` unchanged, inside a transient systemd scope:
+
+- **Scope properties.** The scope is opened with `sudo -n systemd-run --scope --quiet --collect`
+  under the unit name `ci-gate-$partition-$$`, with `-p MemoryMax=12G`, `-p MemorySwapMax=0` and
+  `-p OOMPolicy=continue`.
+- **Identity.** systemd-run's `--uid` changes only the uid and gid; in v255's scope path it never
+  calls `setgroups`, so the process would keep root's supplementary groups. Instead,
+  `setpriv --reuid --regid --groups` restores this user's exact identity.
+- **Environment.** sudo resets the environment and replaces `PATH`. The step captures its
+  exported environment with `env -0` before the scope, and `env -i` restores exactly that set
+  inside it.
+- **What an overrun now does.** A process tree above the cap is OOM-killed by the kernel inside
+  the scope. The killed process exits 137, and Nx reports its task failed. The phase end
+  record with its `exit=` status, the sampler trail and the artifact all survive.
+- **Why OOMPolicy is set.** systemd's default `stop` would end the whole scope on the first kill.
+  A laptop probe (`systemd-run --user --scope`, 128M cap, a Python allocator under a bash parent
+  that then sleeps five seconds) ended with exit 143 under `stop`. Under `continue` the allocator
+  exited 137 and the parent finished normally.
+- **The sampler stays outside the scope.** It runs in the step's own cgroup, so the scope's OOM
+  killer cannot pick it, and it keeps sampling through the kill.
+- **No silent fallback.** Before the first sample, a probe scope with the same properties must run
+  `true`. If `sudo` needs a password or `systemd-run` is missing, the step writes a refusal
+  naming A-CI-LEAF-MEMORYMAX-1 to stderr and `nx-gate.log`, then fails before any gate work. The
+  start record ends with the cap and the unit, as in `memoryMax=12G scope=ci-gate-workspace-1234.scope`.
+
+The cap is `12G`, which systemd reads as 12 GiB (12288 MiB). The runners' `MemTotal` was 15701
+MiB on images `20261116.133.1` and 15983 MiB on `20261116.376.1`. That leaves 3413 to 3695 MiB
+outside the scope for the runner agent, the OS and the sampler. The largest consumption seen in a
+surviving shard was 5845 MiB, so no passing suite comes near the cap. Page cache charged to the
+scope is reclaimed before the kernel kills anything.
+
+The workspace shard gets the cap too. Thirteen of the fifteen losses were workspace jobs, its step
+text is held byte-equal to the heavy leaf's, and its 3040 MiB peak leaves it 9 GiB under the cap.
+The backend, remote and frontend shards have no recorded losses and stay uncapped.
+
+The laptop probe ran under the user manager, with no `sudo`, `setpriv` or system slice. The hosted
+`sudo` form is proved only by the production-shell ledger, which uses fake `sudo`, `systemd-run`
+and `setpriv`, and by the next hosted run.
+
+**Proof plan.** The next full-mode main run should end in one of two ways:
+
+- **The `tool-fleet` leaf passes.** The cap holds and the earlier losses were swap thrash.
+- **It fails with a log.** The log names the task the kernel killed and the samples before it.
+  That goes to #963.
+
+Either outcome is progress. If the leaf is lost again with the cap in place, the cause is not
+memory. The next candidates are then a test that terminates processes it does not own (the
+Python `os.killpg` sites in `tool-fleet/src/lab-guest-*.py`) and network blocking.
+
+`pr-merge-base.test.ts` holds the scope's argv, identity and restored environment in a ledger.
+It also has a negative where `systemd-run` is absent or `sudo` needs a password; there the
+runtime is never called and no sampler starts. Dropping `OOMPolicy=continue`,
+`MemorySwapMax=0`, the `setpriv` line or the environment restoration failed the ledger. Deleting
+the probe failed both the ledger and the refusal test.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved

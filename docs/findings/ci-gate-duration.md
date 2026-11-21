@@ -248,3 +248,25 @@ Dependency builds come on top of these figures. The first hosted heavy run (#958
 
 The leaves start together with the other shards, so the gate's wall time is now set by the
 `tool-fleet` leaf or by Twilight.
+
+## Memory-capped leaves, 2026-11-21
+
+The first full-mode run with one job per heavy project (run 44859286080, main `e8e568784`) took:
+
+| Job                | Wall time | Outcome             |
+| ------------------ | --------- | ------------------- |
+| `workspace`        | 20m42s    | passed              |
+| `wbs-core`         | 5m31s     | passed              |
+| `wbs-store-sqlite` | 11m16s    | passed              |
+| `tool-devsync`     | 17m29s    | passed              |
+| `tool-fleet`       | 67m03s    | runner lost, no log |
+
+The `tool-fleet` estimate was 42.9 minutes of task time at parallelism two. The loss was declared
+about 24 minutes past it, inside the 75-minute phase. That overrun is the slowdown
+[R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)
+attributes to memory thrashing, and the suite's fix is tracked in #963.
+
+A-CI-LEAF-MEMORYMAX-1 runs the workspace and heavy Nx phases under a 12 GiB `MemoryMax` scope with
+no swap. It changes no budget. A suite that would have thrashed now fails when the kernel kills it
+inside the scope, so its job ends early with a log instead of running into the phase limit or
+losing the runner.

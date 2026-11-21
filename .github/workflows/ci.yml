@@ -461,6 +461,25 @@ jobs:
               exit 1
               ;;
           esac
+          # A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs in a transient systemd scope with a hard
+          # MemoryMax and no swap. A suite that outgrows it is OOM-killed inside the scope (exit 137)
+          # instead of thrashing the runner until GitHub loses the job with no log. OOMPolicy=continue
+          # keeps Nx alive to report the failed task; the default `stop` would end the whole scope.
+          # 12G (12288 MiB) of the runner's 15701 MiB MemTotal leaves 3413 MiB for the agent and OS.
+          # The headroom sampler stays outside the scope: the kernel cannot pick it, so it outlives a kill.
+          # sudo resets the environment and systemd-run --uid keeps root's supplementary groups, so
+          # setpriv restores this user's uid, gid and groups, and `env -i` the exported environment.
+          # Without a working scope the step refuses before any gate work; uncapped would hide the next
+          # loss again. Arithmetic and proof plan: docs/findings/checks-that-cannot-fail.md, R5-32.
+          # Proof (2026-11-21, pr-merge-base.test.ts memory-scope tests): deleting the probe let an
+          # absent systemd-run reach ci-run-runtime.ts; dropping a scope property, setpriv or the
+          # environment restoration failed the scope argv and environment ledger.
+          memory_max=12G
+          scope_unit="ci-gate-$partition-$$"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          gate_uid="$(id -u)"
+          gate_gid="$(id -g)"
+          gate_groups="$(id -G | tr ' ' ,)"
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
@@ -482,9 +501,10 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
-              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')" \
+                "$memory_max" "$scope_unit.scope"
             free -m
             df -h /
           }
@@ -506,6 +526,14 @@ jobs:
           phase_started=$SECONDS
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # shellcheck disable=SC2024 # nx-gate.log is the runner user's file; sudo must not open it.
+          if ! sudo -n systemd-run --scope --quiet --collect --unit="$scope_unit-probe" "${scope_properties[@]}" \
+            -- true >> nx-gate.log 2>&1; then
+            printf 'A-CI-LEAF-MEMORYMAX-1: cannot open a MemoryMax=%s systemd scope with sudo -n systemd-run; refusing to run the gate uncapped\n' \
+              "$memory_max" | tee -a nx-gate.log >&2
+            exit 1
+          fi
+          mapfile -d '' -t gate_environment < <(env -0)
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -520,7 +548,11 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
+          # shellcheck disable=SC2024 # nx-gate.log is the runner user's file; sudo must not open it.
+          sudo -n systemd-run --scope --quiet --collect --unit="$scope_unit" "${scope_properties[@]}" -- \
+            setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
+            env -i "${gate_environment[@]}" \
+            timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?
@@ -681,6 +713,25 @@ jobs:
               exit 1
               ;;
           esac
+          # A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs in a transient systemd scope with a hard
+          # MemoryMax and no swap. A suite that outgrows it is OOM-killed inside the scope (exit 137)
+          # instead of thrashing the runner until GitHub loses the job with no log. OOMPolicy=continue
+          # keeps Nx alive to report the failed task; the default `stop` would end the whole scope.
+          # 12G (12288 MiB) of the runner's 15701 MiB MemTotal leaves 3413 MiB for the agent and OS.
+          # The headroom sampler stays outside the scope: the kernel cannot pick it, so it outlives a kill.
+          # sudo resets the environment and systemd-run --uid keeps root's supplementary groups, so
+          # setpriv restores this user's uid, gid and groups, and `env -i` the exported environment.
+          # Without a working scope the step refuses before any gate work; uncapped would hide the next
+          # loss again. Arithmetic and proof plan: docs/findings/checks-that-cannot-fail.md, R5-32.
+          # Proof (2026-11-21, pr-merge-base.test.ts memory-scope tests): deleting the probe let an
+          # absent systemd-run reach ci-run-runtime.ts; dropping a scope property, setpriv or the
+          # environment restoration failed the scope argv and environment ledger.
+          memory_max=12G
+          scope_unit="ci-gate-$partition-$$"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          gate_uid="$(id -u)"
+          gate_gid="$(id -g)"
+          gate_groups="$(id -G | tr ' ' ,)"
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
@@ -702,9 +753,10 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
-              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')"
+              "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$(node -e 'process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))')" \
+                "$memory_max" "$scope_unit.scope"
             free -m
             df -h /
           }
@@ -726,6 +778,14 @@ jobs:
           phase_started=$SECONDS
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # shellcheck disable=SC2024 # nx-gate.log is the runner user's file; sudo must not open it.
+          if ! sudo -n systemd-run --scope --quiet --collect --unit="$scope_unit-probe" "${scope_properties[@]}" \
+            -- true >> nx-gate.log 2>&1; then
+            printf 'A-CI-LEAF-MEMORYMAX-1: cannot open a MemoryMax=%s systemd scope with sudo -n systemd-run; refusing to run the gate uncapped\n' \
+              "$memory_max" | tee -a nx-gate.log >&2
+            exit 1
+          fi
+          mapfile -d '' -t gate_environment < <(env -0)
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -740,7 +800,11 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
+          # shellcheck disable=SC2024 # nx-gate.log is the runner user's file; sudo must not open it.
+          sudo -n systemd-run --scope --quiet --collect --unit="$scope_unit" "${scope_properties[@]}" -- \
+            setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
+            env -i "${gate_environment[@]}" \
+            timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
           gate_status=$?

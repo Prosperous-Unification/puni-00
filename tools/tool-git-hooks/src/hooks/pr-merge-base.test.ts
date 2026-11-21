@@ -199,14 +199,52 @@ function step(job: string, name: string): string {
   return script;
 }
 
+/**
+ * Stand-ins for the memory scope's privileged chain (A-CI-LEAF-MEMORYMAX-1). `sudo` behaves like
+ * `sudo -n` under env_reset and secure_path: it resolves its program in `bin` alone and starts it
+ * with a reset environment, so the step must restore its own. `systemd-run` and `setpriv` record
+ * their options in SCOPE_CALLS and exec the command after `--`, as `--scope` runs it in place.
+ */
+function writeScopeChain(bin: string, absent: readonly string[]) {
+  const chain = {
+    sudo: `#!/bin/bash
+[ "$1" = -n ] || { printf 'fake sudo: expected -n\\n' >&2; exit 2; }
+shift
+if [ -n "\${SUDO_STATUS:-}" ]; then printf 'sudo: a password is required\\n' >&2; exit "$SUDO_STATUS"; fi
+[ -x '${bin}'/"$1" ] || { printf 'sudo: %s: command not found\\n' "$1" >&2; exit 1; }
+exec /usr/bin/env -i PATH='${bin}:/usr/bin:/bin' SCOPE_CALLS="$SCOPE_CALLS" '${bin}'/"$1" "\${@:2}"
+`,
+    'systemd-run': `#!/bin/bash
+options=()
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do options+=("$1"); shift; done
+[ "\${1:-}" = -- ] || { printf 'fake systemd-run: missing --\\n' >&2; exit 2; }
+shift
+printf 'systemd-run %s -- %s\\n' "\${options[*]}" "$1" >> "$SCOPE_CALLS"
+exec "$@"
+`,
+    setpriv: `#!/bin/bash
+options=()
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do options+=("$1"); shift; done
+[ "\${1:-}" = -- ] || { printf 'fake setpriv: missing --\\n' >&2; exit 2; }
+shift
+printf 'setpriv %s -- %s\\n' "\${options[*]}" "$1" >> "$SCOPE_CALLS"
+exec "$@"
+`,
+  };
+  for (const [name, text] of Object.entries(chain))
+    if (!absent.includes(name)) writeFileSync(join(bin, name), text, { mode: 0o755 });
+}
+
 function runStep(
   h: ReturnType<typeof history>,
   script: string,
   env: Record<string, string | undefined> = {},
+  absent: readonly string[] = [],
 ) {
   const bin = join(h.root, 'bin');
   mkdirSync(bin, { recursive: true });
   symlinkSync(join(ROOT, 'tools'), join(h.root, 'tools'));
+  writeScopeChain(bin, absent);
   writeFileSync(
     join(bin, 'bunx'),
     `#!/bin/bash\nprintf '%s\\n' "$*" >> "$NX_CALLS"\nprintf '["wbs-fe-01"]\\n'\n`,
@@ -223,7 +261,10 @@ case "$*" in
     printf '%s\\n' "$*" >> "$NX_CALLS"
     printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"partitions":{"backend":[],"remote":[],"frontend":["wbs-fe-01"],"heavy":[],"workspace":[]},"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
     exit 0 ;;
-  *ci-run-runtime.ts*) printf '%s\\n' "$*" >> "$NX_CALLS"; exit "\${RUNTIME_STATUS:-0}" ;;
+  *ci-run-runtime.ts*)
+    printf '%s\\n' "$*" >> "$NX_CALLS"
+    printf 'runtime environment sentinel=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" >> "$SCOPE_CALLS"
+    exit "\${RUNTIME_STATUS:-0}" ;;
 esac
 exec '${process.execPath}' "$@"
 `,
@@ -231,8 +272,10 @@ exec '${process.execPath}' "$@"
   );
   const output = join(h.root, 'output');
   const calls = join(h.root, 'calls');
+  const scopeCalls = join(h.root, 'scope-calls');
   writeFileSync(output, '');
   writeFileSync(calls, '');
+  writeFileSync(scopeCalls, '');
   const invocation = Bun.spawnSync(['bash', '-c', script], {
     cwd: h.root,
     env: {
@@ -240,6 +283,7 @@ exec '${process.execPath}' "$@"
       ...h.env,
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
+      SCOPE_CALLS: scopeCalls,
       // Matrix values the shared runtime steps read: the remote-model leaf, and for the heavy
       // leaf step (the one that reads PHASE_MINUTES) the tool-fleet leaf with its 75m phase.
       RUNTIME_PARTITION: script.includes('phase_limit="$PHASE_MINUTES"')
@@ -252,7 +296,12 @@ exec '${process.execPath}' "$@"
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  return { invocation, output: Bun.file(output), calls: Bun.file(calls) };
+  return {
+    invocation,
+    output: Bun.file(output),
+    calls: Bun.file(calls),
+    scopeCalls: Bun.file(scopeCalls),
+  };
 }
 
 describe('production workflow PR consumers', () => {
@@ -438,6 +487,80 @@ test('the heavy leaf step refuses a missing, non-numeric or zero phase budget be
   }
 });
 
+// A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs under a hard MemoryMax scope, so a suite that
+// outgrows it is OOM-killed with a log instead of losing the runner. The ledger holds the exact
+// scope properties, the probe before the gate, the restored identity and the restored environment.
+// Proof (2026-11-21): dropping `-p OOMPolicy=continue` or `-p MemorySwapMax=0`, the setpriv line,
+// or `env -i "${gate_environment[@]}"` (the runtime then saw an empty sentinel)
+// failed this test; a 137 from the capped phase must reach the phase end record and the step.
+test.each(headroomShards)(
+  '%s step runs its Nx phase in a MemoryMax=12G scope as this user with its environment',
+  async (job, name, partition) => {
+    const id = (flag: string) =>
+      Bun.spawnSync(['id', flag], { stdout: 'pipe' }).stdout.toString().trim();
+    const sentinel = 'spaced value=with\tseparators';
+    for (const status of ['0', '137']) {
+      const h = history();
+      const execution = runStep(h, step(job, name), {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+        GATE_ENVIRONMENT_SENTINEL: sentinel,
+      });
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+        Number(status),
+      );
+      const ledger = (await execution.scopeCalls.text()).split('\n').filter(Boolean);
+      const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
+      expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
+      const properties = '-p MemoryMax=12G -p MemorySwapMax=0 -p OOMPolicy=continue';
+      expect(ledger).toEqual([
+        `systemd-run --scope --quiet --collect --unit=${unit}-probe ${properties} -- true`,
+        `systemd-run --scope --quiet --collect --unit=${unit} ${properties} -- setpriv`,
+        `setpriv --reuid=${id('-u')} --regid=${id('-g')} --groups=${id('-G').replaceAll(' ', ',')} -- env`,
+        `runtime environment sentinel=${sentinel}`,
+      ]);
+      expect(await execution.calls.text()).toContain(
+        `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
+      );
+      const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+      expect(log).toContain(` memoryMax=12G scope=${unit}.scope\n`);
+      expect(log).toMatch(
+        new RegExp(`runtime phase end partition=${partition} .* exit=${status}\n`),
+      );
+    }
+  },
+);
+
+// Proof (2026-11-21): with the probe deleted, an absent systemd-run reached ci-run-runtime.ts
+// (the runtime call was recorded) and the step exited with the chain's status, not a refusal.
+test.each(headroomShards)(
+  '%s step refuses before runtime work when the memory scope cannot be opened',
+  async (job, name, partition) => {
+    for (const [fault, absent, env] of [
+      ['absent systemd-run', ['systemd-run'], {}],
+      ['sudo without a password', [], { SUDO_STATUS: '1' }],
+    ] as const) {
+      const h = history();
+      const execution = runStep(
+        h,
+        step(job, name),
+        { GATE_MODE: 'affected', GATE_BASE: h.base, ...env },
+        absent,
+      );
+      expect(execution.invocation.exitCode, fault).toBe(1);
+      expect(execution.invocation.stderr.toString(), fault).toContain(
+        'A-CI-LEAF-MEMORYMAX-1: cannot open a MemoryMax=12G systemd scope',
+      );
+      expect(await execution.calls.text(), fault).not.toContain('ci-run-runtime.ts');
+      const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+      expect(log, fault).toContain(`runtime headroom start partition=${partition} `);
+      expect(log, fault).toContain('refusing to run the gate uncapped');
+      expect(log, fault).not.toContain('runtime headroom sampler pid=');
+    }
+  },
+);
+
 function headroomLog(text: string) {
   const lines = text.split('\n');
   const at = (prefix: string) => lines.findIndex((line) => line.startsWith(prefix));
@@ -481,7 +604,9 @@ test.each(headroomShards)(
       expect(at(`runtime phase start partition=${partition}`), status).toBe(0);
       expect(start, status).toBe(1);
       expect(lines[start], status).toMatch(
-        / imageOS=ubuntu24 imageVersion=20261116\.376\.1 os=.+ heapSizeLimit=[1-9][0-9]*$/,
+        new RegExp(
+          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G scope=ci-gate-${partition}-[0-9]+\\.scope$`,
+        ),
       );
       expect(
         lines.filter((line) =>

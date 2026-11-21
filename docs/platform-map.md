@@ -190,7 +190,8 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
   validated synthetic merge parent; push, merge_group and dispatch run the full gate; an unmapped
   event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
   workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet 90 min, tool-devsync
-  and wbs-store-sqlite 60 min, wbs-core 45 min), `gate_backend`, `gate_remote`,
+  and wbs-store-sqlite 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a 12G
+  `MemoryMax` systemd scope, A-CI-LEAF-MEMORYMAX-1), `gate_backend`, `gate_remote`,
   `gate_remote_model` and `gate_frontend` (90 min caps), `gate_checks` (secrets scan, migration
   lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `pixels` shards 1–4.
   `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on `twilight-burokrat-v*`
