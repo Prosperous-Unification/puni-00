@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
@@ -37,8 +37,8 @@ const CAPTURED_INPUTS = {
     sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
   },
   'apps/wbs/fe-01/project.json': {
-    bytes: 8117,
-    sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+    bytes: 8218,
+    sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
   },
   'deploy/dev-src/Dockerfile': {
     bytes: 1721,
@@ -98,7 +98,7 @@ const CAPTURED_INPUTS = {
   },
 };
 
-test('registry S3 current frontend pair materializes and selects without Vite', async () => {
+test('current frontend triple materializes and selects without Vite', async () => {
   const prepared = await artifact();
   const registration = roots.indexOf(prepared.root);
   if (registration < 0) throw new Error('canonical fixture root unregistered');
@@ -124,7 +124,7 @@ test('registry S3 current frontend pair materializes and selects without Vite', 
       sourceSha,
       manifestSha256: generated.sha256,
     });
-    for (const path of ['package.json', 'bun.lock'] as const) {
+    for (const path of ['apps/wbs/fe-01/project.json', 'package.json', 'bun.lock'] as const) {
       const bytes = await readFile(join(prepared.root, path));
       const observed = {
         bytes: bytes.byteLength,
@@ -1101,18 +1101,33 @@ test.each([
   ['before-ctt', 'bun.lock'],
   ['fourth', 'package.json'],
   ['fourth', 'bun.lock'],
+  ['before-ctt', 'both'],
+  ['fourth', 'both'],
+  ['current', 'project'],
 ] as const)(
   'producer fixed-root boundary refuses mixed %s %s before consumer or runtime',
-  async (epoch, path) => {
+  async (epoch, fault) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-producer-boundary-'));
     try {
       await prepareSourceFrontendProfile(root);
-      const bytes = await readFile(join(root, path));
-      const historical =
-        epoch === 'fourth'
-          ? reconstructFourthInput(path, bytes)
-          : reconstructHistoricalInput(path, bytes);
-      await writeFile(join(root, path), historical);
+      if (fault === 'project') {
+        const path = join(root, 'apps/wbs/fe-01/project.json');
+        const original = await readFile(path, 'utf8');
+        const changed = original.replace('"name": "wbs-fe-01"', '"name": "wbs-fe-02"');
+        expect(changed).not.toBe(original);
+        expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(original));
+        await writeFile(path, changed);
+      } else {
+        const paths = fault === 'both' ? (['package.json', 'bun.lock'] as const) : [fault];
+        for (const path of paths) {
+          const bytes = await readFile(join(root, path));
+          const historical =
+            epoch === 'fourth'
+              ? reconstructFourthInput(path, bytes)
+              : reconstructHistoricalInput(path, bytes);
+          await writeFile(join(root, path), historical);
+        }
+      }
       const copied = join(
         root,
         'tools/tool-remote-scripts/src/fixtures/source-frontend-producer.ts',
@@ -1142,7 +1157,7 @@ test.each([
           destination,
           copied,
           sha256: createHash('sha256').update(source).digest('hex'),
-          fault: path,
+          fault,
         }),
       );
       // The owned module bytes equal the known producer above; only its fixed ROOT differs.
@@ -1304,6 +1319,25 @@ async function removeFrontendRoots(
     throw new AggregateError(failures, 'frontend owned root removals failed');
 }
 
+const PROJECT_PATH = 'apps/wbs/fe-01/project.json';
+const HISTORICAL_PROJECT = {
+  bytes: 8117,
+  sha256: '9b28a0981a67d3d8397d60bf0eacfea15ce0d5043dceba8097e63f3cff74cc7e',
+};
+
+/** Reconstructs the reviewed old project from the exact current lint-only change. */
+function reconstructHistoricalFrontendProject(bytes: Buffer): Buffer {
+  expect(describeBytes(bytes)).toEqual(CAPTURED_INPUTS[PROJECT_PATH]);
+  const current = bytes.toString('utf8');
+  const restored = current
+    .replace('      "inputs": ["...", "{workspaceRoot}/eslint-suppressions.json"],\n', '')
+    .replace('"command": "node apps/wbs/fe-01/tools/owner-lint.mjs ', '"command": "bunx eslint ')
+    .replace('apps/wbs/fe-01/vitest-budget.test.ts --"', 'apps/wbs/fe-01/vitest-budget.test.ts"');
+  const original = Buffer.from(restored);
+  expect(describeBytes(original)).toEqual(HISTORICAL_PROJECT);
+  return original;
+}
+
 async function prepareOwnedProducer(historicalCommit: boolean) {
   const repository = resolve(import.meta.dir, '../../../..');
   const root = await mkdtemp(join(tmpdir(), 'frontend-owned-provenance-'));
@@ -1338,6 +1372,11 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
     historical.set(path, old);
     if (historicalCommit) await writeFile(join(root, path), old);
   }
+  const project = await readFile(join(root, PROJECT_PATH));
+  current.set(PROJECT_PATH, project);
+  const historicalProject = reconstructHistoricalFrontendProject(project);
+  historical.set(PROJECT_PATH, historicalProject);
+  if (historicalCommit) await writeFile(join(root, PROJECT_PATH), historicalProject);
   await writeFile(join(root, '.gitignore'), 'node_modules/\n');
   await git(root, 'init', '-q');
   await git(root, 'add', '.');
@@ -1397,16 +1436,22 @@ async function prepareOwnedProducer(historicalCommit: boolean) {
   return { root, producer, current, historical, sourceSha, roster };
 }
 
+function isProducerScratch(directory: string): boolean {
+  return (
+    dirname(directory) === tmpdir() &&
+    /^puni-source-frontend-wire-[A-Za-z0-9]+$/.test(basename(directory)) &&
+    realpathSync(directory) === directory
+  );
+}
+
 function readProducerRefusal(fault: unknown): { directory: string; cause: Error } {
   if (!(fault instanceof Error) || !(fault.cause instanceof Error))
     throw new Error('producer refusal attribution absent', { cause: fault });
-  const match =
-    /^frontend producer scratch retained: (\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+)$/.exec(
-      fault.message,
-    );
-  const directory = match?.at(1);
-  if (directory === undefined)
+  const prefix = 'frontend producer scratch retained: ';
+  const directory = fault.message.slice(prefix.length);
+  if (!fault.message.startsWith(prefix) || !isProducerScratch(directory)) {
     throw new Error('producer refusal directory absent', { cause: fault });
+  }
   return { directory, cause: fault.cause };
 }
 
@@ -1502,7 +1547,7 @@ test('producer rejects a different supported live epoch after the actual child c
     const isProbe =
       typeof probe === 'string' &&
       typeof directory === 'string' &&
-      /^\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+$/.test(directory) &&
+      isProducerScratch(directory) &&
       probe === join(directory, 'probe.mjs') &&
       options?.cwd === join(directory, 'snapshot/apps/wbs/fe-01');
     if (isProbe) {

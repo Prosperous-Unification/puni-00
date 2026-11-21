@@ -4,7 +4,7 @@ A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its ow
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
 second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
 2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Both hosts are
+[the gate-host-role verification](../../openspec/changes/archive/2026-11-21-gate-host-role/verify.md). Both hosts are
 enrolled in their Dash host pools in observe mode (h4claw since 2026-11-08, h2puni since
 2026-11-17), so gate on either as `puni1` from `~/puni-00-gate-launcher`
 ([Launch a gate on h4claw](#launch-a-gate-on-h4claw)). The figure of

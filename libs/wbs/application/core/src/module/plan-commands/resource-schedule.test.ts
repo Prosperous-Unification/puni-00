@@ -26,7 +26,13 @@ const F = 'account-f';
 const TWO_DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
 async function seeded() {
-  const fixture = openMemorySourceFixture();
+  const fixture = openMemorySourceFixture({
+    organizationDefaultLimits: {
+      maxAgentPersons: 50,
+      maxConcurrentClaims: 200,
+      maxCapacityUnitsPerResource: 64,
+    },
+  });
   const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
