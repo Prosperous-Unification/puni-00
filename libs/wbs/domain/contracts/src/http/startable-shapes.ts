@@ -3,6 +3,7 @@ import { type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
+import { hiddenHolderUnits, occupancyHolder } from './work-item-shapes';
 
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
 const person = type({ personId: 'string', name: 'string' });
@@ -47,19 +48,34 @@ const stepPrerequisites = type({
   finishBlockers: prerequisite.array(),
 });
 const startableLeaf = type({ ...leafSteps, 'fits?': 'true' });
+const shortfall = {
+  resourceId: 'string',
+  name: 'string',
+  unitLabel: 'string',
+  asked: 'number',
+  free: 'number',
+  shortfall: 'number',
+} as const;
+const exhaustion = type({
+  ...shortfall,
+  'scope?': "'project' | 'organization'",
+  // A previous release sends neither. Explicit optional-never fields maintain
+  // this branch under the response validator's additive-field compatibility.
+  // Proof: without these optional-never keys, the compatibility case accepted half a pair.
+  'holders?': 'never',
+  'hiddenHolders?': 'never',
+}).or(
+  type({
+    ...shortfall,
+    scope: "'project' | 'organization'",
+    holders: occupancyHolder.array(),
+    hiddenHolders: hiddenHolderUnits,
+  }),
+);
 const unfitLeaf = type({
   ...leafSteps,
   fits: 'false',
-  exhausted: type({
-    resourceId: 'string',
-    name: 'string',
-    unitLabel: 'string',
-    asked: 'number',
-    free: 'number',
-    shortfall: 'number',
-    // `wbs-shared-occupancy` S3: present only for a resource with a directory capacity.
-    'scope?': "'project' | 'organization'",
-  }),
+  exhausted: exhaustion,
 });
 const resourceFree = type({
   resourceId: 'string',

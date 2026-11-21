@@ -58,3 +58,34 @@ test('reads the fit fields and refuses a leaf apart that claims to fit', async (
   };
   expect(await validateSchema(startable, contradicted)).not.toEqual({ value: contradicted });
 });
+
+test('keeps an old shortage and requires names and hidden units together when supplied', async () => {
+  const schema = readStartableWork.responses[0].schema;
+  const exhausted = {
+    resourceId: 'ram',
+    name: 'ram',
+    unitLabel: 'GB',
+    asked: 8,
+    free: 4,
+    shortfall: 4,
+    scope: 'organization' as const,
+  };
+  const read = <Shortage>(shortage: Shortage) => ({
+    leaves: [],
+    doesNotFit: [{ ...leaf, fits: false as const, exhausted: shortage }],
+    claimed: [],
+    subtreeClaims: [],
+  });
+  const legacy = read(exhausted);
+  expect(await validateSchema(schema, legacy)).toEqual({ value: legacy });
+  const current = read({ ...exhausted, holders: [], hiddenHolders: { units: 16 } });
+  expect(await validateSchema(schema, current)).toEqual({ value: current });
+  for (const partial of [
+    { ...exhausted, holders: [] },
+    { ...exhausted, hiddenHolders: { units: 16 } },
+    { ...exhausted, holders: [], hiddenHolders: { units: -1 } },
+  ]) {
+    const variant = read(partial);
+    expect(await validateSchema(schema, variant)).not.toEqual({ value: variant });
+  }
+});

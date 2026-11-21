@@ -18,12 +18,16 @@ import type {
   StoredAttempt,
 } from '@wbs/core';
 import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
+import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readHolderNames } from '@wbs/core/module/work-item/shared-holders';
+import { findStartableWork, startableWithHolders } from '@wbs/core/module/work-item/startable';
 import { eq } from 'drizzle-orm';
 
 import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
 import type { CapturedOptimizationReaderOptions } from './captured-optimization-reader';
 import { capturedSchedulerIn, type ConnectedCaptureOptions } from './captured-scheduler';
+import { ClaimRepository } from './claim';
 import { captureConnectedPlanIn, discoverConnectedTopologyIn } from './connected-plan-capture';
 import {
   type Connection,
@@ -38,6 +42,7 @@ import { OPEN } from './gate';
 import { MeasureEstimateRepository } from './measure-estimate';
 import {
   type ActiveOrganizationOf,
+  capStoredRole,
   currentMembershipAccess,
   SqliteOrganizationAccess,
 } from './organization-access';
@@ -367,6 +372,7 @@ export function createLivePlanStore(
       // mix old FS completion with new claim/occupancy and admit later SS attempts;
       // both returned HTTP 200 before first-response equality failed (2026-10-23).
       // Proof: no-op observation transaction mixed target dates and foreign facts through HTTP200 (puni-task84-fault-lifetime.log).
+      // Proof: preview-without-transaction mixed old holdings with new demand in the mounted preview.
       transaction.begin();
       try {
         const captured = await read(connection.db, lifetime);
@@ -390,6 +396,50 @@ export function createLivePlanStore(
     }
   }
   return {
+    readStartableWithin: (projectId, actorId, access, teamId) =>
+      observe(async (db, lifetime) => {
+        const captured = await readExecutionIn(db, projectId, access, teamId, lifetime);
+        if (captured.kind !== 'ready') return captured;
+        const value = await startableWithHolders(findStartableWork(captured.reads), {
+          claims: new ClaimRepository(db, OPEN),
+          projects: new ProjectRepository(db, OPEN),
+          // Proof: an extra catalog read for decoration made the mounted reopened grant read twice.
+          holderNames: (ids) =>
+            access.kind === 'scoped'
+              ? Promise.resolve(captured.reads.personNames)
+              : readHolderNames(new DirectoryRepository(db, OPEN), access, ids),
+          askingProject: projectId,
+          actorId,
+          access,
+        });
+        lifetime.assertOpen();
+        // Proof: live-enrichment-absent lost hidden units in the mounted two-resource read.
+        return { kind: 'ready', value };
+      }),
+    previewDirectoryCapacityWithin: (resourceId, units, actorId, scope) =>
+      observe(async (db, lifetime) => {
+        if (readOrganizationActivation(db) !== 'activated')
+          return { ok: false, refusal: 'no_active_organization' };
+        if (actorId !== scope.userId)
+          throw new Error('preview actor differs from its admitted scope');
+        const membership = currentMembershipAccess(db, scope.organizationId, actorId);
+        if (!membership.ok) return membership;
+        if (membership.access.kind !== 'scoped')
+          throw new Error('activated preview lacks current scope');
+        const preview = await previewCapacity(
+          {
+            claims: new ClaimRepository(db, OPEN),
+            projects: new ProjectRepository(db, OPEN),
+            directory: new DirectoryRepository(db, OPEN),
+          },
+          resourceId,
+          units,
+          actorId,
+          { ...scope, role: capStoredRole(membership.access.scope.role, scope.role) },
+        );
+        lifetime.assertOpen();
+        return preview;
+      }),
     readExecution: (projectId, access, teamId) =>
       observe((db, lifetime) => readExecutionIn(db, projectId, access, teamId, lifetime)),
     read: (projectId, access) =>

@@ -56,7 +56,6 @@ import {
   type LeaseReleaseReason,
   type LimitCrossed,
   MAX_ESTIMATE_DAYS,
-  mayStateDirectoryCapacityInOrganization,
   type MeasureDefinition,
   type MeasureMetric,
   type MeasureTrio,
@@ -128,7 +127,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
-import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type { LivePlanStore, StartableRead } from '../../ports/chain-snapshot-store';
 import {
   type ClaimIdentity,
   type ClaimLease,
@@ -264,6 +263,7 @@ import { prepareCapturedScheduleParts, prepareScheduleParts } from '../../servic
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
+import { type CapacityPreview, previewCapacity } from './capacity-preview';
 import {
   CLAIM_HISTORY_COMMANDS,
   CLAIM_HISTORY_KINDS,
@@ -288,7 +288,8 @@ import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-de
 import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findProjectClaims, type ProjectClaims } from './project-claims';
-import { findStartableWork, type StartableWork } from './startable';
+import { readHolderNames, sharedHolders } from './shared-holders';
+import { findStartableWork, startableWithHolders, type StartableWork } from './startable';
 import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
 
 /**
@@ -2029,6 +2030,32 @@ export class WorkItemService {
       organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
     });
+  }
+
+  /** Holder-bearing read for an authenticated actor. Budget and command reads keep the plain observation. */
+  async readStartableWithin(
+    projectId: string,
+    actorId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableRead> {
+    if (this.opts.livePlans !== undefined)
+      return this.opts.livePlans.readStartableWithin(projectId, actorId, access, teamId);
+    const work = await this.startableWithin(projectId, access, teamId);
+    if (work === null) return { kind: 'not_found' };
+    if ('kind' in work) return work;
+    // Proof: fallback-enrichment-absent lost both holder fields in the two store twins.
+    return {
+      kind: 'ready',
+      value: await startableWithHolders(work, {
+        claims: this.claiming().claims,
+        projects: this.opts.projects,
+        holderNames: (ids) => readHolderNames(this.opts.directory, access, ids),
+        askingProject: projectId,
+        actorId,
+        access,
+      }),
+    };
   }
 
   /**
@@ -3936,9 +3963,9 @@ export class WorkItemService {
    * the resource with the units its leaves hold, the free units after (null
    * when it would be unstated), and the refusal the write would meet.
    *
-   * Every project of the caller's organization is readable to its members
-   * today, so none is hidden; `hiddenProjects` folds the projects
-   * `mayReadProjectWithin` denies once `wbs-permissions` grants can (task 4.1).
+   * `hiddenProjects` folds every origin denied by the observation's read policy,
+   * including affected projects with no held units. The present organization
+   * membership policy normally admits them; Permissions can replace that decision.
    * The cap check the write will meet is task 7.1's; until it lands the
    * refusal is always null for a resource the organization owns.
    *
@@ -3955,70 +3982,24 @@ export class WorkItemService {
   async previewDirectoryCapacityWithin(
     resourceId: string,
     units: number | null,
+    actorId: string,
     scope: OrganizationScope,
-  ): Promise<
-    | {
-        ok: true;
-        value: {
-          resourceId: string;
-          before: number | null;
-          after: number | null;
-          projects: { projectId: string; name: string; units: number }[];
-          hiddenProjects: { count: number; units: number };
-          free: number | null;
-          refusal: null;
-        };
-      }
-    | { ok: false; reason: 'forbidden' | 'not_found' }
-  > {
-    if (!mayStateDirectoryCapacityInOrganization(scope.role))
-      return { ok: false, reason: 'forbidden' };
-    const { directory } = this.opts;
-    const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
-      ({ id }) => id === resourceId,
-    );
-    if (!owned) return { ok: false, reason: 'not_found' };
-    const before =
-      (await directory.directoryCapacitiesOf([resourceId])).find(
-        (each) => each.resourceId === resourceId,
-      )?.units ?? null;
-    const rows = await this.claiming().claims.organizationOccupancyOf([resourceId]);
-    const usage = await directory.usageOfResource(resourceId);
-    const projectIds = [
-      ...new Set([
-        ...rows.map(({ projectId }) => projectId),
-        ...usage.capacities.map(({ projectId }) => projectId),
-        ...usage.rows.projects.map(({ id }) => id),
-      ]),
-    ].sort();
-    const projects: { projectId: string; name: string; units: number }[] = [];
-    for (const projectId of projectIds) {
-      const project = await this.opts.projects.findInOrganization(projectId, scope.organizationId);
-      // A project of another organization naming the resource is corrupt
-      // trusted state: a plan can name only its organization's resources.
-      if (project === null)
-        throw new Error(
-          `project ${projectId} names resource ${resourceId} outside its organization`,
-        );
-      const held =
-        occupancyByResource(rows.filter((row) => row.projectId === projectId)).find(
-          (each) => each.resourceId === resourceId,
-        )?.occupied ?? 0;
-      projects.push({ projectId, name: project.name, units: held });
-    }
-    const occupied = projects.reduce((sum, each) => sum + each.units, 0);
-    return {
-      ok: true,
-      value: {
-        resourceId,
-        before,
-        after: units,
-        projects,
-        hiddenProjects: { count: 0, units: 0 },
-        free: units === null ? null : units - occupied,
-        refusal: null,
+  ): Promise<CapacityPreview> {
+    if (this.opts.livePlans !== undefined)
+      return this.opts.livePlans.previewDirectoryCapacityWithin(resourceId, units, actorId, scope);
+    return previewCapacity(
+      {
+        directory: this.opts.directory,
+        projects: this.opts.projects,
+        claims: {
+          organizationOccupancyOf: (ids) => this.claiming().claims.organizationOccupancyOf(ids),
+        },
       },
-    };
+      resourceId,
+      units,
+      actorId,
+      scope,
+    );
   }
 
   /**
@@ -4162,7 +4143,7 @@ export class WorkItemService {
       organizationOccupied,
     });
     if (decided.kind === 'refused')
-      return this.refusedWithHolders(decided.refusal, id, projectId, access, nameOf);
+      return this.refusedWithHolders(decided.refusal, id, projectId, actorId, access, nameOf);
     // The run the decision wrote and compared: the caller's opted-in run for
     // its own person (M15), else the command's.
     const run = claimRunOf(caller, input.personId, input.runId);
@@ -4687,10 +4668,9 @@ export class WorkItemService {
   }
 
   /**
-   * A claim's refusal as the service answers it, holders named. A
-   * `resources_exhausted` the organization bound is given its holders here,
-   * read only now (`organizationOccupancyOf`), each with its project; then
-   * every holder's name is read. A claim that fits reads neither.
+   * A claim's refusal as the service answers it, holders named.
+   * A shared shortage projects its actual binding scope, naming only readable
+   * holders and folding the rest to units. A claim that fits reads neither.
    *
    * Proof: with the organization holders left unread, `refuses B’s 16 GB while
    * A holds the directory’s 16, naming the organization`
@@ -4700,43 +4680,41 @@ export class WorkItemService {
     refusal: ClaimRefusal,
     workItemId: string,
     projectId: string,
+    actorId: string,
     access: ResourceAccess,
     nameOf: ReadonlyMap<string, string>,
   ): Promise<ClaimRefusalOutcome> {
     if (refusal.reason !== 'resources_exhausted') return refusalOf(refusal, nameOf);
-    const bound = refusal.resources
-      .filter((each) => each.scope === 'organization')
-      .map(({ resourceId }) => resourceId);
-    const rows =
-      bound.length === 0 ? [] : await this.claiming().claims.organizationOccupancyOf(bound);
-    const projectOf = new Map(rows.map((row) => [row.workItemId, row.projectId]));
-    const holdersOf = new Map(
-      occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
-        each.resourceId,
-        each.holders.map((holder) => {
-          const held = projectOf.get(holder.workItemId);
-          if (held === undefined)
-            throw new Error(`holder ${holder.workItemId} has no project in its own read`);
-          // Named only for another project's holder (`OccupancyHolder.projectId`).
-          // Proof: with the asking project's id kept too, `names a holder's
-          // project only when it is another project` (shared-occupancy.db.test.ts)
-          // failed on both stores; watched 2026-10-25.
-          return held === projectId ? holder : { ...holder, projectId: held };
-        }),
-      ]),
+    const shortages = refusal.resources.flatMap(({ resourceId, scope }) =>
+      scope === undefined ? [] : [{ resourceId, scope }],
+    );
+    const project = await sharedHolders(
+      {
+        claims: this.claiming().claims,
+        projects: this.opts.projects,
+        askingProject: projectId,
+        actorId,
+        access,
+      },
+      shortages,
     );
     const resources = refusal.resources.map((short): ResourceShortage =>
-      short.scope === 'organization'
-        ? { ...short, holders: holdersOf.get(short.resourceId) ?? [] }
-        : short,
+      short.scope === undefined
+        ? short
+        : {
+            ...short,
+            ...project({ resourceId: short.resourceId, scope: short.scope }, workItemId),
+          },
     );
     const first = resources.at(0);
     if (first === undefined) throw new Error('a resources_exhausted names no resource');
     const enriched: ResourcesExhausted = { ...refusal, ...first, resources };
-    const names = await this.personNamesWithin(
-      access,
-      resources.flatMap((short) => short.holders.map(({ personId }) => personId)),
-    );
+    const ids = [
+      ...new Set(resources.flatMap((short) => short.holders.map(({ personId }) => personId))),
+    ].filter((id) => !nameOf.has(id));
+    // Proof: adding a denied-only person to this lookup failed the mounted name-read assertion
+    // after both redacted wire bodies and the unchanged claim and journal counts passed.
+    const names = await readHolderNames(this.opts.directory, access, ids);
     return refusalOf(enriched, new Map([...nameOf, ...names]));
   }
 

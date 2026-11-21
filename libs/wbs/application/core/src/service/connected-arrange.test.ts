@@ -29,6 +29,8 @@ async function createArrangementFixture(
       readProject: () => Promise.resolve(captured),
       readExport: () => Promise.reject(new Error('unexpected export')),
       readExecution: () => Promise.reject(new Error('unexpected execution')),
+      readStartableWithin: () => Promise.reject(new Error('unexpected startable read')),
+      previewDirectoryCapacityWithin: () => Promise.reject(new Error('unexpected preview')),
       readAggregate: () => Promise.reject(new Error('unexpected aggregate')),
     },
   });

@@ -205,6 +205,10 @@ export class CommandContext {
             free: outcome.free,
             holders: outcome.holders.map((holder) => ({ ...holder })),
             ...(outcome.scope === undefined ? {} : { scope: outcome.scope }),
+            // Proof: top-alias-omitted failed the mounted exact refusal body.
+            ...(outcome.hiddenHolders === undefined
+              ? {}
+              : { hiddenHolders: outcome.hiddenHolders }),
             // Proof: with this list cut to its first entry, `names both
             // resources a claim is short of` (resource-occupancy.db.test.ts)
             // failed on both stores (0 pass, 2 fail); watched 2026-10-23.
@@ -214,6 +218,8 @@ export class CommandContext {
               free: short.free,
               holders: short.holders.map((holder) => ({ ...holder })),
               ...(short.scope === undefined ? {} : { scope: short.scope }),
+              // Proof: resource-alias-omitted failed the mounted nested shortage body.
+              ...(short.hiddenHolders === undefined ? {} : { hiddenHolders: short.hiddenHolders }),
             })),
           },
         });

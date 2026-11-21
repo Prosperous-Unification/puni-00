@@ -351,12 +351,14 @@ for (const store of STORES) {
             { kind: 'setDemand', workItemId: leaf(project, 0), resourceId: RAM, units: 16 },
           ]);
         expect(await run(0, [claim(0, 0, 'a0')])).toMatchObject({ ok: true });
-        const startable = await graph.workItems.startableWithin(
+        const observed = await graph.workItems.readStartableWithin(
           projects.b,
+          F,
           { kind: 'legacy' },
           null,
         );
-        if (startable === null || 'kind' in startable) throw new Error('the read was refused');
+        if (observed.kind !== 'ready') throw new Error('the read was refused');
+        const startable = observed.value;
         expect(startable.leaves.map(({ workItemId }) => workItemId)).not.toContain(leaf(1, 0));
         const unfit = startable.doesNotFit.find((each) => each.workItemId === leaf(1, 0));
         expect(unfit?.exhausted).toMatchObject({
@@ -364,6 +366,16 @@ for (const store of STORES) {
           asked: 16,
           free: 0,
           scope: 'organization',
+          holders: [
+            {
+              personId: 'a0',
+              name: 'agent a0',
+              runId: null,
+              projectId: projects.a,
+              workItemId: leaf(0, 0),
+            },
+          ],
+          hiddenHolders: { units: 0 },
         });
         expect(await run(1, [claim(1, 0, 'b0')])).toMatchObject({ ok: false });
         await run(0, [release(0, 0, 'a0')]);
@@ -524,6 +536,8 @@ for (const store of STORES) {
             scope: 'organization',
             // Another project's holder names its project (S5).
             holders: [{ personId: 'a0', workItemId: leaf(0, 0), projectId: projects.a }],
+            hiddenHolders: { units: 0 },
+            resources: [{ resourceId: RAM, hiddenHolders: { units: 0 } }],
           },
         });
         expect(await held(RAM)).toBe(16);

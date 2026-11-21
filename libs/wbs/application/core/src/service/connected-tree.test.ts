@@ -982,6 +982,8 @@ it.each(['tree', 'treeWithin'] as const)(
         readProject: () => Promise.resolve(packet),
         readExport: unused,
         readExecution: unused,
+        readStartableWithin: unused,
+        previewDirectoryCapacityWithin: unused,
         readAggregate: unused,
       },
     });
@@ -1042,6 +1044,8 @@ for (const method of ['tree', 'treeWithin'] as const) {
           readProject: () => Promise.resolve(packet),
           readExport: unused,
           readExecution: unused,
+          readStartableWithin: unused,
+          previewDirectoryCapacityWithin: unused,
           readAggregate: unused,
         },
       });

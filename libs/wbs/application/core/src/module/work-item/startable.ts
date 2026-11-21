@@ -3,6 +3,7 @@ import {
   effectiveTeamsOf,
   type ExecutionPrerequisite,
   freeUnitsOf,
+  type HiddenHolders,
   indexTree,
   isStartableStatus,
   leafOccupancyOf,
@@ -20,6 +21,8 @@ import {
 import type { StampedClaim } from '../../ports/claim-store';
 import type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
+import type { NamedOccupancyHolder } from './claims';
+import { nameOccupancyHolder, sharedHolders } from './shared-holders';
 
 /** A person as the startable read names them: id and the caller's display name. */
 export interface NamedPerson {
@@ -83,20 +86,26 @@ export interface UnfitLeaf extends LeafSteps {
  * `free` is the stated capacity minus what the project's other leaves hold,
  * and `shortfall` is `asked - free`.
  */
-export interface Shortfall {
+export type Shortfall = {
   readonly resourceId: string;
   readonly name: string;
   readonly unitLabel: string;
   readonly asked: number;
   readonly free: number;
   readonly shortfall: number;
-  /**
-   * The check that bound it (`wbs-shared-occupancy` S3), present only for a
-   * resource with a directory capacity: `free` is then the organization's
-   * when it binds.
-   */
-  readonly scope?: OccupancyScope;
-}
+} & (
+  | {
+      /** The binding scope can already be known before holder enrichment. */
+      readonly scope?: OccupancyScope;
+      readonly holders?: never;
+      readonly hiddenHolders?: never;
+    }
+  | {
+      readonly scope: OccupancyScope;
+      readonly holders: NamedOccupancyHolder[];
+      readonly hiddenHolders: HiddenHolders;
+    }
+);
 
 /**
  * One resource the project states a capacity for, with the units its leaves'
@@ -475,4 +484,55 @@ function nearestSubtreeClaim(
     at = row.parentId;
   }
   return null;
+}
+
+/** Adds holder names and unit-only denied aggregates after the actual fit calculation. */
+export async function startableWithHolders(
+  work: StartableWork,
+  authority: Parameters<typeof sharedHolders>[0] & {
+    readonly holderNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  },
+): Promise<StartableWork> {
+  const shortages = work.doesNotFit.flatMap(({ exhausted }) =>
+    exhausted.scope === undefined
+      ? []
+      : [{ resourceId: exhausted.resourceId, scope: exhausted.scope }],
+  );
+  if (shortages.length === 0) return work;
+  const project = await sharedHolders(authority, shortages);
+  const enriched = work.doesNotFit.map((leaf) => {
+    const { exhausted } = leaf;
+    if (exhausted.scope === undefined) return { leaf, projection: null };
+    return {
+      leaf,
+      projection: {
+        scope: exhausted.scope,
+        ...project({ resourceId: exhausted.resourceId, scope: exhausted.scope }, leaf.workItemId),
+      },
+    };
+  });
+  const ids = [
+    ...new Set(
+      enriched.flatMap(
+        ({ projection }) => projection?.holders.map(({ personId }) => personId) ?? [],
+      ),
+    ),
+  ];
+  const names = ids.length === 0 ? new Map<string, string>() : await authority.holderNames(ids);
+  return {
+    ...work,
+    doesNotFit: enriched.map(({ leaf, projection }) =>
+      projection === null
+        ? leaf
+        : {
+            ...leaf,
+            exhausted: {
+              ...leaf.exhausted,
+              scope: projection.scope,
+              hiddenHolders: projection.hiddenHolders,
+              holders: projection.holders.map((holder) => nameOccupancyHolder(holder, names)),
+            },
+          },
+    ),
+  };
 }

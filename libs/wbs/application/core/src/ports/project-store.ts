@@ -1,5 +1,6 @@
 import type { AllowancePercent, OrganizationRole } from '@wbs/domain';
 
+import type { ProjectReadAccess } from './organization-access';
 import type {
   NewProject,
   Project,
@@ -24,7 +25,7 @@ export { PROJECT_CROSS_REFERENCE_KINDS } from './project-values';
 /** Creation refusals roll back the entire project, ownership, steps and allocator advance. */
 export type ProjectCreationRefusal = 'abbreviation_taken' | 'abbreviation_exhausted';
 
-export interface ProjectStore {
+export interface ProjectStore extends ProjectReadAccess {
   /**
    * Writes the project and its starting steps together. A project that existed
    * for even one request without steps would accept an estimate that had no

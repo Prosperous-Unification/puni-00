@@ -2463,6 +2463,28 @@ export class DirectoryRepository implements DirectoryStore {
     return named;
   }
 
+  /** Uses the organization side table so root aliases and foreign names stay outside the read. */
+  async personNamesInOrganization(
+    organizationId: string,
+    ids: readonly string[],
+  ): ReturnType<DirectoryStore['personNamesInOrganization']> {
+    const named: { id: string; name: string }[] = [];
+    for (const id of new Set(ids)) {
+      const person = await this.db
+        .select({ id: personOrganization.resourceId, name: personOrganization.name })
+        .from(personOrganization)
+        // Proof: removing the owner predicate returned the local foreign alias for a requested foreign id.
+        .where(
+          and(
+            eq(personOrganization.organizationId, organizationId),
+            eq(personOrganization.resourceId, id),
+          ),
+        );
+      named.push(...person);
+    }
+    return named;
+  }
+
   /**
    * Reads through the leading work-item column of the assignment primary key.
    *

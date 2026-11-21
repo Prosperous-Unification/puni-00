@@ -841,14 +841,18 @@ export function workItemRoutes(
           return { ok: false, status: 400, body: { error: 'invalid_query' } };
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const startable = await workItems.startableWithin(
+        const startable = await workItems.readStartableWithin(
           params.id,
+          principal.id,
           resolved.access,
           query.team ?? null,
         );
-        if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
-        return { ok: true, status: 200, body: startable };
+        if (startable.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (startable.kind === 'unknown_team')
+          return { ok: false, status: 404, body: { error: 'unknown_team' } };
+        if (startable.kind === 'access_refused') return organizationRefusal(startable.refusal);
+        return { ok: true, status: 200, body: startable.value };
       },
     ),
     bind(
@@ -974,8 +978,10 @@ export function workItemRoutes(
         const preview = await workItems.previewDirectoryCapacityWithin(
           params.resourceId,
           units,
+          principal.id,
           resolved.access.scope,
         );
+        if (!preview.ok && 'refusal' in preview) return organizationRefusal(preview);
         if (!preview.ok)
           return preview.reason === 'forbidden'
             ? { ok: false, status: 403, body: { error: 'forbidden' } }

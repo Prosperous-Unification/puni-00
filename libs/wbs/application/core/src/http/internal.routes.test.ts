@@ -11,6 +11,8 @@ const access = {
   projects: { readWithin: () => Promise.resolve({}) } as unknown as ProjectService,
   organizations: {
     resolve: () => Promise.resolve({ ok: true, access: LEGACY_ACCESS }),
+    mayReadProjectWithin: () =>
+      Promise.reject(new Error('project holders are outside this fixture')),
   } satisfies OrganizationAccess,
 };
 const routes = (deps: Pick<InternalDeps, 'onForward' | 'onResume'>) =>

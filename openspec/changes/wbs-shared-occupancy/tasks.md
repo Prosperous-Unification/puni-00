@@ -115,18 +115,15 @@
 
 ## 4. Visibility
 
-- [ ] 4.1 Port method `OrganizationAccess.mayReadProjectWithin(project, actorId, access)`,
-      in `mayEditProjectWithin`'s argument order, `project` carrying its `organizationId`;
-      production body true for every project of the caller's organization; holder
-      `projectId`; unreadable holders folded into `hiddenHolders: { units }` in the refusal
-      and the startable read — test: a test double of the port denies project A, and the
-      reader gets units only (string search over the whole body for A's project, person,
-      run and work item ids). Fault line: return holders unfiltered and the string search
-      finds A's ids. No production-path negative exists until a `wbs-permissions` grant can
-      deny (waived in 0.1, 2026-11-01); the negative moves to the production path in the
-      `wbs-permissions` slice that replaces the method's body. Follow-up (review S3-4):
-      `previewDirectoryCapacityWithin` hardcodes `hiddenProjects: { count: 0, units: 0 }`
-      and names every project; it must route through the read grant when `wbs-permissions` lands.
+- [x] 4.1 Port method `OrganizationAccess.mayReadProjectWithin(project, actorId, access)`
+      uses a verified project origin and the authenticated actor. Claim refusal and
+      startable reads name readable holders and fold denied holders into
+      `hiddenHolders: { units }`. The capacity preview counts distinct denied
+      projects, including those holding zero, and subtracts all held units.
+      The verification record covers both claim aliases, mounted and fallback
+      startable reads, coherent preview, no writes and legacy compatibility.
+      Task 0.1 authorizes the controlled same-organization denial. Permissions
+      still owns real restricted grants and their production-path negative.
 - [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
       `releasableBy` — test: the two spec scenarios; a member and an admin's agent
       refused `forbidden`. Fault lines: skip the role check and the member reads other

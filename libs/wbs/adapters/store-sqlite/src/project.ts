@@ -4,13 +4,16 @@ import type {
   ProjectCreationRefusal,
   ProjectCrossReference,
   ProjectPatch,
+  ProjectReadOrigin,
   ProjectStore,
   ProjectWithAccess,
   RecoveryAuditDetail,
+  ResourceAccess,
   Step,
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
+import { projectVisibleWithin } from '@wbs/core';
 import {
   type AllowancePercent,
   classifyProjectEdit,
@@ -388,6 +391,15 @@ function withOwnerName<T extends { name: string; ownerName: string | null }>(
  * two concurrent additions both win.
  */
 export class ProjectRepository implements ProjectStore {
+  /** Uses the same access decision on this exact project's connection. */
+  mayReadProjectWithin(
+    project: ProjectReadOrigin,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<boolean> {
+    return projectVisibleWithin(this, project, actorId, access);
+  }
+
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,

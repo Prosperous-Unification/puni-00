@@ -34,7 +34,7 @@ export const REFUSE_BEARER_CONTEXT: IssueBearerContext = () =>
 /** Verifies a native credential, durable activation and current membership before issue. */
 export function bearerContextIssuer(
   resolveSource: DelegationSourceResolver,
-  organizations: OrganizationAccess,
+  organizations: Pick<OrganizationAccess, 'resolve'>,
   issue: DelegationIssuer,
   activationState: () => 'pre_activation' | 'activated',
 ): IssueBearerContext {

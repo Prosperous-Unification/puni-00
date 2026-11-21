@@ -1,4 +1,7 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { ClaimRepository } from '@wbs/store-sqlite/claim';
+import { DirectoryRepository } from '@wbs/store-sqlite/directory';
+import { ProjectRepository } from '@wbs/store-sqlite/project';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair } from 'jose';
 
 import { addAgentPerson, issueApiKey } from '../testing/machine-credential-fixture';
@@ -442,7 +445,547 @@ describe('previewing and lowering a directory capacity', () => {
     });
     expect(refused).toMatchObject({
       status: 409,
-      body: { error: 'resources_exhausted', scope: 'organization', free: -4, asked: 1 },
+      body: {
+        error: 'resources_exhausted',
+        scope: 'organization',
+        free: -4,
+        asked: 1,
+        hiddenHolders: { units: 0 },
+        resources: [{ resourceId: ram, hiddenHolders: { units: 0 } }],
+      },
     });
+  });
+});
+
+describe('shared holder visibility through the mounted organization', () => {
+  const otherResource = 'other shared resource';
+  type OriginRead = Parameters<ProjectRepository['mayReadProjectWithin']>;
+  function distinctWorkItem(id: string, projectId: string, position: number) {
+    h.sqlite.run(
+      'INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES (?, ?, NULL, ?, ?)',
+      [id, projectId, position, id],
+    );
+  }
+
+  function stageHolder(
+    id: string,
+    projectId: string,
+    workItemId: string,
+    personId: string,
+    position: number,
+    runId: string | null,
+    units: number,
+    resources: readonly string[],
+  ) {
+    const step = h.sqlite
+      .query<{ id: string }, [string, number]>(
+        'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1 OFFSET ?',
+      )
+      .get(projectId, position);
+    if (step === null) throw new Error('not enough fixture steps');
+    h.sqlite.run(
+      'INSERT INTO claim (id, work_item_id, step_id, person_id, run_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, 1, ?)',
+      [id, workItemId, step.id, personId, runId, h.userId('ada')],
+    );
+    for (const resourceId of resources)
+      h.sqlite.run('INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES (?, ?, ?)', [
+        id,
+        resourceId,
+        units,
+      ]);
+  }
+
+  async function declareCapacity(resources: readonly string[], units: number) {
+    const answer = await h.call('sue', 'POST', DIRECTORY, {
+      commands: resources.map((id) => state(id, units)),
+    });
+    expect(answer.status).toBe(200);
+  }
+
+  function denyOrigins(denied: ReadonlySet<string>, actor: string, onFirstRead?: () => void) {
+    const reads: OriginRead[] = [];
+    const descriptor = Object.getOwnPropertyDescriptor(
+      ProjectRepository.prototype,
+      'mayReadProjectWithin',
+    );
+    if (typeof descriptor?.value !== 'function') throw new Error('missing project read method');
+    const original = descriptor.value as ProjectRepository['mayReadProjectWithin'];
+    const interceptor = spyOn(
+      ProjectRepository.prototype,
+      'mayReadProjectWithin',
+    ).mockImplementation(function (this: ProjectRepository, ...args: OriginRead) {
+      if (reads.length === 0) onFirstRead?.();
+      reads.push(args);
+      return denied.has(args[0].id) && args[1] === actor
+        ? Promise.resolve(false)
+        : original.apply(this, args);
+    });
+    return {
+      reads,
+      restore: () => {
+        interceptor.mockRestore();
+      },
+    };
+  }
+
+  const hiddenRun = 'private-origin-run';
+  const hiddenPerson = 'private-origin-person';
+  const hiddenClaim = 'private-origin-claim';
+  const hiddenLeaf = 'w-a';
+  function createHiddenCopies(resources: readonly string[]) {
+    addAgentPerson(h.sqlite, hiddenPerson, 'org-a', h.userId('ada'));
+    h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', ['PRIVATE_ORIGIN_PROJECT', projectA]);
+    stageHolder(hiddenClaim, projectA, hiddenLeaf, hiddenPerson, 0, hiddenRun, 16, resources);
+    stageHolder(
+      'private-origin-copy',
+      projectA,
+      hiddenLeaf,
+      'agent-a',
+      1,
+      'private-copy-run',
+      16,
+      resources,
+    );
+  }
+
+  function absence(body: unknown, extra: readonly string[] = []) {
+    const json = JSON.stringify(body);
+    for (const field of [
+      projectA,
+      'PRIVATE_ORIGIN_PROJECT',
+      hiddenPerson,
+      hiddenRun,
+      hiddenClaim,
+      hiddenLeaf,
+      'private-origin-copy',
+      'private-copy-run',
+      'agent-a',
+      ...extra,
+    ])
+      expect(json).not.toContain(field);
+  }
+
+  async function demand(
+    projectId: string,
+    workItemId: string,
+    resourceIds: readonly string[],
+    units: number,
+  ) {
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, {
+          commands: resourceIds.map((resourceId) => ({
+            kind: 'setDemand',
+            workItemId,
+            resourceId,
+            units,
+          })),
+        })
+      ).status,
+    ).toBe(200);
+  }
+
+  it('redacts a denied origin from both genuine shortage aliases and counts duplicate copies once', async () => {
+    const second = await declare(h, 'ada', otherResource);
+    const resourceIds = [ram, second].sort();
+    await declareCapacity(resourceIds, 24);
+    createHiddenCopies(resourceIds);
+    const c = await create(h, 'ada', 'visible other project');
+    distinctWorkItem('w-visible-other', c, 0);
+    distinctWorkItem('w-visible-local', projectB, 1);
+    stageHolder(
+      'visible-other-claim',
+      c,
+      'w-visible-other',
+      'agent-b',
+      0,
+      'visible-run',
+      4,
+      resourceIds,
+    );
+    stageHolder(
+      'visible-local-claim',
+      projectB,
+      'w-visible-local',
+      'agent-b',
+      0,
+      null,
+      4,
+      resourceIds,
+    );
+    await demand(projectB, 'w-b', resourceIds, 1);
+    h.sqlite.run(
+      "UPDATE person_organization SET name = 'local agent B' WHERE resource_id = 'agent-b'",
+    );
+    const people = spyOn(DirectoryRepository.prototype, 'listInOrganization');
+    const scopedNames = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
+    const denied = new Set([projectA]);
+    const gate = denyOrigins(denied, h.userId('ada'), () => {
+      people.mockClear();
+      scopedNames.mockClear();
+    });
+    const requested = {
+      commands: [
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'w-b',
+          personId: 'agent-a',
+          steps: [firstStepOf(projectB)],
+        },
+      ],
+    };
+    const claimRows = () =>
+      h.sqlite.query<{ count: number }, []>('SELECT count(*) as count FROM claim').get();
+    const before = { journal: journalEntries(h), claims: claimRows() };
+    try {
+      const refused = await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, requested);
+      const mixedCatalogReads = people.mock.calls.filter(([catalog]) => catalog === 'people');
+      const mixedNameReads = scopedNames.mock.calls.slice();
+      expect(refused.status).toBe(409);
+      const holders = [
+        { personId: 'agent-b', name: 'local agent B', runId: null, workItemId: 'w-visible-local' },
+        {
+          personId: 'agent-b',
+          name: 'local agent B',
+          runId: 'visible-run',
+          workItemId: 'w-visible-other',
+          projectId: c,
+        },
+      ];
+      const shortages = resourceIds.map((resourceId) => ({
+        resourceId,
+        holders,
+        asked: 1,
+        free: 0,
+        scope: 'organization',
+        hiddenHolders: { units: 16 },
+      }));
+      expect(refused.body).toEqual({
+        at: 0,
+        kind: 'claimWorkItem',
+        error: 'resources_exhausted',
+        ...shortages[0],
+        resources: shortages,
+      });
+      absence(refused.body);
+      expect(gate.reads.filter(([origin]) => origin.id === projectA)).toEqual([
+        [
+          { id: projectA, organizationId: 'org-a' },
+          h.userId('ada'),
+          expect.objectContaining({ kind: 'scoped' }),
+        ],
+      ]);
+      gate.reads.length = 0;
+      denied.add(projectB);
+      denied.add(c);
+      const noVisible = await h.call(
+        'ada',
+        'POST',
+        `/api/projects/${projectB}/commands`,
+        requested,
+      );
+      expect(noVisible).toEqual({
+        status: 409,
+        body: {
+          at: 0,
+          kind: 'claimWorkItem',
+          error: 'resources_exhausted',
+          ...shortages[0],
+          holders: [],
+          hiddenHolders: { units: 24 },
+          resources: shortages.map((shortage) => ({
+            ...shortage,
+            holders: [],
+            hiddenHolders: { units: 24 },
+          })),
+        },
+      });
+      absence(noVisible.body);
+      expect({ journal: journalEntries(h), claims: claimRows() }).toEqual(before);
+      const emptyCatalogReads = people.mock.calls.filter(([catalog]) => catalog === 'people');
+      expect({ mixedCatalogReads, emptyCatalogReads }).toEqual({
+        mixedCatalogReads: [],
+        emptyCatalogReads: [],
+      });
+      expect(mixedNameReads).toEqual([['org-a', ['agent-b']]]);
+      expect(scopedNames).not.toHaveBeenCalled();
+    } finally {
+      scopedNames.mockRestore();
+      people.mockRestore();
+      gate.restore();
+    }
+  });
+
+  it('uses one live snapshot holder read per resource and one decision per actor and origin', async () => {
+    const occupancy = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf');
+    const people = spyOn(DirectoryRepository.prototype, 'listInOrganization');
+    try {
+      expect((await h.call('vic', 'GET', `/api/projects/${projectB}/startable`)).status).toBe(200);
+      expect(occupancy).not.toHaveBeenCalled();
+      const second = await declare(h, 'ada', otherResource);
+      const resourceIds = [ram, second].sort();
+      await declareCapacity(resourceIds, 16);
+      createHiddenCopies(resourceIds);
+      distinctWorkItem('w-b-next', projectB, 1);
+      await demand(projectB, 'w-b', [ram], 1);
+      await demand(projectB, 'w-b-next', [second], 1);
+      const denied = new Set([projectA]);
+      const gate = denyOrigins(denied, h.userId('vic'));
+      try {
+        people.mockClear();
+        const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+        const emptyCatalogReads = people.mock.calls.filter(([catalog]) => catalog === 'people');
+        expect(read).toMatchObject({
+          status: 200,
+          body: {
+            occupancyScope: 'project',
+            doesNotFit: [
+              {
+                workItemId: 'w-b',
+                exhausted: {
+                  resourceId: ram,
+                  free: 0,
+                  asked: 1,
+                  scope: 'organization',
+                  holders: [],
+                  hiddenHolders: { units: 16 },
+                },
+              },
+              {
+                workItemId: 'w-b-next',
+                exhausted: {
+                  resourceId: second,
+                  free: 0,
+                  asked: 1,
+                  scope: 'organization',
+                  holders: [],
+                  hiddenHolders: { units: 16 },
+                },
+              },
+            ],
+          },
+        });
+        absence(read.body);
+        expect(occupancy.mock.calls).toEqual([[expect.arrayContaining(resourceIds)]]);
+        expect(gate.reads.map(([origin, actor]) => [origin.id, actor])).toEqual([
+          [projectA, h.userId('vic')],
+        ]);
+        denied.clear();
+        people.mockClear();
+        const next = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+        const visibleHolder: unknown = expect.arrayContaining([
+          expect.objectContaining({
+            workItemId: hiddenLeaf,
+            personId: hiddenPerson,
+            runId: hiddenRun,
+            projectId: projectA,
+          }),
+        ]);
+        expect(next).toMatchObject({
+          status: 200,
+          body: {
+            doesNotFit: [
+              {
+                exhausted: {
+                  holders: visibleHolder,
+                  hiddenHolders: { units: 0 },
+                },
+              },
+              { exhausted: { hiddenHolders: { units: 0 } } },
+            ],
+          },
+        });
+        expect(gate.reads).toHaveLength(2);
+        expect({
+          emptyCatalogReads,
+          visibleCatalogReads: people.mock.calls.filter(([catalog]) => catalog === 'people'),
+        }).toEqual({
+          emptyCatalogReads: [['people', 'org-a']],
+          visibleCatalogReads: [['people', 'org-a']],
+        });
+      } finally {
+        gate.restore();
+      }
+    } finally {
+      people.mockRestore();
+      occupancy.mockRestore();
+    }
+  });
+
+  it('previews distinct denied projects including a zero-held origin with no writes', async () => {
+    await declareCapacity([ram], 24);
+    createHiddenCopies([ram]);
+    stageHolder('visible-b-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    const d = await create(h, 'ada', 'PRIVATE_ZERO_HELD_PROJECT');
+    distinctWorkItem('w-zero', d, 0);
+    await demand(d, 'w-zero', [ram], 2);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectA}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 16 }],
+        })
+      ).status,
+    ).toBe(200);
+    const audits = auditRows(h);
+    const journal = journalEntries(h);
+    const denied = new Set([projectA, d]);
+    const gate = denyOrigins(denied, h.userId('sue'));
+    try {
+      const preview = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
+      expect(preview).toEqual({
+        status: 200,
+        body: {
+          resourceId: ram,
+          before: 24,
+          after: 18,
+          projects: [{ projectId: projectB, name: 'B', units: 4 }],
+          hiddenProjects: { count: 2, units: 16 },
+          free: -2,
+          refusal: null,
+        },
+      });
+      absence(preview.body, [d, 'PRIVATE_ZERO_HELD_PROJECT']);
+      expect(gate.reads.map(([origin]) => origin.id).sort()).toEqual(
+        [projectA, projectB, d].sort(),
+      );
+      expect(await h.call('sue', 'POST', previewPath(ram), { units: null })).toMatchObject({
+        status: 200,
+        body: { after: null, free: null, hiddenProjects: { count: 2, units: 16 } },
+      });
+      const otherActor = await h.call('tom', 'POST', previewPath(ram), { units: 18 });
+      expect(otherActor).toMatchObject({
+        status: 200,
+        body: { hiddenProjects: { count: 0, units: 0 }, free: -2 },
+      });
+      expect(stated(h, ram)).toBe(24);
+      expect(auditRows(h)).toEqual(audits);
+      expect(journalEntries(h)).toBe(journal);
+    } finally {
+      gate.restore();
+    }
+  });
+
+  it('keeps a capacity preview coherent when occupancy and demand change mid-read', async () => {
+    await declareCapacity([ram], 24);
+    createHiddenCopies([ram]);
+    stageHolder('visible-b-claim', projectB, 'w-b', 'agent-b', 0, null, 4, [ram]);
+    const d = await create(h, 'ada', 'PRIVATE_NEXT_SNAPSHOT');
+    distinctWorkItem('w-next-snapshot', d, 0);
+    const gate = denyOrigins(new Set([projectA, d]), h.userId('sue'));
+    const descriptor = Object.getOwnPropertyDescriptor(
+      DirectoryRepository.prototype,
+      'usageOfResource',
+    );
+    if (typeof descriptor?.value !== 'function') throw new Error('missing resource usage method');
+    const usage = descriptor.value as DirectoryRepository['usageOfResource'];
+    let changed = false;
+    const writer = spyOn(DirectoryRepository.prototype, 'usageOfResource').mockImplementation(
+      function (
+        this: DirectoryRepository,
+        ...args: Parameters<DirectoryRepository['usageOfResource']>
+      ) {
+        if (!changed) {
+          changed = true;
+          h.sqlite.transaction(() => {
+            h.sqlite.run('DELETE FROM claim WHERE id IN (?, ?)', [
+              hiddenClaim,
+              'private-origin-copy',
+            ]);
+            h.sqlite.run(
+              'INSERT INTO work_item_resource_demand (work_item_id, resource_id, units) VALUES (?, ?, 2)',
+              ['w-next-snapshot', ram],
+            );
+          })();
+        }
+        return usage.apply(this, args);
+      },
+    );
+    try {
+      const earlier = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
+      expect(earlier).toMatchObject({
+        status: 200,
+        body: { hiddenProjects: { count: 1, units: 16 }, free: -2 },
+      });
+      const later = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
+      expect(later).toMatchObject({
+        status: 200,
+        body: { hiddenProjects: { count: 1, units: 0 }, free: 14 },
+      });
+      absence(earlier.body, [d, 'PRIVATE_NEXT_SNAPSHOT']);
+      absence(later.body, [d, 'PRIVATE_NEXT_SNAPSHOT']);
+    } finally {
+      writer.mockRestore();
+      gate.restore();
+    }
+  });
+
+  it('reports only this project when a local capacity binds on a shared resource', async () => {
+    await declareCapacity([ram], 24);
+    createHiddenCopies([ram]);
+    distinctWorkItem('w-local-holder', projectB, 1);
+    stageHolder('visible-bound-local', projectB, 'w-local-holder', 'agent-b', 0, null, 4, [ram]);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${projectB}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 4 }],
+        })
+      ).status,
+    ).toBe(200);
+    await demand(projectB, 'w-b', [ram], 1);
+    const gate = denyOrigins(new Set([projectA]), h.userId('vic'));
+    try {
+      const read = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+      expect(read).toMatchObject({
+        status: 200,
+        body: {
+          doesNotFit: [
+            {
+              workItemId: 'w-b',
+              exhausted: {
+                scope: 'project',
+                free: 0,
+                asked: 1,
+                hiddenHolders: { units: 0 },
+                holders: [
+                  {
+                    personId: 'agent-b',
+                    name: 'agent-b',
+                    workItemId: 'w-local-holder',
+                    runId: null,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+      expect(JSON.stringify(read.body)).not.toContain('projectId');
+      expect(gate.reads.map(([origin]) => origin.id)).toEqual([projectB]);
+      absence(read.body);
+    } finally {
+      gate.restore();
+    }
+  });
+
+  it('a project read exception aborts the entire shared shortage observation', async () => {
+    await declareCapacity([ram], 16);
+    createHiddenCopies([ram]);
+    await demand(projectB, 'w-b', [ram], 1);
+    const policy = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockRejectedValue(
+      new Error('private grant failure'),
+    );
+    try {
+      const answer = await h.call('vic', 'GET', `/api/projects/${projectB}/startable`);
+      expect(answer.status).toBe(500);
+      absence(answer.body, ['private grant failure']);
+      expect(JSON.stringify(answer.body)).not.toContain('hiddenHolders');
+
+      const preview = await h.call('sue', 'POST', previewPath(ram), { units: 18 });
+      expect(preview.status).toBe(500);
+      absence(preview.body, ['private grant failure', 'hiddenProjects', 'private-origin-person']);
+      expect(stated(h, ram)).toBe(16);
+    } finally {
+      policy.mockRestore();
+    }
   });
 });

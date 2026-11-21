@@ -718,6 +718,11 @@ export interface DirectoryStore {
     catalog: 'people' | 'teams',
     ids: readonly string[],
   ): Promise<{ id: string; name: string }[]>;
+  /** The organization-local display names of only these people, read by distinct id. */
+  personNamesInOrganization(
+    organizationId: string,
+    ids: readonly string[],
+  ): Promise<{ id: string; name: string }[]>;
   /** Assignments on one work item, bounded by its indexed key. */
   assignmentsFor(workItemId: string): Promise<Assignment[]>;
   /** Subset consumer compatibility; each distinct work item uses its indexed key. */

@@ -513,3 +513,69 @@ Commands (each with `env -u CLAUDECODE`):
 wbs-be-01 --skip-nx-cache --parallel=1` → exit 0.
 - Prettier on changed files → clean; `openspec validate --all --json` → 304/304;
   `check-indexes working . HEAD` → exit 0.
+
+### Task 4.1 local holder-read verification
+
+The authenticated actor and verified project origin drive the read decision.
+The current policy admits a same-organization viewer and denies a foreign
+origin even for an administrator. The explicit pre-activation path retains
+legacy project admission. Task 0.1 authorizes the controlled
+same-organization denial. Real restricted grants belong to Permissions.
+
+The mounted claim refusal names readable holders and folds denied holdings
+into units in both the first-shortage aliases and every resource entry. Two
+claims on the same denied leaf count 16 units once. A tighter project bound
+includes only that project's holders. Scoped decoration reads distinct
+visible people by ID under their organization-local aliases. A fully denied
+shortfall performs no decoration lookup. The mounted Startable read reuses
+the names captured in the SQLite snapshot. The fallback uses the same
+holder projection with explicit admission and targeted names. Legacy
+decoration keeps root-name lookup by ID.
+
+The preview reads current admission, affected projects and their holdings in
+one SQLite observation. With four units visible, sixteen hidden and a
+second denied project holding zero, a proposed capacity of eighteen yields
+two hidden projects and free −2. Clearing yields null. A throwing read
+decision returns a server error without a partial response. The affected
+requests leave claims, journal rows and the proposed capacity unchanged.
+
+The initial focused run failed six cases for the missing read decision,
+holder fields and mounted refusal. The restored original selection passed
+217 cases across domain, contracts, core, SQLite, connected admission and
+mounted BE. The name-lookup correction first failed both mounted cases on
+the old producer. A claim read one full catalog after visibility in both
+mixed and fully denied shortages. Startable read a second catalog when the
+grant reopened.
+
+The final affected Bun selection passed contracts (10), core (18), SQLite
+(137), connected admission (1), memory (2) and mounted BE (50), with zero
+failed cases in the completed groups. The first covering service's disk
+guard stopped it before the mounted group finished. Its four completed
+groups retained their native statuses and captures. The separate restored
+memory and mounted service was fully observed. The additional BE
+interface-consumer cases passed eight checks.
+
+The original eleven one-fault controls failed on their intended assertions
+and restored the source. They covered viewer access, denied wire identity,
+same-leaf unit counting, each claim alias, each Startable producer, distinct
+and zero-held preview origins, hidden units in free capacity and the
+preview transaction. The name-lookup fault then added a denied-only
+person to the lookup while leaving both redacted refusals and no-write
+checks intact. The lookup assertion alone detected the extra ID. Separate
+faults removed the actor check and the scope predicate in each store.
+Each failed its own assertion and restored the exact bytes. The Memory
+fault completed before a populated resource sample was observed. Its native
+assertion and restoration were captured, and its observer qualification
+remains refused.
+
+The existing BE OpenAPI emitter produced the exact paired-field Startable
+variants and both command conflict holder locations. The emitted document
+has SHA-256 `cbbc44deaec2d6fa541d8d157acf0f51d08dfb00d136059e6323e619e4b10434`.
+
+Owning Nx lint and TypeScript checks passed for domain, contracts, core,
+SQLite, memory and BE. The forced TypeScript targets used the installed
+compiler with one builder and one checker inside the existing 4 GiB,
+zero-swap, two-CPU service. The two declared module dependencies used
+their original commands and completed 17 core modules and three BE
+modules. Earlier resource and static typing failures remain in the local
+evidence. Full CI and the host gate remain pending.
