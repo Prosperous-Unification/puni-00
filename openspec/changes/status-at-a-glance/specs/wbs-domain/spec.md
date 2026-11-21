@@ -207,16 +207,20 @@ be part of the same journal entry as the statements, so one undo takes them away
 - **THEN** every fact start and fact end in scope is `null` after the act and back after the
   undo, from one journal entry
 
-### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
+### Requirement: The table shows Status, Fact start and Fact end, and marks a done row
 
-The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
-and offered in the Columns control in table order: `Status` after `Links`, the two facts after
-`Deadline`. The Status cell SHALL show
-the row's status as a glyph with the word in its fact card and offer `Unknown` and
-`Done` to choose, on a parent as on a leaf; `In progress` SHALL be shown but not offered. The
-two fact cells SHALL be date cells with the deadline cell's rest and edit states. A row whose
-status is `done` SHALL carry `data-row-done` and its name and number SHALL read struck
-through, on every stripe and under every row light.
+The table SHALL offer three columns, `Status`, `Fact start` and `Fact end`, hidden by default.
+The Columns control SHALL offer `Status` after `Links` and `Fact start` and `Fact end` after
+`Deadline`, in that order.
+The two fact cells SHALL be date cells with the deadline cell's rest and edit states.
+On a parent or leaf, the Status cell SHALL show the status glyph with its word in the fact card.
+Its picker SHALL offer the eligible choices in the order defined by “The row menu and Status
+cell offer every status the row does not read”. Choosing Done SHALL wait for confirmation of
+the completion prompt before sending the status change.
+
+A done row SHALL carry `data-row-done`. Its number SHALL read struck through. DONE status
+SHALL add no strike or muted ink to its name, which retains its own Markdown formatting on
+every stripe and under every row light.
 
 #### Scenario: the Columns control offers the three in order
 
@@ -229,11 +233,12 @@ through, on every stripe and under every row light.
 
 - **GIVEN** a leaf reading `Unknown` with the three columns shown
 - **WHEN** `Done` is chosen in its Status cell and the completion prompt confirmed unchanged
-- **THEN** the row reads `Done`, its name is struck through, and its Fact end cell reads today
+- **THEN** the row reads `Done`, its number is struck through, its name retains its own Markdown
+  and ink without a DONE-applied strike, and its Fact end cell reads today
 
 #### Scenario: a partly done row reads In progress and can still be finished
 
 - **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
 - **WHEN** its Status cell is read and then opened
-- **THEN** it shows `◐` with a fact beginning `Status: In progress.`, and the list offers
-  `Unknown` and `Done` only
+- **THEN** it shows `◐` with a fact beginning `Status: In progress.`, and its picker offers
+  `Done` among the eligible choices and omits its current `In progress`
