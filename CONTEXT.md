@@ -2170,6 +2170,11 @@ The fleet's separate cluster for isolated Twilight activity attempts; it does no
 own the durable authority for those attempts.
 _Avoid_: platform cluster (for activity execution)
 
+**Node role**:
+The one kind of work a fleet host is reserved for: production apps, platform services,
+observability, or continuous integration. A host holds one node role; its capabilities follow from it.
+_Avoid_: server type, tier, node pool
+
 **Granularity policy**:
 One identified arrangement of the knowledge, review, ownership, task and integration
 boundaries used for model-assisted work. Different policies can organize the same work.
