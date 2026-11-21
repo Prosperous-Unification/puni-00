@@ -421,8 +421,9 @@ test('the heavy leaf step differs from the workspace step only in partition and 
   );
 });
 
-test('the heavy leaf step refuses a missing or non-numeric phase budget before runtime work', async () => {
-  for (const budget of ['', '75m', 'x']) {
+test('the heavy leaf step refuses a missing, non-numeric or zero phase budget before runtime work', async () => {
+  // `0` would make `timeout 0m` run without a limit.
+  for (const budget of ['', '75m', 'x', '0', '00', '075']) {
     const h = history();
     const execution = runStep(h, step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build'), {
       GATE_MODE: 'affected',

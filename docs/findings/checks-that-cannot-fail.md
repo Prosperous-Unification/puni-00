@@ -366,11 +366,16 @@ with the runner. This is the fourteenth identified loss.
 
 That job ran its four projects one task at a time, so the loss refutes the idea that the sum of
 parallel tasks starves the runner. A single suite among `tool-fleet`, `tool-devsync`,
-`wbs-store-sqlite` and `wbs-core` starves or terminates a 16 GB runner by itself. Termination is
-plausible too. `tool-fleet` kills process groups (`process.kill(-child.pid, 'SIGKILL')` in
-`discover.ts` and `lab.ts`, and `os.killpg` in its `lab-guest-*.py` fixtures). A process-group kill
-that hits the wrong group would match the annotation's "anything that terminates the runner
-process".
+`wbs-store-sqlite` and `wbs-core` starves or terminates a 16 GB runner by itself.
+
+Termination by a stray process-group kill is a weaker candidate than it first looked:
+
+- **The TypeScript sites are ruled out.** `tool-fleet`'s `process.kill(-child.pid, 'SIGKILL')` in
+  `discover.ts` and `lab.ts` follows a spawn with `detached: true`, so the child leads its own
+  group and the kill cannot reach the runner's group.
+- **The Python sites remain.** `os.killpg` in its `lab-guest-*.py` fixtures is the remaining
+  candidate. A kill that hit the wrong group would match the annotation's "anything that
+  terminates the runner process".
 
 The next lever is A-CI-WORKSPACE-MEMORY-3. `gate_heavy` becomes a matrix with one leaf per
 `HEAVY_TEST_PROJECTS` entry, named `gate workspace-heavy (<project>)`, with `fail-fast: false`.

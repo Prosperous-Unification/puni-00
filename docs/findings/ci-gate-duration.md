@@ -238,6 +238,13 @@ parallelism two. Each budget adds a finite allowance and a 15-minute reserve:
 | `wbs-store-sqlite` | 18.5 min | 0.8 min | 0.4 min              | 19.7 min | 45 min | 60 min |
 | `wbs-core`         | 3.8 min  | 1.4 min | 0.5 + 2.6 min        | 8.2 min  | 30 min | 45 min |
 
-Dependency builds come on top of these figures. The first hosted heavy run, on #958, ran only
-`tool-devsync` with 14 dependency tasks in 15m49s. The leaves start together with the other
-shards, so the gate's wall time is now set by the `tool-fleet` leaf or by Twilight.
+Dependency builds come on top of these figures. The first hosted heavy run (#958, job 136558782678) ran only `tool-devsync`:
+
+- The phase took 17m06s (`elapsedSeconds=1031`).
+- `tool-devsync:test` alone took 16m59s at parallelism one, against 22.0 minutes at parallelism
+  two.
+- Its 14 dependency builds totalled 4.5 seconds.
+- Setup to phase start took 55 to 63 seconds, and the registry fixtures took 2 seconds.
+
+The leaves start together with the other shards, so the gate's wall time is now set by the
+`tool-fleet` leaf or by Twilight.

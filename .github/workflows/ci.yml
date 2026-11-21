@@ -452,10 +452,11 @@ jobs:
           # step; pr-merge-base.test.ts holds every other byte equal.
           partition=workspace
           phase_limit=105
-          # Proof: an empty or non-numeric PHASE_MINUTES failed the heavy-leaf production-shell
-          # refusal test before any runtime work.
+          # The budget must be a positive integer without a leading zero: `timeout 0m` disables
+          # the phase limit. Proof: an empty, non-numeric, `0` or `00` PHASE_MINUTES failed the
+          # heavy-leaf production-shell refusal test before any runtime work (2026-11-21).
           case "$phase_limit" in
-            '' | *[!0-9]*)
+            '' | *[!0-9]* | 0*)
               printf 'invalid runtime phase budget: %s\n' "$phase_limit" >&2
               exit 1
               ;;
@@ -671,10 +672,11 @@ jobs:
           # step; pr-merge-base.test.ts holds every other byte equal.
           partition="$RUNTIME_PARTITION"
           phase_limit="$PHASE_MINUTES"
-          # Proof: an empty or non-numeric PHASE_MINUTES failed the heavy-leaf production-shell
-          # refusal test before any runtime work.
+          # The budget must be a positive integer without a leading zero: `timeout 0m` disables
+          # the phase limit. Proof: an empty, non-numeric, `0` or `00` PHASE_MINUTES failed the
+          # heavy-leaf production-shell refusal test before any runtime work (2026-11-21).
           case "$phase_limit" in
-            '' | *[!0-9]*)
+            '' | *[!0-9]* | 0*)
               printf 'invalid runtime phase budget: %s\n' "$phase_limit" >&2
               exit 1
               ;;
