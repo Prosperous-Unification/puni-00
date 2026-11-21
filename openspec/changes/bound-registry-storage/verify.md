@@ -10551,3 +10551,37 @@ Task3 review and resolution of the exit-zero cancellation/late-receipt gate
 recorded above. Task5.1c, Task5.1b, installed dedicated-account and UID bridge
 qualification, authenticated checkpoint, scheduling/storage, destination
 receipt, exact-revision host gate and the full-goal lifecycle remain open.
+
+### Owning fleet suite on the native implementation commit
+
+On clean `5a9b76586991b5176b3bf515623f65a30cc8eed4`, the complete owning
+fleet target on ext4 passed9573 tests with zero failures,56 existing
+conditional skips and31857 Bun assertions across323 files. Nx exited0 in
+30m55s with the cache skipped.
+
+```sh
+TMPDIR=/tmp/puni-task3-fleet-ext4-vxOQ4i PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:test --skip-nx-cache
+```
+
+The dedicated mode0700 scratch directory started with 3.7 GiB of free space
+on ext4. Its exact path was absent after the command and available space
+returned to 3733970944 bytes. There were no changes to test selection, timeout
+or source while the suite ran. Existing conditions skipped48 cases requiring
+`PUNI_TEST_RESTIC_BINARY`, seven cases requiring `PUNI_AUTH_ELASTIC_LAB` and
+the alternate FD0 bootstrap GID-mismatch case on the current matching UID/GID.
+
+The two preceding ext4 attempts used the same target without custom `TMPDIR`.
+They overlapped from 02:23:24 to 02:28:39 local time and both hit `ENOSPC`.
+The first was on a changing worktree and also saw provenance-sensitive
+failures. Both provenance tests passed on the clean attempts before the
+capacity failure. A separate `TMPDIR=/dev/shm/puni-task3-fleet-nJFaIv`
+attempt started with 9.5 GiB free on tmpfs and encountered FIEMAP
+`EOPNOTSUPP` in the physical allocation fixtures. Its exact owned test
+process was canceled and its scratch directory removed before the serial
+ext4 retry. The successful run passed the corresponding real FIEMAP
+allocation cases. Nx reported a flaky-task history after the earlier
+environment failures.
+
+This owning test receipt applies to the specified implementation commit.
+Independent native review raised four harness findings for a follow-up
+qualification round. Task5.1c and whole-client acceptance remain open.
