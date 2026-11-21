@@ -8,16 +8,18 @@ import type { MemoryWorkItemTables } from './memory-work-item-fixture';
 /**
  * `organization_limits` and `project_organization` as far as the limits gauge
  * reads them: each organization's own caps, and which organization owns each
- * project. No memory port writes either; the source fixture's setters do, as
- * the operator CLI and the organization side tables do on SQLite.
+ * project. The source fixture states caps. Project ownership is the project
+ * table's map, written by scoped creation or explicitly seeded by a fixture.
  */
 export interface MemoryOrganizationLimitTables {
   readonly caps: Map<string, OrganizationLimitValues>;
   readonly projectOrganization: Map<string, string>;
 }
 
-export function memoryOrganizationLimitTables(): MemoryOrganizationLimitTables {
-  return { caps: new Map(), projectOrganization: new Map() };
+export function memoryOrganizationLimitTables(
+  projectOrganization: Map<string, string>,
+): MemoryOrganizationLimitTables {
+  return { caps: new Map(), projectOrganization };
 }
 
 /** @throws when any of `limits` is outside the bounds an organization may hold. */

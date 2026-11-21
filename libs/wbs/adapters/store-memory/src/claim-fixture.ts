@@ -202,6 +202,17 @@ export function inMemoryClaims(
             compare(left.claimId, right.claimId),
         );
     },
+    // Proof: removing the project predicate exposed a foreign claim in source conformance.
+    async listStampedByIds(projectId, ids) {
+      await Promise.resolve();
+      const wanted = new Set(ids);
+      return table.rows
+        .filter(
+          ({ id, workItemId }) =>
+            wanted.has(id) && plan.workItems.byId.get(workItemId)?.projectId === projectId,
+        )
+        .map((stamped) => ({ ...stamped }));
+    },
     // SQLite's join, modelled: a row counts only when its project and its
     // resource belong to one organization.
     // Proof: with the organization comparison dropped, the memory

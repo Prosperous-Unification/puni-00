@@ -10,6 +10,23 @@ test('prepared default MCP document equals the current shared declarations', () 
   expect(tools.map((tool) => tool.name)).toContain('getApiProjectsByIdSaved-plansCompare');
 });
 
+test('derives organization occupancy as a read tool with a resource path argument', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'getApiOrganizationResourcesByResourceIdOccupancy',
+  );
+  expect(tool).toMatchObject({
+    method: 'get',
+    path: '/api/organization/resources/{resourceId}/occupancy',
+    inputSchema: {
+      type: 'object',
+      properties: { resourceId: { type: 'string' } },
+      required: ['resourceId'],
+      additionalProperties: false,
+    },
+    locations: { resourceId: 'path' },
+  });
+});
+
 test('generated project command tool exposes addTypedDependency with endpoints', () => {
   const tool = toolsFromDocument(readDocument()).find(
     (candidate) => candidate.name === 'postApiProjectsByIdCommands',
@@ -278,6 +295,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiOrganization',
     'getApiOrganizationProject-rank',
     'getApiOrganizationResourceAuthoritiesByAuthorityId',
+    'getApiOrganizationResourcesByResourceIdOccupancy',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',

@@ -2,6 +2,7 @@ import { noopLogger } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { openMemorySource } from '@wbs/store-memory';
 import { projectRow } from '@wbs/store-memory/project-fixture';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, test } from 'bun:test';
 
 import {
@@ -74,13 +75,16 @@ function accountlessSource(source: ReturnType<typeof openMemorySource>): Account
   return {
     stores: withoutAccounts(source.stores),
     history: source.history,
+    ...(source.resourceOccupancy === undefined
+      ? {}
+      : { resourceOccupancy: source.resourceOccupancy }),
     uow,
     health: () => source.health(),
     close: () => source.close(),
   };
 }
 
-function fixture() {
+function fixture(accountSource = openMemorySource()) {
   const instant = 1_000;
   let nextId = 0;
   let tick = (): void => {
@@ -107,7 +111,6 @@ function fixture() {
     },
     scheduler: fastScheduler,
   };
-  const accountSource = openMemorySource();
   const source = accountlessSource(accountSource);
   const graph = composeServices({ source, runtime, shared: fixtureShared });
   return {
@@ -123,6 +126,43 @@ function fixture() {
     },
   };
 }
+
+test('the composed memory graph reads owned resource occupancy through its public source', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const given = fixture(source);
+  const organizationId = 'occupancy-organization';
+  const resourceId = 'owned-resource';
+  const actorId = 'occupancy-admin';
+  const scope = { organizationId, userId: actorId, role: 'admin' } as const;
+  try {
+    expect(
+      await source.stores.directory.addResource(
+        { id: resourceId, name: 'Host RAM', kind: 'divisible', unitLabel: 'GB' },
+        { at: 1, by: actorId },
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(resourceId, organizationId);
+    expect(
+      await given.graph.workItems.readResourceOccupancyWithin(resourceId, actorId, scope),
+    ).toEqual({
+      ok: true,
+      value: { resourceId, directoryCapacity: null, occupied: 0, free: null, projects: [] },
+    });
+    const direct = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
+      broadcast: recordingBroadcaster(),
+      clock: given.clock,
+      dependencyContext: createLocalDependencyContext(source.stores),
+      scheduler: fastScheduler,
+    });
+    expect(() => direct.workItems.readResourceOccupancyWithin(resourceId, actorId, scope)).toThrow(
+      'observation is unavailable',
+    );
+  } finally {
+    await source.close();
+  }
+});
 
 test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
   const given = fixture();

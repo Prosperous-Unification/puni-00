@@ -20,7 +20,20 @@ import {
   type WriteStamp,
 } from '@wbs/core';
 import { renewalAt } from '@wbs/domain';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { type Connection, type Drizzle, observeCommitted } from './db';
@@ -97,8 +110,25 @@ export class ClaimRepository implements ClaimStore {
   }
 
   async findById(projectId: string, claimId: string): Promise<Claim | null> {
-    const found = (await this.read(projectId, claimId)).at(0);
+    const found = (await this.read(projectId, eq(claim.id, claimId))).at(0);
     return found === undefined ? null : unstampClaim(found);
+  }
+
+  async listStampedByIds(projectId: string, ids: readonly string[]): Promise<StampedClaim[]> {
+    await Promise.resolve();
+    const stamped: StampedClaim[] = [];
+    // Proof: removing the ID predicate read a corrupt unasked claim and failed the mounted inventory.
+    // Bound the number of SQLite parameters without widening the read to the project.
+    const batchSize = 500;
+    for (let start = 0; start < ids.length; start += batchSize)
+      stamped.push(
+        ...readClaimsIn(
+          this.db,
+          projectId,
+          inArray(claim.id, ids.slice(start, start + batchSize)),
+        ).map(stampedOf),
+      );
+    return stamped;
   }
 
   async occupancyOf(projectId: string): Promise<OccupancyRow[]> {
@@ -288,9 +318,9 @@ export class ClaimRepository implements ClaimStore {
   }
 
   /** Claims with their write instant as stored and their lease, as {@link StoredClaim}. */
-  private async read(projectId: string, claimId?: string): Promise<StoredClaim[]> {
+  private async read(projectId: string, filter?: SQL): Promise<StoredClaim[]> {
     await Promise.resolve();
-    return readClaimsIn(this.db, projectId, claimId);
+    return readClaimsIn(this.db, projectId, filter);
   }
 
   async add(
@@ -643,8 +673,8 @@ function observeIn(db: Drizzle, projectId: string, access: ResourceAccess): Clai
   };
 }
 
-/** A project's stored claims (one by id when `claimId` is given), synchronously on `db`. */
-function readClaimsIn(db: Drizzle, projectId: string, claimId?: string): StoredClaim[] {
+/** A project's stored claims, optionally filtered, synchronously on `db`. */
+function readClaimsIn(db: Drizzle, projectId: string, filter?: SQL): StoredClaim[] {
   const rows = db
     .select({
       id: claim.id,
@@ -663,12 +693,8 @@ function readClaimsIn(db: Drizzle, projectId: string, claimId?: string): StoredC
     })
     .from(claim)
     .innerJoin(workItem, eq(workItem.id, claim.workItemId))
-    .where(
-      and(
-        eq(workItem.projectId, projectId),
-        claimId === undefined ? undefined : eq(claim.id, claimId),
-      ),
-    )
+    // Proof: applying the requested IDs without the project predicate exposed a foreign stamp.
+    .where(and(eq(workItem.projectId, projectId), filter))
     .orderBy(asc(claim.workItemId), asc(claim.stepId), asc(claim.id))
     .all();
   return rows.map(({ accountId, claimedAt, ...row }) => {

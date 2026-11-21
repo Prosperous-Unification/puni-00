@@ -14,6 +14,8 @@ import type {
   TransactionalStores,
 } from '@wbs/core';
 import { captureLocalTypedDependency } from '@wbs/core';
+import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
+import type { ResourceOccupancyStore } from '@wbs/core/ports/chain-snapshot-store';
 import type { OrganizationLimitValues } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
@@ -81,7 +83,8 @@ function coordinatedStores(
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
     projects: coordinatedStore(
       stores.projects,
-      ['create', 'recordOpen', 'update', 'setStepAllowance'],
+      // Proof: an uncoordinated scoped create appeared before the staged publication finished.
+      ['create', 'createInOrganization', 'recordOpen', 'update', 'setStepAllowance'],
       coordinator,
     ),
     directory: coordinatedStore(
@@ -338,6 +341,23 @@ function openMemorySourceWithSeams(
     lateWrite,
     captureRead,
   );
+  const resourceOccupancy: ResourceOccupancyStore = {
+    readResourceOccupancyWithin(resourceId, actorId, scope) {
+      // Proof: dropping the actor comparison stopped rejecting the mismatched memory observer.
+      if (actorId !== scope.userId)
+        return Promise.reject(new Error('organization read actor differs from its admitted scope'));
+      return readResourceOccupancy(
+        async () => {
+          // Proof: borrowing the live tables returned the new alias from an earlier read.
+          const snapshot = await coordinator.run(() => Promise.resolve(committed.clone()));
+          return bindStores(snapshot);
+        },
+        resourceId,
+        actorId,
+        scope,
+      );
+    },
+  };
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
   const activeCommandHistory = (): SavedPlanStore => {
     if (commandHistoryState === null) throw new Error('command history stage is not active');
@@ -524,7 +544,7 @@ function openMemorySourceWithSeams(
     },
     endLeasesOf: (personId, at) => endMemoryLeases(committed.tables.claims, personId, at),
     ownProjectInOrganization(projectId, organizationId) {
-      committed.tables.organizationLimits.projectOrganization.set(projectId, organizationId);
+      committed.tables.projects.owning.set(projectId, organizationId);
     },
     ownResourceInOrganization(resourceId, organizationId) {
       committed.tables.directory.organizationOf.set(resourceId, organizationId);
@@ -574,6 +594,7 @@ function openMemorySourceWithSeams(
     source: {
       stores,
       history,
+      resourceOccupancy,
       uow: {
         run: (act) =>
           coordinator.run(async () => {

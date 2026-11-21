@@ -113,6 +113,8 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** The public graph may borrow the source's detached occupancy observation. */
+  readonly resourceOccupancy?: Source['resourceOccupancy'];
   /** Live connected target admission; borrowed graphs never receive this capability. */
   readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
@@ -198,6 +200,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
     }).directory,
     workItems: installWorkItem({
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
+      ...(shared.resourceOccupancy === undefined
+        ? {}
+        : { resourceOccupancy: shared.resourceOccupancy }),
       clock,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
@@ -363,6 +368,10 @@ export function composeServices(
   };
   const rawPublicServices = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
+    // Proof: dropping the source observation failed the real public memory composition read.
+    ...(source.resourceOccupancy === undefined
+      ? {}
+      : { resourceOccupancy: source.resourceOccupancy }),
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,

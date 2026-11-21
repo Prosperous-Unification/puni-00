@@ -126,6 +126,8 @@ export interface ClaimStore extends ClaimIdentity {
    * through {@link add}, which stamps it.
    */
   listStampedByProject(projectId: string): Promise<StampedClaim[]>;
+  /** Reads stamps for the named claims in their verified project, in the caller's observation. */
+  listStampedByIds(projectId: string, ids: readonly string[]): Promise<StampedClaim[]>;
   /**
    * The project's rows, steps, stamped claims and holder names in one
    * observation no write lands inside (`wbs-claim-display` C1, C2), so every

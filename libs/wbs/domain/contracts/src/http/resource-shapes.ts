@@ -152,3 +152,60 @@ export const previewDirectoryCapacity = defineEndpointShape({
       'Organization admins and super-admins only; anyone else, and every agent, is refused forbidden. units is a whole number from 0, or null to preview clearing it. Answers before and after, the projects holding units of it (projectId, name, units; those the caller may not read only counted in hiddenProjects), free after the change (below 0 when more is held than would exist; lowering never releases a held unit, new claims are refused until it drains) and refusal: what setDirectoryCapacity would be refused with, or null.',
   },
 });
+
+/** The holding claims on an organization resource, for its own organization administrators. */
+export const readResourceOccupancy = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/resources/:resourceId/occupancy',
+  operationId: 'getApiOrganizationResourcesByResourceIdOccupancy',
+  policies: [...readPolicies, { kind: 'organization-resource', operation: 'read' }],
+  params: requestSchema(type({ resourceId: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          resourceId: 'string',
+          directoryCapacity: 'number | null',
+          occupied: 'number',
+          free: 'number | null',
+          projects: type({
+            projectId: 'string',
+            name: 'string',
+            restricted: 'boolean',
+            units: 'number',
+            claims: type({
+              claimId: 'string',
+              personId: 'string',
+              personName: 'string',
+              runId: 'string | null',
+              workItemId: 'string',
+              claimedAt: 'number',
+              leaseExpiresAt: 'number | null',
+              releasableBy: "'claimant_or_admin' | 'claimant'",
+            }).array(),
+          }).array(),
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    {
+      status: 400,
+      schema: responseSchema(
+        type({ error: "'invalid_params' | 'invalid_query' | 'invalid_body' | 'invalid_json'" }),
+      ),
+    },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
+    organizationContextRefusal,
+  ],
+  document: {
+    summary: 'List the holding claims on an organization resource.',
+    description:
+      'Organization admins and super-admins acting as themselves only. Each readable holding project shows its held units and each claim, including its claimant’s organization-local name, run, work item, write instant and nullable lease expiry. releasableBy is claimant_or_admin for unrestricted projects and claimant for restricted projects. When directory capacity is stated, occupied and free cover the entire organization, even where project details are withheld. With no stated directory capacity, free and directoryCapacity are null.',
+  },
+});

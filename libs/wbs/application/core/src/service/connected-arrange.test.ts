@@ -31,6 +31,7 @@ async function createArrangementFixture(
       readExecution: () => Promise.reject(new Error('unexpected execution')),
       readStartableWithin: () => Promise.reject(new Error('unexpected startable read')),
       previewDirectoryCapacityWithin: () => Promise.reject(new Error('unexpected preview')),
+      readResourceOccupancyWithin: () => Promise.reject(new Error('unexpected occupancy read')),
       readAggregate: () => Promise.reject(new Error('unexpected aggregate')),
     },
   });

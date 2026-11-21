@@ -984,6 +984,7 @@ it.each(['tree', 'treeWithin'] as const)(
         readExecution: unused,
         readStartableWithin: unused,
         previewDirectoryCapacityWithin: unused,
+        readResourceOccupancyWithin: unused,
         readAggregate: unused,
       },
     });
@@ -1046,6 +1047,7 @@ for (const method of ['tree', 'treeWithin'] as const) {
           readExecution: unused,
           readStartableWithin: unused,
           previewDirectoryCapacityWithin: unused,
+          readResourceOccupancyWithin: unused,
           readAggregate: unused,
         },
       });

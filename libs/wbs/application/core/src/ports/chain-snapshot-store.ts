@@ -1,6 +1,7 @@
 import type { CapacityMode, OrganizationScope } from '@wbs/domain';
 
 import type { CapacityPreview } from '../module/work-item/capacity-preview';
+import type { ResourceOccupancyRead } from '../module/work-item/resource-occupancy';
 import type { StartableWork } from '../module/work-item/startable';
 import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import type { ExecutionReads } from './execution-read-values';
@@ -57,8 +58,17 @@ export type StartableRead =
   | { readonly kind: 'unknown_team' }
   | { readonly kind: 'access_refused'; readonly refusal: MembershipRefusal };
 
+/** A detached inventory from one admitted organization observation. */
+export interface ResourceOccupancyStore {
+  readResourceOccupancyWithin(
+    resourceId: string,
+    actorId: string,
+    scope: OrganizationScope,
+  ): Promise<ResourceOccupancyRead>;
+}
+
 /** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */
-export interface LivePlanStore {
+export interface LivePlanStore extends ResourceOccupancyStore {
   /** Holder decisions and the first shared shortage are completed inside one read snapshot. */
   readStartableWithin(
     projectId: string,

@@ -11,6 +11,7 @@ import type {
   OrganizationPrincipal,
   PlanInputReads,
   Project,
+  RefusedOrganizationAccess,
   ResourceAccess,
   Scheduler,
   ScheduleRead,
@@ -19,8 +20,10 @@ import type {
 } from '@wbs/core';
 import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
 import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
 import { readHolderNames } from '@wbs/core/module/work-item/shared-holders';
 import { findStartableWork, startableWithHolders } from '@wbs/core/module/work-item/startable';
+import type { OrganizationScope } from '@wbs/domain';
 import { eq } from 'drizzle-orm';
 
 import { CalendarMarkerRepository } from './calendar-marker';
@@ -337,6 +340,30 @@ function requireOwnership(owner: { organizationId: string } | undefined): string
   return owner.organizationId;
 }
 
+/** Rechecks current organization authority while preserving the admitted credential ceiling. */
+function currentOrganizationRead(
+  db: Drizzle,
+  actorId: string,
+  scope: OrganizationScope,
+): { readonly ok: true; readonly scope: OrganizationScope } | RefusedOrganizationAccess {
+  // Proof: skipping activation made a pre-activation observation answer not_a_member.
+  if (readOrganizationActivation(db) !== 'activated')
+    return { ok: false, refusal: 'no_active_organization' };
+  // Proof: skipping the actor comparison stopped rejecting the mismatched observer.
+  if (actorId !== scope.userId)
+    throw new Error('organization read actor differs from its admitted scope');
+  const membership = currentMembershipAccess(db, scope.organizationId, actorId);
+  // Proof: continuing after membership removal returned HTTP 200 between route and snapshot.
+  if (!membership.ok) return membership;
+  if (membership.access.kind !== 'scoped') throw new Error('activated read lacks current scope');
+  return {
+    ok: true,
+    // Proof: using the stored role alone admitted an admin's agent key. Using the admitted role
+    // alone let a demoted admin read after the membership changed.
+    scope: { ...scope, role: capStoredRole(membership.access.scope.role, scope.role) },
+  };
+}
+
 /** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
 export function createLivePlanStore(
   options: LiveCaptureOptions &
@@ -373,6 +400,7 @@ export function createLivePlanStore(
       // both returned HTTP 200 before first-response equality failed (2026-10-23).
       // Proof: no-op observation transaction mixed target dates and foreign facts through HTTP200 (puni-task84-fault-lifetime.log).
       // Proof: preview-without-transaction mixed old holdings with new demand in the mounted preview.
+      // Proof: dropping this transaction lost a claim's stamp after a mid-read release.
       transaction.begin();
       try {
         const captured = await read(connection.db, lifetime);
@@ -418,14 +446,8 @@ export function createLivePlanStore(
       }),
     previewDirectoryCapacityWithin: (resourceId, units, actorId, scope) =>
       observe(async (db, lifetime) => {
-        if (readOrganizationActivation(db) !== 'activated')
-          return { ok: false, refusal: 'no_active_organization' };
-        if (actorId !== scope.userId)
-          throw new Error('preview actor differs from its admitted scope');
-        const membership = currentMembershipAccess(db, scope.organizationId, actorId);
-        if (!membership.ok) return membership;
-        if (membership.access.kind !== 'scoped')
-          throw new Error('activated preview lacks current scope');
+        const admitted = currentOrganizationRead(db, actorId, scope);
+        if (!admitted.ok) return admitted;
         const preview = await previewCapacity(
           {
             claims: new ClaimRepository(db, OPEN),
@@ -435,10 +457,27 @@ export function createLivePlanStore(
           resourceId,
           units,
           actorId,
-          { ...scope, role: capStoredRole(membership.access.scope.role, scope.role) },
+          admitted.scope,
         );
         lifetime.assertOpen();
         return preview;
+      }),
+    readResourceOccupancyWithin: (resourceId, actorId, scope) =>
+      observe(async (db, lifetime) => {
+        const admitted = currentOrganizationRead(db, actorId, scope);
+        if (!admitted.ok) return admitted;
+        const occupancy = await readResourceOccupancy(
+          () => ({
+            claims: new ClaimRepository(db, OPEN),
+            projects: new ProjectRepository(db, OPEN),
+            directory: new DirectoryRepository(db, OPEN),
+          }),
+          resourceId,
+          actorId,
+          admitted.scope,
+        );
+        lifetime.assertOpen();
+        return occupancy;
       }),
     readExecution: (projectId, access, teamId) =>
       observe((db, lifetime) => readExecutionIn(db, projectId, access, teamId, lifetime)),

@@ -1,5 +1,7 @@
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import { DirectoryRepository } from '@wbs/store-sqlite/directory';
+import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { ProjectRepository } from '@wbs/store-sqlite/project';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair } from 'jose';
@@ -986,6 +988,707 @@ describe('shared holder visibility through the mounted organization', () => {
       expect(stated(h, ram)).toBe(16);
     } finally {
       policy.mockRestore();
+    }
+  });
+});
+
+describe('the admin occupancy inventory', () => {
+  const path = (resourceId: string) => `/api/organization/resources/${resourceId}/occupancy`;
+  const holder = 'human-holder';
+  const claim = {
+    kind: 'claimWorkItem',
+    workItemId: 'w-b',
+    personId: 'agent-b',
+  };
+
+  function batch(username: string, projectId: string, commands: unknown[]) {
+    return h.call(username, 'POST', `/api/projects/${projectId}/commands`, { commands });
+  }
+
+  async function stageHuman(restricted: boolean) {
+    h.sqlite.run('INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, ?, ?)', [
+      holder,
+      'Global Name',
+      'person',
+      h.userId('vic'),
+    ]);
+    h.sqlite.run(
+      'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+      [holder, 'org-a', 'Organization Alias'],
+    );
+    expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, 16)] })).toMatchObject({
+      status: 200,
+    });
+    for (const [projectId, workItemId] of [
+      [projectA, 'w-a'],
+      [projectB, 'w-b'],
+    ] as const) {
+      expect(
+        await batch('ada', projectId, [
+          { kind: 'setDemand', workItemId, resourceId: ram, units: 16 },
+        ]),
+      ).toMatchObject({ status: 200 });
+    }
+    expect(
+      await batch('sue', projectA, [
+        {
+          kind: 'claimWorkItem',
+          workItemId: 'w-a',
+          personId: holder,
+          steps: [firstStepOf(projectA)],
+        },
+      ]),
+    ).toMatchObject({ status: 200 });
+    if (restricted) {
+      expect(
+        await h.call('ada', 'PATCH', `/api/projects/${projectA}`, { restricted: true }),
+      ).toMatchObject({
+        status: 200,
+      });
+    }
+  }
+
+  function ledger() {
+    return {
+      claims: h.sqlite.query('SELECT * FROM claim ORDER BY id').all(),
+      occupancy: h.sqlite
+        .query('SELECT * FROM claim_occupancy ORDER BY claim_id, resource_id')
+        .all(),
+      audits: h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all(),
+      journal: h.sqlite.query('SELECT * FROM command_journal ORDER BY rowid').all(),
+      capacity: stated(h, ram),
+    };
+  }
+
+  for (const restricted of [false, true]) {
+    it(`reads ${restricted ? 'a restricted' : 'an unrestricted'} human claim and observes the actual release decision`, async () => {
+      await stageHuman(restricted);
+      const ask = { ...claim, steps: [firstStepOf(projectB)] };
+      expect(await batch('ada', projectB, [ask])).toMatchObject({
+        status: 409,
+        body: { error: 'resources_exhausted' },
+      });
+      const initial = ledger();
+      const stamp = h.sqlite
+        .query<{ id: string; created_at: number }, [string]>(
+          'SELECT id, created_at FROM claim WHERE person_id = ?',
+        )
+        .get(holder);
+      if (stamp === null) throw new Error('the human claim was not stored');
+      const read = await h.call('sue', 'GET', path(ram));
+      expect(read).toEqual({
+        status: 200,
+        body: {
+          resourceId: ram,
+          directoryCapacity: 16,
+          occupied: 16,
+          free: 0,
+          projects: [
+            {
+              projectId: projectA,
+              name: 'A',
+              restricted,
+              units: 16,
+              claims: [
+                {
+                  claimId: stamp.id,
+                  personId: holder,
+                  personName: 'Organization Alias',
+                  runId: null,
+                  workItemId: 'w-a',
+                  claimedAt: stamp.created_at,
+                  leaseExpiresAt: null,
+                  releasableBy: restricted ? 'claimant' : 'claimant_or_admin',
+                },
+              ],
+            },
+          ],
+        },
+      });
+      expect(await h.call('tom', 'GET', path(ram))).toEqual(read);
+      expect(ledger()).toEqual(initial);
+      const release = await batch('sue', projectA, [
+        { kind: 'releaseWorkItem', workItemId: 'w-a', personId: holder },
+      ]);
+      if (restricted) {
+        expect(release).toMatchObject({ status: 403, body: { error: 'forbidden' } });
+        expect(ledger()).toEqual(initial);
+        expect(await h.call('sue', 'GET', path(ram))).toEqual(read);
+      } else {
+        expect(release).toMatchObject({ status: 200 });
+        expect(await h.call('sue', 'GET', path(ram))).toEqual({
+          status: 200,
+          body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, projects: [] },
+        });
+        expect(await batch('ada', projectB, [ask])).toMatchObject({ status: 200 });
+      }
+    });
+  }
+});
+
+describe('occupancy inventory authority and observation', () => {
+  const path = (resourceId = ram) => `/api/organization/resources/${resourceId}/occupancy`;
+  const visiblePerson = 'visible-inventory-person';
+  const hiddenPerson = 'private-inventory-person';
+  const hiddenProject = 'PRIVATE_INVENTORY_PROJECT';
+  const hiddenName = 'PRIVATE_INVENTORY_ALIAS';
+  const reserved = 'private-inventory-claim';
+  const lease = 123457891;
+  const claimedAt = 987654321;
+
+  async function stateCapacity(units: number | null) {
+    expect(await h.call('sue', 'POST', DIRECTORY, { commands: [state(ram, units)] })).toMatchObject(
+      {
+        status: 200,
+      },
+    );
+  }
+
+  function inventoryStep(projectId: string, position: number): string {
+    const step = h.sqlite
+      .query<{ id: string }, [string, number]>(
+        'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1 OFFSET ?',
+      )
+      .get(projectId, position);
+    if (step === null) throw new Error('inventory fixture step is absent');
+    return step.id;
+  }
+
+  function addHolder(
+    id: string,
+    projectId: string,
+    workItemId: string,
+    personId: string,
+    units: number,
+    options: { step?: number; run?: string; at?: number; expires?: number } = {},
+  ) {
+    const stepId = inventoryStep(projectId, options.step ?? 0);
+    h.sqlite.run(
+      'INSERT INTO claim (id, work_item_id, step_id, person_id, run_id, created_at, created_by, lease_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        workItemId,
+        stepId,
+        personId,
+        options.run ?? null,
+        options.at ?? 11,
+        h.userId('ada'),
+        options.expires ?? null,
+      ],
+    );
+    h.sqlite.run('INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES (?, ?, ?)', [
+      id,
+      ram,
+      units,
+    ]);
+  }
+
+  function addPeople() {
+    addAgentPerson(h.sqlite, hiddenPerson, 'org-a', h.userId('ada'));
+    addAgentPerson(h.sqlite, visiblePerson, 'org-a', h.userId('ada'));
+    h.sqlite.run('UPDATE person SET name = ? WHERE id = ?', ['GLOBAL_WRONG_NAME', visiblePerson]);
+    h.sqlite.run('UPDATE person_organization SET name = ? WHERE resource_id = ?', [
+      'Visible Alias',
+      visiblePerson,
+    ]);
+    h.sqlite.run('UPDATE person_organization SET name = ? WHERE resource_id = ?', [
+      hiddenName,
+      hiddenPerson,
+    ]);
+    h.sqlite.run('UPDATE project SET name = ? WHERE id = ?', [hiddenProject, projectA]);
+  }
+
+  function readPrototypeMethod<Owner extends object, Method extends keyof Owner>(
+    prototype: Owner,
+    method: Method,
+  ): Owner[Method] {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, method);
+    if (typeof descriptor?.value !== 'function')
+      throw new Error('fixture prototype lacks ' + String(method));
+    return descriptor.value as Owner[Method];
+  }
+
+  function beforeContent() {
+    return spyOn(DirectoryRepository.prototype, 'listInOrganization');
+  }
+
+  it('refuses unsigned, removed and stale callers before opening content', async () => {
+    const read = beforeContent();
+    try {
+      const noAuth = await h.request(path());
+      expect(noAuth.status).toBe(401);
+      expect(await noAuth.json()).toEqual({ error: 'unauthenticated' });
+      expect(
+        await h.callWith(h.token('sue'), 'GET', path(), undefined, {
+          'X-WBS-Expected-Organization': 'org-b',
+        }),
+      ).toEqual({ status: 409, body: { error: 'organization_context_changed' } });
+      h.sqlite.run(
+        'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
+        ['org-a', h.userId('sue')],
+      );
+      expect(await h.call('sue', 'GET', path())).toEqual({
+        status: 403,
+        body: { error: 'not_a_member' },
+      });
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('refuses an unselected or legacy session before opening resource content', async () => {
+    h.close();
+    h = OrganizationHarness.openComposedWith({});
+    await h.register('unselected');
+    const requested = path('unselected-resource');
+    const observation = spyOn(WorkItemService.prototype, 'readResourceOccupancyWithin');
+    const refused = { status: 403, body: { error: 'no_active_organization' } };
+    const content = beforeContent();
+    try {
+      expect(await h.call('unselected', 'GET', requested)).toEqual(refused);
+      h.organization('org-a');
+      h.member('org-a', 'unselected', 'admin');
+      h.activate();
+      expect(await h.call('unselected', 'GET', requested)).toEqual(refused);
+      expect(content).not.toHaveBeenCalled();
+      expect(observation).not.toHaveBeenCalled();
+    } finally {
+      content.mockRestore();
+      observation.mockRestore();
+    }
+  });
+
+  it('refuses members, viewers and admin machine keys before distinguishing resources', async () => {
+    addPeople();
+    addHolder(reserved, projectA, 'w-a', hiddenPerson, 16);
+    const read = beforeContent();
+    try {
+      addAgentPerson(h.sqlite, 'inventory-agent', 'org-a', h.userId('sue'));
+      const { key } = await issueApiKey(h.sqlite, {
+        organizationId: 'org-a',
+        personId: 'inventory-agent',
+        issuedBy: h.userId('sue'),
+      });
+      const refused = { status: 403, body: { error: 'forbidden' } };
+      for (const requested of [path(), path('absent-resource')]) {
+        expect(await h.call('ada', 'GET', requested)).toEqual(refused);
+        expect(await h.call('vic', 'GET', requested)).toEqual(refused);
+        expect(await callForwarded(h, key, 'GET', requested)).toEqual(refused);
+        expect(await h.callWith(key, 'GET', requested)).toEqual({
+          status: 401,
+          body: { error: 'machine_bearer_not_accepted', endpoint: '/mcp' },
+        });
+      }
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('admits an admin’s own MCP session and refuses the same account’s agent consent', async () => {
+    h.close();
+    const signing = await generateKeyPair('RS256');
+    h = OrganizationHarness.openComposedWith({ delegationKey: signing.publicKey });
+    await setUp(h);
+    mapUpstream(h, 'sue', 'sub-inventory-sue');
+    addAgentPerson(h.sqlite, 'inventory-consent-person', 'org-a', h.userId('sue'));
+    const credentialId = crypto.randomUUID();
+    h.sqlite.run(
+      `INSERT INTO machine_credential (id, organization_id, person_id, issued_by, source, name, mcp_family_id, created_at, created_by)
+       VALUES (?, 'org-a', 'inventory-consent-person', ?, 'mcp_consent', 'consent', 'family-1', 1, ?)`,
+      [credentialId, h.userId('sue'), h.userId('sue')],
+    );
+    const own = await delegationFor(h, signing.privateKey, 'sue', 'org-a', 'sub-inventory-sue');
+    expect(await h.callWith(own, 'GET', path())).toEqual({
+      status: 200,
+      body: { resourceId: ram, directoryCapacity: null, occupied: 0, free: null, projects: [] },
+    });
+    const consent = await delegationFor(
+      h,
+      signing.privateKey,
+      'sue',
+      'org-a',
+      'sub-inventory-sue',
+      {
+        credentialId,
+        personId: 'inventory-consent-person',
+      },
+    );
+    const read = beforeContent();
+    try {
+      expect(await h.callWith(consent, 'GET', path())).toEqual({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
+      expect(read).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  it('answers foreign and absent resources alike and admits genuine zero capacity', async () => {
+    const absent = { status: 404, body: { error: 'not_found' } };
+    expect(await h.call('grace', 'GET', path())).toEqual(absent);
+    expect(await h.call('grace', 'GET', path('absent-resource'))).toEqual(absent);
+    await stateCapacity(0);
+    expect(await h.call('sue', 'GET', path())).toEqual({
+      status: 200,
+      body: { resourceId: ram, directoryCapacity: 0, occupied: 0, free: 0, projects: [] },
+    });
+  });
+
+  it('counts the largest copy per leaf and retains every claim with its actual stamp', async () => {
+    await stateCapacity(16);
+    addPeople();
+    addHolder('shared-1', projectA, 'w-a', visiblePerson, 16, { at: 101, expires: lease });
+    addHolder('shared-2', projectA, 'w-a', visiblePerson, 12, {
+      step: 1,
+      at: 102,
+      expires: lease + 1,
+    });
+    addHolder('shared-3', projectB, 'w-b', visiblePerson, 4, { at: 103 });
+    const initial = await h.call('sue', 'GET', path());
+    expect(initial).toMatchObject({ status: 200, body: { occupied: 20, free: -4 } });
+    const body = initial.body as {
+      projects: { projectId: string; units: number; claims: unknown[] }[];
+    };
+    expect(body.projects.map(({ projectId }) => projectId)).toEqual([projectA, projectB].sort());
+    expect(body.projects.find(({ projectId }) => projectId === projectA)).toMatchObject({
+      units: 16,
+      claims: [
+        {
+          claimId: 'shared-1',
+          personId: visiblePerson,
+          personName: 'Visible Alias',
+          runId: null,
+          claimedAt: 101,
+          leaseExpiresAt: lease,
+        },
+        {
+          claimId: 'shared-2',
+          personId: visiblePerson,
+          personName: 'Visible Alias',
+          runId: null,
+          claimedAt: 102,
+          leaseExpiresAt: lease + 1,
+        },
+      ],
+    });
+    expect(body.projects.find(({ projectId }) => projectId === projectB)).toMatchObject({
+      units: 4,
+      claims: [{ claimId: 'shared-3', runId: null, claimedAt: 103, leaseExpiresAt: null }],
+    });
+    const release = (position: number) =>
+      h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+        commands: [
+          {
+            kind: 'releaseWorkItem',
+            workItemId: 'w-a',
+            personId: visiblePerson,
+            steps: [inventoryStep(projectA, position)],
+          },
+        ],
+      });
+    expect(await release(1)).toMatchObject({ status: 200 });
+    expect(await h.call('sue', 'GET', path())).toMatchObject({
+      status: 200,
+      body: { occupied: 20, free: -4 },
+    });
+    expect(await release(0)).toMatchObject({ status: 200 });
+    expect(await h.call('sue', 'GET', path())).toMatchObject({
+      status: 200,
+      body: { occupied: 4, free: 12, projects: [{ projectId: projectB }] },
+    });
+  });
+
+  it('omits every hidden identity and resolves only visible ids across capacity states', async () => {
+    await stateCapacity(24);
+    addPeople();
+    addHolder(reserved, projectA, 'w-a', hiddenPerson, 16, {
+      run: 'private-inventory-run',
+      at: claimedAt,
+      expires: lease,
+    });
+    addHolder('open-inventory-claim', projectB, 'w-b', visiblePerson, 4);
+    h.sqlite.run(
+      'INSERT INTO claim (id, work_item_id, step_id, person_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+      ['unasked-claim', 'w-b', inventoryStep(projectB, 1), hiddenPerson, null, h.userId('ada')],
+    );
+    const stamped = spyOn(ClaimRepository.prototype, 'listStampedByIds');
+    const names = spyOn(DirectoryRepository.prototype, 'personNamesInOrganization');
+    const checked: string[] = [];
+    const decide = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin');
+    let denied = new Set([projectA]);
+    decide.mockImplementation((project) => {
+      checked.push(project.id);
+      return Promise.resolve(!denied.has(project.id));
+    });
+    try {
+      const content = await h.call('sue', 'GET', path());
+      expect(content).toEqual({
+        status: 200,
+        body: {
+          resourceId: ram,
+          directoryCapacity: 24,
+          occupied: 20,
+          free: 4,
+          projects: [
+            {
+              projectId: projectB,
+              name: 'B',
+              restricted: false,
+              units: 4,
+              claims: [
+                {
+                  claimId: 'open-inventory-claim',
+                  personId: visiblePerson,
+                  personName: 'Visible Alias',
+                  runId: null,
+                  workItemId: 'w-b',
+                  claimedAt: 11,
+                  leaseExpiresAt: null,
+                  releasableBy: 'claimant_or_admin',
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const body = JSON.stringify(content.body);
+      for (const secret of [
+        projectA,
+        hiddenProject,
+        reserved,
+        hiddenPerson,
+        hiddenName,
+        'w-a',
+        'private-inventory-run',
+        String(claimedAt),
+        String(lease),
+        'hiddenProjects',
+      ])
+        expect(body).not.toContain(secret);
+      expect(checked.sort()).toEqual([projectA, projectB].sort());
+      expect(stamped.mock.calls).toEqual([[projectB, ['open-inventory-claim']]]);
+      expect(names.mock.calls).toEqual([['org-a', [visiblePerson]]]);
+      stamped.mockClear();
+      names.mockClear();
+      denied = new Set([projectA, projectB]);
+      expect(await h.call('sue', 'GET', path())).toEqual({
+        status: 200,
+        body: { resourceId: ram, directoryCapacity: 24, occupied: 20, free: 4, projects: [] },
+      });
+      expect(stamped).not.toHaveBeenCalled();
+      expect(names).not.toHaveBeenCalled();
+      await stateCapacity(null);
+      denied = new Set([projectA]);
+      expect(await h.call('sue', 'GET', path())).toMatchObject({
+        status: 200,
+        body: {
+          directoryCapacity: null,
+          occupied: 4,
+          free: null,
+          projects: [{ projectId: projectB }],
+        },
+      });
+      denied = new Set();
+      expect(await h.call('sue', 'GET', path())).toMatchObject({
+        status: 200,
+        body: { directoryCapacity: null, occupied: 20, free: null },
+      });
+    } finally {
+      decide.mockRestore();
+      stamped.mockRestore();
+      names.mockRestore();
+    }
+  });
+
+  it('refuses a demotion or membership removal after route admission before reading content', async () => {
+    const original = readPrototypeMethod(SqliteOrganizationAccess.prototype, 'resolve');
+    const resolver = spyOn(SqliteOrganizationAccess.prototype, 'resolve');
+    const content = beforeContent();
+    try {
+      for (const change of ['demote', 'remove'] as const) {
+        resolver.mockImplementation(async function (this: SqliteOrganizationAccess, principal) {
+          const admitted = await original.call(this, principal);
+          if (
+            admitted.ok &&
+            admitted.access.kind === 'scoped' &&
+            principal.id === h.userId('sue')
+          ) {
+            expect(admitted.access.scope.role).toBe('admin');
+            if (change === 'demote') {
+              h.sqlite.run(
+                "UPDATE organization_membership SET role = 'member' WHERE organization_id = ? AND user_id = ?",
+                ['org-a', principal.id],
+              );
+            } else {
+              h.sqlite.run(
+                'DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?',
+                ['org-a', principal.id],
+              );
+            }
+          }
+          return admitted;
+        });
+        expect(await h.call('sue', 'GET', path())).toEqual({
+          status: 403,
+          body: { error: change === 'demote' ? 'forbidden' : 'not_a_member' },
+        });
+        expect(content).not.toHaveBeenCalled();
+        if (change === 'demote')
+          h.sqlite.run(
+            "UPDATE organization_membership SET role = 'admin' WHERE organization_id = ? AND user_id = ?",
+            ['org-a', h.userId('sue')],
+          );
+      }
+    } finally {
+      resolver.mockRestore();
+      content.mockRestore();
+    }
+  });
+
+  it('keeps stamps, names, role and units coherent across a mid-read release', async () => {
+    await stateCapacity(16);
+    addPeople();
+    addHolder('old-inventory-claim', projectA, 'w-a', visiblePerson, 16, { at: 19 });
+    const original = readPrototypeMethod(ProjectRepository.prototype, 'mayReadProjectWithin');
+    let changed = false;
+    const writer = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockImplementation(
+      async function (this: ProjectRepository, ...args: Parameters<typeof original>) {
+        if (!changed) {
+          changed = true;
+          expect(
+            await h.call('sue', 'POST', `/api/projects/${projectA}/commands`, {
+              commands: [{ kind: 'releaseWorkItem', workItemId: 'w-a', personId: visiblePerson }],
+            }),
+          ).toMatchObject({ status: 200 });
+          h.sqlite.run('UPDATE person_organization SET name = ? WHERE resource_id = ?', [
+            'Next Alias',
+            visiblePerson,
+          ]);
+          h.sqlite.run(
+            'UPDATE organization_membership SET role = ? WHERE organization_id = ? AND user_id = ?',
+            ['member', 'org-a', h.userId('sue')],
+          );
+        }
+        return original.apply(this, args);
+      },
+    );
+    try {
+      expect(await h.call('sue', 'GET', path())).toMatchObject({
+        status: 200,
+        body: {
+          occupied: 16,
+          free: 0,
+          projects: [
+            {
+              claims: [
+                { claimId: 'old-inventory-claim', personName: 'Visible Alias', claimedAt: 19 },
+              ],
+            },
+          ],
+        },
+      });
+      expect(await h.call('sue', 'GET', path())).toEqual({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
+      expect(await h.call('tom', 'GET', path())).toEqual({
+        status: 200,
+        body: { resourceId: ram, directoryCapacity: 16, occupied: 0, free: 16, projects: [] },
+      });
+    } finally {
+      writer.mockRestore();
+    }
+  });
+
+  it('fails closed on contradictory holding rows and unpaired stamps', async () => {
+    addPeople();
+    addHolder('conflicting-inventory-claim', projectA, 'w-a', visiblePerson, 7);
+    const read = readPrototypeMethod(ClaimRepository.prototype, 'organizationOccupancyOf');
+    const rows = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf').mockImplementation(
+      async function (this: ClaimRepository, ids) {
+        const holdings = await read.call(this, ids);
+        const first = holdings.at(0);
+        if (first === undefined) throw new Error('contradictory holding fixture is absent');
+        return [...holdings, { ...first, personId: hiddenPerson }];
+      },
+    );
+    try {
+      expect(await h.call('sue', 'GET', path())).toMatchObject({ status: 500 });
+      rows.mockImplementation(async function (this: ClaimRepository, ids) {
+        return (await read.call(this, ids)).map((row) => ({ ...row, organizationId: 'org-b' }));
+      });
+      expect(await h.call('sue', 'GET', path())).toMatchObject({ status: 500 });
+    } finally {
+      rows.mockRestore();
+    }
+    const stampRead = readPrototypeMethod(ClaimRepository.prototype, 'listStampedByIds');
+    const stamps = spyOn(ClaimRepository.prototype, 'listStampedByIds').mockImplementation(
+      async function (this: ClaimRepository, projectId, ids) {
+        const holdings = await stampRead.call(this, projectId, ids);
+        return [...holdings, ...holdings];
+      },
+    );
+    try {
+      expect(await h.call('sue', 'GET', path())).toMatchObject({ status: 500 });
+    } finally {
+      stamps.mockRestore();
+    }
+  });
+
+  it('fails closed for a missing owner, name or stamp, a corrupt stamp, or an unreadable dependency', async () => {
+    addPeople();
+    addHolder('broken-inventory-claim', projectA, 'w-a', visiblePerson, 7, { at: 17 });
+    const failsClosed = async () => {
+      const response = await h.call('sue', 'GET', path());
+      expect(response.status).toBe(500);
+      expect(JSON.stringify(response.body)).not.toContain('broken-inventory-claim');
+      expect(JSON.stringify(response.body)).not.toContain('Visible Alias');
+      expect(JSON.stringify(response.body)).not.toContain('private read failure');
+    };
+    const owner = spyOn(ProjectRepository.prototype, 'findInOrganization').mockResolvedValue(null);
+    try {
+      await failsClosed();
+    } finally {
+      owner.mockRestore();
+    }
+    const stamps = spyOn(ClaimRepository.prototype, 'listStampedByIds').mockResolvedValue([]);
+    try {
+      await failsClosed();
+    } finally {
+      stamps.mockRestore();
+    }
+    h.sqlite.run("UPDATE claim SET created_at = 'bad stamp' WHERE id = 'broken-inventory-claim'");
+    await failsClosed();
+    h.sqlite.run("UPDATE claim SET created_at = 17 WHERE id = 'broken-inventory-claim'");
+    const grants = spyOn(ProjectRepository.prototype, 'mayReadProjectWithin').mockRejectedValue(
+      new Error('private read failure'),
+    );
+    try {
+      await failsClosed();
+    } finally {
+      grants.mockRestore();
+    }
+    const names = spyOn(
+      DirectoryRepository.prototype,
+      'personNamesInOrganization',
+    ).mockRejectedValue(new Error('private read failure'));
+    try {
+      await failsClosed();
+    } finally {
+      names.mockRestore();
+    }
+    const missingName = spyOn(
+      DirectoryRepository.prototype,
+      'personNamesInOrganization',
+    ).mockResolvedValue([]);
+    try {
+      await failsClosed();
+    } finally {
+      missingName.mockRestore();
     }
   });
 });

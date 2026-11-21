@@ -638,6 +638,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return scope.stores.claims.listByProject(requestedProjectId);
       },
+      listStampedByIds: (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.listStampedByIds(requestedProjectId, ids);
+      },
       listStampedByProject: (requestedProjectId) => {
         assertProject(requestedProjectId);
         return scope.stores.claims.listStampedByProject(requestedProjectId);

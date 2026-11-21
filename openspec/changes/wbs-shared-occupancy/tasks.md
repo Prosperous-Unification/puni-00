@@ -62,8 +62,8 @@
 - [x] 1.5 Route inventory: add both new routes to `ORGANIZATION_ROUTE_INVENTORY`
       (`apps/wbs/be-01/src/testing/organization-route-inventory.ts`) with their policies
       — test: `organization-context.controller.db.test.ts`. Fault line: register a route
-      without its inventory entry and the inventory test fails. (Built for the preview; the
-      occupancy route's entry lands with 4.2, which adds the route.)
+      without its inventory entry and the inventory test fails. The preview and occupancy
+      entries are both mounted and covered by the parity check.
 
 ## 2. Domain: both scopes in one check
 
@@ -124,7 +124,7 @@
       startable reads, coherent preview, no writes and legacy compatibility.
       Task 0.1 authorizes the controlled same-organization denial. Permissions
       still owns real restricted grants and their production-path negative.
-- [ ] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
+- [x] 4.2 `GET /api/organization/resources/:resourceId/occupancy` (S12) with
       `releasableBy` — test: the two spec scenarios; a member and an admin's agent
       refused `forbidden`. Fault lines: skip the role check and the member reads other
       projects' holders; answer `claimant_or_admin` for a restricted project and the

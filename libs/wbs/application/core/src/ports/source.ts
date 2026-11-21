@@ -1,3 +1,4 @@
+import type { ResourceOccupancyStore } from './chain-snapshot-store';
 import type { HistoryStores, PlanTransactionalStores } from './stores';
 import type { UnitOfWork } from './unit-of-work';
 
@@ -8,6 +9,8 @@ export type SourceHealth = { ok: true } | { ok: false; reason: 'unavailable' };
 export interface Source<S extends PlanTransactionalStores = PlanTransactionalStores> {
   readonly stores: S;
   readonly history: HistoryStores;
+  /** Detached public organization occupancy for sources without an installed live-plan reader. */
+  readonly resourceOccupancy?: ResourceOccupancyStore;
   readonly uow: UnitOfWork<S>;
   health(): Promise<SourceHealth>;
   close(): Promise<void>;

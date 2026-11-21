@@ -127,7 +127,11 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
-import type { LivePlanStore, StartableRead } from '../../ports/chain-snapshot-store';
+import type {
+  LivePlanStore,
+  ResourceOccupancyStore,
+  StartableRead,
+} from '../../ports/chain-snapshot-store';
 import {
   type ClaimIdentity,
   type ClaimLease,
@@ -288,6 +292,7 @@ import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-de
 import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
 import { findProjectClaims, type ProjectClaims } from './project-claims';
+import type { ResourceOccupancyRead } from './resource-occupancy';
 import { readHolderNames, sharedHolders } from './shared-holders';
 import { findStartableWork, startableWithHolders, type StartableWork } from './startable';
 import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
@@ -932,6 +937,7 @@ export interface WorkItemServiceOptions {
   dependencyContext: ServiceDependencyContext;
   externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   livePlans?: LivePlanStore;
+  resourceOccupancy?: ResourceOccupancyStore;
   workItems: WorkItemStore;
   /** Required scope-bound evidence; create refuses retained facts before any writes. */
   stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
@@ -4000,6 +4006,17 @@ export class WorkItemService {
       actorId,
       scope,
     );
+  }
+
+  /** Reads this resource's inventory through a single observation of admitted state. */
+  readResourceOccupancyWithin(
+    resourceId: string,
+    actorId: string,
+    scope: OrganizationScope,
+  ): Promise<ResourceOccupancyRead> {
+    const observation = this.opts.livePlans ?? this.opts.resourceOccupancy;
+    if (observation === undefined) throw new Error('resource occupancy observation is unavailable');
+    return observation.readResourceOccupancyWithin(resourceId, actorId, scope);
   }
 
   /**

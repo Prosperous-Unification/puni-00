@@ -17,6 +17,7 @@ import {
   readPersonWork,
   readProjectClaims,
   readProjectResources,
+  readResourceOccupancy,
   readStartableWork,
   redoProject,
   responseSchema,
@@ -962,6 +963,26 @@ export function workItemRoutes(
           status: 200,
           body: await withProviderReadings(read, providers.reports, providers.clock.now()),
         };
+      },
+    ),
+    bind(
+      readResourceOccupancy,
+      async ({ params, principal }): Promise<HttpReply<typeof readResourceOccupancy>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        // Proof: dispatching a legacy session made the mounted no-observation assertion fail.
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const occupancy = await workItems.readResourceOccupancyWithin(
+          params.resourceId,
+          principal.id,
+          resolved.access.scope,
+        );
+        if (!occupancy.ok && 'refusal' in occupancy) return organizationRefusal(occupancy);
+        if (!occupancy.ok)
+          return occupancy.reason === 'forbidden'
+            ? { ok: false, status: 403, body: { error: 'forbidden' } }
+            : { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: occupancy.value };
       },
     ),
     bind(

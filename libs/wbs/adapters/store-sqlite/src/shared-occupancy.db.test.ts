@@ -21,8 +21,8 @@ import { expectCreated } from '@wbs/core/testing/expect-created';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { CLAIM_LEASE_MS } from '@wbs/domain';
-import { openMemorySourceFixture } from '@wbs/store-memory/source';
-import { describe, expect, it } from 'bun:test';
+import { MemoryState, openMemorySourceFixture } from '@wbs/store-memory/source';
+import { describe, expect, it, spyOn } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
@@ -52,6 +52,13 @@ function staleDetail(outcome: ScopedUndoOutcome): string | null {
 interface Opened {
   readonly source: Source<TransactionalStores>;
   readonly isMemory: boolean;
+  readonly observation?: Source<TransactionalStores>;
+  readonly ownPeople?: (personIds: readonly string[]) => void;
+  readonly setClaimStamp?: (
+    claimId: string,
+    field: 'write' | 'expiry',
+    value: number | string,
+  ) => void;
   /** Puts both projects and both resources in {@link ORG}, as no port can. */
   readonly own: (projectIds: readonly string[], resourceIds: readonly string[]) => void;
   /**
@@ -76,6 +83,9 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
           for (const id of projectIds) fixture.ownProjectInOrganization(id, ORG);
           for (const id of resourceIds) fixture.ownResourceInOrganization(id, ORG);
         },
+        ownPeople: (personIds) => {
+          for (const personId of personIds) fixture.ownPersonInOrganization(personId, ORG, [F]);
+        },
         dispose: () => undefined,
       };
     },
@@ -87,18 +97,32 @@ const STORES: readonly { readonly name: string; readonly open: () => Opened }[] 
       const dbPath = join(folder, 'plan.db');
       runMigrations(dbPath, MIGRATIONS);
       activateTestStepBlockages(dbPath);
+      // Caps far above the fixture: a scoped claim counts them, never reaches them.
+      const source = openSqliteSource({
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath,
+        organizationDefaultLimits: {
+          maxAgentPersons: 1_000,
+          maxConcurrentClaims: 1_000,
+          maxCapacityUnitsPerResource: 1_000,
+        },
+      });
       return {
-        // Caps far above the fixture: a scoped claim counts them, never reaches them.
-        source: openSqliteSource({
-          dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-          dbPath,
-          organizationDefaultLimits: {
-            maxAgentPersons: 1_000,
-            maxConcurrentClaims: 1_000,
-            maxCapacityUnitsPerResource: 1_000,
-          },
-        }),
+        source,
+        observation: source.bindLivePlans({ schedulerOf: () => fastScheduler }),
         isMemory: false,
+        setClaimStamp: (claimId, field, value) => {
+          const sqlite = openDatabase(dbPath);
+          try {
+            const update =
+              field === 'write'
+                ? 'UPDATE claim SET created_at = ? WHERE id = ?'
+                : 'UPDATE claim SET lease_expires_at = ? WHERE id = ?';
+            sqlite.run(update, [value, claimId]);
+          } finally {
+            sqlite.close();
+          }
+        },
         activate: (accountId, personIds) => {
           const sqlite = openDatabase(dbPath);
           try {
@@ -172,7 +196,16 @@ async function seeded(store: (typeof STORES)[number]) {
     scheduler: fastScheduler,
     dependencyContext: createLocalDependencyContext(source.stores),
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    ...(source.resourceOccupancy === undefined
+      ? {}
+      : { resourceOccupancy: source.resourceOccupancy }),
+  });
+  const observation =
+    opened.observation === undefined
+      ? graph.workItems
+      : servicesOver(opened.observation.stores, options).workItems;
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
@@ -320,6 +353,7 @@ async function seeded(store: (typeof STORES)[number]) {
   return {
     source,
     graph,
+    observation,
     opened,
     people,
     runner,
@@ -339,8 +373,170 @@ async function seeded(store: (typeof STORES)[number]) {
   };
 }
 
+async function expectReadFailure(read: Promise<unknown>, expected: string): Promise<void> {
+  const message = await read.then(
+    () => undefined,
+    (failure: unknown) => {
+      if (!(failure instanceof Error)) throw failure;
+      return failure.message;
+    },
+  );
+  expect(message).toContain(expected);
+}
+
 for (const store of STORES) {
   describe(`shared occupancy on the ${store.name} store`, () => {
+    it('inventories distinct stamped claims from one admitted store observation', async () => {
+      const {
+        source,
+        graph,
+        observation,
+        opened,
+        projects,
+        firstStepOf,
+        leaf,
+        people,
+        state,
+        close,
+      } = await seeded(store);
+      const scope = { organizationId: ORG, userId: F, role: 'admin' } as const;
+      const read = () => observation.readResourceOccupancyWithin(RAM, F, scope);
+      try {
+        if (opened.activate !== undefined) {
+          expect(() => graph.workItems.readResourceOccupancyWithin(RAM, F, scope)).toThrow(
+            'observation is unavailable',
+          );
+          expect(await read()).toEqual({ ok: false, refusal: 'no_active_organization' });
+        }
+        opened.activate?.(F, people);
+        opened.ownPeople?.(people);
+        await expectReadFailure(
+          observation.readResourceOccupancyWithin(RAM, 'other-actor', scope),
+          'actor differs',
+        );
+        const workItemId = leaf(0, 0);
+        const secondLeaf = leaf(0, 1);
+        const steps = await source.stores.projects.stepsOf(projects.a);
+        const secondStep = steps.at(1);
+        if (secondStep === undefined) throw new Error('fixture needs two workflow steps');
+        const holder = {
+          workItemId,
+          personId: 'a0',
+          runId: 'bound-run',
+          parentClaimId: null,
+          accountId: F,
+        };
+        const rows = [
+          { ...holder, id: 'occupancy-b', stepId: secondStep.id },
+          { ...holder, id: 'occupancy-a', stepId: firstStepOf(projects.a) },
+          {
+            ...holder,
+            id: 'occupancy-c',
+            workItemId: secondLeaf,
+            runId: null,
+            stepId: firstStepOf(projects.a),
+          },
+        ];
+        await state(RAM, 16);
+        expect(
+          await source.stores.claims.add(
+            rows,
+            [],
+            { at: T, by: F },
+            [
+              { claimId: 'occupancy-a', resourceId: RAM, units: 16 },
+              { claimId: 'occupancy-b', resourceId: RAM, units: 12 },
+              { claimId: 'occupancy-c', resourceId: RAM, units: 4 },
+            ],
+            [{ claimId: 'occupancy-b', expiresAt: T + CLAIM_LEASE_MS }],
+          ),
+        ).toBe('written');
+
+        const stored = await read();
+        expect(stored).toEqual({
+          ok: true,
+          value: {
+            resourceId: RAM,
+            directoryCapacity: 16,
+            occupied: 20,
+            free: -4,
+            projects: [
+              {
+                projectId: projects.a,
+                name: 'A',
+                restricted: false,
+                units: 20,
+                claims: [
+                  {
+                    claimId: 'occupancy-a',
+                    personId: 'a0',
+                    personName: opened.isMemory ? 'agent a0' : 'a0',
+                    runId: 'bound-run',
+                    workItemId,
+                    claimedAt: T,
+                    leaseExpiresAt: null,
+                    releasableBy: 'claimant_or_admin',
+                  },
+                  {
+                    claimId: 'occupancy-b',
+                    personId: 'a0',
+                    personName: opened.isMemory ? 'agent a0' : 'a0',
+                    runId: 'bound-run',
+                    workItemId,
+                    claimedAt: T,
+                    leaseExpiresAt: T + CLAIM_LEASE_MS,
+                    releasableBy: 'claimant_or_admin',
+                  },
+                  {
+                    claimId: 'occupancy-c',
+                    personId: 'a0',
+                    personName: opened.isMemory ? 'agent a0' : 'a0',
+                    runId: null,
+                    workItemId: secondLeaf,
+                    claimedAt: T,
+                    leaseExpiresAt: null,
+                    releasableBy: 'claimant_or_admin',
+                  },
+                ],
+              },
+            ],
+          },
+        });
+        if (opened.setClaimStamp !== undefined) {
+          opened.setClaimStamp('occupancy-a', 'write', 'invalid write instant');
+          await expectReadFailure(read(), 'holding claim occupancy-a has no matching stamp');
+          opened.setClaimStamp('occupancy-a', 'write', T);
+          opened.setClaimStamp('occupancy-b', 'expiry', 'invalid lease instant');
+          await expectReadFailure(read(), 'holding claim occupancy-b has no matching stamp');
+        }
+        if (opened.isMemory) {
+          const clone = spyOn(MemoryState.prototype, 'clone');
+          try {
+            expect(
+              await observation.readResourceOccupancyWithin(RAM, F, { ...scope, role: 'member' }),
+            ).toEqual({ ok: false, reason: 'forbidden' });
+            expect(clone).not.toHaveBeenCalled();
+          } finally {
+            clone.mockRestore();
+          }
+          const earlier = read();
+          const rename = source.stores.directory.patchPerson(
+            'a0',
+            { name: 'Next Alias' },
+            { at: T + 1, by: F },
+          );
+          expect(await rename).toMatchObject({ ok: true });
+          expect(await earlier).toEqual(stored);
+          expect(await read()).toMatchObject({
+            ok: true,
+            value: { projects: [{ claims: rows.map(() => ({ personName: 'Next Alias' })) }] },
+          });
+        }
+      } finally {
+        await close();
+      }
+    });
+
     // `wbs-shared-occupancy` S6, the fit half of task 5.1.
     it('agrees with the claim across projects', async () => {
       const { graph, projects, run, claim, release, leaf, state, close } = await seeded(store);

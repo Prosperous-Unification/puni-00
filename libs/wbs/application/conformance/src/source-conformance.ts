@@ -380,6 +380,37 @@ export function existingStoreRegistrations(
           [first, second].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
         );
         expect(await port.findById(seed.projectIds[0], first.id)).toEqual(first);
+        const third = { ...first, id: 'unrequested-claim', workItemId: seed.workItemIds[0][1] };
+        const foreign = {
+          ...first,
+          id: 'foreign-claim',
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+        };
+        expect(await port.add([third, foreign], [], seed.stamps[0], [])).toBe('written');
+        const stamped = (claim: typeof first, at: number) => ({
+          ...claim,
+          claimedAt: at,
+          leaseExpiresAt: null,
+          leaseRevokedAt: null,
+        });
+        const local = await port.listStampedByIds(seed.projectIds[0], [
+          second.id,
+          foreign.id,
+          first.id,
+          'absent-claim',
+        ]);
+        expect(local.sort((left, right) => left.id.localeCompare(right.id))).toEqual([
+          stamped(first, seed.stamps[0].at),
+          stamped(second, seed.stamps[1].at),
+        ]);
+        expect(await port.listStampedByIds(seed.projectIds[0], [second.id])).toEqual([
+          stamped(second, seed.stamps[1].at),
+        ]);
+        expect(await port.listStampedByIds(seed.projectIds[1], [first.id, foreign.id])).toEqual([
+          stamped(foreign, seed.stamps[0].at),
+        ]);
+        expect(await port.listStampedByIds(seed.projectIds[0], [])).toEqual([]);
       },
     ),
     storeCase(
