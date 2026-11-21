@@ -4919,7 +4919,9 @@ Branch `ops/gate-smoke-cache-prune-20261121` from `main` e8e568784 (after #961);
 figures are the coordinator's, from shells on h2puni (150 GB disk, 15.6 GB RAM).
 
 - The pool admits a `gate` calibration on h2puni only with 23.62 GB free: 12 disk units of
-  1 GiB (12.88 GB) plus the 10 GiB headroom (10.74 GB).
+  1 GiB (12.88 GB) plus the 10 GiB headroom (10.74 GB). The 12 units are h2puni's pinned
+  `diskBudgetUnits`, the whole allocatable vector a calibration reserves (`wholePool`
+  in `runtime.ts`), not the catalogue's `tmpDiskGib: 11`.
 - On 2026-11-20 the cold calibration started at 25.2 GB free and left 16.9 GB.
   `docker system df` then showed Build Cache 3.72 GB, reclaimable 3.72 GB, beside about 2 GB
   of images.
@@ -4987,9 +4989,11 @@ exact stdout check now drops the prune's `Total:` line.
   its next build runs cold. This is assumed and awaits Dany's confirmation. The alternatives
   are a larger disk on h2puni or a Dash-side post-job hook that prunes after any job declaring
   `docker_build`; the prune is reversible by restoring the smoke as the last line.
-  The gate does not hold the `docker_build` unit, so a website build may run during the prune;
-  BuildKit keeps records an active build holds, and a concurrent build at worst misses cache.
-  That is inferred from BuildKit's prune semantics and not observed on a host.
+  The gate does not hold the `docker_build` unit, but no website build can overlap the prune
+  today: puni-pr-00's `build-release.sh` takes the same canonical heavy lock
+  (`with-heavy-lock.sh`) that the gate holds through `run_heavy_job`, and that holds until the
+  lock retires (Phase 7). After that, the gate must hold `docker_build` or the prune must move
+  to a post-job hook.
 - **S27-A2** Disk alone does not make h2puni's gate records complete: h2puni's root-owned
   `keinos/sqlite3` backup still starts unlabelled containers (S21-A3, task 6.22), so a gate it
   overlaps stays attribution-incomplete until that backup carries the `puni.host-service` label

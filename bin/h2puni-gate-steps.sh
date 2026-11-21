@@ -125,8 +125,8 @@ bunx nx run twilight-burokrat:lint:source --skip-nx-cache
 bunx nx run twilight-dash:lint --skip-nx-cache
 # The solver smoke's BuildKit cache is pruned after every gate, whatever the smoke's result
 # (assumption A-GATE-SMOKE-CACHE-1, `dash-host-jobs` task 6.27, awaiting Dany). The pool admits a
-# calibration on h2puni (150 GB disk) only with 23.62 GB free: 12 disk units of 1 GiB plus 10 GiB
-# headroom. On 2026-11-20 the cold calibration started at 25.2 GB free and left 16.9 GB, with
+# calibration on h2puni (150 GB disk) only with 23.62 GB free: the pool's pinned diskBudgetUnits
+# of 12 units of 1 GiB, all of which a calibration reserves, plus 10 GiB headroom. On 2026-11-20 the cold calibration started at 25.2 GB free and left 16.9 GB, with
 # `docker system df` showing Build Cache 3.72 GB, all of it reclaimable, beside ~2 GB of images; on
 # 2026-11-21 `docker builder prune -af` reclaimed 3.72 GB and lifted the host from 20 to 23 GiB
 # free. Without the prune a three-run calibration series refuses its second run for lack of disk
@@ -134,8 +134,10 @@ bunx nx run twilight-dash:lint --skip-nx-cache
 # and `-a` also drops cache other `docker build` users of the host daemon left, which on h2puni is
 # puni-pr-00's `website-dev-build` (its next build runs cold). The prune cannot be narrowed to the
 # smoke: build cache records carry no image labels, and `docker builder prune --filter` matches
-# only id, parent, type, description, inuse, shared, private and until. Records an active build
-# holds are kept. No `docker image prune` runs: every image the smoke tags is unique to its attempt
+# only id, parent, type, description, inuse, shared, private and until. No website build can
+# overlap the prune today: puni-pr-00's build-release.sh takes the same canonical heavy lock
+# (with-heavy-lock.sh) that the gate holds through run_heavy_job, until the lock retires (Phase 7).
+# No `docker image prune` runs: every image the smoke tags is unique to its attempt
 # and removed by the smoke itself, which fails if a tag survives, so it leaves no dangling image;
 # what stays (registry:2 and other pulled images) is tagged and `image prune -f` would not touch
 # it. The alternatives are a larger disk or a Dash post-job hook. The smoke's status is kept: a

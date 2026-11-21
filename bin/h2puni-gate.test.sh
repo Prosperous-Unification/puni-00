@@ -129,7 +129,8 @@ prepare_gate_steps_path() {
     'if [[ $* == "nx run wbs-be-01:solver-image-smoke" ]]; then exit "${GATE_SMOKE_STATUS:-0}"; fi' \
     >"$fixture_root/bin/bunx"
   chmod +x "$fixture_root/bin/bunx"
-  # The host daemon's BuildKit prune after the smoke (task 6.27), printing Docker's own total.
+  # The host daemon's BuildKit prune after the smoke (task 6.27), printing Docker's own total. On a
+  # host buildx prints a table of pruned records before `Total:`; the gate parses neither.
   # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
   printf '%s\n' \
     '#!/bin/bash' \
@@ -1098,6 +1099,7 @@ status=0
 run_gate_steps_fixture "$prune_fixture" passed || status=$?
 expect_status 0 "$status" '49: a passing smoke and prune pass the gate'
 expect_pruned_after_smoke "$prune_fixture" 'passing smoke'
+# The log carries Docker's output unparsed; a host's record table before `Total:` is not checked.
 if grep -qx $'Total:\t3.72GB' "$prune_fixture/stdout"; then
   pass '49: the reclaimed total reaches the gate log'
 else
