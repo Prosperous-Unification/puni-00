@@ -687,16 +687,20 @@ jobs:
           # processes, the task count and the last kernel lines. A lost runner leaves its last PATCH
           # there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
           # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
-          # recorder patch failed: …`, and neither changes the gate status. The log carries no secret;
-          # as a cheap guard a line matching token|secret|wbs_mk_ is replaced before posting, and the
-          # body is capped at 60 KiB, under GitHub's 65536-character comment limit. After the phase it
-          # is stopped and a final PATCH adds the phase end and scope events lines. Remove it once
-          # #963's cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on
-          # any partition made the workspace step call gh; dropping the stored comment id created a
-          # comment on every tick; dropping the cap posted 92254 bytes; dropping the guard posted a
-          # `token=` line verbatim; without the final publish's fallback a 403 failed the step 1;
-          # without the `unavailable` marker the final report retried the create; leaving GH_TOKEN
-          # exported put it in the runtime's environment.
+          # recorder patch failed: …`, and neither changes the gate status. The log tail loses its ANSI
+          # escapes. The log carries no secret; as a cheap guard a line with a secret's shape (a GitHub
+          # token, `Bearer …`, `wbs_mk_…`) is replaced before posting, and a zero-width space after
+          # each `@` keeps the comment from mentioning anyone. Words such as `token` are kept: 83 of
+          # 10858 real tool-fleet lines contain one, and they cluster in the tail. The body is capped
+          # at 60 KiB, under GitHub's 65536-character comment limit. After the phase it is stopped
+          # and a final PATCH adds the phase end and scope events lines. Remove it once #963's
+          # cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on any
+          # partition made the workspace step call gh; dropping the stored comment id created a
+          # comment on every tick; dropping the cap posted 92254 bytes; dropping the shape guard
+          # posted a bearer value; matching the word `token` again redacted a third line; dropping
+          # the escape filter posted ESC bytes and the `@` filter a mention; without the final
+          # publish's fallback a 403 failed the step 1; without the `unavailable` marker the final
+          # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           recorder_issue=963
           recorder_interval=120
           recorder_body_limit=61440
@@ -717,7 +721,10 @@ jobs:
           # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
           {
             recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
-            recorder_log_tail() { awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | tail -15 | tail -c 40960; }
+            recorder_log_tail() {
+              awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' |
+                tail -15 | tail -c 40960
+            }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
@@ -747,7 +754,8 @@ jobs:
             comment="$(cat "$recorder_comment")"
             if [ "$comment" = unavailable ]; then return 1; fi
             body="$(recorder_report "$1" |
-              awk 'tolower($0) ~ /token|secret|wbs_mk_/ { print "[line redacted: matched token|secret|wbs_mk_]"; next } { print }')"
+              sed -E -e '/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|wbs_mk_[A-Za-z0-9]+|Bearer [A-Za-z0-9._-]{20,}/s/.*/[line redacted: a secret shape]/' \
+                -e 's/@/@\xe2\x80\x8b/g')"
             local LC_ALL=C
             if [ "${#body}" -gt "$recorder_body_limit" ]; then
               body="${body:0:$((recorder_body_limit - 128))}"$'\n\n'"[truncated to the ${recorder_body_limit}-byte cap]"
@@ -814,6 +822,11 @@ jobs:
                 if ! NO_COLOR=1 recorder_publish "tick $tick" || [ -n "$stop" ]; then break; fi
                 sleep "$recorder_interval" &
                 nap=$!
+                # A TERM that landed before nap was set found nothing to kill.
+                if [ -n "$stop" ]; then
+                  kill "$nap"
+                  break
+                fi
                 wait "$nap" || break
                 nap=
               done
@@ -1233,16 +1246,20 @@ jobs:
           # processes, the task count and the last kernel lines. A lost runner leaves its last PATCH
           # there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
           # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
-          # recorder patch failed: …`, and neither changes the gate status. The log carries no secret;
-          # as a cheap guard a line matching token|secret|wbs_mk_ is replaced before posting, and the
-          # body is capped at 60 KiB, under GitHub's 65536-character comment limit. After the phase it
-          # is stopped and a final PATCH adds the phase end and scope events lines. Remove it once
-          # #963's cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on
-          # any partition made the workspace step call gh; dropping the stored comment id created a
-          # comment on every tick; dropping the cap posted 92254 bytes; dropping the guard posted a
-          # `token=` line verbatim; without the final publish's fallback a 403 failed the step 1;
-          # without the `unavailable` marker the final report retried the create; leaving GH_TOKEN
-          # exported put it in the runtime's environment.
+          # recorder patch failed: …`, and neither changes the gate status. The log tail loses its ANSI
+          # escapes. The log carries no secret; as a cheap guard a line with a secret's shape (a GitHub
+          # token, `Bearer …`, `wbs_mk_…`) is replaced before posting, and a zero-width space after
+          # each `@` keeps the comment from mentioning anyone. Words such as `token` are kept: 83 of
+          # 10858 real tool-fleet lines contain one, and they cluster in the tail. The body is capped
+          # at 60 KiB, under GitHub's 65536-character comment limit. After the phase it is stopped
+          # and a final PATCH adds the phase end and scope events lines. Remove it once #963's
+          # cause is fixed. Proof (2026-11-21, pr-merge-base.test.ts recorder tests): gating on any
+          # partition made the workspace step call gh; dropping the stored comment id created a
+          # comment on every tick; dropping the cap posted 92254 bytes; dropping the shape guard
+          # posted a bearer value; matching the word `token` again redacted a third line; dropping
+          # the escape filter posted ESC bytes and the `@` filter a mention; without the final
+          # publish's fallback a 403 failed the step 1; without the `unavailable` marker the final
+          # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           recorder_issue=963
           recorder_interval=120
           recorder_body_limit=61440
@@ -1263,7 +1280,10 @@ jobs:
           # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
           {
             recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
-            recorder_log_tail() { awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | tail -15 | tail -c 40960; }
+            recorder_log_tail() {
+              awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' |
+                tail -15 | tail -c 40960
+            }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
@@ -1293,7 +1313,8 @@ jobs:
             comment="$(cat "$recorder_comment")"
             if [ "$comment" = unavailable ]; then return 1; fi
             body="$(recorder_report "$1" |
-              awk 'tolower($0) ~ /token|secret|wbs_mk_/ { print "[line redacted: matched token|secret|wbs_mk_]"; next } { print }')"
+              sed -E -e '/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|wbs_mk_[A-Za-z0-9]+|Bearer [A-Za-z0-9._-]{20,}/s/.*/[line redacted: a secret shape]/' \
+                -e 's/@/@\xe2\x80\x8b/g')"
             local LC_ALL=C
             if [ "${#body}" -gt "$recorder_body_limit" ]; then
               body="${body:0:$((recorder_body_limit - 128))}"$'\n\n'"[truncated to the ${recorder_body_limit}-byte cap]"
@@ -1360,6 +1381,11 @@ jobs:
                 if ! NO_COLOR=1 recorder_publish "tick $tick" || [ -n "$stop" ]; then break; fi
                 sleep "$recorder_interval" &
                 nap=$!
+                # A TERM that landed before nap was set found nothing to kill.
+                if [ -n "$stop" ]; then
+                  kill "$nap"
+                  break
+                fi
                 wait "$nap" || break
                 nap=
               done

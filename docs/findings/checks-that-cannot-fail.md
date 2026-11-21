@@ -696,8 +696,9 @@ shell test on `partition`, so the workspace and heavy-leaf step texts stay byte-
 
 - **Header.** Run id, job, attempt and head SHA, then the UTC time and the phase's elapsed time.
 - **Samples.** The last three `runtime headroom sample` lines.
-- **Log tail.** The last 15 other `nx-gate.log` lines. The running test's `(pass)` and `(fail)`
-  lines name its file and test.
+- **Log tail.** The last 15 other `nx-gate.log` lines, with ANSI escapes stripped. Bun prints a
+  `✓` or `✗` line as each test ends, under the line naming its file. The last `✓` is the last
+  completed test, so the hanging test is the next one in the file named above it.
 - **Processes.** `ps -eo pid,ppid,etimes,rss,comm --sort=-rss`, the first 12 lines, and the
   `pgrep -c .` task count.
 - **Kernel.** The last five lines of `journalctl -k --since -3min`.
@@ -708,9 +709,14 @@ phase the step stops the loop with kill and wait, then PATCHes a final report. T
 the phase end line and the scope events line. If the runner dies, the last PATCH stays on the
 issue, and that is the point.
 
-**Safety of the report.** The log carries no secret. As a cheap guard, any line matching
-`token|secret|wbs_mk_` (case-insensitive) is replaced with a redaction marker before posting. The
-body is capped at 61440 bytes, under GitHub's 65536-character comment limit.
+**Safety of the report.** The log carries no secret. As a cheap guard, any line with a secret's
+shape is replaced with a redaction marker before posting: a GitHub token
+(`gh[pousr]_` followed by 20 or more characters, or `github_pat_`), a `Bearer` value of 20 or more
+characters, or a `wbs_mk_` key. Words are not redacted. 83 of 10858 real tool-fleet lines contain
+`token` or `secret` (for example "…custody before readonly server effects: token"), and they
+cluster, so redacting words could blank the whole 15-line window. A zero-width space after each
+`@` keeps the comment from mentioning anyone. The body is capped at 61440 bytes, under GitHub's
+65536-character comment limit.
 
 **Permissions.** The `gate_heavy` job alone now has `issues: write` alongside `contents: read`,
 and its step gets `GH_TOKEN` from `github.token`. The widening is limited in three ways:
@@ -735,8 +741,9 @@ call. Each of these faults failed a test:
 
 - Gating on any partition made the workspace step call `gh`.
 - Dropping the stored comment id created a comment on every tick.
-- Dropping the cap posted a 92254-byte body, and dropping the guard posted a `token=` line
-  verbatim.
+- Dropping the cap posted a 92254-byte body. Dropping the shape guard posted a bearer value, and
+  matching the word `token` again redacted a line that should stay.
+- Dropping the escape filter posted ESC bytes, and dropping the `@` filter posted a mention.
 - Without the final publish's fallback, a 403 failed the step with exit 1. Without the
   `unavailable` marker, the final report retried the create.
 - Leaving `GH_TOKEN` exported put the token in the runtime's environment.

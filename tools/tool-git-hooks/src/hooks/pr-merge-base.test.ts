@@ -1061,7 +1061,7 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
       GATE_MODE: 'affected',
       GATE_BASE: h.base,
       GH_TOKEN: 'recorder-test-token',
-      RUNTIME_SLEEP: '3.5',
+      RUNTIME_SLEEP: '6',
       RUNTIME_OUTPUT: recorderOutput(h, [
         'tool-fleet:test',
         '(pass) registry native source > compiles the pthread fixture [812.00ms]',
@@ -1133,8 +1133,9 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
   expect(lines.some((line) => line.startsWith('runtime recorder unavailable'))).toBe(false);
 }, 60_000);
 
-// Proof (2026-11-21): without the cap the final body was 92254 bytes; without the guard the
-// `token=` line was posted verbatim.
+// Proof (2026-11-21): without the cap the final body was 92254 bytes; without the shape guard
+// the bearer value was posted; matching the word `token` again redacted a third line; without the
+// escape filter ESC bytes were posted, and without the `@` filter the mention.
 test('the tool-fleet leaf recorder caps its body and replaces lines that look like secrets', () => {
   const h = history();
   const sample = `runtime headroom sample utc=2026-11-21T00:00:00Z memAvailableKiB=1 ${'x'.repeat(30000)}`;
@@ -1145,7 +1146,6 @@ test('the tool-fleet leaf recorder caps its body and replaces lines that look li
       sample,
       sample,
       sample,
-      'fixture header Authorization token=abc123fixture',
       'issued wbs_mk_0123456789abcdef',
       '(pass) a test whose last line stays',
     ]),
@@ -1165,9 +1165,12 @@ test('the tool-fleet leaf recorder caps its body and replaces lines that look li
       GATE_BASE: small.base,
       RUNTIME_SLEEP: '1.5',
       RUNTIME_OUTPUT: recorderOutput(small, [
-        'fixture header Authorization token=abc123fixture',
-        'issued wbs_mk_0123456789abcdef',
-        '(pass) a test whose last line stays',
+        // The shapes a GitHub token, a bearer header and a WBS machine key take.
+        `header Authorization: Bearer ${'a'.repeat(24)}.sig`,
+        `issued wbs_mk_0123456789abcdef and ghp_${'B'.repeat(36)}`,
+        'custody before readonly server effects: token',
+        'owner @someone asked',
+        '\u001b[1m\u001b[36mtool-fleet:\u001b[39m\u001b[22m \u001b[32m✓\u001b[39m a test whose last line stays',
       ]),
     },
     { recorderInterval: 1 },
@@ -1175,14 +1178,21 @@ test('the tool-fleet leaf recorder caps its body and replaces lines that look li
   expect(uncapped.invocation.exitCode, uncapped.invocation.stderr.toString()).toBe(0);
   const plain = recorderBodies(uncapped.ghCalls());
   for (const body of plain) {
-    expect(body).not.toContain('abc123fixture');
+    expect(body).not.toContain('a'.repeat(24));
     expect(body).not.toContain('wbs_mk_0123');
+    expect(body).not.toContain('B'.repeat(36));
+    expect(body).not.toContain('\u001b');
+    expect(body).not.toContain('@someone');
     expect(body).not.toContain('[truncated');
   }
-  // A mid-phase tick, whose log tail holds the runtime's output.
-  const tick = plain.find((body) => body.includes('(pass) a test whose last line stays\n')) ?? '';
+  // A mid-phase tick, whose log tail holds the runtime's output with its escapes stripped.
+  const tick =
+    plain.find((body) => body.includes('tool-fleet: ✓ a test whose last line stays\n')) ?? '';
   expect(tick).toContain('\nstate=tick ');
-  expect(tick.split('[line redacted: matched token|secret|wbs_mk_]').length - 1).toBe(2);
+  expect(tick.split('[line redacted: a secret shape]').length - 1).toBe(2);
+  // A word is not a secret: such lines cluster in real tool-fleet output and must stay.
+  expect(tick).toContain('custody before readonly server effects: token\n');
+  expect(tick).toContain('owner @\u200bsomeone asked\n');
 }, 60_000);
 
 // Proof (2026-11-21): without the final publish's `||` fallback a 403 ended the step 1; without
@@ -1199,7 +1209,7 @@ test('recorder trouble is logged once and leaves the gate status unchanged', asy
         GATE_BASE: h.base,
         RUNTIME_STATUS: status,
         GH_CREATE_STATUS: '1',
-        RUNTIME_SLEEP: '2.5',
+        RUNTIME_SLEEP: '4',
       },
       { recorderInterval: 1 },
     );
@@ -1230,7 +1240,7 @@ test('recorder trouble is logged once and leaves the gate status unchanged', asy
         GATE_BASE: h.base,
         RUNTIME_STATUS: status,
         GH_PATCH_STATUS: '1',
-        RUNTIME_SLEEP: '2.5',
+        RUNTIME_SLEEP: '4',
       },
       { recorderInterval: 1 },
     );
