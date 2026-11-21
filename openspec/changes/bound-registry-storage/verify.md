@@ -10805,3 +10805,27 @@ OpenSpec artifacts, 326 changes and 21 specs passed. Scoped Prettier and the
 plaintext secrets check passed on the seven changed paths. Migration lint
 received the same paths and found no applicable migration. Nx lint emitted
 the existing Node color-environment notice and exited zero.
+
+### Revised interruption precedence before implementation
+
+Scoped review of `511714072` accepted the three fixture/admission corrections
+and reproduced the remaining cancellation defect. One original signal listener
+observed abort before cutoff and blocked synchronous dispatch for 400 ms. The
+reader then returned timeout with zero spawns. In the independent Bun 1.4.4
+paired probe, the original listener observed elapsed 0.32 ms and 125.25 ms on
+opposite sides of a 100 ms cutoff. The dependent callback ran at 225.74 ms and
+225.48 ms, with an aborted signal, event timestamp zero and an unexpired timeout
+signal in both histories. The API exposes no reliable original transition time.
+
+The revised contract chooses the first interruption observed by the reader,
+checking an already-aborted signal before a newly noticed elapsed cutoff. This
+can suppress a timeout classification when cancellation happened after physical
+cutoff but before the reader observed it. It grants no acquisition beyond cutoff,
+new grace, checkpoint update or reporting-baseline reset. Both blocked-listener
+histories must yield controlled cancellation. Actual timeout/cap decisions
+require a witness such as pipe cancellation before abort. Historical
+`handoff-late` and `delivery-late` mutants and the preflight “after cutoff”
+expectation used physical time alone as precedence; that interpretation is
+superseded. Other former timestamp mutants remain historical source observations.
+This contract revision precedes new implementation and qualification. The former
+511714072 covering and native receipts do not establish this revised behavior.

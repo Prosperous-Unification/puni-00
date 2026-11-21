@@ -543,13 +543,31 @@ advance authenticated observer state or qualify installed monitoring.
 
 #### Scenario: Output exceeds a bound
 
-- **WHEN** stdout exceeds65537 bytes or stderr exceeds4096 bytes
+- **WHEN** the first eligible chunk exceeds65537 stdout bytes or4096 stderr bytes while neither cancellation nor cutoff has been selected
 - **THEN** acquisition stops, local cleanup is required and the fixed oversized-status or command-failure outcome is preserved, including on a subsequent local cleanup error
 
 #### Scenario: Original deadline expires or caller cancels
 
-- **WHEN** acquisition times out, the caller aborts or cleanup cannot settle before the supplied original deadline
-- **THEN** the client terminates its owned child without granting new grace, returns controlled cancellation or the modeled timeout as appropriate, and unresolved cleanup throws and prevents overlapping attempts
+- **WHEN** the reader first observes both an aborted signal and elapsed cutoff at a preflight continuation, pre-spawn handoff or active pipe observation
+- **THEN** cancellation wins, no new acquisition starts, and successful cleanup yields fixed AbortError without bytes
+- **WHEN** the reader has already selected timeout or an eligible cap, then observes a later abort
+- **THEN** the recorded interruption survives, including on a cleanup error; a natural nonzero exit already known before cutoff remains known
+
+#### Scenario: Final publication of a natural candidate
+
+- **WHEN** both EOFs and exit zero were admitted before cutoff, or a natural nonzero exit is ready, and abort becomes visible at final publication without a prior interruption
+- **THEN** successful cleanup yields fixed AbortError even when the deadline is also newly observed; a late success without abort instead gives typed timeout, never frame bytes
+
+#### Scenario: Local work fails to settle
+
+- **WHEN** descriptor, process or pipe release fails or remains unresolved at the original deadline
+- **THEN** the actor faults, throws the cleanup error with its eligible cap, known natural failure or timeout, and refuses overlapping reads and unresolved close
+- **AND** a cancelled success candidate with no known failure carries undefined, an otherwise successful candidate with overdue cleanup carries timeout, and a cleanup error carries no received bytes
+
+#### Scenario: Registry reporting baseline
+
+- **WHEN** repeated cancellations and timeouts span the original missing-report deadline without an accepted authenticated report
+- **THEN** neither outcome advances a checkpoint or resets the five-minute baseline; downstream integration must demonstrate the alert remains due at the first evaluation on or after that original deadline
 
 #### Scenario: Trusted local state is missing or unreadable
 

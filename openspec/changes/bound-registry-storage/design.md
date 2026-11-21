@@ -1056,42 +1056,65 @@ root-managed readonly credentials. This component does not claim resistance to
 concurrent hostile root/same-UID credential replacement or qualify that installation.
 
 The caller supplies the original absolute `performance.now()` deadline, finite
-and no more than5000ms ahead. Local preflight is inside that bound. Reserve the
-last1000ms for owned cleanup; when no acquisition interval remains, return the
-typed deadline outcome without spawning. Never restart a timer to gain grace.
-Drain stdout and stderr concurrently, retaining at most65537 and4096 bytes.
-Return `{state:'received',bytes:Uint8Array}` only after complete EOF and exit0,
-with the original bytes unchanged. Valid JSON followed by nonzero exit is not
-received. No JSON decoding, source timestamp or healthy fallback is introduced.
+and no more than5000ms ahead. Busy, closed or faulted state and invalid deadline
+are API errors before a new acquisition. The acquisition cutoff is the deadline
+minus1000ms. Each read records one interruption across preflight, process,
+cleanup and publication. Before starting local I/O or SSH, accepting a chunk
+or natural completion, and on acquisition timer delivery, honor a recorded
+interruption first. Otherwise observe the original signal: if aborted, record
+cancellation. Otherwise at or beyond cutoff record timeout. Otherwise admit
+the operation, including the first observed stdout or stderr overflow. No new
+acquisition begins after cutoff. The final second is reserved for cleanup;
+all timed waits share the original deadline.
 
-Known stdout overflow yields `{state:'invalid-status',code:'status-too-large'}`.
-Other modeled outcomes use `{state:'unavailable',reason,code}` with only:
-`source-timeout/deadline`, `source-refused/refused` for reserved exit77,
-`source-command-failed/ssh-exit` for all other unsuccessful exchanges, including
-ambiguous SSH255, and `source-command-failed/stderr-too-large` for stderr overflow.
-Never infer network unreachability from SSH255 or include raw stderr in failures.
-An independently observed natural nonzero exit remains known through an unrelated
-later pipe failure. An actually observed stdout or stderr cap takes precedence
-over a cached natural exit, on both clean and failed cleanup. Recheck caller
-cancellation before public delivery of natural success and nonzero candidates.
-An already primary timeout/cap interruption remains primary when abort arrives
-later; successful cleanup of a cancelled natural candidate yields fixed AbortError.
-Run from cwd `/` with exactly `LANG=C` and `LC_ALL=C`; no ambient environment
-is inherited. External abort before a timeout/cap interruption yields the fixed
-`DOMException('registry status read cancelled','AbortError')` after successful
-cleanup, without exposing the caller's arbitrary reason. A cleanup fault takes
-the typed local-error path with any known primary outcome. Abort, overflow and acquisition timeout
-terminate and reap the owned local process group and settle/cancel both pipes.
-Unsettled cleanup or local IO at the original deadline throws a local error,
-retains only an already known failure outcome on that error, latches the actor fault
-and prevents overlap. No later read is admitted after that fault. close may
-release the pin only after actual eventual settlement proves owned resources
-released; permanent or unresolved cleanup keeps close blocked. A received frame
-is never returned after its deadline. A complete-looking received candidate is
-suppressed on cleanup failure: if the original deadline expired during cleanup,
-the error carries source-timeout/deadline; an earlier local settlement failure
-has no primary failure outcome unless another modeled failure was already known.
-`RegistrySourceCleanupError.outcome` excludes the received variant.
+This order resolves a tie when synchronous work delays notification. An abort
+can win after physical cutoff if the actor has not yet selected timeout. The
+opaque signal does not supply a trustworthy original transition time. Neither
+callback time nor an arbitrary caller reason determines priority.
+
+Drain stdout and stderr concurrently, retaining at most65537 and4096 bytes.
+A received candidate requires both EOFs and exit0 admitted during acquisition,
+with unchanged bytes. A known stdout overflow yields
+`{state:'invalid-status',code:'status-too-large'}`. The other modeled failures use
+`{state:'unavailable',reason,code}`: `source-timeout/deadline`,
+`source-refused/refused` for reserved exit77, `source-command-failed/ssh-exit`
+for other nonzero exits including SSH255, and `source-command-failed/stderr-too-large`
+for stderr overflow. No raw stderr, inferred network cause, JSON decoding or
+healthy fallback is published. SSH runs from cwd `/` with exactly `LANG=C` and
+`LC_ALL=C`.
+
+A natural nonzero exit observed during acquisition remains known while pipes
+drain, including after a later pipe failure. An eligible observed cap supersedes
+the cached exit on clean or failed cleanup. Two caps retain first-observed order.
+If cutoff stops the drains after exit77, a subsequent abort during clean pipe
+cancellation leaves the known refusal. An exit first observed at cutoff cannot
+be cached as an earlier failure.
+
+Abort, timeout or overflow stops acquisition, terminates and reaps the owned
+process group and settles or cancels both readers. On successful cleanup,
+publish the selected outcome. For a natural success or nonzero candidate without
+a prior interruption, recheck the original signal at the actor's final publication
+check. A newly visible abort wins even when the deadline has elapsed, yielding
+fixed `DOMException('registry status read cancelled','AbortError')`. Otherwise
+suppress success at or beyond the original deadline with the typed timeout.
+Publication is the actor's final check; caller scheduling after promise fulfillment
+is outside this bound. Abort, timeout and errors publish zero frame bytes.
+
+Failed release or unresolved local I/O, child or pipes at the original deadline
+throw `RegistrySourceCleanupError`, latch the actor fault and forbid further reads.
+Close can release its pin only after eventual settlement proves resources released.
+A cleanup error retains the eligible cap, cached natural failure or observed timeout.
+Abort with no known failure carries undefined. Overdue cleanup of a success
+candidate carries timeout unless cancellation was recorded while the candidate
+was outstanding, in which case it carries undefined. Immediate release failure
+without known failure carries undefined. No cleanup error carries a received
+frame. A genuine local admission error still throws.
+
+This stand-alone acquisition writes no checkpoint. Both timeout and cancellation
+leave last-accepted state and the original five-minute missing-report baseline
+untouched. Authenticated observer integration must prove that repeated such
+outcomes across the original due time leave the alert due at its first eligible
+evaluation.
 Stream retention bounds do not establish total RSS or physical allocation bounds;
 local exit does not prove remote work stopped. Server timeout/concurrency and
 supervisor resource qualification remain mandatory before installation.

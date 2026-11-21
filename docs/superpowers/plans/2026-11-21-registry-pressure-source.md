@@ -291,6 +291,23 @@ reads until process supervision accounts for it. Never expose raw stderr.
 - [x] **Step 4: GREEN and R5 faults.** Run selected actor tests, then genuine guard/dependency faults against directory/key/pin admission, deadline, EOF+exit, both caps, abort/cleanup settlement and no-overlap. Capture failures and restore exact source before adjacent Proof comments. A stubbed exit result is not native reaping evidence; keep that claim for Task3.
 - [x] **Step 5: Verify and commit.** Scoped source tests/ESLint/Prettier, owning TypeScript typecheck, source module bundle without stopped imports, and normal commit hooks. Record limitations and precise checks in verify.md; leave5.1c open pending native qualification/review.
 
+#### Interruption precedence correction after whole-client review
+
+The opaque signal does not expose the original transition time. Use one
+per-read interruption decision through every handoff. When the actor first sees
+an aborted signal and elapsed acquisition cutoff together, cancellation wins.
+An actual recorded timeout or cap survives late abort. Retain cached natural
+failures separately and use the actor's final publication check for late frames.
+
+1. Drive the paired blocked-original-listener histories through both handoffs
+   and exercise no-abort controls before changing the reader.
+2. Cover interrupted preflight and eventual close, both stream caps and their
+   reverse orders, clean and failed cleanup, natural success cancellation during
+   overdue cleanup and exit77/cutoff/later abort.
+3. Select and restore faults for changed guards, qualify final source and
+   generated-key SSH, then run the owning and contract checks. The controller
+   owns the single clean unfiltered fleet test after scoped review.
+
 ### Task 3: Real SSH qualification and noncached target
 
 **Files:** Create native harness, its refusal test and scoped tool JSON from the file map; modify `tools/tool-fleet/project.json`; update owning verify.md/tasks.md only after full reviewed qualification.
