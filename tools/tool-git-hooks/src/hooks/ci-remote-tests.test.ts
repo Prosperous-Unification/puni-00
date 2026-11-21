@@ -118,6 +118,29 @@ function fixture(): string {
   return root;
 }
 
+/** Supplies the copied runner's canonical context independently of the host gate's Node settings. */
+function createRunnerEnvironment(root: string) {
+  const path = process.env['PATH'];
+  const home = process.env['HOME'];
+  if (path === undefined || home === undefined)
+    throw new Error('Copied remote runner requires actual PATH and HOME');
+  return {
+    PATH: path,
+    HOME: home,
+    LANG: 'C.UTF-8',
+    LC_ALL: 'C.UTF-8',
+    TZ: 'UTC',
+    TERM: 'dumb',
+    NO_COLOR: '1',
+    FORCE_COLOR: '0',
+    NODE_ENV: 'test',
+    CLAUDECODE: '0',
+    AGENT: '0',
+    BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
+    TMPDIR: join(root, 'child-scratch'),
+  };
+}
+
 function invoke(root: string, leaf: string, preload?: string) {
   const head = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
@@ -132,7 +155,8 @@ function invoke(root: string, leaf: string, preload?: string) {
       `--head=${head}`,
     ],
     {
-      env: { ...process.env, FORCE_COLOR: '0', CLAUDECODE: '0', AGENT: '0' },
+      cwd: root,
+      env: createRunnerEnvironment(root),
       stdout: 'pipe',
       stderr: 'pipe',
       timeout: 5000,
@@ -472,7 +496,7 @@ test('actual noncached Nx leaf targets preserve environment and run dependency b
       {
         cwd: root,
         env: {
-          ...process.env,
+          ...createRunnerEnvironment(root),
           NX_DAEMON: 'false',
           NX_ISOLATE_PLUGINS: 'false',
           NX_SKIP_NX_CACHE: 'true',
@@ -767,6 +791,39 @@ test('remainder rejects a malformed terminal outer summary after a real nested c
     'Remote leaf produced no successful nonempty execution receipt',
   );
 });
+
+test.each([
+  'fresh fixed leaves preserve real canonical Bun discovery including future and collision files',
+  'actual noncached Nx leaf targets preserve environment and run dependency builds with Caddy only in rest',
+  'remainder rejects a malformed terminal outer summary after a real nested child joins',
+])(
+  'positive copied remote fixture declares its own environment: %s',
+  (title) => {
+    const child = Bun.spawnSync(
+      [
+        process.execPath,
+        'test',
+        '--preload',
+        join(ROOT, 'tools/test/scratch/preload.ts'),
+        import.meta.path,
+        '--timeout=10000',
+        '-t',
+        '^' + title + '$',
+      ],
+      {
+        cwd: ROOT,
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=4096', FORCE_COLOR: '0' },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    expect(child.signalCode, child.stderr.toString()).toBeUndefined();
+    expect(child.exitCode, child.stderr.toString()).toBe(0);
+    expect(child.stderr.toString()).toContain('(pass) ' + title);
+    // Covers the child's 20-second case, 60-second scratch cleanup and process startup.
+  },
+  90_000,
+);
 
 function recordChildStarts(root: string) {
   const marker = join(root, 'restoration-test-child-started');
@@ -1676,29 +1733,10 @@ function invokeGraphRouting(
   tokens: readonly string[],
   selection: Readonly<Record<string, string>> = {},
 ) {
-  const path = process.env['PATH'];
-  const home = process.env['HOME'];
-  if (path === undefined || home === undefined)
-    throw new Error('Marker CLI requires actual PATH and HOME');
   const argv = [process.execPath, 'run', join(root, PROJECT, 'test/run-tests.ts'), ...tokens];
   const invocation = Bun.spawnSync(argv, {
     cwd: root,
-    env: {
-      PATH: path,
-      HOME: home,
-      LANG: 'C.UTF-8',
-      LC_ALL: 'C.UTF-8',
-      TZ: 'UTC',
-      TERM: 'dumb',
-      NO_COLOR: '1',
-      FORCE_COLOR: '0',
-      NODE_ENV: 'test',
-      CLAUDECODE: '0',
-      AGENT: '0',
-      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
-      TMPDIR: join(root, 'child-scratch'),
-      ...selection,
-    },
+    env: { ...createRunnerEnvironment(root), ...selection },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -1884,10 +1922,6 @@ test(${JSON.stringify(path)},()=>{console.log('EXECUTED='+${JSON.stringify(path)
 
 /** Waits the actual copied leaf with full captures; neither timeout nor signal substitutes for return. */
 function invokeGraphRest(root: string, preload?: string) {
-  const path = process.env['PATH'];
-  const home = process.env['HOME'];
-  if (path === undefined || home === undefined)
-    throw new Error('Graph rest fixture requires PATH and HOME');
   const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
     cwd: root,
     stdout: 'pipe',
@@ -1905,21 +1939,7 @@ function invokeGraphRest(root: string, preload?: string) {
   ];
   const invocation = Bun.spawnSync(argv, {
     cwd: root,
-    env: {
-      PATH: path,
-      HOME: home,
-      LANG: 'C.UTF-8',
-      LC_ALL: 'C.UTF-8',
-      TZ: 'UTC',
-      TERM: 'dumb',
-      NO_COLOR: '1',
-      FORCE_COLOR: '0',
-      NODE_ENV: 'test',
-      CLAUDECODE: '0',
-      AGENT: '0',
-      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
-      TMPDIR: join(root, 'child-scratch'),
-    },
+    env: createRunnerEnvironment(root),
     stdout: 'pipe',
     stderr: 'pipe',
   });
