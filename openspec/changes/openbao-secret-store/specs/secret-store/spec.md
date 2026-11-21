@@ -82,6 +82,31 @@ fleet repository, and the fleet check MUST refuse `source: openbao` for any memb
 - **WHEN** `externally-provided.json` marks `velero-repo-credentials` as `source: openbao`
 - **THEN** `tool-fleet:check` fails naming the bootstrap Secret
 
+### Requirement: Store bring-up never pulls from a PUNI-operated registry
+
+Every image in `flux-system` and in the `dependsOn` closure of `secret-store` and
+`secret-operator` SHALL equal a digest-pinned `toolchain.json` entry from a declared upstream
+host, and the fleet check MUST refuse any other image there.
+
+#### Scenario: The OpenBao image is served by Harbor
+
+- **WHEN** the `secret-store` HelmRelease sets the OpenBao image repository to a Harbor host
+- **THEN** `tool-fleet:check` fails naming the image and stage
+
+#### Scenario: A Job image is not pinned
+
+- **WHEN** a `puni-secrets` Job uses a tag-only image or one absent from `toolchain.json`
+- **THEN** `tool-fleet:check` fails naming the image
+
+### Requirement: An empty store is never configured or snapshotted
+
+`secret-store apply` and the snapshot Job SHALL refuse to run when the canary secret is absent.
+
+#### Scenario: The store node was replaced without restore mode
+
+- **WHEN** the store self-initialized empty and the snapshot Job runs
+- **THEN** the Job fails naming the missing canary and uploads nothing
+
 ### Requirement: Sync objects live only in the sync stage
 
 The fleet check MUST refuse `source: openbao` for any Secret consumed by a stage at or before

@@ -11,6 +11,10 @@ Today ([platform](../../../docs/infra/platform.md#secrets)):
 - `platform-production` is k3s server h4claw (8 CPUs, 15,602 MiB) plus agent h3mon
   (capability `observability` only, already 2,228 MiB short for the observability overlap).
   Workers clusters are separate k3s clusters that reach the platform over 10.1.0.0/16.
+- Node roles, decided by Dany on 2026-11-21: one prod services node (h4claw: edge, website,
+  and the control plane for now), one observability node (h3mon), and one **platform node**, a
+  new k3s agent not yet provisioned, for platform services including Harbor and OpenBao.
+  Harbor will take its own credentials from the store; its design is a separate change.
 - The `secrets` stage reconciles SOPS files from `infra/platform/secrets/<cluster-id>/`; for
   puni-00 those directories are empty and 17 production Secrets are `source: operator` in
   `externally-provided.json`. `sops-age`, the kubeconfig Secrets and `puni-platform-auth` are
@@ -38,17 +42,43 @@ OpenBao v2.7.2 (chart `openbao-0.30.7`, MPL-2.0) and External Secrets Operator v
 vendored under `infra/platform/charts/` and pinned in `infra/versions/toolchain.json` like every
 other chart. OpenBao is used through ESO's Vault provider. Rejected alternatives are in ADR 0079.
 
+**Store bring-up never pulls from a PUNI-operated registry.** Harbor takes its own credentials
+from the store, so any image Harbor serves inside the store's bring-up would make a cold rebuild
+circular. The scope is `flux-system` and every stage in the `dependsOn` closure of `secret-store`
+and `secret-operator` (`storage`, `policy`, `secrets`, `certificates`, `controllers` and those
+two stages), including the `puni-secrets` Jobs. The rule is an allow-list: every image in scope
+equals a digest-pinned entry in `infra/versions/toolchain.json` whose host is a declared upstream
+registry. Two bypasses no manifest shows are closed too: Ansible refuses a containerd `mirrors`
+entry for an upstream host without default-endpoint fallback, and any registry allow-list
+admission policy exempts the in-scope namespaces. Everything in scope pulls upstream today, so
+this is a guard, not a fix.
+
 ### D2 Placement
 
-Namespace `puni-secrets` on the platform cluster; one Raft replica on h4claw, which gains the
-label `puni.dev/capability-secret-store`. Workers clusters run no store. There is no shadow mode:
+Namespace `puni-secrets` on the platform cluster; one Raft replica on the platform node (Context),
+which carries the capability `secret-store` (label `puni.dev/capability-secret-store`, a new
+member of the fleet capability contract, task 1.11); the snapshot, drill and drift Jobs select it
+too, because the drill holds an unsealed full copy. The node is a P2 prerequisite (task 4.1);
+until it exists only P0 and P1 proceed.
+
+Raft data lives on a `puni-retain` local-path volume on a filesystem separate from Harbor's data
+(or Harbor's blobs go to S3), because local-path sizes are not hard caps and the kubelet evicts at
+`nodefs.available<10%`; the store runs at a PriorityClass above Harbor and a disk alert covers the
+Raft filesystem (task 2.8).
+
+ESO runs on h4claw, beside the API server it writes to, by node selector. On the platform node a
+node outage during an ESO install, upgrade or rebuild would leave the `wait: true`
+`secret-operator` stage not Ready and block `secret-sync`'s dependents; on h4claw that outage is
+already a control-plane outage. Workers clusters run no store. There is no shadow mode:
 the SOPS directory is empty, so running both would double the work for no fallback. Consumers of
 **static** secrets may depend on the single replica once the phase 2 proofs pass, because
 ESO-only delivery (D4) makes an outage no worse than today's hand-created Secrets. Three voters
 are required before any liveness-dependent use: PKI leaves, dynamic credentials, external
-tenants. h3mon cannot host a replica (memory shortfall); h2puni is not an out-of-cluster voter.
-The OpenBao, ESO and drill-instance memory requests are measured in P1 and added to h4claw's
-coexistence budget before P2 (task 1.8).
+tenants. The node roles give the store one node, so three voters need more platform nodes or a
+change to the roles, decided in P5; h4claw and h3mon are not voters under the current roles, and
+h2puni is not an out-of-cluster voter. The OpenBao and drill-instance memory requests are measured
+in P1 into a new platform-node budget and ESO's into h4claw's coexistence budget (task 1.8);
+capacity admission against the provisioned node is a P2 prerequisite (task 4.1).
 
 ### D3 Seal
 
@@ -110,8 +140,10 @@ cluster), AppRole (a static secret to place).
 ### D8 Network and TLS
 
 Following the `otel-gateway` precedent: a NodePort with `externalTrafficPolicy: Local` reached on
-h4claw's private address, never on Traefik. The NetworkPolicy admits the private range
-`10.1.0.0/16` and, in-cluster, only the ESO and `puni-secrets` Job pods. OpenBao terminates TLS
+the platform node's private address, never on Traefik. The NetworkPolicy admits the private range
+`10.1.0.0/16` minus the platform cluster's own node addresses, because a pod on another node
+reaching the NodePort is masqueraded to its node address, and, in-cluster, only the ESO and
+`puni-secrets` Job pods. OpenBao terminates TLS
 with a certificate from a SOPS-rooted cert-manager CA Issuer whose SANs are
 `openbao.puni.internal` and the in-cluster service names. Workers resolve
 `openbao.puni.internal` through the same private DNS the OTLP gateway needs (a P4 prerequisite)
@@ -154,6 +186,14 @@ recovery-key configuration and every declared object, so the only Auth0-free adm
 is `generate-root` with the escrowed shares. A store that self-initialized during a rebuild because
 the normal overlay was selected is recovered by deleting its PVC and restarting in restore mode
 (task 3.9).
+
+**Replacing the platform node is a restore, not a reschedule.** With the control plane alive,
+Flux would keep applying the normal overlay, and a replacement with the same node name satisfies
+the PV's affinity, so the store would self-initialize empty and unsealed with no alert. The runbook
+therefore switches the fleet pin to restore mode (or suspends `secret-store`) before the
+replacement joins, deletes the stale PVC and PV, then restores. As a guard, `secret-store apply`
+and the snapshot Job refuse to run when the canary secret is absent, so an empty store is never
+configured over or snapshotted as latest (task 3.13).
 
 ### D9 PKI
 
@@ -206,6 +246,8 @@ to a stage at or before `secret-store` or to the bootstrap set. Order: canary,
 clusters. Bootstrap-set Secrets (D10) move from `operator` to the fleet `bootstrap-secrets`
 Kustomization, not to the store. Host `.env`: no host agent; OpenBao holds the canonical copy and
 an attended operator push writes the file until WBS runs in-cluster. `tool-secrets` is deleted.
+`registry-auth` is the current Distribution htpasswd; if Harbor replaces Distribution first, its
+credentials take that slot and Harbor's change owns their shape.
 
 ### D13 Stage graph
 
@@ -241,26 +283,28 @@ Two exceptions to "an outage blocks no reconcile" are accepted and stated:
 - a commit that adds a **new** `ExternalSecret` during an outage fails the target-existence health
   check and blocks `secret-sync`'s dependents until the store returns; such commits wait;
 - on a **cold rebuild**, consumer stages wait until the store is restored. `backup` and `alerts`
-  depend transitively on `secret-sync` through `observability`, so the order is bootstrap set,
-  store restore (D8a), sync, then the rest (proof task 3.9). No bootstrap Secret is store-sourced.
+  depend transitively on `secret-sync` through `observability`, so the order is platform node
+  joined, bootstrap set, store restore (D8a), sync, Harbor, then stages that pull from Harbor
+  (proof task 3.9). Harbor's stage depends on `secret-sync`. No bootstrap Secret is store-sourced.
 
 ## Phases
 
-| Phase | Scope                                                          | Gate                                                                         |
-| ----- | -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| P0    | this design, vendored charts, fleet-check rules with negatives | review, CI                                                                   |
-| P1    | k3d rehearsal                                                  | every proof in task group 3                                                  |
-| P2    | production, canary Secret only                                 | P1 proofs live, public refusal with private control, attended escrow restore |
-| P3    | static consumers on the platform cluster                       | per-Secret cutover receipts                                                  |
-| P4    | workers clusters                                               | private DNS, JWT mount per cluster, cross-cluster refusal                    |
-| P5    | third node, three voters, then PKI, `tenants/puni`, CI         | separate change                                                              |
-| P6    | external tenants                                               | isolation rehearsal, second audit sink                                       |
+| Phase | Scope                                                          | Gate                                                                               |
+| ----- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| P0    | this design, vendored charts, fleet-check rules with negatives | review, CI                                                                         |
+| P1    | k3d rehearsal                                                  | every proof in task group 3                                                        |
+| P2    | production, canary Secret only                                 | platform node, P1 proofs live, public refusal with private control, escrow restore |
+| P3    | static consumers on the platform cluster                       | per-Secret cutover receipts                                                        |
+| P4    | workers clusters                                               | private DNS, JWT mount per cluster, cross-cluster refusal                          |
+| P5    | three voters, then PKI, `tenants/puni`, CI                     | separate change                                                                    |
+| P6    | external tenants                                               | isolation rehearsal, second audit sink                                             |
 
 ## Owner inputs
 
 | Input                              | Assumed                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| Third platform node                | not now; no new spend before P5                                    |
+| Platform node                      | Dany provisions it (name and size open) before P2                  |
+| Three voters                       | not now; no further nodes before P5                                |
 | Seal key and three recovery shares | Dany escrows them in three places and keeps rotated keys 30 days   |
 | Operator login                     | an Auth0 application in the existing tenant                        |
 | Off-region snapshot bucket         | the planned off-region backup bucket, started as a P2 prerequisite |
@@ -268,9 +312,15 @@ Two exceptions to "an outage blocks no reconcile" are accepted and stated:
 
 ## Risks / Trade-offs
 
-- The seal protects snapshots, not the host: root on h4claw yields both the key and the data.
-- h4claw is a single point for secret changes and holds the only Raft copy between snapshots,
-  so up to 6 h of writes can be lost; writes are rare and re-enterable from the operator.
+- The seal protects snapshots, not the host: root on the platform node yields both the key and the
+  data, and so does cluster-admin through h4claw's control plane.
+- The platform node is a single point for secret changes and holds the only Raft copy between
+  snapshots, so up to 6 h of writes can be lost; writes are rare and re-enterable from the
+  operator.
+- A platform-node outage is a correlated store and Harbor outage: secret changes and image pulls
+  from Harbor stop together, while running pods and cached images continue.
+- A partition between h4claw and the platform node fails platform-cluster logins (TokenReview)
+  while workers JWT logins continue, and restarts the store pod after the 5-minute toleration.
 - The ESO controller can mint tokens for every namespace's reader account; compromising it
   exposes that cluster's paths. Mitigated by its own namespace, Restricted Pod Security and a
   NetworkPolicy allowing only the store.

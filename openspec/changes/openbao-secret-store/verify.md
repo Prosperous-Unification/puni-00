@@ -43,6 +43,17 @@ Design only, 2026-11-15. No implementation, rehearsal or live receipt exists; ev
    mode is a committed overlay selected before a rebuild, with a wipe-and-restore path if the normal
    overlay self-initializes.
 
+5. **Node-roles revision, 2026-11-21.** Dany set one prod services node (h4claw), one
+   observability node (h3mon) and a new platform node for Harbor and OpenBao (relayed by session
+   puni-00-62). The replica, listener, Jobs and memory budget move to the platform node, which
+   becomes a P2 prerequisite; three voters stay deferred to P5. Fable 5.2 (high) reviewed the
+   revision: no S1; five S2s applied (lab agent so P1 proves the placement; node replacement is a
+   restore, with canary guards on `apply` and the snapshot Job; ESO pinned to h4claw; the image
+   rule widened to an allow-list over the store's whole bring-up plus containerd mirrors; Raft on
+   its own filesystem with priority over Harbor and a disk alert). S3s applied: capability
+   contract task, Job selectors, Harbor in the rebuild order, partition risk, NetworkPolicy
+   excludes the cluster's own node addresses.
+
 Still unverified and owed by P1: ESO keeping a Secret when refresh fails (task 3.2), ESO 2.15
 against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10).
 
@@ -52,7 +63,7 @@ against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10).
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `bunx prettier --check` on the changed files                                                                                                                                                | pass                                                                |
 | `bunx openspec validate openbao-secret-store`                                                                                                                                               | valid                                                               |
-| `bunx openspec validate --all --json`                                                                                                                                                       | 343 of 343 passed (both revisions)                                  |
+| `bunx openspec validate --all --json`                                                                                                                                                       | 343 of 343 passed (all three revisions)                             |
 | `env -u CLAUDECODE bun test tools/tool-devsync/src/{adr-index,repo-namespacing-handoff,retired-roots,check-documents-target}.test.ts tools/tool-rename-work-package/src/allow-list.test.ts` | 28 pass after staging; untracked files fail the link test by design |
 
 No new safety check is implemented by this change, so no R5 proof is owed yet; each check in

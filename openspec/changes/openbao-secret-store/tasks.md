@@ -30,11 +30,20 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
       files for the platform's D10 set; move Velero, Alertmanager and platform CA signing entries
       from `operator` to it. Extend the local rehearsal commit with disposable values for the same
       set. Test: fleet-check refuses a plaintext value there.
-- [ ] 1.8 Measure OpenBao, ESO and drill memory requests in P1 and add them to h4claw's
-      coexistence budget; the observability preflight refuses an over-budget plan.
+- [ ] 1.8 Measure OpenBao and drill memory in P1 into a new platform-node budget file with its
+      own preflight check, and ESO's into h4claw's `coexistence.json`. Test: each preflight
+      refuses an over-budget plan.
 - [ ] 1.9 Write `docs/infra/secrets.md` (operator runbook: escrow, key retention, unseal,
       rotation, restore, cold rebuild, workers JWT key rotation) and link it from
-      `docs/infra/platform.md#secrets`.
+      `docs/infra/platform.md#secrets`, including platform-node replacement (design D8a).
+- [ ] 1.10 Image allow-list of design D1 over `flux-system` and the `dependsOn` closure of
+      `secret-store` and `secret-operator`; every in-scope image is pinned by digest in
+      `toolchain.json` from a declared upstream host. Ansible refuses a containerd mirror for an
+      upstream host without fallback. Tests: an OpenBao image from Harbor, a tag-only image, an
+      unpinned Job image and a mirror entry each fail naming the image or host.
+- [ ] 1.11 Add `secret-store` to the fleet capability contract (`CapabilitySchema`, the platform
+      purpose capabilities and floors), aligned with Harbor's change on per-service versus
+      role-level labels. Test: a workload selecting an undeclared capability still fails.
 
 ## 2. Store configuration
 
@@ -61,12 +70,16 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
 - [ ] 2.6 Declare Job identities (snapshot, drill canary read, drift read/list) and their
       policies. Test: planner refuses a Job policy with write capability on `sys/`.
 - [ ] 2.7 Snapshot CronJob (6 h, two buckets, 30 days), monthly restore-drill Job, drift
-      CronJob.
+      CronJob, each selecting the `secret-store` capability; the snapshot Job refuses when the
+      canary is absent. Test: render check refuses a `puni-secrets` Job without the selector.
 - [ ] 2.8 Alerts `OpenBaoSealed`, `OpenBaoAuditFailing`, `ExternalSecretSyncFailed`,
       `OpenBaoSnapshotStale`, `OpenBaoRestoreDrillFailed`, `OpenBaoRestoreDrillStale`,
-      `OpenBaoConfigDrift`. Test: alert rule check fails for each rule with a missing expression.
+      `OpenBaoConfigDrift`, `OpenBaoRaftDiskLow`. Test: alert rule check fails for each rule with a missing expression.
 
 ## 3. P1 k3d rehearsal proofs
+
+The platform lab gains one agent that alone carries `secret-store`; 3.1 and 3.9 assert the store
+pod runs on it.
 
 - [ ] 3.1 Pod kill auto-unseals with no human.
 - [ ] 3.2 Store scaled to zero: consumer pod restarts with its Secret, alert fires. This also
@@ -87,12 +100,17 @@ check, watch the named test fail, then add the adjacent `Proof:` comment.
       if not, implement and prove the controlled restart on renewal.
 - [ ] 3.11 ESO v2.15.0 against OpenBao v2.7.2 syncs, refreshes and reports errors.
 - [ ] 3.12 Out-of-band policy raises `OpenBaoConfigDrift` and `secret-store apply` refuses.
+- [ ] 3.13 Replace the store agent with the control plane alive: the restore-mode switch restores
+      the snapshot; negative: without it the store self-initializes empty, and
+      `apply` and the snapshot Job refuse on the missing canary.
+- [ ] 3.14 With ESO's node drained, a commit to `observability` applies and reports Ready.
 
 ## 4. P2–P4 attended activation
 
-- [ ] 4.1 P2 prerequisites: off-region snapshot bucket running; bootstrap-secrets Kustomization
-      Ready on the platform cluster.
-- [ ] 4.2 P2: label h4claw, generate and escrow the cluster seal key, activate with the canary
+- [ ] 4.1 P2 prerequisites: platform node joined to `platform-production` and admitted against
+      the 1.8 budget; off-region snapshot
+      bucket running; bootstrap-secrets Kustomization Ready on the platform cluster.
+- [ ] 4.2 P2: label the platform node, generate and escrow the cluster seal key, activate with the canary
       Secret only; repeat 3.1–3.8 and 3.12 live; public refusal with a private control through
       the same probe; attended escrow restore on a second machine; escrow the recovery shares
       before any non-canary write.

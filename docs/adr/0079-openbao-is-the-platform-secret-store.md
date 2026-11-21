@@ -24,7 +24,9 @@ and phases: [openbao-secret-store](../../openspec/changes/openbao-secret-store/d
 
 ## Consequences
 
-Until a third platform node exists the store is one Raft replica on h4claw: consumers of static
-secrets may depend on it, but PKI issuance, dynamic credentials and external tenants wait for three
-voters. Root on h4claw yields both the seal key and the data. Bootstrap ciphertext lives in the
+Until three voters exist the store is one Raft replica on the platform node (node roles of
+2026-11-21): consumers of static secrets may depend on it, but PKI issuance, dynamic credentials
+and external tenants wait for three voters. Root on that node, or cluster-admin through the control plane,
+yields both the seal key and the data. Nothing in the store's bring-up is pulled from a
+PUNI-operated registry such as Harbor, which takes its credentials from the store. Bootstrap ciphertext lives in the
 private fleet repository because puni-00 is public.
