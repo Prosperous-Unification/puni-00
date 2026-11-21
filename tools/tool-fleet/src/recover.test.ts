@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
 import { parse } from 'yaml';
 
+import { runRecorderFixture } from './cold-restore-recorder.fixture';
 import {
   ageRecipientOf,
   type ColdRestoreInputs,
@@ -404,6 +405,136 @@ describe('readEscrow', () => {
     if (process.getuid?.() === 0) return;
     expect(readEscrow(locked)).rejects.toThrow(/cannot be read/);
   });
+});
+
+describe('recover.ts record-manifest', () => {
+  it('records v2 with distinct member and Node names and a lossless uint64 member ID', async () => {
+    const { exitCode, stdout, stderr, evidenceSha256, snapshotReads } = await runRecorderFixture(
+      'matching',
+      { token, identity },
+    );
+    expect(stderr).toBe('');
+    expect(exitCode).toBe(0);
+    expect(snapshotReads).toEqual(['snapshot-v1']);
+    expect(JSON.parse(stdout)).toMatchObject({
+      schemaVersion: 2,
+      clusterId: 'platform-local',
+      membershipEvidenceSha256: evidenceSha256,
+      etcdSnapshot: {
+        objectKey: 'platform-local/snapshot.db',
+        versionId: 'snapshot-v1',
+      },
+      membership: [
+        {
+          memberId: '18446744073709551615',
+          memberName: 'h4claw-37a00c01',
+          nodeName: 'h4claw',
+          nodeUid: '76861c62-3e25-4d79-9b09-b98b111bd1ef',
+          machineId: 'ffffffffffffffffffffffffffffffff',
+          providerIdentity: 'qemu:70d824af-bc65-42ce-a20a-a15b8606a86b',
+        },
+      ],
+    });
+  });
+
+  it('refuses identical bytes from another independently selected immutable object version', async () => {
+    const { exitCode, stdout, stderr, snapshotReads } = await runRecorderFixture(
+      'version-substitution',
+      { token, identity },
+    );
+    expect(exitCode).not.toBe(0);
+    expect(stdout).toBe('');
+    expect(stderr).toMatch(/snapshot object version differs from (the )?capture evidence/i);
+    expect(snapshotReads).toEqual(['snapshot-v2']);
+  });
+
+  it('refuses an advanced closing Raft index with the same member set', async () => {
+    const { exitCode, stdout, stderr } = await runRecorderFixture('advanced-index', {
+      token,
+      identity,
+    });
+    expect(exitCode).not.toBe(0);
+    expect(stdout).toBe('');
+    expect(stderr).toMatch(/raft index advanced across (the )?snapshot cut/i);
+  });
+});
+
+describe('recover.ts record-manifest stored bytes', () => {
+  it('records the opaque compressed bytes of a versioned object', async () => {
+    const receipt = await runRecorderFixture('encoded-snapshot', { token, identity });
+    expect(receipt.snapshotReads).toEqual(['snapshot-v1']);
+    expect(receipt.stderr).toBe('');
+    expect(receipt.exitCode).toBe(0);
+    expect(JSON.parse(receipt.stdout)).toMatchObject({
+      schemaVersion: 2,
+      membershipEvidenceSha256: receipt.evidenceSha256,
+      etcdSnapshot: {
+        versionId: 'snapshot-v1',
+        ...receipt.storedSnapshot,
+      },
+    });
+  });
+});
+
+describe('recover.ts record-manifest provider identity', () => {
+  for (const [scenario, providerIdentity] of [
+    ['matching', 'qemu:70d824af-bc65-42ce-a20a-a15b8606a86b'],
+    ['hcloud-provider', 'hcloud:9007199254740993'],
+  ] as const) {
+    it(`retains exact provider identity ${providerIdentity}`, async () => {
+      const receipt = await runRecorderFixture(scenario, { token, identity });
+      expect(receipt.publicationStatuses).toEqual([200]);
+      expect(receipt.sidecarReads).toEqual(['evidence-v1']);
+      expect(receipt.snapshotReads).toEqual(['snapshot-v1']);
+      expect(receipt.stderr).toBe('');
+      expect(receipt.exitCode).toBe(0);
+      expect(JSON.parse(receipt.stdout)).toMatchObject({
+        schemaVersion: 2,
+        membershipEvidenceSha256: receipt.evidenceSha256,
+        membership: [{ providerIdentity, machineId: 'ffffffffffffffffffffffffffffffff' }],
+      });
+    });
+  }
+
+  for (const scenario of [
+    'machine-derived-provider',
+    'malformed-qemu-provider',
+    'malformed-hcloud-provider',
+  ] as const) {
+    it(`refuses re-anchored evidence with ${scenario}`, async () => {
+      const receipt = await runRecorderFixture(scenario, { token, identity });
+      expect(receipt.publicationStatuses).toEqual([200]);
+      expect(receipt.sidecarReads).toEqual(['evidence-v1']);
+      expect({
+        exitCode: receipt.exitCode,
+        manifestBytes: Buffer.byteLength(receipt.stdout),
+      }).toEqual({ exitCode: 1, manifestBytes: 0 });
+      expect(receipt.stderr).toMatch(/capture.*provider identity/i);
+      expect(receipt.snapshotReads).toEqual([]);
+    });
+  }
+});
+
+describe('recover.ts record-manifest failure categories', () => {
+  for (const [scenario, statuses, refusal] of [
+    ['missing-publication', [404], /capture publication not found/i],
+    ['denied-publication', [403], /capture publication access denied/i],
+    ['untrusted-publication', [], /capture publication transport failed/i],
+  ] as const) {
+    it(`reports ${scenario} without private response content`, async () => {
+      const receipt = await runRecorderFixture(scenario, { token, identity });
+      expect(receipt.publicationStatuses).toEqual(statuses);
+      expect(receipt.exitCode).not.toBe(0);
+      expect(receipt.stdout).toBe('');
+      expect(receipt.sidecarReads).toEqual([]);
+      expect(receipt.snapshotReads).toEqual([]);
+      expect(receipt.stderr).not.toContain('fixture provider response body');
+      expect(receipt.stderr).not.toContain('fixture-only-key');
+      expect(receipt.stderr).not.toContain('Credential=fixture-cold-restore-reader/');
+      expect(receipt.stderr).not.toContain('Signature=');
+      expect(receipt.stderr).toMatch(refusal);
+    });
+  }
 });
 
 describe('recover.ts verify-cold-restore', () => {
