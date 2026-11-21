@@ -123,4 +123,38 @@ bunx nx run-many -t test typecheck build -p twilight-burokrat,twilight-dash --pa
   --skip-nx-cache
 bunx nx run twilight-burokrat:lint:source --skip-nx-cache
 bunx nx run twilight-dash:lint --skip-nx-cache
-WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke
+# The solver smoke's BuildKit cache is pruned after every gate, whatever the smoke's result
+# (assumption A-GATE-SMOKE-CACHE-1, `dash-host-jobs` task 6.27, awaiting Dany). The pool admits a
+# calibration on h2puni (150 GB disk) only with 23.62 GB free: 12 disk units of 1 GiB plus 10 GiB
+# headroom. On 2026-11-20 the cold calibration started at 25.2 GB free and left 16.9 GB, with
+# `docker system df` showing Build Cache 3.72 GB, all of it reclaimable, beside ~2 GB of images; on
+# 2026-11-21 `docker builder prune -af` reclaimed 3.72 GB and lifted the host from 20 to 23 GiB
+# free. Without the prune a three-run calibration series refuses its second run for lack of disk
+# unless an operator prunes between runs. The trade-off: no gate starts with a warm BuildKit cache,
+# and `-a` also drops cache other `docker build` users of the host daemon left, which on h2puni is
+# puni-pr-00's `website-dev-build` (its next build runs cold). The prune cannot be narrowed to the
+# smoke: build cache records carry no image labels, and `docker builder prune --filter` matches
+# only id, parent, type, description, inuse, shared, private and until. Records an active build
+# holds are kept. No `docker image prune` runs: every image the smoke tags is unique to its attempt
+# and removed by the smoke itself, which fails if a tag survives, so it leaves no dangling image;
+# what stays (registry:2 and other pulled images) is tagged and `image prune -f` would not touch
+# it. The alternatives are a larger disk or a Dash post-job hook. The smoke's status is kept: a
+# failed prune fails the gate loudly, and a failed smoke still fails it with the smoke's own exit.
+# Revert by restoring the smoke as the last line. See docs/infra/gate-hosts.md.
+# Proof (2026-11-21), h2puni-gate.test.sh case 49: with the prune deleted it failed `49: the gate
+# prunes the BuildKit cache after the smoke (passing smoke): ... prune line ''` and `49: a failed
+# prune fails the gate: want exit 1, got 0`; with the prune's status ignored, that second message;
+# with the smoke's status dropped, `49: a failed smoke still fails the gate with its own status:
+# want exit 3, got 0`; with the prune moved above the smoke, `smoke line '10', prune line '9'`;
+# with the smoke unguarded, so `set -e` skips the prune, `(failed smoke): ... prune line ''`.
+smoke_status=0
+WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke || smoke_status=$?
+prune_status=0
+docker builder prune -af || prune_status=$?
+if ((prune_status != 0)); then
+  printf 'h2puni gate: docker builder prune -af failed (exit %s) after the solver smoke exited %s; its BuildKit cache is still on disk (A-GATE-SMOKE-CACHE-1)\n' \
+    "$prune_status" "$smoke_status" >&2
+  if ((smoke_status != 0)); then exit "$smoke_status"; fi
+  exit 1
+fi
+exit "$smoke_status"

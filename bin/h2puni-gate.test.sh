@@ -126,20 +126,37 @@ prepare_gate_steps_path() {
     'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
     'printf '\''%s\n'\'' "${NODE_OPTIONS-unset}" >>"$GATE_NODE_OPTIONS_LOG"' \
     'printf '\''later\n'\'' >"$GATE_LATER_MARKER"' \
+    'if [[ $* == "nx run wbs-be-01:solver-image-smoke" ]]; then exit "${GATE_SMOKE_STATUS:-0}"; fi' \
     >"$fixture_root/bin/bunx"
   chmod +x "$fixture_root/bin/bunx"
+  # The host daemon's BuildKit prune after the smoke (task 6.27), printing Docker's own total.
+  # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'printf '\''docker %s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
+    'if [[ ${GATE_DOCKER_MODE:-ok} == fail ]]; then' \
+    '  printf '\''Cannot connect to the Docker daemon\n'\'' >&2' \
+    '  exit 1' \
+    'fi' \
+    'printf '\''Total:\t3.72GB\n'\''' \
+    >"$fixture_root/bin/docker"
+  chmod +x "$fixture_root/bin/docker"
 }
 
 # The fourth argument is the NODE_OPTIONS the steps inherit, empty by default so a caller's own
-# environment never reaches the fixture.
+# environment never reaches the fixture. The fifth is the solver smoke's exit status and the sixth
+# the fake Docker's mode (`ok` or `fail`).
 run_gate_steps_fixture() {
   local fixture_root=$1 mode=$2 bun_mode=${3:-ok} node_options=${4:-}
+  local smoke_status=${5:-0} docker_mode=${6:-ok}
   GATE_CALL_LOG="$fixture_root/calls" \
     GATE_NODE_OPTIONS_LOG="$fixture_root/node-options" \
     NODE_OPTIONS="$node_options" \
     GATE_LATER_MARKER="$fixture_root/later" \
     GATE_OPEN_SPEC_MODE="$mode" \
     GATE_BUN_MODE="$bun_mode" \
+    GATE_SMOKE_STATUS="$smoke_status" \
+    GATE_DOCKER_MODE="$docker_mode" \
     PATH="$fixture_root/bin" \
     TMPDIR="$fixture_root/reports" \
     /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$fixture_root" HEAD \
@@ -607,7 +624,7 @@ status=0
 run_gate_steps_fixture "$passed_spec_fixture" passed || status=$?
 expect_status 0 "$status" 'a passing OpenSpec report admits the remaining gate steps'
 expect_equal '{"summary":{"totals":{"passed":8,"failed":0}}}' \
-  "$(cat "$passed_spec_fixture/stdout")" 'the passing OpenSpec JSON remains in gate output'
+  "$(sed '/^Total:/d' "$passed_spec_fixture/stdout")" 'the passing OpenSpec JSON remains in gate output'
 if [[ -e $passed_spec_fixture/later ]]; then
   pass 'the passing OpenSpec report reaches later Nx work'
 else
@@ -1058,6 +1075,77 @@ for conflict in '--enable-source-maps --max-old-space-size=2048' '--max_old_spac
     pass '48: the conflicting heap size stops before the install'
   fi
 done
+
+# 49. After the solver smoke the steps prune the host daemon's BuildKit cache, which the smoke's
+# builds left at 3.72 GB on h2puni on 2026-11-20 (A-GATE-SMOKE-CACHE-1, `dash-host-jobs` task 6.27).
+# The prune runs whatever the smoke's result; the smoke's status is never masked, and a failed
+# prune fails the gate naming the prune.
+# Proof (2026-11-21): see the Proof comment above the prune in bin/h2puni-gate-steps.sh.
+expect_pruned_after_smoke() {
+  local fixture_root=$1 what=$2 smoke_line prune_line
+  smoke_line=$(grep -n '^nx run wbs-be-01:solver-image-smoke$' "$fixture_root/calls" | cut -d: -f1)
+  prune_line=$(grep -n '^docker builder prune -af$' "$fixture_root/calls" | cut -d: -f1)
+  if [[ -n $smoke_line && -n $prune_line && $prune_line -gt $smoke_line ]] &&
+    [[ $(grep -c '^docker ' "$fixture_root/calls") -eq 1 ]]; then
+    pass "49: the gate prunes the BuildKit cache after the smoke ($what)"
+  else
+    fail "49: the gate prunes the BuildKit cache after the smoke ($what): smoke line '$smoke_line', prune line '$prune_line', calls: $(tr '\n' '|' <"$fixture_root/calls")"
+  fi
+}
+prune_fixture="$scratch/smoke-prune-passed"
+prepare_gate_steps_path "$prune_fixture" yes
+status=0
+run_gate_steps_fixture "$prune_fixture" passed || status=$?
+expect_status 0 "$status" '49: a passing smoke and prune pass the gate'
+expect_pruned_after_smoke "$prune_fixture" 'passing smoke'
+if grep -qx $'Total:\t3.72GB' "$prune_fixture/stdout"; then
+  pass '49: the reclaimed total reaches the gate log'
+else
+  fail "49: the reclaimed total did not reach the gate log: $(cat "$prune_fixture/stdout")"
+fi
+
+prune_fixture="$scratch/smoke-prune-smoke-failed"
+prepare_gate_steps_path "$prune_fixture" yes
+status=0
+run_gate_steps_fixture "$prune_fixture" passed ok '' 3 || status=$?
+expect_status 3 "$status" '49: a failed smoke still fails the gate with its own status'
+expect_pruned_after_smoke "$prune_fixture" 'failed smoke'
+
+prune_fixture="$scratch/smoke-prune-failed"
+prepare_gate_steps_path "$prune_fixture" yes
+status=0
+run_gate_steps_fixture "$prune_fixture" passed ok '' 0 fail || status=$?
+expect_status 1 "$status" '49: a failed prune fails the gate'
+if grep -q 'h2puni gate: docker builder prune -af failed (exit 1) after the solver smoke exited 0' \
+  "$prune_fixture/stderr"; then
+  pass '49: the failure names the prune and the smoke status'
+else
+  fail "49: the failure did not name the prune: $(cat "$prune_fixture/stderr")"
+fi
+
+prune_fixture="$scratch/smoke-prune-both-failed"
+prepare_gate_steps_path "$prune_fixture" yes
+status=0
+run_gate_steps_fixture "$prune_fixture" passed ok '' 3 fail || status=$?
+expect_status 3 "$status" '49: a failed smoke and prune fail the gate with the smoke status'
+if grep -q 'docker builder prune -af failed (exit 1) after the solver smoke exited 3' \
+  "$prune_fixture/stderr"; then
+  pass '49: the double failure names the prune beside the smoke status'
+else
+  fail "49: the double failure did not name the prune: $(cat "$prune_fixture/stderr")"
+fi
+
+prune_fixture="$scratch/smoke-prune-no-docker"
+prepare_gate_steps_path "$prune_fixture" yes
+rm "$prune_fixture/bin/docker"
+status=0
+run_gate_steps_fixture "$prune_fixture" passed || status=$?
+expect_status 1 "$status" '49: a missing docker fails the gate after the smoke'
+if grep -q 'docker builder prune -af failed (exit 127)' "$prune_fixture/stderr"; then
+  pass '49: the missing docker is named as a failed prune'
+else
+  fail "49: the missing docker was not named: $(cat "$prune_fixture/stderr")"
+fi
 
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
