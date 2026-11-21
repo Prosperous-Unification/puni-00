@@ -7,7 +7,7 @@ host for his logged-in agent accounts, reached with `herdr`.
 
 This change is the third of three that together are the new setup plan. It is stacked on
 [`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster; the
-second is the change `host-postgres`, on a branch of its own. It was part of the first until
+second is [`host-postgres`](https://github.com/Prosperous-Unification/puni-00/pull/973), on a branch of its own. It was part of the first until
 a review recommended the split.
 
 ## What Changes
