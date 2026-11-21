@@ -10,13 +10,13 @@ import {
   renderRegistryStatusPin,
 } from './registry-pressure-source-contract';
 import {
-  acquisitionCutoff,
+  cancelled,
   type CleanupOutcome,
   deadlineReached,
   readRegistryStatusProcess,
   registryStatusCancelled,
+  RegistryStatusRead,
   statusTimeout,
-  waitUntil,
 } from './registry-pressure-source-process';
 
 export interface RegistryPressureSource {
@@ -207,10 +207,6 @@ function requireUid(): number {
   return uid;
 }
 
-function checkCancellation(signal: AbortSignal): void {
-  if (signal.aborted) throw registryStatusCancelled();
-}
-
 /** Admits an existing empty private directory and creates its one pinned SSH status actor. */
 export async function openRegistryPressureSource(
   input: unknown,
@@ -272,20 +268,13 @@ export async function openRegistryPressureSource(
   }
 
   /** Waits for every started filesystem operation, including its descriptor cleanup. */
-  async function preflight(signal: AbortSignal, deadline: number): Promise<void> {
-    const cutoff = acquisitionCutoff(deadline);
-    const cancellation = { beforeCutoff: false };
-    const onAbort = () => {
-      // Proof: Accepting late abort broke the cutoff-first test for pending local IO.
-      cancellation.beforeCutoff = performance.now() < cutoff;
-    };
-    // Proof: A plain listener missed the shared preflight abort. Omitting disposal leaked a listener.
-    using _subscription = addAbortListener(signal, onAbort);
+  async function preflight(read: RegistryStatusRead): Promise<void> {
+    using _subscription = addAbortListener(read.signal, () => {
+      read.observeCancellation();
+    });
     function checkAcquisition(): void {
-      // Proof: Removing the abort or cutoff clause started new credential IO in the matching paused test.
-      if (cancellation.beforeCutoff || performance.now() >= cutoff) {
-        throw new AcquisitionStopped();
-      }
+      // Proof: Removing the stop inspected a descriptor already due for cutoff cleanup.
+      if (read.observeAcquisition() !== undefined) throw new AcquisitionStopped();
     }
     const pending = Promise.allSettled([
       checkPin(checkAcquisition),
@@ -293,7 +282,7 @@ export async function openRegistryPressureSource(
       checkExecutable(checkAcquisition),
     ]);
     // Proof: Granting extra settling time broke the unsettled preflight original-deadline test.
-    const checks = await waitUntil(pending, deadline);
+    const checks = await read.waitUntil(pending);
     if (checks === deadlineReached) {
       latchFault(
         pending.then((settled) =>
@@ -303,13 +292,17 @@ export async function openRegistryPressureSource(
           ),
         ),
       );
-      throw new RegistrySourceCleanupError(cancellation.beforeCutoff ? undefined : statusTimeout);
+      // Proof: Forcing a timeout payload hid the earlier cancellation on overdue local I/O.
+      throw new RegistrySourceCleanupError(
+        read.observeAcquisition() === statusTimeout ? statusTimeout : undefined,
+      );
     }
     for (const check of checks) {
       if (check.status === 'rejected' && check.reason instanceof DescriptorCloseError) {
         latchFault(Promise.resolve(false));
+        // Proof: Dropping timeout lost the stopped-descriptor outcome when close aborted and failed.
         throw new RegistrySourceCleanupError(
-          performance.now() >= cutoff && !cancellation.beforeCutoff ? statusTimeout : undefined,
+          read.observeAcquisition() === statusTimeout ? statusTimeout : undefined,
           check.reason.message,
         );
       }
@@ -320,8 +313,6 @@ export async function openRegistryPressureSource(
         throw check.reason;
       }
     }
-    // Proof: Dropping prior cancellation broke the abort-first preflight test.
-    if (cancellation.beforeCutoff) throw registryStatusCancelled();
   }
 
   return {
@@ -335,40 +326,23 @@ export async function openRegistryPressureSource(
           'registry status deadline must be finite and at most 5000 milliseconds ahead',
         );
       }
-      // Proof: Starting preflight on abort or an expired deadline touched the missing-key fixture and failed.
-      checkCancellation(signal);
-      if (now >= acquisitionCutoff(deadline)) return statusTimeout;
+      // Proof: Skipping the stopped return made the expired-read actor busy on immediate close.
+      const read = new RegistryStatusRead(signal, deadline);
+      const initial = read.admitStart();
+      if (initial !== undefined) return initial;
 
       phase = 'busy';
       try {
-        let abortedAt = Infinity;
-        let exchange: Awaited<ReturnType<typeof readRegistryStatusProcess>>;
-        {
-          // Proof: Suppressing the read-wide timestamp lost the abort during preflight disposal.
-          using _readSubscription = addAbortListener(AbortSignal.any([signal]), () => {
-            abortedAt = performance.now();
-          });
-          await preflight(signal, deadline);
-          exchange = await readRegistryStatusProcess(argv, signal, deadline, () => abortedAt);
-        }
+        await preflight(read);
+        const exchange = await readRegistryStatusProcess(argv, read);
         if (exchange.state === 'cleanup-failed') {
           latchFault(exchange.settled);
           throw new RegistrySourceCleanupError(exchange.outcome);
         }
+        // Proof: Skipping publication cancellation lost the blocked-listener tie. Testing signal alone lost exit77 after cutoff then abort.
+        if (read.observeCancellation() === cancelled) throw registryStatusCancelled();
         // Proof: Dropping this check broke the modeled pause between cleanup and public receipt.
-        if (exchange.state === 'received' && performance.now() >= deadline) {
-          // Proof: Ignoring the timestamp lost early abort. Accepting late abort or using acquisition cutoff broke the reverse order or reserve case.
-          if (abortedAt < deadline) throw registryStatusCancelled();
-          return statusTimeout;
-        }
-        // Proof: Dropping any natural case bypassed cancellation at delivery. Checking every outcome replaced primary caps and timeout with cancellation.
-        if (
-          exchange.state === 'received' ||
-          exchange.code === 'refused' ||
-          exchange.code === 'ssh-exit'
-        ) {
-          checkCancellation(signal);
-        }
+        if (exchange.state === 'received' && performance.now() >= deadline) return statusTimeout;
         return exchange;
       } finally {
         finishRead();

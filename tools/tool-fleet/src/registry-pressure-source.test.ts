@@ -547,9 +547,9 @@ test('requests nonblocking admission for both held file descriptors', () =>
     }
   }));
 
-for (const [name, when, expected] of [
-  ['before', 0, 'cancelled'],
-  ['after', 160, 'deadline'],
+for (const [name, when] of [
+  ['before', 0],
+  ['after', 160],
 ] as const) {
   test('abort ' + name + ' cutoff while preflight is pending preserves its first outcome', () =>
     withFixture(async ({ directory, enrollment, path }) => {
@@ -570,17 +570,14 @@ for (const [name, when, expected] of [
           .read(caller.signal, performance.now() + 1100)
           .catch((cause: unknown) => cause);
         await entered.promise;
-        if (when > 0) await Bun.sleep(when);
+        // Keep every preflight continuation parked until abort when testing the newly visible tie.
+        if (when > 0) Bun.sleepSync(when);
         caller.abort();
         if (when === 0) await Bun.sleep(160);
         release.resolve(undefined);
         const reply = await reading;
-        if (expected === 'cancelled') {
-          expect(reply).toBeInstanceOf(DOMException);
-          expect(reply).toHaveProperty('name', 'AbortError');
-        } else {
-          expect(reply).toEqual(timeout);
-        }
+        expect(reply).toBeInstanceOf(DOMException);
+        expect(reply).toHaveProperty('name', 'AbortError');
       } finally {
         release.resolve(undefined);
         spy.mockRestore();
@@ -1010,4 +1007,147 @@ test('expired preflight skips executable stat after an earlier identity acquisit
       stats.mockRestore();
       await source.close();
     }
+  }));
+
+test('preflight cancellation first observed past cutoff remains on overdue local cleanup', () =>
+  withFixture(async ({ enrollment, directory, path }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const caller = new AbortController();
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const open = fs.open;
+    let descriptorInspections = 0;
+    const opened = spyOn(fs, 'open').mockImplementation(async (name, flags, mode) => {
+      const file = await open(name, flags, mode);
+      if (name === path) {
+        const stat = file.stat.bind(file);
+        file.stat = (async () => {
+          descriptorInspections++;
+          return stat();
+        }) as typeof file.stat;
+        entered.resolve(undefined);
+        await release.promise;
+      }
+      return file;
+    });
+    const spawn = spyOn(Bun, 'spawn').mockImplementation(() => {
+      throw new Error('unexpected SSH spawn');
+    });
+    try {
+      const deadline = performance.now() + 1200;
+      const reading = source.read(caller.signal, deadline).catch((cause: unknown) => cause);
+      await entered.promise;
+      Bun.sleepSync(Math.max(0, Math.ceil(deadline - 1000 - performance.now()) + 30));
+      caller.abort('private test reason');
+      const failure = await reading;
+      expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+      expect(failure).toHaveProperty('outcome', undefined);
+      await expectFailure(source.close(), /unresolved/);
+      await expectFailure(source.read(caller.signal, deadline), /fault/);
+      release.resolve(undefined);
+      await closeAfterSettlement(source);
+      expect(descriptorInspections).toBe(0);
+      expect(spawn).not.toHaveBeenCalled();
+    } finally {
+      release.resolve(undefined);
+      opened.mockRestore();
+      spawn.mockRestore();
+    }
+  }));
+
+for (const failed of [false, true]) {
+  test(
+    'closing the stopped preflight descriptor witnesses cutoff before abort with close failure ' +
+      String(failed),
+    () =>
+      withFixture(async ({ enrollment, directory, path }) => {
+        const source = await openRegistryPressureSource(enrollment, directory);
+        const caller = new AbortController();
+        const deadline = performance.now() + 1300;
+        const open = fs.open;
+        let inspections = 0;
+        let closed = false;
+        const opened = spyOn(fs, 'open').mockImplementation(async (name, flags, mode) => {
+          const file = await open(name, flags, mode);
+          if (name === path) {
+            await Bun.sleep(Math.max(0, Math.ceil(deadline - 1000 - performance.now()) + 30));
+            const stat = file.stat.bind(file);
+            file.stat = (async () => {
+              inspections++;
+              return stat();
+            }) as typeof file.stat;
+            const close = file.close.bind(file);
+            file.close = async () => {
+              await close();
+              closed = true;
+              caller.abort();
+              if (failed) throw new Error('rejected fixture close');
+            };
+          }
+          return file;
+        });
+        try {
+          const reply = await source.read(caller.signal, deadline).catch((cause: unknown) => cause);
+          expect(closed).toBe(true);
+          expect(inspections).toBe(0);
+          if (failed) {
+            expect(reply).toBeInstanceOf(RegistrySourceCleanupError);
+            expect(reply).toHaveProperty('outcome', timeout);
+            await expectFailure(source.close(), /unresolved/);
+          } else {
+            expect(reply).toEqual(timeout);
+            await source.close();
+          }
+        } finally {
+          opened.mockRestore();
+        }
+      }),
+  );
+}
+
+test('equality with acquisition cutoff admits no local IO', () =>
+  withFixture(async ({ enrollment, directory, path }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    await fs.unlink(path);
+    const cutoff = Math.ceil(performance.now());
+    const clock = spyOn(performance, 'now').mockReturnValue(cutoff);
+    try {
+      expect(await source.read(new AbortController().signal, cutoff + 1000)).toEqual(timeout);
+    } finally {
+      clock.mockRestore();
+      await source.close();
+    }
+  }));
+
+test('invalid deadline precedes cancellation and a started missing-key failure remains local', () =>
+  withFixture(async ({ enrollment, directory, path }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const cancelled = AbortSignal.abort('private reason');
+    await expectFailure(source.read(cancelled, NaN), /deadline must be finite/);
+    const caller = new AbortController();
+    const open = fs.open;
+    const opened = spyOn(fs, 'open').mockImplementation((name, flags, mode) => {
+      if (name === path) {
+        caller.abort('private reason');
+        return open(path + '-missing', flags, mode);
+      }
+      return open(name, flags, mode);
+    });
+    try {
+      await expectFailure(
+        source.read(caller.signal, performance.now() + 1800),
+        /identity is missing/,
+      );
+    } finally {
+      opened.mockRestore();
+      await source.close();
+    }
+  }));
+
+test('an initially expired read leaves the actor immediately available to close', () =>
+  withFixture(async ({ enrollment, directory }) => {
+    const source = await openRegistryPressureSource(enrollment, directory);
+    const reading = source.read(new AbortController().signal, performance.now());
+    await source.close();
+    expect(await reading).toEqual(timeout);
   }));

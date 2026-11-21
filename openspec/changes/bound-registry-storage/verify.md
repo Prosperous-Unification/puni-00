@@ -10829,3 +10829,85 @@ expectation used physical time alone as precedence; that interpretation is
 superseded. Other former timestamp mutants remain historical source observations.
 This contract revision precedes new implementation and qualification. The former
 511714072 covering and native receipts do not establish this revised behavior.
+
+### Qualified first-observed interruption implementation
+
+Contract revision `9478a94e26446e8bc7e18c0ece1659073f9d6dd5` preceded the
+source changes. The read now carries one interruption decision from admission
+through final publication. It samples the original aborted state before a newly
+noticed acquisition cutoff. Each pipe checks admission before starting a read
+and again before inspecting its chunk. A timed wait records expiry before
+releasing its timer, and an early wake resumes waiting on the same absolute
+deadline. Cleanup and known natural failures retain their separate outcomes.
+
+```sh
+export PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false
+bun test tools/tool-fleet/src/registry-pressure-source{,-process}.test.ts -t 'stalled handoff|cutoff while preflight|preflight cancellation first observed|cutoff cleanup then abort|overflow with cleanup failure|cancelled success during overdue|first eligible cap'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'cutoff prevents a new pipe operation'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'early timer wakeup'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'abort after the observed cleanup deadline'
+bun test tools/tool-fleet/src/registry-pressure-source{,-contract,-process,-native}.test.ts
+bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+bunx nx run tool-fleet:lint --skip-nx-cache
+bunx nx run tool-fleet:typecheck --skip-nx-cache
+bunx nx run tool-fleet:build --skip-nx-cache
+bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bun node_modules/.bin/openspec validate --all --json
+```
+
+The initial selection on the previous implementation failed nine and passed 12. Both blocked-listener histories at each handoff produced timeout where
+controlled cancellation was required. The reserve-abort case, cached
+exit77/cutoff/later-abort case, two held-preflight cases and the overdue
+cancelled-success payload also failed. Separate RED tests exposed a forbidden
+late read, late chunk inspection and a premature timeout on early timer wakeup.
+During correction, a further RED showed abort after observation of a cleanup
+deadline could erase the timeout carried on an overdue success error.
+
+| Selected fault group                                                                                      | Actual production-path consequence                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clock before aborted state, loss of recorded timeout or clearing a cap                                    | Misclassified the blocked pre-spawn tie, replaced timeout on abort from pipe cancellation, or lost the first of two eligible caps.                     |
+| Strict greater-than at cutoff, removed read-start/chunk checks or inactive guard                          | Admitted missing-key I/O at equality, started a read or inspected a chunk after cutoff, or started a further drain during setup-failure cleanup.       |
+| Early timer expiry or deferring the expiry decision                                                       | Lost an in-budget frame or lost the overdue-success timeout when abort occurred during cleanup-wait disposal.                                          |
+| Remove wakeup or wake on an event without aborted state                                                   | Held the overflow child until cutoff, delayed shared abort, or interrupted a nonaborted exchange.                                                      |
+| Skip or misclassify interrupted start                                                                     | Lost controlled pre-aborted admission, reached spawn after cutoff or made the initially expired actor busy for immediate close.                        |
+| Admit a late exit or count exit zero as failure                                                           | Replaced timeout with a late refusal or replaced a fully received frame.                                                                               |
+| Ignore the shared decision after waiting, prefer cached failure to cap or prefer cutoff to cached failure | Lost the blocked-exchange timeout, the stdout cap on failed cleanup or the known exit77 after cutoff followed by abort.                                |
+| Ignore cancellation on overdue success or on a clean interrupted exchange                                 | Attached timeout after an earlier cancellation during release or lost controlled abort before stdout overflow.                                         |
+| Skip preflight stop or force/discard its cleanup payload                                                  | Inspected a descriptor due for cutoff cleanup, mislabeled cancelled overdue I/O, or lost timeout when the stopped descriptor close aborted and failed. |
+| Omit publication cancellation/deadline or check raw aborted state instead of earlier decision             | Misclassified the blocked delivery tie, published a late frame or replaced a cached refusal after an actual cutoff.                                    |
+
+All 28 final faults failed the selected public-path test individually and the
+same 28 restored controls passed. Pre-comment restoration hashes were
+`e22dd2d42a0e65f538a97141c043973ea56bc254c8f05f4f95b309f7f3ac40d9`
+for the actor and
+`f426cad270d6242d3f78cd71ec3ae344e290a08a9230f063aad726e943d28943`
+for supervision. One earlier mutant replacing the process's duplicate
+start-cancellation throw with a timeout passed because the actor independently
+published the recorded cancellation. It supplies no proof. A single shared
+start check replaced both copies, and changing it to timeout failed actual
+pre-aborted public admission. The historical Task 2 `abort-after-preflight-cutoff`
+receipt is superseded along with the clock-first expectations identified above.
+
+The genuine native run on UID 1000, port 46037 qualified all 12 cases with fresh
+generated keys, the separately observed owned addresses and the unchanged
+pinned OpenSSH binary. The prefix plus exit1 produced 37 bytes, overflows produced
+65,538/4,097 bytes, and all three held requests had independently witnessed local
+clients. Timeout returned at 1,507 ms under the original 2,500 ms deadline.
+Dispatcher exit124 and server settlement were observed at 5,213 ms. The daemon
+exited zero, its parent was reaped and the fixture was removed. This covers
+the existing TERM fixture; forced-kill fallback and installed server bounds
+remain open.
+
+Task 3 step 5 and Task 5.1c await the scoped correction review and final
+unfiltered owning suite. Current-source CI and exact-revision adoption remain
+separate gates. This client qualification supplies no checkpoint, pooled-host,
+installation, backup, physical-storage, producer or alert-destination proof.
+
+The final four-file run passed 320 tests with 1,017 Bun assertions, no failures
+and no skips. Owning uncached lint, typecheck and build passed. The eight
+correction paths passed scoped formatting and plaintext secrets checks.
+Migration lint received the same paths and found no applicable migration.
+Strict owning validation passed with zero issues and all 347 OpenSpec artifacts
+passed. The final actor and supervisor SHA-256 values are
+`63b4103ebc9d306c9d50080a109724fe1a7108d98c8af358dd67d5514d2ef800`
+and `16345a7065897c8af41b886700f66addda3ddc68e1d939c78413f5075217149f`.

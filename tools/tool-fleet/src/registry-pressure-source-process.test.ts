@@ -258,7 +258,9 @@ for (const [name, output, length, expected] of [
     withExchange(
       'await Bun.write(Bun.' + output + ', new Uint8Array(' + String(length) + ')); ' + hold,
       async (source, spawned) => {
+        const start = performance.now();
         expect(await read(source)).toEqual(expected);
+        expect(performance.now() - start).toBeLessThan(1100);
         const child = await spawned;
         expect(child.signalCode).toBe('SIGKILL');
         groupGone(child);
@@ -941,6 +943,16 @@ for (const handoff of ['pre-spawn', 'delivery'] as const) {
           const caller = new AbortController();
           const deadline = performance.now() + 1350;
           const boundary = handoff === 'pre-spawn' ? deadline - 1000 : deadline;
+          let originalObservation: number | undefined;
+          caller.signal.addEventListener(
+            'abort',
+            () => {
+              expect(caller.signal.aborted).toBe(true);
+              originalObservation = performance.now();
+              Bun.sleepSync(Math.max(30, Math.ceil(boundary - performance.now()) + 20));
+            },
+            { once: true },
+          );
           const remove = caller.signal.removeEventListener.bind(caller.signal);
           let disposals = 0;
           let entered = false;
@@ -968,7 +980,11 @@ for (const handoff of ['pre-spawn', 'delivery'] as const) {
             } else {
               expect(await (await spawned).exited).toBe(0);
             }
-            if (order === 'abort-first' || order === 'abort-in-reserve') {
+            if (order !== 'no-abort') {
+              expect(originalObservation).toBeDefined();
+              if (order === 'deadline-first')
+                expect(originalObservation).toBeGreaterThanOrEqual(boundary);
+              else expect(originalObservation).toBeLessThan(boundary);
               expect(reply).toBeInstanceOf(DOMException);
               expect(reply).toHaveProperty('name', 'AbortError');
               expect(reply).toHaveProperty('message', 'registry status read cancelled');
@@ -984,3 +1000,333 @@ for (const handoff of ['pre-spawn', 'delivery'] as const) {
     );
   }
 }
+
+for (const cachedExit of [false, true]) {
+  for (const failed of [false, true]) {
+    test(
+      'cutoff cleanup then abort with cached exit ' +
+        String(cachedExit) +
+        ' and failure ' +
+        String(failed),
+      () => {
+        const caller = new AbortController();
+        let cancellations = 0;
+        return withExchange(
+          cachedExit ? 'process.exit(77)' : hold,
+          async (source, spawned) => {
+            const reading = source
+              .read(caller.signal, performance.now() + 1300)
+              .catch((cause: unknown) => cause);
+            if (cachedExit) expect(await (await spawned).exited).toBe(77);
+            const reply = await reading;
+            expect(cancellations).toBe(1);
+            const known = cachedExit ? refused : timeout;
+            if (failed) {
+              expect(reply).toBeInstanceOf(RegistrySourceCleanupError);
+              expect(reply).toHaveProperty('outcome', known);
+              await expectFailure(source.close(), /unresolved/);
+            } else {
+              expect(reply).toEqual(known);
+              await source.close();
+            }
+          },
+          (child) => {
+            Object.defineProperty(child, 'stderr', {
+              value: new ReadableStream<Uint8Array>({
+                cancel() {
+                  cancellations++;
+                  caller.abort();
+                  if (failed) throw new Error('fixture settlement failed');
+                },
+              }),
+            });
+          },
+        );
+      },
+    );
+  }
+}
+
+for (const [pipe, length] of [
+  ['stdout', 65538],
+  ['stderr', 4097],
+] as const) {
+  for (const failed of [false, true]) {
+    test('abort before ' + pipe + ' overflow with cleanup failure ' + String(failed), () => {
+      const caller = new AbortController();
+      let sent = false;
+      return withExchange(
+        hold,
+        async (source) => {
+          const reply = await source
+            .read(caller.signal, performance.now() + 2400)
+            .catch((cause: unknown) => cause);
+          expect(sent).toBe(true);
+          if (failed) {
+            expect(reply).toBeInstanceOf(RegistrySourceCleanupError);
+            expect(reply).toHaveProperty('outcome', undefined);
+            await expectFailure(source.close(), /unresolved/);
+          } else {
+            expect(reply).toBeInstanceOf(DOMException);
+            expect(reply).toHaveProperty('name', 'AbortError');
+            await source.close();
+          }
+        },
+        (child) => {
+          Object.defineProperty(child, pipe, {
+            value: new ReadableStream<Uint8Array>(
+              {
+                pull(stream) {
+                  caller.abort();
+                  stream.enqueue(new Uint8Array(length));
+                  sent = true;
+                  stream.close();
+                },
+              },
+              { highWaterMark: 0 },
+            ),
+          });
+          Object.defineProperty(child, pipe === 'stdout' ? 'stderr' : 'stdout', {
+            value: new ReadableStream<Uint8Array>({
+              cancel() {
+                if (failed) throw new Error('fixture settlement failed');
+              },
+            }),
+          });
+        },
+      );
+    });
+  }
+}
+
+test('cancelled success during overdue cleanup carries no timeout or bytes', () => {
+  const caller = new AbortController();
+  return withExchange(
+    "await Bun.write(Bun.stdout, 'provisional')",
+    async (source) => {
+      const failure = await source
+        .read(caller.signal, performance.now() + 1250)
+        .catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+      expect(failure).toHaveProperty('outcome', undefined);
+      expect(JSON.stringify(failure)).not.toContain('provisional');
+      await expectFailure(read(source), /fault/);
+      await source.close();
+    },
+    (child) => {
+      const pipe = child.stdout;
+      const getReader = pipe.getReader.bind(pipe);
+      Object.defineProperty(pipe, 'getReader', {
+        value: () => {
+          const reader = getReader();
+          const release = reader.releaseLock.bind(reader);
+          reader.releaseLock = () => {
+            release();
+            caller.abort();
+            Bun.sleepSync(1300);
+          };
+          return reader;
+        },
+      });
+    },
+  );
+});
+
+for (const first of ['stdout', 'stderr'] as const) {
+  test('first eligible cap on ' + first + ' survives the other cap', () => {
+    const pipes = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+    return withExchange(
+      hold,
+      async (source, spawned) => {
+        const reading = read(source);
+        await spawned;
+        for (const name of [first, first === 'stdout' ? 'stderr' : 'stdout']) {
+          const pipe = pipes.get(name);
+          if (pipe === undefined) throw new Error('fixture pipe missing');
+          pipe.enqueue(new Uint8Array(name === 'stdout' ? 65538 : 4097));
+          pipe.close();
+        }
+        expect(await reading).toEqual(first === 'stdout' ? largeStatus : largeStderr);
+        await source.close();
+      },
+      (child) => {
+        for (const name of ['stdout', 'stderr']) {
+          Object.defineProperty(child, name, {
+            value: new ReadableStream<Uint8Array>({
+              start(stream) {
+                pipes.set(name, stream);
+              },
+            }),
+          });
+        }
+      },
+    );
+  });
+}
+
+test.each(['start read', 'accept chunk'] as const)(
+  'cutoff prevents a new pipe operation at %s',
+  async (operation) => {
+    let deadline = 0;
+    let lateOperations = 0;
+    await withExchange(
+      hold,
+      async (source) => {
+        deadline = performance.now() + 1300;
+        expect(await source.read(new AbortController().signal, deadline)).toEqual(timeout);
+        expect(lateOperations).toBe(0);
+        await source.close();
+      },
+      (child) => {
+        const pipe = new ReadableStream<Uint8Array>();
+        const getReader = pipe.getReader.bind(pipe);
+        const stall = () => {
+          Bun.sleepSync(Math.max(0, Math.ceil(deadline - 1000 - performance.now()) + 25));
+        };
+        Object.defineProperty(pipe, 'getReader', {
+          value: () => {
+            const reader = getReader();
+            const read = reader.read.bind(reader);
+            if (operation === 'start read') stall();
+            reader.read = (async () => {
+              if (operation === 'start read') {
+                lateOperations++;
+                return read();
+              }
+              stall();
+              return {
+                done: false,
+                get value() {
+                  lateOperations++;
+                  return new Uint8Array(65538);
+                },
+              };
+            }) as typeof reader.read;
+            return reader;
+          },
+        });
+        Object.defineProperty(child, 'stdout', { value: pipe });
+      },
+    );
+  },
+);
+
+test('early timer wakeup cannot select acquisition cutoff', () =>
+  withExchange(
+    "await Bun.sleep(60); await Bun.write(Bun.stdout, 'within budget');",
+    async (source) => {
+      const schedule = globalThis.setTimeout;
+      let advanced = false;
+      const clock = spyOn(globalThis, 'setTimeout').mockImplementation(((
+        callback: TimerHandler,
+        delay: number,
+        ...args: unknown[]
+      ) => {
+        if (!advanced && delay > 100 && delay < 1000) {
+          advanced = true;
+          return schedule(callback, 0, ...args);
+        }
+        return schedule(callback, delay, ...args);
+      }) as typeof setTimeout);
+      try {
+        expect(await read(source, 1800)).toEqual({
+          state: 'received',
+          bytes: new Uint8Array(Buffer.from('within budget')),
+        });
+        expect(advanced).toBe(true);
+      } finally {
+        clock.mockRestore();
+        await source.close();
+      }
+    },
+  ));
+
+test('pipe chunk delivered during cleanup starts no further drain after local setup failure', () => {
+  const pending = Promise.withResolvers<{ done: false; value: Uint8Array }>();
+  let reads = 0;
+  return withExchange(
+    hold,
+    async (source) => {
+      const failure = await read(source).catch((cause: unknown) => cause);
+      expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+      expect(failure).toHaveProperty('outcome', undefined);
+      expect(reads).toBe(1);
+      await expectFailure(source.close(), /unresolved/);
+    },
+    (child) => {
+      const pipe = new ReadableStream<Uint8Array>();
+      const getReader = pipe.getReader.bind(pipe);
+      Object.defineProperty(pipe, 'getReader', {
+        value: () => {
+          const reader = getReader();
+          reader.read = async () =>
+            ++reads === 1 ? pending.promise : { done: true, value: undefined };
+          reader.cancel = () => {
+            pending.resolve({ done: false, value: new Uint8Array(1) });
+            return Promise.resolve();
+          };
+          return reader;
+        },
+      });
+      Object.defineProperty(child, 'stdout', { value: pipe });
+      Object.defineProperty(child, 'stderr', {
+        get() {
+          throw new Error('fixture pipe setup failed');
+        },
+      });
+    },
+  );
+});
+
+test('abort after the observed cleanup deadline retains timeout for an overdue success', () => {
+  const caller = new AbortController();
+  let releasing = false;
+  return withExchange(
+    "await Bun.write(Bun.stdout, 'complete')",
+    async (source) => {
+      const clear = globalThis.clearTimeout;
+      const clock = spyOn(globalThis, 'clearTimeout').mockImplementation((timer) => {
+        clear(timer as ReturnType<typeof setTimeout>);
+        if (releasing) caller.abort();
+      });
+      try {
+        const failure = await source
+          .read(caller.signal, performance.now() + 1250)
+          .catch((cause: unknown) => cause);
+        expect(caller.signal.aborted).toBe(true);
+        expect(failure).toBeInstanceOf(RegistrySourceCleanupError);
+        expect(failure).toHaveProperty('outcome', timeout);
+        await source.close();
+      } finally {
+        clock.mockRestore();
+      }
+    },
+    (child) => {
+      const pipe = child.stdout;
+      const getReader = pipe.getReader.bind(pipe);
+      Object.defineProperty(pipe, 'getReader', {
+        value: () => {
+          const reader = getReader();
+          const release = reader.releaseLock.bind(reader);
+          reader.releaseLock = () => {
+            release();
+            releasing = true;
+            Bun.sleepSync(1300);
+          };
+          return reader;
+        },
+      });
+    },
+  );
+});
+
+test('an abort event on a nonaborted signal cannot interrupt the exchange', () =>
+  withExchange('await Bun.sleep(40);', async (source, spawned) => {
+    const caller = new AbortController();
+    const reading = source.read(caller.signal, performance.now() + 1800);
+    await spawned;
+    caller.signal.dispatchEvent(new Event('abort'));
+    expect(caller.signal.aborted).toBe(false);
+    expect(await reading).toEqual({ state: 'received', bytes: new Uint8Array() });
+    await source.close();
+  }));
