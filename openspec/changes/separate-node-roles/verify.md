@@ -66,7 +66,7 @@ decisions" below. This revision, the fourth draft, answers both. What moved:
 
 ## First review (at `cf86bd350`) and what became of its findings
 
-Step, slice, wave and question ids in the three tables that follow are those of the draft each
+Step, slice, wave, question and rehearsal-letter ids in the four tables that follow are those of the draft each
 review read. "Replaced drafts" above maps them to this draft's.
 
 Outcomes as the third draft recorded them. The second review, below, revised several: the
@@ -128,31 +128,32 @@ model needs both in `infra/fleet/desired.yaml` and the inventory (`desired.yaml:
 `production-existing-hosts.yml:22-26,41-44` carry them for the two existing nodes), and
 `require-enrollment-identity.yml` compares them at enrollment. Slice 1.3 follows that
 convention and keeps public addresses and provider ids out of the repository. Whether the
-inventory should move to the private repository first is open question 13.
+inventory should move to the private repository first was open question 13 of that draft; the
+owner has since decided that they follow the existing fleet file (R5).
 
 ## Third review (at `54825ed5d`) and what became of its findings
 
-| Finding                                                             | Outcome                                                                                                                                                         |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S2-1 the enrollment patch drops CoreDNS's packaged toleration       | Fixed: slice 1.2 makes the play append the enrollment toleration, with a negative for a replaced list. Dropping the taint is no longer an automatic fallback    |
-| S2-2 nothing creates the identity ConfigMap                         | Fixed: `argocd.yml` creates it when absent and refuses another id (slice 2.5)                                                                                   |
-| S2-3 the WBS first start against the root's self-heal and rule (b)  | Fixed: the root ignores `/spec/syncPolicy` of `wbs` only; rule (b) exempts that one Application and refuses any other; rehearsal (n)                            |
-| S2-4 a restore into a claim a running Deployment holds              | Fixed: stateful apps land at zero replicas with the backup job suspended; the receipt's backup postdates the restore and shows a restored record (guard 1, A19) |
-| S2-5 R20's control weaker than claimed                              | Fixed: today's rules stated; the `delivery` rules run as a real-tree test inside `gate`; task 0.6 covers both repositories before A2; the rest listed as a risk |
-| S2-6 "Harbor blocks no stage" against wave 5                        | Fixed: nothing in the tree reads from Harbor, so it is alone in the last wave                                                                                   |
-| S3 a revert orphans workloads                                       | Fixed: removal is two merges, stated in design decision 3 and in the rollbacks of A15 and A18                                                                   |
-| S3 three Flux semantics missing from the inventory                  | Fixed: `healthCheckExprs`, chart `crds/` directories and the release name are rows; rule 2.4(j), slice 2.2's test, rehearsal (k) to (m). Velero citation fixed  |
-| S3 freshness series and an absent-series negative                   | Fixed: slice 3.1 names the two kube-state-metrics series and fires on absence                                                                                   |
-| S3 prefix refusal and h1claw's judgement of old prefixes            | Fixed: any prefix under `sqlite/` is refused; h1claw's owner confirms before A21                                                                                |
-| S3 alerts that fire falsely from A15                                | Fixed: the WBS backup group lands with the `wbs` Application; the workers rule is not copied; a check refuses a rule with no subject                            |
-| S3 `signals` reads operator-made Secrets                            | Fixed: `signals` is one wave after Elasticsearch; the provider rule knows four kinds of provider                                                                |
-| S3 owners for four things                                           | Fixed: `registry-tls` is Harbor's; `website-prod-logs` is in the `namespaces` unit; OpenBao's namespace likewise; fleet and WBS overlays carry (f), (g), prefix |
-| S3 no deadline for slice 3.2; no escrow for the Velero password     | Fixed: 3.2 before A15; A15 escrows the password before writing it                                                                                               |
-| S3 the h1claw tarball mixes production env files                    | Fixed: unpacked on the controller; only dev paths reach the CI host (guard 6, A9, A11)                                                                          |
-| S3 A21 removes the old fleet directory without the pin owner's word | Fixed: a precondition of A21                                                                                                                                    |
-| S3 CoreDNS budgeted on the platform node but not pinned             | Stated: k3s packages it without a selector and reverts a patch; the budget counts it as the worst case                                                          |
-| S3 Harbor's step ids collide with this plan's                       | Fixed: written as Harbor-A1, Harbor-A2a, Harbor-A9 and Harbor-A11                                                                                               |
-| Not verified: where WBS images are pulled from                      | Stated in design decision 9; the host is not in the source read, so it is open question 14 and a precondition of A20                                            |
+| Finding                                                             | Outcome                                                                                                                                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 the enrollment patch drops CoreDNS's packaged toleration       | Fixed: slice 1.2 makes the play append the enrollment toleration, with a negative for a replaced list. Dropping the taint is no longer an automatic fallback        |
+| S2-2 nothing creates the identity ConfigMap                         | Fixed: `argocd.yml` creates it when absent and refuses another id (slice 2.5)                                                                                       |
+| S2-3 the WBS first start against the root's self-heal and rule (b)  | Fixed: the root ignores `/spec/syncPolicy` of `wbs` only; rule (b) exempts that one Application and refuses any other; rehearsal (n)                                |
+| S2-4 a restore into a claim a running Deployment holds              | Fixed: stateful apps land at zero replicas with the backup job suspended; the receipt's backup postdates the restore and shows a restored record (guard 1, A19)     |
+| S2-5 R20's control weaker than claimed                              | Fixed: today's rules stated; the `delivery` rules run as a real-tree test inside `gate`; task 0.6 covers both repositories before A2; the rest listed as a risk     |
+| S2-6 "Harbor blocks no stage" against wave 5                        | Fixed: nothing in the tree reads from Harbor, so it is alone in the last wave                                                                                       |
+| S3 a revert orphans workloads                                       | Fixed: removal is two merges, stated in design decision 3 and in the rollbacks of A15 and A18                                                                       |
+| S3 three Flux semantics missing from the inventory                  | Fixed: `healthCheckExprs`, chart `crds/` directories and the release name are rows; rule 2.4(j), slice 2.2's test, rehearsal (k) to (m). Velero citation fixed      |
+| S3 freshness series and an absent-series negative                   | Fixed: slice 3.1 names the two kube-state-metrics series and fires on absence                                                                                       |
+| S3 prefix refusal and h1claw's judgement of old prefixes            | Fixed: any prefix under `sqlite/` is refused; h1claw's owner confirms before A21                                                                                    |
+| S3 alerts that fire falsely from A15                                | Fixed: the WBS backup group lands with the `wbs` Application; the workers rule is not copied; a check refuses a rule with no subject                                |
+| S3 `signals` reads operator-made Secrets                            | Fixed: `signals` is one wave after Elasticsearch; the provider rule knows four kinds of provider                                                                    |
+| S3 owners for four things                                           | Fixed: `registry-tls` is Harbor's; `website-prod-logs` is in the `namespaces` unit; OpenBao's namespace likewise; fleet and WBS overlays carry (f), (g), prefix     |
+| S3 no deadline for slice 3.2; no escrow for the Velero password     | Fixed: 3.2 before A15; A15 escrows the password before writing it                                                                                                   |
+| S3 the h1claw tarball mixes production env files                    | Fixed: unpacked on the controller; only dev paths reach the CI host (guard 6, A9, A11)                                                                              |
+| S3 A21 removes the old fleet directory without the pin owner's word | Fixed: a precondition of A21                                                                                                                                        |
+| S3 CoreDNS budgeted on the platform node but not pinned             | Stated: k3s packages it without a selector and reverts a patch; the budget counts it as the worst case                                                              |
+| S3 Harbor's step ids collide with this plan's                       | Fixed: written as Harbor-A1, Harbor-A2a, Harbor-A9 and Harbor-A11                                                                                                   |
+| Not verified: where WBS images are pulled from                      | Stated in design decision 9; the host is not in the source read, so it was open question 14 of that draft, since settled by R28 (Harbor), and a precondition of A20 |
 
 Nothing was disputed in this round.
 
@@ -176,6 +177,41 @@ Nothing was disputed in this round.
 Made moot by production and the platform being synced on command (R20): the root's ignore rule
 for the WBS Application and rehearsal item (n) of the third draft; the health customization and
 the stall it could cause; "later changes are not ordered" for anything but staging.
+
+Nothing was disputed in this round.
+
+## Fifth review (at `abb1fbd90`) and what became of its findings
+
+The review returned "not ready" with no finding of the first rank and five of the second. This
+revision, the fifth draft, answers it and two owner inputs of 2026-11-23 (the alert channel,
+and his lean to building staging images on the CI host). New: R31, R32, slice 3.8, rules
+2.4(l) and (m), the `root` project, `puni.dev/needs`, the removal mode. Reworded: R12, R20,
+R23, R30. The rehearsal's lettered receipt became four receipts named by the step each gates
+(2.7/A3, 2.7/A7, 2.7/A14, 2.7/A18). The order table has one row per unit; orders are
+unchanged, and `sqlite-custody` is first synced at A18. Attended steps keep their numbers. 22
+slices, 22 steps, R1 to R32, three open questions.
+
+| Finding                                                  | Outcome                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 "on command" had no check on the root's path        | Fixed: a `root` project that admits only Application and AppProject in the Argo CD namespace; rule (l) refuses any other kind there and an `operation` block; the root does not prune, so a removed file changes nothing; design decision 3 states what a merge to an Application file does and does not do |
+| S2-2 the account could roll back                         | Fixed: `server.rbac.rollback.enforce.enable` is set (read in the RBAC guide at the tag); negative in 2.1; rehearsal 2.7/A3                                                                                                                                                                                  |
+| S2-3 stage 1 could not start as ordered                  | Fixed: four receipts, each due before the step it gates; A3 needs 2.7/A3 only                                                                                                                                                                                                                               |
+| S2-4 WBS staging beside production under-scoped          | Fixed: slice 3.8 makes the solver binding a table of environments in the new tree's policy copy and in the `solver` role; 3.5 names the namespaces and default-deny policies. A node of its own for staging would not remove this work (design decision 1)                                                  |
+| S2-5 the sync playbook's refusal blocked unrelated units | Fixed: it refuses on a unit's declared needs only; the order table has a Needs column the check holds; design and tasks agree                                                                                                                                                                               |
+| S3 `sqlite-custody` timing; 1.4 omitted                  | Fixed: first synced at A18; decision 4 lists 1.4 and 1.5 before stage 3                                                                                                                                                                                                                                     |
+| S3 `secret-sync` before `mlflow`                         | Fixed in A15                                                                                                                                                                                                                                                                                                |
+| S3 who creates the stores for app namespaces             | Fixed: `secret-sync` carries one SecretStore per reading namespace; the roles and paths are asked of #935 (decision 9)                                                                                                                                                                                      |
+| S3 the WBS deploy repository                             | Fixed: task 0.6 covers it; its absence has a stated fallback; what the `delivery` check reads is stated                                                                                                                                                                                                     |
+| S3 rule (k) missing from the fleet check                 | Fixed: it carries (f), (g), (k), (m) and the prefix rule                                                                                                                                                                                                                                                    |
+| S3 a staging Ingress claiming a production host          | Fixed: rule (m)                                                                                                                                                                                                                                                                                             |
+| S3 one bucket key lets staging read production backups   | Fixed as a requirement and a check; whether the provider can scope a key is unverified and listed as a risk until settled                                                                                                                                                                                   |
+| S3 h1claw's mixed set serving a staging restore          | Fixed: only the named member, by file; the archive is never unpacked on the cluster (guard 6)                                                                                                                                                                                                               |
+| S3 A22 lacked the Slack precondition                     | Fixed                                                                                                                                                                                                                                                                                                       |
+| S3 staging hostnames and issuer against A18's wording    | Fixed: A18 uses the names and issuer each overlay declares; WBS staging's certificate is from the ACME staging issuer                                                                                                                                                                                       |
+| S3 the root's path against "no Application owns it"      | Fixed: the root and its project are in `infra/argocd/root`, outside the root's source path                                                                                                                                                                                                                  |
+| S3 the second-account fallback against R23               | Fixed: no automatic fallback; the owner decides                                                                                                                                                                                                                                                             |
+| S3 stale references to questions 13 and 14               | Fixed in this file                                                                                                                                                                                                                                                                                          |
+| Backup windows stated as the owner's decision            | Fixed: one table in design decision 7; R30's consequences await his confirmation in task 0.1                                                                                                                                                                                                                |
 
 Nothing was disputed in this round.
 
@@ -203,34 +239,35 @@ Not run: a one-node cluster registered with both taints. Slices 1.2 and 2.7 own 
 Read on 2026-11-21 from the documentation at the `stable` ref and from source at tag `v3.6.2`
 (`VERSION` reads 3.6.2; the newest chart release is `argo-cd-10.18.2`).
 
-| Relied on                                                                                                                                                                   | Where it was read                                                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Charts are rendered with `helm template`; Argo CD owns the lifecycle                                                                                                        | `docs/user-guide/helm.md`                                        |
-| Helm hooks map to sync hooks; test hooks are skipped; delete policies differ                                                                                                | `docs/user-guide/helm.md`, "Helm Hooks"                          |
-| A chart that generates random data renders differently each time                                                                                                            | `docs/user-guide/helm.md`, "Random Data"                         |
-| `helm dependency build` runs only after a missing-dependency error                                                                                                          | `reposerver/repository/repository.go`, `util/helm/helm.go`       |
-| Symbolic links are refused only when they leave the repository root                                                                                                         | `reposerver/repository/repository.go`                            |
-| Waves order resources; a wave proceeds when its resources are healthy                                                                                                       | `docs/user-guide/sync-waves.md`                                  |
-| Application health was removed in 1.8 and must be restored for waves across apps                                                                                            | `docs/operator-manual/health.md`, `cluster-bootstrapping.md`     |
-| App of apps is an admin-level tool; push access to its source is admin access                                                                                               | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| Automated sync does not prune or self-heal unless asked; self-heal retries                                                                                                  | `docs/user-guide/auto_sync.md`                                   |
-| Tracking is by annotation by default                                                                                                                                        | `docs/user-guide/resource_tracking.md`                           |
-| `ServerSideApply=true`, `Prune=false`, `Delete=false`; the 262,144-byte limit                                                                                               | `docs/user-guide/sync-options.md`                                |
-| `ignoreDifferences`, and the webhook `caBundle` example                                                                                                                     | `docs/user-guide/diffing.md`                                     |
-| Repository credentials as labelled Secrets; SSH host keys in a ConfigMap                                                                                                    | `docs/operator-manual/declarative-setup.md`, private repos guide |
-| Self-management from a kustomize application; server-side apply for the install                                                                                             | `docs/operator-manual/declarative-setup.md`, `installation.md`   |
-| `policy.default`, `role:readonly`, local accounts, disabling `admin`                                                                                                        | `docs/operator-manual/rbac.md`, user management guide            |
-| Deleting an Application without the finalizer leaves its resources                                                                                                          | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| `RespectIgnoreDifferences=true` acts only on an object that already exists                                                                                                  | `docs/user-guide/sync-options.md`                                |
-| `Force=true` needs `Replace=true` and is ignored under server-side apply                                                                                                    | `docs/user-guide/sync-options.md`, "Force Sync"                  |
-| Retry with exponential backoff; self-heal retries after its timeout                                                                                                         | `docs/user-guide/auto_sync.md`                                   |
-| Child applications are not ordered or awaited without the health customization                                                                                              | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| A kustomize source may inflate a Helm chart with `--enable-helm`                                                                                                            | `docs/user-guide/kustomize.md`                                   |
-| Cluster-scoped kinds are admitted to a project by an allow list                                                                                                             | `docs/user-guide/projects.md`                                    |
-| `sync` and `override` are separate actions; a revision other than the Application's needs `override` when `application.sync.requireOverridePrivilegeForRevisionSync` is set | `docs/operator-manual/rbac.md` at tag `v3.6.2`, read 2026-11-23  |
-| The CLI's `--core` flag talks to Kubernetes directly, not to the API server                                                                                                 | `docs/user-guide/commands/argocd.md` at the tag                  |
-| Automated prune refuses a source with no resources unless `allowEmpty` is set; `automated.enabled: false` switches automation off                                           | `docs/user-guide/auto_sync.md` at the tag                        |
-| `argocd_app_info` carries `sync_status` and `health_status`                                                                                                                 | `docs/operator-manual/metrics.md` at the tag                     |
+| Relied on                                                                                                                                                                   | Where it was read                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Charts are rendered with `helm template`; Argo CD owns the lifecycle                                                                                                        | `docs/user-guide/helm.md`                                                                |
+| Helm hooks map to sync hooks; test hooks are skipped; delete policies differ                                                                                                | `docs/user-guide/helm.md`, "Helm Hooks"                                                  |
+| A chart that generates random data renders differently each time                                                                                                            | `docs/user-guide/helm.md`, "Random Data"                                                 |
+| `helm dependency build` runs only after a missing-dependency error                                                                                                          | `reposerver/repository/repository.go`, `util/helm/helm.go`                               |
+| Symbolic links are refused only when they leave the repository root                                                                                                         | `reposerver/repository/repository.go`                                                    |
+| Waves order resources; a wave proceeds when its resources are healthy                                                                                                       | `docs/user-guide/sync-waves.md`                                                          |
+| Application health was removed in 1.8 and must be restored for waves across apps                                                                                            | `docs/operator-manual/health.md`, `cluster-bootstrapping.md`                             |
+| App of apps is an admin-level tool; push access to its source is admin access                                                                                               | `docs/operator-manual/cluster-bootstrapping.md`                                          |
+| Automated sync does not prune or self-heal unless asked; self-heal retries                                                                                                  | `docs/user-guide/auto_sync.md`                                                           |
+| Tracking is by annotation by default                                                                                                                                        | `docs/user-guide/resource_tracking.md`                                                   |
+| `ServerSideApply=true`, `Prune=false`, `Delete=false`; the 262,144-byte limit                                                                                               | `docs/user-guide/sync-options.md`                                                        |
+| `ignoreDifferences`, and the webhook `caBundle` example                                                                                                                     | `docs/user-guide/diffing.md`                                                             |
+| Repository credentials as labelled Secrets; SSH host keys in a ConfigMap                                                                                                    | `docs/operator-manual/declarative-setup.md`, private repos guide                         |
+| Self-management from a kustomize application; server-side apply for the install                                                                                             | `docs/operator-manual/declarative-setup.md`, `installation.md`                           |
+| `policy.default`, `role:readonly`, local accounts, disabling `admin`                                                                                                        | `docs/operator-manual/rbac.md`, user management guide                                    |
+| Deleting an Application without the finalizer leaves its resources                                                                                                          | `docs/operator-manual/cluster-bootstrapping.md`                                          |
+| `RespectIgnoreDifferences=true` acts only on an object that already exists                                                                                                  | `docs/user-guide/sync-options.md`                                                        |
+| `Force=true` needs `Replace=true` and is ignored under server-side apply                                                                                                    | `docs/user-guide/sync-options.md`, "Force Sync"                                          |
+| Retry with exponential backoff; self-heal retries after its timeout                                                                                                         | `docs/user-guide/auto_sync.md`                                                           |
+| Child applications are not ordered or awaited without the health customization                                                                                              | `docs/operator-manual/cluster-bootstrapping.md`                                          |
+| A kustomize source may inflate a Helm chart with `--enable-helm`                                                                                                            | `docs/user-guide/kustomize.md`                                                           |
+| Cluster-scoped kinds are admitted to a project by an allow list                                                                                                             | `docs/user-guide/projects.md`                                                            |
+| `sync` and `override` are separate actions; a revision other than the Application's needs `override` when `application.sync.requireOverridePrivilegeForRevisionSync` is set | `docs/operator-manual/rbac.md` at tag `v3.6.2`, read 2026-11-23                          |
+| The CLI's `--core` flag talks to Kubernetes directly, not to the API server                                                                                                 | `docs/user-guide/commands/argocd.md` at the tag                                          |
+| Automated prune refuses a source with no resources unless `allowEmpty` is set; `automated.enabled: false` switches automation off                                           | `docs/user-guide/auto_sync.md` at the tag                                                |
+| Rollback is authorised by `sync` unless `server.rbac.rollback.enforce.enable: 'true'` is set in `argocd-cm`; it cannot run while auto-sync is on                            | `docs/operator-manual/rbac.md` at tag `v3.6.2`, "The `rollback` action", read 2026-11-23 |
+| `argocd_app_info` carries `sync_status` and `health_status`                                                                                                                 | `docs/operator-manual/metrics.md` at the tag                                             |
 
 Not read or not provable from reading; slice 2.7 owns each:
 
@@ -243,14 +280,16 @@ Not read or not provable from reading; slice 2.7 owns each:
 - That later changes in several children converge by retry in practice. The documentation says
   what waves order; it gives no guarantee for this case.
 - That a Helm source includes the `crds/` directory of a wrapper's dependency, and that
-  kustomize does with `includeCRDs: true`. Not read in this round; rehearsal (k) reads the CRDs
-  back.
+  kustomize does with `includeCRDs: true`. Not read; rehearsal 2.7 reads the CRDs back.
 - That the bundled health check for `cert-manager.io/Certificate` behaves as the Flux
-  `healthCheckExprs` it replaces. Rehearsal (l).
-- That core mode can sync and wait with the node's credential alone, and that the override
-  setting is enforced in the interface. Rehearsal (n).
+  `healthCheckExprs` it replaces. Rehearsal 2.7/A14.
+- That core mode can sync and wait with the node's credential alone, that the override
+  setting is enforced in the interface, and that the rollback setting refuses the account.
+  Rehearsal 2.7/A3.
+- That an applied `operation` block starts a sync, and that a root without prune leaves an
+  Application whose file was removed.
 - That an automated root leaves an unautomated child unsynced and reverts an edit to its sync
-  policy. Rehearsal (g).
+  policy. Rehearsal 2.7/A3.
 - Which fields need `ignoreDifferences` for these charts.
 - Argo CD's memory on this cluster. 1,536 MiB is an assumption (R24).
 - The ApplicationSet documentation was not read; the choice against it rests on the
@@ -274,12 +313,16 @@ words where they carry the decision:
 - "i want the main to act like staging ...; so what merges to main - gets deployed on
   staging; however prod deployment is done by hand/on command" (R20).
 - MLflow is kept (R15).
-- h1claw may be deleted at any time; it is no longer guarded by this plan (R30).
+- h1claw: the owner said it may be deleted at any time. That sentence is a paraphrase by the
+  planning session, and the two consequences in R30 were stated to him, not decided by him.
+  Task 0.1 records his confirmation in his own words.
+- Alerts go to the Slack channel `#puni-alerts-dev`.
+- Staging images: he leans to building on the CI host and asked how CI is triggered. R31 is
+  the planning session's recommendation and awaits his confirmation (open question 2).
 - Server shapes confirmed: three of 8 vCPUs and 16 GiB, one CI host of 16 vCPUs and 32 GiB
   (R2).
 - Staging on the apps node as namespaces confirmed, with the remark that production may want a
   server of its own later; staging therefore has its own capability (R29, design decision 1).
-- Alerts go to Slack; the channel is still to be named (open question 1).
 - The other recommendations then on the table were accepted: the names (R3); the owner creates
   the servers (R4); machine ids and private addresses follow the existing fleet file (R5); the
   rehearsal on the first new server (design decision 10); rules on the fleet repository
@@ -287,7 +330,7 @@ words where they carry the decision:
   (R28); backups inside the new cluster (R13); the website's fleet directory written by its
   owning session, moved after its release bootstrap (R11); one local account (R23).
 
-Overrules of R1 to R30 beyond these: none yet (task 0.1).
+Overrules of R1 to R32 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -335,7 +378,7 @@ below were run again on this revision, on 2026-11-23.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 400                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 397                                                                       |
 
 ## Checks not run
 
@@ -345,9 +388,15 @@ below were run again on this revision, on 2026-11-23.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The four reviews recorded above read earlier commits.
+- This revision has not been reviewed. The five reviews recorded above read earlier commits.
 
 ## Primary sources read
+
+- For the fifth draft: `infra/platform/policy/trusted-workloads.yaml`, the `solver` role's
+  tasks, `deploy/k8s/wbs/base/backend.yaml` and both overlays' namespaces (the solver binding);
+  `.github/workflows/ci.yml` and `deploy-k3s.yml` (triggers and the one self-hosted runner);
+  `infra/jobs/catalogue.json` and the `concurrencyEligible` section of
+  `docs/infra/gate-hosts.md`; the Argo CD RBAC guide at tag `v3.6.2` (rollback).
 
 - `infra/fleet/desired.yaml`; `infra/ansible/inventory/production-existing-hosts.yml`; the play
   lists of `bootstrap.yml`, `join.yml`, `platform.yml`, `firewall.yml`, `backup.yml`,

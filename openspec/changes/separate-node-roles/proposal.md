@@ -16,19 +16,19 @@ OpenBao comes first, `main` deploys to staging, and production deploys on comman
   and `puni-user-platform` (the WBS app): production, and staging, which replaces today's dev
   stacks and has a capability of its own.
 - The observability node hosts Elasticsearch, Prometheus and MLflow.
-- The CI host runs gates and release builds, outside the cluster.
+- The CI host runs gates and builds, outside the cluster.
 - Argo CD delivers the new cluster from a tree of its own, `infra/argocd`. Staging syncs from
   `main` by itself; production apps and platform units change only when a person syncs them.
-  The interface is private, and its one account can sync production only.
+  The interface is private, and its one account can sync production only, never roll back.
 - Workload Secrets come from OpenBao. Ansible applies only what Argo CD and OpenBao need.
 - Each app is stopped, backed up once, restored and re-pointed. Data that cannot be
   regenerated is verified before its old host is deleted.
 
 ## Non-Goals
 
-No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the step that
-turns a merge into an image. Workers clusters and labs stay on Flux. No SQLite replication,
-high availability or single sign-on. h1claw is outside the plan. This plan changes no host or cluster.
+No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the apps' build
+and pin tools. Workers clusters and labs stay on Flux. No SQLite replication,
+high availability or single sign-on. h1claw is outside the plan. No host or cluster changes.
 
 ## Constraints
 

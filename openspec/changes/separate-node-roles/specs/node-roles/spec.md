@@ -4,7 +4,7 @@
 
 Every fleet host SHALL hold exactly one node role: platform services, continuous integration,
 observability, or production apps. A host's capabilities MUST be those of its role. The
-continuous integration role covers gates and release builds only; no app and no database SHALL
+continuous integration role covers gates and image builds only; no app and no database SHALL
 run on a continuous integration host.
 
 #### Scenario: Declared fleet
@@ -189,15 +189,16 @@ production SHALL read separate store paths.
 
 ### Requirement: Units are first synced in dependency order
 
-Every Application SHALL carry the sync order the design's unit table gives it, and a unit that
-reads a Secret MUST have a higher order than the unit that provides it, except a Job that reads
-a Secret an operator makes for a resource of the Job's own unit. The sync playbook SHALL sync
-platform units in that order, each Synced and Healthy before the next. The order covers the
-first sync only; staging Applications SHALL retry a failed sync with backoff.
+Every Application SHALL carry the sync order and the needed units the design's unit table gives
+it; a need MUST have a lower order, and so MUST the provider of a Secret a unit reads, except
+for a Job that reads a Secret an operator makes for its own unit. The sync playbook SHALL sync
+platform units in order and refuse a unit only while a unit it needs is not Synced and Healthy.
+Staging Applications SHALL retry a failed sync with backoff.
 
 #### Scenario: Order differs from the table
 
-- **WHEN** an Application's sync order is missing or differs from the unit table
+- **WHEN** an Application's sync order, needs or project is missing or differs from the unit
+  table, or a need has the same or a higher order
 - **THEN** the delivery check fails and names the Application
 
 #### Scenario: Consumer before its Secret
@@ -226,8 +227,13 @@ first sync only; staging Applications SHALL retry a failed sync with backoff.
 #### Scenario: Build from an empty cluster
 
 - **WHEN** the sync playbook is given units on an empty cluster
-- **THEN** it syncs them in table order and refuses a unit while a unit of a lower order is not
-  Synced and Healthy
+- **THEN** it syncs them in table order and refuses a unit while a unit it needs is not Synced
+  and Healthy
+
+#### Scenario: Unrelated unit unhealthy
+
+- **WHEN** a unit of a lower order is unhealthy and the unit to sync does not need it
+- **THEN** the playbook syncs the unit
 
 #### Scenario: Sync wave on an Application
 
@@ -242,12 +248,11 @@ first sync only; staging Applications SHALL retry a failed sync with backoff.
 
 ### Requirement: Staging follows main; production and the platform change on command
 
-A staging Application SHALL sync automatically from `main` with pruning, self-healing and a
-retry policy. A production Application and a platform unit SHALL track `main` with automated
-sync off and change only when a person syncs them. The root Application SHALL sync
-automatically and manage only Application and AppProject objects. A change SHALL reach `main`
-only through a pull request with its required checks, and the delivery check SHALL run inside
-a required check.
+A staging Application SHALL sync automatically from `main` with pruning, self-healing and
+retry. A production Application and a platform unit SHALL track `main` with automated sync off
+and change only when a person syncs them. The root Application SHALL manage only Application
+and AppProject objects, self-heal and never prune. No Application file SHALL carry an
+`operation` block. The delivery check SHALL run inside a check that `main` requires.
 
 #### Scenario: Merge to a staging overlay
 
@@ -264,6 +269,28 @@ a required check.
 - **WHEN** a production or platform Application other than the root has automated sync, or a
   staging Application lacks it
 - **THEN** the delivery check fails and names the Application
+
+#### Scenario: Other kind in the root's path
+
+- **WHEN** the root's source path holds an object that is neither an Application nor an
+  AppProject, or the `root` project admits another kind or another destination
+- **THEN** the delivery check fails and names it
+
+#### Scenario: Operation in an Application file
+
+- **WHEN** an Application file carries an `operation` block
+- **THEN** the delivery check fails and names the file
+
+#### Scenario: Application file edited
+
+- **WHEN** a merge changes the source, values or destination of a production Application file
+- **THEN** the Application object changes and its workloads do not, until it is synced
+
+#### Scenario: Application file removed
+
+- **WHEN** a merge removes an Application file
+- **THEN** the Application object and its workloads remain, and the health check lists the
+  Application as having no file
 
 #### Scenario: Automation switched on in the cluster
 
@@ -293,6 +320,12 @@ a required check.
   a namespace of the other environment
 - **THEN** the delivery check fails
 
+#### Scenario: Staging claims a production name
+
+- **WHEN** an Ingress or Certificate of a staging Application names a host that a production
+  Application names, or the reverse
+- **THEN** the delivery check fails and names the host
+
 #### Scenario: Change under the tree alone
 
 - **WHEN** a pull request changes only a file under `infra/argocd`
@@ -313,13 +346,14 @@ a required check.
 
 The Argo CD interface MUST have no public route. Its one local account SHALL read every
 Application and MAY sync Applications of the `production` project only, at the revision the
-Application names. The built-in `admin` account MUST be disabled. Platform units SHALL be
+Application names, and MUST NOT roll one back. The built-in `admin` account MUST be disabled. Platform units SHALL be
 synced by the sync playbook with the node's credential.
 
 #### Scenario: Interface exposed or over-privileged
 
 - **WHEN** the rendered install has an Ingress, a default role other than `role:readonly`, the
-  `admin` account enabled, a grant of `sync` outside `production/*`, or a grant of `override`
+  `admin` account enabled, a grant of `sync` outside `production/*`, a grant of `override` or
+  `rollback`, or no `server.rbac.rollback.enforce.enable`
 - **THEN** the delivery check fails
 
 #### Scenario: Account syncs production
@@ -329,8 +363,8 @@ synced by the sync playbook with the node's credential.
 
 #### Scenario: Account syncs elsewhere or another revision
 
-- **WHEN** the local account syncs a platform or staging Application, or names another
-  revision for a production one
+- **WHEN** the local account syncs a platform or staging Application, names another revision
+  for a production one, or rolls a production one back
 - **THEN** Argo CD refuses
 
 #### Scenario: Sync playbook given an app
@@ -365,11 +399,18 @@ The cluster SHALL write each SQLite backup under a prefix that names the cluster
 environment and lies outside `sqlite/`, apply the documented retention to it, and alert when a
 backup job's last success is older than two backup intervals or its series is absent, without
 depending on a host outside the cluster. Each alert rule SHALL land with the app it watches.
+A staging backup job MUST NOT read the object storage credential of a production one.
 
 #### Scenario: Shared prefix
 
 - **WHEN** an app overlay of the rebuilt cluster sets the backup prefix to `sqlite` or to a
   path under `sqlite/`, or two overlays set the same prefix
+- **THEN** the delivery check fails and names the overlay
+
+#### Scenario: Shared credential
+
+- **WHEN** a staging overlay reads the object storage credential that a production overlay
+  reads
 - **THEN** the delivery check fails and names the overlay
 
 #### Scenario: Retention
@@ -441,7 +482,8 @@ job suspended.
 #### Scenario: Production data offered to staging
 
 - **WHEN** a staging store is to be restored from a backup of a production store
-- **THEN** the move stops; staging stores are restored from dev stores only
+- **THEN** the move stops; a staging restore names its source file, and only the dev store's
+  file is accepted
 
 ### Requirement: Gates do not stop
 
@@ -451,3 +493,42 @@ A gate host SHALL NOT be deleted before the new CI host is calibrated.
 
 - **WHEN** the new CI host has no recorded calibration
 - **THEN** neither old gate host is deleted
+
+### Requirement: The solver is bound per environment
+
+On the rebuilt cluster the admission policy SHALL trust one solver namespace, one host
+directory and one node selector for each environment, with a parameter ConfigMap of its own,
+and each environment SHALL have its own solver supervisor.
+
+#### Scenario: Staging backend mounts production's directory
+
+- **WHEN** a pod in the staging solver namespace mounts the production solver directory
+- **THEN** admission denies it
+
+#### Scenario: Image trusted for the other environment only
+
+- **WHEN** a pod in the staging solver namespace runs an image that only production's list
+  names
+- **THEN** admission denies it
+
+#### Scenario: Third trusted namespace
+
+- **WHEN** a namespace other than the two solver namespaces carries the trusted label
+- **THEN** admission denies it
+
+### Requirement: Builds triggered by a merge never run code from a pull request
+
+A workflow whose job runs on the CI host's build runner SHALL be triggered only by a push to
+`main` or a manual run, SHALL start its build through the host pool's launcher, and MUST NOT
+pass a GitHub secret to the registry push.
+
+#### Scenario: Pull request trigger
+
+- **WHEN** a workflow that names the build runner's label has a `pull_request`,
+  `pull_request_target` or `issue_comment` trigger
+- **THEN** the workflow check fails and names the workflow
+
+#### Scenario: Build outside the pool
+
+- **WHEN** a job on the build runner's label does not start through the host pool's launcher
+- **THEN** the workflow check fails

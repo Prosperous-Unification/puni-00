@@ -14,9 +14,11 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R30 and the two open questions in design.md and
+- [ ] 0.1 Owner reads assumptions R1 to R32 and the three open questions in design.md and
       overrules by id. Rows marked decided record his answers of 2026-11-21 and 2026-11-23.
-      Receipt: the overrules, dated, in verify.md. Until then only slices 1.1, 1.2 and 2.1 to
+      He confirms R31, and states in his own words what he takes of R30: h1claw deleted after
+      A20, or sooner with the windows of design decision 7's table accepted. Receipt: the
+      overrules and both statements, dated and quoted, in verify.md. Until then only slices 1.1, 1.2 and 2.1 to
       2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows them.
 - [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
@@ -26,7 +28,8 @@ input directory. "Sync" of a platform unit means
       `proposal.md` and `tasks.md` and makes the amendments of design decision 9. Test:
       `./node_modules/.bin/openspec validate --all --json`.
 - [ ] 0.4 After 0.1: tell the owners of pull request #935, of `dash-host-jobs`, of the release
-      bootstrap and of the WBS deploy tooling what decision 9 asks of each, and that this
+      bootstrap and of the WBS deploy tooling what decision 9 asks of each, slice 3.7's list
+      included, and that this
       change edits no path the old cluster reconciles, so its pin needs no freeze. Receipt:
       the four messages, dated, in verify.md.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
@@ -39,14 +42,15 @@ input directory. "Sync" of a platform unit means
       differs; nothing else proceeds and h1claw is not deleted. Rollback: none needed; a copy
       is added and nothing is removed.
 - [ ] 0.6 The rules that guard `main` (design decision 3). Who: owner. For this repository and
-      for the fleet repository, both before A2. Commands: record the tip SHA of `main`; read
+      for the fleet repository, both before A2; for the WBS deploy repository, if it exists,
+      before its first Application is merged, with its own check required. Commands: record the tip SHA of `main`; read
       the rules that apply to it with `gh api repos/<repository>/rules/branches/main`; add
       what is missing so that a change needs a pull request and the required checks and no
       push may be direct, forced or deleting; on the fleet repository require its
       `fleet-check`; list the bypass actors. The rules against forced and deleting pushes are
       proved by reading them back, never by pushing. The rule against a direct push is proved
       by one push of an empty commit from an account that is not a bypass actor. Receipt: the
-      rules read back for both repositories; that push refused; the bypass list, which names
+      rules read back for each repository; that push refused; the bypass list, which names
       no agent account; the tip SHA unchanged. Stop: the push is accepted. Then the tip SHA
       has moved by one empty commit: restore it by reverting that commit through a pull
       request, and correct the rule before anything else. Rollback: none needed; no rule is
@@ -114,7 +118,7 @@ input directory. "Sync" of a platform unit means
 
 ## 2. Argo CD delivery (agent slices)
 
-Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
+Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 before stage 3.
 
 - [ ] 2.1 Locked install and CLI. Vendor the Argo CD v3.6.2 install manifest in
       `infra/argocd/install` with its SHA-256 under `manifests.argocdInstall` in
@@ -123,15 +127,17 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       kustomization removes Dex, the notifications controller and the ApplicationSet
       controller; pins every image by digest; sets the selector, toleration and the limits of
       R24; sets `kustomize.buildOptions: --enable-helm`, `policy.default: role:readonly`,
-      `application.sync.requireOverridePrivilegeForRevisionSync: "true"`, the local account
-      with the one grant of R23 and `admin.enabled: "false"`; adds the NetworkPolicy. Test:
+      `application.sync.requireOverridePrivilegeForRevisionSync: "true"`,
+      `server.rbac.rollback.enforce.enable: "true"`, the local account with the one grant of
+      R23 and `admin.enabled: "false"`; adds the NetworkPolicy. Test:
       `contracts.test.ts` accepts the lock and the render has four workloads. Negatives, each
       with its own fault: changed manifest bytes are refused (fault: drop the digest
       comparison); a rendered image without a digest is refused; a render with an Ingress,
       with `admin` enabled or with a default role other than `role:readonly` is refused; a
-      policy that grants the account `sync` outside `production/*`, or `override` anywhere,
-      is refused (fault: widen the grant to `*/*`); a render without the override setting is
-      refused; a render with the health customization for `argoproj.io/Application` is
+      policy that grants the account `sync` outside `production/*`, or `override` or
+      `rollback` anywhere, is refused (fault: widen the grant to `*/*`); a render without the
+      override setting is refused; a render without the rollback setting is refused (fault:
+      drop the key); a render with the health customization for `argoproj.io/Application` is
       refused, because the design relies on its absence.
 - [ ] 2.2 Wrapper charts. For cert-manager and Traefik: a chart directory under
       `infra/argocd/units` whose `Chart.yaml` names the locked archive as a dependency, whose
@@ -158,9 +164,10 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       (fault: delete one copied object); a `policy` Application without the `solverImages`
       ignore rule and `RespectIgnoreDifferences=true` fails the `delivery` check (fault:
       remove the rule).
-- [ ] 2.4 Application graph and the `delivery` check family. Add the three AppProjects, the
-      root Application and one Application file per unit of orders 0 to 3 under
-      `infra/argocd/clusters/platform-production`, and `tools/tool-fleet/src/argocd.ts`,
+- [ ] 2.4 Application graph and the `delivery` check family. Add the root Application and the
+      `root` AppProject under `infra/argocd/root`; the `platform`, `staging` and `production`
+      AppProjects and one Application file per unit of orders 0 to 3 under
+      `infra/argocd/clusters/platform-production`; and `tools/tool-fleet/src/argocd.ts`,
       wired into `tool-fleet:check`. The check refuses each of the following. Each letter has
       its own negative and its own row in `check-faults.ts`, whose fault is that rule removed.
       (a) An Application outside its project's sources or destinations, with a destination
@@ -169,10 +176,11 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       namespace of the other environment. A fleet-sourced Application in `platform` other
       than `public-issuers` at its one path. (b) Automation in the wrong place: a `staging`
       Application without automated `prune`, `selfHeal` and a retry policy; a `production` or
-      `platform` Application with automated sync, the root excepted; a root without it; any
-      Application with the resources finalizer. (c) A `puni.dev/sync-order` that is missing
-      or differs from the table of design decision 3, and a unit ordered at or below the unit
-      that provides a Secret it reads, with the same-unit Job exception of that decision.
+      `platform` Application with automated sync; a root without automated self-heal, or with
+      prune; any Application with the resources finalizer. (c) A `puni.dev/sync-order`,
+      `puni.dev/needs` or project that is missing or differs from the table of design
+      decision 3; a need of the same or a higher order; and a unit ordered at or below the
+      unit that provides a Secret it reads, with the same-unit Job exception of that decision.
       (d) A rendered object of a `toolkit.fluxcd.io` group, a remote kustomize base, a
       document with a `sops` key or a Secret object under an Application source path, or a
       sync-wave annotation on an Application. (e) A file that is in an Application's source
@@ -189,7 +197,12 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       Application whose source is a production overlay, or the reverse; an ExternalSecret
       in one environment whose store path names the other; a pod template of a `staging`
       Application that does not select the capability `staging`, or one of a `production`
-      Application that does not select `product`. The family also runs as
+      Application that does not select `product`. (l) Anything in the root's source path
+      that is not an Application or an AppProject; a `root` project that admits another kind
+      or a destination other than the `argocd` namespace; an Application file with an
+      `operation` block; an Application in the `root` project other than the root. (m) An
+      Ingress or Certificate of a `staging` Application that names a host a `production`
+      Application names, or the reverse. The family also runs as
       `argocd.test.ts` over the repository's real tree, as `platform.test.ts` does for
       `validatePlatform`, and that project's inputs name `infra/argocd/**`, so the required
       `gate` check selects it for a change under that path alone. Negative: a change to one
@@ -202,11 +215,13 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       today, and refuse a cluster that has one for another id; apply the `namespaces` unit;
       decrypt each bootstrap Secret of design decision 5 on the controller with `sops` and
       apply it through the API under `no_log`; apply the install with a server-side apply;
-      wait for the workloads; apply the three AppProjects and the root Application.
+      wait for the workloads; apply `infra/argocd/root`, which is the root Application and its project.
       `playbooks/argocd-sync.yml`: take a list of platform units; refuse a unit that is not
-      in the `platform` project, and a unit while one of a lower order in the tree is not
-      Synced and Healthy; sync each in order with the locked `argocd` CLI in core mode on the
-      server and wait for Synced and Healthy. The controller: add the locked `sops` binary to
+      in the `platform` project, and a unit while one of the units its `puni.dev/needs`
+      names is not Synced and Healthy; sync each in order with the locked `argocd` CLI in core
+      mode on the server and wait for Synced and Healthy. Its removal mode deletes the
+      Application object of a unit and refuses one that still has a file on `main` or whose
+      live source renders more than the marker ConfigMap. The controller: add the locked `sops` binary to
       `infra/controller/Containerfile`, and a read-only mount of a fleet repository checkout
       to `fleet_ansible`, named by an input in `$OPS`. Test: `infra/ansible/tests`, including
       a second run of `argocd.yml` with one more secret file, which changes that Secret and
@@ -216,12 +231,14 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       guard); a cluster that already carries another id's ConfigMap is refused and nothing is
       applied (fault: create without reading); a second run on the same cluster leaves the
       ConfigMap unchanged; the sync playbook refuses a production or staging unit (fault:
-      drop the project comparison) and a unit ahead of an unhealthy predecessor (fault: skip
-      the order read).
+      drop the project comparison) and a unit one of whose needs is unhealthy (fault: skip
+      the needs read), and syncs a unit whose needs are healthy while an unrelated unit of a
+      lower order is not (fault: compare orders, as the fourth draft did); the removal mode
+      refuses a unit whose file is still on `main` (fault: skip the file read).
 - [ ] 2.6 Health and recovery for a cluster delivered by Argo CD. `tool-fleet:health` gains a
       rule that reads Applications where the cluster's delivery is Argo CD and no longer
-      reports "no Flux objects" there. It fails on a Degraded Application and on a staging
-      Application that is OutOfSync; it lists a production or platform Application that is
+      reports "no Flux objects" there. It fails on a Degraded Application, on a staging
+      Application that is OutOfSync and on an Application in the cluster that has no file; it lists a production or platform Application that is
       OutOfSync with how long it has been so, without failing. The recovery manifest and
       `verify-cold-restore` accept such a cluster, and the drill's last step reads the root
       Application. Test: the health and recover suites for both deliveries. Negatives: a
@@ -235,33 +252,45 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       and the staged build as a throwaway pass on that server and one temporary server, with
       secrets made for the pass, an uncommitted inventory and a scratch bucket. Both servers
       are deleted afterwards and nothing of them is recorded in this repository.
-      Receipt in verify.md: (a) every platform unit Synced and Healthy from an empty cluster,
-      synced by the playbook in table order; (b) every object OutOfSync after the first sync
-      with no Git change, which is the `ignoreDifferences` list; (c) what each chart's hooks
-      did; (d) that `argocd-secret` kept the password hash and its generated keys after a
-      sync of `argocd`; (e) whether helm followed a linked chart archive, and whether
-      kustomize inflated a chart from a local archive with the network disabled; (f)
-      validation's result on a one-node cluster registered with both taints, and CoreDNS's
-      tolerations after it; (g) on a staging Application, a manual edit reverted by
-      self-heal; on a production Application, the same edit left in place and reported
-      OutOfSync, and a merge left unapplied until a sync; a deleted manifest whose claim
-      survived; automation switched on in the cluster for a production Application and
-      switched off again by the root; (h) the unit states after each join, with the firewall
-      refreshed first, and the time of an etcd restore; (i) a rewritten `solverImages` left
-      alone by a sync, and a changed `force` Job recreated; (j) a merge that changes two
-      dependent staging units at once converging by retry, with the retries counted; (k) the
-      Traefik, Velero and Prometheus stack CRDs present after their first sync; (l) a
-      Certificate that cannot be issued keeping its unit from Healthy; (m) the `otlp-ingress`
-      NetworkPolicy selecting the collector's pods; (n) the CLI in core mode syncing a
-      platform unit with no Argo CD account, and the local account syncing a production
-      Application, refused on a platform and a staging one, and refused a revision other
-      than the Application's; (o) a unit reduced to its marker ConfigMap and synced with
-      prune losing its workloads and keeping its claim, on staging and on production.
+      Fixture Applications stand in for apps that do not exist yet. The receipt is in four
+      parts, each due before the step it names, so that no part waits for units of a later
+      stage.
+      **2.7/A3**, before A3 and A4, with slices 1.2 and 2.1 to 2.5: (a) validation's result
+      on a one-node cluster registered with both taints, and CoreDNS's tolerations after it;
+      (b) orders 0 to 3 Synced and Healthy from an empty cluster, synced by the playbook;
+      (c) every object of those units OutOfSync after the first sync with no Git change,
+      which starts the `ignoreDifferences` list; (d) what cert-manager's hooks did; (e) that
+      `argocd-secret` kept the password hash and its generated keys after a sync of `argocd`;
+      (f) whether helm followed a linked chart archive; (g) a rewritten `solverImages` left
+      alone by a sync of `policy`; (h) the CLI in core mode syncing a platform unit with no
+      Argo CD account; (i) with fixture Applications: the local account syncing a production
+      one, refused on a platform and a staging one, refused a revision other than the
+      Application's, and refused a rollback; a manual edit reverted on staging and left in
+      place and reported OutOfSync on production; a merge left unapplied on production until a
+      sync; automation switched on in the cluster for a production Application and switched
+      off again by the root; an Application file removed and its object left in place; an
+      `operation` block refused by the check; a deleted manifest whose claim survived; a unit
+      reduced to its marker and synced with prune losing its workloads and keeping its claim,
+      then removed by the removal mode; (j) the playbook refusing a unit whose need is
+      unhealthy and syncing an unrelated one.
+      **2.7/A7**, before A7, with pull request #935's units: orders 4 to 7 Synced and Healthy;
+      an ExternalSecret without a value keeping `secret-sync` from Healthy; with the store
+      sealed, the units that need `secret-sync` refused and `eck-operator` synced.
+      **2.7/A14**, before A13, with slice 2.8: the unit states after each staged join, with
+      the firewall refreshed first, and the time of an etcd restore; orders 8 to 12 Synced
+      and Healthy; a changed `force` Job recreated; the Velero and Prometheus stack CRDs
+      present; whether kustomize inflated a chart from a local archive with the network
+      disabled; a Certificate that cannot be issued keeping its unit from Healthy; the
+      `otlp-ingress` NetworkPolicy selecting the collector's pods; the rest of the
+      `ignoreDifferences` list.
+      **2.7/A18**, before A18: Traefik's CRDs present; with the real staging overlays, a
+      merge that changes two dependent staging units at once converging by retry, with the
+      retries counted.
       Stop: a unit cannot become Healthy, or validation cannot pass with one node. Then
-      design decisions 3 and 6 are revised before any attended step. Fallbacks already
-      decided: for (d), the Secret leaves the managed set; for (e), the wrapper holds a copy
-      and Velero uses a committed render; for (n), a second local account limited to
-      `platform`. For (f) there is no automatic fallback: the owner decides (slice 1.2).
+      design decisions 3 and 6 are revised before the step that part gates. Fallbacks already
+      decided: for (e), the Secret leaves the managed set; for (f), the wrapper holds a copy,
+      and Velero uses a committed render. For (a) and (h) there is none: the owner decides
+      (slice 1.2, design decision 3).
 - [ ] 2.8 Units for orders 8 to 12, before stage 3: the fifteen operator-provided Secrets as
       ExternalSecrets added to `secret-sync` (R22); `otel-certificates`; wrapper charts for
       the ECK operator, the Prometheus stack and the OTel collector; Velero as a kustomize
@@ -297,7 +326,7 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
 
 ## 3. Custody, probes and what other owners provide (agent slices)
 
-- [ ] 3.1 SQLite custody in the cluster, before stage 4 (R13, guard 3). A unit
+- [ ] 3.1 SQLite custody in the cluster, before A18, which first syncs it (R13, guard 3). A unit
       `sqlite-custody`: a CronJob that applies the retention of
       [recovery](../../../docs/infra/recovery.md#bucket-lifecycle) to the cluster's own
       prefixes as a pure planner plus a thin shell. Beside it, a PrometheusRule template that
@@ -312,10 +341,11 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       `promtool`. Negatives: a snapshot whose report is missing is kept and reported; the
       newest report is never planned for deletion; a listing error deletes nothing; an app
       overlay whose prefix is `sqlite` or begins with `sqlite/` fails the `delivery` check;
-      two overlays with one prefix fail it; a last success older than two intervals fires the
+      two overlays with one prefix fail it; a staging overlay that reads the object storage
+      credential a production overlay reads fails it; a last success older than two intervals fires the
       rule; an absent series fires the rule. Faults to inject, one per negative: delete a
       snapshot without its report; drop the newest-report guard; treat a partial listing as
-      complete; refuse only the bare `sqlite`; compare prefixes within one environment only;
+      complete; refuse only the bare `sqlite`; compare prefixes within one environment only; skip the credential comparison;
       compare the age against four intervals; drop the `absent()` branch.
 - [ ] 3.2 Before A14, whose `probes` unit it fills. Outside liveness probes (R16): one probe
       per k3s node and per gate host from the observability stack's blackbox exporter, and a
@@ -332,16 +362,18 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       record. The Flux paths of the old cluster are removed by a later change. Test:
       `bunx nx run tool-fleet:check`.
 - [ ] 3.5 Before A18's WBS part and A20. Owner: the WBS deploy tooling's owner; this change
-      only names the gap. The `staging` overlay renders namespaces of its own, so it can run
-      beside production; both overlays carry the selector patches of design decision 1, a
-      backup prefix per decision 7, ExternalSecrets in place of the SOPS Secrets they
-      expect, the stale-backup rule of 3.1, and image references that name Harbor (R28); the
-      WBS alert group is added to `alerts` with each. The `delivery` check reads both under
-      rules (f), (g) and (k) and the prefix rule of 3.1. Test: both overlays render together
-      into one fixture cluster with no object in common. Negatives: an overlay that renders
-      `wbs` or `wbs-solver` for staging is refused; a WBS workload without a selector is
-      refused. Fault to inject: compare the two renders by kind only and watch the shared
-      namespace pass.
+      only names the gap. The `staging` overlay renders namespaces of its own, the solver
+      one being `wbs-solver-staging` (slice 3.8), so it can run beside production; both
+      overlays carry the selector patches of design decision 1, a backup prefix per decision
+      7, ExternalSecrets in place of the SOPS Secrets they expect, the stale-backup rule of
+      3.1, default-deny NetworkPolicies for every new namespace, and image references that
+      name Harbor (R28); the WBS alert group is added to `alerts` with each. The `delivery`
+      check reads both under rules (f), (g), (k) and (m) and the rules of 3.1. Test: both
+      overlays render together into one fixture cluster with no object in common. Negatives:
+      an overlay that renders `wbs` or `wbs-solver` for staging is refused; a WBS workload
+      without a selector is refused; a new namespace without a default-deny policy is refused.
+      Faults to inject: compare the two renders by kind only and watch the shared namespace
+      pass; exempt new namespaces from the policy rule.
 - [ ] 3.6 Before A15 (R15). A unit `mlflow` under `infra/argocd/units`: the MLflow server
       pinned by digest, selecting `observability`, with a `Retain` claim carrying
       `Prune=false` and `Delete=false`, the apps' backup and verify CronJobs with a prefix
@@ -351,11 +383,42 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       and the backup runner's suite restores a fixture store. Negative: the unit without its
       backup CronJob fails the check for a claim with no backup. Fault to inject: exempt
       `mlflow` from that rule.
-- [ ] 3.7 Blocks no step (open question 2). Owner: the owners of the release bootstrap and of
-      the WBS deploy tooling; this change only names the gap. On a merge to `main` of an
-      app, something builds its image, pushes it, and moves the pin in that app's staging
-      overlay through a pull request or a rule-conforming commit. Until it lands, staging
-      changes when a pin is moved by hand.
+- [ ] 3.7 Blocks no step; until it lands a staging pin is moved by hand. Awaits the owner's
+      confirmation of R31 (open question 2). Owners: the release bootstrap's and the WBS
+      deploy tooling's owners for each app's build entrypoint and pin write; the gate pool's
+      owner for the catalogue entry, its launcher checkout, `concurrencyEligible` and the
+      runner's user in the gate-host role; this change for the workflow's shape and its
+      check. A workflow on `push` to `main`, filtered by the app's paths, and on manual
+      dispatch, with no `pull_request` trigger, whose job runs on a self-hosted runner on
+      h8ci under a label of its own, starts the build through `run_heavy_job`, pushes to
+      Harbor by digest with a robot secret that is a file on the host, and opens and merges
+      a pull request that writes the digests into the staging overlay (design decision 9).
+      The runner group, the approval setting for outside contributors and the GitHub App are
+      set by the owner and read back in A11. Test: the workflow lint in `gate`. Negatives: a
+      workflow that names the build label and has a `pull_request`, `pull_request_target` or
+      `issue_comment` trigger is refused; one that passes a GitHub secret to the push step is
+      refused; a job on the build label that does not go through `run_heavy_job` is refused.
+      Faults to inject, one per negative: drop the trigger rule; drop the secret rule; drop
+      the launcher rule.
+- [ ] 3.8 Before A17's solver step and A18's WBS part (R32). The solver binding as a table of
+      environments. In the new tree's `policy` unit only (the Flux copy is not edited): the
+      trusted-hostpath policy admits, per environment, one namespace, one host directory and
+      one selector (`wbs-solver`, `/run/puni/solver`, `product`; `wbs-solver-staging`,
+      `/run/puni/solver-staging`, `staging`); the namespace-label policy reserves both
+      names; each environment has its own parameter ConfigMap and binding, so the two lists
+      of trusted solver images are separate. In the `solver` role: a list of instances, each
+      with its own user, runtime directory and socket; the default is the one instance of
+      today, so the old cluster's play is unchanged. Test: the policy suite on disposable
+      k3d, and the role's tests for one instance and for two. Negatives, each with its own
+      fault and `Proof:` comment: a staging backend that mounts production's directory is
+      denied (fault: admit any listed directory in any listed namespace); a production
+      backend that selects `staging` is denied (fault: compare the selector against the
+      union); a pod in the staging namespace with an image from production's list only is
+      denied (fault: bind both namespaces to one ConfigMap); a third namespace carrying the
+      trusted label is denied (fault: match the label alone); two instances given one socket
+      path fail the role's validation (fault: drop the uniqueness check). Stop: the
+      supervisor cannot run twice on one node. Then the owner chooses between R32's
+      alternatives and a node of its own for staging.
 
 ## 4. Attended steps
 
@@ -374,7 +437,7 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       a copy of each original into both escrow places. Receipt: "escrowed" per secret beside
       its escrow entry, and "restored on a second machine" for the age identity. Stop: an
       escrow place is unavailable. Rollback: discard the files; nothing uses them yet.
-- [ ] A3 Bootstrap the server, after 1.1, 1.2, the first 1.3 and the receipt of 2.7. Who:
+- [ ] A3 Bootstrap the server, after 1.1, 1.2, the first 1.3 and the receipt 2.7/A3. Who:
       operator. Commands:
       `fleet_ansible --limit h5plat --extra-vars puni_preflight_stage=before-enrollment playbooks/preflight.yml`,
       `fleet_ansible --limit h5plat playbooks/bootstrap.yml` twice (the second prints
@@ -391,7 +454,7 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       `fleet_ansible --limit h5plat --extra-vars puni_cluster_id=platform-production --extra-vars @"$OPS/argocd.json" playbooks/argocd.yml`;
       then sync `argocd`, `namespaces`, `policy`, `storage` and `cert-manager`.
       Receipt: `kubectl get applications -n argocd` shows the root and orders 0 to 3 Synced
-      and Healthy; every Argo CD and cert-manager pod is on h5plat; the interface answers
+      and Healthy; the root is in the project `root` and has no prune; every Argo CD and cert-manager pod is on h5plat; the interface answers
       through `kubectl port-forward`; the local account logs in and is refused a sync of a
       platform unit; `admin` cannot log in; no Service of type LoadBalancer or Ingress exists
       in `argocd`. Stop: a unit is not Healthy after 20 minutes. Rollback: delete the server.
@@ -417,8 +480,8 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       refuses, or the root cannot be read. Rollback: delete the temporary server and power
       h5plat on; its datastore was not touched.
 - [ ] A7 OpenBao, the External Secrets Operator and the first Secrets (R22). Preconditions:
-      pull request #935 merged and amended as design decision 9 lists, and its own slices
-      landed under `infra/argocd`. Who: operator; owner for the values. Commands: add the
+      pull request #935 merged and amended as design decision 9 lists, its own slices
+      landed under `infra/argocd`, and the receipt 2.7/A7. Who: operator; owner for the values. Commands: add the
       seal key, the server CA Secret and the rest of #935's bootstrap set to the secret file
       list and run `playbooks/argocd.yml` again; sync `openbao`; follow #935's runbook to
       the point where the store serves and its recovery material is escrowed; sync
@@ -452,15 +515,18 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       calibration durations; the pool owner's decision on two gates at once or more tasks
       per gate. Stop: a gate fails for a reason the old hosts do not show on the same SHA.
       Rollback: keep gating on the old hosts; they are untouched until stage 5.
-- [ ] A11 Release builds on the CI host. Who: the session that owns the release bootstrap, by
-      its own procedure. Receipt: one release record that names h8ci. Stop: the build needs
+- [ ] A11 Builds on the CI host. Who: the session that owns the release bootstrap, by its own
+      procedure; owner for the runner, once slice 3.7 has landed. Receipt: one release
+      record that names h8ci; then, for 3.7, the runner group's repositories and workflow
+      limit read back, the approval setting read back, the GitHub App's repository list, and
+      a pull request from a fork that names the build label left queued and unrun. Stop: the build needs
       something only h2puni has; name it. Rollback: keep building on h2puni.
 
 ### Stage 3: observability
 
 - [ ] A12 Create the observability server. Who: owner, as A1, with a root disk of at least
       180 GiB (R2). Receipt: as A1. Stop: `df -h /` shows less. Rollback: delete the server.
-- [ ] A13 Join it, after its 1.3 revision, 1.4 and 2.8. Who: operator. Commands:
+- [ ] A13 Join it, after its 1.3 revision, 1.4, 1.5, 2.8 and the receipt 2.7/A14. Who: operator. Commands:
       `fleet_ansible --limit h5plat playbooks/firewall.yml`, so the server admits the new
       address; preflight limited to h7obs; `fleet_ansible --limit h7obs playbooks/join.yml`
       twice; `fleet_ansible --limit h5plat playbooks/validate-enrollment.yml`, whose hosts
@@ -470,20 +536,21 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
 - [ ] A14 Bring up and measure the stack, after A7 and 3.2. Who: operator; owner for the
       values. Commands: generate the Velero repository password and put it in escrow first;
       the owner writes the fifteen operator-provided values of design decision 5 into
-      OpenBao, the Slack webhook address among them once he has made it; merge the revision that adds the units of orders 8 to 12 and their
+      OpenBao, the webhook address of `#puni-alerts-dev` among them once he has made it; merge the revision that adds the units of orders 8 to 12 and their
       ExternalSecrets; sync `secret-sync`, then those units in order; after 24 hours read
       `kubectl top pods -n observability`, each container's `memory.stat` and each claim's
       use; raise one test alert. Receipt: "escrowed" for the Velero repository password;
       orders 8 to 12 Healthy; no alert firing other than the test alert; the per-pod memory
-      table; disk used and its growth per day; the test alert seen in Alertmanager, and at
-      its Slack channel if open question 1 is answered, or "delivery unproven" if not; the
+      table; disk used and its growth per day; the test alert seen in Alertmanager, and in
+      `#puni-alerts-dev` if open question 1 is answered, or "delivery unproven" if not; the
       owner's decision on the node's size. Stop: a pod is killed for memory, the node's
       available memory falls under 1,024 MiB, or the disk would fill within 60 days.
       Rollback: nothing depends on the stack yet. Reduce the units to their markers and sync,
       then remove their Application files (design decision 3). Claims stay.
 - [ ] A15 MLflow (R15, guard 1), after 3.6. Who: operator. Commands: the owner writes the
       MLflow backup credentials into OpenBao; merge the `mlflow` unit at zero replicas with
-      its backup job suspended and sync it; stop MLflow on h3mon; take the final backup there
+      its backup job suspended, together with its ExternalSecrets; sync `secret-sync`, then
+      `mlflow`; stop MLflow on h3mon; take the final backup there
       as design decision 7 states; restore it into the unit's claim; merge one replica and
       the job resumed, and sync; run the backup job once. Receipt: the final backup's stamp
       and SHA-256; one known run read back from the new instance; one backup and one verify
@@ -497,28 +564,32 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       Stop: as A1, or the host has no public IPv4 address for ports 80 and 443.
       Rollback: delete the server.
 - [ ] A17 Join it, after its 1.3 revision. Who: operator. Commands: `playbooks/firewall.yml`
-      limited to h5plat and h7obs; then as A13 for h6apps; then `playbooks/solver.yml`; then
+      limited to h5plat and h7obs; then as A13 for h6apps; then `playbooks/solver.yml`, with both instances once slice 3.8
+      has landed; then
       merge the revision that adds the `traefik` Application and sync it.
       Receipt: h6apps Ready with `product`, `staging` and `ingress`; the Traefik pod Ready there and
       answering on ports 80 and 443. Stop: Traefik cannot bind 80 or 443.
       Rollback: reduce `traefik` to its marker and sync, remove its Application file, then as
       A13.
-- [ ] A18 Staging (R29, R26), after 3.1 and the fleet repository's directory of design
-      decision 9; its WBS part also after 3.5 and Harbor. Who: operator, with the website's
+- [ ] A18 Staging (R29, R26), after 3.1, the receipt 2.7/A18 and the fleet repository's
+      directory of design decision 9; its WBS part also after 3.5, 3.8 and Harbor. Who: operator, with the website's
       owner; owner for the Secrets. The owner writes the staging Secrets of design decision
       5 into OpenBao, reading the website's present ones with the old cluster's age identity
-      on the controller. Sync `public-issuers`. Then, for the website and request app in
+      on the controller. Sync `secret-sync`, `sqlite-custody` and `public-issuers`. Then, for the website and request app in
       `website-dev` first and WBS staging second: stop the old side (scale the old
       Deployments to zero and suspend the old backup CronJob and its Flux unit; stop the
       Compose dev stack and the dev poller on h2puni); take the final backup as design
-      decision 7 states and note its stamp; merge the staging Application with the workload
+      decision 7 states, name the file, and note its stamp; a file that is not the dev
+      store's stops the step (guard 6); merge the staging Application with the workload
       at zero replicas and its backup CronJob suspended, which syncs by itself; restore that
-      stamp into the new claim; merge one replica and the CronJob resumed; point the dev
-      names at h6apps; wait for the certificates; run the new backup job once. Receipt, per
+      stamp into the new claim; merge one replica and the CronJob resumed; point the names
+      the staging overlay declares at h6apps; wait for the certificates from the issuer each
+      overlay names; run the new backup job once. Receipt, per
       app: the stamp and SHA-256; no pod of the app and no backup run on the new side before
       the restore finished; the restored store's check equals the backup's; for WBS, the
       project list of the tracker read back through its API; the pages read back on their
-      names with a valid certificate; one backup and one verify under the staging prefix,
+      names with a Ready certificate, which for WBS staging comes from the ACME staging
+      issuer its overlay names and is not trusted by a browser; one backup and one verify under the staging prefix,
       taken after the restore and holding a restored record; a later merge to the staging
       overlay applied with no command. Stop: the restore differs from the backup, a backup
       under the new prefix predates the restore or is empty, or a certificate is not Ready
@@ -549,14 +620,15 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
 - [ ] A21 Delete h4claw and h3mon. Who: owner. Preconditions: A18's and A19's receipts for
       the website and request app; A15's receipt; A10's receipt, no caller launching gates on
       h4claw (slice 3.3), and the pool owner's withdrawal of h4claw or written confirmation
-      that none is needed; a test alert delivered in its Slack channel (open question 1); the
+      that none is needed; a test alert delivered in `#puni-alerts-dev` (open question 1); the
       word of the session that owns `release-pin.ts` that the old fleet directory may go.
       Commands: delete both servers in the console; remove the old cluster's directory from
       the fleet repository. Receipt: the provider's server list without those names; the two
       confirmations, dated. Stop: a DNS record still points at either host. Rollback: none;
       that is why the preconditions are receipts.
 - [ ] A22 Delete h2puni. Who: owner. Preconditions: A18's WBS receipt and A20's receipt, or
-      the owner's word for each that the data is not wanted; A11's receipt; A10's receipt,
+      the owner's word for each that the data is not wanted; a test alert delivered in
+      `#puni-alerts-dev`; A11's receipt; A10's receipt,
       no caller launching gates on h2puni, and the pool owner's withdrawal of h2puni or
       written confirmation that none is needed; the controller no longer runs there (design
       decision 10). Command: delete the server in the console. Receipt: the provider's server
