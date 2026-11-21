@@ -24,3 +24,11 @@ add a project only when they can read it.
 - **GIVEN** a current member of A with no grant, and A holding two spaces
 - **WHEN** they list spaces and then read one by id
 - **THEN** the list answers `200` with `[]` and the read `404 not_found`
+
+#### Scenario: a viewer adds a project
+
+- **GIVEN** a viewer of organization A with no grant conferring `organization.manage_spaces`
+- **WHEN** they add a project to a space of A
+- **THEN** the answer is `403 forbidden` naming `organization.manage_spaces` and nothing
+  is written
+- **AND** the membership and revision are unchanged

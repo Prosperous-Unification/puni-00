@@ -219,3 +219,71 @@ heap to 8 GB; hooks remain enabled.
 Final restoration run: browser regression passed 1/1 in 7.8 seconds. The added
 browser file's initial scoped lint flagged two redundant undefined checks after
 the asserted two-lane fixture; those checks were removed.
+
+## Scoped local acceptance — 2026-11-21
+
+The original nine parent files match the merge of [public PR #287][spaces-pr-287],
+`e3d69ba476ed12fbbd45eb96eb0a33dcab9f3fea`. Its 14 successful checks and the separate
+trusted-wiki activation setup failure are historical results. The original review, fault
+and restoration records above remain attributable to their own candidates.
+
+The following local evidence is from product commit
+`4f1ed8dd897f23e84a32b6a498269ae36a96f490`, tree `828774cf20532ecc6f648692d81b116f09f446a2`.
+The acceptance runs used private state. The documentation transfer does not alter any
+tested product source, test, migration, provider binding or command.
+
+| Local stage                                              | Result                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Domain, application and stores                           | 68 passes, including the two independent ten-case adapter runs.                      |
+| Mounted organization API, rollback CLI and generated MCP | 16 passes, including the two cases against the freshly emitted default MCP document. |
+| FE Node and View                                         | 31 native passes, including the selected unknown-link jsdom case.                    |
+| Original Chromium timeline at 320 × 900                  | One pass, zero selected failures or skips.                                           |
+
+Session 36515 supplies the native reports for the first 115 passes. A and B qualified
+normally. C's original observer exited 1 and recorded qualification false when the inherited
+TMP classifier refused three Vitest residue directories. The separate read-only closure
+returned 0, classified all 524 leaves and preserved the original qualification. The initial
+preparation and reader defects and their repaired control receipts were retained independently
+from native results.
+
+The earlier local performance trial 90634 measured rows at 6.799799 ms, cold 20 at
+584.546229 ms, warm 20 at 16.317817 ms and warm progress for all 30 at 19.636215 ms on the
+dense 30 × 300 fixture. All four beat their original budgets. Its original observer exited
+1 with qualification false because it passed the wrong directory to the cache classifier.
+The separate read-only supplement returned 0 and classified 613 Bun cache leaves. The
+native timing case and supplemental closure keep their separate statuses.
+
+The first browser attempt, 29686, ran zero cases. Its configured results directory was
+read-only and its HTML path could not be created. With those paths corrected, session 8750
+recorded a setup error opening the Chromium page before any geometry assertions. Native and
+observer exits were 1. The 128-task group peaked at its ceiling and recorded three task-limit
+events. Listener sampling also encountered EAGAIN. These observations establish task pressure
+and preserve the case failure without attributing the browser crash to a specific task.
+Session 21285 refused disk admission before creating a service or running a case.
+
+Session 50527 ran the original authenticated browser setup with a real Vite build and three
+private listeners. The original narrow-viewport case passed in JUnit and Chromium HTML.
+Native, observer and outer entry exited 0. The actual cgroup allowed 256 tasks, peaked at
+151, and recorded zero task-limit or OOM events. The 6 GiB, zero-swap, two-CPU service
+disappeared, and source and cache checks passed. Earlier comparison to the successful Gantt
+venue used an incorrect 128-task assumption. That venue had a 37,772-task ceiling and a
+173-task observed peak.
+
+The local receipt SHA-256 values identify the distinct observations and supplements:
+
+- 90634 timing ledger `6774332050e39ad376dfdbd4650dc91a96b086090f462c5a62dca1fc12a27177`.
+- Timing cache closure `8c33c07f7e81796b31d5afe850622b06d951913732ee96f08a2a67262e129efc`.
+- 36515 stage ledger `8c4333d4befe898cbf8513fa14d811eb85215a0b1866318681c4f4108545adf2`.
+- C cache closure `c7d831c7a93527a09e6335668679da731ef9562bf59a41a292588fce657a2b4a`.
+- 29686 browser ledger `0d79586833fb0fa1a10ea0ce07502549099fb1980bc912313455d4d0476a1770`.
+- 8750 browser ledger `330c956cdbd2b84d3a0e312d15ac180c61ed623ec02d098ccf08fe7dbdb594de`.
+- 21285 admission refusal `f636cfdf38b5ea9663ad16ed815b30b0277d26d6f024fff09810cff872995498`.
+- 50527 browser ledger `d48a048f8a4bce6ccecb5a3b5b1e74a90dde3193deb264d6502e52b4334d5738`.
+- 50527 JUnit `4f070cd2798ec30a7fdbf2a693277c11e5c8b009fff5b4c688b977bcaf120266`.
+- 50527 HTML `df5b29b9ffd31fd816e46b6fda2f85fc2d8dc157b3afbf81b690a63ef5248c60`.
+
+The selected 116 cases and the separate timing trial support local acceptance for this parent.
+Hosted CI, a new deployment gate, live Permissions activation, and complete WBS verification
+remain outside this evidence. The active Permissions work and its task states are separate.
+
+[spaces-pr-287]: https://github.com/Prosperous-Unification/puni-00/pull/287
