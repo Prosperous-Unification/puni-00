@@ -7,7 +7,7 @@ The launch goal requires a production candidate for puni.dev and app.puni.dev, b
 - Prepare a production website target on the existing platform with separate namespace, storage, configuration, Secret resources and release receipts.
 - Build and validate site/app/API releases for an explicit development or production environment, including correct origins and isolated analytics configuration.
 - Require a backend supporting versioned scoping for new pins and rollbacks, and prepare a compatible baseline before the new landing flow is activated.
-- Provide exact-revision build, gate, backup/restore, request-handoff and rollback evidence, separating local rehearsal from live operator checks.
+- Provide exact-revision build, product-scoped Nx validation, backup/restore, request-handoff and rollback evidence, separating local rehearsal from live operator checks.
 - Order committed pins explicitly; date-plus-source-hash identifiers do not establish rollout chronology.
 
 ## Non-Goals
@@ -16,7 +16,7 @@ DNS changes, live activation, purchasing services, increasing provider spend lim
 
 ## Constraints
 
-Preserve development behavior, licensed/private source boundaries, existing origin/claim security, additive migrations and retention guarantees. Canonical public projects are projected from committed revisions with their full dependency closure. Keep the existing capped provider key and consent requirements. Missing tools, credentials or live evidence remain explicit blockers to activation. Run the exact-SHA host gate under its existing lock; no inferred success from health alone.
+Preserve development behavior, licensed/private source boundaries, existing origin/claim security, additive migrations and retention guarantees. Canonical public projects are projected from committed revisions with their full dependency closure. Keep the existing capped provider key and consent requirements. Missing tools, credentials or live evidence remain explicit blockers to activation. Validate the exact-source product dependency scope under its existing admission/lock; a full monorepo host gate is not a release prerequisite. No inferred success from health alone.
 
 ## Capabilities
 
