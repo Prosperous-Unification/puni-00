@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "./apps/twilight-structure/twilight-burokrat/cli/src/evidence/test-reports.test.ts",
+    "--timeout=30000"
+  ],
+  "cwd": "/home/df/.codex/worktrees/d6d4/puni-00",
+  "exit": 0,
+  "seconds": 9.77,
+  "sampledPeakKiB": 972916,
+  "capKiB": 1433600,
+  "killedForMemory": false
+}

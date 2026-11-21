@@ -1,0 +1,17 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "nx",
+    "run",
+    "twilight-burokrat:lint:source",
+    "--skip-nx-cache",
+    "--output-style=static"
+  ],
+  "cwd": "/home/df/.codex/worktrees/d6d4/puni-00",
+  "exit": -9,
+  "seconds": 10.41,
+  "sampledPeakKiB": 1436100,
+  "capKiB": 1433600,
+  "killedForMemory": true
+}

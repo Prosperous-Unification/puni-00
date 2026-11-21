@@ -1,0 +1,9 @@
+{
+  "base": "d87afb94a6362d345480f665b6e3b5d20d787686",
+  "path": "openspec/changes/test-axes/specs/test-axes/spec.md",
+  "baseSha256": "0ea57754ab7ca5d60a2fbd81a8669d8b86c085698d92311ecf25f213c866e2e0",
+  "currentSha256": "0ea57754ab7ca5d60a2fbd81a8669d8b86c085698d92311ecf25f213c866e2e0",
+  "identical": true,
+  "warnings": 35,
+  "errors": 0
+}

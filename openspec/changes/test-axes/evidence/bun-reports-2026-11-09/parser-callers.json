@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "./libs/shared/domain/test-evidence/src/index.test.ts",
+    "./tools/tool-devsync/src/test-levels.test.ts",
+    "--timeout=30000"
+  ],
+  "cwd": "/home/df/.codex/worktrees/d6d4/puni-00",
+  "exit": 0,
+  "seconds": 28.8,
+  "sampledPeakKiB": 318660,
+  "capKiB": 921600,
+  "killedForMemory": false
+}
