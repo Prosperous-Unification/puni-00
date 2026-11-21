@@ -1103,7 +1103,7 @@ MUST NOT consume the successful candidate's authority or hide any losing cost.
 ### Requirement: Scaling is proved at fixed quality before M1 acceptance
 
 M1 MUST execute the execution profile's `scalingAcceptance` matrix before accepting
-its scaling claim, independently of the Backlog migration. Runs MUST pin fixture,
+its scaling claim, independently of the WBS task export bridge. Runs MUST pin fixture,
 requirements, model/effort, quality, evaluator and comparable environment identities;
 only worker and required supporting capacity vary. Budget ceilings MUST be equal
 and sufficient across compared runs; failed or exhausted runs MUST remain in the

@@ -19,7 +19,7 @@ which amend the delivery plan as its design lists.
 Start with the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).
 It builds the factory core, connects the always-available secretary, completes
 branch-dev → staging → main/dev-main → production, and joins those records into
-the searchable work view. Backlog-backed WBS, knowledge maturity and clean-client
+the searchable work view. WBS receipt acceptance, knowledge maturity and clean-client
 portability follow before customer onboarding.
 
 Current objective: give Dany the complete assistant-to-production loop while
@@ -42,7 +42,7 @@ that commit. Current acceptance obligations live in the linked design, specs and
 | Chosen working answers and reopen conditions   | [Assumptions](assumptions.md)                                                   |
 | How the SDLC is run                            | [Stages and focus profile](sdlc-stages.md)                                      |
 | What end users operate, configure, and inspect | [Product experience](product-experience.md)                                     |
-| How clients and puni-00 share the setup        | [Client repositories and Backlog-backed WBS](client-repositories.md)            |
+| How clients and puni-00 share the setup        | [Client repositories and WBS planning](client-repositories.md)                  |
 | Runtime architecture and first contracts       | [Control-plane design](../../openspec/changes/twilight-control-plane/design.md) |
 | What we borrowed, rejected, or need to prove   | [Research notes](#research-notes), below                                        |
 | How knowledge stays navigable and trustworthy  | [Wiki maintenance](knowledge.md), [repo wiki](../wiki/README.md)                |
@@ -63,7 +63,7 @@ proposal that became a specified contract is linked, not restated.
 | Expandable execution pools and agent sandboxes                                            | [Worker-pool candidates](research/worker-pools.md)                                                                              |
 | How the 160-question grill constrains the plan                                            | [Decision tree](evidence/grilling-decision-tree.md), [answered efficiency corpus](evidence/uber-efficiency-grill.md)            |
 | i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol                                   | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
-| Backlog.md and WBS storage requirements                                                   | [Backlog patterns](research/backlog-patterns.md)                                                                                |
+| Historical Backlog.md investigation                                                       | [Backlog patterns](research/backlog-patterns.md)                                                                                |
 | Claire and the first source inspection                                                    | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
 | OpenSpec version and schema behavior                                                      | [SDD source findings](sdd-sources.md)                                                                                           |
 | Earlier local helper observations                                                         | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
@@ -75,17 +75,14 @@ Design implications belong to the
 [control-plane design](../../openspec/changes/twilight-control-plane/design.md)
 and [client planning](client-repositories.md). Work order belongs to the single
 [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md): one
-authored `tasks.md` owns the plan until the tested WBS/Backlog bridge changes
+authored `tasks.md` owns the plan until the tested WBS export bridge changes
 that ownership, and no second plan or independently maintained stage graph exists.
 
-Next execution starts with Task 1 of the delivery plan. The Backlog/WBS storage
-migration's one prerequisite is stated in
-[Cutover after the refactors land](client-repositories.md#cutover-after-the-refactors-land).
-No migration is performed by this trial.
+The WBS transaction and its first implementation slice are specified in the [progress receipt authority change](../../openspec/changes/progress-receipt-authority/tasks.md).
 
 The OpenSpec/wiki authority boundary, once recorded in a withdrawn ADR, is an
 already-accepted direction and lives in
 [requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
-[ADR 0027](../adr/0027-planning-commits-are-the-transaction-boundary.md) proposes
+[ADR 0079](../adr/0079-wbs-accepts-planning-references-and-progress.md) records
 the planning transaction boundary. [ADR 0028](../adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 records the accepted K3s worker-pool decision.

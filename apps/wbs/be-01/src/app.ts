@@ -49,6 +49,7 @@ import {
   INACTIVE_TRUSTED_ISSUER_ADMINISTRATION,
   NO_COMPUTE_PROVIDERS,
 } from '@wbs/core';
+import { acceptedPlanReferenceRoutes } from '@wbs/core/http/accepted-plan-reference.routes';
 import { agentPoolRoutes } from '@wbs/core/http/agent-pool.routes';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { claimLeaseRoutes } from '@wbs/core/http/claim-lease.routes';
@@ -74,6 +75,7 @@ import { sharedPeopleRestoreRoutes } from '@wbs/core/http/shared-people-restore.
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { ssoConnectionRoutes } from '@wbs/core/http/sso-connection.routes';
 import { trustedIssuerRoutes } from '@wbs/core/http/trusted-issuer.routes';
+import { installAcceptedPlanReference } from '@wbs/core/module/accepted-plan-reference/check';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
@@ -753,6 +755,11 @@ export function mountedEndpoints(
     ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports, opts.organizations),
+    ...acceptedPlanReferenceRoutes(
+      installAcceptedPlanReference({ source: opts.writes, clock: spaceClock })
+        .acceptedPlanReferences,
+      opts.organizations,
+    ),
     ...projectRoutes(
       {
         authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),

@@ -52,6 +52,7 @@
     // Proof: omitting delivery failed the calendar-markers composite check with TS6307
     // for index.ts, observation.ts and timing.ts reached through @wbs/contracts (2026-10-23).
     "../../../../../libs/shared/domain/delivery/src/**/*.ts",
+    "../../../../../libs/shared/domain/plan-reference/src/**/*.ts",
     "../../../../../libs/shared/domain/validation/src/**/*.ts",
     "../../../../../libs/wbs/domain/contracts/src/**/*.ts",
     "../../../../../libs/wbs/domain/domain/src/**/*.ts",
@@ -59,6 +60,7 @@
   ],
   "exclude": [
     "../../../../../libs/shared/domain/delivery/src/**/*.test.ts",
+    "../../../../../libs/shared/domain/plan-reference/src/**/*.test.ts",
     "../../../../../libs/shared/domain/validation/src/**/*.test.ts",
     "../../../../../libs/wbs/domain/contracts/src/**/*.test.ts",
     "../../../../../libs/wbs/domain/domain/src/**/*.test.ts"

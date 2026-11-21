@@ -302,6 +302,10 @@ describe('the app and the run resolve the same modules', () => {
       ),
       '@shared/failures': resolve(APP_ROOT, '../../../libs/shared/domain/failures/src/index.ts'),
       '@shared/delivery': resolve(APP_ROOT, '../../../libs/shared/domain/delivery/src/index.ts'),
+      '@shared/plan-reference': resolve(
+        APP_ROOT,
+        '../../../libs/shared/domain/plan-reference/src/index.ts',
+      ),
       '@ui/core-01/testing': resolve(
         APP_ROOT,
         '../../../libs/shared/adapters/ui-core-01/src/testing.ts',

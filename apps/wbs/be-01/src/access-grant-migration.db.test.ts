@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const MIGRATION = '20261102120000_add_access_grants';
+const ACCEPTED_REFERENCE = '20261117190000_add_accepted_plan_references';
 const BASELINE = '20261101120000_add_host_job_projection';
 const MATRIX = parsePermissionMatrix(
   readFileSync(
@@ -34,9 +35,10 @@ const TABLES = [
 ];
 const credentialId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
-let dir: string;
+let dir: string | undefined;
 let path: string;
 let db: Database;
+let ownedDatabase: Database | undefined;
 
 /**
  * A store at {@link BASELINE} shaped like dev. `org-a`: sam super_admin, ada
@@ -93,17 +95,29 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-access-grants-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
-  db = openDatabase(path);
-  seedBaseline();
-  db.close();
+  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([ACCEPTED_REFERENCE, MIGRATION]);
+  const baseline = openDatabase(path);
+  db = baseline;
+  try {
+    seedBaseline();
+  } finally {
+    baseline.close();
+  }
   runMigrations(path, FOLDER);
   db = openDatabase(path);
+  ownedDatabase = db;
 });
 
 afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
+  const owned = ownedDatabase;
+  const root = dir;
+  ownedDatabase = undefined;
+  dir = undefined;
+  try {
+    owned?.close();
+  } finally {
+    if (root !== undefined) rmSync(root, { recursive: true, force: true });
+  }
 });
 
 interface GrantRow {
@@ -146,11 +160,13 @@ const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo
 
 /** Rolls back to {@link BASELINE} on a closed handle, reopening after either way. */
 function rollBack(): string[] {
+  ownedDatabase = undefined;
   db.close();
   try {
     return rollbackTo(path, FOLDER, BASELINE);
   } finally {
     db = openDatabase(path);
+    ownedDatabase = db;
   }
 }
 
@@ -463,7 +479,7 @@ describe(MIGRATION, () => {
   describe('the rollback', () => {
     it('rolls back over the backfill and the built-ins, dropping the five tables', () => {
       expect(tablesLeft()).toEqual(TABLES);
-      expect(rollBack()).toEqual([MIGRATION]);
+      expect(rollBack()).toEqual([ACCEPTED_REFERENCE, MIGRATION]);
       expect(tablesLeft()).toEqual([]);
       expect(db.query('SELECT COUNT(*) AS n FROM organization_membership').get()).toEqual({ n: 6 });
     });

@@ -561,10 +561,16 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: omitting either shared-delivery entry made its real Git-reset
   // MCP document case report "watchers pick it up" without rerunning prepare.
   'libs/shared/domain/delivery/src',
+  // Proof: omitting this entry made the shared plan reference source test take the
+  // watcher path and fail its MCP preparation assertion.
+  'libs/shared/domain/plan-reference/src',
   'libs/wbs/domain/contracts/tsconfig.json',
   'libs/wbs/domain/validation/tsconfig.json',
   'libs/shared/domain/validation/tsconfig.json',
   'libs/shared/domain/delivery/tsconfig.json',
+  // Proof: omitting this entry made the shared plan reference aliases test take the
+  // watcher path and fail its MCP preparation assertion.
+  'libs/shared/domain/plan-reference/tsconfig.json',
   'apps/wbs/be-01/project.json',
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
@@ -646,6 +652,7 @@ export const RESTART_PATHS: readonly string[] = [
   // when the test-evidence project entered the candidate tree.
   'libs/shared/domain/test-evidence/project.json',
   'libs/shared/domain/test-levels/project.json',
+  'libs/shared/domain/plan-reference/project.json',
   // Proof: CI run 36312821466 failed RESTART_PATHS coverage when the new portable
   // project manifests were omitted from the supervisor's startup fingerprint.
   'libs/shared/domain/portability-format/project.json',

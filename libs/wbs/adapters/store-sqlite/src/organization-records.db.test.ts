@@ -746,9 +746,12 @@ describe('20260927120000_add_organization_records', () => {
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     const withTables = tableNames();
     for (const table of ORGANIZATION_TABLES) expect(withTables).toContain(table);
+    expect(withTables).toContain('accepted_plan_reference');
+    expect(withTables).toContain('accepted_plan_reference_policy');
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261117190000_add_accepted_plan_references',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -818,6 +821,8 @@ describe('20260927120000_add_organization_records', () => {
     expect(tableNames()).toEqual(
       withTables.filter(
         (name) =>
+          name !== 'accepted_plan_reference' &&
+          name !== 'accepted_plan_reference_policy' &&
           name !== 'optimization_boundary_certificate' &&
           name !== 'cross_project_dependency_activation' &&
           name !== 'cross_project_dependency_activation_receipt' &&

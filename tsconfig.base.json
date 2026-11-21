@@ -172,6 +172,7 @@
       "@tools/test-clock-reads": ["./tools/test/clock-reads/detector.ts"],
       "@tools/env": ["./tools/tool-remote-scripts/src/lib/env.ts"],
       "@tools/burokrat-consumer": ["./tools/tool-devsync/src/burokrat-consumer.ts"],
+      "@shared/plan-reference": ["./libs/shared/domain/plan-reference/src/index.ts"],
       "@shared/test-levels": ["./libs/shared/domain/test-levels/src/index.ts"],
       "@shared/test-evidence": ["./libs/shared/domain/test-evidence/src/index.ts"],
       "@shared/failures": ["./libs/shared/domain/failures/src/index.ts"],

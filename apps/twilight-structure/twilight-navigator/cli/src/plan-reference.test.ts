@@ -188,6 +188,36 @@ describe('twin plan-reference', () => {
     ).toEqual(firstBytes);
   });
 
+  // Raw SHA-256 observed from the committed CLI at 1b94e080 (2026-11-17),
+  // with the versioned fixtures and planReferenceArgv below.
+  test.each([
+    [
+      7,
+      '2e9c65695cce85852988c0434e0d6bf8d1c5c097ce25b483e07b081c90a1cfb4',
+      'f4a347594dc6ddac5c7ddc029a7de3f307d60ae9fa5acce162bbfd87c53c425a',
+    ],
+    [
+      11,
+      'cdbae3a68aa0031eec32d74313b5d09917f743e3ac1cd7061cb2393e3a45dc04',
+      '369d5d19a3164f7c97c2a23c110084b3bddb6cb8e091399cf40248fa8c57d105',
+    ],
+  ] as const)(
+    'preserves the original CLI artifact bytes for v%i',
+    (version, referenceSha, tasksSha) => {
+      const exportPath = join(import.meta.dir, 'fixtures', `plan-export.v${String(version)}.json`);
+      const run = runTwin(planReferenceArgv({ '--export': exportPath }));
+      expect(run.exitCode, run.stderr).toBe(0);
+      expect(run.stderr).toBe('');
+      for (const [name, expected] of [
+        ['plan-reference.json', referenceSha],
+        ['tasks.json', tasksSha],
+      ] as const) {
+        const bytes = readFileSync(join(output, name));
+        expect(createHash('sha256').update(bytes).digest('hex'), name).toBe(expected);
+      }
+    },
+  );
+
   test('refuses a version-6 document before writing', async () => {
     const path = writeExport((document) => {
       document['document'] = {

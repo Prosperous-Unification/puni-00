@@ -17,8 +17,9 @@ const AUDIT_WIDENING = '20261101100000_widen_organization_audit_directory_capaci
 const DIRECTORY_CAPACITY = '20261101100100_add_resource_directory_capacity';
 /** The folder stamped above this change's pair (`dash-host-jobs`); every rollback below it reverses it right after {@link ACCESS_GRANTS}. */
 const HOST_JOB_PROJECTION = '20261101120000_add_host_job_projection';
-/** `wbs-permissions`' access grants, the newest folder, which reverses first. */
+/** Access grants reverse after the accepted-reference register and before the host-job projection. */
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
+const ACCEPTED_REFERENCE = '20261117190000_add_accepted_plan_references';
 /** What the widening adds; every other value of the two vocabularies was admitted before it. */
 const NEW_ACTION = 'directory_capacity_changed';
 const NEW_KIND = 'resource';
@@ -49,7 +50,13 @@ function baselineStore(): { root: string; dbPath: string } {
   roots.push(root);
   cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
   const dbPath = join(root, 'plan.db');
-  for (const name of [AUDIT_WIDENING, DIRECTORY_CAPACITY, HOST_JOB_PROJECTION])
+  for (const name of [
+    AUDIT_WIDENING,
+    DIRECTORY_CAPACITY,
+    HOST_JOB_PROJECTION,
+    ACCESS_GRANTS,
+    ACCEPTED_REFERENCE,
+  ])
     rmSync(join(root, 'drizzle', name), { recursive: true });
   runMigrations(dbPath, join(root, 'drizzle'));
   return { root, dbPath };
@@ -215,7 +222,7 @@ describe(AUDIT_WIDENING, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
+      `rolled back: ${ACCEPTED_REFERENCE}, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}, ${AUDIT_WIDENING}\n`,
     );
     expect(auditSchemaOf(dbPath)).toEqual(baseline);
   }, 60_000);
@@ -260,7 +267,7 @@ describe(DIRECTORY_CAPACITY, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
+      `rolled back: ${ACCEPTED_REFERENCE}, ${ACCESS_GRANTS}, ${HOST_JOB_PROJECTION}, ${DIRECTORY_CAPACITY}\n`,
     );
     expect(
       count(

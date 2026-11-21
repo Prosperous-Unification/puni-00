@@ -240,10 +240,13 @@ describe('20260905090000_add_calendar_marker', () => {
     runMigrations(path, FOLDER);
     const withTable = tableNames(path);
     expect(withTable).toContain('calendar_marker');
+    expect(withTable).toContain('accepted_plan_reference');
+    expect(withTable).toContain('accepted_plan_reference_policy');
 
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261117190000_add_accepted_plan_references',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
       '20261101100100_add_resource_directory_capacity',
@@ -322,6 +325,8 @@ describe('20260905090000_add_calendar_marker', () => {
       withTable.filter(
         (n) =>
           n !== 'calendar_marker' &&
+          n !== 'accepted_plan_reference' &&
+          n !== 'accepted_plan_reference_policy' &&
           n !== 'optimization_boundary_certificate' &&
           n !== 'cross_project_dependency_activation' &&
           n !== 'cross_project_dependency_activation_receipt' &&

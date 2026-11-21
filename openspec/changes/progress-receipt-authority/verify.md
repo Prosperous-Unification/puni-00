@@ -28,3 +28,275 @@ The threat matrix in design.md describes future required observations, not compl
 ## Unverified and deferred
 
 The read-only live WBS row lookup described above supplied planning evidence. No WBS commands or writes, live progress publication/application acceptance, tests, crypto execution, signing, key enrollment, policy installation, trust activation, full Nx/Burokrat/browser gate, hosted CI or canonical h2 gate were run for this packet. Architecture review, all owner decisions and any implementation/production acceptance remain pending. WBS080.25 remains in progress. Existing held roundtrip publication remains unresolved.
+
+## 2026-11-17 architecture amendment
+
+The earlier evidence above describes the October packet. The owner has since selected WBS/SQLite, current operator authorization and separate explicit receipt application. ADR 0086 supersedes the proposed Backlog spike and migration. The changed contract has no new runtime guard. Implementation, fault injection, deployment and protected issuer qualification remain pending.
+
+On the November candidate, the installed repository-pinned OpenSpec 1.14.3 validated `progress-receipt-authority --strict --json` (one pass, zero issues) and `schema validate twilight-v1 --json` (valid, zero issues). Ordinary targeted validation passed for `twilight-control-plane`, `twilight-agentic-workflows` and `twilight-review-hardening`. Strict validation for those three existing changes reported 33, 18 and 1 warnings respectively, identical issue arrays at the base and candidate. The authority proposal contains 217 whitespace-separated words. No runtime, mutation, hosted or full-gate checks were run for this amendment.
+
+The first independent review requested six contract corrections. The revised design and future production negatives cover the verified human subject, original requirements bytes, write basis after durable event sequencing, historical lock selectors, divergent task exports and categorized usage. Task 10.3 owns the outstanding measured-usage proposal and its integration proof. This revision changes design artifacts only. It preserves the source checks, historical evidence and runtime limits above.
+
+## 2026-11-18 accepted-reference register and historical reads
+
+The owner selected WBS/SQLite as the planning and progress authority. The implementation covered here registers ordinary v11 accepted references, reads their immutable history, checks current authenticated operator authority and guards migration rollback. Navigator compiles the plan reference from the original bytes. Receipt submission and application, execution attribution, credential enrollment, live policy installation and deployment remain outside this tranche.
+
+Independent review accepted 54 of 54 mapped guards across 67 named fault/restoration pairs and one separate historical compiled-project comparison, for 68 named pairs. The injected faults recorded 652 assertions. The literal restorations passed the identical pinned Bun filters with 842 assertions. The passing streams record names and counts. Detailed restored behavior follows from the assertions those named tests completed.
+
+The originally stopped wrapper in wave one preserved the rollback fault and used a separate restored run. The wave-two wrapper preserved the tasks fault before the async-caller rendering correction and then ran the missing inverse and remaining guards. The held pristine run recorded the original capture-spy miss before repair. These stops and original receipts remain independently auditable. No prior fault was rerun to repair a classifier.
+
+The source review and test filters below apply to the two controller fixture generations recorded in the evidence. The first five waves used 53 mounted cases. The last wave used 61 after adding eight isolated mounted controls. Migration cases use the separate rollback suite. The adjacent source comments describe the first failing observation, and the receipt hashes identify the retained full bytes.
+
+| Observed packet             | SHA-256 of manifest                                                |
+| --------------------------- | ------------------------------------------------------------------ |
+| First wave                  | `e6b098cc5606f9efe83d3b73fd7d8b86b7f0cb64cd35ab21144dff0467f5e905` |
+| First wave rollback inverse | `40d422eed0b173a691106ee91f271d66f7262dbaadf73419cea917c031aef212` |
+| Second wave                 | `a5b26537162f364af31e13d8b615a131ebb4e4ea39f2ae81beda567c4abb03dd` |
+| Second wave continuation    | `4929ab37edbd144cc070996c114ee6c6951eae5cd732c87a851a4818e89bf7e8` |
+| Third wave                  | `dfabdbeb5d18460317650d747f311f9ec41b47720bdd03dd5c3ffb7d221b0ba3` |
+| Fourth wave                 | `401149877b53b630587f44396d92b8c3fe73b10bf01de7346151daece47b0b91` |
+| Fifth wave                  | `7b21bf13dc39ecb30d9593cceddb2dbe74ce3cf8568b13023631b182b37e67a8` |
+| Final held cases            | `be03b8fe929f598389b0349385aa67e263ae3a9e348293b09fe4278a687ecf94` |
+
+Final independent proof review SHA-256 `883b7aa7002c2bacf75082c373f3cd755e6aafcbc7beeac8a6f8209f2e5257d7`.
+
+Each exact test-name filter ran from `apps/wbs/be-01` using the installed Bun 1.4.4, timeout 10000 ms, and either `src/controller/accepted-plan-reference.controller.db.test.ts` or `src/accepted-plan-reference-migration.db.test.ts`. The same argv ran after exact byte restoration. The packet manifests identify the full argv, before/faulted/restored source hashes and known exits. The regular process receipts retain raw bytes and absolute start and end timestamps. The separate first-wave rollback inverse preserves its argv, terminal `c0abe2`, known exit zero, elapsed seconds and full printed transcript. That separate record has no absolute start or end timestamp and no base64 byte envelope.
+
+| Guard                                  | Named mounted or migration cases                                                                                                                                                                                                                                                                                                                                                                                       | Fault / restored assertions |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------: |
+| `compiler-owned-storage`               | archives the artifact intent even when the caller mutates compared nested objects during capture                                                                                                                                                                                                                                                                                                                       |                      9 / 10 |
+| `historical-recompiled-reference`      | historical integrity refuses structurally valid altered requirements bytes<br>historical integrity refuses structurally valid altered export bytes<br>historical integrity refuses structurally valid altered reference fields                                                                                                                                                                                         |                     33 / 36 |
+| `snapshot-read-caller`                 | retains direct read caller evidence after alias replacement and revocation                                                                                                                                                                                                                                                                                                                                             |                     10 / 11 |
+| `historical-recompiled-tasks`          | historical integrity refuses structurally valid altered task content                                                                                                                                                                                                                                                                                                                                                   |                     11 / 12 |
+| `down-retains-grants-at-seed-revision` | retains the full schema and migration ledger when rollback encounters changed grants at the migration-owned revision                                                                                                                                                                                                                                                                                                   |                       6 / 9 |
+| `snapshot-register-caller`             | retains direct register caller evidence after alias replacement and revocation                                                                                                                                                                                                                                                                                                                                         |                      9 / 10 |
+| `typed-policy`                         | validates the entire readable policy before acting on a qualifying grant                                                                                                                                                                                                                                                                                                                                               |                       7 / 9 |
+| `snapshot-read-selector`               | retains the original direct historical selector after a queued input alias changes                                                                                                                                                                                                                                                                                                                                     |                     10 / 10 |
+| `snapshot-register-offer`              | archives the original offer when the in-process caller replaces its input while queued                                                                                                                                                                                                                                                                                                                                 |                      8 / 10 |
+| `historical-embedded-digest`           | historical integrity refuses structurally valid altered complete reference                                                                                                                                                                                                                                                                                                                                             |                     11 / 12 |
+| `snapshot-read-address`                | retains the original direct historical address after a queued input alias changes                                                                                                                                                                                                                                                                                                                                      |                     10 / 10 |
+| `match-expected-absence`               | serializes competing writes expecting absent                                                                                                                                                                                                                                                                                                                                                                           |                      7 / 12 |
+| `malformed-policy`                     | fails when trusted operator policy is malformed                                                                                                                                                                                                                                                                                                                                                                        |                       7 / 9 |
+| `missing-policy`                       | fails when trusted operator policy is missing                                                                                                                                                                                                                                                                                                                                                                          |                       7 / 9 |
+| `compiled-tasks`                       | refuses independently substituted tasks under the offered v11 reference                                                                                                                                                                                                                                                                                                                                                |                       7 / 9 |
+| `unreadable-policy`                    | fails when trusted operator policy is unreadable                                                                                                                                                                                                                                                                                                                                                                       |                       7 / 9 |
+| `down-retains-history`                 | retains the full schema and migration ledger when rollback encounters retained history                                                                                                                                                                                                                                                                                                                                 |                       6 / 9 |
+| `active-latest-only`                   | retains distinct versions for A to B to A and authorizes history after restart                                                                                                                                                                                                                                                                                                                                         |                      9 / 24 |
+| `down-retains-policy`                  | retains the full schema and migration ledger when rollback encounters changed protected policy<br>retains the full schema and migration ledger when rollback encounters missing protected policy                                                                                                                                                                                                                       |                     12 / 18 |
+| `live-document-drift`                  | refuses a stale live ordinary export after a work item edit                                                                                                                                                                                                                                                                                                                                                            |                      8 / 10 |
+| `granted-operation`                    | refuses an operator when the readable policy has wrong operation                                                                                                                                                                                                                                                                                                                                                       |                       7 / 9 |
+| `historical-organization-lock`         | does not disclose a retained reference with a foreign organization in its lock                                                                                                                                                                                                                                                                                                                                         |                      9 / 11 |
+| `granted-subject`                      | refuses an operator when the readable policy has wrong subject                                                                                                                                                                                                                                                                                                                                                         |                       7 / 9 |
+| `match-current-exists`                 | requires both the exact prior version and the complete reference digest                                                                                                                                                                                                                                                                                                                                                |                      7 / 14 |
+| `compiled-project`                     | refuses a complete reference from a different WBS project                                                                                                                                                                                                                                                                                                                                                              |                      9 / 11 |
+| `malformed-history`                    | fails on malformed retained artifacts instead of presenting missing history                                                                                                                                                                                                                                                                                                                                            |                       8 / 9 |
+| `live-directory-drift`                 | compares a referenced directory rename outside the project revision                                                                                                                                                                                                                                                                                                                                                    |                     12 / 14 |
+| `granted-scope`                        | refuses an operator when the readable policy has wrong organization<br>refuses an operator when the readable policy has wrong project<br>refuses an operator when the readable policy has wrong repository<br>refuses an operator when the readable policy has wrong change                                                                                                                                            |                     28 / 36 |
+| `absent-verifier`                      | refuses a scoped local identity without direct sign-in verifier evidence                                                                                                                                                                                                                                                                                                                                               |                      8 / 10 |
+| `no-protected-grant`                   | refuses an operator when the readable policy has no grant<br>rechecks queued protected grant changes inside the writer                                                                                                                                                                                                                                                                                                 |                     14 / 18 |
+| `historical-version-lock`              | retains distinct versions for A to B to A and authorizes history after restart                                                                                                                                                                                                                                                                                                                                         |                     15 / 24 |
+| `current-credential-project-access`    | rechecks queued browser credential changes inside the writer<br>rechecks read access in the writer before disclosing a queued historical lookup                                                                                                                                                                                                                                                                        |                     15 / 19 |
+| `both-selector-parts`                  | requires explicit acceptance expectations, canonical byte transport, and a complete lookup selector                                                                                                                                                                                                                                                                                                                    |                     15 / 21 |
+| `match-current-version`                | requires both the exact prior version and the complete reference digest                                                                                                                                                                                                                                                                                                                                                |                     10 / 14 |
+| `match-current-digest`                 | requires both the exact prior version and the complete reference digest                                                                                                                                                                                                                                                                                                                                                |                     12 / 14 |
+| `current-project-edit`                 | rechecks queued project access changes inside the writer                                                                                                                                                                                                                                                                                                                                                               |                       7 / 9 |
+| `forwarded-org-expectation`            | refuses a register whose expected browser organization disagrees with current access                                                                                                                                                                                                                                                                                                                                   |                       7 / 9 |
+| `compiled-reference`                   | refuses independently substituted requirements under the offered v11 reference<br>refuses independently substituted export under the offered v11 reference<br>refuses independently substituted planning commit under the offered v11 reference<br>refuses independently substituted source base commit under the offered v11 reference<br>refuses independently substituted reference under the offered v11 reference |                     35 / 45 |
+| `safe-version-selector`                | requires explicit acceptance expectations, canonical byte transport, and a complete lookup selector                                                                                                                                                                                                                                                                                                                    |                     19 / 21 |
+| `original-export-instant`              | registers a scoped ordinary reference and retrieves the immutable artifacts                                                                                                                                                                                                                                                                                                                                            |                     11 / 18 |
+| `scopes-on-writer`                     | admits the verified upstream human and refuses a delegation carrying that same granted subject                                                                                                                                                                                                                                                                                                                         |                     14 / 19 |
+| `machine-consent-promotion`            | refuses a real machine grant for an agent bound to the granted human account<br>refuses a live consent credential bound to the same granted account                                                                                                                                                                                                                                                                    |                     16 / 18 |
+| `outer-project-scope`                  | conceals a foreign project on both register and historical lookup                                                                                                                                                                                                                                                                                                                                                      |                      9 / 13 |
+| `wire-version`                         | refuses actual v12 wire input                                                                                                                                                                                                                                                                                                                                                                                          |                     12 / 13 |
+| `live-connected-kind`                  | refuses valid v11 input after connection                                                                                                                                                                                                                                                                                                                                                                               |                     12 / 13 |
+| `canonical-byte-transport`             | requires explicit acceptance expectations, canonical byte transport, and a complete lookup selector                                                                                                                                                                                                                                                                                                                    |                     12 / 21 |
+| `delegated-subject`                    | admits the verified upstream human and refuses a delegation carrying that same granted subject                                                                                                                                                                                                                                                                                                                         |                     10 / 19 |
+| `historical-repository-lock`           | historical lookup requires the stored repository                                                                                                                                                                                                                                                                                                                                                                       |                     17 / 21 |
+| `historical-project-lock`              | historical lookup requires the stored project ID                                                                                                                                                                                                                                                                                                                                                                       |                     19 / 23 |
+| `required-cas-argument`                | rejects a missing expectation before the reference writer checks grants                                                                                                                                                                                                                                                                                                                                                |                       9 / 9 |
+| `historical-compiled-project`          | rejects self-consistent foreign project artifacts under an exact local historical lock                                                                                                                                                                                                                                                                                                                                 |                     21 / 25 |
+| `historical-change-lock`               | historical lookup requires the stored change                                                                                                                                                                                                                                                                                                                                                                           |                     17 / 21 |
+| `historical-digest-lock`               | historical lookup requires the stored reference digest                                                                                                                                                                                                                                                                                                                                                                 |                     17 / 21 |
+| `borrowed-store-required`              | registers through the reference store supplied by the borrowed writer                                                                                                                                                                                                                                                                                                                                                  |                      8 / 11 |
+| `capture-available`                    | refuses an unavailable capture even when it carries the prior valid document                                                                                                                                                                                                                                                                                                                                           |                     10 / 12 |
+
+## Local verification of the accepted-reference register
+
+WBS and SQLite remain the authority. This evidence covers ordinary v11
+registration and authenticated historical reads, including the original
+artifact bytes, scoped human authorization and migration rollback.
+
+On implementation manifest `71981d2b` and design manifest `2e358b6e`:
+
+- Four targeted predecessor faults each failed the named production-path test.
+  Each inverse restored the original feature hash before the next fault. The
+  pristine and restored selections each passed three tests with 39 expectations.
+  Packet `2d3301dc1dba64fd3b82ad7645ecec7248f4972f69cfb7a9cbe7e8aecc7fd40a`.
+- The unfiltered backend controller, rollback and route suites passed 81 tests
+  with 22,940 expectations. Navigator plan-reference passed 48 tests with 237
+  expectations.
+  Packet `164707eed6220c844d051626000c1f6828799c3a52661e1c575c5c09bc640ef2`.
+- The OpenAPI emitter preserved both checked 403 alternatives and the other
+  parsed document values. The default-path MCP suite used that emitted document
+  and passed 20 tests with 83 expectations. The original generated file's bytes
+  and inode were restored.
+  Packet `eabd6dfbbb23875172238490c5594e7c02049e6e7ec9164e3ddbd8e25efc680d`.
+
+Independent review `d8c7d0b1a5a7ecca02d44f64a3eb4b3556bf7bff03397b2f9c774c8450ca944e`
+accepted those observations and the subsequent two-test repair. The repair
+preserved the verified credential, historical frame assertion and existing
+mutation roster checks. It added the independent GET/read and POST/mutation
+inventory rows. The earlier production guard and covering runs retain their
+own source generation.
+
+On implementation manifest `68df3966` and the same design manifest, before
+this documentation amendment:
+
+- The forced nine-root TypeScript build exited 0 with zero diagnostics. Its
+  retained outputs contained 6,927 files across five roots, including 19
+  build-info files.
+  Packet `fe7f6f92771fdbfef376094e7019b142ee9db8252ae76cb84287e494473b2fe6`.
+- Prettier passed all 72 checked paths.
+  Packet `9ff3ffad751ea285a02695c2ce4eb619efc97c46ceb96ef1f2de17f77dbe8c69`.
+- The fresh Nx graph verified nine roots, two required shared-plan-reference
+  edges and single ownership for all 34 lint paths. The corrected custody
+  readback matched the original worktree entries and the ten generated graph
+  entries. Uncached ESLint passed the 34 paths with empty diagnostic streams.
+  Packets `bb7c1d53dc6a00fabb76b5cbd35d2cd7130a54218bd356e2ccb0bbabb99707d7`
+  and `eb5c5fddc9d201821e23764185acc63080eaa7033ae5583994c07d99aa168fa7`.
+- Four focused controller cases passed with 57 expectations and 58 filtered
+  cases. The full mounted organization mutation inventory case passed with 292
+  expectations and seven filtered cases.
+  Packet `8463a0ce21190ee18838f95a03278679f49ad94216d78bfbecbfe852200e01e5`.
+
+## Isolated integration checks
+
+The production frontend build and uncached Nx typecheck passed on the isolated
+candidate. The typecheck ran all ten module checks and the app, spec, and e2e
+builds. The invitation consumer passed all seven cases, and the exact Vite alias
+parity case passed. The retained build and typecheck captures were qualified
+offline after their wrappers stopped on tool-generated cache output.
+
+The full MCP rehearsal passed all thirteen cases with 71 expectations. Its
+focused invocation reached real Git reset and Nx MCP preparation using the
+fixture's Docker transport. It omitted the owning scratch preload, so its
+wrapper recorded a cleanup hold. The subsequent selected devsync checks used
+the owning preload and verified its cleanup traces and removal of the fixture
+directory.
+
+The Burokrat fact check and both workspace inventory tests passed. Removing
+the shared plan-reference source and TypeScript configuration restart entries
+independently made their named MCP tests take the watcher path and fail at the
+producer assertion. Each inverse restored the same source hash before the
+result was classified. Both selected MCP restart cases and the ordinary watcher
+control passed after restoration. The exact selected sequence receipt manifest
+is `e4b653959d28d4eabb07448e3078502c527cd3f897924763ed0fcf3b0656b364`.
+
+Release-head validation, hosted CI and the canonical h2 gate are pending for
+this tranche. Receipt attribution and application, delivery proof, protected
+credential enrollment, live policy installation and deployment remain open.
+
+### Registration authorization and migration compatibility
+
+PR 948's backend job failed 35 cases on the published synthetic commit. The scoped
+candidate check passed all 35 plus 15 directly affected controls. Those checks
+cover the exact historical rollback order and protected schema and ledger,
+the current register migration's pristine restoration and refusal cases, and
+the mounted and direct authorization paths. The two original permission
+failures are retained. The two owning fixtures passed in the subsequent normal
+local loopback and IPC venue. Each test's scratch was verified empty after its
+actual terminal.
+
+Changing only registration's mounted write-scope policy back to signed-in made
+the unchanged malformed reader POST produce 400 instead of 403. Its exact
+restoration passed the same probe. Separately, removing only the actual writer
+scope check made the valid direct read-only call succeed and retain one row.
+Restoring the exact writer returned `insufficient_scope` and retained zero
+rows. Both fault children settled before their inverses and classification.
+The scope and storage checks use their own entry points.
+
+### Workspace CI repair
+
+Hosted CI run 44473065269 tested PR 948 head `24440cb4` in synthetic commit
+`b8c61f9a`. The workspace job failed during a 129-target run with zero cache hits. Its
+log recorded 107 distinct SQLite case failures, a missing accepted-reference
+module compiler boundary, and failures in related operation inventory,
+workspace input, documentation, and MCP checks. The hosted result is retained
+against that exact synthetic commit.
+
+The repair gives accepted-plan-reference an owning module and scoped writer
+resource, pins both protected HTTP operations, and restores exact migration
+expectations at their historical horizons. The append-only acceptance row
+retains the verified acting subject and acceptance time. The mutable policy
+keeps its existing checks.
+
+- The uncached core module check passed all 18 modules. The core boundary suite
+  passed all 15 cases and the contracts protected-operation suite passed both
+  cases.
+- The mounted and SQLite suites passed 742 distinct cases across 40 files,
+  including fresh passes for all 107 hosted failure identities. On the
+  receiver repair, five selected cases passed with 65 expectations and empty
+  scratch. They exercised the borrowed writer, active and historical reads, and
+  ordinary-capture refusal.
+- The native compiler ran `--build --force --builders 1` on the core, backend,
+  and SQLite store roots with zero diagnostics. Eight fresh build-info files
+  accounted for 1,412 root entries. The 52 mapped source witnesses included
+  the 38 store test files. Of those 52 witnesses, 46 also had fresh output
+  timestamps. The run archived and verified all 4,084 preimages before
+  compilation.
+- Prettier passed the 71-path format cohort and checked both amended TypeScript
+  files after the receiver repair. The two uncached ESLint cohorts covered 51
+  paths. They reported zero active diagnostics, with one separately reviewed
+  inherited suppression in the corrupt-database test fixture.
+
+- The owning Bun selectors passed the outside-read case, all seven runtime
+  dispatch cases, and the adopted `ECHILD` case. The latter confirmed that the
+  owner reaped the adopted PID after recording the injected wait error. Each
+  selected test left empty scratch.
+- Uncached Nx `wbs-mcp-01:prepare` ran the backend document producer. The
+  producer exited zero and emitted the accepted-reference GET and POST with
+  only POST declared human-only. The first wrapper refused the Nx summary
+  wording. The saved output and document were verified separately. Both
+  owning MCP suites used that same document and passed all 58 cases with 491
+  expectations. The catalog and README agreed on 81 tools, including the GET
+  and excluding the POST.
+- Local `openspec validate progress-receipt-authority --strict --json` passed the
+  owning change with no issues. `openspec validate --all --json` passed all 344
+  entries in standard mode. It reported 769 warnings and 26 informational
+  findings, with zero errors. Both full reports are retained.
+
+These are local checks on the isolated repair. The previous hosted workspace
+failure remains the result for `24440cb4`. The corrective head still needs
+its own hosted CI and canonical gate evidence. Clone-backed documentation
+and pilot checks still require a normal local checkpoint. The separate
+empty-marker negative remains open, along with live activation, deployment,
+and receipt application.
+
+### Committed repair checks
+
+On checkpoint `427d090c`, the two historical-link cases passed with two
+expectations. All six owning documentation cases passed with 40 expectations.
+Each of their six nested clones matched the committed tree and all 73 changed
+paths before the test applied any fixture overlays. Scratch was empty afterward.
+
+The first trusted pilot reached its authority check and refused
+`check.be-01.test`. The relationship still expected `navigatorPlanReference`.
+Commit `c5144111` updated only the relationship's literal input list to match
+the backend target. The first failure and its clone receipt are retained.
+The same pilot case then passed with 64 expectations. Its single nested clone
+matched the new tree and all 74 changed paths before fixture overlays. Scratch
+was empty afterward.
+
+The fixture emptied its pending PID marker before the real rename. The
+selected ECHILD case rejected the published empty marker with
+`adopted child published an invalid PID`. The recorded Bash process identity
+disappeared, the scope held only the dispatcher, and scratch was empty before
+the ordinary case began. The ordinary runner reported one pass and five
+expectations. Its isolated child verified ECHILD and removal of the adopted
+process.
+
+Only the trusted relationship changed between the two checkpoints. The
+documentation results remain evidence for `427d090c`. The pilot and PID proof
+used `c5144111`. The corrective PR head still needs fresh hosted CI and
+canonical gate evidence. Live activation, deployment and receipt application
+remain open.

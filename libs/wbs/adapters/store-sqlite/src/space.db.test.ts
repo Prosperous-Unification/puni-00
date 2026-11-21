@@ -123,6 +123,7 @@ describe('spaces', () => {
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
       expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20261117190000_add_accepted_plan_references',
         '20261102120000_add_access_grants',
         '20261101120000_add_host_job_projection',
         '20261101100100_add_resource_directory_capacity',

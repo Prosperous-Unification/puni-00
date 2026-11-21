@@ -9,7 +9,7 @@ that node's progress; neither acquires independent status storage or write
 ownership. Whole-work-item cards would hide simultaneous step progress, while
 persisted card states or native Backlog columns would introduce competing intent:
 any later board write must name its step-node subject and use the planning write
-boundary, preserving ADR 0027's ownership contract after cutover.
+boundary. [ADR 0079](0079-wbs-accepts-planning-references-and-progress.md) records WBS ownership of that boundary.
 
 Accepted by the coordinator under the user's standing delegation on 2026-10-06,
 not attributed to a new user interview. The first surface is read-only with

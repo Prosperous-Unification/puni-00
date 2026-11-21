@@ -1,6 +1,8 @@
 import { open, readFile, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+export { decodeRequiredText, parseRequiredJson } from '@shared/plan-reference';
+
 function errorCode(failure: unknown): unknown {
   return typeof failure === 'object' && failure !== null && 'code' in failure
     ? failure.code
@@ -23,34 +25,6 @@ export async function readRequiredBytes(path: string, role: string): Promise<Uin
       throw new Error(`${role} is missing: ${path}`, { cause: failure });
     }
     throw new Error(`${role} is unreadable: ${path}`, { cause: failure });
-  }
-}
-
-/**
- * Strict UTF-8 text of required bytes.
- *
- * @throws `<role> is malformed: <path>` for empty input or invalid UTF-8.
- */
-export function decodeRequiredText(bytes: Uint8Array, role: string, path: string): string {
-  if (bytes.length === 0) throw new Error(`${role} is malformed: ${path} is empty`);
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch (failure) {
-    throw new Error(`${role} is malformed: ${path} is not UTF-8`, { cause: failure });
-  }
-}
-
-/**
- * The parsed JSON of required bytes, still unvalidated.
- *
- * @throws `<role> is malformed: <path>` for empty input, invalid UTF-8 or invalid JSON.
- */
-export function parseRequiredJson(bytes: Uint8Array, role: string, path: string): unknown {
-  const text = decodeRequiredText(bytes, role, path);
-  try {
-    return JSON.parse(text) as unknown;
-  } catch (failure) {
-    throw new Error(`${role} is malformed: ${path} is not JSON`, { cause: failure });
   }
 }
 

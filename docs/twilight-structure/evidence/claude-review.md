@@ -6,8 +6,8 @@
 > `file:line` citations refer to that snapshot; the resolution table in
 > [the follow-up review](claude-followup.md) applies here too, and the citations
 > to `client-repositories.md:126`, `:82-91` and `:64-91` are now
-> [Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land)
-> and [Proposed transaction protocol](../client-repositories.md#proposed-transaction-protocol).
+> [Cutover after the refactors land](https://github.com/Prosperous-Unification/puni-00/blob/3a7f081f09b9e4c73576c4153fa852496be01b67/docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land)
+> and [Proposed transaction protocol](https://github.com/Prosperous-Unification/puni-00/blob/3a7f081f09b9e4c73576c4153fa852496be01b67/docs/twilight-structure/client-repositories.md#proposed-transaction-protocol).
 >
 > Two statements in the response are **retracted**:
 >

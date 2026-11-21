@@ -17,13 +17,13 @@ attempts across a manually expandable multi-host worker pool.
 Frequent commits reach branch devs. Final automated and manual cloud-browser tests
 run on an immutable artifact in production-like staging before the exact candidate
 merges. Dev-main follows main; a separate human command promotes the same artifact
-to production. Later personal increments move planning to Backlog-backed WBS,
+to production. Later personal increments integrate WBS-accepted references and progress,
 mature knowledge/automation, and prove clean installation and upgrades. Customer
 work waits for a named design partner and problem.
 
 ## Non-Goals
 
-Replacing WBS now, promising Backlog native feature parity, public multi-tenant
+Replacing WBS storage, public multi-tenant
 hosting in the first release, a general agent marketplace, or automatic production
 promotion. This request produces a plan; no product implementation is performed.
 
@@ -31,7 +31,7 @@ promotion. This request produces a plan; no product implementation is performed.
 
 Nx/Bun and the existing TypeScript stack; LangGraph/LangChain and ACP-first agent
 access. Per-client source, knowledge, plans, credentials, and authority remain
-isolated. Backlog.md is the chosen target WBS planning backend. Four OpenSpec
+isolated. WBS owns planning and progress in SQLite. Four OpenSpec
 artifact classes remain; one authoritative work plan. Missing capabilities and
 measurements are explicit. Production needs an explicit human command.
 
@@ -50,7 +50,7 @@ measurements are explicit. Production needs an explicit human command.
 
 ### Modified Capabilities
 
-None in this first increment. The WBS storage migration (M2) and the upgrade
+None in this first increment. The WBS reference acceptance contract (M2) and the upgrade
 rollback contract (M4) receive their own deltas.
 
 ## Domain Terms
@@ -61,12 +61,12 @@ Use the [Twilight Structure glossary](../../../docs/twilight-structure/CONTEXT.m
 
 The requirements/wiki authority split is recorded in
 [knowledge maintenance](../../../docs/twilight-structure/knowledge.md);
-the [proposed planning transaction boundary](../../../docs/adr/0027-planning-commits-are-the-transaction-boundary.md)
+the [accepted WBS planning boundary](../../../docs/adr/0079-wbs-accepts-planning-references-and-progress.md)
 and the [accepted K3s worker-pool boundary](../../../docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 are ADRs because they are hard to reverse and had real alternatives.
 
 ## Impact
 
 Proposed new Twilight Dash applications/libraries/tooling; shared repo template and
-later WBS adapter. [Assumptions](../../../docs/twilight-structure/assumptions.md)
+WBS planning integration. [Assumptions](../../../docs/twilight-structure/assumptions.md)
 and the [Twilight Structure index](../../../docs/twilight-structure/README.md) explain the plan's bounds.

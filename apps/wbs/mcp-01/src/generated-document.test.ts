@@ -234,6 +234,7 @@ const HUMAN_ONLY = [
   'postApiOrganizationSharedPeopleRestoreApprovals',
   'postApiOrganizationSso-connections',
   'postApiOrganizationTrusted-issuers',
+  'postApiProjectsByIdAcceptedPlanReferences',
   'putApiOrganizationSession-policy',
 ];
 
@@ -284,6 +285,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectAddressesProjects',
     'getApiProjects',
     'getApiProjectsById',
+    'getApiProjectsByIdAcceptedPlanReferences',
     'getApiProjectsByIdAddressCandidates',
     'getApiProjectsByIdAddressReferences',
     'getApiProjectsByIdBudget-headroom',

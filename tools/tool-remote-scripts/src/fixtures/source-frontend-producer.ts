@@ -23,6 +23,12 @@ const CURATED = [
   'nx.json',
 ];
 // These reviewed tuples select this producer epoch; they are not the full installed producer closure.
+const VITE_CONFIG = 'apps/wbs/fe-01/vite.config.ts';
+const HISTORICAL_VITE = {
+  bytes: 19302,
+  sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+};
+
 const PINS = {
   'apps/wbs/fe-01/index.html': {
     bytes: 2482,
@@ -31,10 +37,6 @@ const PINS = {
   'apps/wbs/fe-01/src/main.tsx': {
     bytes: 527,
     sha256: '9da12f96ac12958e268241fe0c8c6cdd6cbcb0f56db569830af1ced291a7200e',
-  },
-  'apps/wbs/fe-01/vite.config.ts': {
-    bytes: 19302,
-    sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
   },
   'apps/wbs/fe-01/project.json': {
     bytes: 8117,
@@ -89,9 +91,10 @@ const PINS = {
     sha256: '4a001feffe9d32b5fb63860d4faa8725f8a4d7a13c2c37b92587234ab3d66c23',
   },
 };
-const PAIRS = [
+const PROFILES = [
   {
     epoch: 'before-ctt',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4885,
       sha256: 'bf45a6e5f8f806d2762dfb22af77375a9ad55d806781a34812812de31f07eb74',
@@ -103,6 +106,7 @@ const PAIRS = [
   },
   {
     epoch: 'ctt-0.12.0',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4930,
       sha256: '74ba36c471df0f1dd7ca4221a49f1dd9bab2c7feb7d022a5ff6be39a3aff0e8a',
@@ -114,6 +118,7 @@ const PAIRS = [
   },
   {
     epoch: 'fresh-main-20261104',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4992,
       sha256: '6482624ce19f7d9ea6cd919328f839e3bb7bb8c48ae120a4f5c3104e9a87c381',
@@ -129,6 +134,7 @@ const PAIRS = [
   // entry necessity only; see verify-producer-p-execution-20261105.md, not all pair predicates.
   {
     epoch: 'fresh-main-20261105-ctt-0.13.0',
+    vite: HISTORICAL_VITE,
     'package.json': {
       bytes: 4992,
       sha256: '0b635ebde6513e9bce36d000bbd04fc3cc817ff49074af8e5e3219910a97f131',
@@ -142,6 +148,22 @@ const PAIRS = [
   // this proves valid-input entry necessity, not invalid-input admission.
   {
     epoch: 'registry-s3-20261108',
+    vite: HISTORICAL_VITE,
+    'package.json': {
+      bytes: 5030,
+      sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
+    },
+    'bun.lock': {
+      bytes: 543082,
+      sha256: '983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6',
+    },
+  },
+  {
+    epoch: 'accepted-reference-registry-s3',
+    vite: {
+      bytes: 19438,
+      sha256: 'ceb016b70c79de85d220a8e1e38a31a2b94cffdad2f4a0b4bb84faf0070cf97b',
+    },
     'package.json': {
       bytes: 5030,
       sha256: '275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf',
@@ -176,7 +198,7 @@ async function inspectPins(
   root: string,
 ): Promise<{ epoch: string; selectedInputs: SelectedInputs }> {
   const selectedInputs: SelectedInputs = {};
-  for (const path of [...Object.keys(PINS), 'package.json', 'bun.lock']) {
+  for (const path of [...Object.keys(PINS), VITE_CONFIG, 'package.json', 'bun.lock']) {
     const bytes = await readFile(join(root, path));
     selectedInputs[path] = { bytes: bytes.byteLength, sha256: digest(bytes) };
   }
@@ -184,16 +206,20 @@ async function inspectPins(
     const observed = selectedInputs[path];
     return observed?.bytes === expected.bytes && observed.sha256 === expected.sha256;
   };
-  const pair = PAIRS.find(
-    (pair) =>
-      matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+  // Proof: omitting the sixth tuple refused the actual Vite producer before Node. Admitting the
+  // before-ctt crossover reached Git lookup in the no-Git fixture. Both cases passed after restoration.
+  const profile = PROFILES.find(
+    (profile) =>
+      matches(VITE_CONFIG, profile.vite) &&
+      matches('package.json', profile['package.json']) &&
+      matches('bun.lock', profile['bun.lock']),
   );
   if (
-    pair === undefined ||
+    profile === undefined ||
     !Object.entries(PINS).every(([path, expected]) => matches(path, expected))
   )
     throw new Error('unsupported source frontend producer inputs');
-  return { epoch: pair.epoch, selectedInputs };
+  return { epoch: profile.epoch, selectedInputs };
 }
 function requireSameSelection(original: SelectedInputs, observed: SelectedInputs): void {
   for (const [path, expected] of Object.entries(original)) {
@@ -337,7 +363,7 @@ export async function consumeSourceFrontendCapture<T>(
   return consumption.value;
 }
 
-/** Captures one immutable Git SHA and binds its selected source blobs to the original admitted live paired epoch through closing, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
+/** Captures one immutable Git SHA and binds its selected source blobs to the original admitted live input epoch through closing, then joins the actual Node/Vite child and both pipes before invoking a consumer. Unknown producer/cleanup outcomes retain scratch and throw. */
 export async function withSourceFrontendProducer<T>(
   consume: (
     observations: { document: ParticipantHttpObservation; entry: ParticipantHttpObservation },

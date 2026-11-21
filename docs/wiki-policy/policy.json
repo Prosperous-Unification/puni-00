@@ -5560,6 +5560,22 @@
       "obligationIds": []
     },
     {
+      "boundaryId": "boundary.application.accepted-plan-reference",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/accepted-plan-reference"
+      },
+      "creationRevision": "ab628956c37cef774dd8dbfe7aea1b00f56c24a1",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "9c5f8f5f3abe564586cae7b5c105c1fabea63c23",
+          "path": "libs/wbs/application/core/src/module/accepted-plan-reference/accepted-plan-reference.feature.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
       "boundaryId": "boundary.application.authentication",
       "selector": {
         "kind": "prefix",

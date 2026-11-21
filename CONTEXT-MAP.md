@@ -34,9 +34,8 @@
 - **Twilight Structure → WBS**: WBS is the chosen planning interface. Twilight
   Navigator plans through it; Twilight Dash executes accepted planning revisions and
   returns attributable progress.
-- **Client repository → WBS**: per-repository Backlog.md is the chosen target
-  planning backend, replacing SQLite planning storage after the WBS refactors
-  land. The adapter, migration, and ownership contract are still proposed.
+- **Client repository → WBS**: client repositories pin plan artifacts and source identities. WBS holds the current accepted reference and authorizes progress application for its project.
+
 - **puni-00 → client repositories**: the same versioned Nx repository template,
   SDLC, knowledge conventions, and planning contract apply to the factory's own
   development and client projects. Client content and authority remain isolated.
@@ -44,7 +43,7 @@
   runtime admission are distinct quantities; a plan carries both without
   conversion and measured usage returns as a progress receipt. The contract is in
   the [control-plane design](openspec/changes/twilight-control-plane/design.md#planning-knowledge-and-client-portability)
-  and proven by Tasks 2 and 9 of its plan.
+  with planning-read tests in Task 2.2 and the outstanding measured-usage proposal in Task 10.3.
 
 - **Registry storage operations → image publishers and consumers**: defines their
   storage, protection and operational-notification language; particular product

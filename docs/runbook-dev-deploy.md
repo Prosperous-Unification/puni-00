@@ -107,16 +107,16 @@ design trades for its speed — know which row your change is in:
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
 | Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container. `tool-devsync` refuses the deploy before reset when mcp-01's or be-01's file lacks a required key (`assertMcpEnv`, `assertBeEnv`).                                           |
 
-MCP's generated document is read at startup, so its inputs require a supervisor
-restart rather than only Bun's runtime watcher: all of
-`libs/wbs/domain/contracts/src` (including command definitions outside `http`),
-`apps/wbs/be-01/src/openapi`, `libs/wbs/domain/validation/src`, and
-`libs/shared/domain/validation/src`, plus those three libraries' `tsconfig.json`
-files. The emitter imports the contracts registry; its only source-library
-boundary is WBS validation, which reexports shared validation. External schema
-packages are covered by `bun.lock`, and root/application alias configuration
-already has restart coverage. A contract-only push therefore regenerates MCP's
-tool table before the restarted MCP serves it. No generated snapshot is pushed.
+MCP reads its generated document at startup. The supervisor restarts when
+`apps/wbs/be-01/src/openapi` changes. It also restarts for changes under `src` or
+to `tsconfig.json` in `libs/wbs/domain/contracts` (including command definitions
+outside `http`), `libs/wbs/domain/validation`, `libs/shared/domain/validation`,
+`libs/shared/domain/delivery`, or `libs/shared/domain/plan-reference`. The
+emitter imports the contracts registry, which reaches those validation,
+delivery, and plan-reference sources.
+`bun.lock` covers external schema packages. Root and application alias
+configuration also triggers a restart. The restart regenerates the MCP tool
+table before MCP serves requests. No generated snapshot is pushed.
 
 be-01 boots only with the three organization default limits (`wbs-organization-limits` L7) in
 `/home/puni1/wbs-dev/src/apps/wbs/be-01/.env`:

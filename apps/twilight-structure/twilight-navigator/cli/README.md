@@ -2,7 +2,7 @@
 
 Navigator (`twin`) owns the planning question: what should be built, in what shape and
 order ([names and boundaries](../../../../docs/twilight-structure/names.md)). Today it is a
-local CLI that turns an accepted WBS plan into records. It has no server, credentials or
+local CLI that turns a supplied WBS export into records. It has no server, credentials or
 network access, reads no clock, and never opens Burokrat's authority store.
 
 Navigator and Dash exchange records, not calls. A plan reference goes Navigator→Dash; a
@@ -40,7 +40,7 @@ until it is published.
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9 or 10)
+From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9, 10 or 11)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh
@@ -60,17 +60,21 @@ work items with ancestry, per-step estimates and dependencies) and
 replacing a file, and prints the plan reference digest. The record's `createdAt` is the
 export's `exportedAt`, so the same inputs give the same bytes.
 
-Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9 and 10 write task
+Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9, 10 and 11 write task
 schema 2: each `estimates` entry names its `stepCode`, native `unit` (`minutes` or `workdays`),
 and unchanged optimistic, realistic and pessimistic values. Version 9 requires strict root
 `stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and
 safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid.
 Facts stay in the original export; Navigator emits no blockage commands or eligibility
 calculation. Version 10 adds the plan's resources, their capacities and demands
-(`wbs-resources`); Navigator reads them strictly and they change no task. Future versions
-(version 11 is refused before output) and undeclared keys are refused. The reference records the
-original wire version and hashes the raw export bytes, so a blockedAt-only change changes the
-export and reference digests while preserving tasks and their digest.
+(`wbs-resources`); Navigator reads them strictly and they change no task. Version 11 adds the
+budget factor, measure definitions, facts, estimates and budgets; Navigator reads them strictly
+and derives the same tasks as the equivalent version-10 export
+([measures and budgets](../../../../docs/wbs/measures-and-budgets.md#export-import-and-saved-plans)).
+Unsupported versions, including connected version 12, and undeclared keys are refused.
+The reference records the original wire version and hashes the raw export bytes, so a
+blockedAt-only change changes the export and reference digests while preserving tasks and
+their digest.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
@@ -150,7 +154,7 @@ Existing plan/task/entry consistency checks precede exclusive owner-only batch p
 A receipt bound to export A is refused against selected export B even when their PlanRef and
 tasks are equal. Schema 1 remains available through `receipt-to-commands`.
 
-The caller owns accepted-reference selection. This command establishes consistency with that
+The caller owns local accepted-reference selection. [WBS receipt authority](../../../../openspec/changes/progress-receipt-authority/design.md) specifies the proposed WBS transaction for current references and progress consumption. This command establishes consistency with that
 selection and proposes commands; it does not authenticate records, discover current WBS state,
 or apply the batch. Proofs and verification limits are in the
 [admission change](../../../../openspec/changes/admit-progress-against-selected-reference/verify.md).

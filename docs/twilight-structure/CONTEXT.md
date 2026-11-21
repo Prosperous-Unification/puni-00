@@ -665,14 +665,17 @@ _Avoid_: Fresh receipt, authenticated receipt
 The plan reference a caller independently chooses as the acceptance basis for local progress admission.
 _Avoid_: Current WBS state, live authority
 
-**Planning broker**:
-The one principal per repository that validates and publishes accepted planning
-revisions.
-_Avoid_: Backlog service, writer
+**Accepted plan reference**:
+The complete plan reference WBS has accepted for one organization, project, repository and change at a specific acceptance version.
+_Avoid_: Selected file, branch head
+
+**Progress receipt consumption**:
+The retained acceptance of one attributed progress assertion and the WBS effects committed for it.
+_Avoid_: Proposal, verification
 
 **Plan reference**:
 The tuple of repository, plan, change, planning commit, source base commit, and
-requirements digest that names one accepted plan for one source basis. Its type is `PlanRef`.
+requirements digest that identifies planning inputs for one source basis. Its type is `PlanRef`.
 _Avoid_: Plan id, plan version
 
 **Source candidate**:
@@ -692,15 +695,8 @@ that candidate's work, available as input to later candidates.
 _Avoid_: Checkbox, done flag
 
 **Candidate revision**:
-The accepted planning revision a command was validated against and expects to be
-current when the broker advances the accepted ref.
+The planning revision a proposed write expects WBS to hold at acceptance.
 _Avoid_: Head, latest plan, base
-
-**Materialized candidate view**:
-The working checkout that native Backlog tools read and write; its edits are
-proposals that must be imported through the broker to become accepted planning
-state.
-_Avoid_: Working copy, the plan, checkout
 
 **Candidate**:
 The exact revision or artifact an approval, verification, or release names.

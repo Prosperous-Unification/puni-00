@@ -139,6 +139,10 @@ export default defineConfig({
       '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
       // Proof: removing this alias failed delivery-panel.test.tsx collection and alias parity.
       '@shared/delivery': resolve(__dirname, '../../../libs/shared/domain/delivery/src/index.ts'),
+      '@shared/plan-reference': resolve(
+        __dirname,
+        '../../../libs/shared/domain/plan-reference/src/index.ts',
+      ),
       '@ui/core-01/testing': resolve(
         __dirname,
         '../../../libs/shared/adapters/ui-core-01/src/testing.ts',

@@ -1,13 +1,12 @@
 import { rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import type * as MaterializerModule from '../fixtures/source-frontend-profile';
-import { prepareSourceFrontendProfile } from '../fixtures/source-frontend-profile';
 import { artifact, configuration, git, modes, roots } from '../fixtures/source-startup';
 import { selectSourceFrontendProfile } from './source-frontend-profile';
 import {
@@ -17,10 +16,20 @@ import {
   type SourceStartupManifest,
 } from './source-startup-manifest';
 
+const VITE_CONFIG = 'apps/wbs/fe-01/vite.config.ts';
+const HISTORICAL_VITE = {
+  bytes: 19302,
+  sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+};
+const CURRENT_VITE = {
+  bytes: 19438,
+  sha256: 'ceb016b70c79de85d220a8e1e38a31a2b94cffdad2f4a0b4bb84faf0070cf97b',
+};
+
 const PATHS = [
   'apps/wbs/fe-01/index.html',
   'apps/wbs/fe-01/src/main.tsx',
-  'apps/wbs/fe-01/vite.config.ts',
+  VITE_CONFIG,
   'apps/wbs/fe-01/project.json',
   'deploy/dev-src/Dockerfile',
   'deploy/dev-src/compose.yml',
@@ -95,10 +104,36 @@ const PAIRS = [
   },
 ];
 
+const registry = PAIRS.at(-1);
+if (registry === undefined) throw new Error('registry fixture pair absent');
+
+async function copyInputs(root: string): Promise<void> {
+  const repository = resolve(import.meta.dir, '../../../..');
+  for (const path of PATHS) {
+    const target = join(root, inputName(path));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, await readFile(join(repository, path)));
+  }
+  await symlink('.frontend-profile/vite', join(root, 'node_modules/vite'));
+}
+
+function selectInputs(
+  pins: Partial<Record<string, { bytes: number; sha256: string }>>,
+): SourceStartupManifest {
+  return canonical({
+    ...current,
+    entries: current.entries.map((entry) => {
+      if (entry.root !== 'source' || entry.kind !== 'file') return entry;
+      const pin = pins[entry.path];
+      return pin === undefined ? entry : { ...entry, size: pin.bytes, sha256: pin.sha256 };
+    }),
+  });
+}
+
 let current: SourceStartupManifest;
 beforeAll(async () => {
   const prepared = await artifact();
-  await prepareSourceFrontendProfile(prepared.root);
+  await copyInputs(prepared.root);
   await modes(prepared.root);
   await git(prepared.root, 'add', '.');
   await git(
@@ -146,22 +181,20 @@ function canonical(candidate: SourceStartupManifest): SourceStartupManifest {
   });
 }
 
-for (const pair of PAIRS)
+for (const pair of [
+  ...PAIRS.map((historical) => ({ ...historical, [VITE_CONFIG]: HISTORICAL_VITE })),
+  { ...registry, epoch: 'accepted-reference-registry-s3', [VITE_CONFIG]: CURRENT_VITE },
+])
   describe(pair.epoch, () => {
     let manifest: SourceStartupManifest;
     beforeAll(() => {
-      // Historical pair is modeled canonical selection metadata, not freshly produced Vite output.
       manifest =
-        pair.epoch === 'registry-s3-20261108'
+        pair.epoch === 'accepted-reference-registry-s3'
           ? current
-          : canonical({
-              ...current,
-              entries: current.entries.map((entry) => {
-                if (entry.root !== 'source' || entry.kind !== 'file') return entry;
-                if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
-                const expected = pair[entry.path];
-                return { ...entry, size: expected.bytes, sha256: expected.sha256 };
-              }),
+          : selectInputs({
+              'package.json': pair['package.json'],
+              'bun.lock': pair['bun.lock'],
+              [VITE_CONFIG]: pair[VITE_CONFIG],
             });
     });
     function withViteTarget(target: string, additions: SourceEntry[] = []): SourceStartupManifest {
@@ -178,7 +211,7 @@ for (const pair of PAIRS)
       };
     }
     test('fixed frontend selection accepts an independently prepared unrelated source commit with declared dependency links', () => {
-      for (const path of ['package.json', 'bun.lock'] as const) {
+      for (const path of ['package.json', 'bun.lock', VITE_CONFIG] as const) {
         const selected = manifest.entries.find(
           (entry) => entry.root === 'source' && entry.path === path,
         );
@@ -330,18 +363,24 @@ for (const pair of PAIRS)
     });
   });
 
-for (const historical of PAIRS.slice(0, -1))
+for (const historical of PAIRS.slice(0, -1)) {
+  test(`current Vite refuses historical pair ${historical.epoch}`, () => {
+    const crossover = selectInputs({
+      'package.json': historical['package.json'],
+      'bun.lock': historical['bun.lock'],
+      [VITE_CONFIG]: CURRENT_VITE,
+    });
+    expect(() => selectSourceFrontendProfile(crossover)).toThrow(
+      'source frontend input profile unsupported',
+    );
+  });
+
   test.each(['package.json', 'bun.lock'] as const)(
     `mixed frontend pair refuses ${historical.epoch} %s alone`,
     (path) => {
-      const expected = historical[path];
-      const mixed = canonical({
-        ...current,
-        entries: current.entries.map((entry) =>
-          entry.root === 'source' && entry.path === path && entry.kind === 'file'
-            ? { ...entry, size: expected.bytes, sha256: expected.sha256 }
-            : entry,
-        ),
+      const mixed = selectInputs({
+        [VITE_CONFIG]: HISTORICAL_VITE,
+        [path]: historical[path],
       });
       expect(() => selectSourceFrontendProfile(mixed)).toThrow(
         'source frontend input profile unsupported',
@@ -349,38 +388,43 @@ for (const historical of PAIRS.slice(0, -1))
     },
   );
 
-for (const historical of PAIRS.slice(0, -1))
   test.each(['package.json', 'bun.lock'] as const)(
     `mixed frontend pair refuses current ${historical.epoch} %s alone`,
     (path) => {
-      const currentPair = PAIRS.at(-1);
-      if (currentPair === undefined) throw new Error('current pair expectation absent');
-      const historicalEntries = current.entries.map((entry) => {
-        if (entry.root !== 'source' || entry.kind !== 'file') return entry;
-        if (entry.path !== 'package.json' && entry.path !== 'bun.lock') return entry;
-        const expected = entry.path === path ? currentPair[path] : historical[entry.path];
-        return { ...entry, size: expected.bytes, sha256: expected.sha256 };
+      const mixed = selectInputs({
+        [VITE_CONFIG]: HISTORICAL_VITE,
+        'package.json': historical['package.json'],
+        'bun.lock': historical['bun.lock'],
+        [path]: registry[path],
       });
-      expect(() =>
-        selectSourceFrontendProfile(canonical({ ...current, entries: historicalEntries })),
-      ).toThrow('source frontend input profile unsupported');
+      expect(() => selectSourceFrontendProfile(mixed)).toThrow(
+        'source frontend input profile unsupported',
+      );
     },
   );
+}
 
-test.each(['package.json', 'bun.lock'] as const)(
+test.each(['package.json', 'bun.lock', VITE_CONFIG] as const)(
   'actual committed same-length %s drift reaches selector refusal',
   async (path) => {
     const prepared = await artifact();
-    await prepareSourceFrontendProfile(prepared.root);
+    await copyInputs(prepared.root);
     const original = await readFile(join(prepared.root, path), 'utf8');
-    // Both replacements preserve valid manifest syntax and change non-launch-relevant metadata.
+    // Each replacement preserves syntax and changes non-launch-relevant bytes.
     const changed =
       path === 'package.json'
         ? original.replace('"name": "@puni-mono/workspace"', '"name": "@puni-mono/workspacf"')
-        : original.replace('configurable-tree-traversal', 'configurable-tree-traversam');
+        : path === 'bun.lock'
+          ? original.replace('configurable-tree-traversal', 'configurable-tree-traversam')
+          : original.replace('// `loadEnv` is typed', '// `loadEnv` Is typed');
     expect(changed).not.toBe(original);
     expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(original));
     if (path === 'package.json') expect(JSON.parse(changed)).toBeDefined();
+    if (path === VITE_CONFIG)
+      expect({
+        bytes: Buffer.byteLength(original),
+        sha256: createHash('sha256').update(original).digest('hex'),
+      }).toEqual(CURRENT_VITE);
     await writeFile(join(prepared.root, path), changed);
     await modes(prepared.root);
     await git(prepared.root, 'add', '.');
@@ -399,6 +443,12 @@ test.each(['package.json', 'bun.lock'] as const)(
     const sha = await git(prepared.root, 'rev-parse', 'HEAD');
     const captured = await createSourceStartupManifest(prepared.root, sha, configuration);
     const decoded = canonical(captured.manifest);
+    const selected = decoded.entries.find(
+      (entry) => entry.root === 'source' && entry.path === path,
+    );
+    if (selected?.kind !== 'file') throw new Error('committed frontend drift absent');
+    expect(selected.size).toBe(Buffer.byteLength(original));
+    expect(selected.sha256).toBe(createHash('sha256').update(changed).digest('hex'));
     expect(() => selectSourceFrontendProfile(decoded)).toThrow(
       'source frontend input profile unsupported',
     );
@@ -411,18 +461,45 @@ test.each([
   ['before-ctt', 'bun.lock'],
   ['fourth', 'package.json'],
   ['fourth', 'bun.lock'],
+  ['current', VITE_CONFIG],
+  ['current', 'historical pair'],
 ] as const)(
   'materializer fixed-root boundary refuses mixed %s %s before copying',
   async (epoch, path) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-materializer-boundary-'));
     roots.push(root);
-    await prepareSourceFrontendProfile(root);
-    const bytes = await readFile(join(root, path));
-    const historical =
-      epoch === 'fourth'
-        ? reconstructFourthInput(path, bytes)
-        : reconstructHistoricalInput(path, bytes);
-    await writeFile(join(root, path), historical);
+    await copyInputs(root);
+    const vitePath = join(root, VITE_CONFIG);
+    const vite = await readFile(vitePath, 'utf8');
+    expect(createHash('sha256').update(vite).digest('hex')).toBe(CURRENT_VITE.sha256);
+    const historicalVite = vite.replace(
+      "      '@shared/plan-reference': resolve(\n" +
+        '        __dirname,\n' +
+        "        '../../../libs/shared/domain/plan-reference/src/index.ts',\n" +
+        '      ),\n',
+      '',
+    );
+    expect(createHash('sha256').update(historicalVite).digest('hex')).toBe(HISTORICAL_VITE.sha256);
+    if (path === VITE_CONFIG) {
+      const changed = vite.replace('// `loadEnv` is typed', '// `loadEnv` Is typed');
+      expect(changed).not.toBe(vite);
+      expect(Buffer.byteLength(changed)).toBe(CURRENT_VITE.bytes);
+      await writeFile(vitePath, changed);
+    } else if (path === 'historical pair') {
+      for (const name of ['package.json', 'bun.lock'] as const) {
+        const target = join(root, name);
+        await writeFile(target, reconstructHistoricalInput(name, await readFile(target)));
+      }
+    } else {
+      await writeFile(vitePath, historicalVite);
+      const target = join(root, path);
+      const bytes = await readFile(target);
+      const historical =
+        epoch === 'fourth'
+          ? reconstructFourthInput(path, bytes)
+          : reconstructHistoricalInput(path, bytes);
+      await writeFile(target, historical);
+    }
     const source = await readFile(
       resolve(import.meta.dir, '../fixtures/source-frontend-profile.ts'),
     );

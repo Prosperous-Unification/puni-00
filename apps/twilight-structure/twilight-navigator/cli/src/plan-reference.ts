@@ -1,15 +1,13 @@
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 import {
-  digestOf,
-  type PlanRef,
-  PlanReferenceRecord,
-  type PlanTask,
-  PlanTasks,
-} from '@twilight-burokrat/contracts';
-import { type PlanDocumentV11, planDocumentV11 } from '@wbs/contracts';
+  compilePlanReferenceFromDocument,
+  decodeOrdinaryPlanDocument,
+  type PlanDocumentV11,
+  planDocumentV11,
+  validateBlockageFacts,
+} from '@wbs/contracts';
 
 import type { NavigatorRequest } from './cli-parser';
 import {
@@ -137,38 +135,6 @@ const Version10PlanDocument = planDocumentV11
   })
   .onDeepUndeclaredKey('reject');
 
-/** Strict current external wire shape, without historical defaults or discarded keys. */
-// Proof: removing deep rejection accepted `refuses v11 unknown nested key` through
-// plan-reference.test.ts production dispatch (2026-10-24).
-const Version11PlanDocument = planDocumentV11.onDeepUndeclaredKey('reject');
-
-/**
- * Checks only direct archival facts at Navigator's external export boundary. Retained facts
- * on done nodes and negative instants are valid; progress and eligibility are not derived.
- * @throws when a direct fact has no existing leaf owner or step, repeats a pair, or has an unsafe instant.
- */
-function validateBlockageFacts(document: PlanDocumentV11): void {
-  const owners = new Set(document.workItems.map(({ id }) => id));
-  const parents = new Set(document.workItems.map(({ parentId }) => parentId));
-  const steps = new Set(document.steps.map(({ id }) => id));
-  const pairs = new Set<string>();
-  for (const { workItemId, stepId, blockedAt } of document.stepBlockages) {
-    // Proof: Removing owner membership accepted `refuses v9 owner` in plan-reference.test.ts (2026-10-15).
-    if (!owners.has(workItemId)) throw new Error(`blockage names unknown owner ${workItemId}`);
-    // Proof: Removing leaf ownership accepted `refuses v9 parent` in plan-reference.test.ts (2026-10-15).
-    if (parents.has(workItemId)) throw new Error(`blockage owner ${workItemId} is not a leaf`);
-    // Proof: Removing step membership accepted `refuses v9 step` in plan-reference.test.ts (2026-10-15).
-    if (!steps.has(stepId)) throw new Error(`blockage names unknown step ${stepId}`);
-    // Proof: Removing safe-integer validation accepted `refuses v9 unsafe time` in plan-reference.test.ts (2026-10-15).
-    if (!Number.isSafeInteger(blockedAt))
-      throw new Error('blockage timestamp is not a safe integer');
-    const pair = JSON.stringify([workItemId, stepId]);
-    // Proof: Removing uniqueness accepted `refuses v9 duplicate` in plan-reference.test.ts (2026-10-15).
-    if (pairs.has(pair)) throw new Error('blockage repeats an owner/step pair');
-    pairs.add(pair);
-  }
-}
-
 interface DecodedPlanExport {
   document: PlanDocumentV11;
   wireVersion: NavigatorPlanDocumentVersion;
@@ -184,10 +150,6 @@ function noResourceFacts(): Pick<PlanDocumentV11, 'resourceCapacities' | 'demand
 /** The measures a document before version 11 carries: none (`wbs-measure-budgets` D63). */
 function noMeasures(): Pick<PlanDocumentV11, (typeof MEASURE_KEYS)[number]> {
   return { measureDefinitions: [], measureFacts: [], measureEstimates: [], budgets: [] };
-}
-
-function sha256Hex(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
 }
 
 /**
@@ -225,9 +187,7 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
     // carrying measures, deriving the same tasks as v10` (plan-reference.test.ts)
     // exited 1 as malformed (43 pass, 1 fail); watched 2026-10-24.
     if (header.document.version === 11) {
-      const document = parseOrThrow(Version11PlanDocument, parsed);
-      validateBlockageFacts(document);
-      return { document, wireVersion: 11 };
+      return { document: decodeOrdinaryPlanDocument(parsed), wireVersion: 11 };
     }
     if (header.document.version === 10) {
       const document = parseOrThrow(Version10PlanDocument, parsed);
@@ -287,99 +247,6 @@ function decodePlanExport(bytes: Uint8Array, path: string): DecodedPlanExport {
   }
 }
 
-/**
- * The leaf work items of a plan in export order, with their ancestry, per-step native estimates
- * keyed by step code, and the dependencies that end on them.
- *
- * @throws when a parent, an estimate's step or a step code is missing or repeated, since the
- * export would then not describe one tree.
- */
-export function derivePlanTasks(
-  document: PlanDocumentV11,
-  wireVersion: NavigatorPlanDocumentVersion,
-): PlanTasks {
-  const steps = [...document.steps]
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))
-    .map((step) => ({
-      id: step.id,
-      code: step.code,
-      name: step.name,
-      estimateUnit: step.estimateUnit,
-    }));
-  const stepById = new Map(document.steps.map((step) => [step.id, step]));
-  if (new Set(steps.map((step) => step.code)).size !== steps.length) {
-    throw new Error('plan export repeats a step code');
-  }
-  const itemById = new Map(document.workItems.map((workItem) => [workItem.id, workItem]));
-  const parents = new Set(document.workItems.map((workItem) => workItem.parentId));
-
-  const ancestorsOf = (id: string): string[] => {
-    const names: string[] = [];
-    let parentId = itemById.get(id)?.parentId ?? null;
-    while (parentId !== null) {
-      const parent = itemById.get(parentId);
-      if (parent === undefined) throw new Error(`plan export names a missing parent ${parentId}`);
-      if (names.length >= document.workItems.length) {
-        throw new Error(`plan export has a parent cycle at ${id}`);
-      }
-      names.unshift(parent.name);
-      parentId = parent.parentId;
-    }
-    return names;
-  };
-
-  const tasks: PlanTask[] = document.workItems
-    .filter((workItem) => !parents.has(workItem.id))
-    .map((workItem) => {
-      for (const stepId of Object.keys(workItem.estimates)) {
-        if (!stepById.has(stepId)) {
-          throw new Error(`plan export estimates ${workItem.id} on an unknown step ${stepId}`);
-        }
-      }
-      return {
-        id: workItem.id,
-        number: workItem.number,
-        name: workItem.name,
-        ancestors: ancestorsOf(workItem.id),
-        estimates: steps
-          .filter((step) => Object.hasOwn(workItem.estimates, step.id))
-          .map((step) => {
-            const trio = workItem.estimates[step.id];
-            return {
-              stepCode: step.code,
-              unit: step.estimateUnit,
-              optimistic: trio.optimistic,
-              realistic: trio.realistic,
-              pessimistic: trio.pessimistic,
-            };
-          }),
-        dependsOn: [...workItem.dependsOn],
-        typedDependencies: document.typedDependencies
-          .filter((dependency) => dependency.successor.workItem === workItem.id)
-          .map((dependency) => ({
-            id: dependency.id,
-            type: dependency.type,
-            predecessor: { ...dependency.predecessor },
-            successor: { ...dependency.successor },
-          })),
-      };
-    });
-
-  return parseOrThrow(PlanTasks, {
-    schemaVersion: wireVersion === 7 ? 1 : 2,
-    kind: 'plan-tasks',
-    plan: document.project.id,
-    steps: steps.map(({ id, code, name }) => ({ id, code, name })),
-    tasks:
-      wireVersion === 7
-        ? tasks.map(({ estimates, ...task }) => ({
-            ...task,
-            estimateDays: estimates.map(({ unit: _unit, ...estimate }) => estimate),
-          }))
-        : tasks,
-  });
-}
-
 function prettyJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -400,33 +267,18 @@ export async function runPlanReference(
   // file` at its empty-file case (2026-10-11).
   decodeRequiredText(requirementsBytes, REQUIREMENTS_ROLE, requirementsPath);
   const { document, wireVersion } = decodePlanExport(exportBytes, exportPath);
-  const tasks = derivePlanTasks(document, wireVersion);
-
-  const planRef: PlanRef = {
+  const { reference, tasks } = compilePlanReferenceFromDocument(document, wireVersion, {
+    exportBytes,
+    requirementsBytes,
     repository: request.repository,
-    plan: document.project.id,
     change: request.change,
     planningCommit: request.planningCommit,
     sourceBaseCommit: request.sourceBase,
-    requirementsDigest: sha256Hex(requirementsBytes),
-  };
-  const body = {
-    schemaVersion: 1,
-    kind: 'plan-reference',
-    planRef,
-    planDocumentVersion: wireVersion,
-    // Proof: hashing decoded canonical JSON broke both v9 raw-byte assertions in
-    // plan-reference.test.ts (2026-10-15).
-    exportDigest: sha256Hex(exportBytes),
-    tasksDigest: digestOf(tasks),
-    taskCount: tasks.tasks.length,
-    createdAt: document.document.exportedAt,
-  };
-  const record = parseOrThrow(PlanReferenceRecord, { ...body, referenceDigest: digestOf(body) });
+  });
 
   await createExclusiveFiles([
     { path: join(request.output, 'tasks.json'), text: prettyJson(tasks) },
-    { path: join(request.output, 'plan-reference.json'), text: prettyJson(record) },
+    { path: join(request.output, 'plan-reference.json'), text: prettyJson(reference) },
   ]);
-  return record.referenceDigest;
+  return reference.referenceDigest;
 }

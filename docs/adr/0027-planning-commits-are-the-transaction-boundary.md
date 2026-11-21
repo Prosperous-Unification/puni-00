@@ -1,9 +1,6 @@
 # Planning commits are the transaction boundary
 
-**Status:** proposed, 2026-09-06. The spike named at the end accepts it or
-overturns it.
-
-**Ownership (2026-09-19):** The planning contract recorded here is Twilight Navigator's.
+**Superseded before implementation on 2026-11-17 by [ADR 0079](0079-wbs-accepts-planning-references-and-progress.md).** The owner withdrew the proposed Backlog backend, Git broker, storage spike and cutover. The following is the proposal of 2026-09-06, with its original Navigator ownership assignment of 2026-09-19.
 
 A plan edit is published as an immutable Git tree on a per-repository planning
 ref, and that ref is advanced by one authorized broker with a compare-and-swap
@@ -11,7 +8,7 @@ against the current accepted ref. The commit is the transaction boundary: reader
 see a whole accepted tree. Exact commands require the requested basis; commands
 explicitly authorizing disjoint reconciliation may retry against a changed ref
 only when broker-derived semantic read/write preconditions still hold. The
-[transaction protocol](../twilight-structure/client-repositories.md#proposed-transaction-protocol)
+transaction protocol at the proposing revision
 owns retry bounds, receipt identity and conflict behavior.
 
 Backlog.md is the user's chosen per-client WBS planning backend, and WBS already
@@ -42,7 +39,7 @@ the Backlog files — the thing "Backlog instead of SQLite" was asked to remove.
 ## The spike that can overturn it
 
 Task 9's storage spike runs the `storage-acceptance/default` profile in
-[client repositories](../twilight-structure/client-repositories.md#storage-workload-acceptance-budget)
+the client repository design at the proposing revision
 against the real broker and remote. If a budget fails and no improvement within
 this authority model reaches it, this decision is revised before cutover rather
 than shipped — and never by reinstating SQLite as plan authority.

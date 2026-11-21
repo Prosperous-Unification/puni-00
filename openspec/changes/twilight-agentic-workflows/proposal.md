@@ -1,7 +1,7 @@
 ## Why
 
 WBS can identify startable work and its holder, but no production integration executes that
-work through agents, tools and human decisions. The existing control-plane proposal puts
+work through agents, tools and human decisions. The original control-plane proposal put
 LangGraph, infrastructure and a Backlog.md migration before a working execution path.
 
 ## What Changes
@@ -26,7 +26,7 @@ LangGraph, infrastructure and a Backlog.md migration before a working execution 
 
 ## Non-Goals
 
-K3s workers, OpenClaw triggers, Backlog.md migration and multi-tenant hosting. This change
+K3s workers, OpenClaw triggers, planning storage replacement and multi-tenant hosting. This change
 plans the integration; the WBS editor, model and migration are delivered by W0–W12.
 
 ## Constraints

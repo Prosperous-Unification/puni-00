@@ -113,9 +113,7 @@ a production-path negative whose intended fault was observed before its `Proof:`
 comment. Shared layout/CSS effects require whole-browser coverage. Unknown never
 becomes OK.
 
-Currently `tasks.md` is the single authored plan. After the WBS/Backlog bridge is
-proven, the accepted per-repo planning revision owns tasks and emits this artifact
-deterministically. The [migration](client-repositories.md) changes authority explicitly.
+Authored OpenSpec changes keep one task list. After enabling the [WBS export bridge](client-repositories.md) for a change, its accepted WBS revision determines the generated task artifact.
 
 ## From pilot to service
 

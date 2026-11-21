@@ -26,8 +26,7 @@ than merely increasing active sessions.
 - The [execution profile](../../openspec/schemas/twilight-v1/execution.yaml) owns
   scoped stage ordering, defaults and scaling acceptance budgets. Skills contribute
   through the schema's instructions; they do not create another workflow graph.
-- [Client repositories](client-repositories.md) owns Backlog/WBS planning authority
-  and the refactor prerequisite for its migration.
+- [Client repositories](client-repositories.md) describes WBS planning authority and immutable client exports.
 - The [control-plane spec](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md)
   owns execution envelopes, candidate evidence, independent acceptance and release.
 

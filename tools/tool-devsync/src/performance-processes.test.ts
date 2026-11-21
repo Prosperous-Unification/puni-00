@@ -714,12 +714,16 @@ isolatedTest(
       tmpdir(),
       `performance-waitpid-fault-${String(process.pid)}-${String(Date.now())}`,
     );
+    const pendingMarker = `${marker}.pending`;
     try {
       const wrapper = owner.spawn(
         [
           'bash',
           '-c',
-          `setsid bash -c 'echo $$ > "${marker}"; sleep 0.05' >/dev/null 2>&1 & exit 0`,
+          `setsid bash -c 'printf "%s\\n" "$$" > "$1" && mv -- "$1" "$2" && sleep 0.05' marker "$1" "$2" >/dev/null 2>&1 & exit 0`,
+          'wrapper',
+          pendingMarker,
+          marker,
         ],
         process.cwd(),
         { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
@@ -728,6 +732,8 @@ isolatedTest(
       for (let poll = 0; poll < 100 && !(await Bun.file(marker).exists()); poll += 1)
         await Bun.sleep(10);
       const adoptedPid = Number((await readFile(marker, 'utf8')).trim());
+      if (!Number.isSafeInteger(adoptedPid) || adoptedPid <= 0)
+        throw new Error('adopted child published an invalid PID');
       for (let poll = 0; poll < 100; poll += 1) {
         const stat = await Bun.file(`/proc/${String(adoptedPid)}/stat`).text();
         if (stat.includes(') Z ')) break;
@@ -742,7 +748,7 @@ isolatedTest(
       expect(String(failure)).not.toContain('did not converge');
       expect(await Bun.file(`/proc/${String(adoptedPid)}/stat`).exists()).toBe(false);
     } finally {
-      await rm(marker, { force: true });
+      await Promise.all([rm(marker, { force: true }), rm(pendingMarker, { force: true })]);
     }
   },
   10_000,

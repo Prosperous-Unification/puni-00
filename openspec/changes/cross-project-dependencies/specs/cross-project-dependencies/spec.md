@@ -1765,11 +1765,11 @@ Pure source frontend HTTP inspectors SHALL require status 200, the observed role
 
 ### Requirement: Original source restart inputs retain one supported frontend profile
 
-Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using sixteen fixed common public file size/hash tuples plus one complete reviewed package.json/bun.lock pair (before-ctt, ctt-0.12.0, fresh-main-20261104, fresh-main-20261105-ctt-0.13.0 or registry-s3-20261108), for eighteen selected files. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
+Source restart-input capture SHALL select the frontend response profile only from its original decoded canonical manifest using fifteen fixed common public file size/hash tuples plus exactly one of six reviewed Vite config, package.json and bun.lock triples, for eighteen selected files. The five historical triples (before-ctt, ctt-0.12.0, fresh-main-20261104, fresh-main-20261105-ctt-0.13.0 and registry-s3-20261108) retain the original 19,302-byte Vite config with their respective package and lock. Independent per-file alternatives SHALL NOT admit a mixed epoch. Selection SHALL follow declared relative links in the source/dependencies/git namespace without live filesystem lookup or fallback. Unsupported inputs SHALL refuse. The frozen retained profile literal SHALL grant neither readiness nor startup authority.
 
 #### Scenario: Fourth current frontend input epoch preserves historical coupling
 
-- **WHEN** the original canonical manifest contains the complete reviewed fourth package/lock pair and unchanged sixteen common tuples
+- **WHEN** the original canonical manifest contains the complete reviewed fourth package/lock pair, the original Vite config and all fifteen common tuples
 - **THEN** the selector, materializer and producer admit that same original pair without replacing it with historical bytes
 - **AND** every old complete pair remains supported, while cross-epoch pairs in either direction, unknown tuples and missing required inputs refuse
 - **AND** historical reconstruction verifies the complete current identity, uniquely reverses the exact0.13 package/lock hunks, and verifies the20261104 and ctt0.12 intermediate identities before producing before-ctt bytes
@@ -1778,12 +1778,19 @@ Source restart-input capture SHALL select the frontend response profile only fro
 
 #### Scenario: Fifth registry dependency epoch retains original input authority
 
-- **WHEN** the original canonical input contains package5030 bytes/SHA256 `275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock543082 bytes/SHA256 `983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6` with all sixteen unchanged common tuples
+- **WHEN** the original canonical input contains package5030 bytes/SHA256 `275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock543082 bytes/SHA256 `983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6` with the original Vite config and all fifteen common tuples
 - **THEN** the independent selector, fixed-root materializer and producer admit only that complete fifth pair alongside all four old pairs
 - **AND** fifth/fourth mixed pairs in both directions, unknown or missing tuples refuse before copying or producer consumption
 - **AND** owned test-only reconstruction first verifies the complete fifth input, uniquely removes only its exact S3 package line and four lock hunks, verifies the complete fourth intermediate, then preserves every existing historical reversal and intermediate check
 - **AND** malformed, missing, duplicate or altered reversal inputs refuse at their intended checks
-- **AND** the actual clean committed producer captures genuine fifth inputs and reaches both unchanged complete-response inspectors with original child/pipe/server/watcher settlement before current-response qualification; no historical substitution, response repinning or readiness/adoption authority follows
+- **AND** a clean committed producer capturing genuine fifth inputs reaches both unchanged complete-response inspectors with original child/pipe/server/watcher settlement before current-response qualification; no historical substitution, response repinning or readiness/adoption authority follows
+
+#### Scenario: Accepted-reference Vite config retains the current registry input tuple
+
+- **WHEN** the original canonical input contains the 19,438-byte Vite config with SHA256 `ceb016b70c79de85d220a8e1e38a31a2b94cffdad2f4a0b4bb84faf0070cf97b`, package 5,030 bytes with SHA256 `275ef2c4c16de5cb045cbd9ef5d73b334b549a31be8b1d665eeab2c227e05caf` and lock 543,082 bytes with SHA256 `983e79b374f112b2be6971188d9ad3e8cdfec29f50c0340fa23b62dafc28c9c6`, alongside the fifteen common tuples
+- **THEN** the selector, fixed-root materializer and producer each admit that same complete triple, and the producer reports the accepted-reference registry epoch
+- **AND** the new Vite config with any earlier complete pair, any mixed package/lock pair and a changed same-length config refuse at the owning input check
+- **AND** current response qualification requires actual committed-source Node/Vite output, independent canonical selection from the captured contents of all eighteen inputs and both unchanged wire-v1 inspectors after child, pipes, server and watcher settle
 
 #### Scenario: Supported inputs belong to another source commit
 
@@ -1808,9 +1815,9 @@ Source restart-input capture SHALL select the frontend response profile only fro
 - **THEN** the existing original cold/running tree monitor refuses
 - **AND** the captured profile cannot be replaced with caller hashes or learned running-frontend responses
 
-#### Scenario: Two supported epochs retain one qualified response identity
+#### Scenario: Supported input triples retain one qualified response identity
 
-- **WHEN** a canonical original manifest has sixteen common tuples and either entire reviewed manifest pair
+- **WHEN** a canonical original manifest has fifteen common tuples and one complete reviewed triple
 - **THEN** selection retains wire-v1 under unchanged namespace/link and authority limits
 - **AND** current inputs qualify only after actual current complete document/entry responses pass unchanged inspectors
 
@@ -1818,13 +1825,13 @@ Source restart-input capture SHALL select the frontend response profile only fro
 
 - **WHEN** package and lock belong to different supported pairs or either has unknown kind, size or complete digest
 - **THEN** selection refuses without per-file fallback or learned expectations
-- **AND** independently committed same-length scratch package/lock drift reaches selection through a valid canonical manifest and refuses
+- **AND** independently committed same-length scratch Vite config, package or lock drift reaches selection through a valid canonical manifest and refuses
 
 #### Scenario: Current producer and canonical capture use the same observed bytes
 
 - **WHEN** the real current Node/Vite producer captures one Git source SHA and its original selected snapshot/installed/live epoch
 - **THEN** captured source inputs match Git blobs and initial observations before launch and through closing
-- **AND** the joint test constructs/decodes a distinct genuine canonical fixture from those eighteen actual captured bytes, independently requires the current pair, and runs the selector and both complete-response inspectors on actual observations
+- **AND** the joint test constructs/decodes a distinct genuine canonical fixture from those eighteen actual captured bytes, independently requires the current triple, and runs the selector and both complete-response inspectors on actual observations
 - **AND** the distinct fixture SHA and selected-byte scope do not claim the producer snapshot was an owner-bound artifact or full installed closure
 
 #### Scenario: Changed responses or closing epoch do not repin

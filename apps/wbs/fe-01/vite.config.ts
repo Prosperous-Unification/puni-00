@@ -217,6 +217,10 @@ export default defineConfig(({ command, mode }) => ({
       '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
       // Proof: removing this alias failed delivery-panel.test.tsx collection and alias parity.
       '@shared/delivery': resolve(__dirname, '../../../libs/shared/domain/delivery/src/index.ts'),
+      '@shared/plan-reference': resolve(
+        __dirname,
+        '../../../libs/shared/domain/plan-reference/src/index.ts',
+      ),
       // The UI kit WBS paints with, and the core its primitives take `cn` from.
       // Both are `product:shared` browser libraries, read from source like
       // every alias here.

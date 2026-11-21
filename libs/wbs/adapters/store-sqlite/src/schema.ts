@@ -4790,3 +4790,42 @@ export const accessGrant = sqliteTable(
 );
 
 export type AccessGrantRow = typeof accessGrant.$inferSelect;
+
+/** Protected installation state. The migration starts with a readable policy and zero grants. */
+export const acceptedPlanReferencePolicy = sqliteTable(
+  'accepted_plan_reference_policy',
+  {
+    singleton: integer('singleton').primaryKey(),
+    revision: integer('revision').notNull(),
+    grants: text('grants').notNull(),
+  },
+  (t) => [
+    check('accepted_plan_reference_policy_singleton', sql`${t.singleton} = 1`),
+    check(
+      'accepted_plan_reference_policy_revision',
+      sql`${t.revision} BETWEEN 1 AND 9007199254740991`,
+    ),
+  ],
+);
+
+/** The highest version in a scope is active. Earlier acceptance rows are retained. */
+export const acceptedPlanReference = sqliteTable(
+  'accepted_plan_reference',
+  {
+    organizationId: text('organization_id').notNull(),
+    projectId: text('project_id').notNull(),
+    repository: text('repository').notNull(),
+    change: text('change').notNull(),
+    version: integer('version').notNull(),
+    referenceDigest: text('reference_digest').notNull(),
+    writeBasis: text('write_basis').notNull(),
+    artifacts: text('artifacts').notNull(),
+    subject: text('subject').notNull(),
+    acceptedAt: integer('accepted_at').notNull(),
+    policyRevision: integer('policy_revision').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.organizationId, t.projectId, t.repository, t.change, t.version] }),
+    check('accepted_plan_reference_version', sql`${t.version} BETWEEN 1 AND 9007199254740991`),
+  ],
+);
