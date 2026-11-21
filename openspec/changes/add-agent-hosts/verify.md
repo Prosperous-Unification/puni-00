@@ -74,7 +74,7 @@ revision.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail                              |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                         |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                  |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 296                                          |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 294                                          |
 
 ## Checks not run
 
