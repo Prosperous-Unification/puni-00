@@ -2,43 +2,41 @@
 
 One host, h4claw, is the k3s server, the public edge, the product node, the registry host and a
 gate host. A gate holds the whole host, so Harbor does not fit beside it, and the secret store
-would sit next to the internet-facing ingress. h2puni runs WBS production on Compose, the dev
-stacks and gates. On 2026-11-21 the owner decided that each host gets one node role, that the
-cluster is recreated from scratch, that the new cluster is delivered by Argo CD, and that the
-switch may be unsafe while there are no production users.
+would sit next to the internet-facing ingress. On 2026-11-21 the owner decided that each host
+gets one node role, that the cluster is recreated from scratch and delivered by Argo CD, and
+that the switch may be unsafe while there are no users. On 2026-11-23 he added:
+OpenBao comes first, `main` deploys to staging, and production deploys on command.
 
 ## What Changes
 
-- A new platform cluster is built from this repository on freshly created servers.
-- Four node roles, one host each: platform services, continuous integration, observability,
-  production apps.
-- The platform node is the k3s server. It hosts Argo CD, cert-manager, Harbor, and OpenBao with
-  the External Secrets Operator, behind a taint.
-- The production apps node hosts Traefik, `puni-website`, `puni-request-app` and
-  `puni-user-platform` (the WBS app).
-- The observability node hosts Elasticsearch and Prometheus, sized by measurement.
-- The CI host runs branch code outside the cluster: gates, release builds, the dev stacks.
-- Argo CD delivers the new cluster from a tree of its own, `infra/argocd`, following `main`.
-  Git is the only write path; the interface is private and read-only.
-- No decryption runs in the cluster: a few bootstrap Secrets come from Ansible, the rest from
-  OpenBao.
-- Each app is stopped, backed up once, restored on the new cluster and re-pointed. Downtime is
-  accepted. Data that cannot be regenerated is verified before its old host is deleted.
+- A new cluster is built from this repository on new servers, one node role per host.
+- The platform node is the tainted k3s server. It hosts Argo CD, then OpenBao with the
+  External Secrets Operator before any other service, then Harbor.
+- The production apps node hosts Traefik and two copies of `puni-website`, `puni-request-app`
+  and `puni-user-platform` (the WBS app): production, and staging, which replaces today's dev
+  stacks and has a capability of its own.
+- The observability node hosts Elasticsearch, Prometheus and MLflow.
+- The CI host runs gates and release builds, outside the cluster.
+- Argo CD delivers the new cluster from a tree of its own, `infra/argocd`. Staging syncs from
+  `main` by itself; production apps and platform units change only when a person syncs them.
+  The interface is private, and its one account can sync production only.
+- Workload Secrets come from OpenBao. Ansible applies only what Argo CD and OpenBao need.
+- Each app is stopped, backed up once, restored and re-pointed. Data that cannot be
+  regenerated is verified before its old host is deleted.
 
 ## Non-Goals
 
-No rename of WBS resources. No design of Harbor, OpenBao or the WBS cutover. No move of workers
-clusters or labs off Flux. No continuous SQLite replication, high availability or single
-sign-on. h1claw is neither rebuilt nor deleted; it gains a pull for the CI host. No host,
-cluster or provider resource is changed by this plan.
+No rename of WBS resources. No design of Harbor, OpenBao, the WBS overlays or the step that
+turns a merge into an image. Workers clusters and labs stay on Flux. No SQLite replication,
+high availability or single sign-on. h1claw is outside the plan. This plan changes no host or cluster.
 
 ## Constraints
 
-The repository is public: no prices, provider ids or new addresses appear here. SQLite stays one
-writer on a node-local `Retain` volume. The fleet model allows one server in a `single` cluster.
-No path that the old cluster, a workers cluster or a lab reconciles is edited. Website registry
-routing, the fleet's website pins and `release-pin.ts` are not changed. Gates never stop for
-other sessions, and no store loses its scheduled backup while it moves.
+The repository is public: no prices, provider ids or public addresses. SQLite stays one writer
+on a node-local `Retain` volume. The fleet model allows one server per cluster. No path that
+the old cluster, a workers cluster or a lab reconciles is edited. Website registry routing,
+the fleet's website pins and `release-pin.ts` are untouched. Gates never stop for other
+sessions. Staging never receives production data.
 
 ## Capabilities
 
@@ -65,8 +63,8 @@ next number. Two records, node roles and delivery by Argo CD, stay in
 ## Impact
 
 `infra/fleet/desired.yaml`, a new production inventory, a new tree `infra/argocd`, a new
-bootstrap playbook, `infra/versions/toolchain.json`, the `k3s_server` template,
+bootstrap playbook and a sync playbook, `infra/versions/toolchain.json`, the `k3s_server` template,
 `tools/tool-fleet` (contracts, a `delivery` check, health, recovery, the observability source,
-a lab profile), the SQLite backup tooling and the infrastructure runbooks. Follow-ups in the
-Harbor change, the OpenBao design, the fleet repository, the gate pool, h1claw's backup sets
-and the WBS cutover plan with its first-start coordinator are listed, not made.
+a lab profile), the controller image, the SQLite backup tooling and the infrastructure
+runbooks. Follow-ups in the Harbor change, the OpenBao design, the fleet repository, the gate
+pool, the WBS overlays and the release tooling are listed, not made.

@@ -4,7 +4,8 @@
 
 Plan only. No source outside this change and one glossary term, no manifest, host, cluster or
 provider resource was changed. No task in tasks.md is done. This record holds only what was
-read or run while writing the plan, on 2026-11-21, in a worktree at `origin/main` `b17861f83`.
+read or run while writing the plan, on 2026-11-21 and 2026-11-23, in a worktree at
+`origin/main` `b17861f83`.
 
 ## Replaced drafts
 
@@ -36,7 +37,37 @@ six of the second. This revision answers it. Changed: R20 (what guards `main`, a
 waves: Harbor moved to a last wave of its own and `signals` moved one wave later. Open
 question 14 and design decision 10 are new. Slices and attended steps keep their numbers.
 
+A fourth review read `17b95140a` and returned "not ready" with no finding of the first rank and
+one of the second. Before it was answered the owner made the decisions recorded under "Owner
+decisions" below. This revision, the fourth draft, answers both. What moved:
+
+- **Assumptions.** Reworded: R2, R5, R11, R12, R13, R15, R19, R20, R22, R23, R28. New: R29
+  (staging) and R30 (h1claw). Rows the owner has settled are marked decided.
+- **Order.** The fourteen sync waves are gone. Units carry a sync order, 0 to 17, used by a
+  sync playbook for the first sync only. OpenBao, the External Secrets Operator and
+  `secret-sync` moved from wave 4 to orders 4 to 6, ahead of the issuers; `observability-secrets`
+  became part of `secret-sync`; `elastic-settings`, `mlflow`, `public-issuers`,
+  `website-staging` and `wbs-staging` are new units; Harbor moved from the last wave to order
+  14, ahead of the WBS units.
+- **Slices.** 2.5 gained the sync playbook and the controller's `sops` and fleet mount. 3.5 is
+  now the WBS overlays, not the first-start coordinator. New: 3.6 (MLflow unit) and 3.7 (a
+  merge becomes a staging pin). 21 slices.
+- **Attended steps**, old to new: A1 to A3 unchanged; A4 is Argo CD with orders 0 to 3; old A6
+  (etcd snapshots) is A5; old A7 (restore drill) is A6; A7 is new (OpenBao and the first
+  Secrets); old A5 (measure Argo CD) is A8; old A8 is A9; old A9 and A11 (dev stacks on the CI
+  host) are removed; old A10 is A10; old A12 is A11; old A13 to A16 are A12 to A15; old A17 and
+  A18 are A16 and A17; A18 is new (staging); old A19 and A20 are A19 and A20; A21 and A22
+  unchanged in number. 22 steps.
+- **Questions.** Of fourteen, twelve are closed by the owner's answers or became assumptions.
+  Two remain: the Slack channel, and what turns a merge into a staging pin.
+- **Removed.** The h1claw re-pointing and the second pull set; the root's ignore rule for the
+  WBS Application and its exemption in rule (b); the Application health customization; the
+  spec requirement that a store keeps a scheduled backup while it moves.
+
 ## First review (at `cf86bd350`) and what became of its findings
+
+Step, slice, wave and question ids in the three tables that follow are those of the draft each
+review read. "Replaced drafts" above maps them to this draft's.
 
 Outcomes as the third draft recorded them. The second review, below, revised several: the
 disk floor is 180 GiB, the taint and the h1claw pulls changed, and wave numbers moved.
@@ -125,6 +156,29 @@ inventory should move to the private repository first is open question 13.
 
 Nothing was disputed in this round.
 
+## Fourth review (at `17b95140a`) and what became of its findings
+
+| Finding                                                                      | Outcome                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S2 task 0.6's receipt could write to `main` with no rollback                 | Fixed: forced and deleting pushes are proved by reading the rules back; the direct push is one empty commit from an account outside the bypass list; the tip SHA is recorded first and the restore is stated |
+| S3 a two-merge removal stalls on an empty source                             | Fixed: the emptied source keeps one marker ConfigMap, so no sync renders nothing (design decision 3, rehearsal (o))                                                                                          |
+| S3 CRD inventory missed the Prometheus stack                                 | Fixed: ten CRDs in its `crds` subchart are counted; rule 2.4(j) looks at any depth; slice 2.8 has a negative; rehearsal (k) reads them back                                                                  |
+| S3 the operator-Secret rule fails on a faithful copy                         | Fixed: a Job may read a Secret an operator makes for its own unit (`kibana-objects`); `elastic-settings` is a unit of its own one order after Elasticsearch; the operator table has three rows               |
+| S3 `sqlite-custody` rules have no subject at A15                             | Fixed: the unit holds retention only; each app's stale-backup rule lands with that app (slice 3.1)                                                                                                           |
+| S3 the controller cannot decrypt, and the workstation cannot build its image | Fixed: slice 2.5 adds `sops` and a fleet checkout mount; until the workstation has room the image is built and run on h2puni, where the controller runs today (design decision 10)                           |
+| S3 rehearsal on the first server                                             | Fixed: a rehearsal server is never recorded; the pass uses its own secrets, an uncommitted inventory and a scratch bucket; A1's receipt has the SSH host key                                                 |
+| S3 Harbor in a last wave could hold the root's sync                          | Moot: no unit waits on a wave any more (R20); Harbor is synced on command at order 14                                                                                                                        |
+| Nit: a blank line broke a table in this file                                 | Fixed                                                                                                                                                                                                        |
+| Nit: validation needs `--limit h5plat`                                       | Fixed: A13, and A17 through it                                                                                                                                                                               |
+| Nit: stage 0's receipt named two phases                                      | Fixed: it names the slices decision 4 lists for stage 1                                                                                                                                                      |
+| Nit: fingerprints in a public receipt                                        | Fixed: task 0.5 and A2 record "matched" and "escrowed" only                                                                                                                                                  |
+
+Made moot by production and the platform being synced on command (R20): the root's ignore rule
+for the WBS Application and rehearsal item (n) of the third draft; the health customization and
+the stall it could cause; "later changes are not ordered" for anything but staging.
+
+Nothing was disputed in this round.
+
 ## k3s behaviour
 
 Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
@@ -139,9 +193,8 @@ Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
 | `node-taint` is applied only when the node registers                                                 | k3s documentation, `cli/agent.md`                                                                          |
 | The only DaemonSet on the live cluster is Traefik; Flannel and kube-proxy are not pods               | `kubectl get ds -A`                                                                                        |
 | The enrollment probes are bound by `nodeName` and so are not held back by a `NoSchedule` taint       | `validate-enrollment.yml:108-114,152-158`                                                                  |
-
-| Every server registers with the enrollment taint as well | `roles/k3s_server/templates/config.yaml.j2:24-25` |
-| The CoreDNS step is a strategic patch of `tolerations`, a list with no merge key | `validate-enrollment.yml:73-83` |
+| Every server registers with the enrollment taint as well                                             | `roles/k3s_server/templates/config.yaml.j2:24-25`                                                          |
+| The CoreDNS step is a strategic patch of `tolerations`, a list with no merge key                     | `validate-enrollment.yml:73-83`                                                                            |
 
 Not run: a one-node cluster registered with both taints. Slices 1.2 and 2.7 own it.
 
@@ -150,30 +203,34 @@ Not run: a one-node cluster registered with both taints. Slices 1.2 and 2.7 own 
 Read on 2026-11-21 from the documentation at the `stable` ref and from source at tag `v3.6.2`
 (`VERSION` reads 3.6.2; the newest chart release is `argo-cd-10.18.2`).
 
-| Relied on                                                                        | Where it was read                                                |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Charts are rendered with `helm template`; Argo CD owns the lifecycle             | `docs/user-guide/helm.md`                                        |
-| Helm hooks map to sync hooks; test hooks are skipped; delete policies differ     | `docs/user-guide/helm.md`, "Helm Hooks"                          |
-| A chart that generates random data renders differently each time                 | `docs/user-guide/helm.md`, "Random Data"                         |
-| `helm dependency build` runs only after a missing-dependency error               | `reposerver/repository/repository.go`, `util/helm/helm.go`       |
-| Symbolic links are refused only when they leave the repository root              | `reposerver/repository/repository.go`                            |
-| Waves order resources; a wave proceeds when its resources are healthy            | `docs/user-guide/sync-waves.md`                                  |
-| Application health was removed in 1.8 and must be restored for waves across apps | `docs/operator-manual/health.md`, `cluster-bootstrapping.md`     |
-| App of apps is an admin-level tool; push access to its source is admin access    | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| Automated sync does not prune or self-heal unless asked; self-heal retries       | `docs/user-guide/auto_sync.md`                                   |
-| Tracking is by annotation by default                                             | `docs/user-guide/resource_tracking.md`                           |
-| `ServerSideApply=true`, `Prune=false`, `Delete=false`; the 262,144-byte limit    | `docs/user-guide/sync-options.md`                                |
-| `ignoreDifferences`, and the webhook `caBundle` example                          | `docs/user-guide/diffing.md`                                     |
-| Repository credentials as labelled Secrets; SSH host keys in a ConfigMap         | `docs/operator-manual/declarative-setup.md`, private repos guide |
-| Self-management from a kustomize application; server-side apply for the install  | `docs/operator-manual/declarative-setup.md`, `installation.md`   |
-| `policy.default`, `role:readonly`, local accounts, disabling `admin`             | `docs/operator-manual/rbac.md`, user management guide            |
-| Deleting an Application without the finalizer leaves its resources               | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| `RespectIgnoreDifferences=true` acts only on an object that already exists       | `docs/user-guide/sync-options.md`                                |
-| `Force=true` needs `Replace=true` and is ignored under server-side apply         | `docs/user-guide/sync-options.md`, "Force Sync"                  |
-| Retry with exponential backoff; self-heal retries after its timeout              | `docs/user-guide/auto_sync.md`                                   |
-| Child applications are not ordered or awaited without the health customization   | `docs/operator-manual/cluster-bootstrapping.md`                  |
-| A kustomize source may inflate a Helm chart with `--enable-helm`                 | `docs/user-guide/kustomize.md`                                   |
-| Cluster-scoped kinds are admitted to a project by an allow list                  | `docs/user-guide/projects.md`                                    |
+| Relied on                                                                                                                                                                   | Where it was read                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Charts are rendered with `helm template`; Argo CD owns the lifecycle                                                                                                        | `docs/user-guide/helm.md`                                        |
+| Helm hooks map to sync hooks; test hooks are skipped; delete policies differ                                                                                                | `docs/user-guide/helm.md`, "Helm Hooks"                          |
+| A chart that generates random data renders differently each time                                                                                                            | `docs/user-guide/helm.md`, "Random Data"                         |
+| `helm dependency build` runs only after a missing-dependency error                                                                                                          | `reposerver/repository/repository.go`, `util/helm/helm.go`       |
+| Symbolic links are refused only when they leave the repository root                                                                                                         | `reposerver/repository/repository.go`                            |
+| Waves order resources; a wave proceeds when its resources are healthy                                                                                                       | `docs/user-guide/sync-waves.md`                                  |
+| Application health was removed in 1.8 and must be restored for waves across apps                                                                                            | `docs/operator-manual/health.md`, `cluster-bootstrapping.md`     |
+| App of apps is an admin-level tool; push access to its source is admin access                                                                                               | `docs/operator-manual/cluster-bootstrapping.md`                  |
+| Automated sync does not prune or self-heal unless asked; self-heal retries                                                                                                  | `docs/user-guide/auto_sync.md`                                   |
+| Tracking is by annotation by default                                                                                                                                        | `docs/user-guide/resource_tracking.md`                           |
+| `ServerSideApply=true`, `Prune=false`, `Delete=false`; the 262,144-byte limit                                                                                               | `docs/user-guide/sync-options.md`                                |
+| `ignoreDifferences`, and the webhook `caBundle` example                                                                                                                     | `docs/user-guide/diffing.md`                                     |
+| Repository credentials as labelled Secrets; SSH host keys in a ConfigMap                                                                                                    | `docs/operator-manual/declarative-setup.md`, private repos guide |
+| Self-management from a kustomize application; server-side apply for the install                                                                                             | `docs/operator-manual/declarative-setup.md`, `installation.md`   |
+| `policy.default`, `role:readonly`, local accounts, disabling `admin`                                                                                                        | `docs/operator-manual/rbac.md`, user management guide            |
+| Deleting an Application without the finalizer leaves its resources                                                                                                          | `docs/operator-manual/cluster-bootstrapping.md`                  |
+| `RespectIgnoreDifferences=true` acts only on an object that already exists                                                                                                  | `docs/user-guide/sync-options.md`                                |
+| `Force=true` needs `Replace=true` and is ignored under server-side apply                                                                                                    | `docs/user-guide/sync-options.md`, "Force Sync"                  |
+| Retry with exponential backoff; self-heal retries after its timeout                                                                                                         | `docs/user-guide/auto_sync.md`                                   |
+| Child applications are not ordered or awaited without the health customization                                                                                              | `docs/operator-manual/cluster-bootstrapping.md`                  |
+| A kustomize source may inflate a Helm chart with `--enable-helm`                                                                                                            | `docs/user-guide/kustomize.md`                                   |
+| Cluster-scoped kinds are admitted to a project by an allow list                                                                                                             | `docs/user-guide/projects.md`                                    |
+| `sync` and `override` are separate actions; a revision other than the Application's needs `override` when `application.sync.requireOverridePrivilegeForRevisionSync` is set | `docs/operator-manual/rbac.md` at tag `v3.6.2`, read 2026-11-23  |
+| The CLI's `--core` flag talks to Kubernetes directly, not to the API server                                                                                                 | `docs/user-guide/commands/argocd.md` at the tag                  |
+| Automated prune refuses a source with no resources unless `allowEmpty` is set; `automated.enabled: false` switches automation off                                           | `docs/user-guide/auto_sync.md` at the tag                        |
+| `argocd_app_info` carries `sync_status` and `health_status`                                                                                                                 | `docs/operator-manual/metrics.md` at the tag                     |
 
 Not read or not provable from reading; slice 2.7 owns each:
 
@@ -190,8 +247,10 @@ Not read or not provable from reading; slice 2.7 owns each:
   back.
 - That the bundled health check for `cert-manager.io/Certificate` behaves as the Flux
   `healthCheckExprs` it replaces. Rehearsal (l).
-- That `ignoreDifferences` on the root with `RespectIgnoreDifferences=true` leaves a child's
-  sync policy alone. Rehearsal (n).
+- That core mode can sync and wait with the node's credential alone, and that the override
+  setting is enforced in the interface. Rehearsal (n).
+- That an automated root leaves an unautomated child unsynced and reverts an edit to its sync
+  policy. Rehearsal (g).
 - Which fields need `ignoreDifferences` for these charts.
 - Argo CD's memory on this cluster. 1,536 MiB is an assumption (R24).
 - The ApplicationSet documentation was not read; the choice against it rests on the
@@ -208,40 +267,64 @@ it must inject. This table is filled as slices land.
 
 ## Owner decisions
 
-Recorded above under "Replaced drafts". Overrules of R1 to R28: none yet (task 0.1).
+The decisions of 2026-11-21 are recorded above under "Replaced drafts". On 2026-11-23, in his
+words where they carry the decision:
+
+- "I'd like to setup openbao before other stuff" (R22).
+- "i want the main to act like staging ...; so what merges to main - gets deployed on
+  staging; however prod deployment is done by hand/on command" (R20).
+- MLflow is kept (R15).
+- h1claw may be deleted at any time; it is no longer guarded by this plan (R30).
+- Server shapes confirmed: three of 8 vCPUs and 16 GiB, one CI host of 16 vCPUs and 32 GiB
+  (R2).
+- Staging on the apps node as namespaces confirmed, with the remark that production may want a
+  server of its own later; staging therefore has its own capability (R29, design decision 1).
+- Alerts go to Slack; the channel is still to be named (open question 1).
+- The other recommendations then on the table were accepted: the names (R3); the owner creates
+  the servers (R4); machine ids and private addresses follow the existing fleet file (R5); the
+  rehearsal on the first new server (design decision 10); rules on the fleet repository
+  before first use (task 0.6); WBS production moves the simple way, with images from Harbor
+  (R28); backups inside the new cluster (R13); the website's fleet directory written by its
+  owning session, moved after its release bootstrap (R11); one local account (R23).
+
+Overrules of R1 to R30 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
-| Reading                                      | Result                                                                                                                                                               |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kubectl get nodes` capacity and allocatable | h4claw and h3mon: 8 CPUs, 15,602 MiB; allocatable 13,299 and 13,939 MiB; about 150 GiB of node storage                                                               |
-| `kubectl top nodes`                          | h4claw 3,291 MiB, h3mon 4,316 MiB                                                                                                                                    |
-| Node labels                                  | h4claw: `control-plane`, `ingress`, `product`; h3mon: `observability`; no taints                                                                                     |
-| Node selectors of every Deployment           | Flux, cert-manager and kube-system: `kubernetes.io/os` only; website: `capability-product`                                                                           |
-| Memory limits per namespace, running pods    | flux-system 4,096; website-dev 768; website-prod 128; website-prod-logs 128; puni-registry 512                                                                       |
-| Containers without a memory limit            | cert-manager 3, Traefik 1, kube-system 2 on h4claw                                                                                                                   |
-| Persistent volumes                           | two, class `puni-retain`, policy `Retain`, node affinity by host name to h4claw                                                                                      |
-| Storage classes                              | `local-path` is the default with policy `Delete`; `puni-retain` and `puni-local` have `Retain`                                                                       |
-| Flux stages                                  | `target`, `controllers`, `storage`, `policy`, `secrets`, `platform` Ready; `observability`, `alerts`, `backup` not Ready                                             |
-| Flux sources                                 | the platform source is pinned to one commit; the fleet source follows a branch and owns the website and registry-secret units                                        |
-| `nproc`, `free -m`, `df -h /` on h2puni      | 8 CPUs, 15,603 MiB, 127 of 150 GiB used (88%)                                                                                                                        |
-| User timers on h1claw                        | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy                                       |
-| The fleet repository's file list             | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                                                       |
-| `/dev/kvm` on the operator workstation       | present; the workstation's disk was full, so no lab ran                                                                                                              |
-| Tolerations of the packaged components       | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else                                         |
-| DaemonSets on the live cluster               | Traefik only, selecting `capability-ingress`                                                                                                                         |
-| Rules on this repository's `main`            | one active ruleset: `pull_request` with zero required approvals; `required_status_checks` `gate` and `pixels`, not strict; no rule against forced or deleting pushes |
-| `infra-check.yml`                            | runs `tool-fleet:check` on pull requests that touch its paths; it is not among the required checks                                                                   |
-| `crds/` directories in the vendored archives | Traefik 25 files, Velero 13; the other eight archives none                                                                                                           |
-| Helm release names                           | no `HelmRelease` sets `releaseName`; `otlp-ingress.yaml` selects `app.kubernetes.io/instance: otel-collector`                                                        |
-| Roles of `bootstrap.yml` and `join.yml`      | `base`, `network`, `storage` and the k3s role; `registry_client` runs only from `registry.yml`                                                                       |
-| Members of h1claw's hourly set               | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                                                        |
+| Reading                                           | Result                                                                                                                                                               |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kubectl get nodes` capacity and allocatable      | h4claw and h3mon: 8 CPUs, 15,602 MiB; allocatable 13,299 and 13,939 MiB; about 150 GiB of node storage                                                               |
+| `kubectl top nodes`                               | h4claw 3,291 MiB, h3mon 4,316 MiB                                                                                                                                    |
+| Node labels                                       | h4claw: `control-plane`, `ingress`, `product`; h3mon: `observability`; no taints                                                                                     |
+| Node selectors of every Deployment                | Flux, cert-manager and kube-system: `kubernetes.io/os` only; website: `capability-product`                                                                           |
+| Memory limits per namespace, running pods         | flux-system 4,096; website-dev 768; website-prod 128; website-prod-logs 128; puni-registry 512                                                                       |
+| Containers without a memory limit                 | cert-manager 3, Traefik 1, kube-system 2 on h4claw                                                                                                                   |
+| Persistent volumes                                | two, class `puni-retain`, policy `Retain`, node affinity by host name to h4claw                                                                                      |
+| Storage classes                                   | `local-path` is the default with policy `Delete`; `puni-retain` and `puni-local` have `Retain`                                                                       |
+| Flux stages                                       | `target`, `controllers`, `storage`, `policy`, `secrets`, `platform` Ready; `observability`, `alerts`, `backup` not Ready                                             |
+| Flux sources                                      | the platform source is pinned to one commit; the fleet source follows a branch and owns the website and registry-secret units                                        |
+| `nproc`, `free -m`, `df -h /` on h2puni           | 8 CPUs, 15,603 MiB, 127 of 150 GiB used (88%)                                                                                                                        |
+| User timers on h1claw                             | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy                                       |
+| The fleet repository's file list                  | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                                                       |
+| `/dev/kvm` on the operator workstation            | present; the workstation's disk was full, so no lab ran                                                                                                              |
+| Tolerations of the packaged components            | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else                                         |
+| DaemonSets on the live cluster                    | Traefik only, selecting `capability-ingress`                                                                                                                         |
+| Rules on this repository's `main`                 | one active ruleset: `pull_request` with zero required approvals; `required_status_checks` `gate` and `pixels`, not strict; no rule against forced or deleting pushes |
+| `infra-check.yml`                                 | runs `tool-fleet:check` on pull requests that touch its paths; it is not among the required checks                                                                   |
+| `crds/` directories in the vendored archives      | Traefik 25 files, Velero 13; the other eight archives none                                                                                                           |
+| CRDs in the Prometheus stack archive              | ten files under `charts/crds/crds/`                                                                                                                                  |
+| Kinds under `infra/platform/policy` and `storage` | no cert-manager kind, so both can precede cert-manager                                                                                                               |
+| WBS overlays                                      | `staging` and `prod` both render into `wbs` and `wbs-solver`                                                                                                         |
+| Controller image                                  | installs `kubectl` only; no `sops`                                                                                                                                   |
+| Helm release names                                | no `HelmRelease` sets `releaseName`; `otlp-ingress.yaml` selects `app.kubernetes.io/instance: otel-collector`                                                        |
+| Roles of `bootstrap.yml` and `join.yml`           | `base`, `network`, `storage` and the k3s role; `registry_client` runs only from `registry.yml`                                                                       |
+| Members of h1claw's hourly set                    | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                                                        |
 
 ## Repository checks
 
 Dependencies were not installed in the worktree: the laptop's disk was full. The binaries of the
 main checkout were used through a temporary `node_modules` link, removed afterwards. The rows
-below were run again on this revision.
+below were run again on this revision, on 2026-11-23.
 
 | Command                                                                                                     | Result                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -252,7 +335,7 @@ below were run again on this revision.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 398                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 400                                                                       |
 
 ## Checks not run
 
@@ -262,7 +345,7 @@ below were run again on this revision.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The three reviews recorded above read earlier commits.
+- This revision has not been reviewed. The four reviews recorded above read earlier commits.
 
 ## Primary sources read
 
@@ -283,6 +366,12 @@ below were run again on this revision.
 - `openspec/changes/adopt-harbor-registry`: design decisions 2, 4 and 10, the assumption table
   and the task list.
 - The Argo CD documentation and source listed above.
+- For the fourth review and the decisions of 2026-11-23: the design file of pull request #935
+  at its branch (placement, seal, self-init, server certificate, bootstrap set, stage graph);
+  `infra/controller/Containerfile`; `deploy/k8s/wbs/overlays/staging` and `prod`;
+  `infra/platform/policy` and `storage` by kind; the Prometheus stack archive's file list;
+  `observability/elastic/settings/settings.yaml` and `kibana/objects/job.yaml`; the four Argo
+  CD pages named above at tag `v3.6.2`.
 - For the third review: `validate-enrollment.yml` and the `k3s_server` template's taints; the
   identity ConfigMap tasks of `platform.yml`; `alerts/base/rules.yaml` and the production
   overlay; `observability/base/signals.yaml`; `registry/production/issuers.yaml`;
