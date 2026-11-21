@@ -144,8 +144,8 @@ test.each([
   [
     'unknown field',
     async (profile: string) => {
-      const pin = await Bun.file(profile).text();
-      await fs.writeFile(profile, pin.replace('{', '{"extra":true,'));
+      const pin = JSON.parse(await Bun.file(profile).text()) as Record<string, unknown>;
+      await fs.writeFile(profile, JSON.stringify({ ...pin, extra: true }));
     },
     'invalid native tool profile',
   ],
