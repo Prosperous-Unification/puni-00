@@ -10434,3 +10434,25 @@ restored the exact source hashes after each case.
 The three-file covering command above passed 246 tests with 759 assertions.
 Scoped ESLint, Prettier, uncached owning typecheck, strict change validation
 and the source-only bundle check passed with the recorded commands.
+
+### Status reader task review gate passed; whole-client qualification open — 2026-11-21
+
+The Task2 scoped review gate passed at
+`3514b34507f72be2166d5238090c87b2905dc004`. The initial review's four findings
+(late preflight acquisition, lost known exit on pipe fault, suppressed abort and
+missing durable commands) and fix1's two new ordering findings are addressed.
+Fix2's saved covering run passed246 tests/759 assertions;13 selected current
+faults failed with exact source restoration. Scoped lint/format, uncached owning
+typecheck, strict OpenSpec, source-only bundle and normal hooks passed. The
+independent scoped reviewer found no new fix-related breakage. These are source
+reader review receipts, not whole-client or installed acceptance.
+
+One pre-existing out-of-scope scheduling observation remains an explicit
+whole-branch review/correction gate: exit-zero completion, then caller abort before
+cutoff during final subscription disposal, followed by a pause past the original
+deadline, returned timeout rather than the earlier cancellation. No late bytes
+were published. This is not accepted as correct; preserve its reproduction and
+resolve the cancellation contract before client source integration/adoption.
+Task3 must still qualify the real public API with native pinned SSH. Task5.1c,
+Task5.1b, installed source/credential/checkpoint/scheduling/storage/destination
+proofs, exact-revision host gate and every full-goal lifecycle obligation stay open.

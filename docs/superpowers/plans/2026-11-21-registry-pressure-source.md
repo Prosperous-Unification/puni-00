@@ -239,7 +239,7 @@ The process module is an internal implementation interface accepting the parsed
 fixed argv, signal and original deadline; it is not an alternate executable or
 clock entrypoint. Export only the public actor and typed cleanup error from source.ts.
 
-- [ ] **Step 1: Write RED actor tests through the public factory.** Use generated fixture-only private bytes and their true SHA-256; Task2 unit tests do not claim those bytes authenticate. Every test creates a fresh mode0700 existing directory and mode0400 key. Controlled Bun.spawn interception may forward to an owned Bun fixture process for framing/cleanup tests, with restoration in finally; it must still receive and assert the exact production argv and spawn policy. No production test override is added.
+- [x] **Step 1: Write RED actor tests through the public factory.** Use generated fixture-only private bytes and their true SHA-256; Task2 unit tests do not claim those bytes authenticate. Every test creates a fresh mode0700 existing directory and mode0400 key. Controlled Bun.spawn interception may forward to an owned Bun fixture process for framing/cleanup tests, with restoration in finally; it must still receive and assert the exact production argv and spawn policy. No production test override is added.
 
 ```ts
 it('refuses missing local state rather than inventing enrollment or a directory', async () => {
@@ -273,8 +273,8 @@ modeled metadata only when real nonroot ownership changes are unavailable and sa
 so; native/installed ownership remains separately owed. Do not chmod existing
 external paths or use root just to make a fixture.
 
-- [ ] **Step 2: Run RED** for actor tests before source exists; save command/output.
-- [ ] **Step 3: Implement lifecycle and IO.** Open the exact preexisting empty private directory, create its only pin exclusively0400 and retain its ownership for close. Bounded no-follow/nonblock file reads check required regular/single-link metadata, owner/mode, EOF, exact pin bytes and key hash; close descriptors in finally and surface closure failures. Check local executable existence/executability before spawn. One busy/fault/closed state owns all work. Keep immutable configuration per actor lifetime. No state genesis or hidden retries.
+- [x] **Step 2: Run RED** for actor tests before source exists; save command/output.
+- [x] **Step 3: Implement lifecycle and IO.** Open the exact preexisting empty private directory, create its only pin exclusively0400 and retain its ownership for close. Bounded no-follow/nonblock file reads check required regular/single-link metadata, owner/mode, EOF, exact pin bytes and key hash; close descriptors in finally and surface closure failures. Check local executable existence/executability before spawn. One busy/fault/closed state owns all work. Keep immutable configuration per actor lifetime. No state genesis or hidden retries.
 
 Use one acquisition cutoff `deadline - 1000`; never replace the caller deadline.
 Before spawn require finite deadline no more than5000ms ahead, nonaborted signal
@@ -288,8 +288,8 @@ RegistrySourceCleanupError with its known primary outcome; a cancellation remain
 controlled after cleanup. Latch unresolved work and forbid all overlapping/retry
 reads until process supervision accounts for it. Never expose raw stderr.
 
-- [ ] **Step 4: GREEN and R5 faults.** Run selected actor tests, then genuine guard/dependency faults against directory/key/pin admission, deadline, EOF+exit, both caps, abort/cleanup settlement and no-overlap. Capture failures and restore exact source before adjacent Proof comments. A stubbed exit result is not native reaping evidence; keep that claim for Task3.
-- [ ] **Step 5: Verify and commit.** Scoped source tests/ESLint/Prettier, owning TypeScript typecheck, source module bundle without stopped imports, and normal commit hooks. Record limitations and precise checks in verify.md; leave5.1c open pending native qualification/review.
+- [x] **Step 4: GREEN and R5 faults.** Run selected actor tests, then genuine guard/dependency faults against directory/key/pin admission, deadline, EOF+exit, both caps, abort/cleanup settlement and no-overlap. Capture failures and restore exact source before adjacent Proof comments. A stubbed exit result is not native reaping evidence; keep that claim for Task3.
+- [x] **Step 5: Verify and commit.** Scoped source tests/ESLint/Prettier, owning TypeScript typecheck, source module bundle without stopped imports, and normal commit hooks. Record limitations and precise checks in verify.md; leave5.1c open pending native qualification/review.
 
 ### Task 3: Real SSH qualification and noncached target
 
