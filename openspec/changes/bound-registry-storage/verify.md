@@ -10456,3 +10456,98 @@ resolve the cancellation contract before client source integration/adoption.
 Task3 must still qualify the real public API with native pinned SSH. Task5.1c,
 Task5.1b, installed source/credential/checkpoint/scheduling/storage/destination
 proofs, exact-revision host gate and every full-goal lifecycle obligation stay open.
+
+## Native registry status transport qualification — 2026-11-21
+
+The explicit uncached `tool-fleet:rehearse-registry-pressure-source` target exercised
+`openRegistryPressureSource` with the fixed `/usr/bin/ssh` against a temporary,
+unprivileged OpenSSH server. Bun 1.4.4 ran it as UID1000, with a new mode0700 directory
+directly under the account's mode0750 home and root-owned, mode0755 ancestors.
+The configuration declared one listen address. The kernel listener check
+matched its owned sshd socket at `172.17.0.1` on ephemeral port43543. Its restricted authorized key admitted the
+separately supplied `192.168.1.182` source. Supplying the listen address as the
+permitted source refused the first exchange. The CLI failed visibly with no
+success receipt on missing or duplicate arguments, an unknown argument, an absent
+or wrong-hash executable, loopback and unowned interface addresses.
+
+Use the [fixture profile](../../../tools/tool-fleet/src/registry-pressure-source-tools.json)
+when preparing the executable. In an owner-only staging directory, run
+`apt-get download 'openssh-server=1:9.6p1-3ubuntu13.20'`, compare the archive's
+`sha256sum` with the profile and run `dpkg-deb --extract <verified-archive> <extraction-root>`.
+Supply the extracted absolute `usr/sbin/sshd` path. The operator keeps the
+trusted extraction and checked-in profile immutable during the short run.
+The rehearsal used the existing extraction with no download, package
+installation or system service change. The executable hash was compared
+before running the bounded `-V` probe.
+
+| Qualified input                        | SHA-256 or exact version                                           |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| OpenSSH server deb                     | `5d0d5eb672ddc27601e2da4e8465c5736dc73375a21bc1cd1834fcb08fb155bf` |
+| Extracted `sshd`                       | `95b291d957f87dd200796c4986c97b6f4d970e26ad620ec9174e69c13ec5c137` |
+| Extracted `sshd -V`                    | `OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024`    |
+| Fixed local `/usr/bin/ssh`             | `3b0701113d8982d71c8cc74e5a1949f03c6f71da804cf4f3507315afbf07042c` |
+| Fixed local `/usr/bin/ssh -V`          | `OpenSSH_9.6p1 Ubuntu-3ubuntu13.18, OpenSSL 3.0.13 30 Jan 2024`    |
+| `registry-pressure-source.ts`          | `6b46ffd54d1379109ca53288c2ea182871c369218469ee24b668f2ff0829465c` |
+| `registry-pressure-source-contract.ts` | `4d45a4fa6e81a9c07ef9df8663c3e31fba197514471d59dae4adbd084bcdadac` |
+| `registry-pressure-source-process.ts`  | `62958d876534fc5f1feb3d9c2e2454d0c55462bb911192e835576fecd23fb2bf` |
+| `registry-pressure-source-native.ts`   | `7c2cf4f836a23603cd1c57f039eef076e69a235210e9487eac2e9a7da0cf76ff` |
+| `registry-pressure-source-tools.json`  | `2545bf9592eafa1a13d531d53cea98dc1fad00b70c94ea2879d821467eb822a0` |
+
+```sh
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:test --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The native command exited0 with12 cases. Times are elapsed from each actor read.
+The byte counts describe deterministic fixture output, excluding transport
+diagnostics. Received rows also assert original bytes and size byte-for-byte.
+
+| Case                      | Public reply                                           | Fixture stdout/stderr bytes | Client ms / budget ms | Dispatcher exit / server settlement ms |
+| ------------------------- | ------------------------------------------------------ | --------------------------- | --------------------- | -------------------------------------- |
+| Exact frame               | received (37 bytes, including multibyte text and CRLF) | 37 / 0                      | 187 / 5000            | 0 / 189                                |
+| Wrong client key          | source-command-failed / ssh-exit                       | 0 / 0                       | 126 / 5000            | no dispatch / 127                      |
+| Wrong host key            | source-command-failed / ssh-exit                       | 0 / 0                       | 61 / 5000             | no dispatch / 72                       |
+| Wrong verb                | source-refused / refused                               | 0 / 0                       | 194 / 5000            | 77 / 194                               |
+| Valid prefix then exit1   | source-command-failed / ssh-exit                       | 37 / 0                      | 241 / 5000            | 1 / 242                                |
+| Stdout overflow           | invalid-status / status-too-large                      | 65538 / 0                   | 204 / 5000            | 0 / 205                                |
+| Stderr overflow           | source-command-failed / stderr-too-large               | 0 / 4097                    | 223 / 5000            | 0 / 234                                |
+| Absolute timeout          | source-timeout / deadline                              | 1 / 0                       | 1502 / 2500           | 124 / 5213                             |
+| Abort after partial write | fixed AbortError                                       | 1 / 0                       | 185 / 2500            | 0 / 3189                               |
+| Concurrent read and close | both refused while busy, then fixed AbortError         | 1 / 0                       | 185 / 2500            | 0 / 3183                               |
+| Repeated read 1           | received (37 bytes)                                    | 37 / 0                      | 187 / 5000            | 0 / 188                                |
+| Repeated read 2           | received (37 bytes)                                    | 37 / 0                      | 182 / 5000            | 0 / 193                                |
+
+The pending cases observed the live owned `/usr/bin/ssh` PID and its removal
+before the read returned. Every case checked the local child list after receipt.
+Remote settlement used the fixture dispatcher's exit marker, its process
+disappearance and the owned sshd's empty child list. The five-second server
+timeout sent TERM to the deliberately longer operation, which recorded124.
+The separate configured one-second forced-kill fallback was unexercised.
+The parent daemon was then signaled, awaited with exit0 and checked absent from
+`/proc`. The actor's owned pin was released and all newly generated fixture keys,
+config, markers and directories were removed. No private key or raw remote stderr
+was retained in the evidence.
+
+The admission test file first failed on the missing harness module. After
+implementation the final four-file status-client run passed274 tests with759
+Bun `expect` calls plus the native admission file's Node assertions. The selected
+fault runs observed failing unknown-key, path/address, missing/unreadable,
+symlink/regular-file/size, exact digest/version and home type/owner/mode tests
+with original source restored after each fault. A changed version pin rejected
+the actual native binary. A world-writable authorized key broke the real
+exact-frame case. A two-second fixture timeout broke the remote-timeout
+measurement. Suppressing listener observation broke readiness. Removing
+`from=` caused an incorrect success when the allowed source was set to the
+listen IP, proving the real wrong-source negative detects that guard.
+
+This receipt covers the tested local current-account fixture and the exact
+source hashes above. Whole-client acceptance is open pending independent
+Task3 review and resolution of the exit-zero cancellation/late-receipt gate
+recorded above. Task5.1c, Task5.1b, installed dedicated-account and UID bridge
+qualification, authenticated checkpoint, scheduling/storage, destination
+receipt, exact-revision host gate and the full-goal lifecycle remain open.
