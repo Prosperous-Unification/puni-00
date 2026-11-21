@@ -6,7 +6,7 @@ in the new setup plan and said that every app uses it once it is in place.
 
 This change is the second of three that together are the new setup plan. It is stacked on
 [`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster and
-delivers it by Argo CD; the third is `add-agent-hosts`. It was part of the first until a
+delivers it by Argo CD; the third is [`add-agent-hosts`](https://github.com/Prosperous-Unification/puni-00/pull/974). It was part of the first until a
 review recommended the split.
 
 ## What Changes
