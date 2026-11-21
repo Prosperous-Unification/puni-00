@@ -143,20 +143,15 @@ this view handoff SHALL remain unchanged.
 - **WHEN** the project runtime is withdrawn and another is opened, including the same project again
 - **THEN** the suspended draft is discarded without submission and cannot appear in the new runtime
 
-### Requirement: Board interactions are read-only and accessible
+## Historical interaction provenance
 
-The project page SHALL offer Plan and Board view buttons with a discernible
-selected state. Plan SHALL remain the initial view. Board selection SHALL persist
-only within the current mounted project page. Cards SHALL expose work-item number,
-name, step name and separate work-item status as text, with no drag handles or
-progress-edit controls. Pointer and keyboard interactions SHALL issue no plan
-mutation. At narrow widths columns SHALL stack in the same order without clipping
-card text or requiring hover to read it.
-The hidden Plan SHALL NOT handle global undo/redo or open its interaction controls
-while Board is selected; hiding or making its DOM inert alone is insufficient.
+The [original read-only interaction requirement](https://github.com/Prosperous-Unification/puni-00/blob/1b94e080b7b52c8babef77a8ff25d3acb9bb9d18/openspec/changes/read-only-step-board/specs/step-progress-board/spec.md#L146)
+from `1b94e080b7b52c8babef77a8ff25d3acb9bb9d18` was superseded by
+the [writable interaction requirement](https://github.com/Prosperous-Unification/puni-00/blob/3eb75e5dc77be331151a132825a5bdb7f4bc3ceb/openspec/specs/step-progress-board/spec.md#L152)
+at `3eb75e5dc77be331151a132825a5bdb7f4bc3ceb`. The earlier rule is
+historical and the canonical destination records the accepted behavior.
 
-#### Scenario: Board selection and attempted dragging
-
-- **WHEN** a user opens Board, navigates with the keyboard or drags a card
-- **THEN** the selected state and all card text remain accessible and zero plan mutation requests occur
-- **AND** returning to Plan preserves the existing plan surface's behavior
+- Read-only delta Git blob `afef7680415455bf7f71f34ca7efa851b55a6fcd`
+- Superseded requirement fragment SHA-256 `0de314a9221f19b89278c30f31cd6d30c664125f341048b86b9dcb144c5c402a`
+- Canonical spec Git blob `cb9c06439a13dee663d16c0d5e14bbcbed401392`
+- Accepted destination fragment SHA-256 `924f9480006c1b80edef3ac6d258db5c7db239e405d190f13fca0eb0b3e351c2`

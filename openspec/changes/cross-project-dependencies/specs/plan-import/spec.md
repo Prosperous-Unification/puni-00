@@ -1,26 +1,10 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Plan transfer preserves typed and legacy dependencies
+### Requirement: Copying successors preserves their authorized external prerequisites
 
-New-version export SHALL distinguish typed endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics; malformed new-format endpoint, scope, step, type or duplicate relationship SHALL be refused, including a node endpoint on a parent or a descendant-step endpoint on a leaf. Internal endpoint references SHALL remain file-local and SHALL be remapped to newly created work-item and step identities on import or copy. External references SHALL be explicitly distinguished from internal references and SHALL carry stable source project/work-item/step identities, scope and relationship type; abbreviation and human-address metadata SHALL be descriptive, never authority for rebinding. Whole-project copy and subtree duplication SHALL remap internal relationships and preserve external prerequisites of copied successors, substituting only the copied successor endpoint and retaining the original predecessor. They SHALL create new relationship identities. An outgoing relationship whose predecessor is copied but whose successor is not copied SHALL remain attached to the original predecessor and SHALL NOT be cloned or changed in the successor-owning project. Relationships that touch no copied endpoint SHALL NOT be duplicated. Every resulting external relationship SHALL be validated against current same-organization ownership, endpoint existence, authorization and the resolved dependency graph before committing. Unresolved, unauthorized or cyclic external references SHALL refuse the operation atomically rather than being discarded or converted to local references. A versioned transfer contract SHALL distinguish external references from older documents; an older reader that cannot preserve them SHALL refuse that document without partial writes.
+Whole-project copy and subtree duplication that support external references SHALL copy an incoming external prerequisite only when its successor is copied. They SHALL substitute only the copied successor endpoint, retain the original stable predecessor and assign a new relationship identity.
 
-#### Scenario: Round-trip multiple step links
-
-- **GIVEN** two distinct FS step relationships between the same work-item pair plus one legacy link
-- **WHEN** a plan is exported and imported
-- **THEN** all three retain their distinct endpoint and reach meanings
-
-#### Scenario: A step reference is absent
-
-- **GIVEN** a new-format import references an internal step not in its project step list
-- **WHEN** the import is validated
-- **THEN** it is refused without a partial plan write
-
-#### Scenario: Duplicate an internal relationship
-
-- **GIVEN** a subtree contains both endpoints of a typed dependency
-- **WHEN** the subtree is duplicated
-- **THEN** the copied relationship addresses copied work items with a new ID and unchanged scopes/type
+Copying a predecessor alone SHALL leave its outgoing relationship attached to the original predecessor and SHALL NOT create or change a relationship in the original successor-owning project. Relationships touching neither copied endpoint SHALL remain untouched. The entire operation SHALL validate every resulting external relationship against current same-organization ownership, endpoint existence, authorization and the resolved dependency graph before committing. Unresolved, unauthorized or cyclic references SHALL refuse the copy atomically; they SHALL NOT be discarded or converted to local references.
 
 #### Scenario: Copy an external prerequisite
 
@@ -36,6 +20,14 @@ New-version export SHALL distinguish typed endpoint/type relationships from lega
 - **THEN** the external successor retains its relationship to the original predecessor
 - **AND** no relationship from the copied predecessor to that successor is created and no write is made to its project
 
+### Requirement: External import mappings are explicit
+
+An import SHALL accept explicit mappings from recorded external stable identities to destination stable endpoints when the original identities are unavailable in the destination store. Each mapping SHALL be validated for scope, endpoint shape, current same-organization ownership and authorization inside the import transaction. The importer SHALL NOT search by an exported abbreviation or number and silently substitute a matching endpoint.
+
+A versioned transfer contract SHALL distinguish external from internal references and older local-only documents. Each external reference SHALL carry stable source project, work-item and applicable step identities, endpoint scope and relationship type. Abbreviations, names and human addresses are descriptive metadata and SHALL NOT authorize rebinding.
+
+An unresolved, unauthorized or cyclic external reference SHALL refuse import atomically. The importer SHALL NOT discard it or convert it into a local reference. An older reader that cannot preserve external references SHALL refuse such a document without partial writes.
+
 #### Scenario: Resolve stable external identities after a rename
 
 - **GIVEN** an export records an external predecessor's stable identities and its old abbreviation
@@ -47,12 +39,6 @@ New-version export SHALL distinguish typed endpoint/type relationships from lega
 - **WHEN** import cannot resolve a recorded external identity in the destination organization, lacks required access, or would close a resolved task/step cycle
 - **THEN** the entire import is refused with the offending reference identified
 - **AND** no project, work item or relationship is partially created
-
-## ADDED Requirements
-
-### Requirement: External import mappings are explicit
-
-An import SHALL accept explicit mappings from recorded external stable identities to destination stable endpoints when the original identities are unavailable in the destination store. Each mapping SHALL be validated for scope, endpoint shape, current same-organization ownership and authorization inside the import transaction. The importer SHALL NOT search by an exported abbreviation or number and silently substitute a matching endpoint.
 
 #### Scenario: A matching display address belongs to a different work item
 

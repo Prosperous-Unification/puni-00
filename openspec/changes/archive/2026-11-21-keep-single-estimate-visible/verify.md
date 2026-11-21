@@ -47,3 +47,31 @@ The h2puni gate does not apply on this host (`hostname` returned `pop-os`). No f
 ## Review round 2 — 2026-09-27
 
 Astra found the `final !== ''` proof no longer breakable: an empty box equals an empty figure, so `final !== shown` alone kept the span off. `leaves an unestimated folded cell empty` now also types a refused `9/9/` into the unestimated cell and asserts no final span. With `final !== ''` removed, that test alone failed on `expected <span …(2)></span> to be null` (1 failed, 74 passed); restored, 75 passed.
+
+## Archive verification reconciliation, 2026-11-21
+
+The historical commands, outcomes and faults above match the original
+[`9739ffc2` verification](https://github.com/Prosperous-Unification/puni-00/blob/9739ffc29cf11a559ad7c1b29e1ffe133b434ae4/openspec/changes/keep-single-estimate-visible/verify.md),
+blob `758a606afd8d5efe326f29111bc7d6c71b051ec1`.
+
+| Task | Recorded acceptance                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1  | Both equal leaf and parent tests failed on transparent versus muted ink before the rendering edit and passed after it.                                                                                                                                                                                                                                                                                                                    |
+| 1.2  | `a175083c` implemented the visible equal reading and preserved differing readings. `64bb169c` compared the value actually displayed, so refused `9/9/` over saved 5 still shows 5 beside the draft. `6350291b` distinguished the empty estimate with the same refused draft, where no final span is shown.                                                                                                                                |
+| 1.3  | The original shifted-port Chromium run observed saved 5 after reload, readable ink and no duplicate. That local result predates the review fixes. The focused suite reached 75 cases. Removing the unequal guard broke six tests, comparing stored text exposed the refused draft, dropping the nonempty guard exposed an empty span, and restoring transparent ink broke both equal cases. The final lane and integration Pixels passed. |
+| 2.1  | Whole frontend passed 148 UTC files with 3,107 tests and two zoned files with three tests. Format, lint:fast, typecheck and strict OpenSpec 127/127 passed. The historical local host was ineligible, and the lane delegated its h2puni run to integration.                                                                                                                                                                               |
+
+[Lane PR 78 checks](https://github.com/Prosperous-Unification/puni-00/actions/runs/36278501363)
+and [combined integration checks](https://github.com/Prosperous-Unification/puni-00/actions/runs/36280995654)
+passed the relevant hosted runtime gate and Pixels. The separate trusted-wiki lint
+failed in both, and the integration k3s rehearsal also failed.
+The [integrated h2puni receipt](https://github.com/Prosperous-Unification/puni-00/pull/82#issuecomment-5851900160)
+reports printed SHA `6aee2bf80e0ad1349c61c14c66ca28c178bdb05e`,
+`GATE_EXIT=0` and all four targets passing for 35 projects. The reviewed estimate
+files match that head and the accepted merge
+`aad01af8a7c1affbfa7c1e2e43e7f0b999bab259`, whose common tree is
+`b618eb95d2813ec5a0eef23f6c0d92dee5829d25`. The host log itself was not read.
+
+The archive status reported sdd-lean with design ready and `isComplete: false`.
+The historical change used four required artifacts, and its selected archival
+proceeded with that warning. Its two refinements were synced after the predecessor.

@@ -258,3 +258,63 @@ In Progress L 0.49, Draft L 0.49, Ready L 0.48, On Hold L 0.49, Blocked L
 0.50, and Blocked by Proxy L 0.49. The full status browser spec passed 5/5;
 FE lint, FE typecheck, and Prettier passed. The h2puni host gate remains to be
 run by the coordinator.
+
+## Archive verification reconciliation, 2026-11-21
+
+The original verification above matches the
+[public historical artifact](https://github.com/Prosperous-Unification/puni-00/blob/9739ffc29cf11a559ad7c1b29e1ffe133b434ae4/openspec/changes/add-work-item-statuses/verify.md),
+blob `2d0433015ea2f04ef2dac0e8338291492b4813e7`. All 29 original task rows
+remain checked. The original manifest, design, proposal and five delta
+files are preserved.
+
+The first slice recorded the missing-module/export red and the implemented
+status fold at `4663e5c8`, with 36 examples, two 2,000-run properties and 819
+domain passes. `05618c05`, `d0154814` and `5a0ef881` supplied the ordered swap
+guard, storage migration, status commands and readiness comparison. The
+historical verification records the 165/165 swap checks, guarded down
+migration, round trips, no-change and parent-write refusals, rollback CLI
+faults and structural edit reversals. `383b09f5` implemented held scheduling
+reduction. The recorded failures cover held-row null output, unaffected
+schedule identity and Gantt behavior, with reviewed ordering and annotation
+fixes.
+
+`d7328f5c` introduced saved-input schema 4. `912b2970` introduced plan
+document version 6 and `7fcdee09` corrected held-then-done import. These
+are historical writer introductions. The current ordinary and connected
+exporters use versions 11 and 12. D71 retains versions 1–10 on ordinary
+import. The schema-3-to-4 upgrade remains historical. D66 documents the
+8-to-9 upgrade and preservation of stored bytes. New ordinary captures
+use schema 9 and dependency-aware captures use schema 10.
+
+`4f598f75` implemented the table, card and row menu. `534a9fae` supplied
+Gantt presentation. Subsequent fixes covered held branches, the status
+words, accessible glyphs, masking and contrast. The corrected Chromium
+status suite passed 5/5. Restoring the old Done lightness gave 3.9735:1
+against 4.5. The original review cases record the prompt, asymmetrical
+hold behavior, hatching, arrows and authored predecessor text.
+
+[PR 248](https://github.com/Prosperous-Unification/puni-00/pull/248) records
+successful hosted gate and Pixels, including its four shards. The separate
+lint check failed. The PR head `23de52a20766f30eeac3bfae5027b8670dc054b2`
+and merge `e411ffbca53ccecf711846b60558445e20c04e55` share tree
+`6d2faa04345507c6894b0b957ba1882a06763e57`. The historical verification
+left h2puni to the coordinator. [Integration PR 285](https://github.com/Prosperous-Unification/puni-00/pull/285)
+records h2puni printing `9d0aab6c4ebe1e298def1ea42c53020ee99c24ba` and
+`GATE_EXIT=0`. That descendant retains representative status browser,
+CSS, progress, blocking and held-tree blobs. Broader Gantt geometry
+and plan-document integration changed by that run. The receipt applies
+to the integrated shipping version. An exact h2puni receipt for the
+earlier PR 248 head was unavailable.
+
+The sync transfers 14 requirements and 38 scenario identities. It retires
+the former three-state reading, two-command status restriction and single
+menu offer. Their ten examples map to the current folds, one-act effects
+and prompt behavior. The old refusal of `in_progress` is superseded by
+its explicit admission. The former done-leaf example retaining fact
+dates is superseded by the existing fact-date requirement, which clears
+both dates on a row previously reading done and restores them on one undo.
+Other rows’ fact dates stay unchanged. The silent estimated-step example
+continues to use the work-bearing fold, which now includes attempts.
+The proposed all-included rule and blocked last-node change remain in the
+active `fold-over-included-nodes` packet. No product or historical gate
+was executed for this archival reconciliation.

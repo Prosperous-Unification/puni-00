@@ -1332,6 +1332,30 @@
       "id": "TEST-AXES-158",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Shared test evidence refuses collection drift and stale evidence"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-197",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Smoke registers its complete Unit suite"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-198",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Smoke refuses a foreign Unit report or narrowed collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-199",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Runtime Portable registers its complete Unit suite"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-200",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Runtime Portable refuses a foreign Unit report or narrowed collection"
     }
   ]
 }

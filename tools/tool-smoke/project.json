@@ -47,6 +47,20 @@
       },
       "cache": false
     },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../tmp/junit && rm -f ../../tmp/junit/tool-smoke.unit.xml && files=$(find . ! -path . -name '.*' -prune -o -type d -name node_modules -prune -o -type d -name dist -prune -o -type d -name coverage -prune -o -type d -name test-results -prune -o -type f -name '*.test.ts' ! -name '*.db.test.ts' -print) && if [ -z \"$files\" ]; then echo 'no-cases: tool-smoke:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../tmp/junit/tool-smoke.unit.xml --timeout=10000",
+        "cwd": "tools/tool-smoke",
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
+        "forwardAllArgs": false
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

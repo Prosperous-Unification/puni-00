@@ -4,7 +4,7 @@
 - [x] 1.2 Role `gate_host`, playbook `gate-host.yml`, `gate_hosts` group with h4claw.
 - [x] 1.3 Read-only probes; watch the wrong-Bun, dirty-tree, no-Docker and unwritable-lock faults fail in the Docker lab.
 - [x] 1.4 Lab convergence: a fresh Ubuntu 26.04 target, two runs, the second `changed=0`.
-- [ ] 1.5 One real gate in the lab target as `puni1`: started, 162 Nx tasks green, then stopped by laptop memory pressure (verify.md); superseded by 2.2.
+- [x] 1.5 One real gate in the lab target as `puni1`: started, 162 Nx tasks green, then stopped by laptop memory pressure (verify.md). Closed as superseded by 2.2. The original lab terminal result remains unverified.
 - [x] 1.6 Docs: `docs/infra/gate-hosts.md`, linked from `docs/infra/README.md` and `LLM_README.md`.
 - [x] 2.1 Live h4claw: preflight, backup, two applies (second `changed=0`), after Dany authorizes the privileged path. (2026-10-21; the first live gate then exited 127 for want of `node`, fixed by the pinned Node tasks and re-applied, see verify.md.)
 - [x] 2.2 One real gate on h4claw (`GATE_EXIT=0` on 51ca24c6f, 2026-10-21, verify.md step 8); h4claw added to the Gate section of `AGENTS.md`.
@@ -14,4 +14,4 @@
 - [x] 3.1 Parsed real apt-task contract requires Ubuntu `bubblewrap` and `busybox`; watch either package omission fail.
 - [x] 3.2 Gate-account tool probes fail closed for absent, nonexecutable and failing tools; prove command propagation in a controlled nonprivileged harness and record its limits.
 - [x] 3.3 Run focused tests, static checks and OpenSpec validation; freeze source for independent review.
-- [ ] 3.4 Apply through the already reviewed privileged operator path twice (second `changed=0`), then run the exact-SHA canonical gate. Source checks do not complete this host acceptance.
+- [x] 3.4 Apply through the already reviewed privileged operator path twice (second `changed=0`), then run the exact-SHA canonical gate. Source checks do not complete this host acceptance. Fulfilled by the November 5 applies and November 7 exact-head operator receipt in verify.md.

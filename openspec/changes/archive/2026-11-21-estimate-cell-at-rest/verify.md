@@ -187,3 +187,55 @@ None. This slice adds specification artifacts and no production safety check.
 - P3, a measurement and not a gate: the temporary staffed, fractional block on this tree printed `STAFFED {"said":"24.3", "cell":{"width":104}, "box":{"width":30.6875}, "figure":{"width":25.3125}, "clipped":16, "boxType":"10px", "boxFocused":false}` and failed `Expected: <= 0`, `Received: 16`. The spec was restored byte for byte. The same arrangement clips 28px on unchanged main (measured while planning), so this change improves it and does not close it; it is scheduled as its own work item.
 - P5, by eye. Light (the picture the whole-gate run left): in the Dev column the result `4` stands at the right edge in the row's weight and the trio `2/3/8` sits beside it small and grey; it reads as a number with its annotation. Dark (a temporary screenshot line, removed again, the spec restored with `cmp`): the same arrangement, `2/4/6` and `4`; the trio is legible and clearly secondary. Neither palette hides the trio; an unestimated cell shows only its `o/r/p` placeholder.
 - Still owed before landing: the whole `wbs-fe-01` test, typecheck and lint on the final tree, and `bin/h2puni-gate.sh` on the merged commit.
+
+## Archive verification reconciliation, 2026-11-21
+
+The executor record above is preserved as it appeared at the public base
+[`9739ffc2`](https://github.com/Prosperous-Unification/puni-00/blob/9739ffc29cf11a559ad7c1b29e1ffe133b434ae4/openspec/changes/estimate-cell-at-rest/verify.md).
+The original verification blob is `f625c7c6d732d24797a8ead20c73518a24be7670`.
+This reconciliation attributes the original tasks to their historical evidence.
+
+| Task | Recorded acceptance                                                                                                                                                                                                                                                           |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1  | `538cfe98` introduced the five change paths, including the sdd-lean manifest and intent. The original verification recorded four required artifacts.                                                                                                                          |
+| 1.2  | The original change introduced five requirements and eight scenarios. The accepted delta at the public base is blob `4a48ef90b97696312ad3ea46545da95c47308440`.                                                                                                               |
+| 1.3  | The original baseline recorded 65 focused, 153 two-file and 578 Unit passes, strict OpenSpec 103 before and 104 after, and format exit 0.                                                                                                                                     |
+| 2.1  | `add5811c` added four focused tests covering quiet, focus, blur, refusal and parent behavior. Refusal already passed at baseline and its negative is N3.                                                                                                                      |
+| 2.2  | The styling test-first run had 3 failures and 66 passes, including the inherited-size and absent-parent-style observations.                                                                                                                                                   |
+| 2.3  | `add5811c` added focus state, `QUIET_TRIO_PX`, blur restoration and parent styling parity.                                                                                                                                                                                    |
+| 2.4  | Focused 69/69, two files 157/157, Unit 578, typecheck, lint and format passed. N1, N2, N2b, N3 and N4 each failed and restored. The planner separately reproduced N2b.                                                                                                        |
+| 3.1  | `a62da783` updated both component files and the two Chromium geometry cases. The retained cases cover flat, parent, empty, unfolded, result weight/ink/size and tabular numerals.                                                                                             |
+| 3.2  | The rendering test-first run had 16 failures and 145 passes before the renderer changed.                                                                                                                                                                                      |
+| 3.3  | The differing result uses row ink/type and tabular numerals without a separator. `ceb29e31` superseded transparency for equal values. The successor implemented readable shorthand, equal-duplicate suppression and the saved result beside a differing refused draft.        |
+| 3.4  | Focused 73/73, two files 161/161, typed lint, typecheck and format passed. N5, N6, N6b, N7, N8, N8b, N8c and N8d failed and restored. N5 and the equal-transparency N6/N6b records describe the former renderer. The successor records the revised production-path faults.    |
+| 4.1  | `d402baa0` introduced the dark assertion. P4 reported 7.66:1 against 4.5, a transparent-ink failure at 1.00:1 and a restored pass.                                                                                                                                            |
+| 4.2  | The executor recorded focused 73/73, two files 161/161, Unit 578, lint, typecheck, strict OpenSpec 104/104 and format. PR 21 recorded whole frontend checks, format and OpenSpec on its merged-with-main head. The hosted runtime gate and all four Layout Gate steps passed. |
+| 4.3  | The executor recorded pending browser, whole-target, visual and host work at handoff. The original Pending planner verification section remains the record of that handoff.                                                                                                   |
+
+The planner's P0/P1 geometry cases passed before and after. P1b observed four
+computed-style failures and restorations. P2 recorded 376 unsharded Chromium passes
+and 40 skips. P3 recorded 16 px of staffed fractional clipping versus 28 px before.
+The separately owned ellipsis change addresses that finding. P5 retains both written
+visual judgments above, with the dark capture and restoration described in the
+historical record. The PNG bytes were unavailable for this reconciliation.
+
+For P6, [PR 21](https://github.com/Prosperous-Unification/puni-00/pull/21)
+reported h2puni running on `48aab2b62175ba563f0fc1aba0fb848f7f711759`.
+Its terminal result remains unverified. That head and merge
+`553b9b383550e8330a1000b1cd77cfb325251b1a` share tree
+`d6876b750c68a31663be24d7496ea9e2abc4ad9f`.
+The [separate hosted run](https://github.com/Prosperous-Unification/puni-00/actions/runs/35516060361)
+passed the hosted runtime gate, OpenSpec and Pixels. The separate trusted-wiki lint failed.
+
+The later integrated, accepted renderer is qualified by the
+[PR 82 host receipt](https://github.com/Prosperous-Unification/puni-00/pull/82#issuecomment-5851900160).
+It records the printed SHA `6aee2bf80e0ad1349c61c14c66ca28c178bdb05e`,
+`GATE_EXIT=0`, and successful test, lint, typecheck and build for 35 projects.
+That head and merge `aad01af8a7c1affbfa7c1e2e43e7f0b999bab259` share tree
+`b618eb95d2813ec5a0eef23f6c0d92dee5829d25`. The five reviewed estimate files
+match the successor review and integrated versions. The host log itself was not read.
+This receipt applies to the integrated tree and leaves the original run's outcome unknown.
+
+The archive status reported sdd-lean with design ready and `isComplete: false`.
+The historical change used four required artifacts, and its selected archival
+proceeded with that warning. The original `.openspec.yaml` and delta are preserved.

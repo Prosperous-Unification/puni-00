@@ -2,7 +2,27 @@
 
 ### Requirement: Plan transfer preserves typed and legacy dependencies
 
-New-version export SHALL distinguish typed FS, SS and FF endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics without invented explicit scopes. Malformed new-format endpoint, scope, step, missing or unsupported type, or duplicate relationship SHALL be refused before any partial plan write, including a node endpoint on a parent or a descendant-step endpoint on a leaf. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints, step node IDs and stable IDs according to the copy, preserving external links only under the existing duplication policy and never creating dangling or cross-project endpoints.
+New-version export SHALL distinguish typed FS, SS and FF endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics without invented explicit scopes. Malformed new-format endpoint, scope, step, missing or unsupported type, or duplicate relationship SHALL be refused before any partial plan write, including a node endpoint on a parent or a descendant-step endpoint on a leaf.
+
+Internal endpoint references SHALL remain file-local. Import SHALL remap internal work-item and step identities to their newly created destinations. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints, step node IDs and stable IDs and SHALL never produce a dangling reference. Links beyond the copied selection SHALL follow the existing duplication policy. Copy through legacy and local-only formats SHALL NOT create cross-project endpoints. A transfer contract that supports external references SHALL apply the external mapping and copied-successor rules.
+
+#### Scenario: Round-trip multiple step links
+
+- **GIVEN** two distinct FS step relationships between the same work-item pair plus one legacy link
+- **WHEN** a plan is exported and imported
+- **THEN** all three retain their distinct endpoint and reach meanings
+
+#### Scenario: A step reference is absent
+
+- **GIVEN** a new-format import references a step not in its project step list
+- **WHEN** the import is validated
+- **THEN** it is refused without a partial plan write
+
+#### Scenario: Duplicate an internal relationship
+
+- **GIVEN** a subtree contains both endpoints of a typed dependency
+- **WHEN** the subtree is duplicated
+- **THEN** the copied relationship addresses copied work items with a new ID and unchanged scopes/type
 
 #### Scenario: FF round-trip
 
@@ -34,20 +54,8 @@ New-version export SHALL distinguish typed FS, SS and FF endpoint/type relations
 - **WHEN** it is imported
 - **THEN** its dependency retains dynamic project-reach semantics
 
-#### Scenario: Round-trip multiple step links
+#### Scenario: An internal step reference is absent
 
-- **GIVEN** two distinct FS step relationships between the same work-item pair plus one legacy link
-- **WHEN** a plan is exported and imported
-- **THEN** all three retain their distinct endpoint and reach meanings
-
-#### Scenario: A step reference is absent
-
-- **GIVEN** a new-format import references a step not in its project step list
+- **GIVEN** a new-format import references an internal step not in its project step list
 - **WHEN** the import is validated
 - **THEN** it is refused without a partial plan write
-
-#### Scenario: Duplicate an internal relationship
-
-- **GIVEN** a subtree contains both endpoints of a typed dependency
-- **WHEN** the subtree is duplicated
-- **THEN** the copied relationship addresses copied work items with a new ID and unchanged scopes/type

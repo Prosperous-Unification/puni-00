@@ -266,3 +266,44 @@ Independent final-operation review SHA256:
 This restores tool availability only. The full role was not applied, so its
 twice-apply convergence remains unverified. Namespace capability and a subsequent
 exact-SHA canonical gate remain unqualified; no sandbox policy was changed.
+
+## Archive verification reconciliation, 2026-11-21
+
+The original lab, operator and tool records above are preserved from the
+[public verification at `9739ffc2`](https://github.com/Prosperous-Unification/puni-00/blob/9739ffc29cf11a559ad7c1b29e1ffe133b434ae4/openspec/changes/gate-host-role/verify.md),
+blob `e56e53844d1c76e864e07688b55fa7d0b90637c6`.
+
+Task 1.5 is closed as superseded by task 2.2. The lab recorded 162 successful Nx
+tasks before it stopped under laptop memory pressure. Its terminal gate result
+and smoke completion remain unverified. The October 21 h4claw gate printed
+`51ca24c6f26c999367ee573994a6752eb829db5b` and recorded `GATE_EXIT=0` after
+104 minutes. The later reviewed h4claw head `a370595b6d4fe271958c22ea9485fb511b40c799`
+also recorded exit 0. The October 21 final apply pair ended at
+`ok=37 changed=0 failed=0`. These runs precede the sandbox-prerequisites work.
+
+Task 3.4 is closed on the subsequent full applies and the exact-head gate. The
+October 31 Bubblewrap repair and BusyBox readbacks showed tool availability.
+The original record says the full role and subsequent exact-SHA gate were still
+pending at that point.
+
+The [November 5 apply records](https://github.com/Prosperous-Unification/puni-00/blob/9739ffc29cf11a559ad7c1b29e1ffe133b434ae4/openspec/changes/dash-host-jobs/verify.md#2026-11-05-token-unit-apply-converged-on-both-hosts)
+identify the reviewed operator path and h4claw recaps. At
+`149e6e85b5f578b74cb31112a0068698da0b1269`, the first apply had
+`ok=66 changed=1`, the second `changed=0`, and validation `ok=30 failed=0`.
+At `5150237fc7736060b924cc8348df3578b86d577c`, the two full applies reported
+`ok=66 changed=1` and `ok=66 changed=0`. The read-only validation reported
+`ok=30 changed=0 failed=0 skipped=4`.
+
+The [November 7 operator receipt](https://github.com/Prosperous-Unification/puni-00/pull/885#issuecomment-6713910731)
+records `bin/h2puni-gate.sh` on h4claw at
+`190911034599ad4aec2ca02bd976c646baf03f17`, complete at 22:29:53 UTC with
+`GATE_EXIT=0`. The receipt names the exact head and outcome. A separate
+printed running-on line, the underlying gate stdout and private Ansible logs
+were unavailable for this reconciliation. The two November 5 applies and
+November 7 gate follow PR 734's sandbox-prerequisite implementation. The
+playbook and the two November 5 main role task-file blobs match the gate's
+versions. Published evidence covers that historical acceptance.
+
+The archive status reported sdd-lean with design ready and `isComplete: false`.
+The selected archive proceeded with that historical warning. Current host
+validation and the active Dash change's four open tasks remain separate.
