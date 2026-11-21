@@ -2172,7 +2172,7 @@ _Avoid_: platform cluster (for activity execution)
 
 **Node role**:
 The one kind of work a fleet host is reserved for: production apps, non-production apps,
-platform services, observability, or continuous integration. A host holds one node role; its
+platform services, observability, databases, or continuous integration. A host holds one node role; its
 capabilities follow from it.
 _Avoid_: server type, tier, node pool
 

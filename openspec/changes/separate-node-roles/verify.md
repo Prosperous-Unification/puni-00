@@ -364,6 +364,64 @@ Not read or not provable from reading; slice 2.7 owns each:
 - The ApplicationSet documentation was not read; the choice against it rests on the
   bootstrapping guide's description only.
 
+## PostgreSQL hosting added (eighth draft)
+
+Added on 2026-11-21 at the owner's request, after the seventh review's fold. No review has
+read it.
+
+- **Assumptions.** New: R36 to R42. Nothing was renumbered. R33 is decided for staging, on
+  the owner's answer; its dev half stays assumed and belongs to the dev follow-up. R2, R3 and
+  the roles table name the database server. R35's alternative says "one more server".
+- **Decisions.** New decision 11, PostgreSQL hosting. A third decision record. Decisions 1,
+  2, 3, 4, 5, 6, 7, 9 and 10 each gained the rows that concern the database.
+- **Order.** New rows at orders 18 to 20: `cnpg-operator`, `barman-plugin`,
+  `nonproduction-db`, `platform-db`. No existing row moved.
+- **Stages.** New stage 6, database. Stages 0 to 5 are unchanged and none needs it.
+- **Slices.** New phase 4, slices 4.1 to 4.5. 28 slices. The attended steps' heading is now
+  section 5 of tasks.md.
+- **Rules.** The `delivery` family gains rule (o), added by slice 4.3. Rule (n)'s exemption
+  table gains the claims the operator makes for a cluster.
+- **Attended steps.** New: A24 to A28. 28 steps.
+- **Questions.** The question on R33 is closed. Open question 2 is now when to create the
+  database server; open question 3 is Harbor's database. Three remain.
+- **Not carried over from the brief.** Delivery by Flux; the interim scrape into Victoria;
+  the Grafana dashboard, since the Prometheus stack here runs without Grafana; the
+  `enablePodMonitor` field, deprecated at the pinned version; `platform-db` as the home of
+  staging data; the port of WBS as part of this work; prices.
+
+## CloudNativePG behaviour
+
+Read on 2026-11-21 in the operator's documentation at tag `v1.30.2` (released 2026-11-17, the
+current release), the Barman Cloud plugin's at `v0.16.0`, and the charts repository at
+`cloudnative-pg-v0.29.2` and `plugin-barman-cloud-v0.9.0`. Nothing was run.
+
+| Relied on                                                                                                              | Where it was read                                                             |
+| ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Backup to object storage is supported through the Barman Cloud plugin; the in-tree integration is deprecated from 1.26 | `backup.md`, `wal_archiving.md`                                               |
+| 1.31 is the last minor release with the in-tree integration                                                            | `backup.md`. The 1.30 release notes word the removal as "in 1.31.0"           |
+| WAL archiving is a plugin with `isWALArchiver: true`; one at a time; the Barman plugin is the only supported one       | `wal_archiving.md`; the plugin's `usage.md`                                   |
+| The plugin is installed in the operator's namespace, needs operator 1.30 or newer and cert-manager                     | the plugin's `installation.mdx`                                               |
+| An `ObjectStore` resource holds the endpoint, credentials and a recovery-window `retentionPolicy`                      | the plugin's `usage.md`, `retention.md`                                       |
+| A backup names `method: plugin`                                                                                        | `backup.md`; the plugin's `usage.md`                                          |
+| Recovery is never in place: it bootstraps a new cluster, to the end of the archive or to a `targetTime`                | `recovery.md`                                                                 |
+| Metrics are served on port 9187, named `metrics`                                                                       | `monitoring.md`                                                               |
+| `.spec.monitoring.enablePodMonitor` is deprecated; a PodMonitor is to be created by hand                               | `monitoring.md`                                                               |
+| The plugin's backup metrics carry the prefix `barman_cloud_cloudnative_pg_io`; the in-core ones are deprecated         | the plugin's `observability.md`; `monitoring.md`                              |
+| A `Cluster` takes `affinity.nodeSelector` and `tolerations`                                                            | `scheduling.md`                                                               |
+| Local storage is supported; a separate WAL volume cannot be removed once added                                         | `storage.md`                                                                  |
+| A `Database` resource declares a database and its owner; a `DatabaseRole` resource declares a role, new in 1.30        | `declarative_database_management.md`, `declarative_role_management.md`, notes |
+| A role's `passwordSecret` lives in the cluster's namespace, and the operator tracks a change of it                     | `declarative_role_management.md`                                              |
+| PostgreSQL logs go to standard output as JSON; `logging_collector` and `log_destination` are fixed by the operator     | `logging.md`, `postgresql_conf.md`                                            |
+| `shared_preload_libraries` is managed for common extensions such as `pg_stat_statements`                               | `postgresql_conf.md`                                                          |
+| The operator chart renders its CRDs as templates under `crds.create`; it has no `crds/` directory                      | the chart's file list and `values.yaml` at the tag                            |
+| The operator chart has a subchart behind `monitoring.grafanaDashboard.create`                                          | the chart's `Chart.yaml` at the tag                                           |
+
+Not read or not established: the default of `enableSuperuserAccess` (from memory: off); the
+five-minute `archive_timeout` default (from memory); the exact metric names for connections,
+open transactions and archiving age; what the plugin's sidecar and the operator use in memory;
+whether the provider's object storage accepts Barman's requests or encrypts at rest; the
+PostgreSQL major version to pin, which slice 4.2 decides from the operator's supported list.
+
 ## Failure proofs
 
 No check exists yet, so there is nothing to break. Each slice that adds a check names the fault
@@ -413,11 +471,30 @@ After the fifth and sixth reviews, still on 2026-11-21:
 - "yeah - staging and dev must be separate envs" (R29). What each is for he has not said; R33
   is the planning session's reading and awaits him.
 
+After the seventh review, still on 2026-11-21:
+
+- Asked whether staging is automatic from `main`, holds the agents' tracker and promotes to
+  production: "ok for all three" (R33, for staging).
+- He said to go ahead with the escrow of task 0.5. Outside this plan, on 2026-11-21, a copy of
+  the secret files that live on h1claw, the backup archive key and the object storage
+  credentials among them, was taken to an owner-only place off that host: 10 files, and 10
+  of 10 SHA-256 checksums matched their source. No value, path or file name is recorded here.
+  This is not task 0.5's receipt: the read-back on a second machine against the escrow
+  entries is still to do, and so is moving the values the new cluster needs into OpenBao
+  once it exists (A7, A14, A15).
+- "i'll also need you to include hosting postgres in the plan", with a brief from another
+  session; then "this session supersedes the decisions from brief" (R36).
+- On who uses it: "i want everybody to use it once it's in place" (R36). Earlier the same day
+  he had said "I want to use SQLite for as long as possible".
+- On the database server: "just plan for it for now, i'll evaluate the options" (R37).
+
 Not the owner's: R34, that dev is delivered by a follow-up change, is the planning session's
 scoping after the seventh review, and R35 is its statement of what the CI host is trusted
-with. He has seen neither yet.
+with. He has seen neither yet. R38 to R42 are the planning session's too: the operator, the
+layout, where staging's databases run, the recovery targets, and that Harbor keeps its own
+database. He was told of the last and did not object.
 
-Overrules of R1 to R35 beyond these: none yet (task 0.1).
+Overrules of R1 to R42 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -481,7 +558,7 @@ below were run again on this revision, on 2026-11-21.
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                                 | 37 pass, 0 fail, 89 assertions, 4 files                                   |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, empty stderr                                                      |
 | `plaintext-secrets.ts` and `private-nesting.ts` on the five plan files (`tools/tool-git-hooks/src/hooks`)   | each exit 0                                                               |
-| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 398                                                                       |
+| Intent word count of proposal.md, "Why" to "Constraints"                                                    | 397                                                                       |
 
 ## Checks not run
 
@@ -491,10 +568,15 @@ below were run again on this revision, on 2026-11-21.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The seven reviews recorded above read earlier commits.
+- This revision has not been reviewed. The seven reviews recorded above read earlier commits,
+  and none read the PostgreSQL part.
+- No CloudNativePG operator, cluster, backup or restore was run.
 
 ## Primary sources read
 
+- For the eighth draft: the CloudNativePG and Barman Cloud plugin pages listed under
+  "CloudNativePG behaviour"; the `k3s_agent` configuration template; the storage classes;
+  the Velero schedules; the Prometheus stack's selectors and its Grafana setting.
 - For the seventh draft: `solver-supervisor-image-map.ts` and its test, the `solver` role's
   tasks again, and the Argo CD multiple-sources guide at tag `v3.6.2`.
 - For the sixth draft: the five supervisor sources and the `solver` and `gate_host` roles named

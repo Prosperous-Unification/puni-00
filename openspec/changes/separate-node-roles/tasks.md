@@ -1,5 +1,5 @@
-Agent slices (phases 1 to 3) change source and run tests; none touches a host. Attended steps
-(A1 to A23) each name who runs them, the command, the receipt, the stop condition and the
+Agent slices (phases 1 to 4) change source and run tests; none touches a host. Attended steps
+(A1 to A28) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
 removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
@@ -14,10 +14,11 @@ input directory. "Sync" of a platform unit means
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35 and the two open questions in design.md and
-      overrules by id. He confirms or corrects R33, what staging and dev are each for, and
-      may overrule R34 (dev is delivered by a follow-up change) and R35 (the CI host is one
-      trust zone). Rows marked decided record his answers of 2026-11-21. Receipt: the
+- [ ] 0.1 Owner reads assumptions R1 to R42 and the three open questions in design.md and
+      overrules by id. He may overrule R34 (dev is delivered by a follow-up change), R35
+      (the CI host is one trust zone) and R38 to R42 (the shape of the PostgreSQL service,
+      its recovery targets, and Harbor's database). Rows marked decided record his answers
+      of 2026-11-21. Receipt: the
       overrules, dated and quoted, in verify.md. Until then only slices 1.1, 1.2 and 2.1 to
       2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows them.
 - [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
@@ -28,8 +29,9 @@ input directory. "Sync" of a platform unit means
       `proposal.md` and `tasks.md` and makes the amendments of design decision 9. Test:
       `./node_modules/.bin/openspec validate --all --json`.
 - [ ] 0.4 After 0.1: tell the owners of pull request #935, of `dash-host-jobs`, of the release
-      bootstrap and of the WBS deploy tooling what decision 9 asks of each, slice 3.7's list
-      and the build's place beside a gate included, and that this
+      bootstrap and of the WBS deploy tooling what decisions 9 and 11 ask of each, slice
+      3.7's list, the build's place beside a gate and the four port changes included, and
+      that this
       change edits no path the old cluster reconciles, so its pin needs no freeze. Receipt:
       the four messages, dated, in verify.md.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
@@ -500,7 +502,101 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
 The sixth draft's slice 3.9, the dev environment, is not in this change: it is the follow-up
 `add-dev-environment` (R34, design decision 9).
 
-## 4. Attended steps
+## 4. PostgreSQL hosting (agent slices)
+
+All five are due before stage 6 and block nothing earlier (design decision 11, R36 to R42).
+
+- [ ] 4.1 The database role. Add the capability `database` to `CapabilitySchema`,
+      `fleetCapabilities`, `purposeCapabilities.platform` and `RequiredCapabilitiesSchema`. In
+      the production placement check: a node that carries `database` carries nothing else. In
+      the `k3s_agent` template: a node with `database` also writes the taint
+      `puni.dev/role=database:NoSchedule` (R37). The inventory revision for `h10db` follows
+      A24, as slice 1.3 does for every server, with the reservations of design decision 2 and
+      the floor `database: 1`. Test: `contracts.test.ts`; the template renders both taints.
+      Negatives, each with its own fault: a workers node carrying `database` is refused
+      (fault: add it to `purposeCapabilities.workers`); a node with `database` and `product`,
+      or `database` and `ingress`, is refused (fault: compare against `product` only); a
+      `database` agent whose rendered config lacks the taint fails the role test (fault:
+      remove the template branch); an agent without `database` renders no such taint (fault:
+      write it for every agent).
+- [ ] 4.2 Locks and the two operator units. Lock the `cloudnative-pg` chart 0.29.2 and the
+      `plugin-barman-cloud` chart 0.9.0 by digest in `infra/versions/toolchain.json`, with
+      their images and the PostgreSQL operand image by digest, and a schema variant that keeps
+      retained locks readable. Units `cnpg-operator` and `barman-plugin` under
+      `infra/argocd/units` as wrapper charts in one namespace, selecting `platform-services`
+      with the toleration of R25, with limits of 256 MiB each, `ServerSideApply=true`, the
+      chart's PodMonitor and dashboard off, and their Application files at orders 18 and 19.
+      Test: the locked `helm template` of each wrapper succeeds with the network disabled and
+      renders the same bytes twice. Negatives, each with its own fault: an archive whose
+      SHA-256 differs from the lock is refused (fault: skip the comparison); a rendered image
+      without a digest is refused (fault: leave the operand image as a tag); a plugin unit
+      outside the operator's namespace fails the `delivery` check (fault: drop that
+      comparison); an operator unit ordered at or below `policy`, or a plugin ordered at or
+      below `cert-manager`, fails rule (c).
+- [ ] 4.3 The cluster units and rule (o). Units `nonproduction-db` and `platform-db` as
+      kustomize directories in the `platform` project, each with a `Cluster` (one instance,
+      `puni-retain`, the claims of design decision 2, the selector of its node, superuser
+      access off, the plugin as its WAL archiver), an `ObjectStore` with a 30-day recovery
+      window, a nightly `ScheduledBackup` with the method `plugin`, a PodMonitor, the
+      databases `canary-a` and `canary-b` with one `DatabaseRole` each, and ExternalSecrets
+      for the object storage key and the two role passwords; the namespaces `postgres`
+      (environment `platform`) and `postgres-nonproduction` (environment `staging`) in the
+      `namespaces` unit; a SecretStore for each in `secret-sync`; a clause in slice 2.10's
+      placement policy that a pod in `postgres` selects `database`; NetworkPolicies that
+      allow the operator, the scrape and port 5432 from the namespaces that have a database
+      there. The `delivery` family gains rule (o), which refuses: a `Cluster` whose
+      `affinity.nodeSelector` is not the capability design decision 11 names for it; a
+      toleration of the database taint anywhere but `platform-db` and the three node agents;
+      a `Cluster` without `Prune=false` and `Delete=false`, on a storage class that does not
+      retain, with superuser access on, with `enablePodMonitor`, with the in-tree
+      `barmanObjectStore`, or without a WAL-archiving plugin, a `ScheduledBackup` and a
+      PodMonitor of its own unit; an `ObjectStore` of one cluster that reads the credential
+      of the other; a `Database` whose owner role owns another database; a `Cluster`, a
+      `Database` or a `DatabaseRole` in a `staging` or `production` Application; a Velero
+      schedule that includes a database namespace. Rule 2.4(n)'s exemption table gains the
+      claims the operator makes for a `Cluster`, with their backup named. Test: both units
+      render and pass the `delivery` check; on disposable k3d with the operator and an
+      object store fixture, a cluster starts, archives WAL and completes a backup. Negatives:
+      one per refusal above, each with its own row in `check-faults.ts` whose fault is that
+      clause removed; on k3d, the role of `canary-a` is refused a connection to `canary-b`
+      (fault: leave `public` its connect privilege); a pod applied to `postgres` with the
+      `product` selector is denied (fault: bind the clause to `staging` namespaces only).
+- [ ] 4.4 Alerts, logs and query statistics. A PrometheusRule in each cluster unit: data or
+      WAL volume above 80% and above 90%; WAL not archived for 10 minutes; no base backup for
+      26 hours; instance not ready; connections above 80% of the limit; a transaction open
+      for more than 5 minutes; and, for `platform-db`, the restore drill failed or absent.
+      The series names are read first from the operator's default monitoring ConfigMap and
+      the plugin's metrics page at the locked versions and recorded in verify.md. The
+      `Cluster` parameters: `log_min_duration_statement` 500 ms, `log_lock_waits` on,
+      `log_temp_files` 0, `pg_stat_statements` with a custom metrics query for the heaviest
+      statements. No replica-lag rule: it lands with the replica. Test: every rule under
+      `promtool` with a series fixture. Negatives, each with its own fault: each rule fires
+      on its fixture and stays quiet below its threshold; the WAL rule fires when its series
+      is absent (fault: drop the `absent()` branch); the backup rule fires at 27 hours and
+      not at 25 (fault: compare against 48 hours); the drill rule fires when no drill result
+      exists (fault: treat absence as success); a logged statement that carries a connection
+      string is redacted by the collector's rules (fault: remove the pattern). Stop: the
+      collector's redaction cannot cover it. Then statement logging stays off and the owner
+      is told.
+- [ ] 4.5 Dumps, the restore drill and the one-database rollback. In `platform-db`'s unit: a
+      nightly CronJob that dumps each database to its own object under a prefix of its own,
+      kept 90 days by the planner of slice 3.1; a weekly CronJob that restores the cluster
+      from the object store into a throwaway `Cluster` on the database node, runs sanity
+      queries against it, records the duration, deletes it and its claims, and exports the
+      result and its time as a metric; both scheduled apart, and neither at the base backup's
+      hour. A runbook, `docs/infra/postgres-recovery.md`, linked from `docs/infra/README.md`:
+      a full restore; a point-in-time restore beside the live cluster; copying one database
+      back; what a lost database node needs. Test: the dump planner over a fixture listing;
+      on k3d, the drill job restores a fixture cluster and reports; the document tests.
+      Negatives, each with its own fault: a dump listing error deletes nothing (fault: treat
+      a partial listing as complete); the newest dump of a database is never planned for
+      deletion (fault: drop that guard); a drill whose sanity query fails reports failure and
+      still deletes the throwaway cluster (fault: exit before the report); a drill pointed at
+      the live cluster's own name is refused (fault: drop the name comparison); a throwaway
+      cluster that carries a WAL archiver is refused, so a drill can never write into the
+      live archive (fault: copy the live cluster's plugin stanza).
+
+## 5. Attended steps
 
 ### Stage 1: platform
 
@@ -751,3 +847,61 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       decision 10). Command: delete the server in the console. Receipt: the provider's server
       list. Stop: the staging tracker or WBS production has no verified backup under the new
       cluster's prefixes. Rollback: none; that is why the preconditions are receipts.
+
+### Stage 6: database
+
+Not on the path of stages 1 to 5. A26 needs no new server; A24, A25, A27 and A28 start when the
+owner creates one (R37).
+
+- [ ] A24 Create the database server. Who: owner, when he chooses (open question 2), as A1,
+      with 4 vCPUs, 8 GiB and a root disk of at least 135 GiB unless he changes R37. Receipt:
+      as A1. Stop: `df -h /` shows less, or as A1. Rollback: delete the server.
+- [ ] A25 Join it, after its 1.3 revision and slice 4.1. Who: operator. Commands: as A13 for
+      `h10db`, with `playbooks/firewall.yml` limited to the nodes already joined first.
+      Receipt: `h10db` Ready with `puni.dev/capability-database=true` and no other
+      capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
+      only pods on it are the three node agents. Stop: validation fails, or another pod is
+      scheduled there. Rollback: as A13.
+- [ ] A26 The operator, the plugin and the non-production cluster, after stage 3's receipt,
+      slices 4.2 to 4.4 and the store paths design decision 11 asks of pull request #935.
+      Who: operator; owner for the values. Commands: the owner writes into OpenBao the
+      object storage key for the non-production database bucket, one that cannot read a
+      production bucket, and generates the two canary role passwords there; merge the
+      Application files of orders 18 to 20 for these three units; sync `namespaces`,
+      `policy`, `secret-sync`, `cnpg-operator`, `barman-plugin` and `nonproduction-db`;
+      create one on-demand `Backup`; remove the object storage Secret for long enough to see
+      the WAL rule fire, then let it return. After 24 hours read each container's working set
+      and `memory.stat`. Receipt: the three units Synced and Healthy; the operator and plugin
+      pods on h5plat; the instance on h9stg with both claims bound on `puni-retain`; both
+      canary databases present and the role of one refused on the other; a first
+      recoverability point and a completed base backup read from the plugin's metrics; a
+      listing of a production bucket refused with this key; the WAL alert seen firing in
+      Alertmanager and cleared; the per-container memory table and the limits kept or
+      changed by a commit. Stop: a unit is not Healthy after 20 minutes, WAL is not archived,
+      or the key can list a production bucket. Rollback: nothing reads the cluster yet.
+      Reduce the three units to their markers and sync, then remove their Application files;
+      the canary data is disposable and its claims are removed by hand.
+- [ ] A27 The production cluster, after A25 and A26's receipt and slice 4.5. Who: operator;
+      owner for the values. Commands: the owner writes the production database bucket's key
+      and the canary passwords; merge the `platform-db` Application; sync `secret-sync` and
+      `platform-db`; create one on-demand `Backup`; run the dump job once; apply by hand a
+      pod in `postgres` with the `product` selector. After 24 hours read memory as in A26
+      and `kubectl top node h10db`. Receipt: the unit Synced and Healthy; the instance and
+      its sidecar on `h10db` and nothing else there but the node agents; a first
+      recoverability point, a completed base backup and one dump object per database; the
+      hand-applied pod denied; every PostgreSQL rule loaded and none firing; the memory
+      table against design decision 2 and the owner's decision on the server's size. Stop:
+      the instance is killed for memory, the node's available memory falls under 512 MiB, or
+      WAL is not archived. Rollback: as A26; no app has data there.
+- [ ] A28 Prove the restore, after A27. Who: operator. Commands: write a first marker row
+      into `canary-a` and note the time; write a second; run the drill job once by hand;
+      then follow `docs/infra/postgres-recovery.md`: restore `platform-db` beside the live
+      cluster to the noted time, copy `canary-a` back, and delete the side cluster. Receipt:
+      the drill's duration and its sanity result; in the live `canary-a` after the copy, the
+      first marker present and the second absent, and `canary-b` unchanged; the time from
+      the start of the restore to the copy's end, which replaces R41's two hours in
+      design.md by a commit; the drill metric present and its alert quiet; no throwaway
+      cluster or claim left and the disk back to its reading before. Stop: a restore fails,
+      or the copy changes `canary-b`. Then no port may write production data to
+      `platform-db`, and the owners of the port changes are told. Rollback: delete the
+      throwaway clusters; the live cluster is not touched by a restore.
