@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -180,11 +180,12 @@ const runtimeSteps = [
   ['gate_remote', 'Remote — test, lint, typecheck, build'],
   ['gate_remote_model', 'Remote isolated leaf — test'],
   ['gate_frontend', 'Frontend — test, lint, typecheck, build'],
-  ['gate_heavy', 'Heavy — test, lint, typecheck, build'],
+  ['gate_heavy', 'Heavy leaf — test, lint, typecheck, build'],
 ] as const;
 function runtimePartition(job: string): string {
   if (job === 'gate_remote') return 'remote-rest';
   if (job === 'gate_remote_model') return 'remote-model';
+  if (job === 'gate_heavy') return 'heavy-tool-fleet';
   return job.slice(5);
 }
 
@@ -198,14 +199,85 @@ function step(job: string, name: string): string {
   return script;
 }
 
+/**
+ * Stand-ins for the memory scope's privileged chain (A-CI-LEAF-MEMORYMAX-1). `sudo` behaves like
+ * `sudo -n` under env_reset and secure_path: it resolves its program in `bin` alone and starts it
+ * with a reset environment, so the step must restore its own. `systemd-run` and `setpriv` record
+ * their options in SCOPE_CALLS and exec the command after `--`, as `--scope` runs it in place.
+ * `journalctl` stands in for the kernel log the end record filters for OOM-killer lines.
+ */
+function writeScopeChain(bin: string, absent: readonly string[]) {
+  const chain = {
+    sudo: `#!/bin/bash
+[ "$1" = -n ] || { printf 'fake sudo: expected -n\\n' >&2; exit 2; }
+shift
+if [ -n "\${SUDO_STATUS:-}" ]; then printf 'sudo: a password is required\\n' >&2; exit "$SUDO_STATUS"; fi
+[ -x '${bin}'/"$1" ] || { printf 'sudo: %s: command not found\\n' "$1" >&2; exit 1; }
+exec /usr/bin/env -i PATH='${bin}:/usr/bin:/bin' SCOPE_CALLS="$SCOPE_CALLS" '${bin}'/"$1" "\${@:2}"
+`,
+    'systemd-run': `#!/bin/bash
+options=()
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do options+=("$1"); shift; done
+[ "\${1:-}" = -- ] || { printf 'fake systemd-run: missing --\\n' >&2; exit 2; }
+shift
+printf 'systemd-run %s -- %s\\n' "\${options[*]}" "$1" >> "$SCOPE_CALLS"
+exec "$@"
+`,
+    setpriv: `#!/bin/bash
+options=()
+while [ "$#" -gt 0 ] && [ "$1" != -- ]; do options+=("$1"); shift; done
+[ "\${1:-}" = -- ] || { printf 'fake setpriv: missing --\\n' >&2; exit 2; }
+shift
+printf 'setpriv %s -- %s\\n' "\${options[*]}" "$1" >> "$SCOPE_CALLS"
+exec "$@"
+`,
+    journalctl: `#!/bin/bash
+printf 'journalctl %s\\n' "$*" >> "$SCOPE_CALLS"
+printf '2026-11-21T04:40:00+0000 runner kernel: audit: type=1400 apparmor="STATUS"\\n'
+printf '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 4242 (bun) total-vm:9000000kB\\n'
+`,
+  };
+  for (const [name, text] of Object.entries(chain))
+    if (!absent.includes(name)) writeFileSync(join(bin, name), text, { mode: 0o755 });
+}
+
+/** What the memory scope's kernel files report to the probe, and which chain programs are absent. */
+interface ScopeFixture {
+  absent?: readonly string[];
+  memoryMax?: string;
+  swapMax?: string;
+}
+
+/**
+ * The capped steps read the probe scope's memory.max and memory.swap.max under `cgroup_root`. The
+ * fake chain opens no cgroup, so the probe runs in this process's own cgroup: the fixture copies
+ * that path under a scratch root and points the step's one `cgroup_root=` line at it.
+ */
+function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): string {
+  const assignment = 'cgroup_root=/sys/fs/cgroup\n';
+  if (!script.includes(assignment)) return script;
+  expect(script.split(assignment)).toHaveLength(2);
+  const own = /^0::(\/.*)$/m.exec(readFileSync('/proc/self/cgroup', 'utf8'))?.[1];
+  if (own === undefined)
+    throw new Error('The scope fixture requires a cgroup v2 /proc/self/cgroup');
+  const cgroupRoot = join(root, 'cgroup');
+  mkdirSync(join(cgroupRoot, own), { recursive: true });
+  writeFileSync(join(cgroupRoot, own, 'memory.max'), `${fixture.memoryMax ?? '12884901888'}\n`);
+  writeFileSync(join(cgroupRoot, own, 'memory.swap.max'), `${fixture.swapMax ?? '0'}\n`);
+  return script.replace(assignment, `cgroup_root='${cgroupRoot}'\n`);
+}
+
 function runStep(
   h: ReturnType<typeof history>,
-  script: string,
+  production: string,
   env: Record<string, string | undefined> = {},
+  fixture: ScopeFixture = {},
 ) {
   const bin = join(h.root, 'bin');
   mkdirSync(bin, { recursive: true });
   symlinkSync(join(ROOT, 'tools'), join(h.root, 'tools'));
+  writeScopeChain(bin, fixture.absent ?? []);
+  const script = bindScopeCgroup(h.root, production, fixture);
   writeFileSync(
     join(bin, 'bunx'),
     `#!/bin/bash\nprintf '%s\\n' "$*" >> "$NX_CALLS"\nprintf '["wbs-fe-01"]\\n'\n`,
@@ -222,7 +294,10 @@ case "$*" in
     printf '%s\\n' "$*" >> "$NX_CALLS"
     printf '{"schemaVersion":1,"base":"%s","head":"%s","mode":"affected","twilight":"skip","projects":["wbs-fe-01"],"workspaceProjects":["wbs-fe-01"],"partitions":{"backend":[],"remote":[],"frontend":["wbs-fe-01"],"heavy":[],"workspace":[]},"twilightProjects":[],"reasons":["test boundary"]}\\n' "$3" "$4"
     exit 0 ;;
-  *ci-run-runtime.ts*) printf '%s\\n' "$*" >> "$NX_CALLS"; exit "\${RUNTIME_STATUS:-0}" ;;
+  *ci-run-runtime.ts*)
+    printf '%s\\n' "$*" >> "$NX_CALLS"
+    printf 'runtime environment sentinel=%s nodeOptions=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" "\${NODE_OPTIONS:-}" >> "$SCOPE_CALLS"
+    exit "\${RUNTIME_STATUS:-0}" ;;
 esac
 exec '${process.execPath}' "$@"
 `,
@@ -230,8 +305,10 @@ exec '${process.execPath}' "$@"
   );
   const output = join(h.root, 'output');
   const calls = join(h.root, 'calls');
+  const scopeCalls = join(h.root, 'scope-calls');
   writeFileSync(output, '');
   writeFileSync(calls, '');
+  writeFileSync(scopeCalls, '');
   const invocation = Bun.spawnSync(['bash', '-c', script], {
     cwd: h.root,
     env: {
@@ -239,14 +316,27 @@ exec '${process.execPath}' "$@"
       ...h.env,
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
-      RUNTIME_PARTITION: 'remote-model',
+      SCOPE_CALLS: scopeCalls,
+      // Matrix values the shared runtime steps read: the remote-model leaf, and for the heavy
+      // leaf step (the one that reads PHASE_MINUTES) the tool-fleet leaf with its 75m phase.
+      RUNTIME_PARTITION: script.includes('phase_limit="$PHASE_MINUTES"')
+        ? 'heavy-tool-fleet'
+        : 'remote-model',
+      PHASE_MINUTES: '75',
+      // Hermetic: a gate host's own pin (A-NODE-HEAP-1) must not decide the step's NODE_OPTIONS.
+      NODE_OPTIONS: '',
       PATH: `${bin}:${process.env['PATH'] ?? ''}`,
       ...env,
     },
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  return { invocation, output: Bun.file(output), calls: Bun.file(calls) };
+  return {
+    invocation,
+    output: Bun.file(output),
+    calls: Bun.file(calls),
+    scopeCalls: Bun.file(scopeCalls),
+  };
 }
 
 describe('production workflow PR consumers', () => {
@@ -388,29 +478,164 @@ describe('production workflow PR consumers', () => {
 // localise a death in a run whose log survives.
 const headroomShards = [
   ['gate_workspace', 'Gate — test, lint, typecheck, build', 'workspace'],
-  ['gate_heavy', 'Heavy — test, lint, typecheck, build', 'heavy'],
+  ['gate_heavy', 'Heavy leaf — test, lint, typecheck, build', 'heavy-tool-fleet'],
 ] as const;
 
-// A-CI-WORKSPACE-MEMORY-2: the heavy shard reuses the workspace step text. Only two tokens may
-// differ: the partition name and the phase budget (105m workspace, 135m heavy). Any other drift,
-// in the headroom sampler or status handling for example, fails this test.
-// Proof (2026-11-20): a 60 s sampler interval in gate_heavy alone failed it, and so did gate_heavy's
-// phase set back to 105m.
-test('the heavy gate step differs from the workspace step only in partition and phase budget', () => {
+// A-CI-WORKSPACE-MEMORY-3: every heavy leaf runs the workspace step text. Exactly two lines may
+// differ, the partition and phase-budget assignments, which the leaf takes from its matrix entry.
+// Any other drift, in the headroom sampler or status handling for example, fails this test.
+// Proof (2026-11-21): a 60 s sampler interval in gate_heavy alone failed it, and so did a literal
+// `135m` budget in place of "${phase_limit}m".
+test('the heavy leaf step differs from the workspace step only in partition and phase budget', () => {
   const workspace = step('gate_workspace', 'Gate — test, lint, typecheck, build');
-  const heavy = step('gate_heavy', 'Heavy — test, lint, typecheck, build');
-  const budget = (minutes: string) => `timeout --signal=TERM --kill-after=30s ${minutes} \\`;
-  expect(workspace.split(budget('105m'))).toHaveLength(2);
-  expect(heavy.split(budget('135m'))).toHaveLength(2);
-  expect(heavy.split('ci-run-runtime.ts heavy ')).toHaveLength(2);
-  expect(heavy).not.toContain('partition=workspace');
+  const heavy = step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build');
+  const assignments = [
+    ['partition=workspace\n', 'partition="$RUNTIME_PARTITION"\n'],
+    ['phase_limit=105\n', 'phase_limit="$PHASE_MINUTES"\n'],
+  ] as const;
+  for (const [fixed, leaf] of assignments) {
+    expect(workspace.split(fixed)).toHaveLength(2);
+    expect(heavy.split(leaf)).toHaveLength(2);
+  }
+  expect(
+    workspace.split('timeout --signal=TERM --kill-after=30s "${phase_limit}m" \\'),
+  ).toHaveLength(2);
   expect(heavy).toBe(
-    workspace
-      .replaceAll('partition=workspace', 'partition=heavy')
-      .replace('ci-run-runtime.ts workspace ', 'ci-run-runtime.ts heavy ')
-      .replace(budget('105m'), budget('135m')),
+    assignments.reduce((text, [fixed, leaf]) => text.replace(fixed, leaf), workspace),
   );
 });
+
+test('the heavy leaf step refuses a missing, non-numeric or zero phase budget before runtime work', async () => {
+  // `0` would make `timeout 0m` run without a limit.
+  for (const budget of ['', '75m', 'x', '0', '00', '075']) {
+    const h = history();
+    const execution = runStep(h, step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build'), {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      PHASE_MINUTES: budget,
+    });
+    expect(execution.invocation.exitCode, budget).not.toBe(0);
+    expect(execution.invocation.stderr.toString(), budget).toContain(
+      'invalid runtime phase budget',
+    );
+    expect(await execution.calls.text(), budget).not.toContain('ci-run-runtime.ts');
+  }
+});
+
+// A-CI-LEAF-MEMORYMAX-1 (R5-32): the Nx phase runs under a hard MemoryMax scope, so a suite that
+// outgrows it is OOM-killed with a log instead of losing the runner. The ledger holds the exact
+// scope properties, the probe before the gate, the restored identity, the restored environment
+// and the A-NODE-HEAP-1 pin inside it. The probe runs a real `node` through the chain, so the start
+// record's heap figure is the one Node reports inside the scope (#964's first hosted run lost three
+// lints because the outside figure hid a 2240 MB heap inside the cap).
+// Proof (2026-11-21): dropping `-p OOMPolicy=continue`, `-p MemorySwapMax=0`,
+// `--expand-environment=no`, the setpriv line or `env -i "${gate_environment[@]}"` (the runtime
+// then saw an empty sentinel) failed this test, and so did deleting the heap pin (empty
+// nodeOptions). A 137 from the capped phase must reach the phase end record and the step.
+test.each(headroomShards)(
+  '%s step runs its Nx phase in a MemoryMax=12G scope as this user with its environment',
+  async (job, name, partition) => {
+    const id = (flag: string) =>
+      Bun.spawnSync(['id', flag], { stdout: 'pipe' }).stdout.toString().trim();
+    const sentinel = 'spaced value=with\tseparators';
+    for (const [status, inherited, nodeOptions] of [
+      ['0', '', '--max-old-space-size=4096'],
+      ['137', '--enable-source-maps', '--enable-source-maps --max-old-space-size=4096'],
+      ['0', '--max-old-space-size=4096', '--max-old-space-size=4096'],
+    ] as const) {
+      const h = history();
+      const execution = runStep(h, step(job, name), {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+        GATE_ENVIRONMENT_SENTINEL: sentinel,
+        NODE_OPTIONS: inherited,
+      });
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+        Number(status),
+      );
+      const ledger = (await execution.scopeCalls.text()).split('\n').filter(Boolean);
+      const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
+      expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
+      const scope = (suffix: string) =>
+        `systemd-run --scope --quiet --collect --expand-environment=no --unit=${unit}${suffix} ` +
+        '-p MemoryMax=12G -p MemorySwapMax=0 -p OOMPolicy=continue -- setpriv';
+      const identity = `setpriv --reuid=${id('-u')} --regid=${id('-g')} --groups=${id('-G').replaceAll(' ', ',')} -- env`;
+      expect(ledger.slice(0, 5)).toEqual([
+        scope('-probe'),
+        identity,
+        scope(''),
+        identity,
+        `runtime environment sentinel=${sentinel} nodeOptions=${nodeOptions}`,
+      ]);
+      expect(ledger[5]).toMatch(/^journalctl -k --no-pager -o short-iso --since @[0-9]+$/);
+      expect(ledger).toHaveLength(6);
+      expect(await execution.calls.text()).toContain(
+        `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
+      );
+      const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+      const heap = / heapSizeLimit=([0-9]+) memoryMax=12G scope=(\S+)\n/.exec(log);
+      expect(heap?.[2]).toBe(`${unit}.scope`);
+      // The pinned 4096 MiB old space, measured by Node inside the probe scope.
+      expect(Number(heap?.[1])).toBeGreaterThanOrEqual(4294967296);
+      expect(log).toMatch(
+        new RegExp(`runtime phase end partition=${partition} .* exit=${status}\n`),
+      );
+      const kernel = log.indexOf('runtime headroom kernel oom since=@');
+      expect(kernel).toBeGreaterThan(log.indexOf(`runtime headroom end partition=${partition}`));
+      expect(log.slice(kernel)).toContain('Out of memory: Killed process 4242 (bun)');
+      expect(log.slice(kernel)).not.toContain('apparmor');
+    }
+  },
+);
+
+// Proof (2026-11-21): with the probe deleted, an absent systemd-run reached ci-run-runtime.ts;
+// with the probe's report check deleted, memory.max=max, a 3 GiB swap allowance and a 2240 MB heap
+// all reached it; with the heap-figure refusal deleted, a conflicting 2048 pin reached it.
+test.each(headroomShards)(
+  '%s step refuses before runtime work when the memory scope or heap pin is wrong',
+  async (job, name) => {
+    const faults: [string, Partial<Record<string, string>>, ScopeFixture, string][] = [
+      ['absent systemd-run', {}, { absent: ['systemd-run'] }, 'cannot open a MemoryMax=12G'],
+      ['sudo without a password', { SUDO_STATUS: '1' }, {}, 'cannot open a MemoryMax=12G'],
+      ['an unlimited memory.max', {}, { memoryMax: 'max' }, "reported 'memoryMax=max swapMax=0"],
+      ['a swap allowance', {}, { swapMax: '3221225472' }, 'swapMax=3221225472'],
+      ['a constrained heap', { FAKE_NODE_HEAP: '2348810240' }, {}, 'heap limit 2348810240'],
+      [
+        'a conflicting heap figure',
+        { NODE_OPTIONS: '--max-old-space-size=2048' },
+        {},
+        'A-NODE-HEAP-1: NODE_OPTIONS already sets --max-old-space-size=2048',
+      ],
+    ];
+    for (const [fault, env, fixture, message] of faults) {
+      const h = history();
+      if (env['FAKE_NODE_HEAP'] !== undefined) {
+        mkdirSync(join(h.root, 'bin'), { recursive: true });
+        writeFileSync(join(h.root, 'bin', 'node'), '#!/bin/sh\nprintf %s "$FAKE_NODE_HEAP"\n', {
+          mode: 0o755,
+        });
+      }
+      const execution = runStep(
+        h,
+        step(job, name),
+        { GATE_MODE: 'affected', GATE_BASE: h.base, ...env },
+        fixture,
+      );
+      expect(execution.invocation.exitCode, fault).toBe(1);
+      const stderr = execution.invocation.stderr.toString();
+      expect(stderr, fault).toContain(message);
+      expect(await execution.calls.text(), fault).not.toContain('ci-run-runtime.ts');
+      if (!message.startsWith('A-NODE-HEAP-1')) {
+        expect(stderr, fault).toContain('A-CI-LEAF-MEMORYMAX-1: ');
+        const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+        expect(log, fault).toContain('refusing to run the gate uncapped');
+        expect(log, fault).not.toContain('runtime headroom start');
+        expect(log, fault).not.toContain('runtime headroom sampler pid=');
+      }
+    }
+  },
+);
 
 function headroomLog(text: string) {
   const lines = text.split('\n');
@@ -455,7 +680,9 @@ test.each(headroomShards)(
       expect(at(`runtime phase start partition=${partition}`), status).toBe(0);
       expect(start, status).toBe(1);
       expect(lines[start], status).toMatch(
-        / imageOS=ubuntu24 imageVersion=20261116\.376\.1 os=.+ heapSizeLimit=[1-9][0-9]*$/,
+        new RegExp(
+          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G scope=ci-gate-${partition}-[0-9]+\\.scope$`,
+        ),
       );
       expect(
         lines.filter((line) =>

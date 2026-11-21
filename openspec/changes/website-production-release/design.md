@@ -36,7 +36,7 @@ Private pin/rollback and fleet selection must agree. Preserve source/environment
 
 ### Evidence and activation boundary
 
-Public code must stabilize before the exact-SHA host gate; platform namespace/capability changes therefore precede the final gate and private snapshot. Private build and fleet checks use their own Bun/Nx targets. Build receipts name public/private revisions, all canonical tree identities, environment and artifact/configuration hashes. Fleet receipts additionally pin image digests.
+Canonical public product trees must be selected from a stable committed revision and verified in the private snapshot. The checked private build validates the product’s complete Nx scope; the full public repository gate remains separate from release qualification. Private build and Fleet checks use their own Bun/Nx targets. Build receipts name public/private revisions, all canonical tree identities, environment and artifact/configuration hashes. Fleet receipts additionally pin image digests.
 
 Local fixtures prove contracts and isolation. Live checks require authorized operator access: TLS/origin matrix, release identity, production secret provisioning, capped provider identity, current backup/restore and request arrival. The available `puni1@h4claw` account cannot run sudo/kubectl, so prepare exact nonsecret operator commands and record that limitation. Do not probe undocumented credentials or substitute the historical h2 runtime key check for the current deployment identity.
 
@@ -47,7 +47,7 @@ Preparing a compatible baseline adds one release artifact but avoids a complex m
 ## Migration Plan
 
 1. Add public namespace validation and backend capability with observed negative proofs.
-2. Finish the public funnel/analytics/evaluation, then gate a stable public revision.
+2. Finish the public funnel/analytics/evaluation, then validate the product scope at a stable public revision.
 3. Update private dependency closure and environment-aware build/pin tools; prepare compatibility baseline before replacing its landing behavior.
 4. Add the isolated production fleet target and capability policy, with suspended activation and verified release receipts; rehearse both environments on disposable storage.
 5. Present the concrete candidate, evidence and remaining authorized operator actions. Public cutover is a separate decision.

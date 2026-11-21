@@ -379,8 +379,9 @@ describe('the CI gate scope', () => {
       PR_NUMBER: '${{ github.event.pull_request.number }}',
     });
     const commands = oneLine(commandsOf(step.run ?? ''));
+    expect(commands).toContain('partition=workspace phase_limit=105 ');
     expect(commands).toContain(
-      'timeout --signal=TERM --kill-after=30s 105m \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts workspace "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
+      'timeout --signal=TERM --kill-after=30s "${phase_limit}m" \\ bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \\ >> nx-gate.log 2>&1',
     );
     expect(workflow.jobs?.gate_workspace?.['timeout-minutes']).toBe(120);
   });
@@ -505,8 +506,9 @@ describe('the CI gate scope', () => {
     [
       '.github/workflows/ci.yml',
       'gate_heavy',
-      "${{ needs.gate_mode.outputs.mode == 'full' || contains(fromJSON(needs.gate_mode.outputs.projects), 'tool-fleet') }}",
-      'Heavy — test, lint, typecheck, build',
+      // A-CI-WORKSPACE-MEMORY-3: only the tool-fleet leaf runs fleet's source suite.
+      "${{ matrix.project == 'tool-fleet' }}",
+      'Heavy leaf — test, lint, typecheck, build',
     ],
     [
       '.github/workflows/infra-check.yml',
@@ -812,7 +814,7 @@ it('provisions usable bubblewrap before workspace native runtime tests', async (
   expect(steps.indexOf(provision)).toBeLessThan(
     steps.findIndex(
       (step) =>
-        step.run?.includes('ci-run-runtime.ts workspace') === true ||
+        step.run?.includes('ci-run-runtime.ts "$partition"') === true ||
         step.run?.includes('run-many -t test') === true,
     ),
   );

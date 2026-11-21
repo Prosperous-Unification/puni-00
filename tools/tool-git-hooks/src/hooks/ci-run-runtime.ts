@@ -39,14 +39,21 @@ function isProjectNames(names: unknown): names is string[] {
 const WORKSPACE_LINT_PARALLELISM = '--parallel=1';
 
 /**
- * Nx parallelism for a partition's test, typecheck and build. The heavy shard runs its
- * memory- and time-heavy `bun test` suites one at a time (A-CI-WORKSPACE-MEMORY-2): two of them
- * beside each other were the last thing a lost 16 GB runner was doing (R5-32).
- * Proof (2026-11-20): returning `--parallel=2` for heavy failed ci-plan.test.ts `the heavy shard
- * runs its projects one task at a time…` in affected and full modes.
+ * Nx parallelism for an owner's test, typecheck and build. Each heavy leaf runs its project's
+ * memory- and time-heavy `bun test` suite one task at a time (A-CI-WORKSPACE-MEMORY-2, -3).
+ * Proof (2026-11-21): returning `--parallel=2` for heavy failed ci-plan.test.ts `each heavy leaf
+ * runs only its project one task at a time…` in affected and full modes.
  */
-function selectTaskParallelism(partition: string): string {
-  return partition === 'heavy' ? '--parallel=1' : '--parallel=2';
+function selectTaskParallelism(owner: string): string {
+  return owner === 'heavy' ? '--parallel=1' : '--parallel=2';
+}
+
+/**
+ * The heavy project a `heavy-<project>` leaf partition owns, or undefined for any other partition
+ * (A-CI-WORKSPACE-MEMORY-3: one job per heavy project).
+ */
+function selectHeavyLeaf(partition: string): string | undefined {
+  return HEAVY_TEST_PROJECTS.find((project) => partition === `heavy-${project}`);
 }
 
 /** Runs one Nx command and records its real duration and exit status even when the command fails. */
@@ -173,8 +180,8 @@ export async function runRuntime(
       // restored affected/full command ledgers passed (2026-11-05).
       'remote-storage',
       'frontend',
-      // Proof: omitting heavy refused the heavy CLI cases in ci-plan.test.ts (2026-11-20).
-      'heavy',
+      // Proof: omitting the heavy leaves refused every heavy-leaf CLI case in ci-plan.test.ts.
+      ...HEAVY_TEST_PROJECTS.map((project) => `heavy-${project}`),
       'twilight',
     ].includes(partition)
   )
@@ -213,7 +220,11 @@ export async function runRuntime(
   // Proof: omitting this call for selected storage let actual Nx run the canonical fallback
   // marker in full mode; restored storage refusal passed (2026-11-05).
   if (remoteLeaf !== undefined) requireRemoteTarget(repository, remoteLeaf);
-  const owner = remoteLeaf === undefined ? partition : 'remote';
+  const heavyLeaf = selectHeavyLeaf(partition);
+  const owner = remoteLeaf !== undefined ? 'remote' : heavyLeaf !== undefined ? 'heavy' : partition;
+  // Proof: dropping this filter let a heavy leaf run every heavy project; the per-leaf ledgers failed.
+  const ownedBy = (selected: string[]) =>
+    heavyLeaf === undefined ? selected : selected.filter((project) => project === heavyLeaf);
   if (mode === 'full') {
     if (partition === 'twilight') throw new Error('Twilight retains its existing full runner');
     const checkedOut = Bun.spawnSync(['git', 'rev-parse', 'HEAD'], {
@@ -246,7 +257,7 @@ export async function runRuntime(
       names.filter((name) => name !== 'twilight-burokrat' && name !== 'twilight-dash'),
     );
     // Boundary: the initial partition allowlist and full-mode Twilight refusal restrict this key.
-    const projects = owned[owner as RuntimePartition];
+    const projects = ownedBy(owned[owner as RuntimePartition]);
     process.stdout.write(
       `${JSON.stringify({ mode, head, partition, projects, targets: ['test', 'lint', 'typecheck', 'build'] })}\n`,
     );
@@ -273,7 +284,7 @@ export async function runRuntime(
         'build',
         '-p',
         projects.join(','),
-        selectTaskParallelism(partition),
+        selectTaskParallelism(owner),
         '--output-style=stream',
       ]);
       return;
@@ -307,7 +318,7 @@ export async function runRuntime(
     partition === 'twilight'
       ? plan.twilightProjects
       : // Boundary: the initial partition allowlist restricts every remaining key.
-        plan.partitions[owner as RuntimePartition];
+        ownedBy(plan.partitions[owner as RuntimePartition]);
   // Proof: removing this guard made the unexplained Twilight invocation regression falsely succeed.
   if (partition !== 'workspace' && projects.length === 0)
     throw new Error('Selected runtime partition has no projects');
@@ -329,7 +340,7 @@ export async function runRuntime(
       'build',
       '-p',
       complete.join(','),
-      selectTaskParallelism(partition),
+      selectTaskParallelism(owner),
       '--output-style=stream',
     ]);
   }
@@ -341,7 +352,7 @@ export async function runRuntime(
       'build',
       '-p',
       test.project,
-      selectTaskParallelism(partition),
+      selectTaskParallelism(owner),
       '--output-style=stream',
     ]);
     await runNx(repository, [
@@ -395,7 +406,7 @@ if (import.meta.main) {
     repository === undefined
   ) {
     throw new Error(
-      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|heavy|twilight> <base-sha> <head-sha> <repository> [affected|full]',
+      'Usage: ci-run-runtime.ts <workspace|backend|remote|remote-rest|remote-model|remote-model-continuation|remote-source|remote-source-restoration|remote-participant-policy|remote-complete-activation|remote-storage|frontend|heavy-<project>|twilight> <base-sha> <head-sha> <repository> [affected|full]',
     );
   }
   try {

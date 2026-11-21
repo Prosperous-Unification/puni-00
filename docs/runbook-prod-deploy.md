@@ -44,16 +44,17 @@ plan against prod's real state.
 ```sh
 # ON h2puni, once the dagger CLI and a prod checkout (not dev's) exist:
 export REGISTRY=registry.infra.bulletpoints.club REGISTRY_USER=wbs REGISTRY_PASS=$(grep ^REGISTRY_PASS= /home/puni1/wbs/.env | cut -d= -f2-)
-bin/h2puni-gate.sh "$(git rev-parse HEAD)"   # the sha is checked out under the heavy lock
-# The gate skips tool-remote-scripts tests: before `install`, require a green full-mode CI run on
-# main for this SHA, or run each `nx run tool-remote-scripts:test:ci:<leaf>` and test:ci:rest.
+# Complete the product's Nx dependency scope and deployment checks first:
+# docs/runbook-release-validation.md. A full monorepo gate is not required.
+# If swap.js / smoke.js changes ship, run the affected remote-script CI leaves and test:ci:rest.
 bin/publish-release.sh
 bunx nx run tool-remote-scripts:install --execute   # after any swap.js / smoke.js change
 bunx nx run tool-deploy:deploy -- --all --execute
 ```
 
-The gate and publisher share `/home/puni1/.cache/wbs-heavy-work.lock`; either
-refuses immediately with exit 75 when the other owns it. Publishing also
+The repository gate and publisher share `/home/puni1/.cache/wbs-heavy-work.lock`.
+The gate queues by default; the publisher refuses with exit75 while another holder
+owns it. A full repository gate is not a product release prerequisite. Publishing also
 refuses before Dagger starts when available memory is below 8 GiB, combined
 `/tmp` + `/dev/shm` use is above 25%, or one-minute load exceeds the online CPU
 count. Do not bypass these refusals with the underlying Nx target.
