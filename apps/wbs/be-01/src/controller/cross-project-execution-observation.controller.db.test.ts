@@ -189,6 +189,8 @@ function buildSnapshot(canStart: boolean, isClaimed: boolean) {
         capacity: 1,
         occupied: isClaimed ? 1 : 0,
         free: isClaimed ? 0 : 1,
+        occupancyScope: 'project',
+        directory: null,
       },
     ],
     occupancyScope: 'project',

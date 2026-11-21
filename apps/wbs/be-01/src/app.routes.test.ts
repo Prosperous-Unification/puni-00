@@ -12,7 +12,13 @@ import {
   startOidcLogin,
   validateSchema,
 } from '@wbs/contracts';
+import { servicesOver } from '@wbs/core/compose';
+import { CREATOR_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { openMemorySource } from '@wbs/store-memory';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
@@ -51,7 +57,7 @@ import {
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
-import { inMemoryProjects, testProjectService } from './testing/project-fixture';
+import { testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { REQUEST_BODIES, REQUEST_QUERIES } from './testing/route-requests';
@@ -544,7 +550,9 @@ const NO_ORIGIN_OPERATIONS = [
 async function reachabilityOptions(
   mode: 'local' | 'oidc',
 ): Promise<{ options: AppOptions; shapes: readonly (typeof httpShapes)[number][] }> {
-  const users = inMemoryUsers();
+  const { stores, projectReportSnapshot } = openMemorySource();
+  if (projectReportSnapshot === undefined) throw new Error('memory report observer missing');
+  const { users } = stores;
   await users.create(
     {
       id: 'route-owner',
@@ -554,7 +562,6 @@ async function reachabilityOptions(
     },
     { at: 1, by: 'route-owner' },
   );
-  const projects = inMemoryProjects(users);
   const savedPlans = testSavedPlanService();
   spyOn(savedPlans, 'read').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'rename').mockResolvedValue({ outcome: 'not_found' });
@@ -571,13 +578,23 @@ async function reachabilityOptions(
       scopes: ['read', 'write', 'editor'],
     },
   });
+  const { projects, workItems } = servicesOver(stores, {
+    dependencyContext: createLocalDependencyContext(stores),
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    broadcast: recordingBroadcaster(),
+    scheduler: fastScheduler,
+    // Proof: removing this binding made both mounted reachability modes return startable HTTP 500.
+    projectReportSnapshot,
+  });
   const oidc = mode === 'oidc' ? reachabilityOidcOptions() : undefined;
   return {
     options: {
       ...options(),
       appOrigin: ORIGIN,
       auth,
-      projects: testProjectService(projects),
+      projects,
+      workItems,
       savedPlans,
       internalAuthSecret: INTERNAL_SECRET,
       oidc,
