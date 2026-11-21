@@ -59,6 +59,8 @@ it('Task37 retained historical toolchain requires exact independent content hash
     JSON.parse(await readFile(lockPath, 'utf8')),
   );
   Reflect.deleteProperty(lock, 'k3dHelpers');
+  // A historical lock predates the crane pin as well as the helper selection.
+  Reflect.deleteProperty(lock.binaries, 'crane');
   const bytes = JSON.stringify(lock);
   const directory = await scratchAsync('historical-lock-');
   const path = join(directory, 'toolchain.json');

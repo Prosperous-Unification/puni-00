@@ -100,6 +100,8 @@ export interface FixtureJobType {
   enforcement?: 'observe' | 'cap';
   argumentProfile?: string;
   maxRuntimeMinutes?: number;
+  /** Replaces the estimated provenance, as a calibrated or clamped entry (task 6.25). */
+  provenance?: Record<string, unknown>;
 }
 
 /** A Git checkout whose HEAD commits `infra/jobs/catalogue.json` with `types`. */
@@ -136,7 +138,11 @@ export function catalogueOf(types: readonly FixtureJobType[]) {
       ...(jobType.maxRuntimeMinutes === undefined
         ? {}
         : { maxRuntimeMinutes: jobType.maxRuntimeMinutes }),
-      provenance: { kind: 'estimated', basis: 'test fixture', until: '2099-12-31' },
+      provenance: jobType.provenance ?? {
+        kind: 'estimated',
+        basis: 'test fixture',
+        until: '2099-12-31',
+      },
     })),
   };
 }
@@ -167,8 +173,9 @@ export function refusingSystemdRun(directory: string, diagnostic: string): strin
 export type FakeSystemdRun = 'exec' | 'exits' | 'sleeps' | 'vanishes';
 
 /**
- * A directory holding a fake `systemd-run` (see {@link FakeSystemdRun}), to put first on `PATH`.
- * A launch writes `<directory>/launched` before it behaves.
+ * A directory holding a fake `systemd-run` (see {@link FakeSystemdRun}) and a `kills`
+ * {@link fakeSystemctl} beside it, to put first on `PATH`. A launch writes
+ * `<directory>/launched` before it behaves.
  */
 export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): string {
   mkdirSync(directory, { recursive: true });
@@ -181,6 +188,8 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
   payloadScript(
     join(directory, 'systemd-run'),
     [
+      // Every call's arguments, one line each, so a test can read the scope's properties.
+      `printf '%s\\n' "$*" >> ${join(directory, 'calls')}`,
       'while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done',
       'shift',
       ...(behaviour === 'vanishes' ? ['rm -f -- "$0"'] : []),
@@ -188,6 +197,49 @@ export function fakeSystemdRun(directory: string, behaviour: FakeSystemdRun): st
       `: > ${join(directory, 'launched')}`,
       launch,
     ].join('\n'),
+  );
+  fakeSystemctl(directory, 'kills');
+  return directory;
+}
+
+/**
+ * How a fake `systemctl` treats the runtime bound's calls (task 6.14) and the leftover ending's
+ * (task 6.24): `kills` accepts `--user set-property --runtime <scope> MemoryHigh=infinity` and
+ * answers `--user kill --signal=SIGKILL|SIGTERM dash-job-<id>.scope` as a cgroup-wide kill
+ * would, sending that signal to every process carrying `DASH_JOB_ID=<id>`, the fake scope's
+ * members ({@link fakeScopeTelemetry}); `fails` prints a diagnostic and exits 1 for every call.
+ * Any other argument list exits 2, a scope named without `.scope` included.
+ */
+export type FakeSystemctl = 'kills' | 'fails';
+
+/**
+ * Write a fake `systemctl` (see {@link FakeSystemctl}) into `directory`, which appends each
+ * call's arguments as one line to `<directory>/systemctl.log`.
+ */
+export function fakeSystemctl(directory: string, behaviour: FakeSystemctl): string {
+  mkdirSync(directory, { recursive: true });
+  const answer = {
+    kills: [
+      'case "$*" in',
+      '  "--user set-property --runtime dash-job-"*".scope MemoryHigh=infinity") exit 0 ;;',
+      '  "--user kill --signal=SIGKILL dash-job-"*".scope") signal=KILL ;;',
+      '  "--user kill --signal=SIGTERM dash-job-"*".scope") signal=TERM ;;',
+      '  *) exit 2 ;;',
+      'esac',
+      'id=${4#dash-job-}',
+      'id=${id%.scope}',
+      'for environ in /proc/[0-9]*/environ; do',
+      '  if tr "\\0" "\\n" 2>/dev/null < "$environ" | grep -qx "DASH_JOB_ID=$id"; then',
+      '    pid=${environ#/proc/}',
+      '    kill -"$signal" "${pid%/environ}" 2>/dev/null || :',
+      '  fi',
+      'done',
+    ],
+    fails: ["printf '%s\\n' 'Failed to connect to bus: No medium found' >&2", 'exit 1'],
+  }[behaviour];
+  payloadScript(
+    join(directory, 'systemctl'),
+    [`printf '%s\\n' "$*" >> ${join(directory, 'systemctl.log')}`, ...answer].join('\n'),
   );
   return directory;
 }
@@ -245,6 +297,8 @@ export function fakeScopeTelemetry(root: string): ScopeTelemetry & {
       return cgroup;
     },
     read: (cgroup) => real.read(cgroup),
+    // A fake scope holds counter files only: no cgroup is ever nested below it.
+    children: () => [],
     members: (cgroup) => {
       const id = /\/dash-job-(.+)\.scope$/.exec(cgroup)?.[1];
       if (id === undefined) return [];

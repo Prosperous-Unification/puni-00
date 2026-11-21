@@ -132,7 +132,7 @@ export async function startRegistryPressureWriter(installed: RegistryMaintenance
         pid: number;
         startTicks: string;
         exitCode: number;
-        signal: string | null;
+        signal: Bun.Subprocess['signalCode'];
         groupAbsent: true;
       }>
     | undefined;

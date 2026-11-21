@@ -23,14 +23,20 @@ describe('the container watch against a stub docker (review F2f, F8, F11)', () =
 
   /**
    * A stub CLI: the streaming `events` prints `stream` then waits; `events --until` prints
-   * `replay`, or fails when `replay-fails` exists; `inspect` prints `inspect`.
+   * `replay`, or fails when `replay-fails` exists; `inspect` prints `inspect` (256 MiB and one
+   * core unless given).
    */
-  function stubDocker(files: { stream?: string; replay?: string; replayFails?: boolean }) {
+  function stubDocker(files: {
+    stream?: string;
+    replay?: string;
+    replayFails?: boolean;
+    inspect?: string;
+  }) {
     const directory = mkdtempSync(join(tmpdir(), 'dash-stub-docker-'));
     directories.push(directory);
     writeFileSync(join(directory, 'stream'), files.stream ?? '');
     writeFileSync(join(directory, 'replay'), files.replay ?? '');
-    writeFileSync(join(directory, 'inspect'), '268435456 1000000000\n');
+    writeFileSync(join(directory, 'inspect'), files.inspect ?? '268435456 1000000000\n');
     if (files.replayFails === true) writeFileSync(join(directory, 'replay-fails'), '');
     const docker = join(directory, 'docker');
     writeFileSync(
@@ -109,5 +115,81 @@ describe('the container watch against a stub docker (review F2f, F8, F11)', () =
         reason: 'docker events stream failed: an event line exceeds 1048576 bytes',
       },
     ]);
+  });
+
+  describe('host-service containers beside the job (task 6.22, A-ATTR-HOSTSVC-1)', () => {
+    const service = { 'puni.host-service': 'goaccess-reports' };
+
+    test('a labelled, bounded host-service container is attributed as host-service', async () => {
+      const docker = stubDocker({
+        replay: `${event(container(1), service)}\n`,
+        inspect: '536870912 1000000000\n',
+      });
+      expect(await watch(docker).finish(1800000001000)).toEqual([
+        {
+          id: container(1),
+          verdict: 'host-service',
+          reason: 'host service goaccess-reports, memory 536870912 bytes, 1 cores',
+          hostService: { name: 'goaccess-reports', memoryBytes: 536870912, cpuCores: 1 },
+        },
+      ]);
+    });
+
+    test('a host-service container without --memory or --cpus stays unlabelled, naming the missing bound', async () => {
+      const unbounded = stubDocker({
+        replay: `${event(container(1), service)}\n`,
+        inspect: '0 0\n',
+      });
+      const uncapped = stubDocker({
+        replay: `${event(container(2), service)}\n`,
+        inspect: '536870912 0\n',
+      });
+      expect([
+        ...(await watch(unbounded).finish(1800000001000)),
+        ...(await watch(uncapped).finish(1800000001000)),
+      ]).toEqual([
+        {
+          id: container(1),
+          verdict: 'unlabelled',
+          reason:
+            'container from busybox is labelled puni.host-service=goaccess-reports but started without --memory and --cpus; a host service is attributed only under declared bounds',
+        },
+        {
+          id: container(2),
+          verdict: 'unlabelled',
+          reason:
+            'container from busybox is labelled puni.host-service=goaccess-reports but started without --cpus; a host service is attributed only under declared bounds',
+        },
+      ]);
+    });
+
+    test('a container with both labels is judged as the job container it names', async () => {
+      const docker = stubDocker({
+        replay: `${event(container(1), { ...service, 'puni.job': 'job-one' })}\n`,
+        inspect: '2147483648 1000000000\n',
+      });
+      expect(await watch(docker).finish(1800000001000)).toEqual([
+        {
+          id: container(1),
+          verdict: 'unbounded',
+          reason: 'container from busybox has memory limit 2147483648, bound 1073741824 bytes',
+        },
+      ]);
+    });
+
+    test('a host-service label with no name is unlabelled', async () => {
+      const docker = stubDocker({
+        replay: `${event(container(1), { 'puni.host-service': '' })}\n`,
+        inspect: '536870912 1000000000\n',
+      });
+      expect(await watch(docker).finish(1800000001000)).toEqual([
+        {
+          id: container(1),
+          verdict: 'unlabelled',
+          reason:
+            'container from busybox is labelled puni.host-service with no name; a host service is attributed only by name',
+        },
+      ]);
+    });
   });
 });

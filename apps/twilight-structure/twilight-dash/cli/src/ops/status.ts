@@ -9,6 +9,8 @@ export interface JobPeak {
   memoryBytes: number | null;
   /** The largest `memory.events high` sampled: above zero, the scope is throttled. */
   memoryHighEvents: number;
+  /** The run record's leftover note (`leftoverNote`, task 6.24), printed under the job's line. */
+  leftoverNote?: string;
 }
 
 /** `1h02m`, `3m05s` or `45s`; a negative span reads `0s`. */
@@ -28,7 +30,8 @@ export function formatSpan(milliseconds: number): string {
  * age, envelope, peak so far, units held, settlement state), then each waiter oldest first (age,
  * budget left, overtake count). `peaks` maps a job id to its run record's {@link JobPeak}; a
  * job with no record or no counter reads `peak unmeasured`, and one whose scope sampled
- * `memory.events high` above zero reads `throttled (memory.events high <n>)` after its peak.
+ * `memory.events high` above zero reads `throttled (memory.events high <n>)` after its peak, and
+ * one whose record ended leftover processes gets that note on the next line (task 6.24).
  * The pool line names the mode and, in concurrent mode, the singleton guard and its holder; a
  * live `switch-mode` gets a line of its own. `legacy`, while the shell lock matters (observe mode, or the guard on), follows verbatim
  * as `bin/with-heavy-lock.sh status` prints it, holder first (J12, J13).
@@ -72,6 +75,13 @@ export function formatHostPoolStatus(
     const highEvents = sampled?.memoryHighEvents ?? 0;
     // Proof: never printing the marker failed `a throttled job says so beside its peak`
     // (status.test.ts) on the running line (2026-11-12).
+    const bound = job.descriptor.memoryBoundGib;
+    // Proof: dropping it made `a clamped job names its MemoryHigh beside the envelope`
+    // (status.test.ts) find `envelope 4 cores 6 GiB 0 GiB tmp peak` (2026-11-20, S25-A6).
+    const memoryHigh =
+      bound === undefined || bound === envelope.memoryGib
+        ? ''
+        : ` (MemoryHigh ${String(bound)} GiB)`;
     const throttled = highEvents > 0 ? ` throttled (memory.events high ${String(highEvents)})` : '';
     const units =
       job.units.length === 0
@@ -83,8 +93,11 @@ export function formatHostPoolStatus(
       ...job.units.map((unit) => `${unit.exclusiveId} ${unit.state}`),
     ].join(', ');
     lines.push(
-      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`}${throttled} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}${job.guardLost === undefined ? '' : `; singleton guard (pid ${job.guardLost.holderPid === null ? 'unrecorded' : String(job.guardLost.holderPid)}) lost ${formatSpan(now - job.guardLost.at)} ago`}`,
+      `running ${job.calibration === true ? 'calibration ' : ''}${job.descriptor.id} ${job.label} pid ${job.process === null ? '-' : String(job.process.pid)} age ${formatSpan(now - (job.startedAt ?? job.admittedAt))} envelope ${String(envelope.cpuCores)} cores ${String(envelope.memoryGib)} GiB${memoryHigh} ${String(envelope.tmpDiskGib)} GiB tmp peak ${peak === null ? 'unmeasured' : `${(peak / GIB).toFixed(1)} GiB`}${throttled} units ${units} settlement ${job.state} (${entries})${job.launchFailure === undefined ? '' : `; ${job.launchFailure}`}${job.guardLost === undefined ? '' : `; singleton guard (pid ${job.guardLost.holderPid === null ? 'unrecorded' : String(job.guardLost.holderPid)}) lost ${formatSpan(now - job.guardLost.at)} ago`}`,
     );
+    // Proof: dropping this line made `a job whose leftovers survived SIGKILL says so under its
+    // line` (status.test.ts) find no note (2026-11-19, task 6.24).
+    if (sampled?.leftoverNote !== undefined) lines.push(`note: ${sampled.leftoverNote}`);
   }
   if (status.waiters.length === 0) lines.push('waiting none');
   for (const waiter of status.waiters)

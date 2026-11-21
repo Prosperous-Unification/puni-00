@@ -2044,6 +2044,10 @@ export interface ProjectApi {
    * one undo.
    */
   setStatus(id: string, status: SettableStatus, on: IsoDate, factStart?: IsoDate): Promise<void>;
+  /** States progress for one step node without changing another step's statement. */
+  setProgress(id: string, stepId: string, state: StepState): Promise<void>;
+  /** Removes one step node's progress statement; Unknown is absence. */
+  clearProgress(id: string, stepId: string): Promise<void>;
   /**
    * Starts the next attempt at one step node, numbered its highest plus one,
    * now by be-01's clock. Refused `node_done`, `attempt_running`. One journal
@@ -3467,6 +3471,12 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         on,
         ...(factStart === undefined ? {} : { factStart }),
       });
+    },
+    async setProgress(id, stepId, state) {
+      await onRow(id, { kind: 'setProgress', workItemId: id, stepId, state });
+    },
+    async clearProgress(id, stepId) {
+      await onRow(id, { kind: 'clearProgress', workItemId: id, stepId });
     },
     async setStepBlocked(id, stepId, isBlocked) {
       await onRow(id, { kind: 'setStepBlocked', workItemId: id, stepId, isBlocked });

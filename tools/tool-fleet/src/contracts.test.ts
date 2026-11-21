@@ -1,10 +1,11 @@
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { readToolchain } from './contracts';
+import { decodeRetainedToolchain, readToolchain } from './contracts';
 import { selectedHelpers } from './k3d-helper-images.fixture.test';
 
 const sha256 = 'a'.repeat(64);
@@ -99,6 +100,14 @@ const validToolchain = {
       version: '2.102.1',
       url: 'https://example.test/gh.deb',
       sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
+    crane: {
+      version: 'v0.22.1',
+      url: 'https://example.test/crane.tar.gz',
+      sha256,
+      executableSha256: sha256,
       os: 'linux',
       arch: 'amd64',
     },
@@ -232,6 +241,34 @@ describe('readToolchain', () => {
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /gateGh/,
     );
+  });
+
+  it('rejects a missing crane lock', async () => {
+    const { crane: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /crane/,
+    );
+  });
+
+  it('requires a separately locked crane executable digest', async () => {
+    const { executableSha256: _removed, ...crane } = validToolchain.binaries.crane;
+    const path = await writeToolchain({
+      ...validToolchain,
+      binaries: { ...validToolchain.binaries, crane },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/executableSha256/);
+  });
+
+  it('reads the committed crane pin', async () => {
+    const path = join(import.meta.dir, '../../../infra/versions/toolchain.json');
+    expect((await readToolchain(path)).binaries.crane).toEqual({
+      version: 'v0.22.1',
+      url: 'https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz',
+      sha256: '0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0',
+      executableSha256: '8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992',
+      os: 'linux',
+      arch: 'amd64',
+    });
   });
 
   it('rejects a missing solver Bun lock and an unpinned host package', async () => {
@@ -383,4 +420,99 @@ describe('readToolchain', () => {
     await writeFile(path, '{');
     expect(readToolchain(path)).rejects.toThrow(/required toolchain.*valid JSON/i);
   });
+});
+
+describe('decodeRetainedToolchain', () => {
+  // Exact bytes of infra/versions/toolchain.json at 1b94e080b (the last main revision before the
+  // crane pin: k3dHelpers, no crane) and at 6a374c83a (before the k3d helper selection). Files on
+  // disk rather than `git show`, so a depth-1 checkout runs these tests too.
+  const helperLock = {
+    file: 'toolchain-k3d-helpers-without-crane.json',
+    sha256: '5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e',
+  };
+  const historicalLock = {
+    file: 'toolchain-historical.json',
+    sha256: '4a5353e0b60d6cb9720d48cb695ea81766e198daff0beb64707925558ad6bc05',
+  };
+
+  async function readRetainedBytes(lock: { file: string; sha256: string }): Promise<Uint8Array> {
+    const bytes = await Bun.file(join(import.meta.dir, 'fixtures', lock.file)).bytes();
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(lock.sha256);
+    return bytes;
+  }
+
+  function sealed(value: unknown): { bytes: Uint8Array; sha256: string } {
+    const bytes = new TextEncoder().encode(JSON.stringify(value));
+    return { bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
+  }
+
+  it('still decodes a retained k3dHelpers lock committed before the crane pin', async () => {
+    const bytes = await readRetainedBytes(helperLock);
+    const lock = decodeRetainedToolchain(bytes, helperLock.sha256);
+    expect('k3dHelpers' in lock).toBe(true);
+    expect(lock.binaries).not.toHaveProperty('crane');
+    const path = await writeToolchain(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    expect(readToolchain(path)).rejects.toThrow(/crane/);
+  });
+
+  it('still checks k3d agreement on a retained k3dHelpers lock', async () => {
+    const lock = JSON.parse(Buffer.from(await readRetainedBytes(helperLock)).toString('utf8')) as {
+      binaries: { k3d: { version: string } };
+    };
+    lock.binaries.k3d.version = 'v5.9.1';
+    const { bytes, sha256: lockSha256 } = sealed(lock);
+    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(/k3d binary version differs/);
+  });
+
+  it('decodes a retained historical lock and the current lock', async () => {
+    const historical = decodeRetainedToolchain(
+      await readRetainedBytes(historicalLock),
+      historicalLock.sha256,
+    );
+    expect(historical).not.toHaveProperty('k3dHelpers');
+    const current = sealed(validToolchain);
+    expect(decodeRetainedToolchain(current.bytes, current.sha256).binaries).toHaveProperty('crane');
+  });
+
+  it('refuses a retained lock that has crane but no k3d helper selection', () => {
+    const { k3dHelpers: _removed, ...withoutHelpers } = validToolchain;
+    const { bytes, sha256: lockSha256 } = sealed(withoutHelpers);
+    // Proof: adding a historical variant that also admits crane (HistoricalToolchainSchema with
+    // an optional crane) made this resolve instead of throw (2026-11-17).
+    expect(() => decodeRetainedToolchain(bytes, lockSha256)).toThrow(/crane must be removed/);
+  });
+});
+
+describe('crane digest copies', () => {
+  const root = join(import.meta.dir, '../../..');
+  // The lifecycle code keeps its own literal digests; each pattern must match exactly once.
+  const copies = [
+    { file: 'tools/tool-fleet/src/registry-client-software.ts', pattern: /x64: '([0-9a-f]{64})'/g },
+    {
+      file: 'infra/ansible/roles/registry_storage/tasks/client-source.yml',
+      pattern: /stat\.checksum == '([0-9a-f]{64})'/g,
+    },
+    {
+      file: 'tools/tool-fleet/src/registry-client-installation-role.native.py',
+      pattern: /hash_file\(options\.crane\)!='([0-9a-f]{64})'/g,
+    },
+    {
+      file: 'tools/tool-fleet/src/registry-client-role-worker.fixture.py',
+      pattern: /'registry_client_source':\{'stat':\{'isreg':False,'checksum':'([0-9a-f]{64})'\}/g,
+    },
+  ];
+
+  for (const { file, pattern } of copies) {
+    it(`pins the locked crane executable in ${file}`, async () => {
+      const { executableSha256 } = (
+        await readToolchain(join(root, 'infra/versions/toolchain.json'))
+      ).binaries.crane;
+      // Proof: changing binaries.crane.executableSha256 in the committed lock to 64 `d`s made
+      // all four cases fail (2026-11-17).
+      const digests = [...(await Bun.file(join(root, file)).text()).matchAll(pattern)].map(
+        (match) => match[1],
+      );
+      expect(digests).toEqual([executableSha256]);
+    });
+  }
 });

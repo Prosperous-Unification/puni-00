@@ -1,5 +1,5 @@
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 import type { JobTypeDescriptor } from '../resources/host-pool';
 import { causeText, OpsRefusal } from './refusal';
@@ -30,6 +30,8 @@ export interface ScopeTelemetry {
   read(cgroup: string): ScopeCounters;
   /** The scope's member pids; empty once the scope is gone or has emptied. */
   members(cgroup: string): number[];
+  /** The cgroup paths directly below `cgroup`; empty once it is gone. */
+  children(cgroup: string): string[];
 }
 
 function counterFile(directory: string, name: string): string {
@@ -109,6 +111,16 @@ export function linuxScopeTelemetry(root = '/sys/fs/cgroup'): ScopeTelemetry {
         .filter((line) => line.trim() !== '')
         .map(Number);
     },
+    children: (cgroup) => {
+      try {
+        return readdirSync(directoryOf(cgroup), { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => join(cgroup, entry.name));
+      } catch (cause) {
+        if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return [];
+        throw new Error(`cgroups below ${cgroup} unreadable: ${causeText(cause)}`, { cause });
+      }
+    },
   };
 }
 
@@ -117,9 +129,108 @@ export function scopeUnitOf(jobId: string): string {
   return `dash-job-${jobId}`;
 }
 
+/** Refuse any cgroup but host job `jobId`'s own scope: a parent slice, another job's scope. */
+function checkJobScope(cgroup: string, jobId: string): void {
+  // Proof: without this refusal `a parent slice or another job's scope is never enumerated`
+  // (scope.test.ts) listed the slice's pid 7 (2026-11-19, task 6.24).
+  if (!cgroup.endsWith(`/${scopeUnitOf(jobId)}.scope`))
+    throw new Error(`${cgroup} is not the scope of host job ${jobId}`);
+}
+
+/**
+ * The pids directly in host job `jobId`'s own scope (task 6.24), the ones its run record
+ * describes: `cgroup.procs` of that cgroup alone, which the kernel lists without the processes of
+ * any cgroup nested below it; empty once the scope emptied or was collected. A `j19-holder-*`
+ * scope the gate's tests start is a sibling under the slice, never below the job's scope
+ * (`systemd-run --scope` puts each transient unit under a slice); a cgroup a payload creates
+ * below its own scope is counted by {@link scopeSubtreeMembers} instead, never described.
+ * @throws Error when `cgroup` is not `…/dash-job-<jobId>.scope`, or when its members are
+ * unreadable.
+ */
+export function leftoverMembers(
+  telemetry: ScopeTelemetry,
+  cgroup: string,
+  jobId: string,
+): number[] {
+  checkJobScope(cgroup, jobId);
+  return telemetry.members(cgroup);
+}
+
+/** How many cgroups {@link scopeSubtreeMembers} reads before it refuses. */
+export const SCOPE_SUBTREE_LIMIT = 64;
+
+/**
+ * Every pid in host job `jobId`'s scope and in any cgroup nested below it: what
+ * `systemctl --user kill` reaches, since it signals the unit's whole subtree, so what the
+ * leftover ending must see gone before it calls the scope empty (task 6.24, review of #954 S3-2).
+ * @throws Error when `cgroup` is not the job's own scope, when any cgroup of the subtree is
+ * unreadable, or past {@link SCOPE_SUBTREE_LIMIT} cgroups.
+ */
+export function scopeSubtreeMembers(
+  telemetry: ScopeTelemetry,
+  cgroup: string,
+  jobId: string,
+): number[] {
+  checkJobScope(cgroup, jobId);
+  const pending = [cgroup];
+  const pids: number[] = [];
+  for (let read = 0; pending.length > 0; read++) {
+    if (read === SCOPE_SUBTREE_LIMIT)
+      throw new Error(`${cgroup} has more than ${String(SCOPE_SUBTREE_LIMIT)} cgroups`);
+    const next = pending.pop();
+    if (next === undefined) break;
+    pids.push(...telemetry.members(next));
+    pending.push(...telemetry.children(next));
+  }
+  return pids;
+}
+
+/** How much of a leftover's command line a run record keeps. */
+export const LEFTOVER_CMDLINE_LIMIT = 120;
+
+/** One process left in a job's scope after its session ended, as the run record keeps it. */
+export interface LeftoverProcess {
+  pid: number;
+  /** `/proc/<pid>/comm`. */
+  comm: string;
+  /** `/proc/<pid>/cmdline`, arguments joined by spaces, at most {@link LEFTOVER_CMDLINE_LIMIT}. */
+  cmdline: string;
+}
+
+/**
+ * `pid`'s comm and command line, or null once it is gone: a leftover that exits while it is
+ * described has ended on its own and is only counted. A file unreadable for another reason reads
+ * `?` and an empty command line: evidence text only, the pid is the record and changes no decision.
+ */
+export function describeLeftover(pid: number, proc = '/proc'): LeftoverProcess | null {
+  const read = (name: string): string | null => {
+    try {
+      return readFileSync(join(proc, String(pid), name), 'utf8');
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return null;
+      // Evidence text only, as the runtime's `commOf` reads it.
+      return '?';
+    }
+  };
+  const comm = read('comm');
+  const cmdline = read('cmdline');
+  if (comm === null || cmdline === null) return null;
+  return {
+    pid,
+    comm: comm.trim(),
+    cmdline: (cmdline === '?' ? '' : cmdline)
+      .split('\0')
+      .filter((word) => word !== '')
+      .join(' ')
+      .slice(0, LEFTOVER_CMDLINE_LIMIT),
+  };
+}
+
 /**
  * `systemd-run`'s arguments for a host job's scope (J7): a user scope named after the use,
- * collected even when it fails, `MemoryHigh` at the envelope and `MemoryMax` too for `cap`;
+ * collected even when it fails, `MemoryHigh` at the descriptor's `memoryBoundGib` when it has
+ * one (a `memoryGib` clamped to the pool, `scopeMemoryBound` in `catalogue.ts`), else at the
+ * envelope's `memoryGib`, and `MemoryMax` too for `cap`;
  * a calibration run sets neither, so its peak is the job's own (J9).
  * `--expand-environment=no` keeps `$` in the payload's words literal: systemd 254 warns that it
  * will otherwise start expanding them.
@@ -129,7 +240,7 @@ export function scopeArguments(
   descriptor: JobTypeDescriptor,
   isCalibration: boolean,
 ): string[] {
-  const memory = `${String(descriptor.envelope.memoryGib)}G`;
+  const memory = `${String(descriptor.memoryBoundGib ?? descriptor.envelope.memoryGib)}G`;
   // Proof: dropping the calibration branch failed `a calibration scope sets no memory bound …`
   // (calibrate.test.ts, `MemoryHigh=6G`, `MemoryMax=6G`) and, on a real user manager,
   // `a calibration runs with no MemoryHigh` (2026-11-02, Slice 4).
@@ -207,36 +318,85 @@ export function checkScopeAvailable(
   return systemdRun;
 }
 
+/** The most unreadable paths one tmp sample lists; the rest are only counted. */
+export const UNREADABLE_PATH_LIMIT = 32;
+
+/** What one walk of a directory read: see {@link directoryUsage}. */
+export interface DirectoryUsage {
+  /** Bytes allocated under the directory that the walk could read: a lower bound when `unreadable` is not empty. */
+  bytes: number;
+  /** Paths relative to the directory whose entries could not be read, sorted, at most {@link UNREADABLE_PATH_LIMIT}. */
+  unreadable: string[];
+  /** How many more unreadable paths there were than `unreadable` lists. */
+  unreadableOmitted: number;
+}
+
+function codeOf(cause: unknown): unknown {
+  return cause instanceof Error && 'code' in cause ? cause.code : undefined;
+}
+
+/** EACCES or EPERM: a subtree the sampler's user may not read, not a broken reading. */
+function isDenied(cause: unknown): boolean {
+  const code = codeOf(cause);
+  return code === 'EACCES' || code === 'EPERM';
+}
+
 /**
  * Bytes allocated under `directory` (`du`'s figure: allocated blocks, each hard-linked inode
- * once), walking without following symbolic links. A file that vanishes mid-walk counts as gone.
- * @throws Error when an entry exists but cannot be read.
+ * once), walking without following symbolic links. Below the directory itself, an entry that
+ * vanishes mid-walk counts as gone, and one the walk may not read (EACCES, EPERM: a payload's
+ * mode-0 test fixture, task 6.23) is listed in `unreadable` while the walk goes on, so `bytes`
+ * is then a lower bound.
+ * @throws Error when `directory` itself is absent or unreadable, or an entry fails otherwise.
  */
-export function directoryBytes(directory: string): number {
+export function directoryUsage(directory: string): DirectoryUsage {
   const seen = new Set<string>();
-  let total = 0;
+  const unreadable: string[] = [];
+  let bytes = 0;
   const visit = (path: string): void => {
+    const isRoot = path === directory;
     let identity;
     try {
       identity = lstatSync(path);
     } catch (cause) {
-      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+      // Proof: tolerating ENOENT for the directory itself made `an absent tmp directory is
+      // still a failure` (scope.test.ts) return zero bytes; rethrowing it here or at the listing
+      // below made `an entry that vanishes mid-walk counts as gone` throw (2026-11-19, task 6.23).
+      if (!isRoot && codeOf(cause) === 'ENOENT') return;
+      if (!isRoot && isDenied(cause)) {
+        unreadable.push(relative(directory, path));
+        return;
+      }
       throw cause;
     }
     const key = `${String(identity.dev)}:${String(identity.ino)}`;
     if (seen.has(key)) return;
     seen.add(key);
-    total += identity.blocks * 512;
+    bytes += identity.blocks * 512;
     if (!identity.isDirectory()) return;
     let entries: string[];
     try {
       entries = readdirSync(path);
     } catch (cause) {
-      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+      if (!isRoot && codeOf(cause) === 'ENOENT') return;
+      // Proof: rethrowing EACCES here made `a mode-0 subdirectory is listed and the rest is
+      // counted` (scope.test.ts) throw `EACCES: permission denied, scandir` (2026-11-19, task 6.23);
+      // tolerating it for the root made `an unreadable tmp directory is still a failure` return.
+      if (!isRoot && isDenied(cause)) {
+        unreadable.push(relative(directory, path));
+        return;
+      }
       throw cause;
     }
     for (const entry of entries) visit(join(path, entry));
   };
   visit(directory);
-  return total;
+  unreadable.sort();
+  return {
+    bytes,
+    // Proof: listing every path made `unreadable paths are sorted and bounded, the rest counted`
+    // (scope.test.ts) find 35 paths (2026-11-19, task 6.23).
+    unreadable: unreadable.slice(0, UNREADABLE_PATH_LIMIT),
+    unreadableOmitted: Math.max(0, unreadable.length - UNREADABLE_PATH_LIMIT),
+  };
 }

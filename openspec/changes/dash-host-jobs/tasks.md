@@ -228,10 +228,13 @@
       h4claw, 2026-11-12 (verify.md "2026-11-12 h4claw restart proof"): converging apply `changed=2`
       (the unit file and the daemon-reload) then `changed=0`; an observed `kill -9` of the watch's
       `MainPID` with systemd restarting it 30 s later (`NRestarts` 0 → 1) and `ops pool inspect`
-      identical before and after; `--tags validate` `changed=0`. Still owed: the same on h2puni
-      with its enrollment, and the guard holder surviving a restart (concurrent mode, 6.5).
+      identical before and after; `--tags validate` `changed=0`. h2puni, 2026-11-17 (verify.md
+      "2026-11-17 h2puni enrolled"): the same proof on the enrollment visit, `kill -9` at 20:44:54Z,
+      active again at 20:45:24Z with `NRestarts` 0 → 1. Still owed: the guard holder surviving a
+      restart (concurrent mode, 6.5).
 - [x] 6.7a Code (slice 6c): the role installs `dash-resources-watch.service`
-      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; `RestartSec=30`, `KillMode=process`,
+      (`Restart=always`; `on-failure` until 2026-11-12, see 6.7; h2puni's unit carries `always` since
+      its 2026-11-17 apply; `RestartSec=30`, `KillMode=process`,
       skipped until the ledger exists) and the audit pair `ops job render-audit-units` renders. It enables them on an
       enrolled host and never starts them. The restart proof on a host stays in 6.7
       (verify.md Slice 6c).
@@ -244,6 +247,12 @@
       the run record's container samples) before any type runs with `enforcement: cap`: their
       `--memory 1g --cpus 1` is the declared `gate` bound, applied only inside a Dash job and not
       yet measured (slice 6a review F4).
+      Enrollment half DONE: h4claw 2026-11-08 (verify.md "2026-11-08 h4claw enrolled in observe
+      mode"), h2puni 2026-11-17 (verify.md "2026-11-17 h2puni enrolled": apply `changed=4` then
+      `changed=0`, `ops pool init`, units started, `--tags validate` `ok=31 changed=0`; allocatable
+      6 cores, 9 GiB, 12 disk units, 4 slots). Open: the observe week on both hosts, the five
+      calibrations (`gate` on h4claw: job 22ce2369 ended 2026-11-17 21:02Z, see 6.14; the armed watcher
+      runs the three calibrations once its hold is reclaimed), the catalogue PRs.
 - [x] 6.5a Code (slice 6b): `ops pool switch-mode concurrent|observe`, with `--release-guard`
       and `--allow-empty`: the intake fence on new tickets (queued ones keep their place,
       S6B-A16), the pool and shell-lock drain, launcher shim verification (library, `bin/`
@@ -341,3 +350,156 @@
       branch and watch it fail. Done in PR #929 (slice 6i): `host-job-container-bound.ts`
       in tool-remote-scripts. `docker build` stays unattributed, and the peaks stay unmeasured
       until 6.4, so `gate` stays out of `concurrencyEligible`.
+
+- [x] 6.14 End a job cgroup-wide at the runtime bound, lifting `MemoryHigh` first (incident
+      2026-11-17, h4claw job 22ce2369, verify.md): an operator `SIGTERM` to the launcher ended the
+      launcher but left the scope active for hours with the payload in D state under
+      `mem_cgroup_handle_over_high`, until `systemctl --user kill --signal=SIGKILL <scope>` ended
+      it in 17 s. Two gaps: `killSession` is `process.kill(-pid, signal)`, which reaches the
+      leader's process group only while the scope also holds `setsid`'d descendants (the nx
+      daemon, a stray `git checkout`); and a handled or trapped SIGTERM under the `memory.high`
+      throttle runs its handler at 2 s per return to user mode, so the settle budget passes before
+      a clean exit. `ops job run` therefore ends a job at the bound in three steps: raise the
+      scope's `MemoryHigh` to `infinity` (the operator form is
+      `systemctl --user set-property --runtime <scope> MemoryHigh=infinity`), SIGTERM the
+      process group, then after the settle budget
+      `systemctl --user kill --signal=SIGKILL <scope>` (the cgroup-wide kill the runbook names)
+      instead of a group SIGKILL; the operator runbook names the same three steps for
+      a manual end. Test: a payload that `setsid`s a child in `job-run.test.ts`'s namespace leaves
+      no process in the scope after the bound; negative: with the group kill restored the child
+      survives and the test fails. Done (PR #942, verify.md 2026-11-18): `endPayload` lifts,
+      SIGTERMs and SIGKILLs the scope, and `killLeftovers` SIGKILLs what is left once the leader
+      exits; negatives `members` `[93]` and `[90]` against `[]`.
+- [x] 6.15 `sweep` settles a dead launcher's job with real container evidence (incident 2026-11-17,
+      h4claw job 22ce2369): after a cgroup-wide SIGKILL ended every process, the job stayed
+      `running … settlement unknown` with 4 cores, 6 GiB and a gate tree reserved, because
+      `ResourceRuntime.sweep` settled with `declaredContainersOnly`, which never clears a type that
+      declares a containers bound; only `ops job run` read Docker. Now the runtime carries the
+      evidence `useContainerEvidence` injects and `resources watch` / `resources sweep` inject
+      Docker's reading when the CLI is on `PATH` (`resources/container-evidence.ts`, shared with
+      `ops/containers.ts`). Test: `sweep-container-evidence.test.ts` (four cases, one through `runResources` with a
+      stub `docker` on `PATH`); negative: with
+      `declaredContainersOnly` restored in `sweep`, `Expected: "released" Received: "held"`.
+- [x] 6.16 Tmp removal accepts hard links that stay inside the directory (incident 2026-11-17/18,
+      h4claw, twice, PR #943): be-01 backup fixtures hardlink `wbs-backup-*/wbs.db` to its
+      `.original` twin inside the gate's `$TMPDIR`, and the remover refused every `nlink>1` file,
+      so every gate left its tmp entry `blocked` with its disk units charged. `removeDirectory`
+      now surveys the tree first and refuses only an inode with a link outside it. Test:
+      `host-jobs.test.ts` in-tree links released, an in-tree pair with an outside third link
+      blocked and untouched; negative: with the single-pass guard restored, the first sees
+      `descriptor-relative removal refused`.
+- [x] 6.17 tool-fleet gate tests are host-independent: a registry host's root-owned /etc/puni
+      (EACCES) and a test user whose gid differs from its uid (h4claw) no longer fail the gate
+      (PR #944). `registry-managed-journal.test.ts` accepts `ENOENT` or `EACCES` only from the
+      enrollment `realpath`; in `registry-maintenance-channel.test.ts` the acceptance case runs
+      where uid == gid and a new same-uid, different-gid refusal case runs where uid != gid, so
+      one of them runs on any host (lock verification itself is proven only where uid == gid);
+      negatives: the two h4claw calibration failures, reproduced under `sg docker` (verify.md,
+      2026-11-18).
+- [x] 6.18 host gate payload skips the tool-remote-scripts canonical test batch (A-GATE-REMOTE-1;
+      PR #946; issue #945): the hosts run the remote model family 2.5-4x over its fixed budgets,
+      so the gate took 9+ h and failed deadline-bound cases. `bin/h2puni-gate-steps.sh` excludes
+      `tool-remote-scripts` from the first `run-many` and runs its `lint`, `typecheck` and `build`
+      on their own line; CI's isolated leaf jobs stay the authority. Test: `toolchain-pins.test.ts`
+      pins both; negatives: the pre-6.18 script and the line deleted alone (verify.md, 2026-11-18).
+- [x] 6.19 host gate payload runs nx with --parallel=1 (A-GATE-PARALLEL-1; PR #947): at
+      `--parallel=2` the trimmed gate's true peak exceeds h4claw's 15 GiB (OOM kill 59 min into a
+      calibration). `bin/h2puni-gate-steps.sh` runs all three `run-many` lines at `--parallel=1`.
+      Test: `toolchain-pins.test.ts` pins the three lines; negatives: the `--parallel=2` script
+      and each later line restored alone (verify.md, 2026-11-18).
+- [x] 6.20 J19 hold tests start their predating holder outside the gate's own Dash job scope
+      (PR #950): under the host gate the test process runs in a `dash-job-<uuid>.scope`, so a
+      plainly spawned non-dumpable holder shared it, counted as Dash-owned work and was refused
+      (h4claw calibration job 0650f314, main 4cace4ed9). When its own cgroup is a Dash job scope,
+      `resource-holds.test.ts` starts the two predating holders in a fresh user scope
+      `j19-holder-<uuid>` through `systemd-run --user --scope`, and skips with a reason naming
+      the cgroup only when that is unavailable there; production code unchanged. Negative: the
+      unmodified file under a fake `dash-job-<uuid>.scope` on the laptop failed both tests as on
+      h4claw (verify.md, 2026-11-18).
+- [x] 6.21 gate hosts install docker-buildx; the solver smoke refuses the legacy builder inside a
+      job (PR #951): without the buildx plugin, Ubuntu's `docker.io` 29.1.3 runs the smoke's
+      `docker build` on the legacy builder, whose per-step intermediate containers carry no
+      `puni.job` label, so `ops job propose` excluded every gate record as "container attribution
+      incomplete" (h4claw job ef8e1ce6). The `gate_host` role installs `docker-buildx` pinned at
+      `puni_gate_docker_buildx_version`, asserts it with `dpkg-query` and validates
+      `docker buildx version` as `puni1`; inside a Dash job `solver-image-smoke.sh` refuses to
+      build when `docker buildx version` fails and forces `DOCKER_BUILDKIT=1`, and, since the
+      smoke is the gate's last step, `bin/h2puni-gate.sh` refuses 70 on an enrolled host before
+      queueing. Tests: `ansible.test.ts`,
+      `solver-image-smoke.test.ts`, `launchers.test.ts`; negatives: the pre-6.21 role, the probe with its status
+      masked, the smoke without its guard or export, and the launcher without its preflight (verify.md, 2026-11-19). A fleet apply on h2puni and
+      h4claw follows the merge (S21-A2).
+- [x] 6.22 host-service containers beside a job are attributed when labelled and bounded
+      (A-ATTR-HOSTSVC-1; PR #952): h2puni's hourly goaccess cron and the `keinos/sqlite3`
+      backups start containers without `puni.job`, so every gate longer than an hour recorded
+      an unlabelled container. A container labelled `puni.host-service=<name>` with `--memory`
+      and `--cpus` is now verdict `host-service` (name and bounds in the run record), leaves the
+      attribution complete and is listed by `ops job audit`; without a bound it stays
+      `unlabelled`; `puni.job` wins. Tests: `containers.test.ts`, `run-records.test.ts`,
+      `audit.test.ts`, `propose.test.ts`, `job-run.test.ts`; negatives: each new check removed
+      in turn (verify.md, 2026-11-19). Changing the host scripts follows the merge (S22-A2).
+- [x] 6.23 tmp telemetry tolerates unreadable subtrees; completeness per dimension
+      (A-TMP-TELEMETRY-1; PR #953): the gate's own be-01 test leaves a mode-0 `inaccessible`
+      directory under `TMPDIR`, so the tmp walk's EACCES voided h4claw's first complete BuildKit
+      calibration e15a97eb whole. The walk now lists unreadable subtrees (`tmpUnreadable`, at
+      most 32, the rest counted) and counts the rest as a lower bound; the tmp directory itself
+      absent or unreadable is still a telemetry failure. `dimensionStandings` (`measures.ts`)
+      makes such a record complete for memory, CPU and duration and a tmp lower bound;
+      `ops job propose` names it `tmp lower bound only` and falls back to lower bounds for
+      tmp only below three measured records, never lowering the entry and marking the
+      provenance `tmpDiskGibLowerBound: true` (Burokrat `JobType`); `ops job audit` notes the
+      paths, keeps them out of `waste` and never judges tmp waste for a marked entry. Old
+      samples load with no paths. Tests: `scope.test.ts`, `measures.test.ts`,
+      `propose.test.ts`, `audit.test.ts`, `run-records.test.ts`, `job-run.test.ts`,
+      Burokrat `job-catalogue.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-19).
+- [x] 6.24 a job's leftover scope processes are ended before tmp settlement
+      (A-SCOPE-LEFTOVER-1; PR #954): every gate calibration left `node serve.cjs` test servers
+      in `dash-job-<id>.scope` after an exit 0, holding `TMPDIR`, so tmp stayed blocked until an
+      operator SIGKILLed the scope. Once the leader has exited and its session has no live
+      member, and after the run's end time and the ledger's exit are taken, `endLeftovers`
+      (`ops/job-run.ts`, absorbing the bound's `killLeftovers`) counts the scope's cgroup
+      subtree (`scopeSubtreeMembers`, `ops/scope.ts`), describes up to eight of its own members
+      (`leftoverMembers`), sends SIGTERM to the scope, SIGKILL after 10 s, waits up to 20 s for
+      it to empty, and records `leftoverProcesses` (`none`, `SIGTERM`, `SIGKILL`, `timeout`,
+      or `signal-failed` and `unverified` with their failure); every other outcome than the
+      first three leaves tmp blocked and says so. `ops job status` and `ops job audit` print the
+      note. Tests: `scope.test.ts`, `run-records.test.ts`, `audit.test.ts`, `status.test.ts`,
+      `job-run.test.ts` (fake seam, and the real seam outside the namespace); negatives: each
+      new check removed in turn, Fable review fixes included (verify.md, 2026-11-19). The host
+      proof follows the next calibration (S24-A3).
+- [x] 6.25 the measured gate envelope, clamped to the pool (A-ENVELOPE-CLAMP-1; PR #955):
+      three complete h4claw gate calibrations (29b8b406, 29d3503e, 43923656) proposed 13 GiB
+      and 9 cores, which no enrolled pool holds and J5 would refuse 73 on every gate.
+      `ops job propose` clamps a heuristic figure above the pool's largest admissible envelope
+      (`ResourceRuntime.largestEnvelope`) and records `clampedToAllocatable` and `heuristic`
+      (Burokrat `CalibratedProvenance`); `JOB-CATALOGUE` judges a clamped dimension's
+      heuristic against its p95 and refuses an envelope above it or an unknown dimension;
+      `ops job audit` marks an overrun of a clamped dimension expected, keeps it as drift,
+      notes it, never judges it for waste and, up to its heuristic, exits 0 when it is the only
+      drift. A clamped dimension reserves the pool's whole allocatable (S25-A7) and its type may
+      not be concurrency-eligible; a clamped `memoryGib` runs under `MemoryHigh` at the lower of
+      its heuristic and the pool's budget less `memoryBoundHeadroomGib` (default 2), pinned as
+      `memoryBoundGib` (S25-A6); `cap` on it is refused by the lint and at launch;
+      `CalibratedProvenance` gains `notes`. The `gate` entry lands clamped by hand to h2puni's
+      pool: 6 cores, 9 GiB, 11 GiB tmp; MemoryHigh 13 GiB on h4claw, 12 on h2puni. Tests: `propose.test.ts`, `audit.test.ts`, `calibrate.test.ts`,
+      `job-run.test.ts`, `status.test.ts`, `host-jobs.test.ts`, `host-pool-mode.test.ts`,
+      Burokrat `job-catalogue.test.ts`
+      (contract and rule); negatives: each new check removed in turn (verify.md, 2026-11-20).
+- [x] 6.26 the gate payload pins the Node heap (A-NODE-HEAP-1; PR #956): Node sizes its
+      default old space from the job scope's `MemoryHigh` (2240 MB under 13 GiB on h4claw against
+      4288 MB plain), so the first ordinary gate under the measured entry (h4claw job f776195f)
+      lost four lint tasks to a heap out of memory its unbounded calibrations never met.
+      `bin/h2puni-gate-steps.sh` exports `NODE_OPTIONS` with `--max-old-space-size=4096`,
+      keeping inherited options and refusing 78 another heap figure. Test:
+      `bin/h2puni-gate.test.sh` case 48; negatives: the pin block deleted, the refusal branch
+      deleted (verify.md, 2026-11-20). The host proof is the next gate on a launcher carrying
+      this change (S26-A3).
+- [x] 6.27 the host gate prunes the solver smoke's BuildKit cache (A-GATE-SMOKE-CACHE-1; PR #965):
+      each gate's smoke left 3.72 GB of build cache on h2puni, whose calibration admission needs
+      23.62 GB free, so a three-run calibration series refused its second run without an
+      operator prune. `bin/h2puni-gate-steps.sh` keeps the smoke's status, runs
+      `docker builder prune -af` whatever it was, and exits with the smoke's status, or non-zero
+      naming the prune when the prune fails. Test: `bin/h2puni-gate.test.sh` case 49; negatives:
+      the prune deleted, its status ignored, the smoke's status dropped, the prune moved above
+      the smoke, the smoke unguarded (verify.md, 2026-11-21). The host proof is the next
+      calibration series on h2puni (S27-A3).

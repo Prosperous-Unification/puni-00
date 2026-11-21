@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import type { CheckRunner, CheckTools } from './check';
 import { readCheckTools } from './check';
-import { readToolchain } from './contracts';
+import { type CraneLock, readToolchain } from './contracts';
 
 interface Artifact {
   readonly name: string;
@@ -81,6 +81,45 @@ export async function installLockedTool(
     throw new Error(`${artifact.name}: cannot extract ${artifact.member}: ${untar.stderr.trim()}`);
   }
   return join(extracted, artifact.member);
+}
+
+/**
+ * Installs the locked crane client into `cache` and returns `<cache>/crane-<version>/crane`.
+ * The archive goes through {@link installLockedTool}, so a download whose digest differs from
+ * `lock.sha256` throws before extraction. That extraction lands in the staging directory
+ * `crane-<version>/extracted`; the staged `crane` must hash to `lock.executableSha256` before it
+ * is renamed onto the returned path. On a mismatch the staging directory is removed and this
+ * throws naming both digests, so a mismatched client is never placed at the returned path, never
+ * returned and never executed here. A kill before the check leaves at most the staging directory,
+ * which the next install replaces. Any earlier file at the returned path is removed first, so a
+ * failed install leaves no executable there. The cache is single-writer: concurrent installs into
+ * one cache directory are not supported and fail loudly.
+ */
+export async function installLockedCrane(
+  lock: CraneLock,
+  cache: string,
+  run: CheckRunner,
+): Promise<string> {
+  const executable = join(cache, `crane-${lock.version}`, 'crane');
+  // Proof: without this removal check.test.ts `removes an earlier crane at the canonical path when
+  // the archive differs` (and `… executable differs`) found the planted file still there (2026-11-17).
+  await rm(executable, { force: true });
+  const staged = await installLockedTool({ name: 'crane', ...lock, member: 'crane' }, cache, run);
+  const staging = dirname(staged);
+  const actual = sha256Of(await readFile(staged));
+  // Proof: removing this comparison made check.test.ts `refuses an extracted crane whose digest
+  // differs from the lock, leaving no crane` install and return the mismatched client (2026-11-17).
+  if (actual !== lock.executableSha256) {
+    // Proof: removing this removal made the same test find the staging directory left behind.
+    await rm(staging, { recursive: true, force: true });
+    throw new Error(
+      `crane ${lock.version} extracted from ${lock.url} has sha256 ${actual}; ` +
+        `the lock requires ${lock.executableSha256}`,
+    );
+  }
+  await rename(staged, executable);
+  await rm(staging, { recursive: true, force: true });
+  return executable;
 }
 
 /**

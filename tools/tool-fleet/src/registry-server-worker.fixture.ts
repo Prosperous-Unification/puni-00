@@ -351,7 +351,7 @@ await completeRegistryFixture(async () => {
   const members: unknown[] = cause instanceof AggregateError ? cause.errors : [];
   const secondary = members.at(1);
   let code: number | null = null,
-    signal: string | null = null,
+    signal: Bun.Subprocess['signalCode'] = null,
     groupAbsent: boolean | null = null;
   if (request.family === 'native') {
     if (child === undefined) throw new Error('Missing owned native server child');

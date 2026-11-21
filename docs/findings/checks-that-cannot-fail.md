@@ -112,6 +112,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-29    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-31    | none — see [R5-31](#an-applied-role-can-report-success-over-a-lock-out)                          |
+| R5-32    | none — see [R5-32](#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)                   |
 
 ## Bun forced recursive removal can leave its root
 
@@ -173,6 +174,381 @@ puni_gate_authorized_keys lists 3` and the previous live file intact; with the c
 it passed. A task that names an exact result is a
 claim until a read-only probe of that result can fail
 ([verify.md](../../openspec/changes/dash-host-jobs/verify.md)).
+
+## A lost hosted runner leaves no step conclusion and no log
+
+**R5-32**, observed 2026-11-18 to 2026-11-20 on the CI `gate workspace` job (`ubuntu-24.04`
+hosted runner, 4 vCPU, 16 GB). Eight jobs ended with the single annotation `The hosted
+runner lost communication with the server. Anything in your workflow that terminates the
+runner process, starves it for CPU/Memory, or blocks its network access can cause this error.`
+Six were full-mode runs on main:
+
+| Job          | Commit                | Run                    |
+| ------------ | --------------------- | ---------------------- |
+| 134530902111 | `22d150553` (PR #943) | 44223434187            |
+| 134597863162 | `ce847c595`           | 44243790538            |
+| 134855261065 | `4cace4ed9`           | 44319636759            |
+| 135387150530 | `3a7f081f0`           | 44473060503            |
+| 135837476331 | `2c11ec61c`           | 44602477262            |
+| 136177983041 | `1730d911f`           | 44703647201, attempt 1 |
+
+Two were affected-mode pull-request runs: job 135532626496 (`02cbdae10`, run 44516096113)
+and job 136115143031 (PR #955, run 44684301175 attempt 1). Every rerun of the same code
+passed. GitHub declared the six full-mode losses 74 to 75 minutes after the gate step began,
+and a passing full-mode phase takes 71m25s. The two pull-request losses were declared 71m23s
+and 71m43s into the step. A declaration time is when GitHub stopped waiting, not when the
+runner died.
+
+The failure is silent in R5's sense. The gate step never concludes: job 136177983041 still
+reports it `in_progress` with conclusion `null`. No `runtime phase end` record is written and
+no `nx-gate.log` artifact is uploaded, because the upload step dies with the runner even
+though it is `if: always()`. `Require every gate shard` then fails on the job result alone.
+Main stays red with no failed assertion to read. Nothing distinguishes a real defect from the
+runner, and any rerun "fixes" it.
+
+### What the evidence does and does not show
+
+Memory starvation is the working hypothesis; no log can prove it. On h4claw (15 GiB) the same
+gate at `--parallel=2` was OOM-killed twice, peaking at 13.9 GiB, and passes at `--parallel=1`
+(A-GATE-PARALLEL-1, [verify.md](../../openspec/changes/dash-host-jobs/verify.md) task 6.19).
+
+The timings do not localise the death to lint.
+
+- **Full mode.** The workspace shard lints only its own residual projects; `wbs-be-01` and
+  `wbs-fe-01` are linted in the backend and frontend shards. The heaviest workspace lints
+  peaked locally at 2.8 GiB RSS (`wbs-core`) and 3.0 GiB (`tool-fleet`). Replaying the passing
+  full-mode log (job 135466352451) shows they never overlapped. `wbs-core:lint` ran 3.9 to 5.3
+  minutes into the phase beside `wbs-core:test`. `tool-fleet:lint` ran 26.8 to 28.4 minutes in
+  beside `tool-fleet:test`. From minute 55 only `bun test` tasks ran, and the losses were
+  declared after that.
+- **Affected mode.** Lint was already a separate phase that ran after test, typecheck and
+  build. Both pull-request losses fall inside that earlier test phase, which this change
+  leaves at parallelism two.
+
+There is also an environmental candidate. Between 2026-11-12 and the first loss no commit
+touched `eslint.config.js`, `package.json`, `bun.lock`, `nx.json` or `ci.yml`, but the hosted
+image changed. The passing job 131260787719 (2026-11-12) ran `ubuntu-24.04` 20261101.360.1.
+Job 135466352451 (2026-11-19) ran 20261111.370.1 and job 136144316155 (2026-11-20) ran
+20261116.376.1. There is no `setup-node` step, so `bunx eslint` and every other Node process
+run under the image's Node.
+
+### Change and next lever
+
+A-CI-WORKSPACE-MEMORY-1 runs workspace lint at `--parallel=1` in both modes. In full mode lint
+is now a separate phase after test, typecheck and build, which stay at two. This is a cheap
+narrowing lever, not a localised fix. Its cost estimate is in
+[CI gate duration](ci-gate-duration.md#workspace-lint-at-parallelism-one-2026-11-20).
+
+The gate step also records evidence that can localise the next death.
+
+- **Start record (strict).** `$ImageOS`, `$ImageVersion`, the OS `PRETTY_NAME`, Node's
+  `heap_size_limit`, `free -m` and `df -h /`. It runs before any gate work, so a missing tool
+  fails in seconds.
+- **Sampler (optional telemetry).** Every 30 seconds a `runtime headroom sample` line records
+  MemAvailable, the number of `node` and `bun` processes and the largest-RSS process. A
+  failed sample writes `unavailable` and never changes the gate status. The sampler is stopped
+  before the end record.
+- **End record (best effort).** `free -m`, `df -h /` and the five largest processes, which
+  expose leaked children. A failure writes `runtime headroom end unavailable` and does not
+  turn a passing gate red.
+
+A lost runner still uploads nothing. A run that survives longer than a lost one ran shows the
+memory trend up to the minute the losses were declared.
+
+A per-process heap cap was tried and rejected. `NODE_OPTIONS=--max-old-space-size=3072` made
+`wbs-fe-01:lint` die with `JavaScript heap out of memory`. The workspace shard runs that lint
+on affected pull requests, so the cap would have turned them red. At 3584 it passed with 3.7
+GiB RSS, which leaves almost no margin. Node's default was first measured on a laptop with
+Node v24.20.0 and on h4claw: 4096 MB of old space, heap limit 4288 MB. The first CI start
+record, from the #957 workspace job at `ab1607590`, reported `ubuntu-24.04` image
+20261116.376.1, Ubuntu 24.04.5 LTS and `heap_size_limit` 4345298944 bytes (about 4144 MiB).
+That answers #956's S26-A2: CI's Node default is about 4.1 GB, so a 3072 cap would have
+lowered it. The losses still look like the sum of processes, because the long workspace tests
+are `bun test` processes and native children, which no Node flag bounds.
+
+The same job showed a telemetry defect. The runner's colour-capable environment made `node -p`
+wrap the heap figure in ANSI escapes, and the production-shell test's pattern rejected it.
+The step now prints the figure with `process.stdout.write`, runs every record with
+`NO_COLOR=1`, and its test runs with `FORCE_COLOR=1` and refuses any ESC byte in
+`nx-gate.log`.
+
+**Proof plan, per mode.** The argv ledger in `ci-plan.test.ts` fails when lint returns to
+`--parallel=2` in either mode, or when lint is folded back into the full run-many.
+`pr-merge-base.test.ts` fails when the start record, the first sample, the heap limit or the
+sampler stop is removed. It also fails when a telemetry failure changes the gate status, and
+when the start record stops being strict. Neither proves a runner survives.
+
+That needs the next five full-mode main runs and the next five affected-mode pull-request
+workspace runs to finish, with sample lines through the minute the losses were declared. A
+loss that recurs with this change refutes the lint hypothesis for that mode. The next lever is
+then the test phase: run it at parallelism one on a larger runner, or move the long `bun test`
+tasks out of the shard (`tool-fleet:test` 41 minutes, `tool-devsync:test` 22, `wbs-store-sqlite:test` 18).
+
+### Amendment, 2026-11-20: the heavy bun tests get their own shard
+
+Main `1730d911f` (run 44703647201) then lost its full-mode workspace runner in all three
+attempts, each with the same annotation: job 136177983041 (08:35 to 09:52Z), job 136408071558
+(16:12 to 17:29Z) and job 136456452906 (17:35 to 18:52Z). Full mode on that commit failed every
+time. This met the rollback criterion above before the lint change could be judged.
+
+Thirteen losses are identified so far. `gh run list` hides lost first attempts of reruns that
+later passed, so the count is a floor:
+
+- **Eight in full mode on main:** 134530902111, 134597863162, 134855261065, 135387150530,
+  135837476331, 136177983041, 136408071558 and 136456452906.
+- **Five in affected mode on pull requests:** 134885299476 (run 44328159268, 2026-11-18, missing
+  from the table above), 135532626496, 136115143031, and #956's 136422257017 and 136464251678.
+
+The next lever therefore ships now, as assumption A-CI-WORKSPACE-MEMORY-2.
+
+A new shard, `gate workspace-heavy` (job `gate_heavy`, partition `heavy` in
+`ci-run-runtime.ts`), owns `tool-fleet`, `tool-devsync`, `wbs-store-sqlite` and `wbs-core` whole.
+It runs their targets at `--parallel=1` on its own 16 GB runner. It has the same setup and
+headroom sampler as the workspace shard, but its own budget: a 135-minute phase inside a
+150-minute job, keeping the usual 15-minute reserve. The workspace shard stays at 105 of 120. In affected mode
+it runs only when `Gate mode` reports `heavy=run`. The workspace shard no longer runs those
+projects' test, typecheck or build, but its independent `nx affected -t lint` still lints them.
+`Require every gate shard` requires the new job, in the same way as the backend and frontend
+shards.
+
+`wbs-core` joined after main's first full-mode run with telemetry (run 44797660117), in which
+the workspace shard survived in 63 minutes.
+
+- **What the samples showed.** At 19:05:16Z one `bun` process reached `topRssKiB=7639660`
+  (7.3 GiB) while MemAvailable fell to 7.26 GB. The streamed log places that window
+  (19:03 to 19:05:30Z) right after `> nx run wbs-core:test`.
+- **Local measurement.** `/usr/bin/time -v bunx nx run wbs-core:test --skip-nx-cache` ran 1,784
+  tests in 142 files in 113 seconds, with a maximum resident set of 5,986,892 kB (5.7 GiB). For
+  comparison, `tool-observability-stack:test` peaks at 236 MB, `wbs-auth` at 124 MB and
+  `wbs-observability` at 133 MB.
+- **Why it moves.** Beside a second Nx task on a 16 GB runner, that one suite is enough to
+  starve it.
+- **The real fix is in wbs-core.** A two-minute unit-test suite that needs 6 to 7.6 GiB is a
+  wbs-core test problem to fix at the source, tracked in #959. Moving it to the heavy shard only
+  contains it.
+
+The late tail of that run, 19:30 to 19:37Z, came from `tool-devsync`'s Bun children, which were
+already moving.
+
+These are estimates from the passing full-mode run 44496836205, with task times measured at
+parallelism two:
+
+- **Heavy shard.**
+  - Tests: `tool-fleet` 40.9 min, `tool-devsync` 22.0, `wbs-store-sqlite` 18.5 and `wbs-core`
+    3.8, for 85.2 min.
+  - Lint: 4.2 min.
+  - Typecheck: 1.3 min, plus `wbs-core:typecheck:module` at 2.6 min.
+  - Total: 93.3 min of task time plus dependency builds.
+
+  Parallel-1 timings are unknown. A 105-minute phase would have left a margin of only about
+  12 minutes, and a timeout in this shard would only trade one red gate for another. So the
+  shard has a finite 135-minute phase in a 150-minute job. The first full-mode heavy logs will
+  show the real figure.
+
+- **Workspace shard.** 137.5 − 93.3 = 44.2, so about 44 minutes of task time remain. The non-lint
+  part (about 36 minutes) takes about 18 to 22 minutes at parallelism two. Lint at one adds about
+  8 minutes, for about 26 to 30 minutes in all.
+
+This lever assumes the loss is memory in the `bun test` processes. From minute 55 the lost
+runner was running only the long suites, and the surviving run shows `wbs-core:test` as the
+largest single process.
+
+The proof plan is the next five full-mode main runs going green with both shards, with sample
+lines in both logs. If the heavy shard is lost too, the next lever is a larger runner, because
+these suites cannot be split further without changing their projects.
+
+### Amendment, 2026-11-21: one job per heavy project
+
+The heavy shard from #958 was then lost too. On main `982f36697` (run 44825497250) `gate
+workspace` passed in 21 minutes, but `gate workspace-heavy` (job 136597156506, 22:02 to 23:26Z, 84
+minutes) ended with the same "lost communication" annotation and no log. The sampler trail died
+with the runner. This is the fourteenth identified loss.
+
+That job ran its four projects one task at a time, so the loss refutes the idea that the sum of
+parallel tasks starves the runner. A single suite among `tool-fleet`, `tool-devsync`,
+`wbs-store-sqlite` and `wbs-core` starves or terminates a 16 GB runner by itself.
+
+Termination by a stray process-group kill is a weaker candidate than it first looked:
+
+- **The TypeScript sites are ruled out.** `tool-fleet`'s `process.kill(-child.pid, 'SIGKILL')` in
+  `discover.ts` and `lab.ts` follows a spawn with `detached: true`, so the child leads its own
+  group and the kill cannot reach the runner's group.
+- **The Python sites remain.** `os.killpg` in its `lab-guest-*.py` fixtures is the remaining
+  candidate. A kill that hit the wrong group would match the annotation's "anything that
+  terminates the runner process".
+
+The next lever is A-CI-WORKSPACE-MEMORY-3. `gate_heavy` becomes a matrix with one leaf per
+`HEAVY_TEST_PROJECTS` entry, named `gate workspace-heavy (<project>)`, with `fail-fast: false`.
+
+- **What each leaf runs.** `run-many -t test [lint] typecheck build -p <project> --parallel=1`
+  under the runtime partition `heavy-<project>`, with the workspace shard's step text including the
+  headroom sampler. Only the `tool-fleet` leaf provisions the registry source fixtures.
+- **How leaves are selected.** `Gate mode` publishes `heavy_leaves`, the selected leaves with their
+  `[job, phase]` budgets in minutes. Full mode gets all four; affected mode gets only the
+  affected projects.
+- **How the gate reads them.** `Require every gate shard` reads the matrix's aggregate result with
+  the same truth table as before.
+- **What a loss tells us.** A lost leaf names its project by elimination, and the other leaves keep
+  their logs. That suite is then fixed at the source, or runs only on the gate hosts, as
+  `tool-remote-scripts` does under A-GATE-REMOTE-1.
+
+The budgets come from the per-project task times of run 44496836205, measured at parallelism
+two, plus a finite allowance and a 15-minute reserve:
+
+| Leaf               | Task time | Phase  | Job    |
+| ------------------ | --------- | ------ | ------ |
+| `tool-fleet`       | 42.9 min  | 75 min | 90 min |
+| `tool-devsync`     | 22.4 min  | 45 min | 60 min |
+| `wbs-store-sqlite` | 19.7 min  | 45 min | 60 min |
+| `wbs-core`         | 8.2 min   | 30 min | 45 min |
+
+The proof plan is the next full-mode main run. At least three leaves should be green; if one is
+lost, that project gets its own issue. Telemetry from the surviving leaves should also show
+which suite's samples were climbing.
+
+### Amendment, 2026-11-21: a hard memory cap, so the hungry suite fails with a log
+
+The one-job-per-project split did its job on its first full-mode run. On main `e8e568784`
+(run 44859286080) `gate workspace` passed in 21 minutes and three leaves passed: `wbs-core` in 5.5
+minutes, `wbs-store-sqlite` in 11 and `tool-devsync` in 17.5. `gate workspace-heavy (tool-fleet)`
+(job 136708786587, 03:05:42 to 04:12:45Z) was lost with the same annotation, no step conclusion
+and no artifact. This is the fifteenth identified loss, and the first one attributed to a single
+suite: `tool-fleet:test`. Its owners' fix is tracked in #963.
+
+GitHub declared the loss 67 minutes after the job started. The leaf's task time at parallelism
+two was 42.9 minutes, and `tool-devsync` ran faster at parallelism one than at two. A leaf still
+running about 24 minutes past its estimate, before the runner died, matches memory thrashing.
+It does not prove it, because a declaration time is not the time of death. On the gate hosts
+(15 GiB, `MemoryHigh` 13 GiB) `tool-fleet:test` passes inside the five-hour gate.
+
+The samples from the surviving leaves of that run give the scale. Consumption is the start
+record's `available` minus the lowest `memAvailableKiB` sample:
+
+| Shard                    | Start available | Lowest sample | Consumed | Largest process |
+| ------------------------ | --------------- | ------------- | -------- | --------------- |
+| `workspace`              | 14311 MiB       | 11271 MiB     | 3040 MiB | `tsc` 2.6 GiB   |
+| `heavy-tool-devsync`     | 14375 MiB       | 9236 MiB      | 5139 MiB | `bun` 5.0 GiB   |
+| `heavy-wbs-store-sqlite` | 14610 MiB       | 13023 MiB     | 1587 MiB | `node` 1.7 GiB  |
+| `heavy-wbs-core`         | 14419 MiB       | 8574 MiB      | 5845 MiB | `bun` 5.7 GiB   |
+
+Every runner reported 3071 MiB of swap. Swap lets a hungry suite slow the runner down for a long
+time without the kernel ever killing anything, which fits a leaf that overruns and then goes
+silent.
+
+**The lever (A-CI-LEAF-MEMORYMAX-1).** A lost runner leaves no log, so the hungry test is still
+unknown. The workspace and heavy-leaf gate steps now run their Nx phase, with `timeout` and
+`ci-run-runtime.ts` unchanged, inside a transient systemd scope:
+
+- **Scope properties.** The scope is opened with `sudo -n systemd-run --scope --quiet --collect`
+  under the unit name `ci-gate-$partition-$$`, with `-p MemoryMax=12G`, `-p MemorySwapMax=0` and
+  `-p OOMPolicy=continue`.
+- **Identity.** systemd-run's `--uid` changes only the uid and gid; in v255's scope path it never
+  calls `setgroups`, so the process would keep root's supplementary groups. Instead,
+  `setpriv --reuid --regid --groups` restores this user's exact identity.
+- **Environment.** sudo resets the environment and replaces `PATH`. The step captures its
+  exported environment with `env -0` before the scope, and `env -i` restores exactly that set
+  inside it.
+- **What an overrun now does.** When a process tree goes over the cap, the kernel's OOM killer
+  kills the largest process inside the scope. Nx's `signalToCode` maps a SIGKILLed task child
+  to 128, so the phase should end with `exit=1` and Nx naming the failed task. The end record's
+  kernel OOM lines show that the scope killed it. The phase end record, the sampler trail and the
+  artifact all survive.
+- **Why OOMPolicy is set.** systemd's default `stop` would end the whole scope on the first kill.
+  A laptop probe (`systemd-run --user --scope`, 128M cap, a Python allocator under a bash parent
+  that then sleeps five seconds) ended with exit 143 under `stop`. Under `continue` the allocator
+  exited 137 and the parent finished normally.
+- **The sampler stays outside the scope.** It runs in the step's own cgroup, so the scope's OOM
+  killer cannot pick it, and it keeps sampling through the kill.
+- **No silent fallback.** Before the first sample, a probe scope with the same properties must run
+  `true`. If `sudo` needs a password or `systemd-run` is missing, the step writes a refusal
+  naming A-CI-LEAF-MEMORYMAX-1 to stderr and `nx-gate.log`, then fails before any gate work. The
+  start record ends with the cap and the unit, as in `memoryMax=12G scope=ci-gate-workspace-1234.scope`.
+
+The cap is `12G`, which systemd reads as 12 GiB (12288 MiB). The runners' `MemTotal` was 15701
+MiB on images `20261116.133.1` and 15983 MiB on `20261116.376.1`. That leaves 3413 to 3695 MiB
+outside the scope for the runner agent, the OS and the sampler. The largest consumption seen in a
+surviving shard was 5845 MiB, so no passing suite comes near the cap in resident memory. That
+ignored Node's heap heuristic, which the next amendment corrects. Page cache charged to the
+scope is reclaimed before the kernel kills anything.
+
+The workspace shard gets the cap too. Thirteen of the fifteen losses were workspace jobs, its step
+text is held byte-equal to the heavy leaf's, and its 3040 MiB peak leaves it 9 GiB under the cap.
+The backend, remote and frontend shards have no recorded losses and stay uncapped.
+
+The laptop probe ran under the user manager, with no `sudo`, `setpriv` or system slice. The hosted
+`sudo` form is proved only by the production-shell ledger, which uses fake `sudo`, `systemd-run`
+and `setpriv`, and by the next hosted run.
+
+**Proof plan.** The next full-mode main run should end in one of two ways:
+
+- **The `tool-fleet` leaf passes.** The cap holds and the earlier losses were swap thrash.
+- **It fails with a log.** The log names the task the kernel killed and the samples before it.
+  That goes to #963.
+
+Either outcome is progress. If the leaf is lost again with the cap in place, the cause is not
+memory. The next candidates are then a test that terminates processes it does not own (the
+Python `os.killpg` sites in `tool-fleet/src/lab-guest-*.py`) and network blocking.
+
+`pr-merge-base.test.ts` holds the scope's argv, identity and restored environment in a ledger.
+It also has a negative where `systemd-run` is absent or `sudo` needs a password; there the
+runtime is never called and no sampler starts. Dropping `OOMPolicy=continue`,
+`MemorySwapMax=0`, the `setpriv` line or the environment restoration failed the ledger. Deleting
+the probe failed both the ledger and the refusal test.
+
+### Amendment, 2026-11-21: the cap's first hosted run, and the heap pin in CI
+
+#964's own run 44866833236 was the first hosted run of the cap. The scope worked in its
+`gate workspace` job 136732392386. The start record read `heapSizeLimit=4345298944
+memoryMax=12G scope=ci-gate-workspace-2977.scope`, and the log kept 47 samples and the end
+record. The phase still failed (`elapsedSeconds=1411 exit=1`) with `Failed tasks:
+twilight-dash:lint, wbs-be-01:lint, wbs-fe-01:lint`, each `FATAL ERROR: … JavaScript heap out of
+memory`.
+
+This is the gate hosts' A-NODE-HEAP-1 mechanism (#956). Node sizes its default heap from the
+cgroup's memory constraint. A laptop probe in a `systemd-run --user --scope` with the step's
+properties reported `heapSizeLimit=2348810240` (2240 MB) without a pin, and 4496293888 with
+`--max-old-space-size=4096`. The start record's 4345298944 was measured outside the scope, so it
+hid the inside figure. The claim above that "no passing suite comes near the cap" holds for
+resident memory, but not for Node's heap heuristic.
+
+The steps changed as follows:
+
+- **The heap pin applies in CI.** A-NODE-HEAP-1 now covers CI as well. Both capped steps append
+  `--max-old-space-size=4096` to any inherited `NODE_OPTIONS` before the `env -0` capture, so the
+  pin reaches the scope. Another heap figure there is refused, as in `bin/h2puni-gate-steps.sh`.
+  4096 MiB of old space is the uncapped runner's default, so capped runs behave like today's
+  uncapped ones.
+- **The probe proves the scope.** It runs through the same `sudo`, `setpriv` and `env -i` chain,
+  and reads the probe scope's own `memory.max` and `memory.swap.max`. It also runs `node` for its
+  heap limit. The step refuses unless the probe reports `memoryMax=12884901888 swapMax=0` and a
+  heap limit of at least 4294967296 bytes. The start record's `heapSizeLimit` is now that
+  inside-scope figure.
+- **The end record includes kernel OOM lines.** It adds `journalctl -k` since the phase began,
+  filtered to OOM-killer lines. A test the scope killed is then distinguishable from an abort or
+  a fixture's `os.killpg`.
+- **Wording.** The realistic end record for a kill is `exit=1` with Nx naming the task, not 137.
+- **`--expand-environment=no` is explicit.** systemd v255 disables expansion for `--scope` by
+  default, but has announced that the default will flip. The environment rides in argv.
+- **Exposure and cancellation.** The step comment now records that the exported environment
+  appears in sudo's journal line and briefly in the root processes' `/proc/<pid>/cmdline`. No
+  secret is exported. On cancellation the runner kills its runner-uid descendants, and sudo exits
+  with its child.
+
+The production-shell test's fake chain had no Node inside, which is why its 75 green tests missed
+the heap. The fake runtime now records `NODE_OPTIONS`, and the probe runs a real `node` through
+the chain. The fixture redirects the probe's one `cgroup_root=` line to scratch copies of
+`memory.max` and `memory.swap.max`. The following each failed a test: deleting the pin, the
+conflicting-figure refusal, the probe, its report check or its heap floor; dropping
+`--expand-environment=no`; and dropping the kernel record.
+
+The pin also exposed a hermeticity gap. The h4claw proof gate on main `e8e568784` (job `c24eac90`)
+runs with #956's pin. It failed three `ci-remote-tests.test.ts` tests, which pass the ambient
+environment to `tool-remote-scripts`'s leaf runner, and that runner refuses `NODE_OPTIONS`. The
+gate-hosts note on A-NODE-HEAP-1 names the three tests and the fix
+([gate hosts](../infra/gate-hosts.md)). CI's capped steps would have hit the same failure.
+
+The proof is one green hosted run. The three lints must pass, and the start record must show an
+inside-scope `heapSizeLimit` of at least 4294967296.
 
 ## Checks kept without a reachable negative
 

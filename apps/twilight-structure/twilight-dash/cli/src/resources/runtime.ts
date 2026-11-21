@@ -83,7 +83,19 @@ const Configuration = type({
    * type are listed; otherwise it waits, serialised as in observe mode. Absent means none.
    */
   'concurrencyEligible?': 'string[]',
+  /**
+   * GiB of the memory budget a job scope's `MemoryHigh` leaves to the rest of the host when a
+   * catalogue entry's `memoryGib` is clamped to this pool (task 6.25, S25-A6): such a scope runs
+   * under `min(heuristic, memoryGib − memoryBoundHeadroomGib)`, never below its reservation.
+   * Absent means 2 ({@link DEFAULT_MEMORY_BOUND_HEADROOM_GIB}): 13 GiB on h4claw's 15, 12 on
+   * h2puni's 14. Below `headroom.memoryGib` on purpose: the bound governs a burst above the
+   * measured p95, which the reservation's headroom does not cover.
+   */
+  'memoryBoundHeadroomGib?': 'number.integer >= 0',
 }).onUndeclaredKey('reject');
+
+/** `memoryBoundHeadroomGib` when the pool configuration leaves it out. */
+export const DEFAULT_MEMORY_BOUND_HEADROOM_GIB = 2;
 export type ResourceConfiguration = Omit<
   typeof Configuration.infer,
   'credential' | 'mcpResource'
@@ -441,8 +453,9 @@ export interface ContainerEvidence {
   containersGone(job: HostJob): boolean;
 }
 /**
- * The only container evidence the watch loop has before slice 3: a job that declared
- * `containers: none` has none to wait for; a declared bound stays charged until a reading.
+ * Container evidence without a reading: a job that declared `containers: none` has none to
+ * wait for; a declared bound stays charged until a reading says its containers are gone. The
+ * runtime's default until `useContainerEvidence` injects one.
  */
 export const declaredContainersOnly: ContainerEvidence = {
   containersGone: (job) => job.descriptor.containers === 'none',
@@ -635,6 +648,21 @@ export interface HostPoolStatus extends HostPoolTransition {
 
 /** What one host job reserves (J4, J9): the pool vector, and its disk charge in GiB for WBS. */
 export interface HostJobReservation extends PoolVector {
+  tmpDiskGib: number;
+}
+
+/** The pool figures a clamped entry's scope bound is capped by (S25-A6). */
+export interface ScopeCeiling {
+  /** The pool's memory budget, whole GiB. */
+  memoryGib: number;
+  /** GiB of that budget the bound leaves to the rest of the host. */
+  memoryBoundHeadroomGib: number;
+}
+
+/** An envelope's three admitted dimensions, in whole cores and GiB. */
+export interface PoolEnvelope {
+  cpuCores: number;
+  memoryGib: number;
   tmpDiskGib: number;
 }
 
@@ -1537,9 +1565,14 @@ export function inspectHolds(locator: string, scope: HoldScope): void {
 /** The file in a host job's tmp directory that holds its {@link HostJob.tmpMarker}. */
 const TMP_MARKER = '.dash-tmp-identity';
 /**
- * Descriptor-relative removal never follows a symlink, crosses a mount, or accepts a replacement
- * inode. Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
+ * Descriptor-relative removal never follows a symlink, crosses to another device, or accepts a
+ * replacement inode (a same-device bind mount inside the tree is not detected, S16-A5). Options after the identity: `inspect` removes nothing; `marker=<token>` also requires
  * {@link TMP_MARKER}, read through the opened directory, to hold that token.
+ *
+ * Two passes: the first walks the tree under the same rules and counts the in-tree paths of each
+ * multiply-linked inode, refusing before any removal when an inode's link count differs from its in-tree paths.
+ * The second erases, refusing an inode whose link count no longer matches what the first pass
+ * saw minus the links already removed, so a link added between passes still blocks.
  */
 const removeDirectory = String.raw`
 import os,sys,stat
@@ -1558,6 +1591,28 @@ if markers:
  ms=os.fstat(m)
  if not stat.S_ISREG(ms.st_mode) or ms.st_nlink!=1 or os.read(m,64).decode('ascii','replace')!=markers[0]: raise RuntimeError('identity changed')
  os.close(m)
+links={}
+def survey(directory):
+ for name in os.listdir(directory):
+  if markers and directory==fd and name=="${TMP_MARKER}": continue
+  entry=os.stat(name,dir_fd=directory,follow_symlinks=False)
+  if entry.st_dev!=s.st_dev: raise RuntimeError('mount boundary')
+  if stat.S_ISDIR(entry.st_mode):
+   child=os.open(name,flags,dir_fd=directory)
+   opened=os.fstat(child)
+   if (opened.st_dev,opened.st_ino)!=(entry.st_dev,entry.st_ino): raise RuntimeError('identity changed')
+   survey(child)
+   os.close(child)
+  elif not stat.S_ISLNK(entry.st_mode) and entry.st_nlink>1:
+   seen=links.setdefault((entry.st_dev,entry.st_ino),{'nlink':entry.st_nlink,'inside':0,'removed':0})
+   if seen['nlink']!=entry.st_nlink: raise RuntimeError('shared hardlink')
+   seen['inside']+=1
+survey(fd)
+# Proof: bypassing the single-pass form of this guard released shared hardlinked storage
+# (shared-hardlink.log). Dropping this line made 'an in-tree hardlink pair with a third link
+# outside stays blocked and untouched' (host-jobs.test.ts) see the entry released, and both
+# runtime.test.ts hardlink tests fail (2026-11-18, task 6.16).
+if any(seen['nlink']!=seen['inside'] for seen in links.values()): raise RuntimeError('shared hardlink')
 def erase(directory):
  for name in os.listdir(directory):
   if markers and directory==fd and name=="${TMP_MARKER}": continue
@@ -1573,9 +1628,17 @@ def erase(directory):
    if remove: os.rmdir(name,dir_fd=directory)
    os.close(child)
   else:
-   # Proof: bypassing this guard released shared hardlinked storage (shared-hardlink.log).
-   if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1: raise RuntimeError('shared hardlink')
-   if remove: os.unlink(name,dir_fd=directory)
+   # Proof: refusing every nlink>1 file again, without the survey's in-tree count, made
+   # 'hardlinks whose every link lies inside the tmp directory are removed' (host-jobs.test.ts)
+   # see 'descriptor-relative removal refused', as on h4claw (2026-11-18, task 6.16).
+   # The count re-check refuses a link added between passes; no test injects that race (S16-A2).
+   seen=None
+   if not stat.S_ISLNK(before.st_mode) and before.st_nlink>1:
+    seen=links.get((before.st_dev,before.st_ino))
+    if seen is None or before.st_nlink!=seen['nlink']-seen['removed']: raise RuntimeError('shared hardlink')
+   if remove:
+    os.unlink(name,dir_fd=directory)
+    if seen is not None: seen['removed']+=1
 erase(fd)
 # The marker goes last, so a refused removal leaves the directory still provably the original.
 # Proof: erasing it with the rest made 'a blocked tmp directory adds no outbox rows' (host-jobs.test.ts)
@@ -2196,6 +2259,7 @@ export class ResourceRuntime {
       }
     }
   }
+  private containerEvidence: ContainerEvidence = declaredContainersOnly;
   /** Reconcile dead creators and retry pending/blocked cleanup; retention requires an explicit retry. */
   sweep(): ResourceUse[] {
     for (const snapshot of this.list()) {
@@ -2240,9 +2304,23 @@ export class ResourceRuntime {
       )
         this.cleanup(current.id);
     }
+    // Proof: settling with `declaredContainersOnly` here made `sweep settles a job with a declared
+    // containers bound once the reading says its containers are gone` (sweep-container-evidence
+    // .test.ts) receive `held` for `released` (2026-11-17, task 6.15).
     for (const job of this.listHostJobs())
-      if (job.state !== 'released') this.settleHostJob(job.id, declaredContainersOnly);
+      if (job.state !== 'released') this.settleHostJob(job.id, this.containerEvidence);
     return this.list();
+  }
+  /**
+   * The container evidence `sweep` settles host jobs with (J2'). `declaredContainersOnly` until
+   * the caller injects a reading: `runResources` injects Docker's when the CLI is on `PATH`, so a
+   * job whose launcher died settles once its processes and containers are gone instead of staying
+   * charged forever (h4claw job 22ce2369, 2026-11-17). The reading runs inside `settleHostJob`'s
+   * write transaction for every unreleased job whose owned processes are gone, so a slow reading
+   * holds the ledger's write lock for that long; the injected evidence bounds it (S15-A4).
+   */
+  useContainerEvidence(evidence: ContainerEvidence): void {
+    this.containerEvidence = evidence;
   }
   /** Record a bounded retry obligation without returning any reservation capacity. */
   private block(use: ResourceUse, cause: unknown): void {
@@ -3071,6 +3149,49 @@ export class ResourceRuntime {
     if (inserted === null) throw new Error('resource outbox drop record unwritten');
     return { sequence: inserted.sequence, ...record };
   }
+  /**
+   * The largest envelope this pool admits for an ordinary job: allocatable cores and memory,
+   * and the whole GiB its disk units hold. One more in any dimension is refused 73 (J5,
+   * {@link ResourceRuntime.enqueueHostJob}); `ops job propose` clamps to it (task 6.25).
+   */
+  largestEnvelope(): PoolEnvelope {
+    // Proof: taking the disk budget's GiB rounded up made `the largest envelope is admitted and
+    // one more in any dimension is refused 73 (task 6.25)` (host-jobs.test.ts) answer
+    // tmpDiskGib 21 on a pool that refuses 21 (2026-11-20).
+    const { cpuCores, memoryGib, tmpDiskGib } = this.wholePool();
+    return { cpuCores, memoryGib, tmpDiskGib };
+  }
+  /** What caps a clamped entry's scope bound on this pool (`scopeMemoryBound`, S25-A6). */
+  scopeCeiling(): ScopeCeiling {
+    return {
+      memoryGib: this.configuration.memoryGib,
+      memoryBoundHeadroomGib:
+        this.configuration.memoryBoundHeadroomGib ?? DEFAULT_MEMORY_BOUND_HEADROOM_GIB,
+    };
+  }
+  /**
+   * What an ordinary job of `descriptor` reserves (J4, J5): its envelope and one slot, except
+   * that each dimension its catalogue entry clamped to the pool reserves all of `allocatable`,
+   * as a calibration does (S25-A7), so nothing is admitted beside a job that measurably uses the
+   * whole pool there. `oversize()` still judges the envelope itself.
+   */
+  private reservationOf(descriptor: JobTypeDescriptor): HostJobReservation {
+    const whole = this.wholePool();
+    const clamped = new Set(descriptor.clampedToAllocatable ?? []);
+    const pick = (dimension: 'cpuCores' | 'memoryGib', declared: number): number =>
+      clamped.has(dimension) ? Math.max(declared, whole[dimension]) : declared;
+    const diskUnits = this.diskUnitsOf(descriptor);
+    const tmp = clamped.has('tmpDiskGib');
+    return {
+      cpuCores: pick('cpuCores', descriptor.envelope.cpuCores),
+      memoryGib: pick('memoryGib', descriptor.envelope.memoryGib),
+      diskUnits: tmp ? Math.max(diskUnits, whole.diskUnits) : diskUnits,
+      workspaceSlots: 1,
+      tmpDiskGib: tmp
+        ? Math.max(descriptor.envelope.tmpDiskGib, whole.tmpDiskGib)
+        : descriptor.envelope.tmpDiskGib,
+    };
+  }
   /** What a calibration reserves: all of `allocatable`, its disk budget also in whole GiB. */
   private wholePool(): HostJobReservation {
     const allocatable = this.allocatable();
@@ -3190,6 +3311,18 @@ export class ResourceRuntime {
       job.process !== null &&
       alive(job.process);
     return { state: job.state, running };
+  }
+  /**
+   * Whether host job `id`'s launched session has ended: its leader and every member the compute
+   * evidence would count ({@link computeEvidence}) gone. What `ops job run` asks before it ends
+   * the processes left in the job's scope (task 6.24): a member of the session is still the
+   * payload's own work, never a leftover. Reads only: no settlement, no lock, nothing saved.
+   * @throws Error when the job was never launched, or when `/proc` cannot be inspected.
+   */
+  hostJobSessionEnded(id: string): boolean {
+    const job = this.inspectHostJob(id);
+    if (job.process === null) throw new Error(`host job ${id} was never launched`);
+    return !ownedProcessesAlive({ process: job.process, descendants: captureDescendants(job) });
   }
   /** Every host job, released history included, oldest admission first. */
   listHostJobs(): HostJob[] {
@@ -3551,7 +3684,7 @@ export class ResourceRuntime {
         const own =
           request.calibration === true
             ? allocatable.diskUnits
-            : reserved.diskUnits + this.diskUnitsOf(request.descriptor);
+            : reserved.diskUnits + this.reservationOf(request.descriptor).diskUnits;
         const short = this.freeSpaceShortfall(own);
         return short === null ? '' : `; ${short}`;
       };
@@ -3597,19 +3730,13 @@ export class ResourceRuntime {
         // Proof: admitting a calibration on the envelope fit made `a calibration waits for
         // the pool to drain` (calibrate.test.ts) admit it beside a held gate (2026-11-02, Slice 4).
         if (calibration === true) return drained(descriptor);
-        const diskUnits = this.diskUnitsOf(descriptor);
+        // Proof: fitting the envelope here made `a clamped gate reserves the whole pool in its
+        // clamped dimensions; nothing fits beside it` (host-jobs.test.ts) admit the clamped gate
+        // beside a held 1-core, 1-GiB job (2026-11-20, S25-A7).
+        const own = this.reservationOf(descriptor);
         return (
-          vectorFits(
-            {
-              cpuCores: descriptor.envelope.cpuCores,
-              memoryGib: descriptor.envelope.memoryGib,
-              diskUnits,
-              workspaceSlots: 1,
-            },
-            reserved,
-            allocatable,
-          ) &&
-          this.freeSpaceCovers(reserved.diskUnits + diskUnits) &&
+          vectorFits(own, reserved, allocatable) &&
+          this.freeSpaceCovers(reserved.diskUnits + own.diskUnits) &&
           // Proof: without it the model in host-jobs.model.test.ts admitted a third gate onto
           // a held tree where it expected `waiting` (2026-11-01, verify.md Slice 2).
           descriptor.envelope.exclusive.every((id) => freeUnit(id) !== undefined)
@@ -3690,16 +3817,10 @@ export class ResourceRuntime {
         // Proof: persisting the envelope for a calibration made `a calibration holds the whole
         // allocatable vector` and `a calibration waits for the pool to drain` (calibrate.test.ts)
         // persist the gate's envelope, not the 8 allocatable cores (2026-11-02, review A3).
+        // Proof: persisting the envelope for a clamped type made `a clamped gate reserves the
+        // whole pool …` (host-jobs.test.ts) find reserved memoryGib 9 of 13 (2026-11-20, S25-A7).
         reserved:
-          request.calibration === true
-            ? this.wholePool()
-            : {
-                cpuCores: request.descriptor.envelope.cpuCores,
-                memoryGib: request.descriptor.envelope.memoryGib,
-                diskUnits: this.diskUnitsOf(request.descriptor),
-                workspaceSlots: 1,
-                tmpDiskGib: request.descriptor.envelope.tmpDiskGib,
-              },
+          request.calibration === true ? this.wholePool() : this.reservationOf(request.descriptor),
         ...(request.calibration === true ? { calibration: true as const } : {}),
       };
       this.hostJobEvent(job, 'admitted');

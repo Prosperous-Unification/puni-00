@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 
+import { HEAVY_TEST_PROJECTS } from './ci-runtime-partitions';
+
 interface WorkflowStep {
   name?: string;
   env?: Record<string, string>;
@@ -11,8 +13,11 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  name?: string;
   if?: string;
   needs?: string | string[];
+  'timeout-minutes'?: number | string;
+  strategy?: unknown;
   steps?: WorkflowStep[];
 }
 
@@ -32,10 +37,12 @@ interface GateNeeds {
   backend: string;
   remote: string;
   frontend: string;
+  heavy: string;
   backendResult: JobResult | '';
   remoteResult: JobResult | '';
   remoteModelResult: JobResult | '';
   frontendResult: JobResult | '';
+  heavyResult: JobResult | '';
   twilightResult: JobResult | '';
 }
 
@@ -79,10 +86,12 @@ const reduceGate = (needs: GateNeeds): number => {
       BACKEND: needs.backend,
       REMOTE: needs.remote,
       FRONTEND: needs.frontend,
+      HEAVY: needs.heavy,
       BACKEND_RESULT: needs.backendResult,
       REMOTE_RESULT: needs.remoteResult,
       REMOTE_MODEL_RESULT: needs.remoteModelResult,
       FRONTEND_RESULT: needs.frontendResult,
+      HEAVY_RESULT: needs.heavyResult,
       TWILIGHT_RESULT: needs.twilightResult,
     },
     stderr: 'pipe',
@@ -100,10 +109,12 @@ const green: GateNeeds = {
   backend: 'run',
   remote: 'run',
   frontend: 'run',
+  heavy: 'run',
   backendResult: 'success',
   remoteResult: 'success',
   remoteModelResult: 'success',
   frontendResult: 'success',
+  heavyResult: 'success',
   twilightResult: 'success',
 };
 
@@ -121,6 +132,7 @@ describe('the CI gate check', () => {
       'gate_mode',
       'gate_docs',
       'gate_workspace',
+      'gate_heavy',
       'gate_backend',
       'gate_remote',
       'gate_remote_model',
@@ -139,10 +151,12 @@ describe('the CI gate check', () => {
       BACKEND: '${{ needs.gate_mode.outputs.backend }}',
       REMOTE: '${{ needs.gate_mode.outputs.remote }}',
       FRONTEND: '${{ needs.gate_mode.outputs.frontend }}',
+      HEAVY: '${{ needs.gate_mode.outputs.heavy }}',
       BACKEND_RESULT: '${{ needs.gate_backend.result }}',
       REMOTE_RESULT: '${{ needs.gate_remote.result }}',
       REMOTE_MODEL_RESULT: '${{ needs.gate_remote_model.result }}',
       FRONTEND_RESULT: '${{ needs.gate_frontend.result }}',
+      HEAVY_RESULT: '${{ needs.gate_heavy.result }}',
       TWILIGHT_RESULT: '${{ needs.gate_twilight.result }}',
     });
   });
@@ -161,10 +175,12 @@ describe('the CI gate check', () => {
         backend: 'skip',
         remote: 'skip',
         frontend: 'skip',
+        heavy: 'skip',
         backendResult: 'skipped',
         remoteResult: 'skipped',
         remoteModelResult: 'skipped',
         frontendResult: 'skipped',
+        heavyResult: 'skipped',
         twilightResult: 'skipped',
       }),
     ).toBe(0);
@@ -189,10 +205,12 @@ describe('the CI gate check', () => {
       backend: 'skip',
       remote: 'skip',
       frontend: 'skip',
+      heavy: 'skip',
       backendResult: 'skipped',
       remoteResult: 'skipped',
       remoteModelResult: 'skipped',
       frontendResult: 'skipped',
+      heavyResult: 'skipped',
       twilightResult: 'skipped',
     };
     for (const docsResult of notSuccess)
@@ -204,6 +222,7 @@ describe('the CI gate check', () => {
       'remoteResult',
       'remoteModelResult',
       'frontendResult',
+      'heavyResult',
       'twilightResult',
     ] as const) {
       for (const outcome of ['success', 'failure', 'cancelled', ''] as const) {
@@ -228,6 +247,7 @@ describe('the CI gate check', () => {
       'remoteResult',
       'remoteModelResult',
       'frontendResult',
+      'heavyResult',
       'checksResult',
     ] as const)
       for (const outcome of notSuccess)
@@ -236,6 +256,7 @@ describe('the CI gate check', () => {
       ['backend', 'backendResult'],
       ['remote', 'remoteResult'],
       ['frontend', 'frontendResult'],
+      ['heavy', 'heavyResult'],
     ] as const) {
       expect(
         reduceGate({
@@ -327,6 +348,26 @@ describe('the CI private-nesting step', () => {
   });
 });
 
+// A-CI-WORKSPACE-MEMORY-3: one leaf per heavy project with its [job, phase] budget in minutes.
+const heavyLeaves = [
+  { project: 'tool-fleet', job: 90, phase: 75 },
+  { project: 'tool-devsync', job: 60, phase: 45 },
+  { project: 'wbs-store-sqlite', job: 60, phase: 45 },
+  { project: 'wbs-core', job: 45, phase: 30 },
+];
+
+test('Gate mode budgets exactly HEAVY_TEST_PROJECTS, each with a 15-minute reserve', () => {
+  expect(heavyLeaves.map(({ project }) => project)).toEqual([...HEAVY_TEST_PROJECTS]);
+  for (const { project, job, phase } of heavyLeaves) expect(job - phase, project).toBe(15);
+  const heavy = readWorkflow().jobs?.['gate_heavy'];
+  expect(heavy?.name).toBe('gate workspace-heavy (${{ matrix.project }})');
+  expect(heavy?.['timeout-minutes']).toBe('${{ matrix.job }}');
+  expect(heavy?.strategy).toEqual({
+    'fail-fast': false,
+    matrix: { include: '${{ fromJSON(needs.gate_mode.outputs.heavy_leaves) }}' },
+  });
+});
+
 const base = '1'.repeat(40);
 const head = '2'.repeat(40);
 const affectedPlan = {
@@ -337,7 +378,7 @@ const affectedPlan = {
   twilight: 'run',
   projects: ['twilight-burokrat', 'wbs-be-01'],
   workspaceProjects: ['wbs-be-01'],
-  partitions: { backend: ['wbs-be-01'], remote: [], frontend: [], workspace: [] },
+  partitions: { backend: ['wbs-be-01'], remote: [], frontend: [], heavy: [], workspace: [] },
   twilightProjects: ['twilight-burokrat'],
   reasons: ['runtime input'],
 };
@@ -392,10 +433,23 @@ describe('the validated CI selection step', () => {
       affectedPlan,
       {
         ...affectedPlan,
+        projects: ['tool-fleet', 'twilight-burokrat', 'wbs-be-01'],
+        workspaceProjects: ['tool-fleet', 'wbs-be-01'],
+        partitions: { ...affectedPlan.partitions, heavy: ['tool-fleet'] },
+      },
+      // Proof: dropping wbs-core from either Gate mode heavy clause refused this valid plan.
+      {
+        ...affectedPlan,
+        projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-core'],
+        workspaceProjects: ['wbs-be-01', 'wbs-core'],
+        partitions: { ...affectedPlan.partitions, heavy: ['wbs-core'] },
+      },
+      {
+        ...affectedPlan,
         twilight: 'skip',
         projects: [],
         workspaceProjects: [],
-        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
+        partitions: { backend: [], remote: [], frontend: [], heavy: [], workspace: [] },
         twilightProjects: [],
         reasons: ['lint-only module requires independent workspace lint'],
       },
@@ -405,7 +459,7 @@ describe('the validated CI selection step', () => {
         twilight: 'skip',
         projects: [],
         workspaceProjects: [],
-        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
+        partitions: { backend: [], remote: [], frontend: [], heavy: [], workspace: [] },
         twilightProjects: [],
       },
     ]) {
@@ -415,6 +469,13 @@ describe('the validated CI selection step', () => {
       expect(selection.output).toContain(`base=${base}\n`);
       expect(selection.output).toContain(`twilight=${plan.twilight}\n`);
       expect(selection.output).toContain(`projects=${JSON.stringify(plan.projects)}\n`);
+      expect(selection.output).toContain(
+        `heavy=${plan.partitions.heavy.length > 0 ? 'run' : 'skip'}\n`,
+      );
+      // Proof: publishing every leaf regardless of the plan failed this per-project assertion.
+      expect(selection.output).toContain(
+        `heavy_leaves=${JSON.stringify(heavyLeaves.filter(({ project }) => plan.partitions.heavy.includes(project)))}\n`,
+      );
       expect(JSON.parse(readFileSync(join(selection.root, 'ci-selection.json'), 'utf8'))).toEqual(
         plan,
       );
@@ -447,7 +508,13 @@ describe('the validated CI selection step', () => {
         ...affectedPlan,
         projects: ['--skip-nx-cache', 'twilight-burokrat'],
         workspaceProjects: ['--skip-nx-cache'],
-        partitions: { backend: [], remote: [], frontend: [], workspace: ['--skip-nx-cache'] },
+        partitions: {
+          backend: [],
+          remote: [],
+          frontend: [],
+          heavy: [],
+          workspace: ['--skip-nx-cache'],
+        },
       },
       { ...affectedPlan, workspaceProjects: [1] },
       { ...affectedPlan, twilightProjects: [1] },
@@ -459,6 +526,24 @@ describe('the validated CI selection step', () => {
       { ...affectedPlan, partitions: { ...affectedPlan.partitions, backend: [] } },
       { ...affectedPlan, partitions: { ...affectedPlan.partitions, workspace: ['wbs-be-01'] } },
       { ...affectedPlan, partitions: { ...affectedPlan.partitions, remote: ['unknown'] } },
+      // Proof: dropping the heavy membership clause from Gate mode admitted a heavy project
+      // left in the workspace partition (2026-11-20).
+      {
+        ...affectedPlan,
+        projects: ['tool-fleet', 'twilight-burokrat', 'wbs-be-01'],
+        workspaceProjects: ['tool-fleet', 'wbs-be-01'],
+        partitions: { ...affectedPlan.partitions, workspace: ['tool-fleet'] },
+      },
+      {
+        ...affectedPlan,
+        partitions: { ...affectedPlan.partitions, heavy: ['tool-fleet'] },
+      },
+      {
+        ...affectedPlan,
+        projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-core'],
+        workspaceProjects: ['wbs-be-01', 'wbs-core'],
+        partitions: { ...affectedPlan.partitions, workspace: ['wbs-core'] },
+      },
       {
         ...affectedPlan,
         projects: ['twilight-burokrat', 'wbs-be-01', 'wbs-be-01'],
@@ -485,7 +570,7 @@ describe('the validated CI selection step', () => {
         projects: [],
         workspaceProjects: [],
         twilightProjects: [],
-        partitions: { backend: [], remote: [], frontend: [], workspace: [] },
+        partitions: { backend: [], remote: [], frontend: [], heavy: [], workspace: [] },
       },
     ]) {
       const selection = selectGate(plan);
@@ -499,7 +584,7 @@ describe('the validated CI selection step', () => {
       const selection = selectGate({}, event, { RESOLVER_STATUS: '9', PLANNER_STATUS: '9' });
       expect(selection.execution.exitCode).toBe(0);
       expect(selection.output).toBe(
-        'mode=full\ntwilight=run\nbackend=run\nremote=run\nfrontend=run\n',
+        `mode=full\ntwilight=run\nbackend=run\nremote=run\nfrontend=run\nheavy=run\nheavy_leaves=${JSON.stringify(heavyLeaves)}\n`,
       );
     }
     expect(selectGate(affectedPlan, 'unknown').execution.exitCode).not.toBe(0);
