@@ -162,7 +162,8 @@ every stripe and under every row light.
 
 #### Scenario: choosing Done marks the row and fills the fact end
 
-- **GIVEN** a leaf reading `Unknown` with the three columns shown
+- **GIVEN** a leaf reading `Unknown` with the three columns shown, no held fact end, and no
+  forecast end earlier than the reader's local day
 - **WHEN** `Done` is chosen in its Status cell and the completion prompt confirmed unchanged
 - **THEN** the row reads `Done`, its number is struck through, its name retains its own Markdown
   and ink without a DONE-applied strike, and its Fact end cell reads today
