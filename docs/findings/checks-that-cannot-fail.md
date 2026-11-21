@@ -560,6 +560,17 @@ again. The job started at 15:10:50Z and its heavy-leaf step at 15:11:55Z, and Gi
 04:12:45Z) took as long. The annotation is the same, the step is still `in_progress` with no
 conclusion, and no artifact was uploaded. This is the sixteenth identified loss.
 
+**The loss timings are regular to the second.** From the Actions API, both tool-fleet losses
+lasted exactly 67m03s, job start to failure: 136708786587 uncapped and 136887016810 under the memory
+cap. The lost `gate workspace` jobs end where a normal workspace run ends. Five of them lasted
+77m01s, 73m01s, 77m01s, 77m05s and 76m54s (136177983041, 136115143031, 135532626496, 136408071558
+and 136456452906). The other eight lasted 72m04s to 79m04s, and the passing workspace jobs in this
+catalogue took 72m37s (135466352451), 74m26s (131260787719) and 77m23s (136144316155). Exhaustion
+driven by load (memory, tasks or CPU) would not repeat to the second across an uncapped and a capped
+run. The trigger is more likely deterministic: a fixed point in the suite, followed by GitHub's
+fixed grace period before it declares the runner lost. The caps below are still worth having,
+because each one removes a class and leaves a log, but the timing is the stronger lead.
+
 **Memory is ruled out.** The leaf ran under `MemoryMax=12G MemorySwapMax=0 OOMPolicy=continue`.
 A tree that outgrew the cap would have been OOM-killed inside the scope, with `exit=1`, a log and
 the kernel's OOM lines. The earlier amendment's rollback criterion applies: lost with the cap in
@@ -584,9 +595,9 @@ Reading the suite narrows none of them to a test:
 **The lever (A-CI-LEAF-MEMORYMAX-2).** Both capped steps add three things to the scope:
 
 - **`-p TasksMax=4096`.** A fork or thread storm now fails inside the scope with `EAGAIN`, so the
-  runner's own process table is not exhausted. The pids controller counts threads. The surviving
-  shards of this run peaked at 11 `node` and `bun` processes, so 4096 leaves room for hundreds of
-  threads each.
+  runner's own process table is not exhausted. The pids controller counts threads. The first
+  hosted scope (#967's workspace run 44925912318) peaked at 90 tasks, so 4096 leaves more than an
+  order of magnitude of room and still catches a storm.
 - **`-p AllowedCPUs=0-2`.** The scope is pinned to three of the four vCPUs, so CPU 3 always stays
   free for the runner agent, the sampler and the OS. Inside the scope `nproc` reports 3.
 - **`--slice=system.slice`.** This makes the scope's cgroup path a contract the sampler can read.
@@ -600,8 +611,10 @@ Reading the suite narrows none of them to a test:
 
 Pinning trades a quarter of the scope's compute for a guaranteed core. The arithmetic for the
 phase budgets: a fully CPU-bound phase runs at most 4/3 slower. The `tool-fleet` estimate of 42.9
-minutes then becomes 57.2, inside its 75-minute phase. The workspace's 20m41s becomes 27.6, inside 105. `tool-fleet:test` at parallelism one mostly runs one process, so its real cost should be
-lower.
+minutes then becomes 57.2, inside its 75-minute phase. The workspace's 20m41s becomes 27.6,
+inside 105. `tool-fleet:test` at parallelism one mostly runs one process, so its real cost should
+be lower. The first hosted scope's CPU deltas stayed between 31.9 and 80.2 million µs per
+30-second sample, below the 90 million of three busy CPUs.
 
 The probe now also reads the scope's `pids.max` and `cpuset.cpus.effective`. The step refuses
 unless the probe reports `pidsMax=4096 cpus=0-2` along with the memory figures and the heap limit.
@@ -617,19 +630,23 @@ The evidence trail grows in two places:
   before the scope starts, after it ends, or when a file is missing, unreadable or not a count.
   A CPU-bound series rises by about 90000000 µs between 30-second samples.
 - **The end record.** systemd removes the scope's cgroup when its last process exits. A bash
-  wrapper inside the scope therefore runs the gate command, copies `pids.events` `max` and
-  `memory.events` `oom_kill` to a file, and exits with the gate's status. The end record prints
-  `runtime headroom scope events pidsEventsMax=N memoryEventsOomKill=N`, or `unavailable`.
+  wrapper inside the scope therefore runs the gate command, copies `pids.events` `max`,
+  `memory.events` `oom_kill` and `pids.peak` to a file, and exits with the gate's status. The end
+  record prints `runtime headroom scope events pidsEventsMax=N memoryEventsOomKill=N pidsPeak=N`.
+  A kernel without `pids.peak` gives `pidsPeak=unavailable`. An empty copy prints `absent` (the
+  wrapper never wrote, for example because it was killed), and a malformed one `unavailable`.
 
 **Proof plan.** The next full-mode main run should end in one of these ways:
 
 - **The `tool-fleet` leaf passes.** One of the new caps held.
 - **It fails with a log.** The end record shows `pidsEventsMax` above zero (a fork storm, refused
   by TasksMax), or the samples show a CPU-bound `scopeCpuUsec` series before the failure.
-- **It is lost again.** Neither memory, tasks nor the agent's core explains a loss, which points
-  at network breakage or a signal to a foreign group. The next lever is then to run tool-fleet's
-  native tests only on the gate hosts, as tool-remote-scripts runs under A-GATE-REMOTE-1, or to
-  give them their own leaf.
+- **It is lost again, at about 67m03s.** Neither memory, tasks nor the agent's core explains the
+  loss. First find what tool-fleet does at that offset: a surviving run's sample timestamps, or
+  per-test timings, name the task running then. The remaining candidates are network breakage, a
+  signal to a foreign group, or a fixed deadline inside that task. The fallback lever is to run
+  tool-fleet's native tests only on the gate hosts, as tool-remote-scripts runs under
+  A-GATE-REMOTE-1, or to give them their own leaf.
 
 `pr-merge-base.test.ts` covers the change, and each of these faults failed a test:
 
@@ -640,12 +657,15 @@ The evidence trail grows in two places:
   runtime.
 - Deleting the scope fields from the sample, their count check or the `system.slice` path failed
   the sampler test. That test runs the production functions against a scratch cgroup.
-- Accepting any events copy failed the telemetry test.
+- Accepting any events copy, reading `pids.peak` without checking that it exists, or dropping the
+  empty-copy `absent` branch failed the telemetry test. Dropping `pidsPeak` from the copy failed
+  the ledger.
 
-`AllowedCPUs` in a system-manager scope is not proved on a hosted runner yet. On this laptop's
-user manager the cpuset controller is not delegated, so `cpuset.cpus.effective` was absent there.
-The laptop's `system.slice` does list cpuset in `cgroup.subtree_control`. If a hosted runner does not, the probe refuses in seconds
-with a named message.
+#967's own run 44925912318 proved the scope on a hosted runner (image `20261116.376.1`). The
+workspace start record read `memoryMax=12G tasksMax=4096 allowedCpus=0-2
+scope=ci-gate-workspace-2799.scope`, the probe refused nothing, and the phase ended
+`elapsedSeconds=1284 exit=0` with `pidsEventsMax=0 memoryEventsOomKill=0`. That run predates the
+`pidsPeak` field. It selected no tool-fleet leaf, so the lever itself waits for main.
 
 ## Checks kept without a reachable negative
 

@@ -254,6 +254,7 @@ interface ScopeFixture {
   cpus?: string | null;
   pidsEventsMax?: string | null;
   oomKills?: string;
+  pidsPeak?: string | null;
 }
 
 /**
@@ -281,6 +282,7 @@ function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): s
       fixture.pidsEventsMax === undefined
         ? 'max 0'
         : fixture.pidsEventsMax && `max ${fixture.pidsEventsMax}`,
+    'pids.peak': fixture.pidsPeak === undefined ? '90' : fixture.pidsPeak,
   };
   for (const [file, value] of Object.entries(optional))
     if (value !== null) writeFileSync(join(cgroupRoot, own, file), `${value}\n`);
@@ -321,6 +323,9 @@ case "$*" in
   *ci-run-runtime.ts*)
     printf '%s\\n' "$*" >> "$NX_CALLS"
     printf 'runtime environment sentinel=%s nodeOptions=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" "\${NODE_OPTIONS:-}" >> "$SCOPE_CALLS"
+    # The scope's wrapper is this process's grandparent (wrapper, timeout, runtime): killing it
+    # stands in for the OOM killer or a foreign signal taking the wrapper down with the gate.
+    if [ -n "\${KILL_SCOPE_WRAPPER:-}" ]; then kill -9 "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
     exit "\${RUNTIME_STATUS:-0}" ;;
 esac
 exec '${process.execPath}' "$@"
@@ -567,10 +572,17 @@ test.each(headroomShards)(
     const id = (flag: string) =>
       Bun.spawnSync(['id', flag], { stdout: 'pipe' }).stdout.toString().trim();
     const sentinel = 'spaced value=with\tseparators';
-    for (const [status, inherited, nodeOptions, refused, killed] of [
-      ['0', '', '--max-old-space-size=4096', '0', '0'],
-      ['137', '--enable-source-maps', '--enable-source-maps --max-old-space-size=4096', '3', '1'],
-      ['0', '--max-old-space-size=4096', '--max-old-space-size=4096', '0', '0'],
+    for (const [status, inherited, nodeOptions, refused, killed, peak] of [
+      ['0', '', '--max-old-space-size=4096', '0', '0', '90'],
+      [
+        '137',
+        '--enable-source-maps',
+        '--enable-source-maps --max-old-space-size=4096',
+        '3',
+        '1',
+        '4096',
+      ],
+      ['0', '--max-old-space-size=4096', '--max-old-space-size=4096', '0', '0', '90'],
     ] as const) {
       const h = history();
       const execution = runStep(
@@ -583,7 +595,7 @@ test.each(headroomShards)(
           GATE_ENVIRONMENT_SENTINEL: sentinel,
           NODE_OPTIONS: inherited,
         },
-        { pidsEventsMax: refused, oomKills: killed },
+        { pidsEventsMax: refused, oomKills: killed, pidsPeak: peak },
       );
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
         Number(status),
@@ -620,7 +632,7 @@ test.each(headroomShards)(
         new RegExp(`runtime phase end partition=${partition} .* exit=${status}\n`),
       );
       const events = log.indexOf(
-        `runtime headroom scope events pidsEventsMax=${refused} memoryEventsOomKill=${killed}\n`,
+        `runtime headroom scope events pidsEventsMax=${refused} memoryEventsOomKill=${killed} pidsPeak=${peak}\n`,
       );
       expect(events, log).toBeGreaterThan(
         log.indexOf(`runtime headroom end partition=${partition}`),
@@ -858,21 +870,43 @@ test.each(headroomShards)(
         lines.some((line) => line.startsWith(`runtime phase end partition=${partition}`)),
       ).toBe(true);
     }
-    // An absent pids.events leaves the wrapper's copy unparseable; the end record says so and the
-    // gate status stands. Proof (2026-11-21): accepting any copy text printed `pidsEventsMax=`.
-    for (const status of ['0', '7']) {
+    // The wrapper's copy, read by the end record without changing the gate status:
+    // - an absent pids.events leaves it malformed: `unavailable`;
+    // - an absent pids.peak is recorded in it as `pidsPeak=unavailable`, the counts still stand;
+    // - a killed wrapper never writes it: `absent`, and the step reports the kill's 137.
+    // Proof (2026-11-21): accepting any copy text printed `pidsEventsMax=`; reading pids.peak
+    // without its existence check failed the absent-peak case; dropping the empty-copy branch
+    // printed `unavailable` for the killed wrapper.
+    for (const [status, fixture, env, expected, code] of [
+      ['0', { pidsEventsMax: null }, {}, 'runtime headroom scope events unavailable', 0],
+      ['7', { pidsEventsMax: null }, {}, 'runtime headroom scope events unavailable', 7],
+      [
+        '0',
+        { pidsPeak: null },
+        {},
+        'runtime headroom scope events pidsEventsMax=0 memoryEventsOomKill=0 pidsPeak=unavailable',
+        0,
+      ],
+      ['0', {}, { KILL_SCOPE_WRAPPER: '1' }, 'runtime headroom scope events absent', 137],
+    ] as const) {
       const h = history();
       const execution = runStep(
         h,
         step(job, name),
-        { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status },
-        { pidsEventsMax: null },
+        { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status, ...env },
+        fixture,
       );
-      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
-        Number(status),
-      );
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(code);
       const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
-      expect(lines, status).toContain('runtime headroom scope events unavailable');
+      expect(lines, expected).toContain(expected);
+      expect(
+        lines.some(
+          (line) =>
+            line.startsWith(`runtime phase end partition=${partition} `) &&
+            line.endsWith(` exit=${String(code)}`),
+        ),
+        expected,
+      ).toBe(true);
       expect(lines.some((line) => line.startsWith('runtime headroom kernel oom since=@'))).toBe(
         true,
       );

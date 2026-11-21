@@ -482,8 +482,8 @@ jobs:
           # failed the scope argv and environment ledger.
           # A-CI-LEAF-MEMORYMAX-2 (R5-32): run 44917747487 lost the tool-fleet leaf inside this cap with no
           # OOM record, so memory is ruled out and the scope also bounds tasks and CPU. TasksMax=4096 turns a
-          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the surviving shards'
-          # samples peaked at 11 node and bun processes). AllowedCPUs=0-2 pins the scope to three of the
+          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the first hosted scope,
+          # #967's workspace run 44925912318, peaked at 90). AllowedCPUs=0-2 pins the scope to three of the
           # runner's four vCPUs, so CPU 3 stays free for the runner agent, the sampler and the OS whatever
           # the suite does: a 300% CPUQuota bounds only the average per 100 ms period and lets the scope
           # fill all four cores between throttles, and CPUWeight protects nothing on an idle sibling.
@@ -495,7 +495,9 @@ jobs:
           # events wrapper failed the scope ledger test; with pids.max and cpuset.cpus.effective dropped from
           # the probe and its report check, pids.max=max or absent, cpus 0-3 and an absent cpuset file all
           # reached the runtime; dropping sample_scope, its count check or the system.slice path failed the
-          # sampler test, and accepting any events copy failed the telemetry test.
+          # sampler test; accepting any events copy, reading pids.peak without its existence check or
+          # dropping the empty-copy `absent` branch failed the telemetry test, and dropping pidsPeak from the
+          # copy failed the ledger.
           memory_max=12G
           memory_max_bytes=12884901888
           cgroup_root=/sys/fs/cgroup
@@ -555,14 +557,18 @@ jobs:
               "$(cat "$cgroup/memory.swap.max")" "$(cat "$cgroup/pids.max")" \
               "$(cat "$cgroup/cpuset.cpus.effective")" "$(node -e "$1")"'
           # $0 is the cgroup root and $1 the events file; the rest is the gate command. Its status is the
-          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable.
+          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable. A kernel
+          # without pids.peak lacks the file, which the copy records as `pidsPeak=unavailable`.
           # shellcheck disable=SC2016 # expanded by the wrapper's own bash inside the scope
           scope_gate='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" events=$1
             shift
             "$@"
             status=$?
-            printf "pidsEventsMax=%s memoryEventsOomKill=%s\n" "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
-              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" > "$events"
+            peak=unavailable
+            if [ -e "$cgroup/pids.peak" ]; then peak="$(cat "$cgroup/pids.peak")"; fi
+            printf "pidsEventsMax=%s memoryEventsOomKill=%s pidsPeak=%s\n" \
+              "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
+              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" "$peak" > "$events"
             exit "$status"'
           refuse_uncapped() {
             printf 'A-CI-LEAF-MEMORYMAX-2: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
@@ -638,15 +644,24 @@ jobs:
               free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
               record_scope_events && record_kernel_oom
           }
-          # What the scope's wrapper copied out of pids.events and memory.events before it exited: a max
-          # count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed.
+          # What the scope's wrapper copied out of pids.events, memory.events and pids.peak before it exited:
+          # a max count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed,
+          # pidsPeak the most tasks the scope held. `absent` means the wrapper never wrote (it was killed);
+          # `unavailable` means it wrote something that is not three counts.
           record_scope_events() {
-            local events refused killed
+            local events refused killed peak
             events="$(cat "$scope_events")"
+            if [ -z "$events" ]; then
+              printf 'runtime headroom scope events absent\n'
+              return
+            fi
             refused="${events#pidsEventsMax=}"
             refused="${refused%% *}"
-            killed="${events##* memoryEventsOomKill=}"
-            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed" ] && is_count "$refused" "$killed"; then
+            killed="${events#* memoryEventsOomKill=}"
+            killed="${killed%% *}"
+            peak="${events##* pidsPeak=}"
+            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed pidsPeak=$peak" ] &&
+              is_count "$refused" "$killed" && { [ "$peak" = unavailable ] || is_count "$peak"; }; then
               printf 'runtime headroom scope events %s\n' "$events"
             else
               printf 'runtime headroom scope events unavailable\n'
@@ -873,8 +888,8 @@ jobs:
           # failed the scope argv and environment ledger.
           # A-CI-LEAF-MEMORYMAX-2 (R5-32): run 44917747487 lost the tool-fleet leaf inside this cap with no
           # OOM record, so memory is ruled out and the scope also bounds tasks and CPU. TasksMax=4096 turns a
-          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the surviving shards'
-          # samples peaked at 11 node and bun processes). AllowedCPUs=0-2 pins the scope to three of the
+          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the first hosted scope,
+          # #967's workspace run 44925912318, peaked at 90). AllowedCPUs=0-2 pins the scope to three of the
           # runner's four vCPUs, so CPU 3 stays free for the runner agent, the sampler and the OS whatever
           # the suite does: a 300% CPUQuota bounds only the average per 100 ms period and lets the scope
           # fill all four cores between throttles, and CPUWeight protects nothing on an idle sibling.
@@ -886,7 +901,9 @@ jobs:
           # events wrapper failed the scope ledger test; with pids.max and cpuset.cpus.effective dropped from
           # the probe and its report check, pids.max=max or absent, cpus 0-3 and an absent cpuset file all
           # reached the runtime; dropping sample_scope, its count check or the system.slice path failed the
-          # sampler test, and accepting any events copy failed the telemetry test.
+          # sampler test; accepting any events copy, reading pids.peak without its existence check or
+          # dropping the empty-copy `absent` branch failed the telemetry test, and dropping pidsPeak from the
+          # copy failed the ledger.
           memory_max=12G
           memory_max_bytes=12884901888
           cgroup_root=/sys/fs/cgroup
@@ -946,14 +963,18 @@ jobs:
               "$(cat "$cgroup/memory.swap.max")" "$(cat "$cgroup/pids.max")" \
               "$(cat "$cgroup/cpuset.cpus.effective")" "$(node -e "$1")"'
           # $0 is the cgroup root and $1 the events file; the rest is the gate command. Its status is the
-          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable.
+          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable. A kernel
+          # without pids.peak lacks the file, which the copy records as `pidsPeak=unavailable`.
           # shellcheck disable=SC2016 # expanded by the wrapper's own bash inside the scope
           scope_gate='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" events=$1
             shift
             "$@"
             status=$?
-            printf "pidsEventsMax=%s memoryEventsOomKill=%s\n" "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
-              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" > "$events"
+            peak=unavailable
+            if [ -e "$cgroup/pids.peak" ]; then peak="$(cat "$cgroup/pids.peak")"; fi
+            printf "pidsEventsMax=%s memoryEventsOomKill=%s pidsPeak=%s\n" \
+              "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
+              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" "$peak" > "$events"
             exit "$status"'
           refuse_uncapped() {
             printf 'A-CI-LEAF-MEMORYMAX-2: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
@@ -1029,15 +1050,24 @@ jobs:
               free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
               record_scope_events && record_kernel_oom
           }
-          # What the scope's wrapper copied out of pids.events and memory.events before it exited: a max
-          # count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed.
+          # What the scope's wrapper copied out of pids.events, memory.events and pids.peak before it exited:
+          # a max count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed,
+          # pidsPeak the most tasks the scope held. `absent` means the wrapper never wrote (it was killed);
+          # `unavailable` means it wrote something that is not three counts.
           record_scope_events() {
-            local events refused killed
+            local events refused killed peak
             events="$(cat "$scope_events")"
+            if [ -z "$events" ]; then
+              printf 'runtime headroom scope events absent\n'
+              return
+            fi
             refused="${events#pidsEventsMax=}"
             refused="${refused%% *}"
-            killed="${events##* memoryEventsOomKill=}"
-            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed" ] && is_count "$refused" "$killed"; then
+            killed="${events#* memoryEventsOomKill=}"
+            killed="${killed%% *}"
+            peak="${events##* pidsPeak=}"
+            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed pidsPeak=$peak" ] &&
+              is_count "$refused" "$killed" && { [ "$peak" = unavailable ] || is_count "$peak"; }; then
               printf 'runtime headroom scope events %s\n' "$events"
             else
               printf 'runtime headroom scope events unavailable\n'
