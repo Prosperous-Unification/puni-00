@@ -52,9 +52,15 @@ taint `CriticalAddonsOnly=true:NoSchedule`, which the components k3s packages to
 
 #### Scenario: One tainted node
 
-- **WHEN** a cluster of one server registered with the taint is validated
-- **THEN** CoreDNS, the metrics server and the volume provisioner are Ready without a patch and
-  enrollment validation passes
+- **WHEN** a cluster of one server registered with the platform taint and the enrollment taint
+  is validated
+- **THEN** enrollment validation passes, and CoreDNS, the metrics server and the volume
+  provisioner are Ready afterwards
+
+#### Scenario: Enrollment patch replaces tolerations
+
+- **WHEN** the enrollment play's CoreDNS step replaces the Deployment's toleration list
+- **THEN** the play's contract test fails
 
 ### Requirement: Workloads are pinned to their role
 
@@ -134,6 +140,17 @@ MUST NOT render a Flux object, read a remote base, or hold an encrypted Secret.
 - **WHEN** an Application source renders a Distribution registry workload
 - **THEN** the delivery check fails and names it
 
+#### Scenario: Chart CRDs left out
+
+- **WHEN** a kustomize unit inflates a chart whose archive has a `crds/` directory without
+  `includeCRDs: true`
+- **THEN** the delivery check fails and names the unit
+
+#### Scenario: Release name changed
+
+- **WHEN** a wrapper chart's release name differs from the release it replaces
+- **THEN** the render-equality test fails
+
 ### Requirement: Units are created in dependency order and converge by retry
 
 The root Application SHALL order the creation of its child Applications by sync wave as the
@@ -153,6 +170,24 @@ backoff.
 - **WHEN** an Issuer that reads a Secret is in a wave at or below the wave of the unit that
   provides the Secret
 - **THEN** the delivery check fails and names the Issuer
+
+#### Scenario: Secret made by an operator
+
+- **WHEN** a unit reads a Secret that an operator makes for another unit and is in a wave at
+  or below that unit's
+- **THEN** the delivery check fails and names the unit
+
+#### Scenario: Secret without a provider
+
+- **WHEN** a unit reads a Secret that no bootstrap entry, ExternalSecret, Certificate or
+  operator-table row provides
+- **THEN** the delivery check fails and names the Secret
+
+#### Scenario: Alert for something that is not there
+
+- **WHEN** an alert rule selects a CronJob, namespace or cluster that no unit of the tree
+  renders at that revision
+- **THEN** the delivery check fails and names the rule
 
 #### Scenario: Build from an empty cluster
 
@@ -177,9 +212,11 @@ backoff.
 ### Requirement: Git is the only write path
 
 Every Application SHALL sync automatically with pruning and self-healing from `main` to the
-cluster it runs in; the WBS Application alone MAY pin a commit. A change SHALL reach `main`
-only through a pull request with its required checks. The Argo CD interface MUST have no
-public route, MUST grant read access only, and the built-in `admin` account MUST be disabled.
+cluster it runs in; the WBS Application alone MAY pin a commit and MAY land without automation,
+which its first start turns on. A change SHALL reach `main` only through a pull request with
+its required checks, and the delivery check SHALL run inside a required check. The Argo CD
+interface MUST have no public route, MUST grant read access only, and the built-in `admin`
+account MUST be disabled.
 
 #### Scenario: Manual change
 
@@ -192,9 +229,26 @@ public route, MUST grant read access only, and the built-in `admin` account MUST
   Application names a destination other than the in-cluster API
 - **THEN** the delivery check fails and names the Application
 
+#### Scenario: Application without automation
+
+- **WHEN** an Application other than the WBS one has no automated sync
+- **THEN** the delivery check fails and names the Application
+
+#### Scenario: First start turns automation on
+
+- **WHEN** the WBS first start has enabled automation on the WBS Application and the root syncs
+- **THEN** the root leaves that Application's sync policy as it is, and still reverts an edit
+  to any other child
+
+#### Scenario: Change under the tree alone
+
+- **WHEN** a pull request changes only a file under `infra/argocd`
+- **THEN** the required check runs the delivery check over the real tree
+
 #### Scenario: Apps project reaches cluster scope
 
-- **WHEN** the `apps` project admits a cluster-scoped kind other than `ClusterIssuer`
+- **WHEN** the `apps` project admits a cluster-scoped kind other than `ClusterIssuer`, a
+  Namespace included
 - **THEN** the delivery check fails
 
 #### Scenario: Field owned by another writer
@@ -232,13 +286,15 @@ every custom resource from which an operator creates claims SHALL carry the sync
 
 ### Requirement: SQLite backups are kept and watched from inside the cluster
 
-The cluster SHALL write its SQLite backups under a prefix that names the cluster, apply the
-documented retention to it, and alert when the newest backup report is older than two backup
-intervals, without depending on a host outside the cluster.
+The cluster SHALL write its SQLite backups under a prefix that names the cluster and lies
+outside `sqlite/`, apply the documented retention to it, and alert when a backup job's last
+success is older than two backup intervals or its series is absent, without depending on a
+host outside the cluster.
 
 #### Scenario: Shared prefix
 
-- **WHEN** an app overlay of the rebuilt cluster sets the backup prefix to the bare `sqlite`
+- **WHEN** an app overlay of the rebuilt cluster sets the backup prefix to `sqlite` or to a
+  path under `sqlite/`
 - **THEN** the delivery check fails and names the overlay
 
 #### Scenario: Retention
@@ -260,7 +316,12 @@ intervals, without depending on a host outside the cluster.
 
 #### Scenario: Stale backup
 
-- **WHEN** the newest report of a database is older than two backup intervals
+- **WHEN** a database's backup job last succeeded more than two backup intervals ago
+- **THEN** the alert for that database fires
+
+#### Scenario: Backup job gone
+
+- **WHEN** the series of a database's backup job is absent
 - **THEN** the alert for that database fires
 
 ### Requirement: Each node is watched from outside itself
@@ -282,10 +343,11 @@ Every k3s node and every gate host SHALL have a liveness probe that runs on a di
 ### Requirement: Irreplaceable data is verified before its old host is deleted
 
 A host that holds the WBS dev database, the WBS production database, the website data or the
-MLflow store SHALL NOT be deleted until that store has one backup taken after its writer
-stopped, a restore of that backup on the new side checked against the backup's report, and one
-verified backup made on the new side. A gate host SHALL NOT be deleted before the new CI host
-is calibrated.
+MLflow store SHALL NOT be deleted until that store has a backup taken after its writer stopped,
+a restore of it on the new side checked against its report, and a verified backup made there
+after the restore. A store in the cluster SHALL be restored with its workload at zero replicas
+and its backup job suspended. A gate host SHALL NOT be deleted before the new CI host is
+calibrated.
 
 #### Scenario: Restore differs
 
@@ -295,6 +357,11 @@ is calibrated.
 #### Scenario: No backup on the new side
 
 - **WHEN** no verified backup of a moved store exists from its new host
+- **THEN** the old host is kept
+
+#### Scenario: Backup older than the restore
+
+- **WHEN** the only backup on the new side predates the restore or holds no restored record
 - **THEN** the old host is kept
 
 #### Scenario: Successor not calibrated

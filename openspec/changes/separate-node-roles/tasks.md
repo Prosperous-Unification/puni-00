@@ -12,9 +12,11 @@ owner-only input directory.
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R28 and the thirteen open questions in design.md and
-      overrules by id. Receipt: the overrules, dated, in verify.md. Until then only slices 1.1,
-      1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows them.
+- [ ] 0.1 Owner reads assumptions R1 to R28 and the fourteen open questions in design.md and
+      overrules by id. The items of design decision 10 are needed before stage 1; the rest can
+      wait as that decision lists. Receipt: the overrules, dated, in verify.md. Until then only
+      slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and follows
+      them.
 - [ ] 0.2 File the two decision records from design.md as ADRs under the next free numbers
       once pull requests #935 and #948 and the Harbor record have settled theirs, link them
       from proposal.md, and delete the quoted copies. Test:
@@ -33,15 +35,19 @@ owner-only input directory.
       Receipt: four matching fingerprints, dated, in verify.md; no value. Stop: any is missing
       or differs. Then copy it into escrow from the host that holds it before anything else
       proceeds.
-- [ ] 0.6 The rules that guard `main` (R20). Who: owner. For this repository before A4, and
-      for the fleet repository before A19. Commands: read the rules that apply to `main` with
+- [ ] 0.6 The rules that guard `main` (R20). Who: owner. For this repository and for the fleet
+      repository, both before A2: A2 writes to the fleet repository and A4 reads from both.
+      Commands: read the rules that apply to `main` with
       `gh api repos/<repository>/rules/branches/main`; add what is missing so that a change
       needs a pull request and the required checks and no push may be direct, forced or
-      deleting; list the bypass actors. Receipt: the rules read back; a direct push of a test
-      commit refused; a forced push refused; the bypass list, which names no agent account.
-      Stop: either push is accepted. Rollback: none needed; no rule is loosened. On
-      2026-11-21 this repository's ruleset required a pull request and status checks and
-      listed no rule against forced or deleting pushes.
+      deleting; on the fleet repository require its `fleet-check`; list the bypass actors.
+      Receipt: the rules read back for both; a direct push of a test commit refused; a forced
+      push refused; the bypass list, which names no agent account. Stop: either push is
+      accepted. Rollback: none needed; no rule is loosened. Read on 2026-11-21: this
+      repository's `main` requires a pull request with zero approvals and the status checks
+      `gate` and `pixels`, not strict, with no bypass actor and no rule against forced or
+      deleting pushes; the fleet repository's `main` had no rule. Zero approvals and
+      non-strict checks stay as they are and are listed under Risks in design.md.
 
 ## 1. Fleet model and roles (agent slices)
 
@@ -55,15 +61,21 @@ owner-only input directory.
       `control-plane` node of a platform cluster that requires `platform-services` carries it
       and neither `product` nor `ingress`; no host in `gate_hosts` is in a k3s group of the
       same inventory. In the `k3s_server` template: a server with `platform-services` writes
-      the taint `CriticalAddonsOnly=true:NoSchedule` (R25). Test: the template renders it; on
-      the QEMU lab a one-node server registered with the taint brings CoreDNS, the metrics
-      server and the volume provisioner to Ready with no patch, and `validate-enrollment.yml`
-      passes there. Negatives, each with its own fault: a server with `product` is refused
-      (fault: drop the capability comparison); a gate host under `k3s_agents` is refused
-      (fault: skip the gate-host comparison); a `platform-services` server whose rendered
-      config lacks the taint fails the role test (fault: remove the template branch).
-      Stop: validation cannot pass on one tainted node. Then R25's alternative applies:
-      no taint, and the selector rule of 2.4(f) alone.
+      the taint `CriticalAddonsOnly=true:NoSchedule` (R25). In `validate-enrollment.yml`: the
+      CoreDNS step appends the enrollment toleration when it is absent (a JSON patch that adds
+      one list entry) where it now replaces the whole list with a strategic patch, so the
+      packaged `CriticalAddonsOnly` toleration stays. Test: the template renders the taint;
+      the play's contract test reads the patch type; in the rehearsal of 2.7 a one-node server
+      registered with both taints brings CoreDNS to Ready, `validate-enrollment.yml` passes,
+      and CoreDNS, the metrics server and the volume provisioner are Ready afterwards.
+      Negatives, each with its own fault: a server with `product` is refused (fault: drop the
+      capability comparison); a gate host under `k3s_agents` is refused (fault: skip the
+      gate-host comparison); a `platform-services` server whose rendered config lacks the
+      taint fails the role test (fault: remove the template branch); a play whose CoreDNS
+      step replaces the toleration list fails the contract test (fault: restore the strategic
+      patch). The existing two-node path keeps passing its tests unchanged. Stop: validation
+      cannot pass on one node with both taints. Then the cause is reported and the owner
+      decides; R25's alternative (selectors and rule 2.4(f) alone) is not applied silently.
 - [ ] 1.3 Repeats once per stage, after A1, A8, A13 and A17 and before the step that enrolls
       the host. Each revision records the node's machine id and private address where the
       fleet model already records them for the two existing nodes (`desired.yaml`, the
@@ -109,19 +121,23 @@ Slices 2.1 to 2.7 and 2.9 are needed before A4; 2.8 before stage 3.
       delete the customization and watch the check still pass).
 - [ ] 2.2 Wrapper charts. For cert-manager and Traefik: a chart directory under
       `infra/argocd/units` whose `Chart.yaml` names the locked archive as a dependency, whose
-      `charts/` holds it, and whose values are those of the existing `HelmRelease`. Test: the
-      locked `helm template` output of the wrapper equals the render `tool-fleet` already
-      makes of the `HelmRelease`, apart from the release name and placement, and `helm
-template` succeeds with the network disabled. Negatives: an archive whose SHA-256
-      differs from the lock is refused; a value that renders differently on a second run
-      fails. Fault to inject: change one value in the wrapper and watch the equality test
-      fail.
+      `charts/` holds it, and whose values are those of the existing `HelmRelease`. Its
+      `releaseName` is the old release's name, because selectors in the tree name it. Test:
+      the locked `helm template --include-crds` output of the wrapper equals the render
+      `tool-fleet` already makes of the `HelmRelease`, release name and CRDs included, apart
+      from placement, and `helm template` succeeds with the network disabled. Negatives, each
+      with its own fault: an archive whose SHA-256 differs from the lock is refused (fault:
+      skip the digest comparison); a value that renders differently on a second run fails
+      (fault: add a generated value); a wrapper with another release name fails the equality
+      test (fault: drop `releaseName`).
 - [ ] 2.3 Platform-stage units: `namespaces`, `policy`, `storage` and `issuers` as kustomize
       directories under `infra/argocd/units`, copied from the manifests the Flux stages
       `controllers`, `policy`, `storage` and `platform` render: every namespace, the admission
       and network policy, the storage classes, the registry CA issuer and the staging ACME
-      issuer, with no Distribution workload (R10) and without the `otel-server` pair, which is
-      slice 2.8's. The ConfigMap `puni-trusted-workload` carries the ignore rule of design
+      issuer, with no Distribution workload (R10), without the `registry-tls` Certificate,
+      which is the Harbor unit's, and without the `otel-server` pair, which is slice 2.8's.
+      `namespaces` also carries `website-prod-logs`, which no manifest of this repository
+      declares today. The ConfigMap `puni-trusted-workload` carries the ignore rule of design
       decision 3. Test: each directory's render equals the old stage's render at this commit,
       apart from Flux kinds, placement and the rows of decision 3's table. Negatives: a copy
       that drops a NetworkPolicy fails the equality test (fault: delete one copied object); a
@@ -135,8 +151,11 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       (a) An Application outside its project's sources or destinations, with a destination
       other than the in-cluster API, or with a `targetRevision` other than `main`; the WBS
       Application alone may pin a commit. An `apps` project that admits a cluster-scoped kind
-      other than `ClusterIssuer`. (b) One without automated `prune`, `selfHeal` and a retry
-      policy, or with the resources finalizer. (c) Waves that differ from the table of design
+      other than `ClusterIssuer` or any Namespace. (b) One without automated `prune`,
+      `selfHeal` and a retry policy, or with the resources finalizer. The Application `wbs`
+      alone lands without automation; any other Application without it is refused, and so is
+      a root that lacks the ignore rule for `wbs` `/spec/syncPolicy` with
+      `RespectIgnoreDifferences=true` or that ignores any other child's field. (c) Waves that differ from the table of design
       decision 3. (d) A rendered object of a `toolkit.fluxcd.io` group, a remote
       kustomize base, or a document with a `sops` key under an Application source path.
       (e) A file that is in an Application's source closure and in the closure of a Flux unit
@@ -147,19 +166,27 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       PersistentVolumeClaim, a namespace that holds one, or an Elasticsearch, Prometheus or
       Alertmanager resource without `Prune=false` and `Delete=false`. (h) A Distribution
       workload. (i) A Job that carried Flux's `force` annotation without
-      `Force=true,Replace=true`.
+      `Force=true,Replace=true`. (j) A kustomize unit that inflates a chart whose archive
+      has a `crds/` directory without `includeCRDs: true`, or a Helm source of such a chart
+      with `skipCrds`. The family also runs as `argocd.test.ts` over the repository's real
+      tree, as `platform.test.ts` does for `validatePlatform`, and that project's inputs
+      name `infra/argocd/**`, so the required `gate` check selects it for a change under
+      that path alone. Negative: a change to one file under `infra/argocd` selects the test
+      (fault: drop the input glob).
 - [ ] 2.5 Bootstrap playbook `infra/ansible/playbooks/argocd.yml`: require the cluster id, the
       install digest and the secret file list; refuse a host that has a `flux-system`
-      namespace, whose node name is in another inventory, or whose identity ConfigMap
-      `kube-system/puni-cluster-<id>` is absent or names another cluster; apply the
+      namespace or whose node name is in another inventory; create the immutable identity
+      ConfigMap `kube-system/puni-cluster-<id>` when the cluster has none, as only the Flux
+      play does today, and refuse a cluster that has one for another id; apply the
       `namespaces` unit; decrypt each bootstrap Secret of design decision 5 on the controller
       and apply it through the API under `no_log`; apply the install with a server-side apply;
       wait for the workloads; apply the two AppProjects and the root Application. Test:
       `infra/ansible/tests`, including a second run with one more secret file, which changes
       that Secret and nothing else. Negatives, each with its own fault: a wrong install digest
       is refused; a missing secret file is refused before anything is applied; a host with
-      `flux-system` is refused (fault: remove that guard); a cluster with another identity is
-      refused (fault: compare nothing).
+      `flux-system` is refused (fault: remove that guard); a cluster that already carries
+      another id's ConfigMap is refused and nothing is applied (fault: create without
+      reading); a second run on the same cluster leaves the ConfigMap unchanged.
 - [ ] 2.6 Health and recovery for a cluster delivered by Argo CD. `tool-fleet:health` gains a
       rule that reads Applications where the cluster's delivery is Argo CD and no longer
       reports "no Flux objects" there; the recovery manifest and `verify-cold-restore` accept
@@ -169,33 +196,51 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       treat a missing Application list as healthy.
 - [ ] 2.7 Rehearsal. A k3d lab profile that brings the new tree up with the bootstrap
       playbook's steps, and the staged build on the QEMU lab. Host: the operator workstation,
-      which has `/dev/kvm`, once it has 60 GiB free; the k3d part may run on h8ci after A8.
+      which has `/dev/kvm`, once it has 60 GiB free; it does not today. Otherwise, as design
+      decision 10 states: the k3d part on the server created in A1 before A3, and the staged
+      build as a throwaway pass on that server and one temporary server, both deleted and
+      created again afterwards.
       Receipt in verify.md: (a) the root and every child Synced and Healthy from an empty
       cluster, and the wave at which each became so; (b) every object OutOfSync after the
       first sync with no Git change, which is the `ignoreDifferences` list; (c) what each
       chart's hooks did; (d) that `argocd-secret` kept the password hash and its generated
       keys after a self-managed sync; (e) whether helm followed a linked chart archive, and
       whether kustomize inflated a chart from a local archive with the network disabled;
-      (f) validation's result on a one-node cluster registered with the taint; (g) a manual
+      (f) validation's result on a one-node cluster registered with both taints, and
+      CoreDNS's tolerations after it; (g) a manual
       edit reverted by self-heal, a deleted manifest whose claim survived, and break-glass
       holding with the root's automation off; (h) the stage states after each join, with the
       firewall refreshed first, and the time of an etcd restore; (i) a rewritten
       `solverImages` left alone by a sync, and a changed `force` Job recreated; (j) a merge
-      that changes two dependent units at once converging by retry, with the retries counted.
+      that changes two dependent units at once converging by retry, with the retries counted;
+      (k) the Traefik and Velero CRDs present after the first sync; (l) a Certificate that
+      cannot be issued keeping its unit from Healthy; (m) the `otlp-ingress` NetworkPolicy
+      selecting the collector's pods; (n) the `wbs` Application's automation turned on in the
+      cluster and left on by the root's next sync, and another child's edit reverted.
       Stop: an Application cannot become Healthy, or validation cannot pass with one node.
       Then design decisions 3 and 6 are revised before any attended step. Fallbacks already
       decided: for (d), the Secret leaves the managed set; for (e), the wrapper holds a copy
-      and Velero uses a committed render; for (f), R25's alternative.
+      and Velero uses a committed render. For (f) there is no automatic fallback: the owner
+      decides (slice 1.2).
 - [ ] 2.8 Units for waves 5 to 10, before stage 3: `observability-secrets` with one
       ExternalSecret for each of the fifteen operator-provided Secrets (R22);
       `otel-certificates`; wrapper charts for the ECK operator, the Prometheus stack and the
       OTel collector; Velero as a kustomize unit that inflates its chart and carries the
-      patch of its `postRenderers`; kustomize units for Elasticsearch, Kibana, signals, alerts
-      and the Elasticsearch snapshots, with `Force=true,Replace=true` on the three Jobs and
-      the cluster name in the Prometheus stack's values file; `ServerSideApply=true` where
-      CRDs need it. Tests and negatives as 2.2 and 2.3, plus, each with its own fault: a unit
-      that reads a Secret no ExternalSecret or bootstrap entry provides fails the `delivery`
-      check (fault: remove one ExternalSecret); an ExternalSecret whose value is absent keeps
+      patch of its `postRenderers` and `includeCRDs: true`; kustomize units for
+      Elasticsearch, Kibana, signals, alerts and the Elasticsearch snapshots, with
+      `Force=true,Replace=true` on the three Jobs and the cluster name in the Prometheus
+      stack's values file; `ServerSideApply=true` where CRDs need it. The `alerts` unit
+      leaves out the workers rule and the group that watches the WBS backup CronJob; that
+      group is added by the revision that adds the `wbs` Application. A table of
+      operator-made Secrets names the two that ECK makes for Elasticsearch and their
+      providing unit. Tests and negatives as 2.2 and 2.3, plus, each with its own fault: a
+      unit that reads a Secret with no provider (bootstrap entry, ExternalSecret, Certificate
+      in the tree, or a row of the operator table) fails the `delivery` check (fault: remove
+      one ExternalSecret); a unit in a wave at or below its Secret's providing unit fails
+      rule (c) (fault: move `signals` back to Elasticsearch's wave); an alert rule whose
+      selector names a CronJob, namespace or cluster that no unit of the tree renders at that
+      revision fails the check (fault: copy the workers rule); an ExternalSecret whose value
+      is absent keeps
       `observability-secrets` unhealthy in the lab (fault: mark it healthy by a customization);
       the `otel-server` Issuer in a wave at or below its Secret's fails rule (c) (fault: move
       it to wave 3); Velero's render without the two size limits fails the equality test
@@ -212,17 +257,23 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
 - [ ] 3.1 SQLite custody in the cluster, before stage 4 (R13, guard 3). A unit
       `sqlite-custody`: a CronJob that applies the retention of
       [recovery](../../../docs/infra/recovery.md#bucket-lifecycle) to the cluster's own prefix
-      as a pure planner plus a thin shell, and a PrometheusRule that fires when the newest
-      report is older than two intervals. The new cluster's app overlays set
-      `BACKUP_PREFIX` to a value that names the cluster. Test: the planner over a fixture
-      listing; `tool-deploy:test:backup` with one prune run. Negatives: a snapshot whose
-      report is missing is kept and reported; the newest report is never planned for
-      deletion; a listing error deletes nothing; an app overlay whose prefix is the bare
-      `sqlite` fails the `delivery` check; a report older than two intervals fires the rule
-      in the rule test. Faults to inject, one per negative: delete a snapshot without its
-      report; drop the newest-report guard; treat a partial listing as complete; accept any
-      prefix; compare the report's age against four intervals.
-- [ ] 3.2 Outside liveness probes (R16): one probe per k3s node and per gate host from the
+      as a pure planner plus a thin shell, and a PrometheusRule per app backup CronJob. Its
+      source is the pair of kube-state-metrics series the existing `PuniSqliteBackupStale`
+      rule reads, `kube_cronjob_status_last_successful_time` and `kube_cronjob_created`: it
+      fires when the last success is older than two intervals, when the job has never
+      succeeded for that long, and when the series is absent. The new cluster's app overlays
+      set `BACKUP_PREFIX` to a value that names the cluster and is neither `sqlite` nor under
+      `sqlite/`, which h1claw prunes. Test: the planner over a fixture listing;
+      `tool-deploy:test:backup` with one prune run; the rule under `promtool`. Negatives: a
+      snapshot whose report is missing is kept and reported; the newest report is never
+      planned for deletion; a listing error deletes nothing; an app overlay whose prefix is
+      `sqlite` or begins with `sqlite/` fails the `delivery` check; a last success older than
+      two intervals fires the rule; an absent series fires the rule. Faults to inject, one per
+      negative: delete a snapshot without its report; drop the newest-report guard; treat a
+      partial listing as complete; refuse only the bare `sqlite`; compare the age against
+      four intervals; drop the `absent()` branch.
+- [ ] 3.2 Before A15, whose `probes` unit it fills. Outside liveness probes (R16): one probe
+      per k3s node and per gate host from the
       observability stack's blackbox exporter, and a host timer on the platform node that
       probes the observability node. Test: the rules render. Negative: a node in
       `desired.yaml`, or a host in `gate_hosts`, with no probe on another node fails the
@@ -240,7 +291,10 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       gap. The first-start coordinator gains an Argo CD source beside the Flux one: it reads
       the Application `wbs`, requires its automation disabled and its `targetRevision` equal
       to the desired commit, enables automation, and waits for `status.sync.revision`. The
-      cutover plan's Flux prerequisite and its step 6 gain the Argo CD wording. Test:
+      cutover plan's Flux prerequisite and its step 6 gain the Argo CD wording. The WBS
+      overlay for the new cluster carries the selector patches of design decision 1 and a
+      backup prefix outside `sqlite/`, and the `delivery` check reads it under rules (f) and
+      (g) and the prefix rule of 3.1. Test:
       `first-start-source.test.ts` for both sources. Negatives: an Application with
       automation already enabled is refused; a revision that differs from the request is
       refused; a Lease lost before the handoff refuses the enable. Fault to inject: skip the
@@ -254,8 +308,9 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       16 GiB (R2), the location and private network of the existing hosts, Ubuntu 26.04, the
       admin key. Receipt: `/etc/machine-id`, the private address and interface, `nproc`, `free -m`,
       `df -h /`. Stop: the host is not on the private network or answers on a public port
-      other than SSH. Rollback: delete the server.
-- [ ] A2 Make and escrow the new cluster's secrets (R6). Who: owner. Commands: two 64-hex k3s
+      other than SSH. Rollback: delete the server. If the rehearsal of 2.7 ran on this server,
+      it is deleted and created again and this receipt is read again before A3.
+- [ ] A2 Make and escrow the new cluster's secrets (R6), after 0.6. Who: owner. Commands: two 64-hex k3s
       credentials, `age-keygen`, a read-only deploy key for the fleet repository and the local
       account's password, into `$OPS`; the encrypted files of design decision 5 into the fleet
       repository's directory; a copy of each original into both escrow places. Receipt: one
@@ -271,7 +326,8 @@ template` succeeds with the network disabled. Negatives: an archive whose SHA-25
       Receipt: `kubectl get nodes -o wide` shows h5plat Ready with roles `control-plane,etcd`,
       the label `puni.dev/capability-platform-services=true`, the taint
       `CriticalAddonsOnly=true:NoSchedule` and no enrollment taint; CoreDNS, the metrics
-      server and the volume provisioner Ready. Stop: validation fails or the second bootstrap changes anything.
+      server and the volume provisioner Ready; CoreDNS still tolerates `CriticalAddonsOnly`.
+      Stop: validation fails or the second bootstrap changes anything.
       Rollback: delete the server and repeat from A1.
 - [ ] A4 Argo CD, after 0.6 and slices 2.1 to 2.6 and 2.9. Who: operator. Command:
       `fleet_ansible --limit h5plat --extra-vars puni_cluster_id=platform-production --extra-vars @"$OPS/argocd.json" playbooks/argocd.yml`.
@@ -306,8 +362,9 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       Rollback: delete the temporary server and power h5plat on; its datastore was not touched.
 - [ ] Harbor and OpenBao land on h5plat by their own changes, amended as design decision 9
       lists. They are not steps of this change. Under R22, OpenBao serves before A15. Its
-      seal key is one more bootstrap Secret: `playbooks/argocd.yml` is run again with that
-      file added, as slice 2.5 tests.
+      change adds its namespace to the `namespaces` unit, and its seal key is one more
+      bootstrap Secret: `playbooks/argocd.yml` is run again with that file added, applies the
+      namespaces first and then the Secret, as slice 2.5 tests.
 
 ### Stage 2: continuous integration
 
@@ -321,10 +378,12 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
 - [ ] A9 Trial copy of the dev stacks (R12), before the pool is initialised. Who: operator.
       Commands: from the newest verified h1claw set, restore the dev members only into the
       Compose roots on h8ci and start the stacks without changing DNS; after one hour read
-      their memory. The set also holds the WBS production database; it is never copied to
-      this host. Receipt: the set's stamp, the list of members restored, `integrity_check`
-      ok, the memory table, and the headroom the pool's owner chooses from it. Stop: the
-      restore's check differs from the set's report, or a production member is on the host.
+      their memory. The set also holds the WBS production database and a tarball with
+      production env files. Neither is copied to this host: the set is unpacked on the
+      controller and only the dev stacks' databases and paths are sent. Receipt: the set's
+      stamp, the list of members and paths restored, `integrity_check` ok, the memory table,
+      and the headroom the pool's owner chooses from it. Stop: the restore's check differs
+      from the set's report, or a production database or env file is on the host.
       Rollback: stop and remove the trial stacks.
 - [ ] A10 Enroll and calibrate, with the trial stacks running. Who: the owner of
       `dash-host-jobs`, by
@@ -335,7 +394,8 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       same SHA. Rollback: keep gating on the old hosts; they are untouched until stage 5.
 - [ ] A11 Move the dev stacks (guards 1 and 6). Who: operator, owner for h1claw. Commands:
       stop the dev stacks on h2puni; run h1claw's pull once and note its stamp; restore that
-      stamp's dev members on h8ci in place of the trial copy; start; point the dev names at
+      stamp's dev members and dev paths on h8ci in place of the trial copy, unpacked on the
+      controller as in A9; start; point the dev names at
       h8ci; add h1claw's second set for h8ci (design decision 9) and run it. The pull from
       h2puni is not changed: WBS production still runs there. Receipt: the final set's stamp
       and SHA-256, `integrity_check` ok, the dev WBS project list read back through its API,
@@ -357,15 +417,19 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       twice; `playbooks/validate-enrollment.yml`. Receipt: h7obs Ready with
       `puni.dev/capability-observability=true`, no enrollment taint. Stop: validation fails.
       Rollback: `playbooks/rollback-host.yml`, delete the Node object, delete the server.
-- [ ] A15 Bring up and measure the stack. Who: operator; owner for the values. Commands: write
+- [ ] A15 Bring up and measure the stack, after 3.2. Who: operator; owner for the values.
+      Commands: generate the Velero repository password and put it in escrow first; write
       the fifteen operator-provided values of design decision 5 into OpenBao; merge the
       revision that adds the units of waves 5 to 10; after 24 hours read
       `kubectl top pods -n observability`, each container's `memory.stat` and each claim's
-      use; fire one test alert. Receipt: waves 5 to 10 Healthy; the per-pod memory table; disk
-      used and its growth per day; the alert seen at its destination (open question 10); the
-      owner's decision on the node's size. Stop: a pod is killed for memory, the node's
+      use; fire one test alert. Receipt: the escrow fingerprint of the Velero repository
+      password; waves 5 to 10 Healthy; no alert firing other than the test alert; the per-pod
+      memory table; disk used and its growth per day; the alert seen at its destination (open
+      question 10); the owner's decision on the node's size. Stop: a pod is killed for memory, the node's
       available memory falls under 1,024 MiB, or the disk would fill within 60 days.
-      Rollback: revert that merge on `main`; nothing depends on the stack yet. Claims stay.
+      Rollback: nothing depends on the stack yet. A merge that empties the units, so prune
+      removes the workloads, then a merge that removes their Application files (design
+      decision 3). Claims stay.
 - [ ] A16 MLflow (R15), if kept (guards 1 and 6). Who: operator, owner for h1claw. Commands:
       stop MLflow on h3mon; run h1claw's MLflow pull once; restore that stamp on h7obs and
       start the service; re-point the pull at h7obs and run it. Receipt: the stamp and
@@ -382,7 +446,8 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       merge the revision that adds the `traefik` Application (wave 11).
       Receipt: h6apps Ready with `product` and `ingress`; the Traefik pod Ready there and
       answering on ports 80 and 443. Stop: Traefik cannot bind 80 or 443.
-      Rollback: revert the merge, then as A14.
+      Rollback: empty the `traefik` unit by a merge, then remove its Application file by a
+      second one, then as A14.
 - [ ] A19 The website and the request app move (R26), after 3.1 and the fleet repository's
       directory of design decision 9, and task 0.6 for the fleet repository. Who: operator,
       with the website's owner; owner for the Secrets. First the owner writes the app Secrets
@@ -390,11 +455,16 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       cluster's age identity on the controller. Then, for `website-dev` first and production
       second: scale the old Deployments to zero and suspend the old backup CronJob and its
       Flux unit; run the website's backup job once and note its stamp; merge the revision
-      that adds the fleet Application (wave 12); restore that stamp into the new claim; point the names at h6apps; wait for the certificates. Receipt: the
-      stamp; the restored object's SHA-256 equals its report; the pages and one stored record
-      read back on the public name with a valid certificate; one backup and one verify
-      completed under the new prefix. Stop: the restore differs from the report, or a
-      certificate is not Ready after 15 minutes.
+      that adds the fleet Application (wave 12) with the app's workload at zero replicas and
+      its backup CronJob suspended; restore that stamp into the new claim; merge the revision
+      that sets one replica and resumes the CronJob; point the names at h6apps; wait for the
+      certificates; run the new backup job once. Receipt: the stamp; no pod of the app and no
+      backup run on the new side before the restore finished; the restored object's SHA-256
+      equals its report; the pages and one stored record read back on the public name with a
+      valid certificate; one backup and one verify completed under the new prefix after the
+      restore, whose report shows the restored record. Stop: the restore differs from the
+      report, a backup under the new prefix predates the restore or is empty, or a certificate
+      is not Ready after 15 minutes.
       Rollback, while h4claw exists: point the names back and resume the old units.
 - [ ] A20 WBS production moves by the
       [cutover plan](../../../docs/infra/cutover-plan.md), under its own authorization. Who:
@@ -402,17 +472,21 @@ save`; `tool-fleet:recover record-manifest`. Receipt: the bucket's versioning an
       the selector patch and backup prefix of design decisions 1 and 7. Receipt: the plan's
       own, plus one backup and one verify under the new prefix. Stop: the plan's own.
       Rollback: the plan's own. Preconditions from this change: A15's receipt, slices 3.1 and
-      3.5 (R28), the WBS Secrets written into OpenBao by the owner, and that h6apps is in no
-      `gate_hosts` group.
+      3.5 (R28), the WBS alert group added to the `alerts` unit, the registry of open question
+      14 named and reachable from h6apps, the WBS Secrets and that registry's pull credential
+      written into OpenBao by the owner, and that h6apps is in no `gate_hosts` group.
 
 ### Stage 5: retirement
 
 - [ ] A21 Delete h4claw and h3mon. Who: owner. Preconditions: A19's receipt for both website
       namespaces; A16's receipt or the owner's word that MLflow is dropped; A10's receipt, no
       caller launching gates on h4claw (slice 3.3), and the pool owner's withdrawal of h4claw
-      or written confirmation that none is needed; the owner's answer to open question 8.
-      Commands: delete both servers in the console; remove the old cluster's directory from
-      the fleet repository. Receipt: the provider's server list without those names.
+      or written confirmation that none is needed; the owner's answer to open question 8;
+      the word of the session that owns `release-pin.ts` that the old fleet directory may go;
+      the word of h1claw's owner on what there judges the old cluster's `sqlite/<database>/`
+      prefixes, retired if anything does. Commands: delete both servers in the console;
+      remove the old cluster's directory from the fleet repository. Receipt: the provider's
+      server list without those names; the two confirmations, dated.
       Stop: a DNS record still points at either host. Rollback: none; that is why the
       preconditions are receipts.
 - [ ] A22 Delete h2puni. Who: owner. Preconditions: A20's receipt or the owner's word that WBS

@@ -27,7 +27,14 @@ A1 to A22 and agent slices grouped in three phases.
 A second review read `d5cef1bfd` and returned "not ready" with two findings of the first rank
 and nine of the second. This revision answers it. Changed: R2 (disk floor), R12, R13, R17, R20
 (the cluster follows `main`; the deploy branch is gone), R22 (count), R23, R25 (the taint).
-New: R28 and slice 3.5. The unit table has thirteen waves. Attended steps keep their numbers.
+New: R28 and slice 3.5. The unit table then had thirteen waves. Attended steps keep their
+numbers.
+
+A third review read `54825ed5d` and returned "not ready" with no finding of the first rank and
+six of the second. This revision answers it. Changed: R20 (what guards `main`, and the
+`delivery` rules inside a required check). No assumption is new. The unit table has fourteen
+waves: Harbor moved to a last wave of its own and `signals` moved one wave later. Open
+question 14 and design decision 10 are new. Slices and attended steps keep their numbers.
 
 ## First review (at `cf86bd350`) and what became of its findings
 
@@ -92,6 +99,32 @@ model needs both in `infra/fleet/desired.yaml` and the inventory (`desired.yaml:
 convention and keeps public addresses and provider ids out of the repository. Whether the
 inventory should move to the private repository first is open question 13.
 
+## Third review (at `54825ed5d`) and what became of its findings
+
+| Finding                                                             | Outcome                                                                                                                                                         |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 the enrollment patch drops CoreDNS's packaged toleration       | Fixed: slice 1.2 makes the play append the enrollment toleration, with a negative for a replaced list. Dropping the taint is no longer an automatic fallback    |
+| S2-2 nothing creates the identity ConfigMap                         | Fixed: `argocd.yml` creates it when absent and refuses another id (slice 2.5)                                                                                   |
+| S2-3 the WBS first start against the root's self-heal and rule (b)  | Fixed: the root ignores `/spec/syncPolicy` of `wbs` only; rule (b) exempts that one Application and refuses any other; rehearsal (n)                            |
+| S2-4 a restore into a claim a running Deployment holds              | Fixed: stateful apps land at zero replicas with the backup job suspended; the receipt's backup postdates the restore and shows a restored record (guard 1, A19) |
+| S2-5 R20's control weaker than claimed                              | Fixed: today's rules stated; the `delivery` rules run as a real-tree test inside `gate`; task 0.6 covers both repositories before A2; the rest listed as a risk |
+| S2-6 "Harbor blocks no stage" against wave 5                        | Fixed: nothing in the tree reads from Harbor, so it is alone in the last wave                                                                                   |
+| S3 a revert orphans workloads                                       | Fixed: removal is two merges, stated in design decision 3 and in the rollbacks of A15 and A18                                                                   |
+| S3 three Flux semantics missing from the inventory                  | Fixed: `healthCheckExprs`, chart `crds/` directories and the release name are rows; rule 2.4(j), slice 2.2's test, rehearsal (k) to (m). Velero citation fixed  |
+| S3 freshness series and an absent-series negative                   | Fixed: slice 3.1 names the two kube-state-metrics series and fires on absence                                                                                   |
+| S3 prefix refusal and h1claw's judgement of old prefixes            | Fixed: any prefix under `sqlite/` is refused; h1claw's owner confirms before A21                                                                                |
+| S3 alerts that fire falsely from A15                                | Fixed: the WBS backup group lands with the `wbs` Application; the workers rule is not copied; a check refuses a rule with no subject                            |
+| S3 `signals` reads operator-made Secrets                            | Fixed: `signals` is one wave after Elasticsearch; the provider rule knows four kinds of provider                                                                |
+| S3 owners for four things                                           | Fixed: `registry-tls` is Harbor's; `website-prod-logs` is in the `namespaces` unit; OpenBao's namespace likewise; fleet and WBS overlays carry (f), (g), prefix |
+| S3 no deadline for slice 3.2; no escrow for the Velero password     | Fixed: 3.2 before A15; A15 escrows the password before writing it                                                                                               |
+| S3 the h1claw tarball mixes production env files                    | Fixed: unpacked on the controller; only dev paths reach the CI host (guard 6, A9, A11)                                                                          |
+| S3 A21 removes the old fleet directory without the pin owner's word | Fixed: a precondition of A21                                                                                                                                    |
+| S3 CoreDNS budgeted on the platform node but not pinned             | Stated: k3s packages it without a selector and reverts a patch; the budget counts it as the worst case                                                          |
+| S3 Harbor's step ids collide with this plan's                       | Fixed: written as Harbor-A1, Harbor-A2a, Harbor-A9 and Harbor-A11                                                                                               |
+| Not verified: where WBS images are pulled from                      | Stated in design decision 9; the host is not in the source read, so it is open question 14 and a precondition of A20                                            |
+
+Nothing was disputed in this round.
+
 ## k3s behaviour
 
 Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
@@ -107,7 +140,10 @@ Read on 2026-11-21 for k3s v1.36.4+k3s1, the locked version.
 | The only DaemonSet on the live cluster is Traefik; Flannel and kube-proxy are not pods               | `kubectl get ds -A`                                                                                        |
 | The enrollment probes are bound by `nodeName` and so are not held back by a `NoSchedule` taint       | `validate-enrollment.yml:108-114,152-158`                                                                  |
 
-Not run: a one-node cluster registered with the taint. Slice 1.2 owns it.
+| Every server registers with the enrollment taint as well | `roles/k3s_server/templates/config.yaml.j2:24-25` |
+| The CoreDNS step is a strategic patch of `tolerations`, a list with no merge key | `validate-enrollment.yml:73-83` |
+
+Not run: a one-node cluster registered with both taints. Slices 1.2 and 2.7 own it.
 
 ## Argo CD behaviour
 
@@ -149,6 +185,13 @@ Not read or not provable from reading; slice 2.7 owns each:
   health customization files were not read.
 - That later changes in several children converge by retry in practice. The documentation says
   what waves order; it gives no guarantee for this case.
+- That a Helm source includes the `crds/` directory of a wrapper's dependency, and that
+  kustomize does with `includeCRDs: true`. Not read in this round; rehearsal (k) reads the CRDs
+  back.
+- That the bundled health check for `cert-manager.io/Certificate` behaves as the Flux
+  `healthCheckExprs` it replaces. Rehearsal (l).
+- That `ignoreDifferences` on the root with `RespectIgnoreDifferences=true` leaves a child's
+  sync policy alone. Rehearsal (n).
 - Which fields need `ignoreDifferences` for these charts.
 - Argo CD's memory on this cluster. 1,536 MiB is an assumption (R24).
 - The ApplicationSet documentation was not read; the choice against it rests on the
@@ -169,26 +212,30 @@ Recorded above under "Replaced drafts". Overrules of R1 to R28: none yet (task 0
 
 ## Read-only readings
 
-| Reading                                      | Result                                                                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `kubectl get nodes` capacity and allocatable | h4claw and h3mon: 8 CPUs, 15,602 MiB; allocatable 13,299 and 13,939 MiB; about 150 GiB of node storage                         |
-| `kubectl top nodes`                          | h4claw 3,291 MiB, h3mon 4,316 MiB                                                                                              |
-| Node labels                                  | h4claw: `control-plane`, `ingress`, `product`; h3mon: `observability`; no taints                                               |
-| Node selectors of every Deployment           | Flux, cert-manager and kube-system: `kubernetes.io/os` only; website: `capability-product`                                     |
-| Memory limits per namespace, running pods    | flux-system 4,096; website-dev 768; website-prod 128; website-prod-logs 128; puni-registry 512                                 |
-| Containers without a memory limit            | cert-manager 3, Traefik 1, kube-system 2 on h4claw                                                                             |
-| Persistent volumes                           | two, class `puni-retain`, policy `Retain`, node affinity by host name to h4claw                                                |
-| Storage classes                              | `local-path` is the default with policy `Delete`; `puni-retain` and `puni-local` have `Retain`                                 |
-| Flux stages                                  | `target`, `controllers`, `storage`, `policy`, `secrets`, `platform` Ready; `observability`, `alerts`, `backup` not Ready       |
-| Flux sources                                 | the platform source is pinned to one commit; the fleet source follows a branch and owns the website and registry-secret units  |
-| `nproc`, `free -m`, `df -h /` on h2puni      | 8 CPUs, 15,603 MiB, 127 of 150 GiB used (88%)                                                                                  |
-| User timers on h1claw                        | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy |
-| The fleet repository's file list             | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                 |
-| `/dev/kvm` on the operator workstation       | present; the workstation's disk was full, so no lab ran                                                                        |
-| Tolerations of the packaged components       | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else   |
-| DaemonSets on the live cluster               | Traefik only, selecting `capability-ingress`                                                                                   |
-| Rules on this repository's `main`            | one active ruleset with the rule types `pull_request` and `required_status_checks`; none against forced or deleting pushes     |
-| Members of h1claw's hourly set               | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                  |
+| Reading                                      | Result                                                                                                                                                               |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kubectl get nodes` capacity and allocatable | h4claw and h3mon: 8 CPUs, 15,602 MiB; allocatable 13,299 and 13,939 MiB; about 150 GiB of node storage                                                               |
+| `kubectl top nodes`                          | h4claw 3,291 MiB, h3mon 4,316 MiB                                                                                                                                    |
+| Node labels                                  | h4claw: `control-plane`, `ingress`, `product`; h3mon: `observability`; no taints                                                                                     |
+| Node selectors of every Deployment           | Flux, cert-manager and kube-system: `kubernetes.io/os` only; website: `capability-product`                                                                           |
+| Memory limits per namespace, running pods    | flux-system 4,096; website-dev 768; website-prod 128; website-prod-logs 128; puni-registry 512                                                                       |
+| Containers without a memory limit            | cert-manager 3, Traefik 1, kube-system 2 on h4claw                                                                                                                   |
+| Persistent volumes                           | two, class `puni-retain`, policy `Retain`, node affinity by host name to h4claw                                                                                      |
+| Storage classes                              | `local-path` is the default with policy `Delete`; `puni-retain` and `puni-local` have `Retain`                                                                       |
+| Flux stages                                  | `target`, `controllers`, `storage`, `policy`, `secrets`, `platform` Ready; `observability`, `alerts`, `backup` not Ready                                             |
+| Flux sources                                 | the platform source is pinned to one commit; the fleet source follows a branch and owns the website and registry-secret units                                        |
+| `nproc`, `free -m`, `df -h /` on h2puni      | 8 CPUs, 15,603 MiB, 127 of 150 GiB used (88%)                                                                                                                        |
+| User timers on h1claw                        | hourly SQLite pull from h2puni, daily MLflow pull, daily remote prune, weekly restore drill, freshness alert; last run healthy                                       |
+| The fleet repository's file list             | its website overlay holds encrypted Secret files; its cluster directory holds Flux units. No content is quoted                                                       |
+| `/dev/kvm` on the operator workstation       | present; the workstation's disk was full, so no lab ran                                                                                                              |
+| Tolerations of the packaged components       | CoreDNS, `local-path-provisioner`, `metrics-server`: `CriticalAddonsOnly` (Exists) and the control-plane taint, nothing else                                         |
+| DaemonSets on the live cluster               | Traefik only, selecting `capability-ingress`                                                                                                                         |
+| Rules on this repository's `main`            | one active ruleset: `pull_request` with zero required approvals; `required_status_checks` `gate` and `pixels`, not strict; no rule against forced or deleting pushes |
+| `infra-check.yml`                            | runs `tool-fleet:check` on pull requests that touch its paths; it is not among the required checks                                                                   |
+| `crds/` directories in the vendored archives | Traefik 25 files, Velero 13; the other eight archives none                                                                                                           |
+| Helm release names                           | no `HelmRelease` sets `releaseName`; `otlp-ingress.yaml` selects `app.kubernetes.io/instance: otel-collector`                                                        |
+| Roles of `bootstrap.yml` and `join.yml`      | `base`, `network`, `storage` and the k3s role; `registry_client` runs only from `registry.yml`                                                                       |
+| Members of h1claw's hourly set               | five per stamp, WBS production and WBS dev among them, all pulled from h2puni                                                                                        |
 
 ## Repository checks
 
@@ -215,7 +262,7 @@ below were run again on this revision.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The two reviews recorded above read earlier commits.
+- This revision has not been reviewed. The three reviews recorded above read earlier commits.
 
 ## Primary sources read
 
@@ -236,6 +283,12 @@ below were run again on this revision.
 - `openspec/changes/adopt-harbor-registry`: design decisions 2, 4 and 10, the assumption table
   and the task list.
 - The Argo CD documentation and source listed above.
+- For the third review: `validate-enrollment.yml` and the `k3s_server` template's taints; the
+  identity ConfigMap tasks of `platform.yml`; `alerts/base/rules.yaml` and the production
+  overlay; `observability/base/signals.yaml`; `registry/production/issuers.yaml`;
+  `policy/namespaces.yaml`; the archives' file lists; `.github/workflows/infra-check.yml`;
+  `platform.test.ts`; `docs/infra/recovery.md` on the h1claw sets and the prune; the Harbor
+  change's context and attended steps.
 - For the second review: every Flux unit under `infra/clusters/platform/production` with its
   `dependsOn`; the Flux annotations and `HelmRelease` fields under `infra/platform`;
   `policy/trusted-images.yaml`; the Velero `HelmRelease`; `certificates/platform/production`;
