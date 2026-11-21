@@ -75,8 +75,8 @@ tolerate.
 Every pod template that the rebuilt cluster's tree renders SHALL select a node capability,
 except three node agents that run on every node: the node exporter, the OTel collector and the
 Velero node agent. Only workloads that select `platform-services`, and those three agents, MAY
-tolerate the platform taint. A staging or dev workload SHALL select `nonproduction` and a production app
-workload SHALL select `product`, so that the two run on different nodes.
+tolerate the platform taint. A staging workload SHALL select `nonproduction` and a production
+app workload SHALL select `product`, so that the two run on different nodes.
 
 #### Scenario: Workload without a role selector
 
@@ -97,8 +97,8 @@ workload SHALL select `product`, so that the two run on different nodes.
 
 #### Scenario: Workload selects another environment's label
 
-- **WHEN** a pod template of a `staging` or `dev` Application does not select `nonproduction`, or one of a
-  `production` Application does not select `product`
+- **WHEN** a pod template of a `staging` Application does not select `nonproduction`, or one
+  of a `production` Application does not select `product`
 - **THEN** the check fails and names the workload
 
 #### Scenario: Running placement
@@ -106,8 +106,8 @@ workload SHALL select `product`, so that the two run on different nodes.
 - **WHEN** the rebuilt cluster is observed with all four nodes joined
 - **THEN** every Argo CD, OpenBao and cert-manager pod runs on the platform node, a Traefik pod
   runs on the production apps node and on the non-production node, every production app pod
-  runs on the production apps node, every staging and dev pod runs on the non-production node, and no
-  app pod runs on the platform or observability node
+  runs on the production apps node, every staging pod runs on the non-production node, and
+  no app pod runs on the platform or observability node
 
 ### Requirement: Inventory and desired state agree for every production cluster
 
@@ -253,13 +253,12 @@ Staging Applications SHALL retry a failed sync with backoff.
 - **WHEN** one merge changes a staging unit and a staging unit that depends on it
 - **THEN** both converge to Synced and Healthy by retry, with no ordering guarantee between them
 
-### Requirement: Staging follows main; production, dev and the platform change on command
+### Requirement: Staging follows main; production and the platform change on command
 
 A staging Application SHALL sync automatically from `main` with pruning, self-healing and
-retry. Production, dev and platform Applications SHALL have automated sync off and change only
+retry. Production and platform Applications SHALL have automated sync off and change only
 when a person syncs them. The root SHALL manage only Application and AppProject objects and
-never prune. Each project's destinations SHALL be exactly its own namespaces. The delivery
-check SHALL run inside a check that `main` requires.
+never prune. The delivery check SHALL run inside a check that `main` requires.
 
 #### Scenario: Merge to a staging overlay
 
@@ -321,24 +320,6 @@ check SHALL run inside a check that `main` requires.
   in-cluster API
 - **THEN** the delivery check fails and names the Application
 
-#### Scenario: Project reaches beyond its namespaces
-
-- **WHEN** a project's destinations include a wildcard, `argocd`, the store's namespace, a
-  namespace of another project, or any namespace not declared for it, or the `staging` or
-  `production` project admits a cluster-scoped kind or a Namespace
-- **THEN** the delivery check fails and names the project
-
-#### Scenario: Dev synced from a branch
-
-- **WHEN** the dev account syncs a dev Application at a revision other than `main`
-- **THEN** the sync runs, and the same account is refused on a staging, production or platform
-  Application
-
-#### Scenario: Dev with automation
-
-- **WHEN** a dev Application has automated sync
-- **THEN** the delivery check fails and names the Application
-
 #### Scenario: Project grants itself access
 
 - **WHEN** an AppProject file carries `roles` or `syncWindows`, or a file in the root's path
@@ -347,14 +328,14 @@ check SHALL run inside a check that `main` requires.
 
 #### Scenario: One environment names another's Service
 
-- **WHEN** a rendered object of a dev, staging or production Application names a namespace of
-  another of the three, or a Service in one
+- **WHEN** a rendered object of a staging or production Application names a namespace of the
+  other, or a Service in one
 - **THEN** the delivery check fails and names the object
 
 #### Scenario: One environment claims another's name
 
-- **WHEN** an Ingress or Certificate of a dev, staging or production Application names a host
-  that an Application of another of the three names
+- **WHEN** an Ingress, a Traefik `IngressRoute` or `IngressRouteTCP`, or a Certificate of a
+  staging or production Application names a host outside the list held for its namespace
 - **THEN** the delivery check fails and names the host
 
 #### Scenario: Change under the tree alone
@@ -372,6 +353,71 @@ check SHALL run inside a check that `main` requires.
 
 - **WHEN** a commit is pushed to `main` directly
 - **THEN** the repository ruleset refuses it
+
+### Requirement: A project reaches only its own namespaces
+
+The destinations of the `staging` and `production` projects SHALL be exactly their own
+namespaces. Of the platform units only `namespaces`, `policy` and `secret-sync` MAY write into
+an app namespace.
+
+#### Scenario: Project reaches beyond its namespaces
+
+- **WHEN** the destinations of the `staging` or `production` project include a wildcard,
+  `argocd`, the store's namespace or any namespace not declared for it, or the project
+  admits a cluster-scoped kind or a Namespace, or has no list of admitted namespaced kinds
+- **THEN** the delivery check fails and names the project
+
+#### Scenario: Platform unit writes into an app namespace
+
+- **WHEN** a platform Application other than `namespaces`, `policy` and `secret-sync` renders
+  an object into an app namespace
+- **THEN** the delivery check fails and names the Application
+
+### Requirement: Environments are contained at admission
+
+Every namespace SHALL carry an environment label that only the `namespaces` unit may set.
+Whatever applies it, the cluster SHALL deny a pod whose node selector is not its
+environment's, and an Ingress, Traefik route or Certificate whose host is not listed for its
+namespace. Every non-production namespace SHALL have a quota and a default-deny network policy
+owned by the `policy` unit, and its project SHALL admit only listed namespaced kinds.
+
+#### Scenario: Staging pod selects the production node
+
+- **WHEN** a pod is created in a staging namespace with the `product` selector
+- **THEN** admission denies it
+
+#### Scenario: Dev pod without a selector
+
+- **WHEN** a pod is created in a dev namespace with no capability selector
+- **THEN** admission denies it
+
+#### Scenario: Route claims another environment's host
+
+- **WHEN** an `IngressRoute` in a staging namespace names a host on a production namespace's
+  list
+- **THEN** admission denies it
+
+#### Scenario: Certificate for an unlisted host
+
+- **WHEN** a Certificate names a host that is on no list of its namespace
+- **THEN** admission denies it
+
+#### Scenario: Environment label changed
+
+- **WHEN** a writer other than the `namespaces` unit sets or changes a namespace's environment
+  label
+- **THEN** admission denies it
+
+#### Scenario: Non-production namespace without its floor
+
+- **WHEN** a non-production namespace has no resource quota or no default-deny network policy
+  from the `policy` unit
+- **THEN** the delivery check fails and names the namespace
+
+#### Scenario: Kind outside the project's list
+
+- **WHEN** a staging Application is synced with an object of a kind its project does not list
+- **THEN** Argo CD refuses the object
 
 ### Requirement: The interface syncs production and nothing else
 
@@ -547,16 +593,32 @@ A gate host SHALL NOT be deleted before the new CI host is calibrated.
 ### Requirement: The solver is bound per environment
 
 On the rebuilt cluster the admission policy SHALL trust one solver namespace and one node
-selector for each environment, with a parameter ConfigMap of its own. A node SHALL run one
-solver supervisor: the production node's serves production alone, and the non-production
-node's serves staging and dev. A supervisor SHALL accept only the caller names in its closed
-list.
+selector per environment, each with its own parameter ConfigMap. A node SHALL run one solver
+supervisor with one pod caller. A supervisor SHALL accept only the caller names in its closed
+list, and a rule without a caller image for the staging caller alone. No dev namespace SHALL
+be admitted to the supervisor's host directory.
 
 #### Scenario: Staging caller not listed
 
 - **WHEN** a pod in the staging solver namespace calls a supervisor whose list lacks the
   staging caller name
 - **THEN** the supervisor refuses it
+
+#### Scenario: Production rule without a caller image
+
+- **WHEN** the supervisor decodes a rule for the production pod caller whose caller image is
+  null
+- **THEN** it refuses the configuration
+
+#### Scenario: Staging rule without a caller image
+
+- **WHEN** the supervisor decodes a rule for the staging pod caller whose caller image is null
+- **THEN** it accepts the rule, and a staging backend of any admitted digest is served
+
+#### Scenario: Dev pod mounts the solver directory
+
+- **WHEN** a pod in a dev namespace mounts the supervisor's host directory
+- **THEN** admission denies it
 
 #### Scenario: Image trusted for the other environment only
 
@@ -580,12 +642,20 @@ Every job on the CI host SHALL be a catalogue job admitted by the host pool, wha
 it. A workflow on the build runner SHALL be triggered only by a push to `main` or a manual run
 at `main`, SHALL start its build through the pool's launcher, and MUST NOT pass a GitHub secret
 to the build or write to this repository. The runner SHALL refuse any other workflow reference.
+The identity that writes staging pins SHALL be able to write the staging pins repository and
+no other.
 
-#### Scenario: Pull request trigger
+#### Scenario: Trigger outside the allow-list
 
-- **WHEN** a workflow that names the build runner's label has a `pull_request`,
-  `pull_request_target` or `issue_comment` trigger
+- **WHEN** a workflow that names the build runner's label has any trigger other than a push to
+  `main` and a manual dispatch
 - **THEN** the workflow check fails and names the workflow
+
+#### Scenario: Pin writer installed elsewhere
+
+- **WHEN** the repository list of the identity that writes staging pins names any repository
+  other than the staging pins repository
+- **THEN** the runner step stops and the identity is removed
 
 #### Scenario: Build outside the pool
 

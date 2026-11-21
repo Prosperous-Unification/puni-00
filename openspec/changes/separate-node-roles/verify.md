@@ -4,7 +4,7 @@
 
 Plan only. No source outside this change and one glossary term, no manifest, host, cluster or
 provider resource was changed. No task in tasks.md is done. This record holds only what was
-read or run while writing the plan, on 2026-11-21 and 2026-11-23, in a worktree at
+read or run while writing the plan, on 2026-11-21, in a worktree at
 `origin/main` `b17861f83`.
 
 ## Replaced drafts
@@ -183,7 +183,7 @@ Nothing was disputed in this round.
 ## Fifth review (at `abb1fbd90`) and what became of its findings
 
 The review returned "not ready" with no finding of the first rank and five of the second. This
-revision, the fifth draft, answers it and two owner inputs of 2026-11-23 (the alert channel,
+revision, the fifth draft, answers it and two owner inputs of 2026-11-21 (the alert channel,
 and his lean to building staging images on the CI host). New: R31, R32, slice 3.8, rules
 2.4(l) and (m), the `root` project, `puni.dev/needs`, the removal mode. Reworded: R12, R20,
 R23, R30. The rehearsal's lettered receipt became four receipts named by the step each gates
@@ -229,7 +229,7 @@ both. 23 slices, 22 steps, R1 to R33, three open questions.
 | Finding                                                                                                  | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | S2-1 the supervisor program is literal too: caller name, node-wide sweep and cap, uid, per-digest writes | Resolved by the owner's decision and a smaller slice: staging and dev run on a node of their own (R29), away from production's supervisor; that node keeps one supervisor, which serves both as two callers, so the uid and the role's files are unchanged and the node-wide sweep and cap are an accepted non-production residual. Slice 3.8 adds the staging caller name to the closed list, a policy row per environment and the role's assertion. Staging's admission list is owned by its overlay and its supervisor rule names no caller image, so a merged pin deploys the WBS backend with no command; only a new solver image needs `solver.yml`. The claim that a separate node would not help is withdrawn: it is true of the policy and the caller name and false of the host half |
-| S2-2 the runner restriction was insufficient                                                             | Fixed: the runner group limited to the workflow file at `refs/heads/main` and a job-started hook with an allow-list are preconditions of A11 with receipts; a manual run counts only at `main`; the App is never installed on this repository; the three credentials, their user and mode are stated; A11 has negatives for a same-repository branch pull request and a non-main run. The sentence about the existing runner is corrected: it is already restricted that way. Not as the review asked: the plan does not claim that gate code cannot read the credentials. The gate user is in the `docker` group, which the role calls root-equivalent; the plan bounds the credentials' scope to staging and asks the owner (open question 2)                                                |
+| S2-2 the runner restriction was insufficient                                                             | Fixed: the runner group limited to the workflow file at `refs/heads/main` and a job-started hook with an allow-list are preconditions of A11 with receipts; a manual run counts only at `main`; the App is never installed on this repository; the three credentials, their user and mode are stated; A11 has negatives for a same-repository branch pull request and a non-main run. The sentence about the existing runner is corrected: it is already restricted that way. Not as the review asked: the plan does not claim that gate code cannot read the credentials. The gate user is in the `docker` group, which the role calls root-equivalent; the plan bounds the credentials' scope to staging and asks the owner (open question 3 of that draft; R35 since the seventh)           |
 | S2-3 rule (a) narrower than the design                                                                   | Fixed: an allow-list of each project's own namespaces, with negatives for `argocd` and the store's namespace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | S3-1 AppProject `roles` and `syncWindows`; name collisions                                               | Fixed: rule (l)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | S3-2 nobody can delete a staging or production Application                                               | Fixed: the removal mode takes a unit of any project; negative in 2.5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -242,6 +242,46 @@ both. 23 slices, 22 steps, R1 to R33, three open questions.
 
 Disputed in part: S2-2's request to state that gate jobs cannot read the build credentials. It
 would be false on a host where the gate user is root-equivalent.
+
+## Seventh review (at `498a532eb`) and what became of its findings
+
+The review returned "not ready" with no finding of the first rank and three of the second.
+This revision, the seventh draft, answers it. It also carries one scoping decision of the
+planning session, R34, which the owner may overrule: dev's delivery leaves this change.
+
+What moved:
+
+- **Assumptions.** New: R34 (dev by a follow-up change) and R35 (the CI host is one trust
+  zone). Reworded: R29, R31, R32, R33. R1 to R35.
+- **Slices.** The sixth draft's 3.9 (the dev environment) is removed. New: 2.10 (containment
+  at admission). Rewritten: 3.7 and 3.8. Still 23 slices.
+- **Attended steps.** A11 is release builds only. The staging build runner is a new step, A23,
+  in stage 4 after A18; it is numbered last so that A12 to A22 keep their ids. 23 steps.
+- **Projects.** `root`, `platform`, `staging`, `production`; the sixth draft's `dev` project is
+  gone. Rules still run (a) to (n).
+- **Questions.** Two remain. The sixth draft's question 3 is closed into R35.
+- **Dates.** Earlier drafts dated the owner's later decisions and several readings 2026-11-23.
+  That was an error of the planning session: they were made and read on 2026-11-21, as the
+  commits show. Every such date is corrected.
+
+| Finding                                                                         | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 a staging rule with no caller image is refused by the program              | Fixed: slice 3.8 names the decoder change in `solver-supervisor-image-map.ts`: a null caller image is accepted for the staging caller alone; production's refusal, its test and its `Proof:` comment stay, and new negatives stand beside them. The claim that the rule format already allowed it is corrected in design decision 1 and in the reading below. The fallback that had the build job write the lists is dropped; the slice now stops and reports                                                                                                                                                                                                                               |
+| S2-2 dev isolation rests on rules that never see what dev applies               | Reshaped. Dev's delivery leaves this change for a follow-up, proposed name `add-dev-environment` (R34): slice 3.9, the `dev` project, its account and the `override` grant are removed. What must hold whatever a ref contains is added now, as slice 2.10: admission policies for placement and for hosts (Ingress, `IngressRoute`, `IngressRouteTCP`, Certificate), a quota and a default-deny from the `policy` unit, and a kind whitelist on the staging project. No dev namespace is admitted to the solver's host directory, which keeps the socket out of reach of branch code until the follow-up. A NetworkPolicy's peers are not bounded at admission; that is stated, not solved |
+| S2-3 "scope is staging" does not hold                                           | Fixed as the review proposed. The App is installed on a new staging pins repository alone, never on this repository or the fleet repository. The runner is persistent. That the gate user is root-equivalent, and that the integrity of images built on the CI host is the accepted blast radius, is R35, with what would shrink it. Promotion and what a person checks first are stated. How a kustomize overlay reads pins from a second repository is not settled and is listed so                                                                                                                                                                                                       |
+| S3 rule (a) against platform units that write into app namespaces               | Fixed: `namespaces`, `policy` and `secret-sync` are named exceptions, in the rule and in a scenario                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S3 the `override` contradiction                                                 | Gone with dev's delivery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| S3 no dev units in the order table; "three AppProjects"                         | Gone with dev's delivery: the root's path holds three projects                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| S3 `CONTEXT.md` lists four roles                                                | Fixed: five                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| S3 dates                                                                        | Fixed, see above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| S3 a stale question number and a dangling word                                  | Fixed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| S3 the cap is a literal, not inventory                                          | Fixed: `maxManagedContainers: 4` in the role's tasks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| S3 A11's runner part needs stage-4 inputs; its hook negative cannot be observed | Fixed: the runner is A23, after A18; the hook is run by hand with a foreign and an allowed workflow reference                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| S3 where host Docker pulls the solver image from                                | Stated in design decision 9 and as a precondition of A17's solver step. Which registry the reference names is not in the source read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| S3 the dev budget row counts backup jobs                                        | Fixed: 2,944; the sum is 8,832 and the margin 5,106                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| S3 the lint should allow-list triggers                                          | Fixed: slice 3.7 and the spec scenario                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+Nothing was disputed in this round.
 
 ## k3s behaviour
 
@@ -291,11 +331,12 @@ Read on 2026-11-21 from the documentation at the `stable` ref and from source at
 | Child applications are not ordered or awaited without the health customization                                                                                              | `docs/operator-manual/cluster-bootstrapping.md`                                          |
 | A kustomize source may inflate a Helm chart with `--enable-helm`                                                                                                            | `docs/user-guide/kustomize.md`                                                           |
 | Cluster-scoped kinds are admitted to a project by an allow list                                                                                                             | `docs/user-guide/projects.md`                                                            |
-| `sync` and `override` are separate actions; a revision other than the Application's needs `override` when `application.sync.requireOverridePrivilegeForRevisionSync` is set | `docs/operator-manual/rbac.md` at tag `v3.6.2`, read 2026-11-23                          |
+| `sync` and `override` are separate actions; a revision other than the Application's needs `override` when `application.sync.requireOverridePrivilegeForRevisionSync` is set | `docs/operator-manual/rbac.md` at tag `v3.6.2`, read 2026-11-21                          |
 | The CLI's `--core` flag talks to Kubernetes directly, not to the API server                                                                                                 | `docs/user-guide/commands/argocd.md` at the tag                                          |
 | Automated prune refuses a source with no resources unless `allowEmpty` is set; `automated.enabled: false` switches automation off                                           | `docs/user-guide/auto_sync.md` at the tag                                                |
-| Rollback is authorised by `sync` unless `server.rbac.rollback.enforce.enable: 'true'` is set in `argocd-cm`; it cannot run while auto-sync is on                            | `docs/operator-manual/rbac.md` at tag `v3.6.2`, "The `rollback` action", read 2026-11-23 |
+| Rollback is authorised by `sync` unless `server.rbac.rollback.enforce.enable: 'true'` is set in `argocd-cm`; it cannot run while auto-sync is on                            | `docs/operator-manual/rbac.md` at tag `v3.6.2`, "The `rollback` action", read 2026-11-21 |
 | `argocd_app_info` carries `sync_status` and `health_status`                                                                                                                 | `docs/operator-manual/metrics.md` at the tag                                             |
+| A second source referenced by `ref` is described for Helm value files, with the `$values` path prefix; nothing is said there for kustomize                                  | `docs/user-guide/multiple_sources.md` at tag `v3.6.2`                                    |
 
 Not read or not provable from reading; slice 2.7 owns each:
 
@@ -334,8 +375,8 @@ it must inject. This table is filled as slices land.
 
 ## Owner decisions
 
-The decisions of 2026-11-21 are recorded above under "Replaced drafts". On 2026-11-23, in his
-words where they carry the decision:
+The first decisions of 2026-11-21 are recorded above under "Replaced drafts". Later the same
+day, in his words where they carry the decision:
 
 - "I'd like to setup openbao before other stuff" (R22).
 - "i want the main to act like staging ...; so what merges to main - gets deployed on
@@ -358,7 +399,7 @@ words where they carry the decision:
   (R28); backups inside the new cluster (R13); the website's fleet directory written by its
   owning session, moved after its release bootstrap (R11); one local account (R23).
 
-Later on 2026-11-23, after the fifth and sixth reviews:
+After the fifth and sixth reviews, still on 2026-11-21:
 
 - Backup windows: asked to choose between accepting the gap after h1claw's deletion and
   keeping h1claw until WBS has moved, he answered "backup - ok" (R30). This replaces the two
@@ -372,7 +413,11 @@ Later on 2026-11-23, after the fifth and sixth reviews:
 - "yeah - staging and dev must be separate envs" (R29). What each is for he has not said; R33
   is the planning session's reading and awaits him.
 
-Overrules of R1 to R33 beyond these: none yet (task 0.1).
+Not the owner's: R34, that dev is delivered by a follow-up change, is the planning session's
+scoping after the seventh review, and R35 is its statement of what the CI host is trusted
+with. He has seen neither yet.
+
+Overrules of R1 to R35 beyond these: none yet (task 0.1).
 
 ## Read-only readings
 
@@ -407,23 +452,25 @@ Overrules of R1 to R33 beyond these: none yet (task 0.1).
 
 Read for the sixth draft, in source at the same commit:
 
-| Reading                                                             | Result                                                                                                                                     |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `solver-supervisor-image-map.ts`                                    | the caller list is closed: `be-01-blue`, `be-01-green`, `wbs-dev-src`, `k8s_wbs-solver_backend`; a rule's caller image may be null         |
-| `solver-supervisor-docker-output.ts`                                | a pod's caller name is `k8s_<namespace>_<container>`                                                                                       |
-| `solver-supervisor-lifecycle.ts`                                    | the start-up sweep kills every managed container on the node; the cap counts them node-wide                                                |
-| `solver-supervisor-config.ts`                                       | a solver container's memory limit is at most 512 MiB                                                                                       |
-| `roles/solver`                                                      | asserts `product`; one uid (10001, the backend pod's), one sudoers entry, one tmpfiles link to `/run/puni/solver`                          |
-| `roles/gate_host/tasks/main.yml`                                    | the gate user is added to the `docker` group, which the role's comment calls root-equivalent on the host                                   |
-| `docs/infra/deployment.md`, `infra/ci/deploy-runner/job-started.sh` | the `puni-deploy` runner is to sit in a group limited to `deploy-k3s.yml@refs/heads/main`, and its hook fails any other workflow reference |
-| `infra/jobs/catalogue.json`                                         | `gate`, `release-build`, `test-queued`, `solver-image-publish`                                                                             |
-| `docs/infra/gate-hosts.md`                                          | a gate reserves the whole pool and may not be listed in `concurrencyEligible`                                                              |
+| Reading                                                             | Result                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `solver-supervisor-image-map.ts`                                    | the caller list is closed: `be-01-blue`, `be-01-green`, `wbs-dev-src`, `k8s_wbs-solver_backend`. A rule's caller image may be null for `wbs-dev-src` only; for every other caller the decoder throws, under a `Proof:` comment (lines 55 to 61, read again for the seventh draft; the sixth draft misread this) |
+| `solver-supervisor-image-map.test.ts`                               | a null caller image for `k8s_wbs-solver_backend` must throw                                                                                                                                                                                                                                                     |
+| `roles/solver/tasks/main.yml`                                       | `maxManagedContainers: 4` is a literal; each mapped solver image is pulled by digest with the host's Docker, with no login and no CA step                                                                                                                                                                       |
+| `solver-supervisor-docker-output.ts`                                | a pod's caller name is `k8s_<namespace>_<container>`                                                                                                                                                                                                                                                            |
+| `solver-supervisor-lifecycle.ts`                                    | the start-up sweep kills every managed container on the node; the cap counts them node-wide                                                                                                                                                                                                                     |
+| `solver-supervisor-config.ts`                                       | a solver container's memory limit is at most 512 MiB                                                                                                                                                                                                                                                            |
+| `roles/solver`                                                      | asserts `product`; one uid (10001, the backend pod's), one sudoers entry, one tmpfiles link to `/run/puni/solver`                                                                                                                                                                                               |
+| `roles/gate_host/tasks/main.yml`                                    | the gate user is added to the `docker` group, which the role's comment calls root-equivalent on the host                                                                                                                                                                                                        |
+| `docs/infra/deployment.md`, `infra/ci/deploy-runner/job-started.sh` | the `puni-deploy` runner is to sit in a group limited to `deploy-k3s.yml@refs/heads/main`, and its hook fails any other workflow reference                                                                                                                                                                      |
+| `infra/jobs/catalogue.json`                                         | `gate`, `release-build`, `test-queued`, `solver-image-publish`                                                                                                                                                                                                                                                  |
+| `docs/infra/gate-hosts.md`                                          | a gate reserves the whole pool and may not be listed in `concurrencyEligible`                                                                                                                                                                                                                                   |
 
 ## Repository checks
 
 Dependencies were not installed in the worktree: the laptop's disk was full. The binaries of the
 main checkout were used through a temporary `node_modules` link, removed afterwards. The rows
-below were run again on this revision, on 2026-11-23.
+below were run again on this revision, on 2026-11-21.
 
 | Command                                                                                                     | Result                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -444,10 +491,12 @@ below were run again on this revision, on 2026-11-23.
 - No lab, VM, cluster or Argo CD rehearsal: slice 2.7 owns that.
 - No playbook was run. What the playbooks do was read from their sources and from the runbooks'
   records of earlier runs.
-- This revision has not been reviewed. The six reviews recorded above read earlier commits.
+- This revision has not been reviewed. The seven reviews recorded above read earlier commits.
 
 ## Primary sources read
 
+- For the seventh draft: `solver-supervisor-image-map.ts` and its test, the `solver` role's
+  tasks again, and the Argo CD multiple-sources guide at tag `v3.6.2`.
 - For the sixth draft: the five supervisor sources and the `solver` and `gate_host` roles named
   under "Read-only readings"; `docs/infra/deployment.md` on the deploy runner and its hook;
   `docs/infra/recovery.md` on the h1claw sets.
@@ -474,7 +523,7 @@ below were run again on this revision, on 2026-11-23.
 - `openspec/changes/adopt-harbor-registry`: design decisions 2, 4 and 10, the assumption table
   and the task list.
 - The Argo CD documentation and source listed above.
-- For the fourth review and the decisions of 2026-11-23: the design file of pull request #935
+- For the fourth review and the decisions of 2026-11-21: the design file of pull request #935
   at its branch (placement, seal, self-init, server certificate, bootstrap set, stage graph);
   `infra/controller/Containerfile`; `deploy/k8s/wbs/overlays/staging` and `prod`;
   `infra/platform/policy` and `storage` by kind; the Prometheus stack archive's file list;
