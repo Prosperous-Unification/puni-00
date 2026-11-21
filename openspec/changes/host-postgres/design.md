@@ -102,13 +102,20 @@ Memory in MiB, counted as core decision 2 counts it.
 
 **What this change adds to nodes the core change sized, in the minimal profile.**
 
-| Node            | Workload                                                     | Limit | Sum and margin after it                                         |
-| --------------- | ------------------------------------------------------------ | ----: | --------------------------------------------------------------- |
-| Platform        | CloudNativePG operator and the Barman plugin                 |   512 | 9,066; with reservations 11,882; margin 3,720                   |
-| Platform        | `platform-db`: one instance and its backup sidecar           | 2,304 | 11,370; with reservations 14,186; margin 1,416                  |
-| Platform        | The nightly logical dump                                     |   256 | margin 1,160 while it runs                                      |
-| Production apps | A restore drill's throwaway instance and its sidecar, weekly | 1,280 | 7,296; margin 6,642 while it runs                               |
-| Observability   | `nonproduction-db`: one instance and its backup sidecar      | 1,280 | counted in core decision 2's sum for that node, which A14 tests |
+| Node            | Workload                                                     | Limit | Sum and margin after it                                                       |
+| --------------- | ------------------------------------------------------------ | ----: | ----------------------------------------------------------------------------- |
+| Platform        | CloudNativePG operator and the Barman plugin                 |   512 | 9,066; with reservations 11,882; margin 3,720                                 |
+| Platform        | `platform-db`: one instance and its backup sidecar           | 2,304 | 11,370; with reservations 14,186; margin 1,416                                |
+| Platform        | The nightly logical dump                                     |   256 | margin 1,160 while it runs                                                    |
+| Production apps | A restore drill's throwaway instance and its sidecar, weekly | 1,280 | 7,296; on that node's trial size of 8 GiB there is no margin on paper (below) |
+| Observability   | `nonproduction-db`: one instance and its backup sidecar      | 1,280 | counted in core decision 2's sum for that node, which A14 tests               |
+
+The production apps node is 4 vCPUs and 8 GiB in the minimal profile, as a trial (core R2),
+and its own limits already fill it on paper (core decision 2). A drill there depends on
+the apps using far less than their limits, so it is guarded: it reads the node's available
+memory first and does not start under 2,304 MiB, its own 1,280 and the 1,024 floor. A drill
+that does not start reports as a failed drill, and that alert is one of the triggers that
+rescale the node. On 16 GiB the same row leaves 6,642.
 
 Every figure is assumed (256 each for the operator and the plugin; 2,048 and 256 for the
 production instance and its sidecar; 1,024 and 256 for the others) and PG-A3 and PG-A4
@@ -300,7 +307,7 @@ by a restart of that app, and the port's change says how.
   that carries `restore-drill`, runs sanity queries and deletes the cluster. In the minimal
   profile that is the production apps node, so that a restore's writes never share a disk
   with etcd. It does not start when the restore would take that node's filesystem above 65%
-  (decision 2). The throwaway cluster's
+  or when the node's available memory is under 2,304 MiB (decision 2). The throwaway cluster's
   claim is on `local-path`, the class k3s packages, whose reclaim policy is `Delete`, so
   deleting the cluster removes the volume and its directory. On `puni-retain` every drill
   would leave a copy of production data on the node's disk. The job ends by checking that
@@ -529,7 +536,10 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 - **Two stores per app for a while.** Between an app's arrival on SQLite and its port, the
   plan carries both mechanisms, and the ports are four changes this one does not size.
 - **A password rotation needs an app restart** (decision 3).
-- **The drill's free-space guard is new.** A drill that does not start for lack of room
+- **In the minimal profile a drill may not find room.** The production apps node is tried
+  at 8 GiB, and the drill starts only with 2,304 MiB available there. Until that node is
+  rescaled, a week without a drill is possible, and it shows as the drill alert.
+- **The drill's free-space and memory guards are new.** A drill that does not start for lack of room
   reports as a failed drill, which is the alert that should follow.
 
 ## Open questions for the owner

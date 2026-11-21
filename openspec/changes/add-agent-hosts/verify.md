@@ -98,3 +98,12 @@ the minimal profile as they were, at the sizes already decided. He then said "i 
 infra, all old nodes can be retired" (core R46): AH3 and AH-A3 are new and retire h1claw
 here. His earlier words, that he may delete it at any time and accepts the backup windows,
 stand. Nothing was renumbered.
+
+Later on 2026-11-22 the owner replaced "two hosts" for the minimal profile: "power outages
+in Ukraine demand i have a remote workstation; can have just one for openclaw + workers".
+AH4 is new: one shared server in the minimal profile, two in the full one; AH-A1 creates
+the shared host and AH-A2 became the growth step. Its size is assumed, 8 vCPUs and 16 GiB,
+and is this change's open question 1. What the shared host gives up, and the four limits
+that the play and AH-A1's receipt check, are in design decision 1. Not read: how OpenClaw's
+units are installed, so that it can run as a user without `sudo` is assumed and is the
+follow-up's to confirm.

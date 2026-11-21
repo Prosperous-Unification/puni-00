@@ -125,7 +125,10 @@ which they extend.
       object store into a throwaway `Cluster` on the database node, on the packaged
       `local-path` class, whose policy is `Delete`; runs sanity queries against it;
       deletes it; and fails unless no volume of it is left, Released or as a directory
-      (design decision 3). It reads the node's filesystem first and does not start when
+      (design decision 3). It reads the node's available memory first and does not start
+      under 2,304 MiB (design decision 2; negative: a fixture node with less, and the job
+      exits nonzero before it creates a cluster; fault: drop the reading). It reads the
+      node's filesystem first and does not start when
       the restore would take it above 65% (design decision 2). The `nonproduction-db`
       unit carries the same CronJob with `suspend: true`, restoring into a throwaway
       cluster in its own namespace on the non-production node, for PG-A3 to start once

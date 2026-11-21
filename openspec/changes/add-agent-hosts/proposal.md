@@ -7,19 +7,22 @@ host for his logged-in agent accounts, reached with `herdr`.
 
 This change is the third of three that together are the new setup plan, beside
 [`separate-node-roles`](../separate-node-roles/proposal.md), which rebuilds the cluster, and
-[`host-postgres`](../host-postgres/proposal.md). Both hosts are in the minimal profile that
-is built first, and h1claw's retirement is a step here.
+[`host-postgres`](../host-postgres/proposal.md). In the minimal profile that is built
+first one server holds both roles; two servers are what it grows into. h1claw's retirement
+is a step here.
 
 ## What Changes
 
-- Two node roles outside the k3s cluster and outside the gate pool: `agents`, one server for
-  OpenClaw, and `workstation`, one server that is an extension of the operator's laptop.
+- Two node roles outside the k3s cluster and outside the gate pool: `agents`, for
+  OpenClaw, and `workstation`, an extension of the operator's laptop. In the minimal
+  profile one server holds both, with OpenClaw under a Unix user that cannot read the
+  operator's files; a server each is the full profile.
 - Two inventory groups and one play that prepares such a host: the `base` role, password
   login off, and a firewall that admits SSH only.
-- Rules that keep both out of the cluster, out of the gate pool and off each other, and
-  that keep every automation's key off the workstation.
-- The owner creates each server when he chooses. Nothing in the cluster rebuild waits for
-  either.
+- Rules that keep both out of the cluster and out of the gate pool, and that keep every
+  automation's key off the workstation.
+- The owner creates the server when he chooses. Nothing in the cluster rebuild waits for
+  it.
 
 ## Non-Goals
 
@@ -31,8 +34,10 @@ cluster changes.
 ## Constraints
 
 The repository is public: no prices, provider ids or public addresses. Agent code never
-runs on a node of the cluster or on the same server as another role. The agents host holds
-no credential of the cluster. The workstation accepts no login from automation.
+runs on a node of the cluster, a gate host or a server with a cluster role. On a server
+of its own the agents host holds no credential of the cluster; on the shared host that
+cannot hold and is an accepted residual. The workstation accepts no login from
+automation.
 
 ## Capabilities
 

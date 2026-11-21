@@ -8,7 +8,7 @@ with a production-path negative, watched failing with the check removed, and an 
 
 ## 0. Decisions
 
-- [ ] AH-0.1 Owner reads assumptions AH1 to AH3 and the two open questions in design.md and
+- [ ] AH-0.1 Owner reads assumptions AH1 to AH4 and the open question in design.md and
       overrules by id. Receipt: the overrules and the answers, dated and quoted, in
       verify.md.
 - [ ] AH-0.2 File the decision record from design.md as an ADR under the next free number,
@@ -27,15 +27,21 @@ with a production-path negative, watched failing with the check removed, and an 
       input list of automation public keys was given and that none of them, compared by
       key body, is among the operator keys it is about to install; the list holds the
       gate callers' keys, the build user's key and the agents host's key. In the
-      production placement check: a host in either group is in no k3s group, not in
-      `gate_hosts` and not in the other group; neither group's hosts appear in
+      production placement check: a host in either group is in no k3s group and not in
+      `gate_hosts`; a host may be in both groups, which is the minimal profile's shared
+      host (AH4), and then the play also creates OpenClaw's Unix user with no `sudo` entry
+      and no supplementary group, sets the operator's home to 0700, and fails if that user
+      can read a file there; neither group's hosts appear in
       `desired.yaml` or in `puni_enrolled_private_addresses`. Each host's inventory
       revision follows its creation, as the core change's slice 1.3 does for a server.
       Test: `infra/ansible/tests`, with the rendered `sshd` drop-in, firewall and
       kernel-settings file of a fixture host, and `placement.test.ts`. Negatives, each
       with its own fault: an agents host under `k3s_agents` is refused (fault: skip the
       group comparison); a workstation under `gate_hosts` is refused (fault: compare
-      against k3s groups only); one host in both groups is refused; an agents host's
+      against k3s groups only); on a host in both groups, an OpenClaw user with a `sudo`
+      entry, in the operator's group or in `docker` fails the play (fault: create the user
+      with the operator's groups), and an operator home that the OpenClaw user can list
+      fails it (fault: leave the home at its default mode); an agents host's
       address among the enrolled private addresses is refused (fault: read `desired.yaml`
       only); the play fails for a workstation whose operator keys include a gate caller's
       key or the build user's (fault: drop the assert); it fails for one whose operator
@@ -49,21 +55,34 @@ with a production-path negative, watched failing with the check removed, and an 
 
 ## 2. Attended steps
 
-Neither host is on the path of any stage of the core change. AH-A3 retires h1claw (AH3).
+Neither role is on the path of any stage of the core change. In the minimal profile AH-A1
+creates the one shared host; AH-A2 is the growth step to two (design decision 3). AH-A3
+retires h1claw (AH3).
 
-- [ ] AH-A1 The agents host (AH1), after slice AH-S1. Who: owner creates, when he chooses, in
-      the region of open question 1, with 4 vCPUs and 8 GiB, the admin key and no private
-      network attached; operator applies. Commands:
-      `fleet_ansible --limit h11claw playbooks/base-host.yml` twice. Receipt: as the core
+- [ ] AH-A1 The shared host for OpenClaw and the owner's sessions (AH4, minimal profile),
+      after slice AH-S1. Who: owner creates, as early as he wants, in the region he
+      chooses and at the size of open question 1, with the admin key and no private network attached;
+      operator applies, with the host in both groups and the automation key list in
+      `$OPS`. Commands:
+      `fleet_ansible --limit h11ops playbooks/base-host.yml` twice. Receipt: as the core
       change's A1, without a private address; the second run prints `changed=0`; no k3s
       unit, no kubeconfig, no k3s token, no object storage key and no file of task 0.5's
       escrow list on the host; no interface on the cluster's private network; password
-      login refused; only SSH answers from outside. Stop: the host has a private
-      interface, or any of those files. Rollback: delete the server. Installing OpenClaw
-      is the follow-up `host-openclaw`.
-- [ ] AH-A2 The workstation (AH2), after slice AH-S1. Who: owner creates, when he chooses, in
-      the region of open question 2, with 4 vCPUs and 8 GiB; operator applies the play as
-      in AH-A1 for `h12work`, with the automation key list in `$OPS`. Receipt: as the
+      login refused; only SSH answers from outside; the authorized keys of the operator's
+      user as read on the host, operator keys only; OpenClaw's user present with no `sudo`
+      entry and no supplementary group, and a listing of the operator's home refused to
+      it; no gate launcher and no runner on the host. Stop: the host has a private
+      interface, any of those files, a key of the CI host or a cluster workload
+      authorized, or the OpenClaw user can read the operator's home. Rollback: delete the
+      server. Installing OpenClaw is the follow-up `host-openclaw`; tooling, accounts and
+      `herdr` are the owner's. The controller (R17) is not moved here without his written
+      word, recorded in verify.md with the date.
+- [ ] AH-A2 Growth step only: a workstation of its own (AH2, design decision 3). Who:
+      owner creates, at one of the triggers, in a region he chooses, with 4
+      vCPUs and 8 GiB; operator applies the play for `h12work` as a workstation alone,
+      with the automation key list in `$OPS`, which now holds the shared host's key too;
+      the owner moves his sessions and credentials; the shared host's inventory revision
+      takes it out of the workstation group. Receipt: as the
       core change's A1; the second run prints `changed=0`; its authorized keys as read on
       the host, which are operator keys only; password login refused; only SSH answers
       from outside; no gate launcher, no runner and no OpenClaw unit on it. Stop: the

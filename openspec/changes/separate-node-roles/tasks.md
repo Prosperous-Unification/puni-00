@@ -741,7 +741,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
 
 ### Stage 4: apps
 
-- [ ] A16 Create the production apps server (minimal profile, R45). Who: owner, as A1,
+- [ ] A16 Create the production apps server (minimal profile, R45). Who: owner, as A1, at 4
+      vCPUs and 8 GiB as the trial of R2,
       with a root disk of at least 105 GiB (the change `host-postgres` runs a restore drill
       there). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
       80 and 443. Rollback: delete the server. If A14's decision was a non-production server
@@ -812,7 +813,8 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       its backup job suspended, and the owner syncs it; the stamp is restored; one replica
       and the job resumed are merged, and the owner syncs again; the names are pointed at
       h6apps. Receipt: as A18, plus that the merged Application stayed OutOfSync until the
-      owner's sync, and that the sync was made with the local account. Stop: as A18, or the
+      owner's sync, and that the sync was made with the local account; the node's
+      available memory at rest and during one backup run (design decision 2). Stop: as A18, or the
       Application syncs without a command. Rollback, while h4claw exists: point the names
       back and resume the old units.
 - [ ] A20 WBS production, the simple way (R28), after 3.5, Harbor and A18's WBS receipt. Who:
@@ -820,8 +822,11 @@ The sixth draft's slice 3.9, the dev environment, is not in this change: it is t
       As A19 for WBS: Secrets and Harbor's pull credential written into OpenBao; production
       stopped on h2puni; one final backup; the `wbs` Application merged at zero replicas and
       synced by the owner; the stamp restored; one replica merged and synced; the name
-      pointed at h6apps. Receipt: as A19, plus the WBS alert group present and quiet, and
-      that h6apps is in no `gate_hosts` group. Stop: as A19, or the WBS owner names a step a
+      pointed at h6apps. Receipt: as A19, plus the WBS alert group present and quiet,
+      that h6apps is in no `gate_hosts` group, and the node's available memory at rest,
+      during the hourly backup and during one solve, with the owner's decision to keep
+      the trial size or rescale (design decision 2). Stop: as A19, the node's available memory under 1,024 MiB at any of those readings, a pod
+      killed for memory, or the WBS owner names a step a
       first start needs that this simple move skips. Rollback, while h2puni exists: point the
       name back and start production there.
 

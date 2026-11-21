@@ -2,9 +2,11 @@
 
 This change is the third of three that together are the new setup plan, in one pull
 request with [`separate-node-roles`](../separate-node-roles/design.md), which rebuilds the
-cluster, and the change `host-postgres`. Both hosts are in the minimal placement profile
-and in the full one unchanged (core R45): the owner, offered one host for both on
-2026-11-22, answered "two hosts", and then that every server is new and every old one is
+cluster, and the change `host-postgres`. On 2026-11-22 the owner asked for the minimal
+setup that can grow (core R45). Offered one host for both roles he first answered "two
+hosts", and later that day chose one for the minimal profile: "power outages in Ukraine
+demand i have a remote workstation; can have just one for openclaw + workers" (AH4). Two
+hosts are the full profile. He also said that every server is new and every old one is
 retired (core R46), which makes h1claw's retirement a step of this change (AH3). Its content was in that change's ninth draft and was
 moved out on 2026-11-22, after a ninth review recommended the split; text was moved, not
 rewritten, except where the review, the split or a later decision of the owner required it
@@ -23,7 +25,7 @@ Read at `origin/main` `b17861f83` on 2026-11-21 and 2026-11-22. What exists toda
   the node's capabilities. Its key list, and the gate role's, are operator inputs in `$OPS`,
   not inventory.
 
-**Ids.** This change's own carry the prefix AH: assumptions AH1 to AH3, slice AH-S1,
+**Ids.** This change's own carry the prefix AH: assumptions AH1 to AH4, slice AH-S1,
 attended steps AH-A1 to AH-A3, and decisions 1 to 4 of this file. Every other id is the
 core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, R45,
 R46, A1 to A23, its slices and guards, and what is written "core decision n".
@@ -32,8 +34,8 @@ R46, A1 to A23, its slices and guards, and what is written "core decision n".
 
 **Goals**
 
-- A place for OpenClaw's sessions and a place for the owner's own, each on a server of its
-  own and neither in the cluster.
+- A place for OpenClaw's sessions and a place for the owner's own, outside the cluster: one
+  server for both in the minimal profile, a server each in the full one.
 - A stated trust for each: what it may hold and who may log in.
 - Checks for what the repository can check, and receipts for the rest.
 
@@ -54,20 +56,44 @@ overruled by id.
 | AH1 | **Decided.** The owner on 2026-11-22: "let's also add a host for openclaw to this mix". A seventh node role, `agents`: one server, proposed name `h11claw`, outside the k3s cluster and outside the gate pool, prepared by the play of slice AH-S1. Assumed: 4 vCPUs and 8 GiB with the disk its type includes, and no interface on the cluster's private network (decisions 1 and 2). This change provisions and contains the host. Installing OpenClaw and moving its state is a follow-up, proposed name `host-openclaw`: its code and units live in a private repository and are not designed here. The host does not take over h1claw's backup pull or its alert relay; those duties end with h1claw, because backups run in the cluster (R13) and alerts go to Slack | OpenClaw on the CI host. Cost: unattended agent sessions with credentials of their own beside builds whose images production later runs. 16 GiB from the start. Cost: paid before more sessions than today's are measured |
 | AH2 | **Decided.** The owner on 2026-11-22: "and a sep host for logged in agent's accounts that i'll access through herdr". An eighth node role, `workstation`: one server, proposed name `h12work`, outside the k3s cluster and outside the gate pool, prepared by the play of slice AH-S1. It is a remote operator workstation: interactive coding-agent sessions logged in to the owner's own accounts run there, and he reaches it from his laptop with `herdr` over SSH. **Decided** the same day: he chose the small size, 4 vCPUs and 8 GiB with the disk its type includes (decision 2). Installing the agent tooling, logging accounts in and setting `herdr` up are the owner's and are not designed here                                                              | The sessions on the agents host of AH1. Cost: the owner's logged-in accounts and keys beside unattended agents                                                                                                            |
 | AH3 | **Decided.** The owner on 2026-11-22: "i want all new infra, all old nodes can be retired" (core R46). h1claw is retired by this change, in AH-A3, when OpenClaw's state has moved or he has said it is not wanted. He may still delete it earlier (R30)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Keep h1claw as the OpenClaw host, which the planning session had offered. Cost: none in work; he chose new servers                                                                                                        |
+| AH4 | **Decided.** The owner on 2026-11-22, after first answering "two hosts": "power outages in Ukraine demand i have a remote workstation; can have just one for openclaw + workers". In the minimal profile the roles `agents` and `workstation` share one server, proposed name `h11ops`, outside the cluster and the gate pool; the workstation is needed and is not postponed. Two servers, as AH1 and AH2 describe them, are the full profile and a growth step (decision 3). The shared host cannot keep AH1's rule that the agents host holds no operator credential; decision 1 states what limits that. **Assumed, awaiting his choice:** 8 vCPUs and 16 GiB (open question 1)                                                                                        | Two hosts from the start. Cost: one more server. One host at 4 vCPUs and 8 GiB. Cost: the gateway and few sessions at once                                                                                                |
 
 ## Decisions
 
 ### 1. Two roles outside the cluster, and what each is trusted with
 
-The core change's role table names both roles and leaves them to this change:
+The core change's placement table names both roles and leaves them to this change:
 
-| Role        | Host    | Capabilities               | In the k3s cluster |
-| ----------- | ------- | -------------------------- | ------------------ |
-| Agents      | h11claw | none: it is not a k3s node | no                 |
-| Workstation | h12work | none: it is not a k3s node | no                 |
+| Role        | Minimal profile (AH4) | Full profile | In the k3s cluster |
+| ----------- | --------------------- | ------------ | ------------------ |
+| Agents      | `h11ops`, shared      | h11claw      | no                 |
+| Workstation | `h11ops`, shared      | h12work      | no                 |
 
-- No agents host and no workstation is a k3s node or a gate host, and neither is the same
-  server as the other or as any other role.
+- No agents host and no workstation is a k3s node or a gate host or the server of any
+  cluster role. In the full profile neither is the same server as the other. In the minimal
+  profile one server, `h11ops`, holds both, and nothing else.
+- **The workstation is not optional and is not postponed** (AH4). Power cuts where the owner
+  works are the reason he needs a remote place for his sessions, so the shared host is
+  created early; nothing in the cluster rebuild waits for it, and it waits for nothing.
+- **What sharing gives up, plainly.** The bullets below state each role's trust for a host
+  of its own. On the shared host OpenClaw's autonomous agents run on the machine that holds
+  the operator's credentials and logged-in sessions, so "the agents host holds no operator
+  credential" does not hold there. That is an accepted residual of the minimal profile. What
+  limits it, and what the play and the receipt check (decision 3, AH-A1):
+  - OpenClaw runs as a Unix user of its own, which has no `sudo`, is in none of the
+    operator's groups and not in a container-runtime group, and whose sessions' credentials
+    are its own;
+  - the operator's home is mode 0700 and what he keeps there is readable by his user only;
+  - inbound traffic is SSH by key only, and no key of the CI host or a cluster workload is
+    authorized for either user;
+  - the host still has no interface on the cluster's private network, no k3s token and no
+    object storage key of the cluster's backups, unless the owner puts one in his own home.
+
+  A local privilege escalation by an agent would cross that line; nothing here prevents
+  one. For that reason the controller of core R17 does not move to the shared host unless
+  the owner says so in writing: it would put the admin key and the age identity on the far
+  side of one such escalation. The split to two hosts is the growth step (below).
+
 - **The agents host is outside the cluster for the CI host's reason** (AH1): unattended
   agent sessions run code there with credentials of their own. It holds no cluster-admin
   credential, no k3s token, no object storage key of the cluster's backups, and no store
@@ -95,13 +121,20 @@ The core change's role table names both roles and leaves them to this change:
 
 ### 2. Budgets
 
-**Agents host** (AH1). Measured on h1claw on 2026-11-21: 4 vCPUs; 7.75 GiB of memory with
+**The shared host** (AH4, minimal profile). Assumed 8 vCPUs and 16 GiB with the disk its
+type includes, awaiting the owner's choice (open question 1). The two measurements below
+are its basis: the gateway needs about 2 GiB, and the work of the owner's sessions is what
+fills a machine. At 4 vCPUs and 8 GiB it would cost half and hold the gateway with a few
+light sessions; at 8 vCPUs and 16 GiB it holds the gateway and several sessions that run
+tests. Either can be rescaled later with the disk kept.
+
+**Agents host, on a server of its own** (AH1, full profile). Measured on h1claw on 2026-11-21: 4 vCPUs; 7.75 GiB of memory with
 3.2 GiB available; the OpenClaw gateway at about 2 GiB resident; a 75 GB disk at 91%, of
 which about 21 GiB is OpenClaw's state. The same shape is assumed, 4 vCPUs and 8 GiB, with
 the disk its type includes, which is larger. What moves it to 16 GiB: available memory under
 1 GiB with the sessions it runs today, or more sessions at once.
 
-**Workstation** (AH2). 4 vCPUs and 8 GiB with the type's included disk, by the owner's
+**Workstation, on a server of its own** (AH2, full profile). 4 vCPUs and 8 GiB with the type's included disk, by the owner's
 decision of 2026-11-22. Measured on his laptop that day, the agent processes themselves are
 light, 29 of them at about 3.3 GiB resident, but their work used 21 GiB of memory and
 filled a 460 GB disk, so this size holds few heavy sessions at once, and the server can be
@@ -130,8 +163,20 @@ Slice AH-S1 adds one play, `playbooks/base-host.yml`, for two new inventory grou
   k3s group, not in `gate_hosts` and not in the other group; neither group's hosts appear
   in `desired.yaml` or among the enrolled private addresses.
 
-Neither host is in a stage. The owner creates each when he wants (AH-A1, AH-A2); nothing in
-the core change waits for either.
+Neither role is in a stage. In the minimal profile the owner creates the shared host in
+AH-A1, as early as he wants; nothing in the core change waits for it. A host in both groups
+gets both groups' rules from the play: the workstation's key assert, with the gate callers'
+and the build user's keys as the automation list, and for the agents role a Unix user for
+OpenClaw created by the play with no `sudo` and no supplementary group, the operator's home
+set to 0700, and a check that fails if that user can read it.
+
+**The growth step to two hosts** (core decision 11). Trigger: the owner wants the controller,
+the admin key or another credential of the cluster on his workstation; the first production
+user; an agent session found to have read outside its user; or the two kinds of sessions
+starving each other. Procedure: AH-A2 creates the second server and applies the play to it
+as a workstation alone; the owner moves his sessions and credentials there; the shared host
+leaves the workstation group in its inventory revision and its operator home is emptied of
+credentials, which is the step's receipt.
 
 **Retiring h1claw** (AH3, AH-A3). The plan retires every old server (R46). h1claw is deleted
 by AH-A3 once OpenClaw's follow-up has moved its state to the agents host, or the owner has
@@ -197,12 +242,14 @@ It stays here until a number is free, as the core change's two do (task AH-0.2).
 
 ## Open questions for the owner
 
-1. The agents host (AH1): its region, the cluster's or the one h1claw is in today. The
-   cluster's region is closer to the apps' API and keeps a private name possible later;
-   why h1claw is where it is, the planning session does not know. And whether OpenClaw's
-   state moves from h1claw or starts fresh, which has to be settled before h1claw is
-   deleted if the state is wanted.
-2. The workstation (AH2): its region.
+1. The shared host's size (AH4): 8 vCPUs and 16 GiB, which this plan assumes, or 4 vCPUs
+   and 8 GiB (decision 2).
+
+Not open questions, but his to settle at a step: the host's region, when he creates it
+(AH-A1). The cluster's region is closer to the apps' API and keeps a private name possible
+later; why h1claw is where it is, the planning session does not know. And whether OpenClaw's
+state moves from h1claw or starts fresh, which is the follow-up's and has to be settled
+before AH-A3.
 
 ## Not verified
 

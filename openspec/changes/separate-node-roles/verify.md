@@ -524,13 +524,18 @@ R2, R3, R29 and R30 were reworded; nothing was withdrawn.
   with set of labels". That a label added to the configuration later is not applied is
   believed and is slice 1.7's stop condition, not a reading.
 
+**What the figures say against the trial size of the apps node.** On limits the production
+workloads fill an 8 GiB node with nothing left for a solve or a restore drill (design
+decision 2). The owner chose to try it; A19 and A20 measure and the rescale has triggers.
+
 **What the figures say against one co-location.** On the declared figures staging does not
 fit beside the observability stack on 16 GiB (design decision 2): 972 MiB are left before
 the staging database and any solve. The owner chose that placement; the plan keeps it and
 makes A14's measurement its condition, with two priced exits. It is the open question.
 
 **One pull request.** The branches of `host-postgres` and `add-agent-hosts` were merged
-into this change's branch, and their pull requests closed, on the owner's request. The
+into this change's branch on the owner's request, which the forge records as those two pull
+requests merged into this branch; nothing of them is on `main`. The
 sentences that called them stacked were removed or reworded; older sections of this record
 that say "stacked" describe the tenth draft.
 
@@ -641,6 +646,11 @@ On 2026-11-22:
   to see what is the minimal setup i can do that will scale later" (R45). Offered three
   choices, he answered: OpenClaw and the workstation "two hosts"; "CI let's start at" the
   8 vCPU and 16 GiB class; staging and dev "ok to keep on the obs node".
+- "prod apps on 8GiB - yeah we can try": the production apps node is 4 vCPUs and 8 GiB in
+  the minimal profile, as a trial (R2).
+- "power outages in Ukraine demand i have a remote workstation; can have just one for
+  openclaw + workers": one host for OpenClaw and his own sessions in the minimal profile,
+  replacing his "two hosts" of earlier that day (change `add-agent-hosts`).
 - "i want all new infra, all old nodes can be retired" (R46), after the planning session
   had offered to keep h1claw and h2puni.
 - "can you merge all plans into one PR?": the three changes are in one pull request and

@@ -2,17 +2,37 @@
 
 ### Requirement: The agents host and the workstation stand outside the cluster
 
-An agents host and a workstation SHALL be outside the cluster and the gate pool, each on a
-server of its own. They are the seventh and eighth node roles, which the `node-roles`
-capability names. An agents host MUST NOT hold a cluster credential or a key of the
-cluster's backups, and MUST NOT be on the cluster's private network. A workstation MAY hold
-the operator's credentials and MUST NOT accept a login from any automation.
+The agents role and the workstation role SHALL be outside the cluster and the gate pool.
+They MAY share one server and nothing else may share it. A host with the agents role MUST
+NOT be on the cluster's private network. A workstation MAY hold the operator's credentials
+and MUST NOT accept a login from any automation.
 
 #### Scenario: Agents host or workstation listed elsewhere
 
-- **WHEN** an inventory lists an agents host or a workstation under a k3s group, under
-  `gate_hosts` or in the other's group, or the desired state names one as a node
+- **WHEN** an inventory lists an agents host or a workstation under a k3s group or under
+  `gate_hosts`, or the desired state names one as a node
 - **THEN** the placement check fails and names the host
+
+#### Scenario: Shared host, minimal profile
+
+- **WHEN** one host is in both groups and in no other
+- **THEN** the placement check passes, and the play applies both groups' rules to it
+
+### Requirement: On a shared host the agents cannot read the operator's files
+
+On a host that holds both roles, OpenClaw SHALL run as a Unix user of its own with no `sudo`
+entry and no supplementary group, and the operator's home MUST NOT be readable by it.
+
+#### Scenario: Agent user with privileges
+
+- **WHEN** the play runs for a shared host whose OpenClaw user has a `sudo` entry or is in
+  the operator's group or a container-runtime group
+- **THEN** the play fails and names the user
+
+#### Scenario: Operator home readable
+
+- **WHEN** the OpenClaw user can list the operator's home on a shared host
+- **THEN** the play fails
 
 #### Scenario: Agents host on the private network
 
@@ -22,7 +42,7 @@ the operator's credentials and MUST NOT accept a login from any automation.
 #### Scenario: Automation key on the workstation
 
 - **WHEN** the play runs for a workstation whose operator keys include a key of a gate
-  caller, the build user or the agents host
+  caller, the build user or, when it is a server of its own, the agents host
 - **THEN** the play fails before it changes the host and names the key's owner
 
 #### Scenario: Automation keys not given
