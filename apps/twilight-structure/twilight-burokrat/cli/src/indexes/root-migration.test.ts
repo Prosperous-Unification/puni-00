@@ -623,7 +623,14 @@ describe('root migration production CLI', () => {
     const repository = createRepository();
     buildFixture(repository);
     const source = readFileSync(join(repository, 'LLM_README.md'), 'utf8');
-    write(repository, 'LLM_README.md', `${source}\n[Missing incident](#absent-incident)\n`);
+    // The link takes the place of the first blank line so the fixture keeps the real router's line
+    // count: appending lines reaches the 150-line cap first once the router nears it (main at 149
+    // lines failed with `LLM_README.md exceeds 150 lines: 151` on 2026-11-21).
+    write(
+      repository,
+      'LLM_README.md',
+      source.replace('\n\n', '\n[Missing incident](#absent-incident)\n'),
+    );
     expectRefusal(
       await runCheck(repository, commit(repository, 'missing same-document anchor')),
       'Markdown anchor must occur once in LLM_README.md: LLM_README.md#absent-incident',
