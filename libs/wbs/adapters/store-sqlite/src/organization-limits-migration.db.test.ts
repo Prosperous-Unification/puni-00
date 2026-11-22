@@ -8,13 +8,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 const MIGRATION = '20261022130000_add_organization_limits';
 /** The newer audit widening, which reverses first in its own transaction. */
 const LIMITS_AUDIT = '20261022130100_widen_organization_audit_organization_limits';
 const NEWER = [
-  '20261103110000_add_initial_access_offers',
+  INITIAL_ACCESS_OFFERS,
   '20261102130000_widen_organization_audit_access',
   '20261102120000_add_access_grants',
   '20261101120000_add_host_job_projection',
@@ -32,9 +33,9 @@ const NEWER = [
   '20261023140000_add_measure',
   '20261023100000_add_claim_lease',
   '20261022213000_add_optimization_boundary_certificates',
-  '20261022212000_add_cross_work_package_dependency_activation',
+  '20261022212000_add_cross_project_dependency_activation',
   '20261022211000_add_external_dependencies',
-  '20261022210000_add_work_package_abbreviations',
+  '20261022210000_add_project_abbreviations',
   '20261022140100_widen_organization_audit_compute_providers',
   '20261022140000_add_resource_provider',
   LIMITS_AUDIT,
@@ -43,12 +44,14 @@ const BASELINE = '20261022120000_scope_trusted_issuer_audience';
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-limits-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, INITIAL_ACCESS_OFFERS);
+  runMigrations(path, migrations);
   db = openDatabase(path);
   db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
 });
@@ -121,7 +124,7 @@ describe(MIGRATION, () => {
     const before = db
       .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id')
       .all();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/organization limits exist/);
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(/organization limits exist/);
     expect(count()).toBe(1);
     expect(
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all(),
@@ -129,7 +132,7 @@ describe(MIGRATION, () => {
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       ...NEWER,
       MIGRATION,
       '20261022121000_add_runtime_commands',
@@ -137,7 +140,7 @@ describe(MIGRATION, () => {
     expect(
       db.query("SELECT name FROM sqlite_master WHERE name = 'organization_limits'").all(),
     ).toEqual([]);
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     insert('8', '40', '64');
     expect(count()).toBe(1);
   });

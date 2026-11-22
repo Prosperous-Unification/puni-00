@@ -8,25 +8,28 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const MIGRATION = '20261020130000_add_claim_occupancy';
 const BASELINE = '20261020120000_add_resources';
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-claim-occupancy-schema-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, PREFIX);
+  runMigrations(path, migrations);
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
-    "INSERT INTO step (id, work_package_id, name) VALUES ('dev', 'p1', 'Dev')",
-    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('w1', 'p1', 'Build', 1, 0)",
+    "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+    "INSERT INTO step (id, project_id, name) VALUES ('dev', 'p1', 'Dev')",
+    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('w1', 'p1', 'Build', 1, 0)",
     "INSERT INTO person (id, name) VALUES ('claire', 'Claire')",
     "INSERT INTO claim (id, work_item_id, step_id, person_id, created_by) VALUES ('c1', 'w1', 'dev', 'claire', 'u1')",
     "INSERT INTO resource (id, name, kind, unit_label) VALUES ('ram', 'h2puni ram', 'divisible', 'GB')",
@@ -93,7 +96,7 @@ describe(MIGRATION, () => {
   });
 
   it('refuses rollback while a claim holds units, keeping the table and the ledger', () => {
-    expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
+    expect(rollbackTo(path, migrations, MIGRATION)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -112,9 +115,9 @@ describe(MIGRATION, () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -127,13 +130,13 @@ describe(MIGRATION, () => {
     ]);
     occupy('c1', 'ram', 4);
     const before = db.query('SELECT * FROM __drizzle_migrations').all();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
     expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -152,9 +155,9 @@ describe(MIGRATION, () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -169,7 +172,7 @@ describe(MIGRATION, () => {
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(
       [],
     );
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     occupy('c1', 'ram', 4);
     expect(count()).toBe(1);
   });

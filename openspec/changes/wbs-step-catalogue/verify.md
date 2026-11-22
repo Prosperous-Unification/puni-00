@@ -2237,3 +2237,18 @@ Nx typecheck passed.
   complete rollback order. All 25 seeded audit histories run on the current
   schema. The focused `priority-band.db.test.ts` target passed all seven
   tests, including the raw SQLite cascade and read-without-write witnesses.
+
+### SQLite historical rollback and current capture checks
+
+- The uncached Nx SQLite target passed 37 tests across
+  `claim-occupancy-schema.db.test.ts`, `current-parent-capture.db.test.ts`,
+  `organization-limits-migration.db.test.ts`,
+  `typed-dependency-rollback.db.test.ts` and
+  `captured-optimization-reader.db.test.ts`. The historical rollback tests
+  preserve the ordered migration lists and ledger snapshots on refusal.
+  The typed dependency round trip restores a verified pre-rename snapshot,
+  exercises down and up SQL, migrates the database through the catalogue
+  owner, and restores and reads the original typed rows again. The current
+  capture witnesses check the actual parent and inherited step, refuse
+  corrupt organization ownership, and preserve the read snapshot under a
+  concurrent mutation.

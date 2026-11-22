@@ -7,22 +7,29 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { drizzleReadTransaction, openConnection, openDatabase } from './db';
-import { runMigrations } from './migrate';
+import { OPEN } from './gate';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { readPlanInputIn } from './saved-plan-capture';
 import { openSqliteSource, openSqliteSourceWithCaptureReadSeam } from './source';
+import { StepCatalogueRepository } from './step-catalogue';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 let directory: string,
   path: string,
   sqlite: ReturnType<typeof openDatabase>,
   source: ReturnType<typeof openSqliteSource>;
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let activeSqlite: ReturnType<typeof openDatabase> | undefined;
+let activeSource: ReturnType<typeof openSqliteSource> | undefined;
+let custody = { hasUnknownOwner: false };
 beforeEach(async () => {
   directory = mkdtempSync(join(tmpdir(), 'current-parent-capture-'));
   path = join(directory, 'source.db');
-  runMigrations(path, migrations);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+  custody.hasUnknownOwner = true;
   sqlite = openDatabase(path);
+  activeSqlite = sqlite;
   sqlite.run("INSERT INTO users(id,username,created_at) VALUES('creator','Creator',1)");
   sqlite.run(
     "INSERT INTO organization(id,name,created_at) VALUES('org','Org',1),('foreign','Foreign',1)",
@@ -37,19 +44,31 @@ beforeEach(async () => {
     dbPath: path,
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   });
+  activeSource = source;
+  custody.hasUnknownOwner = false;
+  const bound = await new StepCatalogueRepository(source.db, OPEN, 'owned').defineAndBindStep(
+    'org',
+    {
+      id: 'dev',
+      code: 'dev',
+      name: 'Dev',
+      position: 10,
+      defaultAllowancePercent: 0,
+      defaultEstimateUnit: 'workdays',
+    },
+    {
+      bindingId: 'dev-binding',
+      scopeKind: 'project',
+      scopeId: 'parent',
+      workItemTypeId: null,
+      position: 10,
+    },
+    { by: 'creator', at: 1 },
+  );
+  expect(bound.ok).toBe(true);
   const created = await source.stores.workPackages.createInOrganization(
     workPackageRow({ id: 'package', projectId: 'parent' }),
-    [
-      {
-        id: 'dev',
-        workPackageId: 'package',
-        name: 'Dev',
-        code: 'DEV',
-        position: 10,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-    ],
+    [],
     { by: 'creator', at: 1 },
     'org',
     { id: 'grant', auditId: 'audit' },
@@ -57,9 +76,14 @@ beforeEach(async () => {
   if (typeof created === 'string') throw Error('fixture birth refused ' + created);
 });
 afterEach(async () => {
-  await source.close();
-  sqlite.close();
-  rmSync(directory, { recursive: true });
+  try {
+    await activeSource?.close();
+  } finally {
+    activeSource = undefined;
+    activeSqlite?.close();
+    activeSqlite = undefined;
+  }
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true });
 });
 /** Awaits the actual operation, then checks its caught rejection synchronously. */
 async function expectRejection(operation: Promise<unknown>, diagnostic: string): Promise<void> {
@@ -144,7 +168,7 @@ test('refuses an existing package with a missing organization mapping during act
   );
   await expectRejection(
     source.history.savedPlanCapture.readPlanInput('package'),
-    'abbreviation namespace',
+    'settings organization mapping is absent or malformed',
   );
 });
 test('captures complete real organization definitions and parent in nonlegacy preactivation while absent package stays null', async () => {
@@ -152,6 +176,7 @@ test('captures complete real organization definitions and parent in nonlegacy pr
   expect(captured).not.toBeNull();
   if (captured === null) throw Error('missing capture');
   expect(captured.workPackage.projectId).toBe('parent');
+  expect(captured.steps.map(({ id }) => id)).toEqual(['dev']);
   expect(captured.workPackage).not.toHaveProperty('ownerId');
   const definitions: unknown = captured.measureDefinitions?.map(({ id, ...fields }) => fields);
   expect(definitions).toEqual(SEEDED_MEASURE_DEFINITIONS);
@@ -191,6 +216,8 @@ test('does not decode a foreign mapped package parent through the scoped borrowe
 });
 test('retains parent association and complete definitions in the read snapshot across actual rival edits', async () => {
   await source.close();
+  activeSource = undefined;
+  custody.hasUnknownOwner = true;
   let changed = false;
   source = openSqliteSourceWithCaptureReadSeam(
     { dbPath: path, dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY },
@@ -203,6 +230,8 @@ test('retains parent association and complete definitions in the read snapshot a
       },
     },
   );
+  activeSource = source;
+  custody.hasUnknownOwner = false;
   const captured = await source.history.savedPlanCapture.readPlanInput('package');
   expect(captured).toHaveProperty('workPackage.projectId', 'parent');
   const definitions: unknown = captured?.measureDefinitions?.map(({ id, ...fields }) => fields);
