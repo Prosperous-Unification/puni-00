@@ -55,12 +55,15 @@ for (const fault of [
 }
 
 it('Task37 retained historical toolchain requires exact independent content hash', async () => {
-  const lock = type({ binaries: { k3d: { version: 'string' } } }).assert(
+  const lock = type({ binaries: { k3d: { version: 'string' } }, hostPackages: 'object' }).assert(
     JSON.parse(await readFile(lockPath, 'utf8')),
   );
   Reflect.deleteProperty(lock, 'k3dHelpers');
-  // A historical lock predates the crane pin as well as the helper selection.
+  // A historical lock predates the crane pin and the Tailscale lock as well as the helper
+  // selection.
   Reflect.deleteProperty(lock.binaries, 'crane');
+  Reflect.deleteProperty(lock.hostPackages, 'tailscale');
+  Reflect.deleteProperty(lock, 'hostRepositories');
   const bytes = JSON.stringify(lock);
   const directory = await scratchAsync('historical-lock-');
   const path = join(directory, 'toolchain.json');
