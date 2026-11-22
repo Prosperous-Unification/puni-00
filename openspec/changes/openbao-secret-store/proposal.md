@@ -37,7 +37,8 @@ clusters, `tool-secrets` or host `.env` files; changing a live cluster in this c
 
 Design only; every live phase is attended and follows the plan's steps. The plan is
 authoritative where the two differ. This repository is public: bootstrap ciphertext lives in
-the private fleet repository, and no provider name, address or tailnet name is written here.
+the private fleet repository, and no provider name, public address or tailnet name is written
+here; private addresses appear only as the plan already publishes them.
 Assumed owner inputs are in [the design](design.md#owner-inputs);
 [ADR 0079](../../../docs/adr/0079-openbao-is-the-platform-secret-store.md) records the product
 and delivery choice.

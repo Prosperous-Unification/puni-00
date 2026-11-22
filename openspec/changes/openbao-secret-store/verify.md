@@ -74,11 +74,55 @@ Design only, first written 2026-11-15 and rewritten 2026-11-22 for the platform 
    outage and single-server recovery. Provider names and regions were removed, since this
    repository is public.
 
-Still unverified and owed by P1: ESO keeping a Secret when refresh fails (task 3.2), ESO 2.15
-against OpenBao 2.7 (task 3.11), certificate reload on renewal (task 3.10), the `bao` client's
-server name override through the Tailscale operator's exposure (task 3.13).
+7. **Adversarial review of PR #935 at b76a05306** (Fable, high effort): one S1 and twelve S2s,
+   folded in on 2026-11-22 (Opus 5.5, medium effort), each checked against upstream source at
+   OpenBao v2.7.2/v2.7.3, chart openbao-0.30.8, ESO v2.15.0 and Argo CD v3.6.2 (clones read in
+   the session, nothing built or run). S1, confirmed: every listener refuses
+   `sys/generate-root/*` by default since v2.5.3 (`internal/helper/configutil/listener.go`
+   652-662) and the CLI calls `sys/generate-root-token` since v2.6.0 with no legacy switch, so
+   break-glass is now an in-pod unix-socket listener reached by `kubectl exec` and driven with
+   `curl`. S2s applied: canary exemption keyed on the initialisation date; an initialisation
+   marker instead of Raft files (`raft.go` creates `vault.db`, `raft/raft.db` and `node-id` on
+   every start) and closed listeners in `first-init` and `restore`; dedicated
+   `database-owner` paths and served environments for database namespaces; the store's
+   Issuer and Certificate moved to `cert-manager` (order 3) because `issuers` is at 7; the
+   tenant interface split; listener and `sys/init` assertions; a forced sync in test 3.2; the
+   rewrite check after a rebuild; layered reach proof; alert sources, a `metrics_only`
+   listener and absent-series rules; a second audit device; Auth0 as a trust root with
+   subject, audience, MFA and bound CIDRs. S3s applied, with the generator values corrected
+   (`processClusterGenerator` and `crds.createClusterGenerator` default true) and ESO's token
+   grant narrowed through `serviceAccountTokenCreate: false`. This revision has not been
+   reviewed.
+
+Still unverified and owed by P1: ESO 2.15 against OpenBao 2.7.3 (task 3.11), the `bao` client's
+server name override through the Tailscale operator's exposure (task 3.13), Auth0's `amr`
+claim (task 3.8), ESO recreating a deleted Secret under `creationPolicy: Orphan` (task 3.9),
+and `tls_auto_reload` with a kubelet-updated Secret (task 3.10). Upstream-confirmed but not
+run: ESO keeps the Secret and reports `SecretSyncedError` on a provider failure, any annotation
+change forces a sync, `snapshot restore -force` bypasses the key check, a sealed StatefulSet is
+not Healthy, and resource sync waves wait for health.
 
 ## Checks run on this change
+
+Review fold-in of 2026-11-22, on b76a05306 plus the working tree (`origin/main` 7a0279c7d
+not merged; it adds no ADR and no file of the plan, `host-postgres` or the CI change):
+
+| Command                                                                                     | Result                                                                            |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `./node_modules/.bin/openspec validate openbao-secret-store --strict`                       | valid, after two over-long requirements were split                                |
+| `./node_modules/.bin/openspec validate --all --json`                                        | 355 of 355 passed                                                                 |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`                       | 1 pass, 0 fail                                                                    |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`        | 15 pass, 0 fail                                                                   |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/current-documents.test.ts`               | 18 pass, 0 fail                                                                   |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/retired-roots.test.ts`                   | 3 pass, 0 fail                                                                    |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/check-documents-target.test.ts`          | 6 pass, 0 fail; an earlier run in the same session failed 1 of 6, output not kept |
+| `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                 | 37 pass, 0 fail                                                                   |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0, empty stderr                                                              |
+
+`nx format:check --files=<the seven changed files>` exited 0.
+
+`check-documents-target` also passed 6 of 6 at b76a05306 itself once the disk had space, so
+the earlier disk-full failure is resolved.
 
 Rewrite of 2026-11-22, at the branch merged with `origin/main` 2d3294922:
 
@@ -93,9 +137,6 @@ Rewrite of 2026-11-22, at the branch merged with `origin/main` 2d3294922:
 | `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                 | 37 pass, 0 fail      |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0, empty stderr |
 | `nx format:check --files=<the ten changed files>`                                           | exit 0               |
-
-Not established: `env -u CLAUDECODE bun test tools/tool-devsync/src/check-documents-target.test.ts`
-failed 5 of 6 while the laptop's disk was full and Nx's database refused writes (`DiskFull`).
 
 Earlier revisions:
 

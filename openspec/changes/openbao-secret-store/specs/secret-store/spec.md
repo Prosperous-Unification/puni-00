@@ -42,10 +42,10 @@ exist under `infra/argocd`.
 ### Requirement: Only a namespace's reader can read its paths
 
 The store SHALL admit, through Kubernetes auth, only the `secret-reader` service account of a
-namespace, and only to that namespace's prefix: `kv/platform/<namespace>/` for a platform
-namespace and `kv/tenants/<tenant>/<environment>/<namespace>/` for a tenant's, computed from
-the namespace's labels. The one cross-namespace grant SHALL be a database namespace's read of a
-declared owner-role key of an app in the same tenant and environment.
+namespace, with audience `openbao` and from the pod CIDR, and only to that namespace's prefix:
+`kv/platform/<namespace>/` for a platform namespace and
+`kv/tenants/<tenant>/<environment>/<namespace>/` for a tenant's, computed from the namespace's
+labels. Every role SHALL carry `token_bound_cidrs`.
 
 #### Scenario: Cross-environment read
 
@@ -62,10 +62,33 @@ declared owner-role key of an app in the same tenant and environment.
 - **WHEN** the store declaration gives one role two bound namespaces, or a policy a path that the namespace's labels do not give
 - **THEN** `tool-fleet secret-store plan` refuses, naming the role or policy
 
+#### Scenario: A role without bound CIDRs or audience
+
+- **WHEN** the declaration gives a Kubernetes auth role no `token_bound_cidrs` or no audience
+- **THEN** `tool-fleet secret-store plan` refuses, naming the role
+
+#### Scenario: A pod runs as a secret reader
+
+- **WHEN** a pod in any namespace names `secret-reader` as its service account
+- **THEN** the admission rule refuses it
+
+### Requirement: A database namespace reads only the owner passwords it serves
+
+The one cross-namespace grant SHALL be a database namespace's read of an app's
+`<app prefix>/database-owner` path, for an app whose tenant and environment the declaration
+says that database namespace serves.
+
 #### Scenario: A database grant across environments
 
-- **WHEN** the declaration grants a staging database namespace a production owner-role key
+- **WHEN** the declaration grants `postgres-nonproduction`, which serves staging, the
+  `database-owner` path of a production app
 - **THEN** `tool-fleet secret-store plan` refuses, naming the grant
+
+#### Scenario: A database grant to a runtime path
+
+- **WHEN** the declaration grants a database namespace an app path that does not end in
+  `database-owner`
+- **THEN** `tool-fleet secret-store plan` refuses, naming the path
 
 ### Requirement: The CI cluster reads only its own mount
 
@@ -77,6 +100,12 @@ audience `openbao` and a bound service-account name and namespace, and read only
 
 - **WHEN** a token signed by a key other than the CI cluster's pinned key is presented to its JWT mount
 - **THEN** login is denied
+
+#### Scenario: A platform role used through the node port
+
+- **WHEN** a valid platform-cluster reader token logs in to its Kubernetes auth role through
+  the node port from the CI server
+- **THEN** login is denied, because the source is outside the role's bound CIDRs
 
 #### Scenario: A CI reader asks for a platform path
 
@@ -163,22 +192,48 @@ in `secret-sync` and a role in the store declaration.
 - **WHEN** an `ExternalSecret` is added in a namespace that the store declaration has no role for
 - **THEN** `tool-fleet:check` fails naming the namespace
 
-### Requirement: An empty store is never served, configured or snapshotted
+### Requirement: An empty store is never served
 
-In `steady` mode the store SHALL refuse to start on a data directory without a Raft database.
-Once the declaration records the first initialisation, the secret rules SHALL refuse
-`first-init` mode. `secret-store apply` and the snapshot Job SHALL refuse to run when the canary
-value is absent.
+In `steady` mode the store SHALL refuse to start the server when the initialisation marker is
+absent from its data claim. In `first-init` and `restore` modes the network listener SHALL have
+no node port and no tailnet exposure, and the NetworkPolicy SHALL admit nothing to it. Once the
+declaration records a cluster's first initialisation, the secret rules SHALL refuse
+`first-init` for that cluster.
 
 #### Scenario: The server was rebuilt from an etcd snapshot
 
-- **WHEN** the `openbao` objects restored from etcd start in `steady` mode on an empty data directory
-- **THEN** the server does not start and the store answers no request
+- **WHEN** the `openbao` objects restored from etcd start in `steady` mode on an empty data claim
+- **THEN** the server does not start, no connection to its listener is accepted and `sys/init`
+  is unreachable
+
+#### Scenario: Restore mode before init
+
+- **WHEN** the store runs in `restore` mode, uninitialised, and ESO's controller connects to
+  the Service
+- **THEN** the connection is refused, and `bao operator init` succeeds only through
+  `kubectl exec`
 
 #### Scenario: First-init after initialisation
 
 - **WHEN** the declaration records an initialisation date and the unit's mode is `first-init`
 - **THEN** `tool-fleet:check` fails naming the mode
+
+### Requirement: An empty store is never configured or snapshotted
+
+The snapshot Job SHALL refuse to run when the canary value is absent. `secret-store apply`
+SHALL refuse when it is absent, unless the declaration records no initialisation date.
+
+#### Scenario: Apply during the first initialisation
+
+- **WHEN** the declaration records no initialisation date and `secret-store apply` runs
+  against a store without the canary
+- **THEN** it applies, creating the `kv` mount
+
+#### Scenario: Apply on a store that lost its data
+
+- **WHEN** the declaration records an initialisation date and `secret-store apply` runs
+  against a store without the canary
+- **THEN** it exits nonzero naming the missing canary and writes nothing
 
 #### Scenario: Snapshot of an empty store
 
@@ -198,7 +253,30 @@ snapshot before `secret-sync` or any consumer is synced, without operator OIDC l
 #### Scenario: Cold rebuild while Auth0 is unreachable
 
 - **WHEN** the rebuild runs in `restore` mode and the Auth0 tenant cannot be reached
-- **THEN** initialisation and restore complete, the init root token is rejected afterwards, and the escrowed shares authorise `generate-root`
+- **THEN** initialisation and restore complete, the init root token is rejected afterwards, and
+  the escrowed shares produce a root token through the break-glass socket
+
+#### Scenario: Synced Secrets are written again after a rebuild
+
+- **WHEN** after the rebuild one synced Secret is deleted and one store value is changed
+- **THEN** the Secret is recreated and the changed value arrives, each with a fresh
+  `refreshTime`
+
+### Requirement: Unauthenticated generate-root is reachable only inside the pod
+
+The legacy `sys/generate-root/*` endpoints SHALL be enabled only on the server's unix-socket
+listener, and every TCP listener SHALL keep them disabled.
+
+#### Scenario: Generate-root on the network listener
+
+- **WHEN** a caller sends `sys/generate-root/attempt` to the Service without a token
+- **THEN** the store refuses it
+
+#### Scenario: The option on a TCP listener
+
+- **WHEN** the rendered server configuration sets `disable_unauthed_generate_root_endpoints =
+false` on a TCP listener
+- **THEN** the render test fails naming the listener
 
 ### Requirement: Store configuration is declared and drift is visible
 
@@ -227,12 +305,26 @@ differs. `tool-fleet secret-store generate` SHALL refuse to overwrite an existin
 
 The store SHALL be reached only in the cluster, on the tailnet through the Tailscale
 operator, and on a NodePort admitted from the CI server's private address alone. No Ingress,
-IngressRoute or Service of type LoadBalancer SHALL name it.
+IngressRoute or Service of type LoadBalancer SHALL name it. The NetworkPolicy SHALL refuse an
+enrolled node and pods masqueraded to its address even where the host firewall admits them.
 
 #### Scenario: Paired probes
 
-- **WHEN** the same probe connects to the NodePort from a public address, from another private address and from the CI server's private address
-- **THEN** the first two are refused and the third completes a TLS handshake
+- **WHEN** the same probe connects to the NodePort from a public address, from a private
+  address that is not a node, from an enrolled node, from a pod on that node and from the CI
+  server's private address
+- **THEN** all but the last are refused and the last completes a TLS handshake
+
+#### Scenario: NetworkPolicy removed
+
+- **WHEN** the `puni-secrets` NetworkPolicy is removed and the probe runs from an enrolled node
+- **THEN** the connection is admitted, which shows the NetworkPolicy alone refuses it
+
+#### Scenario: Host firewall removed
+
+- **WHEN** the host firewall's prerouting rule is removed and the probe runs from a private
+  address that is not a node
+- **THEN** the NetworkPolicy still refuses it
 
 #### Scenario: An Ingress for the store
 
@@ -260,3 +352,31 @@ second machine SHALL use only the escrowed key, in A7 and after every rotation.
 
 - **WHEN** the last successful drill is older than 35 days
 - **THEN** `OpenBaoRestoreDrillStale` fires
+
+### Requirement: Every alert has a source and fires on its fault
+
+Each alert of design D11 SHALL name its metric source and SHALL fire when that series is
+absent. The drift job SHALL have a staleness alert. Until the collector ships audit records,
+the store SHALL write a second file audit device on a retained claim.
+
+#### Scenario: A scrape disappears
+
+- **WHEN** Prometheus can no longer scrape the store's metrics listener for 10 minutes
+- **THEN** the absent-series companion of `OpenBaoSealed` fires
+
+#### Scenario: The drift job stops
+
+- **WHEN** the drift CronJob has no successful run for 2 hours
+- **THEN** `OpenBaoConfigDriftCheckStale` fires
+
+### Requirement: A tenant's values are written only under its prefix
+
+A tenant writer role SHALL be bound to the platform adapter's service account, with audience
+`openbao`, the pod CIDR, a 15-minute TTL, and a policy confined to
+`kv/data/tenants/<tenant>/` and `kv/metadata/tenants/<tenant>/`. Mounts, auth methods, roles
+and policies SHALL change only through the declaration and `secret-store apply`.
+
+#### Scenario: A writer policy outside its tenant
+
+- **WHEN** the declaration gives `tenant-writer-puni` a path under `kv/tenants/other/` or `sys/`
+- **THEN** `tool-fleet secret-store plan` refuses, naming the role and path

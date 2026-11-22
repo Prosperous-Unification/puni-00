@@ -20,9 +20,8 @@ and phases: [openbao-secret-store](../../openspec/changes/openbao-secret-store/d
 - **Agent injector or CSI delivery**: new pods fail while the store is sealed.
 - **Cloud KMS or Shamir unseal**: a KMS credential would be a bootstrap Secret anyway and adds an
   outside total-loss mode; Shamir with one operator leaves the store sealed after every reboot.
-  The store auto-unseals from a static key in the bootstrap set instead, so the age identity on
-  the controller stays the single trust root. Revisit KMS with a second operator or a tenant
-  compliance requirement.
+  The store auto-unseals from a static key in the bootstrap set instead, so no outside key
+  service holds it. Revisit KMS with a second operator or a tenant compliance requirement.
 
 ## Consequences
 
@@ -34,3 +33,8 @@ yields both the seal key and the data. Nothing in the store's bring-up is pulled
 PUNI-operated registry such as Harbor, which takes its credentials from the store. The store has
 no public route. Bootstrap ciphertext lives in the private fleet repository because this one is
 public.
+
+The store has two trust roots, not one: the age identity on the controller, which decrypts the
+bootstrap set, and the Auth0 tenant, whose operator login is the store's administrator. The
+login is bound to the owner's subject, the application's audience and MFA. Break-glass without
+Auth0 is the escrowed recovery shares on an in-pod socket that only `kubectl exec` reaches.
