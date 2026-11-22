@@ -199,7 +199,14 @@ which they extend.
       PersistentVolume on it with a class of its own that no provisioner serves. The
       `platform-db` unit names that class when the inventory says the server carries
       `database`, and `puni-retain` otherwise; which one is a value of the unit's overlay,
-      checked by rule (o) against the inventory. On a node that carries `database` and
+      checked by rule (o) against the inventory. During PG-A2 the check admits the
+      classes of the move in progress, which the inventory names: on the restore path
+      the source's static class on h5plat together with `puni-retain` on `h10db` while
+      h5plat still carries `database`, and on the replica path a static class on both;
+      after the move it admits the class of the node that carries `database`, which is
+      a static one after a switchover and `puni-retain` after a restore. A class
+      outside the move the inventory names is refused (fault: drop the move from the
+      inventory and see the destination's claim refused). On a node that carries `database` and
       not `control-plane` the role provisions nothing by default: there the claim is on
       `puni-retain` (design decision 3). It makes a volume of the static class on such
       a node only when the inventory sets the replica path for it, which PG-A2 does if
@@ -249,8 +256,14 @@ server (design decision 4) and are not run before its trigger.
       seen. Stop: validation fails, another pod is scheduled there, a restore would
       start without the owner's word on the hour, the segment is not in the archive,
       or recovery ends before the restore point; writes are not reopened and the
-      source is not removed in either case. Rollback: as A13; the instance on h5plat
-      is removed only after the new one serves with that row read.
+      source is not removed in either case. Rollback: as A13, which deletes the
+      server, only until the instance on `h10db` accepts writes. From its first write
+      the server is kept and the way is forward: a failed drill or validation is
+      repaired there. If the server has to go all the same, the writers are stopped
+      first, another primary is proven to hold its final commits by the same restore
+      point, WAL switch and archived segment, and to serve the apps, and only then is
+      `h10db` deleted. The instance and volume on h5plat are removed only after the
+      new one serves with that row read and the drill has run once on `h10db`.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
       receipt, slices 2.10 and PG-S2 to PG-S5, and the store paths design decision 3 asks of
       pull request #935. Who: operator; owner for the values. Commands: first run
