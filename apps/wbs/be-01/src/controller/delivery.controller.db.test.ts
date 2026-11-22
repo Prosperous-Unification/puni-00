@@ -1,4 +1,5 @@
 import type { DeliveryReader, DeliveryReading } from '@shared/delivery';
+import { createProject } from '@wbs/contracts';
 import { DELIVERY_GATE_LIMITS, type DeliveryGateLimits } from '@wbs/core/service/delivery-gate';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -19,10 +20,20 @@ let failReader: boolean;
 let readerSignals: (AbortSignal | undefined)[];
 let holdReads: Promise<void> | null;
 const url = 'https://github.com/puni/work-package/pull/12';
-async function create(username: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name: 'Delivery plan' });
-  expect(answer.status).toBe(200);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+async function createDeliveryPackage(username: string, name: string): Promise<string> {
+  const answer = await h.call(username, 'POST', '/api/projects', {
+    name: `${name} engagement`,
+    workPackage: { name },
+  });
+  if (answer.status !== 201) throw new Error('fixture project birth refused', { cause: answer });
+  const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture project reply malformed', { cause: checked.issues });
+  if (checked.value.workPackage === undefined)
+    throw new Error('fixture project omitted requested work package');
+  return checked.value.workPackage.id;
 }
 async function linked(workPackage: string, name: string): Promise<string> {
   const answer = await h.call('ada', 'POST', `/api/work-packages/${workPackage}/commands`, {
@@ -78,9 +89,9 @@ async function setup(delivery?: DeliveryReader, deliveryLimits?: Partial<Deliver
   h.sqlite.run(
     "INSERT INTO external_system_organization (resource_id, organization_id, name) VALUES ('sys-github-pr', 'org-a', 'GitHub')",
   );
-  own = await create('ada');
-  other = await create('ada');
-  foreign = await create('grace');
+  own = await createDeliveryPackage('ada', 'Delivery plan');
+  other = await createDeliveryPackage('ada', 'Other delivery plan');
+  foreign = await createDeliveryPackage('grace', 'Foreign delivery plan');
   work = await linked(own, 'Tracked');
   sibling = await linked(own, 'Sibling');
   elsewhere = await linked(other, 'Other work package');

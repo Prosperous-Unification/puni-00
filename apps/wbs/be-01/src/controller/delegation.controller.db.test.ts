@@ -1,3 +1,4 @@
+import { createProject, createWorkPackage } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { generateKeyPair, SignJWT } from 'jose';
 
@@ -83,10 +84,27 @@ async function delegation(
     .sign(key);
 }
 
+async function createPlanProject(username: string, name: string): Promise<string> {
+  const answer = await h.call(username, 'POST', '/api/projects', { name });
+  if (answer.status !== 201) throw new Error('fixture project birth refused', { cause: answer });
+  const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture project reply malformed', { cause: checked.issues });
+  return checked.value.project.id;
+}
+
 async function workPackage(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
+  const projectId = await createPlanProject(username, `${name} engagement`);
+  const answer = await h.call(username, 'POST', '/api/work-packages', { name, projectId });
   if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  const checked = await createWorkPackage.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture work package reply malformed', { cause: checked.issues });
+  return checked.value.workPackage.id;
 }
 
 const names = (answer: { body: unknown }) =>
@@ -552,7 +570,15 @@ describe('after activation', () => {
 
 describe('before activation', () => {
   it('refuses a verified delegation before activation', async () => {
-    await workPackage('grace', 'B plan');
+    const projectId = 'legacy-b-engagement';
+    h.sqlite.run("UPDATE organization SET legacy=1 WHERE id='org-b'");
+    h.sqlite.run(
+      "INSERT INTO project (id, organization_id, name, revision, created_at, created_by) VALUES (?, 'org-b', 'B engagement', 0, 100, ?)",
+      [projectId, h.userId('grace')],
+    );
+    expect(
+      await h.call('grace', 'POST', '/api/work-packages', { name: 'B plan', projectId }),
+    ).toMatchObject({ status: 200 });
 
     expect(await h.callWith(await delegation(), 'GET', '/api/work-packages')).toMatchObject({
       status: 403,
@@ -583,6 +609,7 @@ describe('before activation', () => {
 
 it('keeps signed delegation writes independent of browser expectation and refuses discovery', async () => {
   h.activate();
+  const projectId = await createPlanProject('ada', 'Delegated plan engagement');
   for (const expected of [undefined, 'org-b']) {
     const token = await delegation();
     expect(
@@ -591,7 +618,7 @@ it('keeps signed delegation writes independent of browser expectation and refuse
           token,
           'POST',
           '/api/work-packages',
-          { name: 'delegated' },
+          { name: 'delegated', projectId },
           expected === undefined ? {} : { 'X-WBS-Expected-Organization': expected },
         )
       ).status,
