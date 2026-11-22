@@ -397,21 +397,21 @@ Not changed, with the reason: nothing was found wrong against source in either r
 The second model then read the commit `3f7b5f60b` against its own list. Six findings it
 called resolved; this is what became of the rest and of what it added.
 
-| Finding                                                                     | Outcome                                                                                                                        |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| The comparison ran before the new writer stopped, and read `event_log` only | Fixed: stop first, then the `.dump` digest of the whole store; MLflow by metadata digest and artifact manifest                 |
-| The trigger identity could submit `report-status` with chosen parameters    | Fixed: admission admits only `staging-build` with its two parameters (CI change, decision 2)                                   |
-| The controller image built on any machine and pinned by digest              | Fixed: built on the controller; the keys are refused an image without a matching local build (decision 10)                     |
-| The website's staging part could start without its migration contract       | Fixed, then read from source: the API migrates at its own start; A18 records the fleet owner's answer on strategy and replicas |
-| Receipts that publish messages                                              | Fixed: tasks 0.4, CI-0.3 and PG-0.3 record dated decisions with their owner, in neutral words                                  |
-| A telemetry receipt in stage 2, before the receiver exists                  | Fixed: moved from CI-A2 to A14                                                                                                 |
-| The drill's policy allowed SQL and storage, but it creates a `Cluster`      | Fixed in `host-postgres`: the API server and DNS for the drill, a Role for `Cluster` objects in its namespace                  |
-| Dev deferred with no executable milestone                                   | Fixed: step A25 is the follow-up's first deployment into the reserved namespaces                                               |
-| A pull h1claw made standing in for the final backup                         | Fixed: the final backup is taken from the stopped store; an earlier copy only at an equal digest (decision 7)                  |
-| A gate and a build in two namespaces kept apart by a namespace's quota      | Fixed: one mutex both templates name in the `-build` namespace; its overlap is rehearsed (CI change)                           |
-| Every finished Workflow reported, the report included                       | Fixed: a filter on the `template` label and phase; the report is named after the Workflow's UID                                |
-| A prior per-app commit required of an empty pins repository                 | Fixed: A23 seeds a baseline for each app before the App exists                                                                 |
-| Freshness compared with the tip of `main` though only app merges build      | Fixed: the latest commit that touches the app's source paths; an unrelated merge starts nothing                                |
+| Finding                                                                     | Outcome                                                                                                                           |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| The comparison ran before the new writer stopped, and read `event_log` only | Fixed: stop first, then the `.dump` digest of the whole store; MLflow by metadata digest and artifact manifest                    |
+| The trigger identity could submit `report-status` with chosen parameters    | Fixed: admission admits only `staging-build` with its two parameters (CI change, decision 2)                                      |
+| The controller image built on any machine and pinned by digest              | Fixed: built on the controller; the keys are refused an image without a matching local build (decision 10)                        |
+| The website's staging part could start without its migration contract       | Fixed, then read from source: the API migrates at its own start; its Deployment was read on 2026-11-22, so A18 waits on no answer |
+| Receipts that publish messages                                              | Fixed: tasks 0.4, CI-0.3 and PG-0.3 record dated decisions with their owner, in neutral words                                     |
+| A telemetry receipt in stage 2, before the receiver exists                  | Fixed: moved from CI-A2 to A14                                                                                                    |
+| The drill's policy allowed SQL and storage, but it creates a `Cluster`      | Fixed in `host-postgres`: the API server and DNS for the drill, a Role for `Cluster` objects in its namespace                     |
+| Dev deferred with no executable milestone                                   | Fixed: step A25 is the follow-up's first deployment into the reserved namespaces                                                  |
+| A pull h1claw made standing in for the final backup                         | Fixed: the final backup is taken from the stopped store; an earlier copy only at an equal digest (decision 7)                     |
+| A gate and a build in two namespaces kept apart by a namespace's quota      | Fixed: one mutex both templates name in the `-build` namespace; its overlap is rehearsed (CI change)                              |
+| Every finished Workflow reported, the report included                       | Fixed: a filter on the `template` label and phase; the report is named after the Workflow's UID                                   |
+| A prior per-app commit required of an empty pins repository                 | Fixed: A23 seeds a baseline for each app before the App exists                                                                    |
+| Freshness compared with the tip of `main` though only app merges build      | Fixed: the latest commit that touches the app's source paths; an unrelated merge starts nothing                                   |
 
 Read for this pass: `libs/wbs/adapters/store-sqlite/src/user.ts`, where an account is
 written outside `event_log`; `docs/infra/cutover-plan.md`, whose `event_log` test this plan
@@ -453,8 +453,23 @@ That table was not read on the store itself.
 | The migration lint runs on the store's path                                                                                                               | `lefthook.yml:27-29`                                                                |
 | The request app is a browser application with no store                                                                                                    | `apps/website/fe-01/package.json:2`; no `bun:sqlite` under `apps/website/fe-01/src` |
 
-Not read: the website's Deployment, its update strategy and its replica count, which are
-in the private fleet repository. Task 0.4 asks their owner for them.
+**The website's Deployment, read on 2026-11-22** from the main branch of the private fleet
+repository, by the planning session; nothing of it is copied here but these facts. The
+website API runs one replica with the `Recreate` strategy, selects the `product`
+capability, mounts one 2 GiB `ReadWriteOnce` claim of the retaining class, takes a snapshot
+of the store in an init container before it starts, and is probed on `/health`. The site
+and the app run one replica each and hold no store. Consequence, in design decision 9:
+never a second writer during an automated staging sync, and a backup before every start;
+A18's website part no longer waits on its owner for strategy and replica count. What
+stays with that owner is the new cluster's staging directory for the website (R11).
+
+**The WBS backend's identity, read on 2026-11-22 from source.** The backend's health
+document is at `/health` (`libs/wbs/domain/contracts/src/http/infrastructure-shapes.ts:30`;
+the probes in `deploy/k8s/wbs/base/backend.yaml`). The staging overlay's Ingress routes `/`
+to the frontend and the `/api` prefix to the backend, and names the ACME staging issuer
+(`deploy/k8s/wbs/overlays/staging/ingress.yaml`). So a read of `/health` on the staging
+name reaches the frontend, and its certificate does not chain to a public root. Slice 3.9
+adds a backend route under the API prefix and slice 3.5 names the public-name issuer.
 
 **The schema path for WBS staging, from source and Argo CD's documentation.** Read:
 `AGENTS.md` (Migrations); `apps/wbs/be-01/src/migrate-capabilities-cli.ts`,

@@ -1296,14 +1296,26 @@ The build itself:
     schema.
   - _The admission list._ The render writes the candidate digest first, then the digest
     that serves and every digest published since it. Nothing is counted out: the render
-    reads the boot commit from the staging backend's public health response, takes that
+    reads the boot commit from the staging backend's identity route, takes that
     commit's render from the pins repository's history and lists its digest and every
     later one, however many publications failed or are still in progress. So a restart
     of the running pod is always admitted, also when another candidate became Healthy
     between two renders. A built image has no repository to read, so the build writes
     the source commit into it and the backend reports that. If the render cannot read
-    the response, reads no commit, or finds no render for it, it publishes nothing for
-    the app. Over a zero-replica head (the baseline, the first activation, a hold)
+    the route, reads no commit, or finds no render for it, it publishes nothing for
+    the app.
+  - _The identity route._ The backend's health document is at `/health` on its own
+    port, and the staging Ingress sends `/` to the frontend and only `/api` to the
+    backend, so the public `/health` is not the backend's. The backend gains one route
+    at an exact path under its API prefix that answers its boot commit and nothing
+    else. A rewrite of a public path to `/health` was the alternative; it needs a
+    Traefik `Middleware`, a kind the staging project and the names policy do not admit,
+    so the route is the smaller change. The render reads it over HTTPS and verifies the
+    host name against the public roots. For that the WBS staging overlay on the new
+    cluster names the public-name issuer, not the ACME staging issuer it names today
+    (slice 3.5): a certificate from a test issuer fails the read and is not trusted.
+    One name issues there, far inside the public issuer's limits. The same commit is
+    what the render's migration comparison is made against (below). Over a zero-replica head (the baseline, the first activation, a hold)
     nothing serves, and it lists every digest since the baseline without reading. The
     staging sync alert fires at the first failure.
   - _The attempt record after success._ The hook removes its record once the forward
@@ -1329,7 +1341,11 @@ The build itself:
   - _What stays attended, and when._ Three cases, each refused by the render step or by
     the hook and named in its message. A source commit whose migration set is not a
     superset of the one staging runs, which is a revert or an edit of an applied
-    migration: the candidate image no longer holds the script that reverses it. An
+    migration: the candidate image no longer holds the script that reverses it. The
+    comparison is with the commit that serves, read from the identity route, and over
+    a zero-replica head with the baseline's; it is not with the pins directory's head,
+    so a corrected candidate is published after a migration that failed and was
+    reversed. An
     unfinished attempt left by another candidate. And a reversal that failed: the hook
     keeps its record and prints the manual completion command. In each the old pod
     serves and a person runs the schema step. Production never takes this path: its
@@ -1375,11 +1391,16 @@ The build itself:
   change has no automatic reversal, and the migration lint that guards the store's path
   keeps forward migrations additive. So an automated sync of a new API image needs no
   hook and no contract from its owner: a migration that fails keeps the new pod from
-  becoming Ready and loses nothing. Two things could not be read, because the website's
-  manifests are in the private fleet repository: the Deployment's update strategy, which
-  decides whether the old pod serves on during a failed start, and that the overlay
-  keeps one replica on a node-local claim. Task 0.4 asks their owner for both, and A18's
-  website part records the answer.
+  becoming Ready and loses nothing. The Deployment is in the private fleet repository
+  and was read there on 2026-11-22 (verify.md): the API runs one replica with the
+  `Recreate` strategy, selects `product`, mounts one 2 GiB `ReadWriteOnce` claim of the
+  retaining class, takes a snapshot of the store in an init container before it starts,
+  and is probed on `/health`; the site and the app run one replica each and hold no
+  store. With one replica and `Recreate` there is never a second writer during an
+  automated sync, at the price of a gap while the new pod starts, and the snapshot before
+  the start is the backup before a schema change. A18's website part therefore waits on
+  no answer about the Deployment; it checks that the new staging directory keeps these
+  properties.
 - **A stateful app's first render.** Guard 1 restores a store while its workload is at zero
   replicas. For WBS staging the first overlay merged is the zero-replica one with the backup
   job suspended; A23 seeds the pins directory with that render as the baseline, and a
@@ -1639,7 +1660,9 @@ day, and what was not, is in verify.md.
 
 **What stays public.** Traefik, on a node that carries `ingress`, for the apps of each
 environment: ports 80 and 443. Nothing else, on any server. The CI cluster has no public
-port (R51).
+port (R51). Among the apps' own paths is the WBS backend's identity route under its API
+prefix, which answers the boot commit and nothing else (decision 9); the commit is one of
+this public repository.
 
 **The data path between servers is not Tailscale.** Node to node, node to registry, a build
 to Harbor and to object storage use the provider's private network, as today. It is the
@@ -2039,8 +2062,9 @@ change `host-postgres`, and the one for the agents' hosts in `add-agent-hosts`.
   which commit serves.
 - **The website API applies a schema change at its own start, with no reversal command**
   (decision 9). Going back is the previous image on the newer, additive schema. Its
-  Deployment's update strategy and replica count are in the private fleet repository and
-  are asked of their owner (task 0.4).
+  Deployment runs one replica with `Recreate`, so a failed start leaves the API down
+  until the previous pin is restored; the snapshot taken before each start is the copy
+  to go back to.
 - **MLflow's artifact root was empty when read.** The custody archives it with a manifest
   all the same, and A15 stops if it has grown past what the claim was sized for. h3mon is
   not deleted before metadata and artifacts have been restored together.
@@ -2088,8 +2112,10 @@ users.
 - Whether the object storage provider can limit a key to one bucket.
 - That `alembic_version` holds one row on the real MLflow store: the table and the server's
   refusal of an out-of-date schema were read in MLflow's source at v3.7.0, not on the store.
-- The website API Deployment's update strategy and replica count: its manifests are in the
-  private fleet repository.
+- That the new cluster's staging directory for the website, which its owner writes (R11),
+  keeps the Deployment as it was read on 2026-11-22. A18 checks it.
+- That the staging build's container trusts the public roots the staging certificate
+  chains to. Slice 3.9's rehearsal reads the identity route from it.
 - What Argo CD does with a failed sync of the same commit under self-heal: its page on
   automated sync says both that it is not attempted again and that self-heal attempts it
   again after a timeout. Slice 3.9's rehearsal records it.

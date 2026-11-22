@@ -39,10 +39,8 @@ and the step reads back that the name answers (design decision 12).
       bootstrap and of the WBS deploy tooling what design decision 9 asks of each: slice
       3.7's list, the withdrawal of the old gate hosts, the solver per environment in every
       ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
-      website takes the staging build path, by which step a merge to its source reaches
-      staging with no command, and the two things design decision 9 could not read in
-      the private fleet repository: the update strategy of the website API's Deployment
-      and that its overlay keeps one writer. Tell them too that this change edits no path
+      website takes the staging build path and by which step a merge to its source
+      reaches staging with no command. Tell them too that this change edits no path
       the old cluster reconciles, so its pin needs no freeze. Receipt: for each owner, the
       date they were told and what each answered, recorded in verify.md as decisions with
       their owner, in neutral words. No message is copied into the repository.
@@ -623,12 +621,16 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       (design decision 1), and renders without a cluster; both
       overlays carry the selector patches of design decision 1, a backup prefix per decision
       7, ExternalSecrets in place of the SOPS Secrets they expect, the stale-backup rule of
-      3.1, for staging the schema hook of slice 3.9 with its waves, NetworkPolicies that only allow, since each namespace's default-deny is the
+      3.1, for staging the schema hook of slice 3.9 with its waves and a Certificate from
+      the public-name issuer in place of the ACME staging issuer the overlay names today,
+      because the staging build authenticates the backend by that certificate (slice
+      3.9), NetworkPolicies that only allow, since each namespace's default-deny is the
       `policy` unit's (slice 2.10), and image references that name Harbor (R28); the WBS alert group is added to `alerts` with each. The `delivery`
       check reads both under rules (f), (g), (k), (m) and (n) and the rules of 3.1. Test: both
       overlays render together into one fixture cluster with no object in common. Negatives:
-      an overlay that renders `wbs` or `wbs-solver` for staging is refused; a WBS workload
-      without a selector is refused; a staging value that names `wbs`, `wbs-solver` or a Service in either is
+      an overlay that renders `wbs` or `wbs-solver` for staging is refused; a staging
+      overlay whose Certificate names the ACME staging issuer is refused (fault: check
+      that an issuer is named); a WBS workload without a selector is refused; a staging value that names `wbs`, `wbs-solver` or a Service in either is
       refused. Faults to inject: compare the two renders by kind only and watch the shared
       namespace pass; search object names only
       and watch the staging value that names a production Service pass.
@@ -694,10 +696,16 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       kinds only); a commit whose source commit is not a descendant of the one the
       directory's head names is refused, so a build that finishes late cannot replace a
       newer render (fault: compare timestamps); a source commit whose migration set for
-      the app is not a superset, by name and hash, of that of the commit the directory's
-      head names is refused with a message that names the attended path of design
-      decision 9, because a removed or edited migration cannot be reversed from the
-      candidate image (fault: compare counts only); a WBS render with a backend replica
+      the app is not a superset, by name and hash, of that of the commit that serves is
+      refused with a message that names the attended path of design decision 9, because
+      a removed or edited migration cannot be reversed from the candidate image (fault:
+      compare counts only). The commit that serves is the boot commit the render reads
+      from the backend's identity route (slice 3.9), and over a zero-replica head the
+      baseline's commit; it is not the directory's head, which may name a candidate
+      whose migration failed and was reversed. So after B's migration fails and is
+      reversed, a corrected C whose set is a superset of serving A's is published
+      (fault: compare with the directory's head and watch C refused for differing from
+      B). The hook's own capture on the live store stays the check at sync time; a WBS render with a backend replica
       and without the schema hook of slice 3.9, or whose hook image differs from the
       backend's, is refused, and so is a render at zero replicas that carries the hook
       (fault: read the Deployment alone); a directory that holds the `HOLD` marker of design decision 7 is
@@ -788,20 +796,34 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       one, with no cap by count, and in that wave also the candidate's
       `wbs-backend-config` and the ConfigMap that carries the candidate's hook script,
       so that a changed script never arrives after its Job. The digest that serves is
-      read at render time: the render asks the staging backend's public health
-      response for its boot commit, takes that commit's render from the pins
-      repository's history and lists its digest and the digest of every render
-      published after it, so that a candidate that became Healthy between two renders
-      is still admitted when a later one is applied; when the response cannot be read,
-      reports no commit, or names a commit with no render in the history, the render
-      publishes nothing for that app and fails. A built image has no `.git`, where
-      `apps/wbs/be-01/src/deployed-commit.ts` answers null today: the build writes the
-      source commit into the image and that function reads it when there is no
-      repository, with its test, so that the health response of a built backend names
-      its commit. While the head of the app's pins directory is at zero replicas,
-      which the baseline, the first activation and a hold are, nothing serves: the
-      render reads no health response and lists the candidate and every digest
-      published since the baseline; with a backend replica, the hook Job in wave
+      read at render time from the backend's identity route. The backend's health
+      document is at `/health` on its own port
+      (`libs/wbs/domain/contracts/src/http/infrastructure-shapes.ts`), and the staging
+      Ingress sends `/`, and so `/health`, to the frontend and only the `/api` prefix
+      to the backend (`deploy/k8s/wbs/overlays/staging/ingress.yaml`), so the public
+      `/health` is the frontend's answer and names no backend. The backend therefore
+      gains one route at an exact path under its API prefix, `/api/boot-commit`, which
+      answers its boot commit and nothing else and which the existing `/api` rule
+      already reaches; a path rewrite to `/health` would need a Traefik `Middleware`,
+      a kind that neither the staging project's whitelist nor the names policy of
+      slice 2.10 admits, and a route needs no new kind. The render asks that route on
+      the staging name over HTTPS, verifying the host name against the public roots,
+      which the staging certificate of slice 3.5 satisfies and one from the ACME
+      staging issuer does not; it accepts a body that is one 40-hex commit and nothing
+      else; it takes that commit's render from the pins repository's history and lists
+      its digest and the digest of every render published after it, so that a
+      candidate that became Healthy between two renders is still admitted when a later
+      one is applied; when the route cannot be read, the certificate does not verify,
+      the answer is not a commit, or the commit has no render in the history, the
+      render publishes nothing for that app and fails. A built image has no `.git`,
+      where `apps/wbs/be-01/src/deployed-commit.ts` answers null today: the build
+      writes the source commit into the image and that function reads it when there is
+      no repository, with its test, so that a built backend names its commit on the
+      route and in its health document. The route and the embedded commit are changes
+      to the backend in this repository, made by this slice with their tests. While the head of the app's pins directory is
+      at zero replicas, which the baseline, the first activation and a hold are,
+      nothing serves: the render reads no route and lists the candidate and every
+      digest published since the baseline; with a backend replica, the hook Job in wave
       -1, annotated `argocd.argoproj.io/hook: Sync` and
       `hook-delete-policy: BeforeHookCreation`, with `backoffLimit: 0`, no
       `ttlSecondsAfterFinished`, the candidate digest, the backend's service account
@@ -843,10 +865,14 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       progress, renders C, D and E each list B (fault: list only the observed serving
       digest and a fixed number after it); a render that cannot read the serving
       commit, or reads none, publishes nothing (fault: fall back to the newest
-      three); a built image without the embedded commit reports none and its test
-      fails (fault: read `.git` only); a render over a zero-replica head reads no
-      health response and lists every digest since the baseline (fault: require the
-      response always); the
+      three); the frontend's answer at `/health` on the staging name is not accepted
+      as an identity (fault: read `/health`); a route answered under a certificate of
+      the ACME staging issuer, or under another host name, publishes nothing (fault:
+      skip certificate verification); an answer that is anything but one 40-hex
+      commit is refused (fault: search the body for a commit); a built image
+      without the embedded commit reports none and its test fails (fault: read `.git`
+      only); a render over a zero-replica head reads no route and lists every digest
+      since the baseline (fault: require the answer always); the
       script's ConfigMap in wave -1 or later is refused by the rule (fault: check the
       Job's wave only). The rehearsal
       2.7/A18 gains a case: on k3d under Argo CD, an additive migration is applied by a
@@ -862,8 +888,13 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       by a restart of the serving pod, which is admitted; with A serving, B is
       published and held before it is Healthy while C, D and E are published, B then
       becomes Healthy, E is applied and its hook fails, and a restart of B's pod is
-      admitted; the zero-replica baseline is followed by the first activation, whose
-      pod is admitted with no health response to read; a zero-replica render syncs
+      admitted; the build container reads the identity route of a backend behind an
+      Ingress shaped like staging's, with host name verification against a root the
+      case trusts, and is refused by the same route under a certificate of another
+      issuer and by `/health`; after B's migration fails and is reversed, a corrected
+      C is published and applied; the zero-replica baseline is followed by the first
+      activation, whose pod is admitted with no route to read; a zero-replica render
+      syncs
       with no hook pod; and what a repeated attempt at the same commit does
       under self-heal is observed and recorded. Stop: the hook cannot be made to run
       before the Deployment's wave on this version, the old pod cannot keep serving
@@ -1086,10 +1117,10 @@ this change reserves is step A25, so those namespaces are not an open end.
       repository's directory of design decision 9; its WBS part also after 3.5, 3.8, 3.9, Harbor,
       and A23's receipt or the owner's dated waiver of it: the dev poller is not stopped
       without one of the two, because nothing else would make the tracker follow `main`.
-      Its website part also needs the two answers task 0.4 asks of the fleet
-      repository's owner, the API Deployment's update strategy and its single writer,
-      recorded as a dated decision; the migration contract itself is read from source
-      (design decision 9). The request app holds no store.
+      Its website part waits on no answer about the API's Deployment: its migration
+      contract is read from source and its update strategy, replica count and claim
+      were read on 2026-11-22 (design decision 9, verify.md), and the step checks
+      that the new staging directory keeps them. The request app holds no store.
       Who: operator, with the website's owner; owner for the Secrets. The owner
       writes the staging Secrets of design decision 5 into OpenBao, reading the website's
       present ones with the old cluster's age identity on the controller; the staging backup
@@ -1131,8 +1162,11 @@ this change reserves is step A25, so those namespaces are not an open end.
       check equals the backup's; the capture's output with every applied hash accepted and
       an empty pending set, taken before the first replica; for WBS, the project list of the tracker read back through
       its API, and the WBS owner's word on what `wbs-mcp` held; the pages read back on their
-      names with a Ready certificate, which for WBS staging comes from the ACME staging
-      issuer its overlay names and is not trusted by a browser; the solver pod of one
+      names with a Ready certificate from the public-name issuer each overlay names,
+      which for WBS staging is the one slice 3.5 puts in place of the ACME staging
+      issuer, verified against the public roots from outside the cluster; for WBS
+      staging the identity route of slice 3.9 read the same way, answering the source
+      commit of the render that serves; the solver pod of one
       issuance seen on that node; the node's available memory after the first solve, which
       must stay above 1,024 MiB; one backup and one verify
       under the staging prefix, taken after the restore and holding a restored record; for
@@ -1153,8 +1187,10 @@ this change reserves is step A25, so those namespaces are not an open end.
       capture fails, which is an applied migration absent or changed in the candidate,
       or its pending set is not empty: then the workload stays at zero and the
       difference goes through the attended schema Job with its capture and rollback
-      (design decision 9); the website API's overlay has more than one replica or a
-      claim that is not on that node, or the owner's answer on it is missing;
+      (design decision 9); the website API's overlay in the new staging directory has
+      more than one replica, a strategy other than `Recreate`, no snapshot before its
+      start or a claim that is not on that node; the WBS staging certificate does not
+      verify against the public roots;
       the staging credential can read a named production object, or the refusal is anything
       but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a

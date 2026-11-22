@@ -1045,7 +1045,8 @@ earlier copy SHALL stand in for it only when its digest equals that of the stopp
 
 The staging build SHALL refuse to commit a render whose source commit is not a descendant
 of the one the app's pins directory names. It SHALL refuse a source commit whose migration
-set for the app is not a superset, by name and hash, of that of the commit staging runs.
+set for the app is not a superset, by name and hash, of that of the commit staging serves,
+which it SHALL read from the backend's identity route and not from the directory's head.
 
 #### Scenario: Builds finishing in reverse order
 
@@ -1056,6 +1057,23 @@ set for the app is not a superset, by name and hash, of that of the commit stagi
 
 - **WHEN** the source commit lacks a migration staging has applied, or changes its bytes
 - **THEN** the render step refuses it and names the attended path
+
+#### Scenario: A corrected candidate after a reversed migration
+
+- **WHEN** a candidate's migration failed and was reversed, and the next commit's set is a
+  superset of the serving commit's while it differs from the failed candidate's
+- **THEN** the render is committed
+
+#### Scenario: The frontend's health answer offered as the identity
+
+- **WHEN** the build reads `/health` on the staging name, which the frontend answers
+- **THEN** it is not accepted as the serving commit and nothing is published for the app
+
+#### Scenario: The identity route under an untrusted certificate
+
+- **WHEN** the identity route answers under a certificate that does not chain to a public
+  root, or under another host name
+- **THEN** the build publishes nothing for the app
 
 ### Requirement: A schema change reaches WBS staging through a hook
 
