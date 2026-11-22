@@ -292,7 +292,7 @@ describe('the plan commands of one work package', () => {
 
   it('looks up setProgress at invocation and returns its rejected promise unchanged', async () => {
     const { routes, calls } = recordingRoutes();
-    const commands = createPlanCommands({ projectId: 'p1', routes });
+    const commands = createPlanCommands({ workPackageId: 'p1', routes });
     expect(calls).toEqual([]);
     const seen: unknown[][] = [];
     const refusal = new Error('set refused');
@@ -313,7 +313,7 @@ describe('the plan commands of one work package', () => {
 
   it('looks up clearProgress at invocation and returns its rejected promise unchanged', async () => {
     const { routes, calls } = recordingRoutes();
-    const commands = createPlanCommands({ projectId: 'p1', routes });
+    const commands = createPlanCommands({ workPackageId: 'p1', routes });
     expect(calls).toEqual([]);
     const seen: unknown[][] = [];
     const refusal = new Error('clear refused');

@@ -165,6 +165,9 @@ function resolveStepRefusal(refusal: StepRefusal): RefusalOutcome {
       return said('Your role cannot view this organization’s steps.');
     case 'not_found':
       return said('The organization’s step catalogue is no longer available.');
+    // Proof: omitting invalid_body left the real page loading and threw in
+    // the framed-read refusal regression in organization-step-catalogue.test.tsx.
+    case 'invalid_body':
     case 'invalid_query':
     case 'invalid_params':
       return said(RELOAD);

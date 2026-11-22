@@ -2045,3 +2045,43 @@ current drain and Browser changes; that review does not establish whole-scope cl
 The previous host-gate attempt exhausted its admission wait with exit 75 before
 printing a running SHA; it supplies no gate credit. The broader client-script
 inventory and CLI feature work remain deferred to regrouping.
+
+## Rendering fixture and catalogue read integration, 2026-11-22
+
+The actual CI failure on `52825bdb2271b58b1770fe25362899812abbcb1d`
+was the 500-leaf, five-step Board case: setup consumed 281,125 ms and the
+unchanged full-page screenshot crossed the 300-second test deadline. All
+17 authoring batches returned 200; the Board had rendered all 2,500 cards.
+The retained trace attributes most setup time to estimate and dependency
+command requests, without establishing a backend CPU cause.
+
+That one rendering case now creates its real template rows through the original
+three command batches, exports the authored package and uses the actual current
+import API once to store the 2,500 estimate triples and 49 sparse dependencies.
+Before measurement it verifies destination ownership, regenerated row identities,
+order, 22 shared writable attributes, the five actual step definitions, independent
+literal estimate triples and exact predecessor sets. The original command seeder
+and its six controls remain unchanged. The actual rendering-fixture Playwright
+owner passed all 23 controls, including 17 finite import faults through real HTTP
+and stored readback. The refined Board run passed with 46,850 ms setup,
+2,985.918 ms two-frame render measurement and all 2,500 cards. The original
+300-second deadline and full-page screenshot remain; the PNG is 21,054,735 bytes.
+These local timings do not predict hosted runner timing. Astra reviewed the
+implementation and the final source pins were unchanged across the measured run.
+
+The production catalogue page now renders its declared framed-read `invalid_body`
+refusal with the existing reload message and retry flow. The real page regression
+failed while that case was unhandled, then the complete catalogue and scoped
+settings View owners passed 35 cases. The closed work-item field mapping now
+includes optional resolved `steps` in `constraints`: the unchanged partition test
+and new public page projection failed before this entry, then both whole owners
+passed 12 cases. Default outlines omit it and absent parent/legacy values remain
+absent. Two stale plan-command test constructor keys now use `workPackageId`;
+their complete registered Node owner passed five cases with promise identity and
+dynamic route assertions unchanged. Scoped lint and formatting, full frontend
+View and e2e noEmit, and the core spec typecheck passed.
+
+Protected receipts retain the genuine failures, successful owners and original
+workspace custody. The latest pushed head's CI checks and core jobs passed;
+the other required jobs were still running when observed. These repairs do not
+establish whole-PR closure, a final exact-commit host gate or merge.

@@ -195,6 +195,46 @@ describe('pageWorkItems', () => {
     expect(Object.keys(labelled.rows[0] ?? {})).not.toContain('notes');
   });
 
+  test('includes resolved steps only in constraints and preserves absent legacy fields', () => {
+    const steps: NonNullable<TreeWorkItem['steps']> = [
+      {
+        stepId: 'dev',
+        code: 'dev',
+        name: 'Development',
+        via: [
+          {
+            bindingId: 'org-dev',
+            scopeKind: 'organization',
+            scopeId: 'org-a',
+            workItemTypeId: null,
+          },
+        ],
+      },
+    ];
+    const current = {
+      workItems: [
+        workItem('parent', null),
+        workItem('leaf', 'parent', { steps }),
+        workItem('empty', null, { steps: [] }),
+        workItem('legacy', null),
+      ],
+      slices: [],
+    };
+    const modified = new Map(current.workItems.map(({ id }) => [id, 100]));
+    const requested = queryOf('fields=constraints');
+    const outline = queryOf('');
+    if (requested === null || outline === null) throw new Error('refused valid page fields');
+    const included = pageWorkItems(current, modified, requested);
+    const omitted = pageWorkItems(current, modified, outline);
+    if (!included.ok || !omitted.ok) throw new Error('refused current page rows');
+    expect(included.rows.find(({ id }) => id === 'leaf')).toHaveProperty('steps', steps);
+    expect(included.rows.find(({ id }) => id === 'empty')).toHaveProperty('steps', []);
+    expect(included.rows.find(({ id }) => id === 'parent')).not.toHaveProperty('steps');
+    expect(included.rows.find(({ id }) => id === 'legacy')).not.toHaveProperty('steps');
+    expect(omitted.rows).toHaveLength(4);
+    for (const row of omitted.rows) expect(row).not.toHaveProperty('steps');
+  });
+
   test('refuses a stale cursor and an unknown parent', () => {
     const stale = queryOf(`cursor=${encodeCursor({ v: 1, after: 'gone' })}`);
     if (stale === null) throw new Error('refused a well-formed cursor');

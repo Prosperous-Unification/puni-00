@@ -15,7 +15,7 @@ import {
   type SeededPlan,
   seedPlan,
 } from './plan-fixture';
-import { seedRenderingPlan } from './rendering-fixture';
+import { seedImportedRenderingPlan } from './rendering-fixture';
 
 const identity = (testName: string, worker: number) => ({
   run: 'step-board',
@@ -1400,7 +1400,7 @@ test('measures every rendered card for a 500-leaf, five-step fixture', async ({
   page,
 }, testInfo) => {
   test.setTimeout(300_000);
-  const seeded = await seedRenderingPlan(page, { rows: 500, steps: 5, density: 'sparse' });
+  const seeded = await seedImportedRenderingPlan(page, { rows: 500, steps: 5, density: 'sparse' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   const started = performance.now();

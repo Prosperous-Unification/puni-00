@@ -129,6 +129,26 @@ it('organization Steps renders query failure and retries the actual catalogue re
   ).toHaveLength(2);
 });
 
+it('organization Steps renders a framed-read refusal and retries the catalogue', async () => {
+  const transport = stubPage([
+    () => answerJson(400, { error: 'invalid_body' }),
+    () => answerJson(200, { definitions: [], bindings: [] }),
+  ]);
+  const { refuse } = renderPage();
+  const panel = await screen.findByRole('region', { name: 'Steps' });
+  expect(await within(panel).findByRole('alert')).toHaveProperty(
+    'textContent',
+    'The request could not be understood. Reload and try again.',
+  );
+  expect(refuse).not.toHaveBeenCalled();
+  expect(screen.getByRole('region', { name: 'Invitations' })).toBeDefined();
+  fireEvent.click(within(panel).getByRole('button', { name: 'Retry steps' }));
+  expect(await within(panel).findByText('No step definitions yet.')).toBeDefined();
+  expect(
+    transport.sent.filter(({ route }) => route === 'GET /api/organization/steps'),
+  ).toHaveLength(2);
+});
+
 it('organization Steps draws current definition defaults from the catalogue wire for a reader', async () => {
   const transport = stubPage([() => answerJson(200, catalogue)]);
   renderPage();
