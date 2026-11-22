@@ -533,7 +533,7 @@ for (const { name, message, brief } of [
     ).toBe(false);
     expect(calls).toBe(2);
     expect(evaluation.sessions[0]?.operations).toHaveLength(2);
-    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v11');
+    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v12');
     expect(lines.some((line) => line.includes(`"candidateBrief":"${brief}"`))).toBe(true);
     expect(lines).toContain(`${name} candidate: ${brief}`);
     expect(lines.some((line) => line.includes(message))).toBe(true);
@@ -813,7 +813,7 @@ for (const [name, message] of [
       assertion: 'streamEqualsStored',
       passed: true,
     });
-    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v11');
+    expect(evaluation.sessions[0]?.promptVersion).toBe('puni-scoping-v12');
     expect(evaluation.sessions[0]?.operations).toHaveLength(2);
     expect(evaluation).toMatchObject({ knownMicroUsd: 44, unknownReservedMicroUsd: 0 });
     for (const assertion of [

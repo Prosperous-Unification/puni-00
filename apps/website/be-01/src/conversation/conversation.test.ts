@@ -23,6 +23,7 @@ import {
   providerDeclineReply,
   salesPromptVersion,
   stageHint,
+  submittedScopingHint,
 } from './system-prompt';
 
 /** Mounts the API as served from a loopback socket, which is the request source unless a test names one. */
@@ -1266,7 +1267,7 @@ test('a fourth conversation from one source today is refused', async () => {
   api.close();
 });
 
-test('a proposal submission hands the conversation off and closes the stream', async () => {
+test('a legacy proposal submission closes the stream without handing the conversation off', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
   const config = paidConfig(fake.providerFetch);
   const api = mountApi(config);
@@ -1282,10 +1283,7 @@ test('a proposal submission hands the conversation off and closes the stream', a
   );
   expect(submitted.status).toBe(201);
   expect(
-    count(
-      config.databasePath,
-      "SELECT count(*) AS count FROM conversation WHERE state = 'handed_off'",
-    ),
+    count(config.databasePath, "SELECT count(*) AS count FROM conversation WHERE state = 'open'"),
   ).toBe(1);
   const later = await sendMessage(api, visitor, 'turn-key-3', 'More');
   expect(later.status).toBe(401);
@@ -1361,7 +1359,7 @@ test('an unavailable provider refuses a broken store admission without contactin
       conversationId: 'injected',
       stage: 'clarify',
       history: [],
-      context: { scoping: { version: 'legacy' }, brief: '', visitorTurns: 0 },
+      context: { scoping: { version: 'legacy' }, brief: '', visitorTurns: 0, submitted: false },
     };
   };
   try {
@@ -3410,9 +3408,10 @@ for (const historicalVersion of [
   'puni-scoping-v8',
   'puni-scoping-v9',
   'puni-scoping-v10',
+  'puni-scoping-v11',
   'opaque-historical',
 ])
-  test(`new scoping operations record v11 while historical ${historicalVersion} replies replay without a paid call`, async () => {
+  test(`new scoping operations record v12 while historical ${historicalVersion} replies replay without a paid call`, async () => {
     const fake = fakeOpenRouter(() =>
       structuredReply('A saved question? What is holding it back?', 'improve-blocker'),
     );
@@ -3421,7 +3420,7 @@ for (const historicalVersion of [
     try {
       const visitor = await beginScopingVisitor(api);
       await (await sendInitial(api, visitor)).text();
-      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v11');
+      expect(operations(config.databasePath)[0]?.prompt_version).toBe('puni-scoping-v12');
       const database = new Database(config.databasePath);
       database.query('UPDATE conversation_operation SET prompt_version = ?').run(historicalVersion);
       const historicalText = [
@@ -3430,6 +3429,7 @@ for (const historicalVersion of [
         'puni-scoping-v8',
         'puni-scoping-v9',
         'puni-scoping-v10',
+        'puni-scoping-v11',
       ].includes(historicalVersion)
         ? getScopingQuestion('improve-blocker').label
         : `A saved question? What is holding it back?\n\n${getScopingQuestion('improve-blocker').label}`;
@@ -3454,7 +3454,7 @@ for (const historicalVersion of [
       ).text();
       expect(operations(config.databasePath).map((operation) => operation.prompt_version)).toEqual([
         historicalVersion,
-        'puni-scoping-v11',
+        'puni-scoping-v12',
       ]);
       expect(fake.bodies).toHaveLength(2);
     } finally {
@@ -3462,7 +3462,7 @@ for (const historicalVersion of [
     }
   });
 
-test('v11 question duplication is omitted identically in fresh stream, stored turn and replay', async () => {
+test('v12 question duplication is omitted identically in fresh stream, stored turn and replay', async () => {
   const fake = fakeOpenRouter(() =>
     structuredReply('The obstacle is recurring bugs. What is holding it back?', 'improve-blocker'),
   );
@@ -3484,7 +3484,7 @@ test('v11 question duplication is omitted identically in fresh stream, stored tu
       )
       .get();
     expect(operation?.reply).toContain('The obstacle is recurring bugs. What is holding it back?');
-    expect(operation?.prompt_version).toBe('puni-scoping-v11');
+    expect(operation?.prompt_version).toBe('puni-scoping-v12');
     database.close();
   } finally {
     api.close();
@@ -3734,6 +3734,78 @@ test('slow request bodies reserve under the fresh admission time and UTC day', a
       { admitted_at: beforeMidnight + 31_000, utc_day: '2026-11-09' },
     ]);
     database.close();
+  } finally {
+    api.close();
+  }
+});
+
+test('a scoped chat continues on the same draft after submission and the operator sees follow-ups', async () => {
+  const fake = fakeOpenRouter((call) =>
+    call === 1 ? structuredReply('Tell me who books.') : structuredReply('Noted for the review.'),
+  );
+  const config = paidConfig(fake.providerFetch, { operatorPassword });
+  const api = mountApi(config);
+  try {
+    const visitor = await beginScopingVisitor(api);
+    await (await sendInitial(api, visitor)).text();
+    const proposal = {
+      version: 1,
+      email: 'visitor@example.test',
+      brief: 'A booking tool',
+      idempotencyKey: 'proposal-key-1',
+    };
+    const submitted = await api.fetch(post('/proposals', visitor, proposal));
+    expect(submitted.status).toBe(201);
+    const { receipt } = (await submitted.json()) as { receipt: string };
+    const entry = await api.fetch(
+      new Request('http://localhost:3101/entry', {
+        headers: { origin: appOrigin, cookie: visitor.cookie },
+      }),
+    );
+    expect(await entry.json()).toEqual({ available: true, reason: null });
+    const before = await readConversation(api, visitor.cookie);
+    expect(before).toMatchObject({ stage: 'clarify', submission: { turnsBefore: 2 } });
+
+    const followUp = await sendMessage(api, visitor, 'after-submission-1', 'Also weekend slots');
+    expect(followUp.status).toBe(200);
+    expect(await assembleReply(await followUp.text())).toBe('Noted for the review.');
+    const system = fake.bodies[1]?.messages.map(textOf).find(({ role }) => role === 'system');
+    expect(system?.text.endsWith(`\n${submittedScopingHint}`)).toBe(true);
+    expect(
+      fake.bodies[0]?.messages.map(textOf).find(({ role }) => role === 'system')?.text,
+    ).not.toContain(submittedScopingHint);
+    expect(
+      fake.bodies[1]?.messages.map(textOf).some(({ text }) => text.includes('"submitted":true')),
+    ).toBe(true);
+    const after = await readConversation(api, visitor.cookie);
+    expect(after.turns.map(({ content }) => content)).toEqual([
+      before.turns[0]?.content,
+      'Tell me who books.',
+      'Also weekend slots',
+      'Noted for the review.',
+    ]);
+    expect(after).toMatchObject({ submission: { turnsBefore: 2 } });
+
+    const second = await api.fetch(
+      post('/proposals', visitor, { ...proposal, idempotencyKey: 'proposal-key-2' }),
+    );
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ code: 'draft_submitted' });
+    const replayed = await api.fetch(post('/proposals', visitor, proposal));
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toEqual({ receipt });
+
+    const operator = await signInOperator(api);
+    const inbox = await api.fetch(
+      new Request('http://localhost:3101/operator/submissions', {
+        headers: { origin: appOrigin, cookie: operator.cookie },
+      }),
+    );
+    expect(
+      ((await inbox.json()) as { submissions: { followUps: string[] }[] }).submissions[0]
+        ?.followUps,
+    ).toEqual(['Also weekend slots']);
+    expect(count(config.databasePath, 'SELECT count(*) AS count FROM proposal_submission')).toBe(1);
   } finally {
     api.close();
   }

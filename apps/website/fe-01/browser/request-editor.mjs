@@ -261,7 +261,7 @@ try {
       .getByRole('textbox', { name: 'Email', exact: true })
       .fill(`round1-${runTag}@example.test`);
     await page.getByRole('button', { name: 'Send my request', exact: true }).click();
-    await page.getByText('Request saved.', { exact: true }).waitFor();
+    await page.getByText('Your request is recorded.', { exact: true }).waitFor();
     assert(posts.length === 1, 'manual fallback bought inference');
     await context.close();
     globalThis.console.log(

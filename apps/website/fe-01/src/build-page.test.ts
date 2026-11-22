@@ -28,6 +28,7 @@ const disabled = {
   latestOperation: null,
   exhaustedReason: null,
   challenge: null,
+  submission: null,
 };
 
 describe('Build harness states', () => {
@@ -110,6 +111,7 @@ const live: Conversation = {
   latestOperation: null,
   exhaustedReason: null,
   challenge: null,
+  submission: null,
 };
 
 const replied: Conversation = {
@@ -210,7 +212,7 @@ describe('live harness', () => {
     expect(selectComposerMode({ ...replied, stage: 'exhausted', exhaustedReason: reason })).toEqual(
       { kind: 'closed', reason },
     );
-    expect(describeExhaustion(reason)).toBe(line);
+    expect(describeExhaustion(reason, false)).toBe(line);
   });
 
   test('no turns left closes the composer even before the next refusal', () => {
