@@ -447,9 +447,10 @@ is made otherwise. The apps' writers are stopped for its length, which PG-A5 has
 planned downtime, the size of the data. Stopping the writers does not put the last WAL
 segment in the archive, so after they stop the operator records a named restore point,
 forces a WAL switch and reads the segment archived, and the new cluster recovers through
-that point before writes are reopened or the source is removed. Either way the drill
-CronJob is resumed and one run is seen on `h10db` first; then the core's capability play
-takes `database` from h5plat (the volume there is empty or removed, slice 1.7's guard),
+that point before writes are reopened or the source is removed. Either way one
+attended drill pinned to `h10db` is run first, with the weekly schedule still suspended
+while both nodes carry `database`; then the core's capability play takes `database` from
+h5plat, after which the schedule is resumed (the volume there is empty or removed, slice 1.7's guard),
 and the instance's limit is raised to the full profile's 4,096 MiB. No app's manifest
 changes. Deleting `h10db` is a rollback only until its instance accepts writes: after
 that its commits may not be in the archive yet, so the server is kept and repaired, or

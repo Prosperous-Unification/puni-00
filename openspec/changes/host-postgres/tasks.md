@@ -93,7 +93,9 @@ which they extend.
       which its template marks with the label `puni.dev/throwaway`, on a class that
       retains, with a WAL archiver, or with a selector other than its unit's capability;
       the drill CronJob of `platform-db` not suspended while the inventory gives the
-      server `database`, or suspended once another node carries it; any `Cluster` with superuser access on; an `ObjectStore` of one cluster that reads the credential
+      server `database`, or suspended once another node alone carries it (while both
+      carry it, during PG-A2, the schedule stays suspended and one attended drill
+      pinned to the destination is run); any `Cluster` with superuser access on; an `ObjectStore` of one cluster that reads the credential
       of the other; a `Database` whose owner role owns another database; a `Cluster`, a
       `Database` or a `DatabaseRole` in a `staging` or `production` Application; a Velero
       schedule that includes a database namespace. Rule 2.4(n)'s exemption table gains the
@@ -215,8 +217,10 @@ which they extend.
       replica path set. Test: the role's contract test; on the
       disposable lab a claim of that class binds to the volume and a write past its size
       fails with no change in the host's free space. Negatives, each with its own fault:
-      a `platform-db` on `puni-retain` while the server carries `database` fails the
-      `delivery` check (fault: read the unit without the inventory); the volume's path
+      a `platform-db` claim bound for the server on `puni-retain` while the server
+      carries `database` fails the `delivery` check (fault: read the unit without the
+      inventory), and beside it a passing case: the restore destination's claim on
+      `puni-retain` on `h10db` during the move the inventory names; the volume's path
       outside the bounded mount fails the role's verification (fault: skip the mount
       comparison). Stop: the provisioner or the operator cannot use a static volume for an
       instance. Then `platform-db` does not start on the server and the database server
@@ -241,8 +245,10 @@ server (design decision 4) and are not run before its trigger.
       no other capability, the taint `puni.dev/role=database:NoSchedule` and no enrollment taint; the
       only pods on it are the three node agents; then one of two paths, chosen before the
       move and recorded. The replica path: the inventory sets it for `h10db`, PG-S6's
-      role is applied there so that a volume of the server's static class exists, and
-      the receipt is that volume, a replica caught up on it and a switchover. The
+      role is applied there so that a volume of the server's static class exists; a
+      marker row is written on h5plat before the switchover; and the receipt is that
+      volume, a replica caught up on it, a switchover, and the marker row read on
+      `h10db` through the apps' database endpoint. The
       restore path, taken if the replica path is not chosen or the operator places no
       replica on that volume: the new cluster's claim is on `puni-retain`; a static
       volume already made on `h10db` is left in place only after it is read unbound
@@ -252,8 +258,9 @@ server (design decision 4) and are not run before its trigger.
       the new cluster recovers through that restore point, and a row written just
       before the writers stopped is read on it. The receipt is that restore of design
       decision 4, its start and end noted, the restore point's name and LSN, the
-      archived segment and the row. Either way: the drill CronJob resumed and one run
-      seen. Stop: validation fails, another pod is scheduled there, a restore would
+      archived segment and the row. Either way: with the schedule still suspended, one
+      attended drill pinned to `h10db` is run and seen; the weekly schedule is resumed
+      only after the capability play has taken `database` from h5plat. Stop: validation fails, another pod is scheduled there, a restore would
       start without the owner's word on the hour, the segment is not in the archive,
       or recovery ends before the restore point; writes are not reopened and the
       source is not removed in either case. Rollback: as A13, which deletes the
@@ -263,7 +270,8 @@ server (design decision 4) and are not run before its trigger.
       first, another primary is proven to hold its final commits by the same restore
       point, WAL switch and archived segment, and to serve the apps, and only then is
       `h10db` deleted. The instance and volume on h5plat are removed only after the
-      new one serves with that row read and the drill has run once on `h10db`.
+      new one serves with its path's row read and that attended drill has run on
+      `h10db`.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
       receipt, slices 2.10 and PG-S2 to PG-S5, and the store paths design decision 3 asks of
       pull request #935. Who: operator; owner for the values. Commands: first run
