@@ -2,6 +2,7 @@ import { WorkPackageRepository } from '@wbs/store-sqlite/work-package';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * The claims read (`GET /api/work-packages/:id/claims`, `wbs-claim-display` task
@@ -18,7 +19,7 @@ const dev = 'step-z-dev';
 const qa = 'step-a-qa';
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -29,19 +30,37 @@ beforeEach(async () => {
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
-  for (const [id, name, position] of [
-    [dev, 'Build', -20],
-    [qa, 'Check', -10],
-  ] as const) {
-    h.sqlite.run('INSERT INTO step (id, work_package_id, name, position) VALUES (?, ?, ?, ?)', [
-      id,
-      own,
-      name,
-      position,
-    ]);
-  }
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
+  const { workPackage } = await readFixturePackage(h, 'ada', own);
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    for (const [id, name, position] of [
+      [dev, 'Build', 0],
+      [qa, 'Check', 1],
+    ] as const) {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id,
+          name,
+          code: id,
+          position,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: id + '-binding',
+          scopeKind: 'project',
+          scopeId: workPackage.projectId,
+          workItemTypeId: null,
+          position,
+        },
+        { at: 1, by: h.userId('ada') },
+      );
+      if (!bound.ok) throw new Error('claims fixture step binding refused: ' + bound.reason);
+    }
+    return { commit: true, value: undefined };
+  });
   for (const [id, name] of [
     ['pe-claire', 'Claire'],
     ['pe-codex', 'codex-fleet'],
@@ -87,27 +106,9 @@ beforeEach(async () => {
   }
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
-
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  if (
-    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
-      ?.state === 'activated'
-  )
-    h.grant(
-      username === 'grace' ? 'org-b' : 'org-a',
-      username,
-      'package-manager',
-      'work_package',
-      workPackageId,
-    );
-  return workPackageId;
-}
 
 /**
  * Ada's claims read with `change` applied after its admission and before its

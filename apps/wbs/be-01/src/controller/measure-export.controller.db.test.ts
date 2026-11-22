@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
- * Plan document version 13 (`wbs-measure-budgets` task 4.4, design D63) over
+ * Plan document version 15 (`wbs-measure-budgets` task 4.4, design D63) over
  * be-01's production composition and real SQLite: one organization's plan
  * holding a defined measure, priced money facts and trios, a three-point
  * tokens trio, budgets and a factor is exported, imported into another
@@ -27,10 +27,7 @@ beforeEach(async () => {
     ['measure-parent-a', 'org-a', 'ada'],
     ['measure-parent-b', 'org-b', 'grace'],
   ] as const)
-    h.sqlite.run(
-      'INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,?)',
-      [id, organization, id, h.userId(creator)],
-    );
+    seedProject(id, organization, creator);
   // Defining a measure, directly or by import, is an admin's act (design D70).
   h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.member('org-b', 'grace', 'admin', ['org-admin']);
@@ -39,11 +36,50 @@ beforeEach(async () => {
   h.bind('grace', 'org-b');
   h.bind('moe', 'org-b');
   h.activate();
+  await setFactor('ada', 'measure-parent-a', 1.5);
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
+
+function seedProject(projectId: string, organizationId: string, username: string): void {
+  h.sqlite.run(
+    'INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,?,?,1,?)',
+    [projectId, organizationId, projectId, h.userId(username)],
+  );
+  for (const step of planDocumentFixture().steps) {
+    if (step.code === null) throw new Error('catalogue fixture requires a step code');
+    const id = organizationId + '-' + step.code;
+    h.sqlite.run(
+      "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,?,?,?,?,?,?,'project',?,'authored')",
+      [
+        id,
+        organizationId,
+        step.code,
+        step.name.trim(),
+        step.estimateUnit,
+        step.allowancePercent * 100,
+        step.position,
+        projectId,
+      ],
+    );
+    h.sqlite.run(
+      "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,?,'project',?,?,?,'authored')",
+      [id + '-binding', organizationId, projectId, id, step.position],
+    );
+  }
+}
+
+async function measuredStep(workPackageId: string): Promise<string> {
+  const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}`);
+  if (read.status !== 200) throw new Error('package read refused: ' + JSON.stringify(read));
+  const step = (read.body as { steps: { id: string; code: string | null }[] }).steps.find(
+    ({ code }) => code === 'impl',
+  );
+  if (!step) throw new Error('measured package lacks its implementation step');
+  return step.id;
+}
 
 const GPU = {
   kind: 'createMeasure',
@@ -73,12 +109,7 @@ async function measuredPlan(): Promise<string> {
   });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-  const step = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .get(workPackageId)?.id;
-  if (step === undefined) throw new Error('the work package has no step');
+  const step = await measuredStep(workPackageId);
   const built = (await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
     {
@@ -138,11 +169,14 @@ async function measuredPlan(): Promise<string> {
     },
     { kind: 'setBudget', workItemId: l2, measure: 'gpu_minutes', cap: 600, policy: 'advisory' },
   ]);
-  const patched = await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, {
-    budgetFactor: 1.5,
-  });
-  if (patched.status !== 200) throw new Error(`patch refused: ${JSON.stringify(patched)}`);
   return workPackageId;
+}
+
+async function setFactor(username: string, projectId: string, budgetFactor: number): Promise<void> {
+  const answer = await h.call(username, 'PATCH', `/api/projects/${projectId}/settings`, {
+    budgetFactor,
+  });
+  if (answer.status !== 200) throw new Error('project settings refused: ' + JSON.stringify(answer));
 }
 
 async function exported(username: string, workPackageId: string): Promise<PlanDocument> {
@@ -180,14 +214,15 @@ async function authored(document: PlanDocument): Promise<string> {
 }
 
 for (const mode of ['isolated', 'shared'] as const) {
-  describe(`version 13 (${mode})`, () => {
+  describe(`version 15 (${mode})`, () => {
     beforeEach(() => {
       if (mode === 'shared') {
         h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id IN ('org-a', 'org-b')");
       }
     });
 
-    it('round-trips a version-13 plan byte for byte into an organization lacking a measure', async () => {
+    it('round-trips a version-15 plan byte for byte into an organization lacking a measure', async () => {
+      await setFactor('grace', 'measure-parent-b', 1.5);
       const source = await exported('ada', await measuredPlan());
       expect({
         version: source.document.version,
@@ -261,6 +296,7 @@ for (const mode of ['isolated', 'shared'] as const) {
 }
 
 it('refuses a definition the organization holds in another shape, writing nothing', async () => {
+  await setFactor('grace', 'measure-parent-b', 1.5);
   const source = await exported('ada', await measuredPlan());
   await batch('grace', '/api/directory/commands', [{ ...GPU, scale: 'real' }]);
   const counted = () =>
@@ -286,7 +322,8 @@ it('refuses a definition the organization holds in another shape, writing nothin
 });
 
 it("refuses a member's import that would define a measure, writing nothing", async () => {
-  h.grantPermissions('org-b', 'moe', ['organization.create_project']);
+  h.grant('org-b', 'moe', 'project-manager', 'project', 'measure-parent-b');
+  await setFactor('grace', 'measure-parent-b', 1.5);
   const source = await exported('ada', await measuredPlan());
   const counted = () =>
     h.sqlite
@@ -395,11 +432,7 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
         'SELECT id FROM work_item WHERE work_package_id = ? AND name = ?',
       )
       .get(workPackageId, name)?.id;
-  const step = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .get(workPackageId)?.id;
+  const step = await measuredStep(workPackageId);
   await batch('ada', `/api/work-packages/${workPackageId}/commands`, [
     {
       kind: 'setMeasureEstimate',
@@ -424,7 +457,7 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
       rateCardDigest: 'sha256:card-b',
     },
   ]);
-  await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { budgetFactor: 2 });
+  await setFactor('ada', 'measure-parent-a', 2);
   expect((await compare()).sort()).toEqual(
     [
       'measures budgets[…].cap',
@@ -436,6 +469,7 @@ it('saved plan compare names a change in a trio, a budget, a basis and the facto
 });
 
 it('rolls back a definition it created when a later definition refuses, writing nothing', async () => {
+  await setFactor('grace', 'measure-parent-b', 1.5);
   const source = await exported('ada', await measuredPlan());
   await batch('grace', '/api/directory/commands', [
     { ...GPU, key: 'render_minutes', name: 'Render minutes', scale: 'real' },
@@ -481,18 +515,30 @@ it('rolls back a definition it created when a later definition refuses, writing 
   });
 });
 
-it('before activation, with a legacy organization: re-import of its own v13 export succeeds and matches its definitions', async () => {
+it('before activation, with a legacy organization: re-import of its own v15 export succeeds and matches its definitions', async () => {
   // This file's setup activates; legacy access needs a harness that has not.
-  h.close();
+  await h.closeComposed();
   h = OrganizationHarness.openComposed();
   await h.register('ada');
   h.sqlite.run(
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-legacy', 'Legacy', 1, 1)",
   );
-  h.sqlite.run(
-    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('measure-parent-a','org-legacy','Legacy measures',1,?)",
-    [h.userId('ada')],
-  );
+  seedProject('measure-parent-a', 'org-legacy', 'ada');
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    const target = await stores.settings.readTarget(
+      { level: 'project', id: 'measure-parent-a' },
+      null,
+    );
+    if (target === null) throw new Error('legacy measure project is absent');
+    expect(
+      await stores.settings.write(
+        target,
+        { key: 'budgetFactor', value: 1.5 },
+        { by: h.userId('ada'), at: 1 },
+      ),
+    ).toEqual({ ok: true });
+    return { commit: true, value: undefined };
+  });
   const source = await exported('ada', await measuredPlan());
   const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
     projectId: 'measure-parent-a',

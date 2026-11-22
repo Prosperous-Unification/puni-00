@@ -19,6 +19,7 @@ import {
 import { TEST_MACHINE_GRANT_ENV } from '../testing/machine-grant-fixture';
 import { forwardingMachineGrants, requestGrant } from '../testing/mcp-forwarded-call';
 import { type ComposedHarnessOptions, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const T = 1_900_000_000_000;
 const opened: OrganizationHarness[] = [];
@@ -55,13 +56,12 @@ async function fixture(options: ComposedHarnessOptions = {}) {
   );
   const workPackages: { workPackageId: string; stepId: string; workItemId: string }[] = [];
   for (const [index, name] of ['A', 'B', 'C', 'Unconnected'].entries()) {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-    const plan = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
+    const workPackageId = await createFixturePackage(harness, 'ada', name);
+    const plan = await readFixturePackage(harness, 'ada', workPackageId);
     const step = plan.steps.at(0);
     if (step === undefined) throw new Error('work package omitted its first workflow step');
     const workPackage = {
-      workPackageId: plan.workPackage.id,
+      workPackageId,
       stepId: step.id,
       workItemId: `lease-row-${String(index)}`,
     };

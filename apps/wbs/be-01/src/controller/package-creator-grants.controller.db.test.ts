@@ -1,45 +1,18 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
-import { readMigrationFolders } from '@wbs/store-sqlite/migrate-down';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
-const folders = new URL('../../drizzle', import.meta.url).pathname;
 let harness: OrganizationHarness;
-let profile: string;
 let instant: number;
 let ownerAttempt: (() => void) | undefined;
 
-/** Current owner-bearing adapter epoch: actual migrations through rename, before engagement parent/owner integration. */
-function migrateOwnerBearingPackage(path: string): void {
-  const selected = join(profile, 'migrations');
-  mkdirSync(selected);
-  const migrations = readMigrationFolders(folders).filter(
-    ({ name }) => name < '20261110110000_add_project',
-  );
-  for (const migration of migrations.filter(
-    ({ name }) => name < '20261110100000_rename_project_to_work_package',
-  ))
-    cpSync(join(folders, migration.name), join(selected, migration.name), { recursive: true });
-  runMigrations(path, selected);
-  for (const migration of migrations.filter(
-    ({ name }) => name >= '20261110100000_rename_project_to_work_package',
-  ))
-    cpSync(join(folders, migration.name), join(selected, migration.name), { recursive: true });
-  runMigrations(path, selected);
-}
+const projectId = 'creator-grant-parent';
 
 beforeEach(async () => {
   instant = Date.now();
   ownerAttempt = undefined;
-  profile = mkdtempSync(join(tmpdir(), 'package-creator-profile-'));
   harness = OrganizationHarness.openComposedWith({
-    migrate: migrateOwnerBearingPackage,
     now: () => instant,
     onBorrowedUnitOfWork: () => ownerAttempt?.(),
   });
@@ -52,10 +25,41 @@ beforeEach(async () => {
   harness.bind('administrator', 'org-a');
   harness.bind('foreign', 'org-b');
   harness.activate();
+  harness.sqlite.run(
+    "INSERT INTO project (id,organization_id,name,created_at,created_by) VALUES (?,'org-a','Creator grant parent',1,?)",
+    [projectId, harness.userId('administrator')],
+  );
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    for (const [id, code, name, position, defaultAllowancePercent] of [
+      ['step-1', 'impl', 'Build', 10, 0],
+      ['step-2', 'qa', 'QA', 20, 30],
+    ] as const) {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id,
+          code,
+          name,
+          position,
+          defaultAllowancePercent,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: 'binding-' + id,
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position,
+        },
+        { at: instant, by: harness.userId('administrator') },
+      );
+      expect(bound).toMatchObject({ ok: true });
+    }
+    return { commit: true, value: undefined };
+  });
 });
 afterEach(async () => {
   await harness.closeComposed();
-  rmSync(profile, { recursive: true, force: true });
 });
 
 function createdPackageId(): string {
@@ -68,7 +72,8 @@ function createdPackageId(): string {
 
 test('the actual scoped creator restricts a new package and keeps writing through its creation grant', async () => {
   expect(
-    (await harness.call('creator', 'POST', '/api/work-packages', { name: 'Created' })).status,
+    (await harness.call('creator', 'POST', '/api/work-packages', { projectId, name: 'Created' }))
+      .status,
   ).toBe(200);
   const id = createdPackageId();
   expect(
@@ -108,7 +113,8 @@ test('the actual scoped import gives a file-restricted package creator a direct 
   const document = planDocumentFixture();
   document.settings.restricted = true;
   expect(
-    (await harness.call('creator', 'POST', '/api/work-packages/import', document)).status,
+    (await harness.call('creator', 'POST', '/api/work-packages/import', { projectId, document }))
+      .status,
   ).toBe(201);
   const id = createdPackageId();
   expect(
@@ -163,8 +169,12 @@ for (const stage of ['creator audit', 'later imported row'] as const)
         );
       const before = domainState();
       expect(
-        (await harness.call('creator', 'POST', '/api/work-packages/import', planDocumentFixture()))
-          .status,
+        (
+          await harness.call('creator', 'POST', '/api/work-packages/import', {
+            projectId,
+            document: planDocumentFixture(),
+          })
+        ).status,
       ).toBe(500);
       expect(domainState()).toEqual(before);
     },
@@ -188,6 +198,7 @@ test('keeps birth at the existing service-time position after outer queuing and 
     queued.resolve(undefined);
   };
   const pending = harness.call('creator', 'POST', '/api/work-packages', {
+    projectId,
     name: 'After queued owner',
   });
   await queued.promise;

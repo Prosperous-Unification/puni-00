@@ -8,6 +8,7 @@ import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
 beforeEach(async () => {
@@ -26,6 +27,7 @@ beforeEach(async () => {
   h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
   h.grantPermissions('org-a', 'ada', [
     'organization.create_project',
+    'project.manage_packages',
     'package.manage_settings',
     'organization.manage_directory',
   ]);
@@ -44,6 +46,35 @@ beforeEach(async () => {
 afterEach(() => {
   h.close();
 });
+
+async function bindAddressSteps(): Promise<void> {
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    for (const step of planDocumentFixture().steps) {
+      if (step.code === null) throw new Error('address fixture step code is absent');
+      const binding = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: step.id,
+          code: step.code,
+          name: step.name.trim(),
+          position: step.position,
+          defaultAllowancePercent: step.allowancePercent,
+          defaultEstimateUnit: step.estimateUnit,
+        },
+        {
+          bindingId: step.id + '-address-binding',
+          scopeKind: 'project',
+          scopeId: 'address-parent-a',
+          workItemTypeId: null,
+          position: step.position,
+        },
+        { at: 1, by: h.userId('ada') },
+      );
+      if (!binding.ok) throw new Error('address fixture step binding refused: ' + binding.reason);
+    }
+    return { commit: true, value: undefined };
+  });
+}
 
 async function create(name = 'Puni core', abbreviation?: string, username = 'ada') {
   const answer = await h.call(username, 'POST', '/api/work-packages', {
@@ -167,6 +198,7 @@ it('duplicate manual edit is a typed conflict', async () => {
 });
 
 it('rename preserves stable work package and relationship identities', async () => {
+  await bindAddressSteps();
   const workPackage = await create();
   h.sqlite.run(
     "INSERT INTO work_item(id,work_package_id,parent_id,position,name) VALUES ('before',?,NULL,0,'Before'),('after',?,NULL,1,'After')",
@@ -177,7 +209,8 @@ it('rename preserves stable work package and relationship identities', async () 
     [workPackage.id],
   );
   const relationships = h.sqlite.query('SELECT * FROM dependency').all();
-  const steps = h.sqlite.query('SELECT * FROM step').all();
+  const { steps } = await readFixturePackage(h, 'ada', workPackage.id);
+  expect(steps.map(({ id }) => id)).toEqual(['step-1', 'step-2']);
   expect(
     await h.call('ada', 'PATCH', `/api/work-packages/${workPackage.id}`, { name: 'Renamed' }),
   ).toMatchObject({
@@ -199,7 +232,7 @@ it('rename preserves stable work package and relationship identities', async () 
     body: { workPackage: { id: workPackage.id, abbreviation: 'NEW_2', revision: 2 } },
   });
   expect(h.sqlite.query('SELECT * FROM dependency').all()).toEqual(relationships);
-  expect(h.sqlite.query('SELECT * FROM step').all()).toEqual(steps);
+  expect((await readFixturePackage(h, 'ada', workPackage.id)).steps).toEqual(steps);
 });
 
 it('absent and malformed abbreviation rows refuse reads', async () => {
@@ -238,6 +271,7 @@ it('foreign organization cannot edit code', async () => {
 });
 
 it('counter exhaustion rolls back creation and import', async () => {
+  await bindAddressSteps();
   h.sqlite.run('UPDATE work_package_abbreviation_counter SET next = 11881376');
   const before = snapshot();
   expect(
@@ -284,6 +318,7 @@ it('refuses trusted newline abbreviations', async () => {
 });
 
 it('bounded name family exhaustion rolls back all work package and import writes', async () => {
+  await bindAddressSteps();
   const holder = await create('Holder', 'HOLDER');
   const prefix = ['PUN', 'PUNI', 'PUNIC'];
   for (let first = 0; first < 26; first += 1)
@@ -348,7 +383,8 @@ it('creation excludes its own temporary code and older writers preserve their pe
   });
 });
 
-it('keeps ordinary version eleven documents independent of required live abbreviations', async () => {
+it('keeps ordinary version fifteen documents independent of required live abbreviations', async () => {
+  await bindAddressSteps();
   const workPackage = await create();
   const exported = await h.call(
     'ada',
@@ -424,7 +460,7 @@ for (const patch of [
     expect(
       h.sqlite
         .query<{ abbreviation: string; timezone: string; revision: number }, [string]>(
-          'SELECT a.abbreviation,p.timezone,p.revision FROM work_package p JOIN work_package_abbreviation a ON a.work_package_id=p.id WHERE p.id=?',
+          "SELECT a.abbreviation,json_extract(s.value_json,'$') AS timezone,p.revision FROM work_package p JOIN work_package_abbreviation a ON a.work_package_id=p.id JOIN setting_value s ON s.scope_kind='work_package' AND s.scope_id=p.id AND s.key='timezone' WHERE p.id=?",
         )
         .get(workPackage.id),
     ).toEqual({ abbreviation: 'ZONE_2', timezone: 'Europe/Kyiv', revision: 1 });

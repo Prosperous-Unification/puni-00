@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * The claim history read (`GET /api/work-packages/:id/claim-history`,
@@ -14,7 +15,7 @@ let own: string;
 let foreign: string;
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -27,8 +28,8 @@ beforeEach(async () => {
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   h.sqlite.run('INSERT INTO person (id, name) VALUES (?, ?)', ['pe-codex', 'root-pe-codex']);
   h.sqlite.run(
     'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
@@ -45,15 +46,9 @@ beforeEach(async () => {
   }
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
-
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
-}
 
 /** A claim as a stored command carries it. */
 function storedClaim(id: string, workItemId: string, personId: string) {
