@@ -2099,3 +2099,24 @@ its corresponding seeded conflict. The combined current/historical SQLite run
 passed 71 cases across seven files, including the pinned main upgrade through
 migration 119 and the 28 historical reconciliation cases. A separate saved-read
 test still refused a corrupted catalogue migration timestamp.
+
+### Schema-specific storage and deployment fixtures
+
+The Kubernetes schema Job now starts its rollback test at the completed
+catalogue and uses the actual two additive migrations for capture, apply and
+exact-set rollback. The cutover report uses the retained owner column at
+migration 111. The six observer cases use isolated copies of a closed current
+catalogue. The 11 affected Kubernetes cases failed at pending migration 117
+before the fixture repairs and passed after them.
+
+Dependency activation used four historical forward/down cases and 87 current
+catalogue cases. The ownership-freeze rollback used the original project table
+and migration names. The access and cache suites passed 139 cases, the two
+window backup suites passed 76, and ownership freeze passed 51. The window
+fixtures create sources at the catalogue predecessor and verify each ledger
+with the installed migration directory.
+
+The fanout continuation tests hold the actual yield after the settings query.
+Removing either lifetime check independently let the resumed read issue SQL.
+The work-item continuation cases pause the actual tree reader. The original
+closure and zero-SQL assertions cover success, refusal and throw.

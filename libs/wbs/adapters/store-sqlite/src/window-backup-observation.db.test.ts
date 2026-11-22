@@ -7,6 +7,7 @@ import { afterEach, expect, spyOn, test } from 'bun:test';
 import * as connections from './db';
 import { runMigrations } from './migrate';
 import * as migrationSet from './migration-set';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { assertWindowBackup, createWindowBackup, readWindowBackupFailure } from './window-backup';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -20,7 +21,7 @@ function fixture(report = false, sourceName = 'source.db') {
   );
   roots.push(root);
   const sourcePath = join(root, sourceName);
-  runMigrations(sourcePath, MIGRATIONS);
+  runMigrations(sourcePath, copyRecoveryPrefix(root, '20261115120000_add_step_migration_report'));
   const database = connections.openDatabase(sourcePath);
   try {
     database.run('CREATE TABLE observation_marker (value TEXT NOT NULL)');

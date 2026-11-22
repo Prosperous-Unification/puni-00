@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
-import { expect, test } from 'bun:test';
+import { beforeAll, expect, test } from 'bun:test';
 
+import { migrateCatalogueStore } from './catalogue-store.fixture';
 import { buildDependencyObservationJob, observeDependencyJob } from './dependency-observation';
 import { fakeRegistry } from './fake-registry';
 import { registryConfigDigestReader } from './registry';
@@ -436,9 +437,15 @@ function executeCommand(command: readonly string[], path: string) {
   if (child.exitCode !== 0) throw new Error(child.stderr.toString());
   return child.stdout.toString();
 }
-function migrateStore(root: string) {
+let catalogue: string;
+beforeAll(() => {
+  catalogue = join(scratchSync('dependency-k8s-catalogue-'), 'catalogue.sqlite');
+  migrateCatalogueStore(catalogue);
+}, 30_000);
+
+function copyStore(root: string) {
   const path = join(root, 'wbs.sqlite');
-  executeCommand(['bun', 'run', 'src/migrate-cli.ts'], path);
+  copyFileSync(catalogue, path);
   return path;
 }
 function readFamily(root: string) {
@@ -450,14 +457,14 @@ function readFamily(root: string) {
 }
 test('exact emitted scanner preserves migrated source bytes including WAL and SHM', () => {
   const root = scratchSync('dependency-k8s-wal-');
-  const path = migrateStore(root);
+  const path = copyStore(root);
   const sqlite = new Database(path);
   try {
     sqlite.run('PRAGMA journal_mode=WAL');
     sqlite.run('PRAGMA wal_autocheckpoint=0');
-    sqlite.run("UPDATE cross_project_dependency_activation SET state='ENABLED'");
+    sqlite.run("UPDATE cross_work_package_dependency_activation SET state='ENABLED'");
     sqlite.run('PRAGMA wal_checkpoint(TRUNCATE)');
-    sqlite.run("UPDATE cross_project_dependency_activation SET state='DISABLED'");
+    sqlite.run("UPDATE cross_work_package_dependency_activation SET state='DISABLED'");
     const before = readFamily(root);
     expect(Object.keys(before)).toContain('wbs.sqlite-wal');
     expect(Object.keys(before)).toContain('wbs.sqlite-shm');
@@ -473,13 +480,13 @@ test('exact emitted scanner preserves migrated source bytes including WAL and SH
 for (const fault of ['enabled-empty', 'historical', 'absent', 'unreadable', 'malformed'] as const)
   test(`exact emitted scanner refuses ${fault} without changing source`, () => {
     const root = scratchSync('dependency-k8s-authority-');
-    const path = migrateStore(root);
+    const path = copyStore(root);
     if (fault === 'enabled-empty' || fault === 'historical') {
       const sqlite = new Database(path);
       sqlite.run(
         fault === 'enabled-empty'
-          ? "UPDATE cross_project_dependency_activation SET state='ENABLED'"
-          : 'DROP TABLE cross_project_dependency_activation_receipt',
+          ? "UPDATE cross_work_package_dependency_activation SET state='ENABLED'"
+          : 'DROP TABLE cross_work_package_dependency_activation_receipt',
       );
       sqlite.close();
     }

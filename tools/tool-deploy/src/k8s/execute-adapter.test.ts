@@ -7,6 +7,7 @@ import { scratchSync } from '@tools/test-scratch';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import { migrateCatalogueStore } from './catalogue-store.fixture';
 import type { DependencyBinaryObservation } from './dependency-observation';
 import {
   authorizationServerOfRendered,
@@ -459,13 +460,11 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
     const db = join(root, 'wbs.sqlite');
     // The script refuses a missing database rather than creating an empty one.
     expect(() => task({ DB_PATH: db, PUNI_TASK: 'status' })).toThrow('does not exist');
-    Bun.spawnSync({ cmd: ['bun', '-e', `new (require('bun:sqlite').Database)('${db}').close()`] });
+    migrateCatalogueStore(db);
 
-    const migrated = task({ DB_PATH: db, PUNI_TASK: 'migrate' });
-    const names = migrated.folders.map((f) => f.name);
-    expect(migrated.applied.map((a) => a.name)).toEqual(names);
-
-    const baseline = names[names.length - 3];
+    // Start the schema Job at the completed catalogue. The next two migrations
+    // are additive and can be rolled back with the exact-set migration owner.
+    const baseline = '20261115130000_add_step_catalogue';
     const legacy = Bun.spawnSync({
       cmd: ['bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`],
       cwd: BACKEND,
@@ -473,7 +472,11 @@ describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
       stdout: 'pipe',
       stderr: 'pipe',
     });
-    expect(legacy.exitCode).toBe(0);
+    expect(legacy.exitCode, legacy.stderr.toString()).toBe(0);
+    const predecessor = task({ DB_PATH: db, PUNI_TASK: 'status' });
+    const names = predecessor.folders.map((f) => f.name);
+    expect(names.at(-3)).toBe(baseline);
+    expect(predecessor.applied.map((a) => a.name)).toEqual(names.slice(0, -2));
     mkdirSync(join(root, 'snapshots'));
     const captured = captureFromReport(
       task({
@@ -530,8 +533,7 @@ describe('the capture Job audience preflight against the real be-01 CLI', () => 
     const root = scratchSync('wbs-k3s-audience-');
     roots.push(root);
     const db = join(root, 'wbs.sqlite');
-    new Database(db).close();
-    task({ DB_PATH: db, PUNI_TASK: 'migrate' });
+    migrateCatalogueStore(db);
     const sqlite = new Database(db);
     try {
       sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'org-a', 1)");

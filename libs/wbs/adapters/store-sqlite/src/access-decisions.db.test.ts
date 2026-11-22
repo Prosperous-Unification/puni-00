@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { AccessTarget, ScopedPrincipal } from '@wbs/core';
 import {
@@ -13,18 +13,30 @@ import {
   type WorkPackageChain,
 } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { AccessDecisionRepository } from './access-decisions';
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let template: string | undefined;
+beforeAll(() => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-access-decisions-template-'));
+  const dbPath = join(directory, 'template.db');
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
+  template = dbPath;
+}, 30_000);
+afterAll(() => {
+  if (template !== undefined) rmSync(dirname(template), { recursive: true, force: true });
+});
 const ORG = 'org-a';
 const READ_ONLY = ['organization.navigate', 'package.read', 'project.read'];
 const CONTRIBUTOR: Permission[] = [
@@ -123,7 +135,9 @@ beforeEach(() => {
     });
     dir = ownedDirectory;
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    if (template === undefined)
+      throw new Error('access decisions catalogue template was not prepared');
+    copyFileSync(template, path);
     const opened = openDatabase(path);
     fixtureCleanup.unshift(opened.close.bind(opened));
     sqlite = opened;
@@ -581,7 +595,7 @@ describe('corrupt stored columns throw (R5)', () => {
   it('throws on a package restricted flag outside 0 and 1', async () => {
     sqlite.run("UPDATE work_package SET restricted = 2 WHERE id = 'wp-open'");
     expect(String(await rejectionOf(decisions.packageTargetOf('wp-open', null)))).toMatch(
-      /restricted of package wp-open is 2/,
+      /settings work package restriction is malformed/,
     );
   });
 
@@ -1095,7 +1109,7 @@ describe('current parent trusted-state observation', () => {
     expect(sqlite.query('PRAGMA foreign_key_check').all()).toEqual([]);
     const diagnostic = 'package wp-open has an absent, malformed or foreign parent';
     expect(String(await rejectionOf(decisions.packageTargetOf('wp-open', null)))).toContain(
-      diagnostic,
+      'settings target parent is absent, malformed or foreign',
     );
     expect(String(await rejectionOf(packages.findInOrganization('wp-open', ORG)))).toContain(
       diagnostic,
@@ -1136,7 +1150,7 @@ describe('current parent trusted-state observation', () => {
     });
     const diagnostic = 'package wp-open has an absent, malformed or foreign parent';
     expect(String(await rejectionOf(decisions.packageTargetOf('wp-open', null)))).toContain(
-      diagnostic,
+      'settings target parent is absent, malformed or foreign',
     );
     expect(String(await rejectionOf(packages.findInOrganization('wp-open', ORG)))).toContain(
       diagnostic,
@@ -1169,7 +1183,7 @@ describe('current parent trusted-state observation', () => {
     });
     const diagnostic = 'package wp-open has an absent or malformed organization mapping';
     expect(String(await rejectionOf(decisions.packageTargetOf('wp-open', null)))).toContain(
-      diagnostic,
+      'settings organization mapping is absent or malformed',
     );
     expect(String(await rejectionOf(packages.findInOrganization('wp-open', ORG)))).toContain(
       diagnostic,

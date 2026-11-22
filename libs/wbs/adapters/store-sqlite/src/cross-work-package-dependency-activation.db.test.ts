@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { StoredTypedDependency } from '@wbs/core';
-import { afterEach, beforeEach, expect, it } from 'bun:test';
+import { expect, test } from 'bun:test';
 
 import {
   inspectDependencyActivation,
@@ -12,6 +12,7 @@ import {
 import { assertDependencyRollbackAdmitted } from './cross-work-package-dependency-rollback';
 import { openConnection, openDatabase, SQLiteError } from './db';
 import { OPEN } from './gate';
+import { inspectLegacyDependencyActivation } from './legacy-dependency-activation';
 import { runMigrations } from './migrate';
 import {
   type AppliedMigration,
@@ -20,10 +21,13 @@ import {
   rollbackTo,
 } from './migrate-down';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { TypedDependencyRepository } from './typed-dependency';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const CURRENT = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261022212000_add_cross_project_dependency_activation';
 const RECEIPT = {
   protocol: 'wbs-dependency-activation',
@@ -36,35 +40,65 @@ const RECEIPT = {
   migrationCaptureSha256: 'd'.repeat(64),
   activatedAt: 1,
 } as const;
-let directory: string;
 let path: string;
 let connection: ReturnType<typeof openConnection>;
-beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-authority-'));
-  path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
-  connection = openConnection(path);
-});
-afterEach(() => {
-  connection.close();
-  rmSync(directory, { recursive: true, force: true });
-});
-function seed(): void {
+/** Each case opens its native connection only after its chosen migration owner settles.
+ * A failed bootstrap, open or close leaves the directory intact.
+ */
+function registerCase(
+  epoch: 'catalogue' | 'historical',
+  name: string,
+  check: () => void | Promise<void>,
+) {
+  test(name, async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-authority-'));
+    path = join(directory, 'plan.db');
+    if (epoch === 'catalogue') {
+      migrations = CURRENT;
+      migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
+    } else {
+      migrations = copyRecoveryPrefix(directory, '20261103110000_add_initial_access_offers');
+      runMigrations(path, migrations);
+    }
+    connection = openConnection(path);
+    try {
+      await check();
+    } finally {
+      connection.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+const current = registerCase.bind(null, 'catalogue');
+const historical = registerCase.bind(null, 'historical');
+
+function seed(layout: 'catalogue' | 'historical' = 'catalogue'): void {
   connection.db.run(
     "INSERT INTO users(id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
   );
   connection.db.run("INSERT INTO organization(id,name,created_at) VALUES ('org','Org',1)");
-  for (const id of ['a', 'b', 'b2']) {
-    if (id !== 'b2') {
-      connection.db.run(
-        `INSERT INTO work_package(id,name,owner_id,created_at) VALUES ('${id}','${id}','u',1)`,
-      );
-      connection.db.run(
-        `INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('${id}','org')`,
-      );
-    }
+  if (layout === 'catalogue') {
     connection.db.run(
-      `INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES ('${id}','${id === 'b2' ? 'b' : id}','${id}',1,0)`,
+      "INSERT INTO project(id,name,organization_id,created_at) VALUES('parent','Parent','org',1)",
+    );
+    connection.db.run(
+      "INSERT INTO work_package(id,name,created_by,project_id,created_at) VALUES('a','a','u','parent',1),('b','b','u','parent',1)",
+    );
+    connection.db.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('a','org'),('b','org')",
+    );
+    connection.db.run(
+      "INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES('a','a','a',1,0),('b','b','b',1,0),('b2','b','b2',1,0)",
+    );
+  } else {
+    connection.db.run(
+      "INSERT INTO project(id,name,owner_id,created_at) VALUES('a','a','u',1),('b','b','u',1)",
+    );
+    connection.db.run(
+      "INSERT INTO project_organization(resource_id,organization_id) VALUES('a','org'),('b','org')",
+    );
+    connection.db.run(
+      "INSERT INTO work_item(id,project_id,name,position,revision) VALUES('a','a','a',1,0),('b','b','b',1,0),('b2','b','b2',1,0)",
     );
   }
 }
@@ -77,11 +111,11 @@ function link(): StoredTypedDependency {
     type: 'FS',
   };
 }
-function snapshot(): unknown[] {
+function snapshot(packageTable: 'project' | 'work_package' = 'work_package'): unknown[] {
   return [
     'external_dependency',
     'typed_dependency',
-    'work_package',
+    packageTable,
     'work_item',
     'command_journal',
     'event_log',
@@ -105,20 +139,22 @@ function rollbackCertificate(): unknown {
 }
 
 /** Synthetic persisted authority exercises storage semantics only; it proves no participant fence. */
-function enable(): void {
-  connection.db.run(
-    `INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'${JSON.stringify(RECEIPT)}')`,
-  );
-  connection.db.run("UPDATE cross_work_package_dependency_activation SET state='ENABLED'");
+function enable(
+  marker:
+    | 'cross_project_dependency_activation'
+    | 'cross_work_package_dependency_activation' = 'cross_work_package_dependency_activation',
+): void {
+  connection.db.run(`INSERT INTO ${marker}_receipt VALUES (1,'${JSON.stringify(RECEIPT)}')`);
+  connection.db.run(`UPDATE ${marker} SET state='ENABLED'`);
 }
-it('migrates to durable disabled authority and rereads on every authoring access', () => {
+current('migrates to durable disabled authority and rereads on every authoring access', () => {
   expect(inspectDependencyActivation(connection.db)).toEqual({ state: 'DISABLED', receipt: null });
   const authoring = readDependencyAuthoring(connection.db);
   expect(authoring.state).toBe('inactive');
   connection.db.run('DELETE FROM cross_work_package_dependency_activation');
   expect(() => authoring.state).toThrow();
 });
-it('restarts without changing disabled authority or existing local audit', async () => {
+current('restarts without changing disabled authority or existing local audit', async () => {
   seed();
   const repository = new TypedDependencyRepository(connection.db, OPEN);
   await repository.add(
@@ -126,12 +162,12 @@ it('restarts without changing disabled authority or existing local audit', async
     { at: 2, by: 'u' },
   );
   const before = snapshot();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   expect(snapshot()).toEqual(before);
   expect(inspectDependencyActivation(connection.db)).toEqual({ state: 'DISABLED', receipt: null });
 });
 for (const action of ['insert', 'update', 'delete'] as const) {
-  it(`refuses dormant repository ${action} atomically`, async () => {
+  current(`refuses dormant repository ${action} atomically`, async () => {
     seed();
     const repository = new TypedDependencyRepository(connection.db, OPEN);
     if (action !== 'insert') {
@@ -170,14 +206,14 @@ for (const fault of [
   "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
   'DROP TABLE cross_work_package_dependency_activation_receipt; CREATE TABLE cross_work_package_dependency_activation_receipt(id,receipt)',
 ]) {
-  it(`refuses corrupt trusted authority: ${fault}`, () => {
+  current(`refuses corrupt trusted authority: ${fault}`, () => {
     for (const statement of fault.split(';')) connection.db.run(statement);
     expect(() => inspectDependencyActivation(connection.db)).toThrow();
   });
 }
 for (const action of ['insert', 'update', 'delete']) {
   for (const altered of [false, true]) {
-    it(`refuses ${altered ? 'altered' : 'missing'} ${action} trigger`, () => {
+    current(`refuses ${altered ? 'altered' : 'missing'} ${action} trigger`, () => {
       connection.db.run(`DROP TRIGGER external_dependency_admit_${action}`);
       if (altered)
         connection.db.run(
@@ -189,12 +225,12 @@ for (const action of ['insert', 'update', 'delete']) {
     });
   }
 }
-it('refuses unreadable connection', () => {
+current('refuses unreadable connection', () => {
   const closed = openConnection(path);
   closed.close();
   expect(() => inspectDependencyActivation(closed.db)).toThrow();
 });
-it('reads exact enabled receipt and refuses malformed persisted receipt', () => {
+current('reads exact enabled receipt and refuses malformed persisted receipt', () => {
   enable();
   expect(inspectDependencyActivation(connection.db)).toEqual({
     state: 'ENABLED',
@@ -205,50 +241,49 @@ it('reads exact enabled receipt and refuses malformed persisted receipt', () => 
     'invalid dependency activation receipt',
   );
 });
-it('refuses enabled-empty rollback without losing authority or ledger', () => {
+current('refuses enabled-empty rollback without losing authority or ledger', () => {
   enable();
   const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
   const certificate = rollbackCertificate();
-  expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow(
+  expect(() => rollbackTo(path, migrations, '20261022211000_add_external_dependencies')).toThrow(
     'dependency activation requires compatible recovery',
   );
   expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
   expect(rollbackCertificate()).toEqual(certificate);
   expect(inspectDependencyActivation(connection.db).state).toBe('ENABLED');
 });
-it('rolls dormant authority back without changing local rows', async () => {
-  rollbackTo(path, FOLDER, MIGRATION);
-  seed();
-  const repository = new TypedDependencyRepository(connection.db, OPEN);
-  await repository.add(
-    { ...link(), predecessor: { workPackageId: 'b', scope: 'whole', workItemId: 'b2' } },
-    { at: 2, by: 'u' },
+historical('rolls dormant authority back without changing local rows', () => {
+  rollbackTo(path, migrations, MIGRATION);
+  seed('historical');
+  connection.db.run(
+    "INSERT INTO typed_dependency(id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at,created_by) VALUES('edge','b','b2','whole','b','whole','FS',2,'u')",
   );
-  const before = snapshot();
-  rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies');
-  expect(snapshot()).toEqual(before);
+  const before = snapshot('project');
+  rollbackTo(path, migrations, '20261022211000_add_external_dependencies');
+  expect(snapshot('project')).toEqual(before);
 });
-it('refuses preexisting external rows atomically in the real migration runner', async () => {
-  rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies');
-  seed();
-  const repository = new TypedDependencyRepository(connection.db, OPEN);
-  await repository.add(link(), { at: 2, by: 'u' });
-  const before = snapshot();
+historical('refuses preexisting external rows atomically in the real migration runner', () => {
+  rollbackTo(path, migrations, '20261022211000_add_external_dependencies');
+  seed('historical');
+  connection.db.run(
+    "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type,created_at,created_by) VALUES('edge','org','a','b','a','whole','b','whole','FS',2,'u')",
+  );
+  const before = snapshot('project');
   const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
   const certificate = rollbackCertificate();
   let observed: unknown;
   try {
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
   } catch (failure) {
     observed = failure;
   }
   expect(nativeMessage(observed)).toContain('external dependencies precede activation authority');
-  expect(snapshot()).toEqual(before);
+  expect(snapshot('project')).toEqual(before);
   expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
   expect(rollbackCertificate()).toEqual(certificate);
   expect(
     connection.db.all(
-      "SELECT name FROM sqlite_master WHERE name='cross_work_package_dependency_activation'",
+      "SELECT name FROM sqlite_master WHERE name='cross_project_dependency_activation'",
     ),
   ).toEqual([]);
 });
@@ -274,7 +309,7 @@ for (const action of ['insert', 'update', 'delete'] as const) {
     "UPDATE cross_work_package_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',2)",
     "UPDATE cross_work_package_dependency_activation_receipt SET receipt=json_set(receipt,'$.version',json('true'))",
   ]) {
-    it(`independent ${action} writer refuses invalid authority: ${fault}`, async () => {
+    current(`independent ${action} writer refuses invalid authority: ${fault}`, async () => {
       seed();
       enable();
       if (action !== 'insert')
@@ -305,11 +340,13 @@ for (const fault of [
   'DROP TABLE cross_work_package_dependency_activation',
   'DROP TABLE cross_work_package_dependency_activation_receipt',
 ]) {
-  it(`rollback refuses corrupt authority without changing ledger: ${fault}`, () => {
+  current(`rollback refuses corrupt authority without changing ledger: ${fault}`, () => {
     for (const statement of fault.split(';')) connection.db.run(statement);
     const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
     const certificate = rollbackCertificate();
-    expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
+    expect(() =>
+      rollbackTo(path, migrations, '20261022211000_add_external_dependencies'),
+    ).toThrow();
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
     expect(rollbackCertificate()).toEqual(certificate);
   });
@@ -319,7 +356,7 @@ for (const table of [
   'cross_work_package_dependency_activation',
   'cross_work_package_dependency_activation_receipt',
 ]) {
-  it(`rollback refuses replaced ${table} schema`, () => {
+  current(`rollback refuses replaced ${table} schema`, () => {
     connection.db.run(`DROP TABLE ${table}`);
     connection.db.run(
       `CREATE TABLE ${table} (id,${table.endsWith('_receipt') ? 'receipt' : 'state'})`,
@@ -328,13 +365,15 @@ for (const table of [
       connection.db.run(`INSERT INTO ${table} VALUES (1,'DISABLED')`);
     const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
     const certificate = rollbackCertificate();
-    expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
+    expect(() =>
+      rollbackTo(path, migrations, '20261022211000_add_external_dependencies'),
+    ).toThrow();
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
     expect(rollbackCertificate()).toEqual(certificate);
   });
 }
 
-it('refuses wrong receipt identity even with a valid receipt body', () => {
+current('refuses wrong receipt identity even with a valid receipt body', () => {
   enable();
   connection.db.run('PRAGMA ignore_check_constraints=ON');
   connection.db.run('UPDATE cross_work_package_dependency_activation_receipt SET id=2');
@@ -343,7 +382,7 @@ it('refuses wrong receipt identity even with a valid receipt body', () => {
   );
 });
 
-it('keeps local relationship add update and remove usable while disabled', async () => {
+current('keeps local relationship add update and remove usable while disabled', async () => {
   seed();
   const repository = new TypedDependencyRepository(connection.db, OPEN);
   const local = {
@@ -357,22 +396,27 @@ it('keeps local relationship add update and remove usable while disabled', async
   expect(await repository.listByWorkPackage('b')).toEqual([]);
 });
 
-it('refuses dormant rollback with retained external rows and preserves the full ledger', async () => {
-  seed();
-  enable();
-  await new TypedDependencyRepository(connection.db, OPEN).add(link(), { at: 2, by: 'u' });
-  connection.db.run("UPDATE cross_work_package_dependency_activation SET state='DISABLED'");
-  connection.db.run('DELETE FROM cross_work_package_dependency_activation_receipt');
-  const before = snapshot();
-  const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
-  const certificate = rollbackCertificate();
-  expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow();
-  expect(snapshot()).toEqual(before);
-  expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
-  expect(rollbackCertificate()).toEqual(certificate);
-});
+current(
+  'refuses dormant rollback with retained external rows and preserves the full ledger',
+  async () => {
+    seed();
+    enable();
+    await new TypedDependencyRepository(connection.db, OPEN).add(link(), { at: 2, by: 'u' });
+    connection.db.run("UPDATE cross_work_package_dependency_activation SET state='DISABLED'");
+    connection.db.run('DELETE FROM cross_work_package_dependency_activation_receipt');
+    const before = snapshot();
+    const ledger = connection.db.all('SELECT * FROM __drizzle_migrations');
+    const certificate = rollbackCertificate();
+    expect(() =>
+      rollbackTo(path, migrations, '20261022211000_add_external_dependencies'),
+    ).toThrow();
+    expect(snapshot()).toEqual(before);
+    expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(ledger);
+    expect(rollbackCertificate()).toEqual(certificate);
+  },
+);
 
-it('rolls back earlier command writes through the real source unit of work', async () => {
+current('rolls back earlier command writes through the real source unit of work', async () => {
   seed();
   const source = openSqliteSource({
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
@@ -405,7 +449,7 @@ for (const statement of [
   "INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'malformed')",
   'INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,NULL)',
 ]) {
-  it(`constrained authority refuses independent corruption: ${statement}`, () => {
+  current(`constrained authority refuses independent corruption: ${statement}`, () => {
     expect(() => connection.db.run(statement)).toThrow();
     expect(inspectDependencyActivation(connection.db)).toEqual({
       state: 'DISABLED',
@@ -414,7 +458,7 @@ for (const statement of [
   });
 }
 
-it('refuses unknown marker state even with an exact receipt', () => {
+current('refuses unknown marker state even with an exact receipt', () => {
   enable();
   connection.db.run('PRAGMA ignore_check_constraints=ON');
   connection.db.run("UPDATE cross_work_package_dependency_activation SET state='UNKNOWN'");
@@ -424,7 +468,7 @@ it('refuses unknown marker state even with an exact receipt', () => {
 });
 
 for (const version of ['1.0', '1e0']) {
-  it(`accepts numeric JSON version ${version} for independent writes`, async () => {
+  current(`accepts numeric JSON version ${version} for independent writes`, async () => {
     seed();
     enable();
     connection.db.run(
@@ -444,18 +488,18 @@ for (const version of ['1.0', '1e0']) {
 }
 
 for (const action of ['insert', 'update', 'delete']) {
-  it(`rollback refuses missing ${action} trigger before newer downs`, () => {
+  current(`rollback refuses missing ${action} trigger before newer downs`, () => {
     connection.db.run(`DROP TRIGGER external_dependency_admit_${action}`);
     const certificate = rollbackCertificate();
-    expect(() => rollbackTo(path, FOLDER, '20261022211000_add_external_dependencies')).toThrow(
+    expect(() => rollbackTo(path, migrations, '20261022211000_add_external_dependencies')).toThrow(
       'invalid dependency activation triggers',
     );
     expect(rollbackCertificate()).toEqual(certificate);
   });
 }
 
-it('rollback refuses missing activation ledger before newer downs', () => {
-  const folders = new Map(readMigrationFolders(FOLDER).map((folder) => [folder.name, folder]));
+current('rollback refuses missing activation ledger before newer downs', () => {
+  const folders = new Map(readMigrationFolders(migrations).map((folder) => [folder.name, folder]));
   const selected = connection.db.all<AppliedMigration>(
     `SELECT * FROM __drizzle_migrations WHERE name >= '${MIGRATION}' ORDER BY created_at DESC`,
   );
@@ -473,19 +517,19 @@ it('rollback refuses missing activation ledger before newer downs', () => {
   expect(rollbackCertificate()).toEqual(certificate);
 });
 
-it('unrelated newer rollback and no-op do not inspect enabled authority', () => {
-  enable();
+historical('unrelated newer rollback and no-op do not inspect enabled authority', () => {
+  enable('cross_project_dependency_activation');
   const newer = connection.db
     .all<{ name: string }>('SELECT name FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1')
     .at(0);
   if (newer === undefined) throw new Error('missing newest fixture migration');
-  expect(rollbackTo(path, FOLDER, newer.name)).toEqual([]);
-  const reversed = rollbackTo(path, FOLDER, MIGRATION);
+  expect(rollbackTo(path, migrations, newer.name)).toEqual([]);
+  const reversed = rollbackTo(path, migrations, MIGRATION);
   expect(reversed.length).toBeGreaterThan(0);
-  expect(inspectDependencyActivation(connection.db).state).toBe('ENABLED');
+  expect(inspectLegacyDependencyActivation(connection.db).state).toBe('ENABLED');
 });
 
-it('rollback admission refuses unreadable native connection', () => {
+current('rollback admission refuses unreadable native connection', () => {
   const closed = openDatabase(path);
   closed.close();
   expect(() => {
@@ -499,10 +543,10 @@ it('rollback admission refuses unreadable native connection', () => {
   }).not.toThrow();
 });
 
-it('independent SQL down guard refuses enabled authority without runner admission', () => {
-  enable();
+historical('independent SQL down guard refuses enabled authority without runner admission', () => {
+  enable('cross_project_dependency_activation');
   const certificate = rollbackCertificate();
-  const activation = readMigrationFolders(FOLDER).find(({ name }) => name === MIGRATION);
+  const activation = readMigrationFolders(migrations).find(({ name }) => name === MIGRATION);
   if (activation === undefined) throw new Error('missing activation migration fixture');
   const native = openDatabase(path);
   try {

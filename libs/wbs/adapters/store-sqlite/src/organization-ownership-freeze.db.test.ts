@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 /** Stamped after the freeze, so a rollback to the bridge reverses it first. */
@@ -17,7 +17,7 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** Each side table with its root table and the root row seeded for it. */
 const SIDES = [
-  ['work_package_organization', 'work_package', 'p1', false],
+  ['project_organization', 'project', 'p1', false],
   ['saved_plan_organization', 'saved_plan', 'sp1', false],
   ['person_organization', 'person', 'pe1', true],
   ['service_team_organization', 'service_team', 'st1', true],
@@ -30,25 +30,27 @@ const SIDES = [
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-ownership-freeze-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
   db = openDatabase(path);
   for (const statement of [
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-a', 'A', 1, 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
-    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
+    "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Plan', 'u1', 1)",
     "INSERT INTO person (id, name) VALUES ('pe1', 'Ada')",
     "INSERT INTO service_team (id, name) VALUES ('st1', 'Platform')",
     "INSERT INTO service (id, name) VALUES ('s1', 'Billing')",
     "INSERT INTO tag (id, name) VALUES ('t1', 'urgent')",
     "INSERT INTO work_item_type (id, name) VALUES ('w1', 'Bug')",
     "INSERT INTO external_system (id, name) VALUES ('e1', 'Jira')",
-    `INSERT INTO saved_plan (id, work_package_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
+    `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
     "INSERT INTO resource (id, name, kind, unit_label) VALUES ('r1', 'RAM', 'divisible', 'GB')",
   ]) {
@@ -138,7 +140,7 @@ it('rolls back to the bridge and reapplies', () => {
   // be-01's migration-cli test.
   db.run("DELETE FROM resource WHERE id = 'r1'");
   db.close();
-  expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+  expect(rollbackTo(path, migrations, ORGANIZATION_BRIDGE)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     '20261102120000_add_access_grants',
@@ -157,9 +159,9 @@ it('rolls back to the bridge and reapplies', () => {
     '20261023140000_add_measure',
     '20261023100000_add_claim_lease',
     '20261022213000_add_optimization_boundary_certificates',
-    '20261022212000_add_cross_work_package_dependency_activation',
+    '20261022212000_add_cross_project_dependency_activation',
     '20261022211000_add_external_dependencies',
-    '20261022210000_add_work_package_abbreviations',
+    '20261022210000_add_project_abbreviations',
     '20261022140100_widen_organization_audit_compute_providers',
     '20261022140000_add_resource_provider',
     '20261022130100_widen_organization_audit_organization_limits',
@@ -189,13 +191,13 @@ it('rolls back to the bridge and reapplies', () => {
     '20261011120000_add_browser_auth_lifecycle',
     '20261005110000_add_shared_people',
     '20261001010000_add_browser_credential_revocations',
-    '20260929180000_add_work_package_rank',
+    '20260929180000_add_project_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
     '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
-    '20260928010000_add_work_package_solution',
+    '20260928010000_add_project_solution',
     '20260927220000_add_organization_audit',
     TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
@@ -204,7 +206,7 @@ it('rolls back to the bridge and reapplies', () => {
   db.run("UPDATE tag_organization SET organization_id = 'org-b' WHERE resource_id = 't1'");
   db.run("UPDATE tag_organization SET organization_id = 'org-a' WHERE resource_id = 't1'");
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
   expect(() =>
     db.run("UPDATE tag_organization SET organization_id = 'org-b' WHERE resource_id = 't1'"),

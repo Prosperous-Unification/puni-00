@@ -927,19 +927,25 @@ it('packs and installs the captured PUNI package outside its checkout with prote
           suffixHex: retained.subarray(Math.max(2048, retained.length - 2048)).toString('hex'),
         };
       }
+      const settlement = {
+        purpose,
+        timeoutMs: timeout,
+        pid: observation.pid,
+        exitCode: observation.exitCode,
+        signalCode: observation.signalCode ?? null,
+        exitedDueToTimeout: observation.exitedDueToTimeout,
+        exitedDueToMaxBuffer: observation.exitedDueToMaxBuffer,
+      };
       throw new Error(
-        'Forge packaging direct native/pipe settlement unconfirmed; retained ' + root,
+        'Forge packaging direct native/pipe settlement unconfirmed ' +
+          JSON.stringify(settlement) +
+          '; retained ' +
+          root,
         {
           cause: {
-            purpose,
+            ...settlement,
             argv: [...argv],
             cwd,
-            timeoutMs: timeout,
-            pid: observation.pid,
-            exitCode: observation.exitCode,
-            signalCode: observation.signalCode,
-            exitedDueToTimeout: observation.exitedDueToTimeout,
-            exitedDueToMaxBuffer: observation.exitedDueToMaxBuffer,
             stdout: describePackedOutput(observation.stdout),
             stderr: describePackedOutput(observation.stderr),
           },

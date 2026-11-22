@@ -9,6 +9,7 @@ import * as backups from './backup';
 import * as connections from './db';
 import { runMigrations } from './migrate';
 import * as migrationSet from './migration-set';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { createWindowBackup, readWindowBackupFailure } from './window-backup';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -21,7 +22,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'wbs-window-publication-'));
   roots.push(root);
   const sourcePath = join(root, 'source.db');
-  runMigrations(sourcePath, MIGRATIONS);
+  runMigrations(sourcePath, copyRecoveryPrefix(root, '20261115120000_add_step_migration_report'));
   return {
     sourcePath,
     snapshotPath: join(root, 'snapshot.db'),

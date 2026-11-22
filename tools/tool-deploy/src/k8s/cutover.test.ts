@@ -17,7 +17,6 @@ import {
 } from './cutover';
 import { cutoverEnvironment } from './cutover-replay';
 import { fixtureCutoverIdentity } from './cutover-replay.fixture';
-import { BACKEND_TASK_SCRIPT } from './execute';
 
 const BACKEND = resolve(import.meta.dir, '../../../../apps/wbs/be-01');
 const roots: string[] = [];
@@ -56,8 +55,16 @@ describe('SQLITE_REPORT_SCRIPT against the real be-01 migrations', () => {
     const root = scratchSync('wbs-cutover-');
     roots.push(root);
     const db = join(root, 'wbs.db');
-    bunScript("new (require('bun:sqlite').Database)(process.env.DB_PATH).close()", { DB_PATH: db });
-    bunScript(BACKEND_TASK_SCRIPT, { DB_PATH: db, PUNI_TASK: 'migrate' });
+    bunScript(
+      `
+        import { dirname } from 'node:path';
+        import { runMigrations } from '@wbs/store-sqlite/migrate';
+        import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
+        const path = process.env.DB_PATH;
+        runMigrations(path, copyRecoveryPrefix(dirname(path), '20261110100000_rename_project_to_work_package'));
+      `,
+      { DB_PATH: db },
+    );
     bunScript(
       String.raw`
 const { Database } = require('bun:sqlite');

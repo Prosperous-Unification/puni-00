@@ -41,9 +41,6 @@ beforeEach(async () => {
     },
   });
   sqlite.db.run(sql`UPDATE organization_activation SET state = 'activated', activated_at = 1`);
-  sqlite.db.run(
-    sql`INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)`,
-  );
 });
 afterEach(async () => {
   await sqlite.close();
@@ -82,7 +79,12 @@ async function crossesSettlement(
   let pending: Promise<Error> | undefined;
   const first = source.uow.run(async (scope) => {
     pending = failureOf(invoke(scope));
-    await reached.promise;
+    await Promise.race([
+      reached.promise,
+      pending.then((cause) => {
+        throw new Error('read settled before reaching the held checkpoint', { cause });
+      }),
+    ]);
     if (outcome === 'throw') throw new Error('injected settlement throw');
     return { commit: outcome === 'success', value: undefined };
   });
@@ -134,35 +136,34 @@ for (const outcome of ['success', 'refusal', 'throw'] as const) {
     test(`fanout ${method} refuses before membership SQL after ${outcome}`, async () => {
       const reached = hold();
       const released = hold();
-      let pause = true;
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      const original = WorkPackageRepository.prototype.findInOrganization;
-      const reading = spyOn(
-        WorkPackageRepository.prototype,
-        'findInOrganization',
-      ).mockImplementation(async function (this: WorkPackageRepository, id, organizationId) {
-        const workPackage = await original.call(this, id, organizationId);
-        if (pause) {
-          pause = false;
-          reached.release();
-          await released.promise;
-        }
-        return workPackage;
-      });
-      try {
-        await crossesSettlement(
-          outcome,
-          (scope) => {
-            const authorize = scope.fanoutCapture?.[method];
-            if (authorize === undefined) throw new Error('missing fanout authorizer');
+      let calls: readonly unknown[][] = [];
+      let readTarget = false;
+      await crossesSettlement(
+        outcome,
+        (scope) => {
+          const authorize = scope.fanoutCapture?.[method];
+          if (authorize === undefined) throw new Error('missing fanout authorizer');
+          const before = queries.length;
+          // The real target query is synchronous. Hold the following yield and
+          // restore Promise.resolve before either writer can continue.
+          // Proof: removing either fanout lifetime check made its resumed case issue SQL.
+          const checkpoint = spyOn(Promise, 'resolve').mockReturnValueOnce(released.promise);
+          try {
             return authorize('a1', 'ada', access, { name: 'No' });
-          },
-          reached,
-          released,
-        );
-      } finally {
-        reading.mockRestore();
-      }
+          } finally {
+            calls = [...checkpoint.mock.calls];
+            checkpoint.mockRestore();
+            readTarget = queries
+              .slice(before)
+              .some((query) => query.includes('FROM work_package wp'));
+            reached.release();
+          }
+        },
+        reached,
+        released,
+      );
+      expect(calls).toEqual([[]]);
+      expect(readTarget).toBe(true);
     });
   }
 }
@@ -246,10 +247,10 @@ for (const mode of ['work_package', 'aggregate', 'export'] as const) {
           }
           if (boundary === 'work-items') {
             // eslint-disable-next-line @typescript-eslint/unbound-method
-            const original = WorkItemRepository.prototype.listByWorkPackage;
-            return spyOn(WorkItemRepository.prototype, 'listByWorkPackage').mockImplementation(
+            const original = WorkItemRepository.prototype.listTreeByWorkPackage;
+            return spyOn(WorkItemRepository.prototype, 'listTreeByWorkPackage').mockImplementation(
               function (this: WorkItemRepository, id) {
-                return pauseResponse(original.call(this, id), ++calls - 1, reached, released);
+                return pauseResponse(original.call(this, id), ++calls, reached, released);
               },
             );
           }
@@ -311,15 +312,35 @@ test('aggregate cached schedule cannot escape a resumed expired chain', async ()
   sqlite.db.run(
     sql`INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','p')`,
   );
+  expect(
+    (
+      await sqlite.stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: 'step',
+          code: 'step',
+          name: 'Step',
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+          position: 10,
+        },
+        {
+          bindingId: 'fixture-project-step',
+          scopeKind: 'project',
+          scopeId: 'fixture-parent-org-a',
+          workItemTypeId: null,
+          position: 10,
+        },
+        { at: 1, by: 'ada' },
+      )
+    ).ok,
+  ).toBe(true);
   for (const id of ['a1', 'a2']) {
     sqlite.db.run(
       sql`INSERT INTO work_item (id,work_package_id,position,name) VALUES (${id},${id},10,${id})`,
     );
     sqlite.db.run(
-      sql`INSERT INTO step (id,work_package_id,position,name) VALUES (${id + '-s'},${id},10,'step')`,
-    );
-    sqlite.db.run(
-      sql`INSERT INTO assignment (work_item_id,step_id,person_id) VALUES (${id},${id + '-s'},'p')`,
+      sql`INSERT INTO assignment (work_item_id,step_id,person_id) VALUES (${id},'step','p')`,
     );
   }
   const reached = hold();

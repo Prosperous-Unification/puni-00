@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   encodeOptimizedResult,
@@ -22,10 +22,9 @@ import {
   SOLVER_QUANTUM,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
 import { allocateGeneration } from './optimization-generation';
 import {
   type AdmissionClaim,
@@ -46,6 +45,8 @@ import {
 } from './optimized-schedule-cache';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
 /**
  * tasks.md 4.2's proof file, for the half 4.1 has landed: the read.
@@ -59,7 +60,17 @@ import { optimizedScheduleCache } from './schema';
  * wait for admission.
  */
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let template: string | undefined;
+beforeAll(() => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-optimized-cache-template-'));
+  const path = join(directory, 'template.db');
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
+  seedWorkPackage(path);
+  template = path;
+}, 30_000);
+afterAll(() => {
+  if (template !== undefined) rmSync(dirname(template), { recursive: true, force: true });
+});
 
 const CONTRACT = '7+1.0.0';
 const HASH = 'h1';
@@ -83,18 +94,25 @@ function tempDb(): { path: string; cleanup: () => void } {
 }
 
 function seedWorkPackage(path: string): void {
+  seedLegacyPackageParent(path, 'optimization-cache-org', 'optimization-cache-project');
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('p-1', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('p-1', 'optimization-cache-project', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     db.close();
   }
+}
+
+function copyStore(path: string): void {
+  if (template === undefined)
+    throw new Error('optimized cache catalogue template was not prepared');
+  copyFileSync(template, path);
 }
 
 /** Three two-day blocks in a pool of one, so a stored plan has real waits in it. */
@@ -131,8 +149,7 @@ function solverResult(plan: Schedule): OptimizedResult {
 
 /** A prepared database with one allocated generation and nothing cached. */
 function prepared(path: string): number {
-  runMigrations(path, FOLDER);
-  seedWorkPackage(path);
+  copyStore(path);
   return allocateGeneration(openDrizzle(path), 'p-1', CONTRACT, HASH, 1);
 }
 
@@ -371,8 +388,7 @@ describe('the generation predicate on the read', () => {
   it('serves nothing before the first allocation, however many rows exist', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedWorkPackage(db.path);
+      copyStore(db.path);
       storeRow(db.path, {
         objective: 'pri',
         generation: 1,
@@ -995,8 +1011,7 @@ describe("the generation the attempt was admitted under, which is 4.1's second a
   it('is not current when there is no generation row at all', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedWorkPackage(db.path);
+      copyStore(db.path);
 
       expect(current(db.path)).toBe(false);
     } finally {
@@ -2659,8 +2674,7 @@ describe('a typed dependency edit and the contract bump retire cached rows', () 
   it('misses the row cached before the edit, and one cached under contract 12', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedWorkPackage(db.path);
+      copyStore(db.path);
       const contract = contractVersionOf('0.1.3');
       const payload = JSON.stringify(encodeOptimizedResult(solverResult(realPlan())));
       const current = allocateGeneration(
