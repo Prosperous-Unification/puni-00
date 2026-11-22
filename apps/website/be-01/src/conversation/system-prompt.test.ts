@@ -13,6 +13,7 @@ import {
   scopingPublicMaterial,
   scopingSystemPrompt,
   stageHint,
+  submittedScopingHint,
 } from './system-prompt';
 
 const promptDocument = readFileSync(
@@ -55,8 +56,8 @@ test('the separately versioned scoping prompt equals its reviewed source', () =>
 });
 
 // Source policy assertions certify reviewed instructions only, never model compliance.
-test('future scoping uses v11 offer guidance with visitor-confirmed suggestions', () => {
-  expect(scopingPromptVersion).toBe('puni-scoping-v11');
+test('future scoping uses v12 offer guidance with visitor-confirmed suggestions', () => {
+  expect(scopingPromptVersion).toBe('puni-scoping-v12');
   for (const policy of [
     'The public scoping material lists the five available offers.',
     'Help me choose is an exploration entry, not a sixth offer.',
@@ -66,8 +67,11 @@ test('future scoping uses v11 offer guidance with visitor-confirmed suggestions'
     'Email is not required for chat, references or brief review.',
   ])
     expect(scopingSystemPrompt).toContain(policy);
-  expect(composeScopingSystemText(false)).toContain('Question catalogue: ');
-  expect(composeScopingSystemText(true)).toContain('This is the final available reply.');
+  expect(composeScopingSystemText(false, false)).toContain('Question catalogue: ');
+  expect(composeScopingSystemText(true, false)).toContain('This is the final available reply.');
+  expect(composeScopingSystemText(false, false)).not.toContain(submittedScopingHint);
+  expect(composeScopingSystemText(false, true)).toEndWith(`\n${submittedScopingHint}`);
+  expect(submittedScopingHint).not.toMatch(/\d|hour|day|within/i);
 });
 
 test('v11 exploration directs concrete examples plus an actionable next step without invention', () => {
@@ -97,7 +101,7 @@ test('reviewed public material matches the separately published canonical block'
   expect(reviewed).toEqual(scopingPublicMaterial);
   const publicText = JSON.stringify(scopingPublicMaterial);
   for (const finalTurn of [false, true]) {
-    const composed = composeScopingSystemText(finalTurn);
+    const composed = composeScopingSystemText(finalTurn, false);
     expect(composed.split(publicText)).toHaveLength(2);
     expect(composed).toStartWith(scopingSystemPrompt + '\nPublic scoping material: ');
   }

@@ -160,7 +160,7 @@ Astra performed 23 asserted Linux x64 observations against Bun 1.4.4 revision 38
 - Killed controls: removing BUN_OPTIONS erasure executed its preload sentinel; removing BUN_INSPECT_PRELOAD erasure executed its sentinel; omitting the config override executed candidate preload; omitting no-env-file contaminated the app with dotenv. The tested separate --config /dev/null spelling did not protect startup; the equals form is required by this pinned-runtime evidence.
 - NODE_OPTIONS --require/--import did not execute on this Bun, so no execution negative is claimed for deleting that variable's erasure. Tested BUN_INSPECT/BUN_INSPECT_CONNECT_TO forms had no observed effect; no additional blanket purge was added. Environment erasure and actual runtime-execution proofs must remain distinguished.
 
-Only Linux x64/GNU env is verified. Trusted Bun selection/PATH and OS loader are assumptions. Mac env -S, the actual package/activation chain and the MCP 10-second budget remain unverified acceptance checks. [ADR 0079](../../../docs/adr/0079-sanitize-puni-startup-before-bun-runs.md) records the decision; product startup guards and their production-path negatives still need implementation.
+Only Linux x64/GNU env is verified. Trusted Bun selection/PATH and OS loader are assumptions. Mac env -S, the actual package/activation chain and the MCP 10-second budget remain unverified acceptance checks. [ADR 0087](../../../docs/adr/0087-sanitize-puni-startup-before-bun-runs.md) records the decision; product startup guards and their production-path negatives still need implementation.
 
 ### Shared startup implementation checkpoint
 

@@ -262,6 +262,74 @@ MUST NOT render a Flux object, read a remote base, or hold a Secret, encrypted o
 - **WHEN** a wrapper chart's release name differs from the release it replaces
 - **THEN** the render-equality test fails
 
+### Requirement: Rancher manages and Argo CD delivers
+
+Rancher Manager SHALL run in the platform cluster as one replica on the platform node,
+delivered by Argo CD, with no public route, and every pod it starts SHALL run on the
+platform node. Its bundled Fleet SHALL run without its GitOps part and hold no `GitRepo`
+or `HelmOp`, and no object of the `fleet.cattle.io` group SHALL be in the tree. Rancher
+SHALL NOT manage the k3s version, which SHALL be one whose minor the locked Rancher
+version certifies for a cluster that hosts it.
+
+#### Scenario: A Fleet object in the tree
+
+- **WHEN** a unit under `infra/argocd` holds an object of the `fleet.cattle.io` group
+- **THEN** the `delivery` check fails and names it
+
+#### Scenario: A GitRepo in the cluster
+
+- **WHEN** a `GitRepo` or a `HelmOp` exists in the platform cluster, or a `Bundle` that is
+  not on the list of Rancher's own
+- **THEN** `tool-fleet:health` fails and names it
+
+#### Scenario: A Rancher pod off the platform node
+
+- **WHEN** a pod in a `cattle-` namespace or a namespace Rancher made runs on a node other
+  than the platform node
+- **THEN** `tool-fleet:health` fails and names the pod and the node
+
+#### Scenario: A browser shell
+
+- **WHEN** a pod named with the prefix `dashboard-shell-` is created in `cattle-system`
+- **THEN** admission denies it
+
+#### Scenario: A Rancher pod asks for another node
+
+- **WHEN** a pod in an annotated `cattle-` namespace selects a capability other than
+  `platform-services`
+- **THEN** it is admitted with the namespace's selector added and is never scheduled off
+  the platform node
+
+#### Scenario: A Rancher pod contradicts the namespace
+
+- **WHEN** a pod in an annotated `cattle-` namespace selects
+  `puni.dev/capability-platform-services: "false"`
+- **THEN** admission refuses it
+
+#### Scenario: An upgrade plan
+
+- **WHEN** a `plans.upgrade.cattle.io` object exists, or a node's kubelet version is not
+  the pin
+- **THEN** `tool-fleet:health` fails and names it
+
+#### Scenario: A chart installed beside Argo CD
+
+- **WHEN** the cluster holds a Helm release that is not on the list of Rancher's own
+- **THEN** `tool-fleet:health` fails and names the release
+
+#### Scenario: k3s bumped past Rancher
+
+- **WHEN** the k3s pin's minor is not among the minors the Rancher lock certifies
+- **THEN** the toolchain check fails and names both versions
+
+#### Scenario: Rancher rendered off its shape
+
+- **WHEN** the `rancher` render has more than one replica, an Ingress of a class other than
+  the Tailscale operator's, a bootstrap value in its values, continuous delivery switched
+  on, a hook pod template without placement, or placement values without the platform
+  toleration and capability
+- **THEN** the `delivery` check fails and names the value
+
 ### Requirement: Secrets come from OpenBao
 
 OpenBao SHALL be the first service synced after Argo CD and the units it runs under. Only the
@@ -890,20 +958,86 @@ serve.
 ### Requirement: New hosts admit nothing public but what they serve
 
 A host of the new inventories SHALL admit on its public interface only the ports its
-inventory lists, which MUST be none unless the host carries `ingress`, and SHALL admit SSH
-and the Kubernetes API on the tailnet interface only. An existing inventory's rendered
+inventory lists, which MUST be none unless the host carries `ingress` or is the bastion,
+whose one public port is SSH. It SHALL admit SSH on the private interface from the
+bastion's address alone and on no other interface. An existing inventory's rendered
 firewall SHALL NOT change.
 
 #### Scenario: Public SSH on a new host
 
-- **WHEN** the rendered firewall of a host of the new inventories admits port 22 on its
-  public interface
+- **WHEN** the rendered firewall of a host of the new inventories other than the bastion
+  admits port 22 on its public interface
+- **THEN** the role's test fails
+
+#### Scenario: SSH from another private address
+
+- **WHEN** the rendered firewall of a server admits SSH on its private interface from an
+  address other than the bastion's, or on its tailnet interface
 - **THEN** the role's test fails
 
 #### Scenario: An old inventory
 
 - **WHEN** the firewall is rendered for an existing inventory
 - **THEN** it is byte-equal to the rendering before this change
+
+### Requirement: The cluster's ports admit enrolled nodes alone
+
+A server of the new inventories SHALL admit the cluster's own ports on its private
+interface from enrolled node addresses alone, of which the bastion is never one. Before
+destination NAT it SHALL drop traffic from a non-enrolled private address to the cluster
+CIDR, the service CIDR or a NodePort, except named exceptions, and every new connection
+from the bastion's address but TCP 22 to the host itself.
+
+#### Scenario: The bastion reaches a cluster port
+
+- **WHEN** the rendered firewall of a server admits 10250 or 8472 from a private address
+  that is not an enrolled node, the bastion's included
+- **THEN** the role's test fails
+
+#### Scenario: The bastion reaches another port
+
+- **WHEN** the rendered firewall admits from the bastion's address any port but TCP 22
+- **THEN** the role's test fails
+
+#### Scenario: Non-production egress reaches the bastion
+
+- **WHEN** a non-production namespace holds an egress allow with no `to`, or with an
+  `ipBlock` that contains the bastion's address and does not except it
+- **THEN** the `delivery` check fails and names the policy
+
+#### Scenario: A routed host reaches a pod
+
+- **WHEN** a host on the private network that is not an enrolled node routes the cluster
+  CIDR and the service CIDR via a node and sends to a pod address and a ClusterIP
+- **THEN** neither answers
+
+### Requirement: The bastion forwards SSH and holds nothing
+
+The bastion SHALL be in no k3s group and in no `gate_hosts`, and its forwarding user SHALL
+have no login shell. That user's `PermitOpen` SHALL list each inventoried server's private
+address at port 22 and nothing else, and the bastion's public firewall SHALL admit port 22
+and nothing else.
+
+#### Scenario: A forward to another port
+
+- **WHEN** the rendered `PermitOpen` names a port other than 22
+- **THEN** the role's test fails and names the entry
+
+#### Scenario: An earlier drop-in wins
+
+- **WHEN** an `sshd` drop-in read before the role's sets another `PermitOpen` for the
+  forwarding user
+- **THEN** the play's read-back of `sshd -T` differs from the render and the play fails
+
+#### Scenario: A server left out
+
+- **WHEN** a server of the inventory is missing from the rendered `PermitOpen`
+- **THEN** the role's test fails and names the server
+
+#### Scenario: The bastion as a node
+
+- **WHEN** the inventory lists the bastion in a k3s group or in `gate_hosts`
+- **THEN** the placement check fails and names the host
 
 ### Requirement: Access rules are one tested policy file
 

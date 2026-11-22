@@ -192,10 +192,12 @@ test('anonymous manual request persists, consumes its claim and replays one rece
   database.query('UPDATE submission_replay SET expires_at = 0 WHERE receipt = ?').run(receipt);
   database.close();
   // Proof: omitting the replay expiry predicate returned the receipt after its 24-hour authority ended.
-  expect(
-    (await api.fetch(request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf)))
-      .status,
-  ).toBe(401);
+  // The draft is still claimed and already submitted, so it refuses a second submission.
+  const expired = await api.fetch(
+    request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(expired.status).toBe(409);
+  expect(await expired.json()).toEqual({ code: 'draft_submitted' });
   const reopened = mountApi(config);
   const login = await reopened.fetch(
     request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
@@ -561,6 +563,7 @@ const operatorRoutes = [
   ['POST', '/operator/inference/pause'],
   ['POST', '/operator/inference/resume'],
   ['POST', '/operator/retention/events'],
+  ['POST', '/operator/chat/reset'],
   ['PATCH', '/operator/submissions/0000'],
   ['DELETE', '/operator/session'],
 ] as const;
@@ -754,6 +757,7 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
     brief: '',
     expiresAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) as unknown as string,
     challenge: null,
+    submission: null,
     description: 'A booking tool for a local studio',
     csrfToken: csrf,
     initialOperation: {

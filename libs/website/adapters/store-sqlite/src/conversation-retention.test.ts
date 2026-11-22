@@ -168,7 +168,7 @@ test('erasure blanks a due subject conversation and keeps its accounting', () =>
   ).toEqual([]);
   expect(query(databasePath, accounting)).toEqual(before);
   expect(query(databasePath, 'SELECT source_hash, state FROM conversation')).toEqual([
-    { source_hash: 'source-claim-1', state: 'handed_off' },
+    { source_hash: 'source-claim-1', state: 'open' },
   ]);
 });
 

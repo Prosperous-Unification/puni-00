@@ -181,6 +181,12 @@ committed here; working copies of the fleet repository live in a nested checkout
 
 ## Secrets
 
+This section describes the Flux-delivered cluster. The replacement platform cluster that
+[`separate-node-roles`](../../openspec/changes/separate-node-roles/design.md) plans keeps its
+Secrets in an OpenBao secret store synced by External Secrets Operator
+([ADR 0079](../adr/0079-openbao-is-the-platform-secret-store.md),
+[design](../../openspec/changes/openbao-secret-store/design.md)); nothing of it is installed yet.
+
 Git carries platform credentials only as SOPS files under
 `infra/platform/secrets/<cluster-id>/`, each listed in that directory's
 kustomization and encrypted with `--encrypted-regex '^(data|stringData)$'` to the

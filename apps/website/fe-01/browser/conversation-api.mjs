@@ -106,6 +106,14 @@ function readOutbound(body) {
 /** Deterministic catalogue fixture only; never substitutes model judgment evidence. */
 function scopedReply(context, visitor) {
   if (/invalid envelope/i.test(visitor)) return '{broken';
+  // A follow-up after submission is acknowledged for the person reviewing the request.
+  if (context.submitted)
+    return JSON.stringify({
+      version: 1,
+      message: 'Noted. This stays with your request for the person reviewing it.',
+      nextQuestionId: null,
+      brief: null,
+    });
   if (/different starting offer/i.test(visitor))
     return JSON.stringify({
       version: 1,
@@ -231,7 +239,8 @@ const api = createWebsiteApi({
   secureCookies: false,
   // Browser runs name a distinct visitor per context with X-Forwarded-For, so the per-source
   // conversation ceiling (three a day) does not stop a long regression run from one machine.
-  trustedProxyHops: 1,
+  // PUNI_FIXTURE_TRUSTED_PROXY_HOPS=0 serves a person's own browser, which sends no such header.
+  trustedProxyHops: env['PUNI_FIXTURE_TRUSTED_PROXY_HOPS'] === '0' ? 0 : 1,
   openRouterEnabled: true,
   openRouterKey: 'fixture-only-no-network',
   openRouterModel: 'openai/gpt-4.1-mini',
@@ -242,6 +251,8 @@ const api = createWebsiteApi({
   openRouterOutputCeilingUsdPerMillion: 1.76,
   openRouterPrivacyVerified: true,
   operatorPassword: env['OPERATOR_PASSWORD'],
+  // Lets bin/puni-website-local-reset.sh replenish a fixture browser's allowance.
+  testingResetSecret: env['WEBSITE_TEST_RESET_SECRET'],
   providerFetch,
 });
 

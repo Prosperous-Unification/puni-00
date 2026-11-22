@@ -74,7 +74,7 @@ export function composeConversationRequest(
 ): ConversationRequest {
   if (context?.scoping.version === 1)
     return {
-      system: composeScopingSystemText(context.visitorTurns === 7),
+      system: composeScopingSystemText(context.visitorTurns === 7, context.submitted),
       messages: [
         ...trimHistory(history),
         { role: 'user', content: `Untrusted current scoping context: ${JSON.stringify(context)}` },

@@ -45,6 +45,7 @@ for (const version of [
   'puni-scoping-v9',
   'puni-scoping-v10',
   'puni-scoping-v11',
+  'puni-scoping-v12',
 ])
   test(`${version} omits a question-shaped acknowledgement for the recorded operation identity`, () => {
     const question = {

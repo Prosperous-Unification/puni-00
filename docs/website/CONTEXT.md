@@ -89,6 +89,9 @@ _Avoid_: Analytics event, conversion beacon
 **Operator inbox**:
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
 
+**Chat reset**:
+An operator-authorized restart of the visitor journey in the current browser. It refreshes that browser’s conversation allowance and detaches the previous chat while preserving saved records.
+
 **Expired anonymous draft**:
 An intake draft whose browser access period ended before it was submitted for a proposal or started a conversation.
 

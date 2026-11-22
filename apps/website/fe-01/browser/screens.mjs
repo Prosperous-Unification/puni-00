@@ -4,6 +4,7 @@ import { env } from 'node:process';
 
 import { chromium } from 'playwright';
 
+import { findResponseTimePromise } from './response-time.ts';
 import { auditScopedEditor } from './scoped-contrast.mjs';
 
 // Two fixture stacks: demo replies (DEMO_AUTH=1, 4218/3118) and AI chat off (DEMO_AUTH=0, 4219/3119).
@@ -355,6 +356,21 @@ const states = [
       const viewport = page.viewportSize();
       if (!composer || !viewport || composer.y + composer.height > viewport.height)
         problems.push('composer is not pinned inside the viewport');
+      // Proof: restoring the flexible full-height harness put the DB-IP credit inside the first
+      // screen and reported "credit sits beside the conversation" at all five widths.
+      const credit = page.getByRole('link', { name: 'IP Geolocation by DB-IP', exact: true });
+      const creditBox = await credit.boundingBox();
+      if (!creditBox || !viewport || creditBox.y < viewport.height)
+        problems.push('credit sits beside the conversation');
+      await page.evaluate(() => {
+        const shell = globalThis.document.querySelector('.night-shell');
+        shell.scrollTop = shell.scrollHeight;
+      });
+      if (!(await credit.isVisible()) || (await credit.boundingBox()).y > (viewport?.height ?? 0))
+        problems.push('credit is not reachable by scrolling past the conversation');
+      await page.evaluate(() => {
+        globalThis.document.querySelector('.night-shell').scrollTop = 0;
+      });
       return problems;
     },
     ready: async (page) => {
@@ -670,7 +686,7 @@ async function auditMasthead(page) {
       link.textContent.trim(),
     );
     // Proof: removing Blog from SiteHeader failed all four operator captures with the three remaining labels.
-    if (labels.join(',') !== 'Home,Build,Services,Blog')
+    if (labels.join(',') !== 'Home,Build,Services,About,Blog')
       problems.push(`masthead labels ${labels.join(',')}`);
     // Proof: injecting a real .nav-index into SiteHeader failed all four operator widths with obsolete masthead rail.
     if (globalThis.document.querySelector('header .nav-rail-label, header .nav-index'))
@@ -977,10 +993,10 @@ try {
       const problems = state.check ? await state.check(page, consoleTexts, state.stack) : [];
       problems.push(...(await auditFocus(page)));
       problems.push(...(await auditMasthead(page)));
-      // W11: a person reads every request and replies by email; no page states a response time.
+      // W11: see findResponseTimePromise; only the approved chat receipt sentence passes.
       // Proof: "We reply within 2 days." added to the receipt lead made manual-receipt report this at every width.
-      const responseTime = /within \d+ (hours|days)/i.exec(await page.locator('body').innerText());
-      if (responseTime) problems.push(`states a response time: "${responseTime[0]}"`);
+      const responseTime = findResponseTimePromise(await page.locator('body').innerText());
+      if (responseTime) problems.push(`states a response time: "${responseTime}"`);
       if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
       if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
       if (audit.cls >= 0.05) problems.push(`CLS ${audit.cls.toFixed(3)}`);

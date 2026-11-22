@@ -49,3 +49,9 @@ Manual submission does not require a visitor account. Build is a live chat bound
 The proposed budget values and turn limits live in the design. They are pilot assumptions; this planning work does not activate paid inference or deploy a public funnel.
 
 The ownership promotion is recorded in [OpenSpec](../../openspec/changes/promote-website-services-public/proposal.md). The reviewed import came from private revision `5e5386d`; the private snapshot receipt pins the resulting public revision. The project-transfer command still refuses private-classified source, including the Astro site.
+
+## Reset the visitor chat for testing
+
+Sign in at `/operator` on the requests app in the browser you use for testing. Then open `/#reset-chat` on that same requests app and confirm the reset. The authenticated command returns you to the public intake form with a fresh chat allowance. This applies to `request.puni.dev` and `dev.request.puni.dev` once their app and API images include the change.
+
+The reset detaches the previous draft from the browser and preserves its stored history and paid accounting. The new chat uses ordinary visitor turn and conversation limits. Shared intake and HTTP limits, provider limits and site-wide controls apply throughout.

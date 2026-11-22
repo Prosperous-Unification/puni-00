@@ -3,8 +3,9 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'bun:test';
 
-// W11: "a person reads every request and replies by email" is the only response promise; no page
-// states a response time until Dany sets one. A response time is `in` or `within`, a count (digits,
+import { approvedResponsePromise, findResponseTimePromise } from '../browser/response-time';
+
+// Only the approved chat receipt carries a timed promise. A response time is `in` or `within`, a count (digits,
 // a, an, the or a number word) and hour(s), day(s), business or working day(s) or week(s); `in` or
 // `within` and digits joined to `h`; digits joined to `hour`; "same day"; or "next business day". The block from `COUNT` to `responseTimePattern` is
 // byte-identical to the private site's `src/content/response-promise.ts` (puni-pr-00).
@@ -26,13 +27,26 @@ const copyFiles = readdirSync(import.meta.dir)
   .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name))
   .map((name) => ({ name, text: readFileSync(join(import.meta.dir, name), 'utf8') }));
 
-test('no app copy promises a response time', () => {
+const chatReceiptPromise = 'PUNI will contact you by email within 4 hours.';
+
+test('only the approved chat receipt promises a response time', () => {
   expect(copyFiles.length).toBeGreaterThan(5);
   // Proof: adding "We reply within 2 days." to the manual receipt lead failed this list with main.tsx.
   // Proof (2026-10-12): adding "We reply the same day." after that lead failed it with main.tsx.
   expect(
-    copyFiles.filter((file) => responseTimePattern.test(file.text)).map((file) => file.name),
+    copyFiles
+      .filter(({ name, text }) =>
+        responseTimePattern.test(
+          name === 'conversation-harness.tsx' ? text.replace(chatReceiptPromise, '') : text,
+        ),
+      )
+      .map(({ name }) => name),
   ).toEqual([]);
+});
+
+test('the chat receipt promises email contact within four hours', () => {
+  const harness = copyFiles.find((file) => file.name === 'conversation-harness.tsx');
+  expect(harness?.text).toContain(`<p>${chatReceiptPromise}</p>`);
 });
 
 describe('response time forms', () => {
@@ -80,4 +94,17 @@ describe('response time forms', () => {
 test('the manual receipt says a person replies by email', () => {
   const main = copyFiles.find((file) => file.name === 'main.tsx');
   expect(main?.text).toContain('A person will review your brief and reply by email.');
+});
+
+test('the W11 screens check allows only the approved chat receipt sentence', () => {
+  expect(approvedResponsePromise).toBe(chatReceiptPromise);
+  expect(findResponseTimePromise(`Your request is recorded.\n${chatReceiptPromise}`)).toBeNull();
+  // Proof: dropping the allow-list replacement failed the approved line above; dropping `hours`
+  // from the pattern, which also passed the approved line, let "within 2 hours" through below.
+  expect(findResponseTimePromise('PUNI will contact you by email within 2 hours.')).toBe(
+    'within 2 hours',
+  );
+  expect(findResponseTimePromise(`${chatReceiptPromise} We reply within 2 days.`)).toBe(
+    'within 2 days',
+  );
 });

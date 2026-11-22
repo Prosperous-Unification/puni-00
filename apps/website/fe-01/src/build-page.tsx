@@ -18,7 +18,7 @@ import {
   useHeadingFocus,
   usePageTitle,
 } from './chrome';
-import { LiveHarness, PausedHarness } from './conversation-harness';
+import { LiveHarness, PausedHarness, SubmissionReceipt } from './conversation-harness';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
 
@@ -63,10 +63,6 @@ type BuildLoad =
       conversation: Conversation;
     }
   | { kind: 'error'; message: string };
-
-function HarnessEyebrow() {
-  return <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>;
-}
 
 /**
  * Discards the browser's saved request after an inline confirmation, then lands on the site's
@@ -157,9 +153,7 @@ function DisabledHarness({ conversation }: { conversation: Conversation }) {
     <div className="harness-root">
       <section className="harness-thread" aria-label="Conversation with PUNI">
         <div className="harness-column">
-          <HarnessEyebrow />
           <div className="build-message user">
-            <span className="message-label">YOU</span>
             <p>{conversation.description}</p>
           </div>
           <div className="build-message system build-disabled-row">
@@ -169,15 +163,20 @@ function DisabledHarness({ conversation }: { conversation: Conversation }) {
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
-          {conversation.scoping.version === 1 && (
-            <RequestEditor
-              draft={conversation}
-              route="manual"
-              open
-              onOpen={() => undefined}
-              onClose={() => undefined}
-              onSubmitted={() => undefined}
-            />
+          {/* Proof: offering the editor again failed the disabled submitted-chat case in start-over.test.tsx. */}
+          {conversation.submission !== null ? (
+            <SubmissionReceipt />
+          ) : (
+            conversation.scoping.version === 1 && (
+              <RequestEditor
+                draft={conversation}
+                route="manual"
+                open
+                onOpen={() => undefined}
+                onClose={() => undefined}
+                onSubmitted={() => undefined}
+              />
+            )
           )}
         </div>
       </section>
@@ -281,7 +280,8 @@ export function BuildPage() {
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
           {load.kind === 'ready' ? 'Shape the work together.' : 'Build'}
         </h1>
-        {load.kind === 'ready' && !isHandedOff && (
+        {/* Proof: ignoring the loaded submission showed Start over on the reloaded submitted chat in start-over.test.tsx. */}
+        {load.kind === 'ready' && !isHandedOff && load.conversation.submission === null && (
           <div className="harness-bar">
             <StartOver csrfToken={load.conversation.csrfToken} />
           </div>

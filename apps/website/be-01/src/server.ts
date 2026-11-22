@@ -652,7 +652,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (cookieValue === null) return { available: false, reason: 'missing' };
     const claim = draftClaim(request);
     // Proof: the expired-claim entry test fails if any cookie is accepted without a live draft.
-    return claim && store.findDraft(digest(claim), now)
+    // A submitted draft whose chat continues still enters Build.
+    // Proof: reading findDraft here redirected the submitted visitor in the follow-up entry test.
+    return claim && store.findConversationDraft(digest(claim), now)
       ? { available: true, reason: null }
       : { available: false, reason: 'expired' };
   }
@@ -990,7 +992,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     }
     if (path === '/conversation' && request.method === 'GET') {
       const claim = draftClaim(request);
-      const draft = claim ? store.findDraft(digest(claim), now) : null;
+      // Proof: reading findDraft here answered 401 to the submitted visitor in the mounted follow-up test.
+      const draft = claim ? store.findConversationDraft(digest(claim), now) : null;
       if (!claim || !draft) return attachCors(failure('draft_unavailable', 401), origin);
       // No conversation row means no turn was ever admitted for this draft.
       const conversation = store.findConversation(draft.id);
@@ -1023,7 +1026,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         expiresAt: new Date(draft.expiresAt).toISOString(),
         scoping: draft.scoping,
         challenge,
-        stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
+        // An earlier binary's `handed_off` row belongs to a submitted draft whose chat continues.
+        stage: deriveStage(
+          conversation === null || conversation.state === 'handed_off'
+            ? 'open'
+            : conversation.state,
+          visitorTurns,
+        ),
+        submission: draft.submission,
         turns,
         visitorTurnsRemaining: Math.max(
           0,
@@ -1081,7 +1091,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: bypassing this shape guard changed the mounted automatic-follow-up refusal from 400 to 409.
       if ((automatic && !initial) || (initial && Object.hasOwn(body, 'selected')))
         return attachCors(failure('invalid_initial', 400), origin);
-      const draft = store.findDraft(digest(claim), now);
+      // Proof: reading findDraft here refused the follow-up after submission in the mounted follow-up test.
+      const draft = store.findConversationDraft(digest(claim), now);
       if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
       let message = draft.description;
       let normalizedAnswer: ScopingAnswerRequest | undefined;
@@ -1282,7 +1293,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           'completed',
         canContinue: () => {
           if (isClosed) return false;
-          const currentDraft = store.findDraft(digest(claim), now);
+          // Proof: reading findDraft here cut the follow-up reply short in the mounted follow-up test.
+          const currentDraft = store.findConversationDraft(digest(claim), now);
           if (!currentDraft?.description.trim()) return false;
           const operation = store.findConversationOperation(
             admitted.conversationId,
@@ -1302,7 +1314,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const key = body?.['idempotencyKey'];
       if (typeof key !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(key))
         return attachCors(failure('invalid_idempotency_key', 400), origin);
-      const draft = store.findDraft(digest(claim), now);
+      const draft = store.findConversationDraft(digest(claim), now);
       if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
       const conversation = store.findConversation(draft.id);
       const operation = conversation ? store.findConversationOperation(conversation.id, key) : null;
@@ -1418,6 +1430,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (outcome.kind === 'created') noteSiteCount('proposal', outcome.siteCount, now);
       if (outcome.kind === 'conflict')
         return attachCors(failure('idempotency_conflict', 409), origin);
+      // Proof: answering 401 here failed the mounted second-submission refusal.
+      if (outcome.kind === 'submitted') return attachCors(failure('draft_submitted', 409), origin);
       if (outcome.kind === 'unavailable')
         return attachCors(failure('draft_unavailable', 401), origin);
       const response = json({ receipt: outcome.receipt }, outcome.kind === 'created' ? 201 : 200, {
@@ -1496,6 +1510,35 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         }),
         origin,
       );
+    }
+    if (path === '/operator/chat/reset' && request.method === 'POST') {
+      const session = operatorSession(request, now);
+      // Proof: allowing a missing session made an unauthenticated reset return 204.
+      if (!session) return attachCors(failure('operator_unauthorized', 401), origin);
+      const csrf = request.headers.get('x-puni-csrf');
+      // Proof: removing the CSRF check made the wrong-token reset return 204.
+      if (!csrf || !equal(digest(csrf), session.csrfHash))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const resetRate = admitRequestRate('/operator/chat/reset', source, now);
+      if (resetRate.kind !== 'admitted') return attachCors(rateRefusal(resetRate), origin);
+      const claim = draftClaim(request);
+      const claimHash = claim === null ? null : digest(claim);
+      const draft = claimHash === null ? null : store.findDraft(claimHash, now);
+      const conversation = draft === null ? null : store.findConversation(draft.id);
+      const latest =
+        conversation === null ? null : store.findLatestConversationOperation(conversation.id);
+      const browser = secret();
+      store.resetBrowserAllowance(claimHash, digest(browser), now, 'fresh');
+      // Proof: omitting this abort left the operator fixture's active provider signal live.
+      if (latest?.state === 'inflight') conversationAborts.get(latest.id)?.abort();
+      const headers = new Headers({
+        'Set-Cookie': cookie(browserCookie, browser, 31 * 24 * 60 * 60),
+        'Cache-Control': 'no-store',
+      });
+      // Proof: omitting draft cookie expiry made the mounted fresh-session cookie check fail.
+      headers.append('Set-Cookie', cookie(draftCookie, '', 0));
+      headers.append('Set-Cookie', cookie(replayCookie, '', 0));
+      return attachCors(new Response(null, { status: 204, headers }), origin);
     }
     if (path === '/operator/guardrails' && request.method === 'GET') {
       if (!operatorSession(request, now))

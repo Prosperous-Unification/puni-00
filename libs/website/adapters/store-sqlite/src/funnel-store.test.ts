@@ -168,3 +168,17 @@ test('a window that is not a positive whole number of days throws', () => {
   expect(readFunnelCounts(database, day, 1).days).toHaveLength(1);
   database.close();
 });
+
+test('a proposal whose chat stays open after submission still counts from chat', () => {
+  const database = openSeededDatabase();
+  for (const id of ['draft-open', 'draft-exhausted', 'draft-manual']) seedDraft(database, id, day);
+  seedConversation(database, 'draft-open', 'open', day);
+  seedConversation(database, 'draft-exhausted', 'exhausted', day, 'turns');
+  for (const id of ['draft-open', 'draft-exhausted', 'draft-manual'])
+    seedProposal(database, id, day + hour);
+  expect(readFunnelCounts(database, day + 2 * hour).days[0]?.proposals).toEqual({
+    fromChat: 2,
+    manual: 1,
+  });
+  database.close();
+});

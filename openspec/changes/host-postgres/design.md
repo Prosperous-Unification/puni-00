@@ -64,7 +64,7 @@ The core change's placement table names one capability and leaves it to this cha
 
 | Capability | What selects it                                                                      | Minimal profile (PG8) | Full profile (PG2) |
 | ---------- | ------------------------------------------------------------------------------------ | --------------------- | ------------------ |
-| `database` | the instances of `platform-db`, its dump job and the throwaway instance of its drill | h5plat, the server    | h10db, an agent    |
+| `database` | the instances of `platform-db`, its dump job and the throwaway instance of its drill | m1plat1, the server   | h10db, an agent    |
 
 - It is a new capability, added to `CapabilitySchema`, `fleetCapabilities`,
   `purposeCapabilities.platform` and `RequiredCapabilitiesSchema` by slice PG-S1, as slice
@@ -102,29 +102,32 @@ Memory in MiB, counted as core decision 2 counts it.
 
 **What this change adds to nodes the core change sized, in the minimal profile.**
 
-| Node          | Workload                                                   | Limit | Sum and margin after it                                                    |
-| ------------- | ---------------------------------------------------------- | ----: | -------------------------------------------------------------------------- |
-| Platform      | CloudNativePG operator and the Barman plugin               |   512 | 9,066; with reservations 11,882; margin 3,720                              |
-| Platform      | `platform-db`: one instance and its backup sidecar         | 2,304 | 11,370; with reservations 14,186; margin 1,416                             |
-| Platform      | The nightly logical dump                                   |   256 | margin 1,160 while it runs                                                 |
-| Platform      | An attended restore drill's throwaway instance and sidecar | 1,280 | margin 136 for its run, without the dump: it does not fit on paper (below) |
-| Observability | `nonproduction-db`: one instance and its backup sidecar    | 1,280 | counted in core decision 2's sum for that node, which A14 tests            |
+| Node          | Workload                                                   | Limit | Sum and margin after it                                         |
+| ------------- | ---------------------------------------------------------- | ----: | --------------------------------------------------------------- |
+| Platform      | CloudNativePG operator and the Barman plugin               |   512 | 13,162; with reservations 15,978; margin 15,226                 |
+| Platform      | `platform-db`: one instance and its backup sidecar         | 2,304 | 15,466; with reservations 18,282; margin 12,922                 |
+| Platform      | The nightly logical dump                                   |   256 | margin 12,666 while it runs                                     |
+| Platform      | An attended restore drill's throwaway instance and sidecar | 1,280 | margin 11,386 for its run, with the dump beside it              |
+| Observability | `nonproduction-db`: one instance and its backup sidecar    | 1,280 | counted in core decision 2's sum for that node, which A14 tests |
 
-A drill on the server does not fit beside everything else at its limits: it would leave 136
-MiB, under the 1,024 MiB the plan stops on everywhere. So it is attended and guarded
-(decision 3): it reads the node's available memory first and does not start under 2,304
-MiB, its own 1,280 and that floor, and the operator runs it at an hour with no dump and no
-Harbor backup. It rests, like the rest of that node's budget, on use being below the
+The margins are counted on the platform server bought on 2026-11-22, m1plat1, at 32 GB:
+31,204 MiB assumed, with Rancher's 4,096 already in the core sum (core decision 2). On the
+16 GiB first planned, a drill would have left 136 MiB before Rancher was added; on this
+server it fits beside everything else at its limits. It stays attended and guarded
+(decision 3) all the same: it reads the node's available memory first and does not start
+under 2,304 MiB, its own 1,280 and the 1,024 MiB floor the plan stops on everywhere. It rests, like the rest of that node's budget, on use being below the
 limits, which PG-A4 measures. Nothing of this change lands on the production apps node.
 
 Every figure is assumed (256 each for the operator and the plugin; 2,048 and 256 for the
 production instance and its sidecar; 1,024 and 256 for the others) and PG-A3 and PG-A4
 measure them. The production instance starts at 2,048 MiB because nothing uses it yet.
-That is the minimal profile's limit, and it is tight on purpose: with the dump running the
-platform node keeps 1,160 MiB, so an instance that needs more than about 2,180 MiB takes the
-margin under the 1,024 MiB the plan stops on everywhere. A port that needs more is
-therefore the trigger for the database server (decision 4), unless the Harbor change's
-measurement returns memory first; Harbor's 2,112 MiB is a planned figure too. The one
+That is the minimal profile's limit, kept low on purpose, since nothing uses it yet. With
+the dump running the platform node keeps 12,666 MiB, so the node alone would hold an
+instance far larger. The trigger is set lower on purpose: a port that needs the production
+instance above 3,072 MiB starts the database server (decision 4), so that the instance
+moves while it still fits under the 4,096 MiB the database server gives it, with room to
+grow there.
+Harbor's 2,112 MiB and Rancher's 4,096 are planned figures too. The one
 drill of PG-A3 adds a throwaway instance of 1,280 on the non-production node for its run,
 under the same guard.
 Disk for `nonproduction-db`: one claim of 10 GiB (assumed).
@@ -170,7 +173,8 @@ PostgreSQL stops and the host does not. An attended drill's throwaway volume is 
 server's root filesystem, on the packaged `local-path` class: until the first port it holds
 two canary databases, megabytes, and the drill's 65% guard refuses a restore that would be
 larger than the room. The platform node's minimum disk in core decision 2 counts the
-bounded 30 GiB and 30 more for a drill.
+bounded 30 GiB and 30 more for a drill, or 20 for a drill if the platform server's disk
+takes the exit core decision 2 names; the drill's 65% guard then refuses sooner.
 
 What the bounded filesystem does not separate: it is a loop device on the root filesystem,
 so its writes share the root's journal and device with etcd. A full database cannot fill
@@ -216,7 +220,7 @@ objects of its apps.
 
 |                                     | `platform-db`                                                                                                                              | `nonproduction-db`                                            |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| Node                                | selector `database`, tolerating the platform and database taints: h5plat in the minimal profile                                            | selector `nonproduction`: h7obs in the minimal profile        |
+| Node                                | selector `database`, tolerating the platform and database taints: m1plat1 in the minimal profile                                           | selector `nonproduction`: h7obs in the minimal profile        |
 | Namespace and its environment label | `postgres`, `platform`                                                                                                                     | `postgres-nonproduction`, `staging`                           |
 | Instances                           | 1                                                                                                                                          | 1                                                             |
 | Storage                             | one claim of 30 GiB: bounded on the server (PG-S6); on a database node `puni-retain`, or the static class if PG-A2's replica path is taken | `puni-retain`, one claim of 10 GiB                            |
@@ -428,7 +432,7 @@ the owner says so, after A17 and slice PG-S6, on the server (PG-A4). The owner s
 evaluate when; that now means when to start it, and later when to give it a server.
 
 **The growth step to a database server** (core decision 11). Trigger: a port needs the
-production instance above about 2,180 MiB, the platform node's available memory falls under
+production instance above 3,072 MiB, the platform node's available memory falls under
 1,024 MiB, or the control plane slows with the database's load (apiserver latency, or etcd's
 slow-apply warnings in the server's log; the k3s server template does not expose etcd's
 metrics today, and core slice 1.2 adds `etcd-expose-metrics` so that the latency can be
@@ -450,7 +454,7 @@ forces a WAL switch and reads the segment archived, and the new cluster recovers
 that point before writes are reopened or the source is removed. Either way one
 attended drill pinned to `h10db` is run first, with the weekly schedule still suspended
 while both nodes carry `database`; then the core's capability play takes `database` from
-h5plat (the volume there is empty or removed, slice 1.7's guard), the schedule is resumed,
+m1plat1 (the volume there is empty or removed, slice 1.7's guard), the schedule is resumed,
 and the instance's limit is raised to the full profile's 4,096 MiB. No app's manifest
 changes. Deleting `h10db` is a rollback only until its instance accepts writes: after
 that its commits may not be in the archive yet, so the server is kept and repaired, or
@@ -589,8 +593,9 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 - **The budgets are assumed.** No app has run on PostgreSQL here; PG-A4 measures (decision
   2).
 - **In the minimal profile the production database shares a node with the control plane,
-  the secret store and the registry** (PG8). Its memory is capped at a figure that the first
-  real consumer will probably outgrow, which is the trigger for its own server. Its disk is
+  the secret store and the registry** (PG8). Its memory is capped at 2,048 MiB, which the
+  first real consumer may outgrow; a need above 3,072 MiB is the trigger for its own
+  server, below the 4,096 MiB that server gives it (decision 2). Its disk is
   bounded, so a full database stops PostgreSQL and not etcd; its I/O is not bounded, and a
   heavy query can still slow the control plane. Losing that node loses all four.
 - **The move to a database server is probably a restore, with the apps' writers stopped**
@@ -610,9 +615,10 @@ It stays here until a number is free, as the core change's two do (task PG-0.2).
 - **Two stores per app for a while.** Between an app's arrival on SQLite and its port, the
   plan carries both mechanisms, and the ports are four changes this one does not size.
 - **A password rotation needs an app restart** (decision 3).
-- **In the minimal profile an attended drill may not find room.** On paper the platform
-  node keeps 136 MiB with a drill running, so the drill starts only with 2,304 MiB
-  available there. If it never does, that is the memory trigger of the growth step.
+- **In the minimal profile an attended drill shares the platform node.** On paper the
+  node keeps 11,386 MiB with a drill and the dump running (decision 2), and the drill
+  still starts only with 2,304 MiB available there. If it ever does not, that is the
+  memory trigger of the growth step.
 - **The drill's free-space and memory guards are new.** A drill that does not start for lack of room
   reports as a failed drill.
 

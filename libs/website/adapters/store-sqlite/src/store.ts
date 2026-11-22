@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -22,13 +22,13 @@ import {
   findConversation,
   findConversationOperation,
   findLatestConversationOperation,
-  handOffConversation,
   listConversationTurns,
   markConversationOperationUnknown,
   readSourceSalt,
   recordConversationGeneration,
   recoverConversationOperations,
 } from './conversation-store';
+import { followableDraftPredicate } from './followable-draft';
 import { type FunnelCounts, readFunnelCounts } from './funnel-store';
 import {
   countDeclinedCompletions,
@@ -203,12 +203,21 @@ export interface DraftRecord {
   expiresAt: number;
 }
 
+/**
+ * A draft that may take conversation work ({@link followableDraftPredicate}). `submission` is
+ * null before submission; `turnsBefore` counts the conversation turns saved by then.
+ */
+export interface ConversationDraft extends DraftRecord {
+  submission: { turnsBefore: number } | null;
+}
+
 /** `siteCount` is the day's site-wide proposal count including this one. */
 export type SubmitOutcome =
   | { kind: 'created'; receipt: string; siteCount: number }
   | { kind: 'replayed'; receipt: string }
   | { kind: 'conflict' }
   | { kind: 'unavailable' }
+  | { kind: 'submitted' }
   | { kind: 'limited'; code: ProposalCapRefusal };
 
 /** `siteCount` is the day's site-wide draft count including this one. */
@@ -506,15 +515,20 @@ export class WebsiteStore {
   }
 
   /**
-   * Authorized preview-only mutation. Fences any active operation at its reservation before
-   * establishing sequence baselines and reopening the claimed conversation. History and every
-   * site financial/concurrency record survive. Only this operator boundary may rebind a draft.
-   * Returns false only when the supplied claim has no live draft; malformed registry state throws.
+   * Fences the claimed draft's active attempt at its reservation and resets scoped allowance.
+   * A fresh browser invalidates the old draft claim while retaining the draft and conversation.
+   * The preview resume path can reopen a live draft and returns false for a stale claim.
    */
-  resetBrowserAllowance(claimHash: string | null, browserHash: string, now: number): boolean {
+  resetBrowserAllowance(
+    claimHash: string | null,
+    browserHash: string,
+    now: number,
+    mode: 'resume' | 'fresh' = 'resume',
+  ): boolean {
     return this.database
       .transaction(() => {
-        if (!this.hasBrowserClaim(browserHash, now))
+        if (mode === 'fresh') this.registerBrowserClaim(browserHash, now);
+        else if (!this.hasBrowserClaim(browserHash, now))
           throw new Error('Reset browser claim is not registered');
         const draft =
           claimHash === null
@@ -524,7 +538,7 @@ export class WebsiteStore {
                   'SELECT id FROM intake_draft WHERE claim_hash = ? AND consumed_at IS NULL AND expires_at > ?',
                 )
                 .get(claimHash, now);
-        if (claimHash !== null && draft === null) return false;
+        if (mode === 'resume' && claimHash !== null && draft === null) return false;
         const conversation = draft ? findConversation(this.database, draft.id) : null;
         if (conversation) {
           const inflight = this.database
@@ -544,18 +558,25 @@ export class WebsiteStore {
           )
           .get();
         if (position === null) throw new Error('Missing reset accounting position');
-        if (draft)
+        // Proof: retaining the previous claim let the mounted API read the old chat after reset.
+        if (mode === 'fresh' && draft)
+          this.database
+            .query('UPDATE intake_draft SET claim_hash = ? WHERE id = ?')
+            .run(randomBytes(32).toString('hex'), draft.id);
+        // Proof: rebinding in fresh mode replaced the old browser in the fresh-reset fixture.
+        if (mode === 'resume' && draft)
           this.database
             .query(
               'INSERT INTO intake_draft_browser (draft_id, browser_hash) VALUES (?, ?) ON CONFLICT(draft_id) DO UPDATE SET browser_hash = excluded.browser_hash',
             )
             .run(draft.id, browserHash);
+        // Proof: resetting to sequence zero left the new browser rate limited in the fresh-reset fixture.
         this.database
           .query(
             'INSERT INTO testing_allowance (browser_hash, after_sequence, reset_at) VALUES (?, ?, ?) ON CONFLICT(browser_hash) DO UPDATE SET after_sequence = excluded.after_sequence, reset_at = excluded.reset_at',
           )
           .run(browserHash, position.sequence, now);
-        if (conversation) {
+        if (mode === 'resume' && conversation) {
           const turns = listConversationTurns(this.database, conversation.id).filter(
             (turn) => turn.role === 'user',
           ).length;
@@ -597,6 +618,43 @@ export class WebsiteStore {
               expiresAt: draft.expires_at,
             }
           : null;
+      })
+      .deferred();
+  }
+
+  /**
+   * The claimed draft for conversation reads and turns, including a submitted draft whose chat
+   * continues ({@link followableDraftPredicate}). Submission-capable routes use {@link findDraft}.
+   */
+  // Proof: restoring `consumed_at IS NULL` in this lookup returned null for the submitted draft in submitted-conversation.test.ts.
+  findConversationDraft(claimHash: string, now: number): ConversationDraft | null {
+    return this.database
+      .transaction(() => {
+        const draft = this.database
+          .query<DraftRow, [string, number]>(
+            `SELECT draft.* FROM intake_draft AS draft WHERE draft.claim_hash = ? AND draft.expires_at > ? AND ${followableDraftPredicate}`,
+          )
+          .get(claimHash, now);
+        if (!draft) return null;
+        const submission =
+          draft.consumed_at === null
+            ? null
+            : this.database
+                .query<{ turnsBefore: number }, [string]>(
+                  'SELECT (SELECT count(*) FROM conversation_turn AS turn JOIN conversation AS talk ON talk.id = turn.conversation_id WHERE talk.draft_id = submission.draft_id AND turn.created_at <= submission.created_at) AS turnsBefore FROM proposal_submission AS submission WHERE submission.draft_id = ?',
+                )
+                .get(draft.id);
+        // The predicate admits a consumed draft only with its submission row.
+        if (draft.consumed_at !== null && !submission)
+          throw new Error('Submitted draft has no proposal submission');
+        return {
+          scoping: readDraftScoping(this.database, draft.id, draft),
+          id: draft.id,
+          description: draft.description,
+          brief: draft.brief,
+          expiresAt: draft.expires_at,
+          submission: submission ?? null,
+        };
       })
       .deferred();
   }
@@ -677,7 +735,10 @@ export class WebsiteStore {
   /**
    * Submits the claimed draft as a proposal request. A replay returns its receipt uncounted; a new
    * request is counted against the UTC-day caps ({@link countProposal}) in the same transaction,
-   * so a refused cap leaves no submission, replay or retention-subject row.
+   * so a refused cap leaves no submission, replay or retention-subject row. A draft accepts one
+   * submission: a new key on a submitted draft is `submitted` and writes nothing. Submission
+   * marks the draft consumed but leaves its conversation open for follow-up turns
+   * ({@link findConversationDraft}).
    */
   // Proof: a deferred transaction here made the content-write-waits test's child fail "database is locked".
   submit(
@@ -722,7 +783,15 @@ export class WebsiteStore {
         const replay = this.replaySubmission(claimHash, idempotencyKey, bodyHash, now);
         if (replay.kind !== 'unavailable') return replay;
         const draft = this.findDraft(claimHash, now);
-        if (!draft) return { kind: 'unavailable' };
+        if (!draft)
+          // Proof: removing this branch answered `unavailable` to the second submission in submitted-conversation.test.ts.
+          return this.database
+            .query<{ found: number }, [string, number]>(
+              'SELECT 1 AS found FROM intake_draft AS draft JOIN proposal_submission AS submission ON submission.draft_id = draft.id WHERE draft.claim_hash = ? AND draft.expires_at > ?',
+            )
+            .get(claimHash, now)
+            ? { kind: 'submitted' }
+            : { kind: 'unavailable' };
         // Proof: counting after this transaction committed left a proposal_submission row in the per-email cap test.
         const siteCount = countProposal(this.database, sourceHash, this.emailKey(email, now), now);
         const id = crypto.randomUUID();
@@ -741,8 +810,6 @@ export class WebsiteStore {
           .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
           .run(now, draft.id);
         if (consumed.changes !== 1) throw new Error('Draft consumption was not atomic');
-        // Proof: removing this handoff left the conversation `open` in the handoff test.
-        handOffConversation(this.database, draft.id);
         this.database
           .query(
             'INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES (?, ?, ?, ?, ?)',
@@ -771,13 +838,19 @@ export class WebsiteStore {
     this.database.query('DELETE FROM operator_session WHERE token_hash = ?').run(tokenHash);
   }
 
+  /** Newest first; `followUps` are the visitor's chat messages saved after the submission. */
   listSubmissions(): SubmissionView[] {
     const rows = this.database
       .query<SubmissionRow, []>(
         'SELECT proposal_submission.id, intake_draft.description, proposal_submission.brief, proposal_submission.email, proposal_submission.status, proposal_submission.created_at, proposal_submission.updated_at FROM proposal_submission JOIN intake_draft ON intake_draft.id = proposal_submission.draft_id ORDER BY proposal_submission.created_at DESC',
       )
       .all();
+    // Proof: dropping the created_at condition listed the opening as a follow-up in submitted-conversation.test.ts.
+    const followUps = this.database.query<{ content: string }, [string]>(
+      "SELECT turn.content FROM proposal_submission AS submission JOIN conversation AS talk ON talk.draft_id = submission.draft_id JOIN conversation_turn AS turn ON turn.conversation_id = talk.id WHERE submission.id = ? AND turn.role = 'user' AND turn.created_at > submission.created_at ORDER BY turn.created_at, turn.rowid",
+    );
     return rows.map((row) => ({
+      followUps: followUps.all(row.id).map(({ content }) => content),
       id: row.id,
       description: row.description,
       brief: row.brief,

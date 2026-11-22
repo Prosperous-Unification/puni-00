@@ -7,6 +7,8 @@ import {
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
+import { followableDraftPredicate } from './followable-draft';
+
 /** New drafts retain explicit start intent independently of their opening description. */
 export interface ScopingIntent {
   version: 1;
@@ -208,7 +210,9 @@ export function editScoping(
  * Applies a validated reply inside the caller's operation settlement transaction. Never opens or
  * commits a transaction: usage, turns, reply_version and this state must commit together. Uses
  * the latest revision, references and visitor brief, even when edited during inference. Returns
- * false for a missing, expired, consumed or legacy draft. Erasure fences throw and roll back.
+ * false for a missing, expired or legacy draft, or one consumed other than by a followable
+ * submission ({@link followableDraftPredicate}). A submitted draft advances only its question
+ * state; its brief stays as submitted. Erasure fences throw and roll back.
  */
 export function applyScopingReply(
   database: Database,
@@ -222,7 +226,7 @@ export function applyScopingReply(
   // Proof: bypassing expiry or consumption independently admitted the late-reply ownership fixture.
   const draft = database
     .query<IntentRow, [string, number]>(
-      'SELECT scoping_version, start_conversation, starting_choice FROM intake_draft WHERE id = ? AND expires_at > ? AND consumed_at IS NULL',
+      `SELECT draft.scoping_version, draft.start_conversation, draft.starting_choice FROM intake_draft AS draft WHERE draft.id = ? AND draft.expires_at > ? AND ${followableDraftPredicate}`,
     )
     .get(draftId, now);
   if (!draft) return false;
@@ -238,7 +242,10 @@ export function applyScopingReply(
   // removing the SQL empty-brief condition replaced the visitor brief saved during inference.
   if (reply.brief !== null && scoping.candidateBrief === null)
     database
-      .query("UPDATE intake_draft SET brief = ? WHERE id = ? AND brief = ''")
+      // Proof: dropping `consumed_at IS NULL` replaced the submitted draft brief in submitted-conversation.test.ts.
+      .query(
+        "UPDATE intake_draft SET brief = ? WHERE id = ? AND brief = '' AND consumed_at IS NULL",
+      )
       .run(reply.brief, draftId);
   return true;
 }

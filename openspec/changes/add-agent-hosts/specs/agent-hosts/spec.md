@@ -50,11 +50,11 @@ entry and no supplementary group, and the operator's home MUST NOT be readable b
 - **WHEN** the play runs for a workstation without the list of automation keys
 - **THEN** the play fails before it changes the host
 
-### Requirement: A host outside the cluster admits SSH by key over the private access network and nothing else
+### Requirement: A host outside the cluster admits SSH by key through the bastion and nothing else
 
 The play that prepares an agents host or a workstation SHALL turn password login off, SHALL
-install a firewall whose inbound policy admits SSH on the tailnet interface only and
-nothing on the public interface, and SHALL apply to no host of
+install a firewall whose inbound policy admits SSH on the private interface from the
+bastion's address only (core R55) and nothing on the public interface, and SHALL apply to no host of
 another group.
 
 #### Scenario: Password login left on
