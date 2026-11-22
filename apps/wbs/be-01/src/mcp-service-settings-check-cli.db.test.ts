@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 const cli = new URL('./mcp-service-settings-check-cli.ts', import.meta.url).pathname;
@@ -16,6 +17,7 @@ const SETTINGS = {
 } as const;
 let directory: string;
 let path: string;
+const custody = { hasUnknownOwner: false };
 
 // Each run spawns the CLI, about two seconds apiece.
 setDefaultTimeout(30_000);
@@ -23,19 +25,23 @@ setDefaultTimeout(30_000);
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'mcp-settings-check-cli-'));
   path = join(directory, 'plan.db');
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(() => {
-  rmSync(directory, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 /** Migrates every folder ordered before `before`, or all of them. */
 function migrate(before?: string): void {
+  if (before === undefined) {
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+    return;
+  }
   const staged = join(directory, 'drizzle');
   mkdirSync(staged);
   for (const name of readdirSync(migrations))
-    if (before === undefined || name < before)
-      cpSync(join(migrations, name), join(staged, name), { recursive: true });
+    if (name < before) cpSync(join(migrations, name), join(staged, name), { recursive: true });
   runMigrations(path, staged);
 }
 

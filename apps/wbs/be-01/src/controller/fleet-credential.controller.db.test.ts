@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const REPOSITORY = join(import.meta.dir, '../../../../..');
 const ISSUER = 'https://idp.test';
@@ -15,6 +16,7 @@ const FLEET = 'claire-m2m@clients';
 let signing: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
 let h: OrganizationHarness;
+let projectId: string;
 
 beforeAll(async () => {
   signing = await generateKeyPair('RS256');
@@ -55,8 +57,9 @@ beforeEach(async () => {
   h.sqlite.run("UPDATE users SET email = 'dany@example.com', email_verified = 1 WHERE id = ?", [
     h.userId('dany'),
   ]);
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Fleet plan' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+  const workPackageId = await createFixturePackage(h, 'dany', 'Fleet plan');
+  const { workPackage } = await readFixturePackage(h, 'dany', workPackageId);
+  projectId = workPackage.projectId;
   h.sqlite.run(
     "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', ?), ('mem-agent', 'Mem agent', 'agent', ?)",
     [h.userId('dany'), h.userId('mem')],
@@ -149,7 +152,10 @@ describe('a retired operator link', () => {
 
     expect(await as(await token(FLEET), 'GET', '/api/work-packages')).toEqual(MACHINE_BEARER);
     expect(
-      await as(await token(FLEET), 'POST', '/api/work-packages', { name: 'Written by a link' }),
+      await as(await token(FLEET), 'POST', '/api/work-packages', {
+        projectId,
+        name: 'Written by a link',
+      }),
     ).toEqual(MACHINE_BEARER);
     expect(usersTable()).toEqual(users);
   }, 30_000);

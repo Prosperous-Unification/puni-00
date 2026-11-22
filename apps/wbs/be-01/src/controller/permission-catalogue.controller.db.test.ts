@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 let harness: OrganizationHarness;
 let workPackageId: string;
 beforeEach(async () => {
@@ -10,12 +11,7 @@ beforeEach(async () => {
   harness.member('org', 'actor', 'viewer', ['org-admin']);
   harness.bind('actor', 'org');
   harness.activate();
-  const created = await harness.call('actor', 'POST', '/api/work-packages', {
-    name: 'Catalogue proof',
-  });
-  expect(created.status).toBe(200);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-  harness.grant('org', 'actor', 'package-manager', 'work_package', workPackageId);
+  workPackageId = await createFixturePackage(harness, 'actor', 'Catalogue proof');
   harness.sqlite.run(
     "DELETE FROM access_grant WHERE organization_id='org' AND scope_kind='organization' AND subject_kind='user' AND subject_id=? AND role_id='org-admin'",
     [harness.userId('actor')],
@@ -81,7 +77,9 @@ for (const fault of [
       const snapshot = () =>
         [
           'work_package',
-          'step',
+          'step_definition',
+          'step_binding',
+          'work_package_step',
           'work_item',
           'access_role',
           'access_role_permission',
