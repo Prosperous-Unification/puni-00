@@ -1295,12 +1295,17 @@ The build itself:
     no fence a failed hook changes nothing that serves: the old pod runs on, on the old
     schema.
   - _The admission list._ The render writes the candidate digest first, then the digest
-    that serves, then up to two digests of earlier renders. The serving digest is not
-    counted out: the render reads the boot commit from the staging backend's public
-    health response, takes that commit's digest from the pins repository's history and
-    lists it however many publications failed since, so a restart of the running pod is
-    always admitted. If it cannot read the response, or that commit has no render, it
-    publishes nothing for the app. The staging sync alert fires at the first failure.
+    that serves and every digest published since it. Nothing is counted out: the render
+    reads the boot commit from the staging backend's public health response, takes that
+    commit's render from the pins repository's history and lists its digest and every
+    later one, however many publications failed or are still in progress. So a restart
+    of the running pod is always admitted, also when another candidate became Healthy
+    between two renders. A built image has no repository to read, so the build writes
+    the source commit into it and the backend reports that. If the render cannot read
+    the response, reads no commit, or finds no render for it, it publishes nothing for
+    the app. Over a zero-replica head (the baseline, the first activation, a hold)
+    nothing serves, and it lists every digest since the baseline without reading. The
+    staging sync alert fires at the first failure.
   - _The attempt record after success._ The hook removes its record once the forward
     ledger is verified and before it exits 0. A record left behind would make a later
     sync of the same candidate reverse a schema the new backend already writes with.

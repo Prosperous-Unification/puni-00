@@ -784,15 +784,24 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       needs the owner's decision. The staging overlay requests 16 GiB for `wbs-data`
       (design decision 2). Its render holds,
       besides the backend: the parameter ConfigMap in wave -2, listing the candidate
-      digest first, then the digest that serves and then up to two digests of earlier
-      renders, and in that wave also the candidate's `wbs-backend-config` and the
-      ConfigMap that carries the candidate's hook script, so that a changed script
-      never arrives after its Job. The digest that serves is read at render time: the
-      render asks the staging backend's public health response for its boot commit
-      (`apps/wbs/be-01/src/app.ts`), takes that commit's digest from the pins
-      repository's history and always lists it, however many publications failed
-      since; when the response cannot be read, or its commit has no render in the
-      history, the render publishes nothing for that app and fails; with a backend replica, the hook Job in wave
+      digest first, then the digest that serves and every digest published since that
+      one, with no cap by count, and in that wave also the candidate's
+      `wbs-backend-config` and the ConfigMap that carries the candidate's hook script,
+      so that a changed script never arrives after its Job. The digest that serves is
+      read at render time: the render asks the staging backend's public health
+      response for its boot commit, takes that commit's render from the pins
+      repository's history and lists its digest and the digest of every render
+      published after it, so that a candidate that became Healthy between two renders
+      is still admitted when a later one is applied; when the response cannot be read,
+      reports no commit, or names a commit with no render in the history, the render
+      publishes nothing for that app and fails. A built image has no `.git`, where
+      `apps/wbs/be-01/src/deployed-commit.ts` answers null today: the build writes the
+      source commit into the image and that function reads it when there is no
+      repository, with its test, so that the health response of a built backend names
+      its commit. While the head of the app's pins directory is at zero replicas,
+      which the baseline, the first activation and a hold are, nothing serves: the
+      render reads no health response and lists the candidate and every digest
+      published since the baseline; with a backend replica, the hook Job in wave
       -1, annotated `argocd.argoproj.io/hook: Sync` and
       `hook-delete-policy: BeforeHookCreation`, with `backoffLimit: 0`, no
       `ttlSecondsAfterFinished`, the candidate digest, the backend's service account
@@ -830,8 +839,14 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       migration and a write that uses the new schema, a second run of the same
       candidate finds no record, changes nothing and exits 0 (fault: keep the record
       on success); a render after four failed publications still lists the serving
-      digest (fault: list the newest three only); a render that cannot read the
-      serving commit publishes nothing (fault: fall back to the newest three); the
+      digest (fault: list the newest three only); with A serving and B's sync in
+      progress, renders C, D and E each list B (fault: list only the observed serving
+      digest and a fixed number after it); a render that cannot read the serving
+      commit, or reads none, publishes nothing (fault: fall back to the newest
+      three); a built image without the embedded commit reports none and its test
+      fails (fault: read `.git` only); a render over a zero-replica head reads no
+      health response and lists every digest since the baseline (fault: require the
+      response always); the
       script's ConfigMap in wave -1 or later is refused by the rule (fault: check the
       Job's wave only). The rehearsal
       2.7/A18 gains a case: on k3d under Argo CD, an additive migration is applied by a
@@ -844,7 +859,11 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       applied migration is refused by the render step; after a successful migration
       the new backend writes with the new schema, the same commit is synced again and
       that write is read afterwards; three failing publications in a row are followed
-      by a restart of the serving pod, which is admitted; a zero-replica render syncs
+      by a restart of the serving pod, which is admitted; with A serving, B is
+      published and held before it is Healthy while C, D and E are published, B then
+      becomes Healthy, E is applied and its hook fails, and a restart of B's pod is
+      admitted; the zero-replica baseline is followed by the first activation, whose
+      pod is admitted with no health response to read; a zero-replica render syncs
       with no hook pod; and what a repeated attempt at the same commit does
       under self-heal is observed and recorded. Stop: the hook cannot be made to run
       before the Deployment's wave on this version, the old pod cannot keep serving
