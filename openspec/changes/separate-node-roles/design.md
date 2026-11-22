@@ -1019,25 +1019,36 @@ The only guards:
 
 **Going back.** The old writer is never started while the new one runs, and never over
 data the new side has accepted. Before the names are pointed at the new node, going back
-is starting the old app again. After that, the new store is first compared with the
-restored stamp: the store file's SHA-256 for the website and MLflow, and for WBS the
-`event_log` count against the export report, which is the test
-[the cutover plan](../../../docs/infra/cutover-plan.md) names. If nothing was written, the
-names are pointed back and the old side started. If something was, the choice is to
-recover forward on the new side, from its own backups, or to stop the new writer, take its
-final backup, restore that onto the old side, check it and only then start the old side.
-A18 proves the comparison once, with one edit made after the first app's switch.
+is starting the old app again. After that the order is fixed: the new writer is stopped
+first, by scaling its workload to zero with the names still pointed at the new node, and
+only then is the new store compared with the restored stamp, so no write can land between
+the comparison and the stop. The comparison covers the whole durable state and not one
+table: a write to WBS can land outside `event_log`, an account created in `users` for
+one, so the test of [the cutover plan](../../../docs/infra/cutover-plan.md), a count of
+`event_log`, is not enough here. For each SQLite store, WBS and its MCP store, the website
+and the request app, it is the SHA-256 of `sqlite3 <store> .dump` taken from the stopped
+store against the same digest of the restored stamp; for MLflow it is that digest of the
+metadata store and the manifest of the artifact store, each object with its checksum,
+against the manifest of slice 3.6's stamp. Any difference counts as a write, a migration
+the new side applied included. If the two are equal, the names are pointed back and the
+old side started. If they differ, the choice is to recover forward, by starting the new
+writer again, or to take the stopped writer's final backup, restore that onto the old
+side, check it and only then start the old side. A18 proves the order and the comparison
+once, with one edit made after the first app's switch.
 
 The final backup of a store on an old host is taken with the store's own tool after its writer
 stops: the cluster's backup job for the website, and for the Compose databases a
 `sqlite3` `.backup` on the host with `integrity_check` and a recorded SHA-256. MLflow is
 not one database file: it keeps a metadata store and an artifact store, where each lives on
 h3mon is read in A15's first part, and its custody is slice 3.6's own pair of jobs, because
-the apps' runner accepts only a database with the apps' migration table. If h1claw still
-exists, the member of its set that is the store in question may serve instead, named by file.
-Its set mixes production and dev databases and a configuration archive with production env
-files, so nothing else of it is used and the archive is never unpacked on the new cluster. The
-plan does not depend on h1claw.
+the apps' runner accepts only a database with the apps' migration table. The final
+backup is always taken from the stopped store itself. A pull h1claw made earlier is never a
+substitute for it: an older copy is a valid database that lacks every edit made since. If
+h1claw still exists, a member of its set may be used only when its `.dump` digest equals
+that of the stopped store, which makes it the same data and proves nothing more. Its set
+mixes production and dev databases and a configuration archive with production env files, so
+nothing else of it is used and the archive is never unpacked on the new cluster. The plan
+does not depend on h1claw.
 
 **When a store has no off-host backup.** Stated once; R30 refers to this table.
 
@@ -1197,7 +1208,8 @@ The build itself:
   commit and the digests.
 - **Never backwards.** The job refuses to commit unless its source commit is a descendant
   of the one the directory's head names, so a build that finishes late cannot replace a
-  newer render.
+  newer render. The first build has a head to compare with because A23 seeds each app's
+  directory with a baseline, the zero-replica render at a named commit of `main`.
 - **Schema changes do not ride the automatic path yet.** The WBS backend starts with
   `MIGRATE_ON_STARTUP` off, because a migration Job is the single migration actor
   (`deploy/k8s/wbs/base/backend.yaml`), and `AGENTS.md` requires a Kubernetes caller to
@@ -1208,11 +1220,17 @@ The build itself:
   and rollback, after which a person commits the render. Making that path automatic, as
   hooks of the staging Application or as steps of the build, is the WBS deploy tooling
   owner's design and is listed with slice 3.5; until it lands, R20 holds for a WBS merge
-  without a migration and not for one with. How the website's store applies its own
-  catalogue was not read; its owner states it in task 0.4.
+  without a migration and not for one with. How the website's store and the request
+  app's apply their own catalogues was not read. So their automatic publication to
+  staging is blocked on a **migration contract** from their owner: how a schema change
+  is applied, how the applied set is captured, and how it is reversed on abort. Until
+  that contract is recorded as a dated decision, each of their staging pins is moved by
+  a person, and A18 does not start for them without the contract or the owner's dated
+  waiver of automatic publication for that app.
 - **A stateful app's first render.** Guard 1 restores a store while its workload is at zero
   replicas. For WBS staging the first overlay merged is the zero-replica one with the backup
-  job suspended; the build commits that render; and only then is the staging Application
+  job suspended; A23 seeds the pins directory with that render as the baseline, and a
+  build after it commits the same; and only then is the staging Application
   file merged, because the root applies it at once and it syncs whatever the pins directory
   holds. A18 stops if the directory's head is anything else.
 - **How the commit lands.** The job writes as a GitHub App installed on that repository
@@ -1287,7 +1305,9 @@ project and the push robot; from the owner, the staging pins repository and the 
 
 **Dev environment (follow-up change, proposed name `add-dev-environment`; R34).** Not
 designed here. Its three namespaces are created empty by this change so that their
-quota, default-deny and admission policies bind before anything can be applied there. It
+quota, default-deny and admission policies bind before anything can be applied there.
+They are not an open end: step A25 is that change's first deployment into them, with its
+precondition, that change merged, and its receipt. It
 has to design:
 
 - a `dev` AppProject with its own namespaces and a kind whitelist that leaves NetworkPolicy
@@ -1363,7 +1383,7 @@ left before A1:
 | Task 0.6: the rules on the `main` refs            | A2 writes to the fleet repository and A4 makes `main` here the cluster's source |
 | Task 0.7: the tailnet's settings and its policy   | every server joins it when it is created, A1 first (decision 12)                |
 | A host for the rehearsal of slice 2.7             | see below                                                                       |
-| The controller image, pulled on the laptop        | see below                                                                       |
+| The controller image, built on the laptop         | see below                                                                       |
 | An owner for the fleet repository's new directory | A2 writes encrypted files there; R11 names the session, which has to agree      |
 
 The escrow is not the only thing to settle before h1claw is deleted: if the owner wants
@@ -1385,11 +1405,16 @@ so the QEMU lab is not assumed there.
 controller runs today, to the CI cluster or to the shared operator host: on each of those,
 code in a gate or an agent's session is or may become root, and it would then hold the
 authority over the replacement platform. A workstation of its own, as the full profile of
-`add-agent-hosts` defines it, may take the role if the owner moves it. The controller image
-is another matter: it is built from `infra/controller/Containerfile`, which slice 2.5
-extends, on any machine, the provider's hosted runner included, and is locked by digest, so
-the laptop only has to pull it. In the access policy the controller is one of the owner's
-own devices and needs no tag (decision 12).
+`add-agent-hosts` defines it, may take the role if the owner moves it. The image that
+mounts those keys is built by a **trusted builder**: the controller itself, from a clean
+checkout of a named commit of `main`, with the locked BuildKit. A digest pin alone is not
+provenance, since a pin of an image a compromised builder made preserves what it made. So
+the lock's digest for the controller image is accepted only when the controller's own
+build of that commit yields the same digest, which the image's reproducible build allows
+(its `Containerfile` records two builds that came out equal); an image built anywhere
+else, the provider's hosted runner included, is never run with the keys unless that
+comparison holds. Until the laptop can build it, the keys are not mounted. In the access
+policy the controller is one of the owner's own devices and needs no tag (decision 12).
 
 Pull request #935 does not block A1 to A6. It blocks A7.
 

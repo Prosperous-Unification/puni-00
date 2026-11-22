@@ -21,8 +21,9 @@ comment. Nothing here has been done yet.
       quoted copy. Test: `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`.
 - [ ] PG-0.3 After PG-0.1: tell the owner of pull request #935 what design decision 3 asks
       of the store, and the owners of the WBS deploy tooling and of the release bootstrap
-      which port changes design decision 5 names for them. Receipt: the messages, dated, in
-      verify.md.
+      which port changes design decision 5 names for them. Receipt: for each owner, the date
+      they were told and what each answered, recorded in verify.md as decisions with their
+      owner, in neutral words. No message is copied into the repository.
 
 ## 1. PostgreSQL hosting (agent slices)
 
@@ -126,11 +127,17 @@ which they extend.
       collector's redaction cannot cover it. Then statement logging stays off and the owner
       is told.
 - [ ] PG-S5 Dumps, the restore drill and the one-database rollback. The unit's
-      NetworkPolicies allow the dump job's and the drill's pods their SQL connection and
-      the object storage endpoint, and nothing else (design decision 3); negatives on
+      NetworkPolicies allow the dump job's and the drill's pods their SQL connection, the
+      object storage endpoint and DNS, and the drill's pods also the API server, and
+      nothing else; the drill's ServiceAccount has a Role for `Cluster` objects in its own
+      namespace only (design decision 3); negatives on
       k3d: with the allow removed the dump job times out (fault: test with the namespace's
-      default-deny absent), and a pod in the namespace without either label is refused
-      port 5432 (fault: allow the whole namespace). In each cluster's unit: a
+      default-deny absent), a pod in the namespace without either label is refused
+      port 5432 (fault: allow the whole namespace), the dump job's pod is refused the API
+      server (fault: one policy for both labels), the drill creates and deletes its
+      throwaway cluster with the policies in place (fault: run the drill in a namespace
+      without the default-deny), and the drill's ServiceAccount is refused a `Cluster` in
+      another namespace (fault: bind a ClusterRole). In each cluster's unit: a
       nightly CronJob that dumps each database to its own object under a prefix of its
       own, connecting as that database's owner role, kept 90 days by the planner of slice
       3.1. In `platform-db`'s unit: a CronJob, weekly on a database server and

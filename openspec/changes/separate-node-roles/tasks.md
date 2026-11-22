@@ -1,5 +1,5 @@
 Agent slices (phases 1 to 3) change source and run tests; none touches a host. Attended steps
-(A1 to A24) each name who runs them, the command, the receipt, the stop condition and the
+(A1 to A25) each name who runs them, the command, the receipt, the stop condition and the
 rollback. Assumption and decision numbers refer to [design.md](design.md). Every slice that
 adds a safety check lands it with a production-path negative, watched failing with the check
 removed, and an adjacent `Proof:` comment. Nothing here has been done yet.
@@ -39,9 +39,11 @@ and the step reads back that the name answers (design decision 12).
       3.7's list, the withdrawal of the old gate hosts, the solver per environment in every
       ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
       website takes the staging build path, by which step a merge to its source reaches
-      staging with no command, and how its store applies a migration. Tell them too that this change edits no path
-      the old cluster reconciles, so its pin needs no freeze. Receipt: the four messages,
-      dated, in verify.md.
+      staging with no command, and the migration contract of design decision 9 for the
+      website and the request app. Tell them too that this change edits no path
+      the old cluster reconciles, so its pin needs no freeze. Receipt: for each owner, the
+      date they were told and what each answered, recorded in verify.md as decisions with
+      their owner, in neutral words. No message is copied into the repository.
 - [ ] 0.5 Escrow what the new cluster needs (guard 2), before stage 1 and before h1claw is
       deleted (R30). Who: owner. Copy into escrow, from the host that holds each: the backup
       archive key, which lives on h1claw; the registry CA key pair; the object storage
@@ -383,13 +385,18 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Application object of a unit of any project, since nothing else can delete a staging or
       production Application, and refuses one that still has a file on `main` or whose live
       source renders more than the marker ConfigMap. The controller: add the locked `sops` binary to
-      `infra/controller/Containerfile`, whose image is locked by digest and may be built
-      on any machine, the provider's hosted runner included; it is run, with the age
-      identity and the admin key, on the operator's laptop only (design decision 10). Add a read-only mount of a fleet repository checkout
+      `infra/controller/Containerfile`. The image that mounts the age identity and the
+      admin key is built on the controller itself, the operator's laptop, from a clean
+      checkout of a named commit of `main`; `fleet_ansible` refuses to mount them into
+      an image whose digest differs from the lock's or from the digest of the
+      controller's own build of that commit, which it records beside the lock (design
+      decision 10). It is run on the operator's laptop only. Add a read-only mount of a fleet repository checkout
       to `fleet_ansible`, named by an input in `$OPS`. Test: `infra/ansible/tests`, including
       a second run of `argocd.yml` with one more secret file, which changes that Secret and
       nothing else; the image test finds `sops` at its locked digest. Negatives, each with
-      its own fault: a wrong install digest is refused; a missing secret file is refused
+      its own fault: an image at the locked digest with no record of a local build of the
+      same commit is refused the keys (fault: compare with the lock alone); a wrong
+      install digest is refused; a missing secret file is refused
       before anything is applied; a host with `flux-system` is refused (fault: remove that
       guard); a cluster that already carries another id's ConfigMap is refused and nothing is
       applied (fault: create without reading); a second run on the same cluster leaves the
@@ -715,8 +722,9 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Staging would need the operator's two writes for each backend, as production does, and
       the owner is told that R20 does not hold for the WBS backend until that is solved.
 
-an earlier draft's slice 3.9, the dev environment, is not in this change: it is the follow-up
-`add-dev-environment` (R34, design decision 9).
+The dev environment's delivery is not in this change: it is the follow-up
+`add-dev-environment` (R34, design decision 9). Its first deployment into the namespaces
+this change reserves is step A25, so those namespaces are not an open end.
 
 ## 4. Attended steps
 
@@ -856,7 +864,11 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       `kubectl top pods -n observability`, each container's `memory.stat` and each claim's
       use; raise one test alert. Receipt: "escrowed" for the Velero repository password;
       orders 8 to 12 Healthy, `mlflow` and `sqlite-custody` excepted, which A15 and A18
-      sync; no alert firing other than the test alert; the per-pod memory
+      sync; no alert firing other than the test alert; a metric of the CI
+      cluster seen in the platform's Prometheus through the private telemetry path,
+      and a connection to the telemetry port on the platform node's public interface
+      refused (the receipt the CI change's CI-A2 cannot take, because the receiver
+      first exists here); the per-pod memory
       table; disk used and its growth per day; the test alert seen in Alertmanager and in
       `#puni-alerts-dev`; the node's allocatable as read, which replaces the assumed 21,608
       in design.md by a commit. The placement sum of design decision 2 is written out
@@ -885,8 +897,9 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       instance and its artifact fetched through MLflow with the recorded SHA-256; one
       backup and one verify under the new prefix, taken after the restore. Stop: the
       artifact's SHA-256 differs, the verify fails, or a backup under the new prefix
-      predates the restore. Rollback: as design decision 7 states for every store: start
-      MLflow on h3mon again only while the new instance has recorded nothing.
+      predates the restore. Rollback: as design decision 7 states for every store: stop
+      the new instance first, compare its metadata digest and artifact manifest with the
+      final stamp, and start MLflow on h3mon again only when they are equal.
 
 ### Stage 4: apps
 
@@ -920,6 +933,9 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       repository's directory of design decision 9; its WBS part also after 3.5, 3.8, Harbor,
       and A23's receipt or the owner's dated waiver of it: the dev poller is not stopped
       without one of the two, because nothing else would make the tracker follow `main`.
+      Its website and request-app part also needs their owner's migration contract of
+      design decision 9, recorded as a dated decision, or the owner's dated waiver of
+      automatic publication for that app; without either it does not start for them.
       Who: operator, with the website's owner; owner for the Secrets. The owner
       writes the staging Secrets of design decision 5 into OpenBao, reading the website's
       present ones with the old cluster's age identity on the controller; the staging backup
@@ -930,8 +946,9 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       Compose dev stack and the dev poller on h2puni); take the final backup of the dev store
       as design decision 7 states and record its file name, stamp and SHA-256; merge the
       staging overlay with the workload at zero replicas and its backup CronJob
-      suspended; for WBS wait for the build to commit that render, and read the head of
-      the app's pins directory, which must show zero replicas and the suspended job;
+      suspended; for WBS that overlay has been on `main` since A23's baseline, so read
+      the head of the app's pins directory, the baseline or a build after it, which
+      must show zero replicas and the suspended job;
       only then merge the app's staging Application file, which the root applies at
       once and which syncs by itself; check the file against the recorded value with
       `sha256sum --check` and restore it into the new claim only if it matches (guard 6);
@@ -948,9 +965,11 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       issuance seen on that node; the node's available memory after the first solve, which
       must stay above 1,024 MiB; one backup and one verify
       under the staging prefix, taken after the restore and holding a restored record; for
-      the first app moved, one edit made on the new side after the names were pointed,
-      and the comparison of design decision 7 reporting that the new store differs from
-      the restored stamp; for each of the three apps, a merge to the app's source
+      the first app moved, the comparison of design decision 7 made once on the stopped store before any
+      edit, reporting equal; then one edit on the new side after the names were pointed,
+      the new writer stopped, and the comparison reporting that the stopped store
+      differs from the restored stamp; and for WBS staging the same again with an edit
+      that touches no row of `event_log`; for each of the three apps, a merge to the app's source
       deployed to staging with no command, or the owner's dated waiver for that app: for
       WBS as a second backend digest with no pin moved by hand and no run of
       `solver.yml`, for the website and the request app by their owner's tooling (design
@@ -961,12 +980,13 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
       certificate is not Ready after 15 minutes. Rollback: as design decision 7 states.
-      Before the names are pointed, start the old side again. After that, compare the
-      new store with the restored stamp first: if it is unchanged, point the names back
-      and start the old side; if it has changed, recover forward on the new side, or
-      stop the new writer, take its final backup, restore that onto the old side, check
-      it, and only then start the old side. The old writer is never started while the
-      new one runs.
+      Before the names are pointed, start the old side again. After that, stop the new
+      writer first, by scaling it to zero, and only then compare the whole store with
+      the restored stamp, by the `.dump` digest of design decision 7: if the two are
+      equal, point the names back and start the old side; if they differ, recover
+      forward by starting the new writer again, or take the stopped writer's final
+      backup, restore that onto the old side, check it, and only then start the old
+      side. The old writer is never started while the new one runs.
 - [ ] A19 The production website and request app (R26), after A18's receipt for them. Who:
       operator, with the website's owner; owner for the Secrets and for the sync. As A18 for
       production: the owner writes the production Secrets into OpenBao; the old side is
@@ -996,13 +1016,22 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       the other steps keep their ids. **First part**, after A17, slices 3.5, 3.7 and 3.8,
       Harbor's project and push robot, and task 0.6; before the CI change's CI-A5. Who:
       owner and operator. Commands: create the staging pins repository with its two
-      rulesets; create the GitHub App with write access to contents only, install it on
+      rulesets; seed it, before the App exists, with a baseline for each app the tenant
+      builds: with the WBS staging overlay on `main` at zero replicas and its backup job
+      suspended (slice 3.5), the operator renders it at a named commit of `main` with
+      the locked `kustomize`, and the owner merges that render into the app's
+      directory by a pull request, with the source commit named as every later commit
+      names it, so the build's first commit has a head to descend from and a migration
+      set to compare with (slice 3.7); create the GitHub App with write access to
+      contents only, install it on
       that repository alone and name it as the pull-request ruleset's only bypass actor;
       write its key and the push robot's configuration to the tenant's path in the
       store; make a read-only deploy key for the pins repository, add its public half
       there and its encrypted file to the fleet repository's directory, and run
       `playbooks/argocd.yml` again with the longer secret file list (design decision 5).
-      Receipt: the App's repository list, which names the staging pins repository and
+      Receipt: each app's baseline, its source commit, and that the render shows zero
+      replicas, the suspended job and no Secret object; the App's repository list, which
+      names the staging pins repository and
       nothing else, and its permissions; both rulesets read back, the one against forced
       and deleting pushes with no bypass actor; the pins repository's deploy key read
       back as read-only, and the repository listed by Argo CD as connected. **Second
@@ -1046,3 +1075,14 @@ an earlier draft's slice 3.9, the dev environment, is not in this change: it is 
       cluster was ever placed there (design decision 10). Command: delete the server in the console. Receipt: the provider's server
       list. Stop: the staging tracker or WBS production has no verified backup under the new
       cluster's prefixes. Rollback: none; that is why the preconditions are receipts.
+- [ ] A25 Dev's first deployment (R34), the milestone that closes the reserved dev
+      namespaces. Numbered last so that the other steps keep their ids; it follows A18
+      and waits for nothing in stage 5. Precondition: the change `add-dev-environment`
+      is merged and its slices have landed. Who: operator, with that change's owner.
+      Commands: that change's own steps for its `dev` project and its first
+      Application, at a ref a person names. Receipt: one app answering on its dev name
+      from that ref, in a namespace this change reserved, with every policy of slice
+      2.10 in force and none relaxed; the dev account refused a sync of a staging or
+      production Application. Stop: a policy of slice 2.10 would have to be relaxed, or
+      a dev pod would need the solver directory. Then that change is amended first.
+      Rollback: remove the dev Application; the namespaces and their policies stay.

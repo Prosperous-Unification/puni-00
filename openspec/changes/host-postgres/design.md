@@ -17,7 +17,7 @@ database server is the growth step it later moves to (PG8).
 **Ids.** This change's own carry the prefix PG: assumptions PG1 to PG8, slices PG-S1 to
 PG-S6, attended steps PG-A1 to PG-A5, and decisions 1 to 5 of this file. Every other id is
 the core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, R45,
-R46, A1 to A23, slices 1.1 to 3.8, rules 2.4(a) to (n), guards 1 to 6, and what is written "core
+R46, A1 to A25, slices 1.1 to 3.8, rules 2.4(a) to (n), guards 1 to 6, and what is written "core
 decision n". Rule (o) is this change's addition to that `delivery` family, and orders 18 to
 20 continue that order table.
 
@@ -263,10 +263,13 @@ scrape, port 5432 from the namespaces of the apps that have a database there (pr
 `postgres`, staging to `postgres-nonproduction`), and egress to the API server, DNS and the
 object storage endpoint, which an instance and its sidecar need. The dump job and the
 restore drill open SQL connections of their own from inside the database namespace, so
-the unit also allows exactly those two: from pods that carry the dump job's or the drill's
-label to the instances on 5432, and from those pods to the object storage endpoint. No
-other pod in the namespace may open one. Both jobs run under these policies in PG-A3 and
-PG-A5, not with them lifted. Rule 2.4(k) already refuses
+the unit also allows exactly those: from pods that carry the dump job's or the drill's
+label to the instances on 5432, from those pods to the object storage endpoint and to
+DNS, and from the drill's pods alone to the API server, because the drill creates,
+watches and deletes its throwaway `Cluster`. The drill runs as a ServiceAccount whose Role
+may create, get, list, watch and delete `Cluster` objects in its own namespace and
+nothing else. No other pod in the namespace may open a SQL connection. Both jobs run
+under these policies in PG-A3 and PG-A5, not with them lifted. Rule 2.4(k) already refuses
 a staging object that names a production namespace or Service, which now includes the
 production database's.
 

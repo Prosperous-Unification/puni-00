@@ -944,23 +944,53 @@ label.
 - **WHEN** an object in a namespace labelled for one tenant carries another tenant's label
 - **THEN** the `delivery` check refuses the tree
 
+### Requirement: The controller's keys meet only an image the controller built
+
+The age identity and the admin key SHALL be mounted only into a controller image whose
+digest equals both the lock's and that of the controller's own build of the same commit of
+`main`. An image built elsewhere SHALL NOT be given the keys on the strength of its digest
+pin.
+
+#### Scenario: Image built elsewhere
+
+- **WHEN** the image at the locked digest has no record of a build of that commit on the
+  controller
+- **THEN** `fleet_ansible` refuses to mount the keys
+
 ### Requirement: An old writer does not restart over newer data
 
-After an app's names point at the new cluster, its old instance SHALL be started again only
-when the new store is unchanged since the restore, or after the new writer has been
-stopped and its latest state restored onto the old side and checked. The old and the new
-writer of one store SHALL never run at the same time.
+After an app's names point at the new cluster, the new writer SHALL be stopped before its
+store is compared with the restored stamp, and the comparison SHALL cover the store's whole
+durable state. The old instance SHALL be started again only when the two are equal, or
+after the stopped writer's latest state has been restored onto the old side and checked.
+The old and the new writer of one store SHALL never run at the same time.
 
 #### Scenario: Going back after an edit
 
 - **WHEN** an edit has been made on the new side and a rollback is considered
-- **THEN** the comparison with the restored stamp reports a difference, and the old side
-  is not started until the new side's final backup has been restored there
+- **THEN** the new writer is stopped first, the comparison with the restored stamp reports
+  a difference, and the old side is not started until the new side's final backup has been
+  restored there
+
+#### Scenario: An edit outside the event log
+
+- **WHEN** the only write on the new side is a row in a table other than `event_log`
+- **THEN** the comparison still reports a difference
 
 #### Scenario: Going back before any write
 
-- **WHEN** the new store equals the restored stamp
+- **WHEN** the stopped new store equals the restored stamp
 - **THEN** the names may be pointed back and the old side started
+
+### Requirement: A final backup is of the stopped store
+
+A store's final backup SHALL be taken from the store after its writer has stopped. An
+earlier copy SHALL stand in for it only when its digest equals that of the stopped store.
+
+#### Scenario: An earlier copy offered as the final backup
+
+- **WHEN** a copy taken before the writer stopped differs in digest from the stopped store
+- **THEN** it is refused as the final backup
 
 ### Requirement: A staging render never moves backwards and carries no schema change
 

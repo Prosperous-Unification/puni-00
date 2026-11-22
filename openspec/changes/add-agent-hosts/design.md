@@ -29,7 +29,7 @@ Read at `origin/main` `b17861f83` on 2026-11-21 and 2026-11-22. What exists toda
 **Ids.** This change's own carry the prefix AH: assumptions AH1 to AH4, slice AH-S1,
 attended steps AH-A1 to AH-A3, and decisions 1 to 4 of this file. Every other id is the
 core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, R45,
-R46, A1 to A23, its slices and guards, and what is written "core decision n".
+R46, A1 to A25, its slices and guards, and what is written "core decision n".
 
 ## Goals / Non-Goals
 

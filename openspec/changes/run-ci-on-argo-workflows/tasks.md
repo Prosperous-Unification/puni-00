@@ -19,7 +19,9 @@ comment. Nothing here has been done yet.
       copy. Test: `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`.
 - [ ] CI-0.3 After CI-0.1: tell the owners design decision 9 names what it asks of each: the
       gate pool's, the gate documents', the release tooling's, pull request #935's and the
-      Harbor change's. Receipt: the messages, dated, in verify.md.
+      Harbor change's. Receipt: for each owner, the date they were told and what each
+      answered, recorded in verify.md as decisions with their owner, in neutral words. No
+      message is copied into the repository.
 
 ## 1. Agent slices
 
@@ -77,9 +79,11 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       namespaces' objects, quota, limit range, three ServiceAccounts with their Roles, the
       SecretStore and ExternalSecrets, the EventBus, one `calendar` and one `resource` EventSource with their Sensors, two
       Roles (one in the ordinary namespace for `tag:ci-trigger`, one in the `-build`
-      namespace for operator identities and the Sensor), a quota for memory requests that
-      admits one gate or one build with its engine and not both, the semaphore and limits
-      ConfigMaps in the `-build` namespace, the
+      namespace for operator identities and the Sensor), the mutex `heavy` at Workflow
+      level in both the `gate` and the `staging-build` template with its `namespace` field
+      naming the `-build` namespace (design decision 5), the semaphore and limits
+      ConfigMaps in the `-build` namespace, the admission policy of design decision 2 for
+      Workflows the trigger group creates, in `ci-policy`, the
       engine StatefulSet with its cache claim, and the controller ConfigMap's
       `workflowRestrictions: templateReferencing: Strict`. Test: the directory renders for
       `puni` and for a second, fixture tenant with no other change. Negatives, each with its
@@ -90,7 +94,14 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       `staging-trigger` environment, or that reads the key as a repository secret, is
       refused by the lint in `gate` (fault: check the event list only); a Role bound to a trigger
       identity that grants more than create, get, list and watch on Workflows in the
-      tenant's namespace is refused (fault: compare verbs only); a trigger workflow file in
+      tenant's namespace is refused (fault: compare verbs only); a Workflow created by the
+      trigger group that references `report-status`, or a `staging-build` with a parameter
+      other than `sha` and `app`, is refused at admission (fault: rely on the Role, which
+      admits any template of the namespace); a `gate` or `staging-build` template without
+      the mutex `heavy`, or whose mutex names another namespace than the `-build` one, is
+      refused (fault: check that a mutex exists and not where it is); a trigger workflow
+      file without the per-app path filter is refused by the lint in `gate` (fault: check
+      the event list only); a trigger workflow file in
       a repository that names an event other than `push` to `main` and a manual dispatch
       on `main` is refused by the lint in `gate` (fault: refuse a list of named events and
       watch `pull_request_target` pass); a Sensor trigger that holds an inline Workflow spec instead of a
@@ -102,12 +113,16 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
 - [ ] CI-S5 Rehearsal (design decisions 5 and 6). A k3d lab profile that brings the CI tree
       up beside the core change's lab and proves, each as a case: an identity bound as the
       trigger is starts a `staging-build` in the ordinary namespace and is refused a
-      create in the `-build` namespace and a `get` of a Secret; an identity bound as an
+      create in the `-build` namespace, a `get` of a Secret, a `report-status` and a
+      `staging-build` with a third parameter; an identity bound as an
       operator is starts a gate from the command line, and the calendar Sensor starts one,
       each through to completion and to its `report-status`; a Workflow submitted with an inline spec, with a
       `podSpecPatch` or with another ServiceAccount is refused by the controller; a second
-      gate waits on the semaphore; a pod whose request does not fit stays Pending and starts
-      when room appears; a privileged pod in the ordinary tenant namespace is refused at
+      gate waits on the semaphore; a `staging-build` submitted while a gate runs waits on
+      the mutex `heavy` and starts when the gate ends, and a gate submitted while a build
+      runs does the same; a finished `report-status` starts no report, and two finish
+      events for one Workflow leave one report; a pod whose request does not fit stays
+      Pending and starts when room appears; a privileged pod in the ordinary tenant namespace is refused at
       admission; the gate template's pod, with its Docker sidecar, runs the gate's `bwrap`
       step and one `docker buildx` build; the exit handler runs after a failed main step.
       Receipts are split: CI-S5/A2 (bring-up, admission, trigger cases) and CI-S5/A4 (the
@@ -137,16 +152,22 @@ All are due before CI-A1 unless they say otherwise. They follow the core change'
       allow any command in a step that mounts a Secret).
 - [ ] CI-S9 Reports and freshness (design decision 2; core decision 9). `WorkflowTemplate`
       `report-status`, in the ordinary namespace, submitted by the resource Sensor, which
-      posts one commit status and holds the status App's key. `WorkflowTemplate`
+      posts one commit status and holds the status App's key. The Sensor's filter admits
+      only a Workflow whose `template` label is `gate` or `staging-build` in a terminal
+      phase, and it names the report after that Workflow's UID. `WorkflowTemplate`
       `pins-freshness`, started nightly by the calendar Sensor: for each app it compares
-      the source commit the pins directory's head names with the tip of `main`, and fails
-      when the directory is behind by more than the limit in the tenant's limits file; it
+      the source commit the pins directory's head names with the latest commit on `main`
+      that touches that app's source paths, the same list the trigger filters on, and fails
+      when the directory is behind that commit by more than the limit in the tenant's limits file; it
       also fails from 14 days before the trigger key's expiry date, which that file
       holds. Two alert rules in the platform's `alerts` unit, from the CI cluster's
       Workflow metrics: a failed `pins-freshness`, and a failed nightly gate. Tests: both
       templates against fixtures; the rules under `promtool`. Negatives: a pins directory
       one commit behind for longer than the limit fails the check (fault: compare with
-      the previous run's head); a key that expires in 10 days fails it (fault: compare
+      the previous run's head); a merge that touches no path of an app leaves that app's
+      check green (fault: compare with the tip of `main`); a finished `report-status`
+      starts no report (fault: filter on the phase alone); a second event for one Workflow
+      UID creates no second report (fault: use a generated name); a key that expires in 10 days fails it (fault: compare
       with today); a `report-status` that mounts any Secret but the status App's key is
       refused (fault: allow the namespace's Secrets). Due before CI-A3.
 - [ ] CI-S8 After CI-A4, with the gate documents' owner: rewrite the gate sections of
@@ -175,9 +196,7 @@ They are stage 2 of the core change's build order and replace its A10.
       after one hour at rest; the owner signs each device the Tailscale operator made (core
       decision 12). Receipt: each unit Synced and Healthy; the signatures, and what a
       recreated proxy pod needed; the Argo Workflows interface answers on
-      its tailnet name and no public port of the server answers; a metric of this cluster
-      seen in the platform's Prometheus, and a connection to the telemetry port on the
-      platform node's public interface refused; every controller's
+      its tailnet name and no public port of the server answers; every controller's
       memory against design decision 5; the sum left for jobs. Stop: what is left for jobs
       is under the gate's request. Then the owner chooses the next server class before
       CI-A4. Rollback: remove the Applications; nothing else depends on them.
@@ -200,13 +219,15 @@ They are stage 2 of the core change's build order and replace its A10.
       6; the Workflow, started by an operator identity, Succeeded and its log prints the SHA; its
       `report-status` posted; its duration, the
       pod's peak memory and its `oom_kill` count of 0; the old host's result on that SHA; a
-      second submission waiting on the semaphore. This is stage 2's receipt and what guard 5
+      second submission waiting on the semaphore. The end-to-end telemetry receipt, a
+      metric of this cluster in the platform's Prometheus, is not taken here: the receiver
+      exists from the core change's A14, which takes it. This is stage 2's receipt and what guard 5
       of the core change waits for. Stop: the gate fails here for a reason the old host does
       not show on the same SHA, or the pod is killed for memory. Rollback: keep gating on
       the old hosts; they are untouched until stage 5.
 - [ ] CI-A5 The staging build, its trigger and the status, in stage 4: after CI-S7, CI-A3
-      and the first part of the core change's A23 (the pins repository, its App and the
-      robot's configuration in the store); before A18's WBS part. Who: operator and owner.
+      and the first part of the core change's A23 (the pins repository, its baseline for
+      each app, its App and the robot's configuration in the store); before A18's WBS part. Who: operator and owner.
       Commands: merge the tenant unit's second revision, with the staging build's
       ExternalSecrets and template, and sync it; in each repository the tenant builds,
       create the environment `staging-trigger` with a deployment branch rule that admits
@@ -220,9 +241,15 @@ They are stage 2 of the core change's build order and replace its A10.
       the environment's branch rule read back; a workflow pushed on a branch of the
       repository that names the environment refused it, with no device joined; a device
       tagged `tag:ci-trigger` creating a `staging-build`, refused a create in the `-build`
-      namespace, a `get` of a Secret and the Argo Workflows interface; a `staging-build`
-      submitted by hand with a `sha` that is not on `main` failing at its first step. Stop:
-      a workflow on a branch obtains the key, the trigger identity can start a gate, or
+      namespace, a `get` of a Secret, a `report-status`, a `staging-build` with a third
+      parameter and the Argo Workflows interface; a `staging-build`
+      submitted by hand with a `sha` that is not on `main` failing at its first step; a
+      merge to `main` that touches no app path starting no Workflow and leaving
+      `pins-freshness` green; a `staging-build` submitted while a gate runs waiting on the
+      mutex and starting when the gate ends; one report for the build and none for the
+      report itself. Stop:
+      a workflow on a branch obtains the key, the trigger identity can start a gate or a
+      report, a build and a gate run at once, or
       the status can satisfy a required check. The key is renewed by this step's key part
       before it expires, at most every 90 days; CI-S9's check warns 14 days ahead. Rollback:
       remove the trigger workflow file; the owner's waiver of core decision 9 then applies.

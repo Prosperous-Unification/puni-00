@@ -140,7 +140,11 @@ policy grants that tag the proxy and nothing else (core decision 12). The proxy 
 groups, so the group `tag:ci-trigger` is bound to a Role in the tenant's ordinary namespace
 that may create Workflows and read them. That namespace holds the `staging-build` template
 and not the gate's, and the identity has no binding in the `-build` namespace, so it cannot
-start a gate (decision 3). No Kubernetes token and no kubeconfig secret is stored with
+start a gate (decision 3). The namespace also holds `report-status`, so the Role alone
+would let the identity post a status of its choosing. An admission policy in `ci-policy`
+closes that: a Workflow created by the group `tag:ci-trigger` is admitted only if it
+references the WorkflowTemplate `staging-build` and sets no parameter but that template's
+two, `sha` and `app`. No Kubernetes token and no kubeconfig secret is stored with
 the provider.
 
 **What the job holds, and what it reaches if it leaks.** The vendor recommends a federated
@@ -154,12 +158,15 @@ environment in each repository, `staging-trigger`, whose deployment branch rule 
 from a fork or from a branch of the repository itself, is refused the environment and so
 never holds the key. CI-A3 reads the rule back and CI-A5 tests the refusal. Whoever holds
 the key all the same can join the tailnet as `tag:ci-trigger` and do what its Role allows:
-start a `staging-build` with chosen parameters, which fails unless its `sha` is on `main`,
-and read the Workflows of that namespace. They cannot start a gate, read a Secret, reach a
-server, the platform cluster or any other Service, nor change a template.
+start a `staging-build` with a chosen `sha` and `app`, which fails unless its `sha` is on
+`main`, and read the Workflows of that namespace. They cannot start a gate or a
+`report-status`, read a Secret, reach a server, the platform cluster or any other Service,
+nor change a template.
 
 **What an event may start.** The job submits a Workflow that references a WorkflowTemplate
-and passes the commit and the changed app as parameters. The workflow file has no trigger
+and passes the commit and the changed app as parameters. It starts only for a push that
+touches one of the app's source paths, which the tenant's unit lists per app: a merge
+that touches none of them joins no network and starts nothing. The workflow file has no trigger
 for `pull_request`, `pull_request_target`, `issue_comment` or any other event; a lint in
 `gate` refuses one, and the Role would still confine it. Release builds on a tag are a
 trigger their owner adds.
@@ -202,11 +209,14 @@ repository's: the gate script and the Dagger module at that commit. A job at a c
 branch's code with what the gate pod holds, which is why the gate pod holds no secret
 (decision 3).
 
-**Result to GitHub.** A finished Workflow is reported by a small Workflow of its own,
+**Result to GitHub.** A finished gate or build is reported by a small Workflow of its own,
 `report-status`, in the tenant's ordinary namespace: the Sensor on the resource event
 source submits it with the finished Workflow's name, commit and result, and it posts a
 commit status with a context under `argo/`, through a GitHub App that may write commit
-statuses and nothing else. So the gate holds no credential and its namespace no Secret.
+statuses and nothing else. The Sensor acts only on a Workflow whose `template` label is `gate` or
+`staging-build` and that has reached Succeeded, Failed or Error, so a finished
+`report-status` starts nothing and the reports cannot feed themselves. The report is named after the finished Workflow's UID, so a
+second event for the same Workflow creates nothing: the API refuses the name as taken. So the gate holds no credential and its namespace no Secret.
 Every template still has an exit handler, which records the outcome in the Workflow. A status could stand in for a required
 check of the same name only if the rule accepted any source: in CI-A3 the owner pins the
 required checks `gate` and `pixels` to GitHub Actions as their source before the status
@@ -298,8 +308,15 @@ own, selected and tainted per tenant.
 **Admission.** The scheduler admits a job by its requests: a pod that does not fit waits
 Pending and starts when room appears. The limit is enforced by the kernel. A semaphore of
 one, in the tenant's semaphore ConfigMap, keeps a second gate from starting beside the
-first; it is a local lock, which needs no database. A build has no semaphore of its own
-beyond the engine's.
+first; it is a local lock, which needs no database. A gate and a build run in different
+namespaces, and a quota counts one namespace, so neither a quota nor that semaphore keeps
+them apart. One mutex does: `heavy`, set at Workflow level in both the `gate` and the
+`staging-build` template, with its `namespace` field naming the tenant's `-build`
+namespace in both. A lock is a namespace and a key, the namespace defaults to the
+Workflow's and may be overridden, and for a local mutex it is only part of the name, so
+one controller shares it between namespaces with no database (read in the pinned
+version's synchronization guide and in the `Mutex` type). The second of the two waits and
+starts when the first ends.
 
 **The limits file.** One data file per tenant, `limits.yaml`, rendered into a ConfigMap. Each
 template takes its requests and limits as parameters read from that ConfigMap and applies
@@ -318,7 +335,7 @@ The gate keeps `--parallel=1` and the Node heap pin, which are in its script.
 
 | Guarantee of `run_heavy_job`, the heavy lock and the launcher | Here                                                                                                    |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| One heavy job at a time                                       | the semaphore, and the scheduler for everything else                                                    |
+| One heavy job at a time                                       | the shared mutex `heavy`, the gate's semaphore, and the scheduler for everything else                   |
 | A memory bound on the job                                     | the pod's limit. It kills where the pool's `MemoryHigh` throttled; CI-A4 watches for a kill             |
 | A clean tree at the commit; exit 65 for a dirty one           | moot: every run clones the commit into an empty volume. The template fails a clone that is not at `sha` |
 | The printed `running on <sha>`                                | kept: the gate script prints it, and the Workflow carries `sha` as a label                              |
@@ -347,10 +364,9 @@ are left. By requests, which is what the scheduler admits on, a gate (10,240), a
 limits they do not: a gate at its limit and a build with its engine at theirs exceed what
 is left by 5,954. Pod priority does not settle which one dies: it orders the kubelet's eviction,
 while the kernel's own kill follows each container's score, which falls on the larger user,
-the gate. So in phase 1 a build does not run beside a gate: the tenant's quota for memory
-requests admits one gate, or one build with its engine, and not both, and a build waits.
-CI-A2 measures; if both fit by measured use with the reserve kept, the quota is raised by a
-commit. Lowering the
+the gate. So in phase 1 a build does not run beside a gate: the shared mutex `heavy`
+(above) lets one of the two run, and the other waits. CI-A2 measures; if both fit by
+measured use with the reserve kept, the mutex is taken off the build by a commit. Lowering the
 gate's limit to fit 16 GiB would put it under its measured use, where the kernel kills it.
 Every figure in the table but one is assumed, and CI-A2 measures them before the gate
 runs.

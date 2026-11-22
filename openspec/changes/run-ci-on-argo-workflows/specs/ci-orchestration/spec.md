@@ -131,6 +131,23 @@ SHALL be started only by an operator identity or by the tenant's schedule.
 - **WHEN** a `staging-build` is submitted with a `sha` that `main` does not contain
 - **THEN** its first step fails and nothing is pushed or committed
 
+### Requirement: The trigger identity submits one template
+
+A Workflow the trigger identity creates SHALL be admitted only if it references the
+`staging-build` template and sets no parameter but that template's own. A push that
+touches no source path of an app SHALL start nothing.
+
+#### Scenario: Trigger identity asks for a report
+
+- **WHEN** a device tagged `tag:ci-trigger` creates a Workflow that references
+  `report-status`, or a `staging-build` with a parameter that template does not take
+- **THEN** admission refuses it
+
+#### Scenario: Merge that touches no app
+
+- **WHEN** a merge to `main` changes no source path of any app the tenant builds
+- **THEN** no Workflow starts and the freshness check stays green
+
 ### Requirement: Jobs are submitted from templates that come from main
 
 The controller SHALL run with `templateReferencing: Strict`. A Sensor's trigger SHALL
@@ -194,6 +211,12 @@ one gate SHALL run at a time.
 - **WHEN** a gate is submitted while one runs
 - **THEN** it waits on the semaphore
 
+#### Scenario: Build beside a gate
+
+- **WHEN** a `staging-build` is submitted while a gate runs, or a gate while a build runs
+- **THEN** the second waits on the mutex the two templates share and starts when the first
+  ends
+
 ### Requirement: A run is at the commit it names
 
 The gate template SHALL clone the repository at its `sha` parameter into an empty volume and
@@ -224,12 +247,23 @@ another tenant with no change but its name, repositories and limits file.
 
 Every WorkflowTemplate SHALL have an exit handler that runs whatever the outcome. Every
 Workflow SHALL carry the labels `tenant` and `template`. A commit status SHALL use a context
-under `argo/`.
+under `argo/`. A report SHALL be made only for a finished `gate` or `staging-build`, once
+for each Workflow UID.
 
 #### Scenario: Failed job
 
 - **WHEN** a job's main step fails
 - **THEN** its exit handler runs and records the failure
+
+#### Scenario: A finished report
+
+- **WHEN** a `report-status` Workflow finishes
+- **THEN** no report is started for it
+
+#### Scenario: The same Workflow reported twice
+
+- **WHEN** a second finish event arrives for a Workflow that already has its report
+- **THEN** no second report is created
 
 ### Requirement: The old gate hosts stay until a gate passes here
 

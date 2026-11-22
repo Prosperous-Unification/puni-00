@@ -387,9 +387,36 @@ the commit `08507cb8e`, and this is what became of their findings.
 | SQL flows of the dump and drill jobs; isolation proved by a refused listing               | Fixed in `host-postgres` and in A18: the two flows allowed, a read refused by authorisation                |
 | A late build replacing a newer render                                                     | Fixed: the render step refuses a source commit that is not a descendant (slice 3.7)                        |
 | Automatic staging for two apps left to another owner; empty dev namespaces                | Stated: one milestone per app with a recorded waiver where the path does not exist; dev is the follow-up   |
-| A build beside a gate against "waits behind"; pod priority and the kernel's kill          | Fixed: a build waits in phase 1, by quota (CI change, decision 5)                                          |
+| A build beside a gate against "waits behind"; pod priority and the kernel's kill          | Fixed: a build waits in phase 1, since by one shared mutex (CI change, decision 5)                         |
 | No fallback if the gate cannot run in a pod                                               | Fixed: the host form of the gate, started by a Workflow (CI change, decision 6)                            |
 | No alert before the trigger key expires or for a stale pin                                | Fixed: slice CI-S9                                                                                         |
 | Rule letters, the console password, policy rows for operator tags, a single signer        | Fixed in place                                                                                             |
 
 Not changed, with the reason: nothing was found wrong against source in either review.
+
+The second model then read the commit `3f7b5f60b` against its own list. Six findings it
+called resolved; this is what became of the rest and of what it added.
+
+| Finding                                                                     | Outcome                                                                                                        |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| The comparison ran before the new writer stopped, and read `event_log` only | Fixed: stop first, then the `.dump` digest of the whole store; MLflow by metadata digest and artifact manifest |
+| The trigger identity could submit `report-status` with chosen parameters    | Fixed: admission admits only `staging-build` with its two parameters (CI change, decision 2)                   |
+| The controller image built on any machine and pinned by digest              | Fixed: built on the controller; the keys are refused an image without a matching local build (decision 10)     |
+| The website's staging part could start without its migration contract       | Fixed: A18 does not start for the website or the request app without the contract or a dated waiver            |
+| Receipts that publish messages                                              | Fixed: tasks 0.4, CI-0.3 and PG-0.3 record dated decisions with their owner, in neutral words                  |
+| A telemetry receipt in stage 2, before the receiver exists                  | Fixed: moved from CI-A2 to A14                                                                                 |
+| The drill's policy allowed SQL and storage, but it creates a `Cluster`      | Fixed in `host-postgres`: the API server and DNS for the drill, a Role for `Cluster` objects in its namespace  |
+| Dev deferred with no executable milestone                                   | Fixed: step A25 is the follow-up's first deployment into the reserved namespaces                               |
+| A pull h1claw made standing in for the final backup                         | Fixed: the final backup is taken from the stopped store; an earlier copy only at an equal digest (decision 7)  |
+| A gate and a build in two namespaces kept apart by a namespace's quota      | Fixed: one mutex both templates name in the `-build` namespace; its overlap is rehearsed (CI change)           |
+| Every finished Workflow reported, the report included                       | Fixed: a filter on the `template` label and phase; the report is named after the Workflow's UID                |
+| A prior per-app commit required of an empty pins repository                 | Fixed: A23 seeds a baseline for each app before the App exists                                                 |
+| Freshness compared with the tip of `main` though only app merges build      | Fixed: the latest commit that touches the app's source paths; an unrelated merge starts nothing                |
+
+Read for this pass: `libs/wbs/adapters/store-sqlite/src/user.ts`, where an account is
+written outside `event_log`; `docs/infra/cutover-plan.md`, whose `event_log` test this plan
+therefore does not rely on; `infra/controller/Containerfile`, whose comments record two
+builds that came out equal; and Argo Workflows' synchronization guide and types at the
+pinned tag (the CI change's verify.md). Not verified: that `sqlite3 .dump` of an unchanged
+store is byte-identical between two readings on the two hosts' `sqlite3` versions; A18's
+first comparison, made before any edit, shows it, and a difference there stops the step.
