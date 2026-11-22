@@ -384,6 +384,27 @@ declaring operator and which any job could imitate; and making the crons Dash jo
 without Dash on unenrolled hosts and, as admitted jobs, would block a gate's admission or queue
 behind it.
 
+_Amendment (task 6.28, 2026-11-22, assumption A-ATTR-ENDED-1 for Dany)._ The watch reads a
+container's bounds with `docker inspect` after its create event, and a `--rm` container can be
+removed first. On 2026-11-22 h2puni's gate calibration e1b18304 lost that race twice to the
+hourly `keinos/sqlite3` backup snapshots, which run about one second each, already labelled
+`puni.host-service=sqlite3-backup --memory 256m --cpus 1`, and was excluded from proposals. The
+create event already carries every label with `image` and `name`; it does not carry the host
+config, so the bounds of a removed container are unknowable. The watch now also reads `die`
+events. When `docker inspect` answers `No such container`, it waits for the stream and the
+replay to end. A container whose labels attribute it (`puni.job` naming this job, or a named
+`puni.host-service`) and whose own create and die events date a lifetime no longer than one
+sampling interval (10 s) is then recorded `lifetime-bounded`, with the label, name and
+lifetime. It leaves the attribution complete, and `ops job run` prints
+`attributed <id> host-service=<name> from its create event (ended before inspection, lifetime
+1.2 s)`. Its declared bounds are not claimed: no sample could have seen a container that lived
+less than one interval, so its bounds could not have mattered to one. That choice is stated,
+not proven. An unlabelled removed container stays `unlabelled`. A labelled one without both
+events, one that lived longer than an interval, and any other inspect failure stay
+`unverified`. Rejected: inspecting from inside the event stream, which narrows the race without
+closing it; `docker run` without `--rm` on the hosts, which leaves the cleanup to the operator;
+and reading the bounds from the image or the label, which no daemon enforces.
+
 **J17. One tool; `ops job …` now; the `dev` migration is its own change (Codex's
 recommendation).** The job commands land as `twilight-dash ops job run|calibrate|propose|
 audit|status` and `ops pool init|inspect|switch-mode`. Moving today's commands under `dev` and

@@ -8,7 +8,7 @@ import {
   JOB_LABEL,
 } from '../resources/container-evidence';
 import { causeText, OpsRefusal } from './refusal';
-import type { ContainerSample, ContainerVerdict } from './run-records';
+import type { ContainerSample, ContainerVerdict, LifetimeBound } from './run-records';
 
 export { dockerContainerEvidence, JOB_LABEL };
 
@@ -103,28 +103,61 @@ function isStatsRow(row: unknown): row is StatsRow {
   );
 }
 
-/** One container event the stream or the closing replay named. */
-interface CreateEvent {
+/**
+ * One `create` or `die` event the stream or the closing replay named. Its attributes carry every
+ * label of the container with its `image` and `name`; `timeNano` is null when the daemon sent
+ * none.
+ */
+interface ContainerEvent {
   id: string;
+  action: 'create' | 'die';
   labels: Readonly<Record<string, string | undefined>>;
   image: string;
+  timeNano: number | null;
 }
 
-function parseCreateEvent(line: string): CreateEvent {
+function parseContainerEvent(line: string): ContainerEvent {
   // `docker events --format '{{json .}}'` is the daemon's own output, read once per line.
   const event = JSON.parse(line) as {
     id?: unknown;
+    Action?: unknown;
+    timeNano?: unknown;
     Actor?: { ID?: unknown; Attributes?: Record<string, unknown> };
   };
   const id = typeof event.id === 'string' ? event.id : event.Actor?.ID;
   if (typeof id !== 'string' || !/^[0-9a-f]{12,64}$/.test(id))
     throw new Error('docker events answered an event without a container id');
+  // The stream asks for these two actions only; any other is not the daemon this watch knows.
+  // Proof: without it `an event with an action the watch did not ask for is unverified`
+  // (containers.test.ts) judged the destroy event as a create (2026-11-22).
+  if (event.Action !== 'create' && event.Action !== 'die')
+    throw new Error(
+      `docker events answered action ${typeof event.Action === 'string' ? event.Action : 'none'} for ${id.slice(0, 12)}, not create or die`,
+    );
   const attributes = event.Actor?.Attributes ?? {};
   const labels: Record<string, string> = {};
   for (const [key, value] of Object.entries(attributes))
     if (typeof value === 'string') labels[key] = value;
-  return { id, labels, image: labels['image'] ?? 'unknown image' };
+  return {
+    id,
+    action: event.Action,
+    labels,
+    image: labels['image'] ?? 'unknown image',
+    timeNano: typeof event.timeNano === 'number' ? event.timeNano : null,
+  };
 }
+
+/** The `docker events` arguments of the stream and the replay: container creates and deaths. */
+const EVENT_FILTERS = [
+  '--filter',
+  'type=container',
+  '--filter',
+  'event=create',
+  '--filter',
+  'event=die',
+  '--format',
+  '{{json .}}',
+];
 
 /**
  * The containers of one host job's window (J16): a `docker events` stream of every container
@@ -135,6 +168,12 @@ function parseCreateEvent(line: string): CreateEvent {
  */
 export class ContainerWatch {
   private readonly judged = new Map<string, Promise<ContainerVerdict | null>>();
+  /** Each judged container's create time, epoch nanoseconds, when its event carried one. */
+  private readonly createdAt = new Map<string, number>();
+  /** Each container's first die time, epoch nanoseconds, from the stream or the replay. */
+  private readonly diedAt = new Map<string, number>();
+  /** Settles once the stream has stopped and the replay was read: every die event is in. */
+  private readonly closed = Promise.withResolvers<undefined>();
   private buffered = '';
 
   /** The stream reader; it never rejects, a failure becomes an `unverified` verdict. */
@@ -145,6 +184,7 @@ export class ContainerWatch {
     private readonly environment: Record<string, string>,
     private readonly jobId: string,
     private readonly bound: ContainerBound,
+    private readonly sampleIntervalMs: number,
     private readonly since: string,
     private readonly stream: Subprocess<'ignore', 'pipe', 'ignore'>,
     private readonly isLiveJob: (id: string) => boolean,
@@ -153,34 +193,37 @@ export class ContainerWatch {
   /**
    * Start watching every container created at or after `sinceMs` (epoch milliseconds).
    * `isLiveJob` says whether a `puni.job` label names an unreleased job in the ledger: a label
-   * naming anything else attributes the container to nobody.
+   * naming anything else attributes the container to nobody. `sampleIntervalMs` is the run's
+   * sampling interval, the longest lifetime a labelled container may have ended within before
+   * its bounds were read and still be attributed (A-ATTR-ENDED-1).
    */
   static start(
     docker: string,
     environment: Readonly<Record<string, string | undefined>>,
     jobId: string,
     bound: ContainerBound,
+    sampleIntervalMs: number,
     sinceMs: number,
     isLiveJob: (id: string) => boolean,
   ): ContainerWatch {
     const since = (sinceMs / 1000).toFixed(3);
     const kept = dockerEnvironment(environment);
-    const stream = Bun.spawn(
-      [
-        docker,
-        'events',
-        '--since',
-        since,
-        '--filter',
-        'type=container',
-        '--filter',
-        'event=create',
-        '--format',
-        '{{json .}}',
-      ],
-      { env: kept, stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' },
+    const stream = Bun.spawn([docker, 'events', '--since', since, ...EVENT_FILTERS], {
+      env: kept,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    const watch = new ContainerWatch(
+      docker,
+      kept,
+      jobId,
+      bound,
+      sampleIntervalMs,
+      since,
+      stream,
+      isLiveJob,
     );
-    const watch = new ContainerWatch(docker, kept, jobId, bound, since, stream, isLiveJob);
     watch.reading = watch.read().catch((cause: unknown) => {
       // Proof: without this catch `a failing docker events stream is an unverified verdict`
       // (containers.test.ts) ended the test process with an unhandled rejection (2026-11-02,
@@ -212,9 +255,9 @@ export class ContainerWatch {
   }
 
   private consider(line: string): void {
-    let event: CreateEvent;
+    let event: ContainerEvent;
     try {
-      event = parseCreateEvent(line);
+      event = parseContainerEvent(line);
     } catch (cause) {
       const key = `malformed:${String(this.judged.size)}`;
       this.judged.set(
@@ -223,6 +266,16 @@ export class ContainerWatch {
       );
       return;
     }
+    // Proof: not recording die times made `a labelled host-service container removed before
+    // inspection is attributed from its events` (containers.test.ts) find verdict unverified, no
+    // die event (2026-11-22).
+    if (event.action === 'die') {
+      if (event.timeNano !== null && !this.diedAt.has(event.id))
+        this.diedAt.set(event.id, event.timeNano);
+      return;
+    }
+    if (event.timeNano !== null && !this.createdAt.has(event.id))
+      this.createdAt.set(event.id, event.timeNano);
     if (!this.judged.has(event.id))
       this.judged.set(
         event.id,
@@ -240,7 +293,7 @@ export class ContainerWatch {
    * not judged here. Without {@link JOB_LABEL}, a container is a host service when it carries a
    * named {@link HOST_SERVICE_LABEL} and both bounds, and unattributed otherwise.
    */
-  private async judge(event: CreateEvent): Promise<ContainerVerdict | null> {
+  private async judge(event: ContainerEvent): Promise<ContainerVerdict | null> {
     const owner = event.labels[JOB_LABEL];
     // Proof: checking the host-service label before puni.job made `a container with both labels
     // is judged as the job container it names` (containers.test.ts) find verdict host-service
@@ -257,6 +310,7 @@ export class ContainerWatch {
       };
     }
     const limits = await this.readLimits(event);
+    if (limits === 'removed') return this.judgeRemoved(event, JOB_LABEL, owner);
     if ('verdict' in limits) return limits;
     const { memory, nanoCpus } = limits;
     const limit = this.bound.memoryGib * GIB;
@@ -287,7 +341,7 @@ export class ContainerWatch {
    * under `--memory` and `--cpus`, whatever their figures (the operator declared them, the job's
    * envelope does not hold them); `unlabelled` otherwise, naming what is missing.
    */
-  private async judgeUnowned(event: CreateEvent): Promise<ContainerVerdict> {
+  private async judgeUnowned(event: ContainerEvent): Promise<ContainerVerdict> {
     const service = event.labels[HOST_SERVICE_LABEL];
     // Proof: judging every container without puni.job unlabelled made `a labelled, bounded
     // host-service container is attributed as host-service` (containers.test.ts) find verdict
@@ -307,6 +361,7 @@ export class ContainerWatch {
         reason: `container from ${event.image} is labelled ${HOST_SERVICE_LABEL} with no name; a host service is attributed only by name`,
       };
     const limits = await this.readLimits(event);
+    if (limits === 'removed') return this.judgeRemoved(event, HOST_SERVICE_LABEL, service);
     if ('verdict' in limits) return limits;
     const missing = [
       ...(limits.memory > 0 ? [] : ['--memory']),
@@ -331,12 +386,59 @@ export class ContainerWatch {
   }
 
   /**
-   * The container's `--memory` (bytes) and `--cpus` (nano-CPUs) limits, zero when not given, or
-   * an `unverified` verdict when it ended or could not be read first.
+   * A labelled container `docker inspect` no longer finds (A-ATTR-ENDED-1): its labels came with
+   * its create event, its bounds went with it. Waits for the stream to stop and the replay to be
+   * read, then attributes it `lifetime-bounded` when its own create and die events date a
+   * lifetime of at most one sampling interval: no sample could have seen it, so its bounds could
+   * not have mattered to one. Without both events, or after a longer life, it stays `unverified`.
+   */
+  private async judgeRemoved(
+    event: ContainerEvent,
+    label: LifetimeBound['label'],
+    name: string,
+  ): Promise<ContainerVerdict> {
+    // Proof: without this wait `a die event only the closing replay delivers still dates the
+    // lifetime` (containers.test.ts) found verdict unverified, no die event (2026-11-22).
+    await this.closed.promise;
+    const created = this.createdAt.get(event.id);
+    const died = this.diedAt.get(event.id);
+    const removed = `container from ${event.image} labelled ${label}=${name} was removed before its bound was read`;
+    // Proof: attributing a removed container without its die event made `a removed labelled
+    // container without its die event stays unverified` (containers.test.ts) find verdict
+    // lifetime-bounded (2026-11-22).
+    if (created === undefined || died === undefined)
+      return {
+        id: event.id,
+        verdict: 'unverified',
+        reason: `${removed}, and no ${created === undefined ? 'create' : 'die'} event dates its lifetime`,
+      };
+    const lifetimeMs = Math.max(0, (died - created) / 1e6);
+    const seconds = `${(lifetimeMs / 1000).toFixed(1)} s`;
+    // Proof: dropping this comparison made `a removed labelled container that lived longer than
+    // one sampling interval stays unverified` (containers.test.ts) find verdict lifetime-bounded
+    // (2026-11-22).
+    if (lifetimeMs > this.sampleIntervalMs)
+      return {
+        id: event.id,
+        verdict: 'unverified',
+        reason: `${removed} after a lifetime of ${seconds}, longer than one sampling interval (${String(this.sampleIntervalMs)} ms)`,
+      };
+    return {
+      id: event.id,
+      verdict: 'lifetime-bounded',
+      reason: `${label === JOB_LABEL ? 'job' : 'host-service'}=${name} from its create event (ended before inspection, lifetime ${seconds})`,
+      lifetimeBound: { label, name, lifetimeMs, sampleIntervalMs: this.sampleIntervalMs },
+    };
+  }
+
+  /**
+   * The container's `--memory` (bytes) and `--cpus` (nano-CPUs) limits, zero when not given;
+   * `removed` when the daemon answers it has no such container; or an `unverified` verdict when
+   * it could not be read otherwise.
    */
   private async readLimits(
-    event: CreateEvent,
-  ): Promise<{ memory: number; nanoCpus: number } | ContainerVerdict> {
+    event: ContainerEvent,
+  ): Promise<{ memory: number; nanoCpus: number } | 'removed' | ContainerVerdict> {
     const inspected = await execute(
       spawnClient(
         [
@@ -353,6 +455,15 @@ export class ContainerWatch {
       `docker inspect ${event.id}`,
       DOCKER_DEADLINE_MS,
     );
+    // Proof: without this branch `a labelled host-service container removed before inspection is
+    // attributed from its events` (containers.test.ts) found verdict unverified, the reason
+    // naming `No such container` (2026-11-22).
+    if (
+      !inspected.timedOut &&
+      inspected.exitCode !== 0 &&
+      inspected.stderr.includes('No such container')
+    )
+      return 'removed';
     if (inspected.exitCode !== 0 || inspected.timedOut)
       return {
         id: event.id,
@@ -435,12 +546,7 @@ export class ContainerWatch {
             this.since,
             '--until',
             ((untilMs + 1000) / 1000).toFixed(3),
-            '--filter',
-            'type=container',
-            '--filter',
-            'event=create',
-            '--format',
-            '{{json .}}',
+            ...EVENT_FILTERS,
           ],
           this.environment,
         ),
@@ -464,6 +570,7 @@ export class ContainerWatch {
       this.stream.kill('SIGKILL');
       await this.stream.exited;
       await this.reading;
+      this.closed.resolve(undefined);
     }
     const verdicts = await Promise.all(this.judged.values());
     return verdicts.flatMap((verdict) => (verdict === null ? [] : [verdict]));

@@ -588,7 +588,11 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts ops job status -
   `--memory` and `--cpus` is a declared host service (a host timer or cron beside the job,
   task 6.22): it is recorded as verdict `host-service` with its name and bounds and leaves the
   attribution complete; without either bound it stays unattributed, naming the missing one. A
-  container with both labels is judged as a job container. The `docker stats`
+  container with both labels is judged as a job container. A labelled container removed
+  before `docker inspect` read its bounds (a `--rm` run of a second or so) is judged from its
+  create and die events: when they date a lifetime within one sampling interval it is
+  recorded `lifetime-bounded` and leaves the attribution complete, and `ops job run` prints an
+  `attributed` line for it; otherwise it stays `unverified` (A-ATTR-ENDED-1). The `docker stats`
   samples are advisory: Docker omits containers that vanish between samples and excludes file
   cache; the declared bound is what admission trusts. Compute is released only once no running
   container carries the job's label.

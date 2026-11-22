@@ -95,6 +95,37 @@ describe('run record container verdicts (task 6.22, A-ATTR-HOSTSVC-1)', () => {
     expect(records.inspect('run-one')?.endedAt).toBeNull();
     records.close();
   });
+  test('a lifetime-bounded verdict keeps its label, name and lifetime (A-ATTR-ENDED-1)', () => {
+    const records = begun();
+    const verdict: ContainerVerdict = {
+      id: 'c'.repeat(64),
+      verdict: 'lifetime-bounded',
+      reason:
+        'host-service=sqlite3-backup from its create event (ended before inspection, lifetime 1.2 s)',
+      lifetimeBound: {
+        label: 'puni.host-service',
+        name: 'sqlite3-backup',
+        lifetimeMs: 1200,
+        sampleIntervalMs: 10_000,
+      },
+    };
+    records.finish('run-one', outcome([verdict]));
+    expect(records.inspect('run-one')?.containers).toEqual([verdict]);
+    records.close();
+  });
+
+  test('a lifetime-bounded verdict without its lifetime is refused', () => {
+    const records = begun();
+    expect(() => {
+      records.finish(
+        'run-one',
+        outcome([{ id: 'c'.repeat(64), verdict: 'lifetime-bounded', reason: 'no lifetime' }]),
+      );
+    }).toThrow();
+    expect(records.inspect('run-one')?.endedAt).toBeNull();
+    records.close();
+  });
+
   describe('leftover processes (task 6.24)', () => {
     test('a run keeps the leftovers it ended', () => {
       const records = begun();

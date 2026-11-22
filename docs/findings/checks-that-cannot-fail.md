@@ -113,6 +113,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 | R5-31    | none — see [R5-31](#an-applied-role-can-report-success-over-a-lock-out)                          |
 | R5-32    | none — see [R5-32](#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)                   |
+| R5-33    | none — see [R5-33](#a-race-measured-in-one-shape-can-lose-in-another)                            |
 
 ## Bun forced recursive removal can leave its root
 
@@ -906,6 +907,26 @@ Each of these faults failed a test:
   "Fail fast and re-queue" has no primitive in GitHub Actions. The sound levers are:
   - run that leaf's native tests on the gate hosts;
   - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
+
+## A race measured in one shape can lose in another
+
+**R5-33**, observed 2026-11-22 on h2puni (gate calibration e1b18304). Dash's container watch
+read each container's bounds with `docker inspect` after its create event, and a removed
+container's failed inspect made the run `unverified`, as R5 requires. The review of #952
+"measured" the race against a `--rm` container and saw inspect win every time for lifetimes
+from 250 ms to 1 s (`dash-host-jobs` verify.md, S22-A4). The hourly `keinos/sqlite3` backup
+snapshots, about one second each, then lost it twice in one gate. Each loss printed
+`attribution incomplete: <id> unverified: container ended or was unreadable before its bound
+was read: Error response from daemon: No such container`, and the calibration was excluded.
+
+The check was sound; the proof that it would not fire was not. The measurement came from one
+host and one start shape, and a different caller's timing on another host reversed it. A race
+argued away by measurement is a claim about the measured cases only. The watch now models the
+loss as an outcome instead: it reads die events too, and a labelled container whose create and
+die events date a lifetime within one sampling interval is `lifetime-bounded` (A-ATTR-ENDED-1).
+`containers.test.ts` makes the race certain with a real daemon by removing the container before
+the watch starts. With the `No such container` branch removed it printed the exact h2puni
+reason above; restored, it passed.
 
 ## Checks kept without a reachable negative
 

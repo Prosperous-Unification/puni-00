@@ -217,6 +217,35 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
       });
     });
 
+    test('a host service that ended before inspection is listed as such (A-ATTR-ENDED-1)', () => {
+      const ended = (index: number) => ({
+        id: String(index).repeat(12),
+        verdict: 'lifetime-bounded' as const,
+        reason: 'host-service=sqlite3-backup from its create event',
+        lifetimeBound: {
+          label: 'puni.host-service' as const,
+          name: 'sqlite3-backup',
+          lifetimeMs: 1200,
+          sampleIntervalMs: 10_000,
+        },
+      });
+      expect(
+        audit([
+          {
+            ...fitting(1)[0],
+            id: 'beside',
+            containers: [job, ended(1), goaccess(2), ended(3)],
+          },
+        ]),
+      ).toEqual({
+        drifts: [],
+        notes: [
+          'host services beside run beside: sqlite3-backup (ended before inspection) ×2, goaccess-reports (512 MiB, 1 cpu) ×1',
+        ],
+        kinds: [],
+      });
+    });
+
     test('are not named as unattributed in an attribution_incomplete line', () => {
       const unlabelled = {
         ...fitting(1)[0],

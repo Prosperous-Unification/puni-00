@@ -27,6 +27,19 @@ exported through `@twilight-burokrat/contracts`.
 | `maxRuntimeMinutes` | Optional whole minutes after which `ops job run` ends the payload (SIGTERM, then SIGKILL after the settle budget) and exits 124. Absent: no runtime bound.                                                                                                                                  |
 | `provenance`        | Where the envelope came from (below).                                                                                                                                                                                                                                                       |
 
+### Container attribution
+
+Every container created during a job with a `containers` bound is judged by the Dash container
+watch (J16). It counts as attributed in three cases. The first is the job's own: labelled
+`puni.job=$DASH_JOB_ID`, under `--memory` and `--cpus` within the bound. The second is a
+declared host service: no `puni.job`, a named `puni.host-service` label, and both
+`--memory` and `--cpus`. The third is a labelled container of either kind that was removed
+before its bounds could be read, but whose create and die events date a lifetime within one
+sampling interval (10 s). Such a container's bounds were never read; one that lived less than
+one interval could not have mattered to any sample (`lifetime-bounded`, A-ATTR-ENDED-1). Any other container leaves the run attribution-incomplete, and
+`ops job propose` leaves it out. The rules and their rejected alternatives are under J16 in
+[the design](../../openspec/changes/dash-host-jobs/design.md).
+
 ### Argument profile
 
 Space-separated tokens matched one to one against the job's arguments: a literal token, or

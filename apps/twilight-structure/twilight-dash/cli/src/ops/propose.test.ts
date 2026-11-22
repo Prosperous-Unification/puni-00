@@ -243,6 +243,36 @@ describe('ops job propose (task 4.1, J9)', () => {
     });
   });
 
+  test('a lifetime-bounded container leaves the record complete (A-ATTR-ENDED-1)', () => {
+    const proposal = propose('gate', [
+      ...calibrations(4, 4),
+      {
+        id: 'beside-backup',
+        calibration: true,
+        memoryGib: 4,
+        containers: [
+          { id: 'beef', verdict: 'bounded', reason: 'labelled, bounded' },
+          {
+            id: 'cafe',
+            verdict: 'lifetime-bounded',
+            reason: 'host-service=sqlite3-backup from its create event',
+            lifetimeBound: {
+              label: 'puni.host-service',
+              name: 'sqlite3-backup',
+              lifetimeMs: 1200,
+              sampleIntervalMs: 10_000,
+            },
+          },
+        ],
+      },
+    ]);
+    if (proposal.kind !== 'proposed') throw new Error(proposal.reason);
+    expect(proposal.lines.filter((line) => line.startsWith('excluded'))).toEqual([]);
+    expect(proposal.entry.provenance).toMatchObject({
+      recordIds: ['calibration-1', 'calibration-2', 'beside-backup'],
+    });
+  });
+
   test('CPU is the peak rate over a ten-second window, or the whole of a shorter run', () => {
     const sample = (second: number, usec: number): RunSample => ({
       kind: 'interval',

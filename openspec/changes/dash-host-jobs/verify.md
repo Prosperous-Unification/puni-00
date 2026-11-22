@@ -5003,3 +5003,83 @@ exact stdout check now drops the prune's `Total:` line.
   run should show the cache's 3.72 GB returned. The prune recovers only the cache; whether a
   whole three-run series then fits above 23.62 GB, given the images and whatever else a gate
   leaves, is not yet measured.
+
+## 2026-11-22 a one-second backup container lost the inspect race (task 6.28)
+
+Branch `fix/dash-attribution-ended-containers-20261122` from `main` 142c91669; laptop,
+`CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` unset, Docker 29.7.2; no host touched by this change.
+The h2puni figures are the coordinator's, from h2puni gate calibration job
+e1b18304-cc08-4fe8-9c7d-da1f0171f52c (2026-11-22 04:04Z). The record settled but printed
+`attribution incomplete: d96dd0358617 unverified: container ended or was unreadable before its
+bound was read: Error response from daemon: No such container` for two ids. Both were the
+hourly `keinos/sqlite3` snapshot containers of h1claw's backup (claire PR #144, deployed
+2026-11-21 22:17Z), started `--rm --label puni.host-service=sqlite3-backup --memory 256m
+--cpus 1`, each living about one second. S22-A4's measurement, inspect winning for 250 ms to
+1 s containers, did not hold for them on h2puni.
+
+`ContainerWatch` (`ops/containers.ts`) now streams and replays `die` events beside `create`
+(`docker events` ORs repeated `event=` filters), records each container's create and first die
+`timeNano`, and refuses an event whose `Action` is neither. A `docker inspect` that exits
+non-zero with `No such container` on stderr no longer yields `unverified` directly.
+`judgeRemoved` waits until the stream has stopped and the replay was read, then records
+`lifetime-bounded` for a container labelled `puni.job` with this job's id, or with a named
+`puni.host-service` and no `puni.job`. The verdict carries `{ label, name, lifetimeMs,
+sampleIntervalMs }` and applies when both event times exist and the lifetime is at most the
+run's sampling interval (`sampleIntervalMs`, 10 000 ms in `commands.ts`, now passed to
+`ContainerWatch.start`). Missing either time, or a longer life, it stays `unverified` with the
+reason saying which. An inspect failing any other way is unchanged. `ContainerVerdict`
+(`ops/run-records.ts`) gains the member and its shape refuses it without the lifetime;
+`isAttributed` counts it. For each, `ops job run` prints a line of this shape: `ops job: e1b18304…
+attributed d96dd0358617 host-service=sqlite3-backup from its create event (ended before
+inspection, lifetime 1.2 s)`. `ops job audit` lists such a host service as `<name> (ended before inspection) ×n` in its host-services
+note. A lifetime-bounded job container does not clear an earlier `attribution_incomplete`:
+the clearing rule still asks for a `bounded` one.
+
+| Command                                                                                                                        | Result                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` (the project test command's preloads)          | 78 pass, 0 fail                                                                                                                                   |
+| `containers.test.ts -t real` (real daemon, `busybox:1.37.0-musl`: the container runs and is removed before the watch starts)   | 1 pass, 0 fail; an ad-hoc run of the same shape printed `host-service=dash-probe from its create event (ended before inspection, lifetime 0.2 s)` |
+| `job-run.test.ts -t container` inside `unshare --user --pid --fork --mount-proc` with `DASH_OPS_TEST_NAMESPACE=1`, real Docker | 5 pass, 0 fail (real-scope tests skipped: no systemd user bus on the laptop)                                                                      |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                               | exit 0; 5798 pass, 49 skip, 0 fail across 189 files (55m 41s)                                                                                     |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                             | exit 0                                                                                                                                            |
+| `bunx eslint` on the eight changed TypeScript files                                                                            | exit 0                                                                                                                                            |
+| `bunx prettier --check` on the changed files                                                                                   | all matched files use Prettier code style                                                                                                         |
+| `bunx openspec validate --all --json`                                                                                          | exit 0; 352 items, 352 passed, 0 failed                                                                                                           |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                 | exit 0                                                                                                                                            |
+| a `gate` calibration on h2puni across a backup hour                                                                            | not run: no host touched; follows the launcher refresh (S28-A2)                                                                                   |
+
+| Injected fault                                                         | Observed                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the `No such container` branch of `readLimits` removed                 | 7 of 17 `containers.test.ts` tests failed, the real-daemon one with `container ended or was unreadable before its bound was read: Error response from daemon: No such container: 3a6f08ec7735…`, the h2puni line |
+| die times not recorded                                                 | 4 failed, among them `a labelled host-service container removed before inspection is attributed from its events`: verdict `unverified`, no die event                                                             |
+| the wait for the stream and replay to end removed                      | `a die event only the closing replay delivers still dates the lifetime` failed: verdict `unverified`                                                                                                             |
+| the missing-die check removed                                          | `a removed labelled container without its die event stays unverified` failed: verdict `lifetime-bounded`                                                                                                         |
+| the lifetime comparison removed                                        | `a removed labelled container that lived longer than one sampling interval stays unverified` failed: verdict `lifetime-bounded`                                                                                  |
+| the `Action` check removed                                             | `an event with an action the watch did not ask for is unverified` failed: the destroy event was judged as a create                                                                                               |
+| `isAttributed` without its `lifetime-bounded` term                     | `a lifetime-bounded container leaves the record complete (A-ATTR-ENDED-1)` failed: the proposal refused with two complete records                                                                                |
+| `'lifetime-bounded'` admitted in the plain verdict branch of the shape | `a lifetime-bounded verdict without its lifetime is refused` failed: the record was written                                                                                                                      |
+| the audit's `ended before inspection` branch removed                   | `a host service that ended before inspection is listed as such (A-ATTR-ENDED-1)` failed: no note                                                                                                                 |
+
+`an unlabelled container removed before inspection stays unlabelled` passed before the change
+too: the unlabelled rule never reads the bounds. It pins that the new path does not reach it.
+The `attributed` line `ops job run` prints has no test of its own: no real-daemon job can lose
+the race on demand, and the verdict it prints is covered above.
+
+Alternatives considered: inspecting from inside the stream reader, which narrows the race but
+cannot close it for a container removed before its create event is read; asking the hosts to
+run without `--rm`, which moves cleanup to every operator and still loses to a later
+`docker rm`; and trusting the label alone without a lifetime, which would attribute a
+long-lived labelled container that was never bounded.
+
+- **S28-A1** A-ATTR-ENDED-1, attribution by lifetime within one sampling interval with the
+  bounds unknown, is assumed and awaits Dany's confirmation; no ADR, the amendment is under
+  J16 in design.md. The same rule applies to the job's own `puni.job` containers, as the
+  coordinator's brief asked; such a container's `--memory` and `--cpus` are then unread too.
+- **S28-A2** The fix reaches the gate hosts only through the launcher tree: the hourly launcher
+  refresh pulls `main` into `~/puni-00-gate-launcher`, from which Dash runs. A calibration
+  series already running keeps the Dash it started with (h2puni's warm runs on launcher
+  b17861f83), so the series that excluded e1b18304 cannot pick it up; a new series after the
+  refresh is the host proof.
+- **S28-A3** The threshold is the sampling interval in force for the run, not a separate
+  setting: the stated reason is that no sample could have seen a container that lived less
+  than one interval. It is a choice, not a measurement of the container's use.
