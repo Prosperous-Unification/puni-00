@@ -177,8 +177,8 @@ used, and Velero MUST NOT back up a database namespace.
 ### Requirement: A restore is proven before production data arrives
 
 Every cluster SHALL be dumped per database every night. The production cluster SHALL be
-restored into a throwaway cluster: weekly once a database node carries it, and by an
-attended run while the control-plane node does. A drill MUST NOT archive WAL or leave a
+restored into a throwaway cluster: weekly once a database node alone carries it, and by an
+attended run while the control-plane node does, which includes the overlap of a move. A drill MUST NOT archive WAL or leave a
 copy of the data on the node. No production data SHALL be written before one restore and
 one single-database rollback have a receipt, and no staging data before one restore of the
 non-production cluster has.

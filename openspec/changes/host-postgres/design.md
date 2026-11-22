@@ -356,8 +356,8 @@ by a restart of that app, and the port's change says how.
   And the first app's data is already where this arrangement ends: each port's change
   either waits for the database server, where the CronJob is resumed, or carries the
   owner's dated word that attended drills continue for that app. Rule (o) holds the two
-  states to the inventory: suspended while the server carries `database`, not suspended
-  once another node does.
+  states to the inventory: suspended while the server carries `database`, which includes
+  the overlap of a move, and not suspended once the database server alone carries it.
 - _The non-production cluster's restore_ is proven once, in PG-A3, before the tracker's
   port puts data there. The `nonproduction-db` unit carries the same drill CronJob,
   suspended: it restores into a throwaway cluster in `postgres-nonproduction` on the

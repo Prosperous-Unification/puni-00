@@ -224,7 +224,9 @@ which they extend.
       outside the bounded mount fails the role's verification (fault: skip the mount
       comparison). Stop: the provisioner or the operator cannot use a static volume for an
       instance. Then `platform-db` does not start on the server and the database server
-      is created first.
+      is created first (PG-A1, PG-A2's join); PG-A4 then installs the first instance
+      there on `puni-retain`, with its commands limited to `h10db` and without the
+      storage role, and the drill is weekly from the start.
 
 ## 2. Attended steps
 
@@ -250,7 +252,9 @@ server (design decision 4) and are not run before its trigger.
       volume, a replica caught up on it, a switchover, and the marker row read on
       `h10db` through the apps' database endpoint. The
       restore path, taken if the replica path is not chosen or the operator places no
-      replica on that volume: the new cluster's claim is on `puni-retain`; a static
+      replica on that volume: the switch to the restore path is first recorded in the
+      inventory, so that PG-S6's check judges the destination claim against the move
+      in force; the new cluster's claim is on `puni-retain`; a static
       volume already made on `h10db` is left in place only after it is read unbound
       and unused, and none is made otherwise. With the apps' writers stopped and their
       pods read gone, the operator records a named restore point on the source, forces
@@ -312,7 +316,7 @@ server (design decision 4) and are not run before its trigger.
       `Prune=false` and are removed by hand, the canary data being disposable. The
       operator's CRDs stay until no object of their kinds is left (core decision 3).
 - [ ] PG-A4 The production cluster, on the platform node in the minimal profile (PG8),
-      when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
+      or on the database server by PG-S6's stop, when the owner says so, after A17, PG-A3's receipt and slices PG-S5 and PG-S6. Who:
       operator; owner for the values. Commands: merge the inventory revision of PG-S1 and
       run `playbooks/capabilities.yml` limited to h5plat; apply the storage
       role of PG-S6 limited to h5plat; the owner writes the production database bucket's key
