@@ -17,13 +17,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { CommandJournalRepository } from './command-journal';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { PlanEventRepository } from './plan-event';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 /** The account's own stack on `p1`, with no agent person acting. */
 const OWNER_STACK: UndoStack = { workPackageId: 'p1', userId: 'owner', personId: null };
@@ -45,6 +45,7 @@ const wrote: WriteStamp = { at: 1, by: 'owner' };
 describe('appending a command', () => {
   let dir: string;
   let sqlite: Database;
+  let closeSqlite: (() => void) | undefined;
   let journal: CommandJournalRepository;
   let events: PlanEventRepository;
 
@@ -83,10 +84,13 @@ describe('appending a command', () => {
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-journal-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    closeSqlite = undefined;
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const db = openDrizzle(path);
     sqlite = openDatabase(path);
+    closeSqlite = sqlite.close.bind(sqlite, true);
     journal = new CommandJournalRepository(db, OPEN);
     events = new PlanEventRepository(db, OPEN);
     await new UserRepository(db, OPEN).create(
@@ -97,8 +101,8 @@ describe('appending a command', () => {
   });
 
   afterEach(() => {
-    sqlite.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeSqlite?.();
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('writes the undo entry and the history row in one transaction', async () => {

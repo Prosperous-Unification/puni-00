@@ -3,20 +3,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Connection, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { StepNodeAttemptRepository } from './step-node-attempt';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const wrote: WriteStamp = { at: 1, by: 'u' };
 
 let dir: string;
 let path: string;
-let connection: Connection;
+let owner: { hasUnknownOwner: boolean; connection?: Connection };
 let attempts: StepNodeAttemptRepository;
 
 function withDatabase<T>(read: (sqlite: Database) => T): T {
@@ -32,31 +33,59 @@ function withDatabase<T>(read: (sqlite: Database) => T): T {
  * Leaf `a` and its sibling `b` in work package `p`, whose steps are `dev` then `qa`
  * with ids that sort against their positions, and person `kat`.
  */
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-node-attempt-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  owner = { hasUnknownOwner: false };
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory: dir,
+      organizationId: 'org',
+      projectId: 'parent',
+      stamp: wrote,
+      definitions: [
+        {
+          id: 'dev',
+          name: 'Dev',
+          code: 'dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+        {
+          id: 'a-qa',
+          name: 'QA',
+          code: 'qa',
+          position: 20,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    owner,
+  );
+  const connection = openConnection(path);
+  owner.connection = connection;
+  const packages = new WorkPackageRepository(connection.db, OPEN);
+  expect(
+    await packages.create(
+      workPackageRow({ id: 'p', projectId: 'parent', name: 'WorkPackage' }),
+      [],
+      wrote,
+    ),
+  ).toMatchObject({ id: 'p', projectId: 'parent' });
   withDatabase((sqlite) => {
-    sqlite.run(
-      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
-    );
-    sqlite.run(
-      "INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, revision, created_at) VALUES ('p','WorkPackage','u',0,'pert',0,1)",
-    );
-    sqlite.run(
-      "INSERT INTO step (id, work_package_id, name, position) VALUES ('dev','p','Dev',10),('a-qa','p','QA',20)",
-    );
     sqlite.run(
       "INSERT INTO work_item (id, work_package_id, position, name, revision) VALUES ('a','p',1,'A',0),('b','p',2,'B',0)",
     );
     sqlite.run("INSERT INTO person (id, name) VALUES ('kat','Kat')");
   });
-  connection = openConnection(path);
   attempts = new StepNodeAttemptRepository(connection.db, OPEN);
 });
 afterEach(() => {
-  connection.close();
-  rmSync(dir, { recursive: true, force: true });
+  owner.connection?.close();
+  if (!owner.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 const start = (workItemId: string, stepId: string, startedAt: number) =>
@@ -329,7 +358,12 @@ describe('StepNodeAttemptRepository', () => {
     withDatabase((sqlite) => {
       sqlite.run("DELETE FROM work_item WHERE id = 'a'");
       sqlite.run("DELETE FROM step_node_attempt WHERE step_id = 'a-qa'");
-      sqlite.run("DELETE FROM step WHERE id = 'a-qa'");
+      sqlite.run("DELETE FROM step_binding WHERE step_id = 'a-qa'");
+      sqlite.run("DELETE FROM work_package_step WHERE work_package_id = 'p' AND step_id = 'a-qa'");
+      expect(
+        sqlite.query('SELECT work_item_id,step_id,issued FROM step_node_attempt_issued').all(),
+      ).toEqual([{ work_item_id: 'b', step_id: 'a-qa', issued: 1 }]);
+      sqlite.run("DELETE FROM step_definition WHERE id = 'a-qa'");
       expect(sqlite.query('SELECT * FROM step_node_attempt_issued').all()).toEqual([]);
     });
   });

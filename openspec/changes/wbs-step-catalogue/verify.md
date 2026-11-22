@@ -2192,3 +2192,13 @@ uses a separate incomplete candidate ledger for its refusal witness and keeps
 its rollback snapshots. Optimizer reads still name malformed stored values.
 The agent-pool property retains all 25 seeded histories and creates a fresh
 owned database for each history. SQLite Nx typecheck passed.
+
+Focused SQLite Nx verification passed 65 tests across command journal,
+optimizer cache, step attempts, step progress and targeted reads. The optimizer
+rollback uses the original project schema and exact migration ledger. Both
+attempt-number worker races passed at their original deadlines. The progress
+foreign key alone blocks step deletion after the binding and package values
+are removed. Targeted reads use real current definitions and retain separate
+missing and inapplicable step refusals. Both malformed money cases now first
+assert successful writes of the affected rows. The final reader suite and
+SQLite Nx typecheck passed.

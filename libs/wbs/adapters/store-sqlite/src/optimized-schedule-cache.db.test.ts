@@ -18,13 +18,16 @@ import {
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { type Drizzle, openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { allocateGeneration } from './optimization-generation';
 import { storeOptimizedOutcome } from './optimized-schedule-cache';
 import { toOptimizedScheduleCacheRow } from './optimizer-rows';
 import { optimizedScheduleCache } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
@@ -38,7 +41,7 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
  * folder happens to be last.
  */
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
-const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
  * The newest: the `(work_package_id, id)` index that serves
  * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
@@ -155,14 +158,14 @@ const ALSO_ROLLED_BACK = [
   'organization_activation',
   'external_system_organization',
   'person_organization',
-  'work_package_organization',
+  'project_organization',
   'saved_plan_organization',
   'organization_audit',
-  'work_package_solution',
+  'project_solution',
   'delegation_use',
   'space',
-  'space_work_package',
-  'work_package_rank',
+  'space_project',
+  'project_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -172,12 +175,38 @@ const ALSO_ROLLED_BACK = [
 const ADDED_INDEX = 'solver_queue_dequeue_order';
 const ADDED_WORK_PACKAGE_COLUMN = 'optimization_delete_pending_at';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb() {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-optimizer-cache-'));
   return {
+    directory: dir,
     path: join(dir, 'test.db'),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+function historicalDb() {
+  const db = tempDb();
+  return {
+    ...db,
+    folder: copyRecoveryPrefix(db.directory, '20261103110000_add_initial_access_offers'),
+  };
+}
+
+function currentDb() {
+  const db = tempDb();
+  migrateEmptyCatalogueFixture(
+    { path: db.path, directory: db.directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
+  const connection = openConnection(db.path);
+  return {
+    path: db.path,
+    drizzle: connection.db,
+    cleanup() {
+      connection.close();
+      db.cleanup();
     },
   };
 }
@@ -206,11 +235,11 @@ function indexes(path: string): string[] {
   }
 }
 
-function workPackageColumns(path: string): string[] {
+function projectColumns(path: string): string[] {
   const db = openDatabase(path);
   try {
     return db
-      .query('PRAGMA table_info(work package)')
+      .query('PRAGMA table_info(project)')
       .all()
       .map((row) => (row as { name: string }).name);
   } finally {
@@ -232,14 +261,15 @@ function refusal(path: string, sql: string): string | null {
 }
 
 function seedWorkPackage(path: string, id: string): void {
+  seedLegacyPackageParent(path, 'org', 'parent');
   const db = openDatabase(path);
   try {
     db.run(
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
-       VALUES ('${id}', 'Rewire the shed', 'u-1', 0, 0, 1)`,
+      `INSERT INTO work_package (id, project_id, name, created_by, restricted, revision, created_at)
+       VALUES ('${id}', 'parent', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
     db.close();
@@ -281,13 +311,13 @@ function cacheRow(status: string, resultJson: string, failureReason: string): st
 
 describe('the optimizer migration', () => {
   it('creates the four tables, the dequeue index and the work package fence', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
 
       for (const table of ADDED_TABLES) expect(tables(db.path)).toContain(table);
       expect(indexes(db.path)).toContain(ADDED_INDEX);
-      expect(workPackageColumns(db.path)).toContain(ADDED_WORK_PACKAGE_COLUMN);
+      expect(projectColumns(db.path)).toContain(ADDED_WORK_PACKAGE_COLUMN);
     } finally {
       db.cleanup();
     }
@@ -316,14 +346,14 @@ describe('the optimizer migration', () => {
   });
 
   it('is idempotent on an already-migrated file', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
       const before = [...tables(db.path), ...indexes(db.path)];
 
       // The second run applies nothing: every folder is already stamped, and
       // `CREATE TABLE` without `IF NOT EXISTS` would throw if it ran again.
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
 
       expect([...tables(db.path), ...indexes(db.path)]).toEqual(before);
     } finally {
@@ -338,14 +368,14 @@ describe('the optimizer migration', () => {
    * blue/green deploy, reproduced.
    */
   it('rolls back everything it added and leaves every pre-existing table intact', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.folder);
       const migrated = tables(db.path);
 
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
-      expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      expect(rollbackTo(db.path, db.folder, LOOKUP_INDEXES)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -364,9 +394,9 @@ describe('the optimizer migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -396,13 +426,13 @@ describe('the optimizer migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -426,7 +456,7 @@ describe('the optimizer migration', () => {
       const rolledBack = tables(db.path);
       for (const table of ADDED_TABLES) expect(rolledBack).not.toContain(table);
       expect(indexes(db.path)).not.toContain(ADDED_INDEX);
-      expect(workPackageColumns(db.path)).not.toContain(ADDED_WORK_PACKAGE_COLUMN);
+      expect(projectColumns(db.path)).not.toContain(ADDED_WORK_PACKAGE_COLUMN);
 
       // Everything else is untouched: the rollback took the tables this
       // migration and later migrations add, and none of the earlier tables.
@@ -434,12 +464,11 @@ describe('the optimizer migration', () => {
         migrated.filter(
           (name) =>
             name !== 'optimization_boundary_certificate' &&
-            name !== 'optimization_boundary_certificate' &&
-            name !== 'cross_work_package_dependency_activation' &&
-            name !== 'cross_work_package_dependency_activation_receipt' &&
+            name !== 'cross_project_dependency_activation' &&
+            name !== 'cross_project_dependency_activation_receipt' &&
             name !== 'external_dependency' &&
-            name !== 'work_package_abbreviation' &&
-            name !== 'work_package_abbreviation_counter' &&
+            name !== 'project_abbreviation' &&
+            name !== 'project_abbreviation_counter' &&
             name !== 'browser_auth_association' &&
             name !== 'browser_auth_lifecycle' &&
             name !== 'shared_people_audit' &&
@@ -450,7 +479,7 @@ describe('the optimizer migration', () => {
             name !== 'claim' &&
             name !== 'resource' &&
             name !== 'resource_organization' &&
-            name !== 'work_package_resource_capacity' &&
+            name !== 'project_resource_capacity' &&
             name !== 'work_item_resource_demand' &&
             name !== 'claim_occupancy' &&
             name !== 'organization_trusted_issuer' &&
@@ -498,17 +527,15 @@ describe('the optimizer migration', () => {
   });
 
   it('re-applies onto the rolled-back file and lands the same schema', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
-      const first = [...tables(db.path), ...indexes(db.path), ...workPackageColumns(db.path)];
+      runMigrations(db.path, db.folder);
+      const first = [...tables(db.path), ...indexes(db.path), ...projectColumns(db.path)];
 
-      rollbackTo(db.path, FOLDER, LOOKUP_INDEXES);
-      runMigrations(db.path, FOLDER);
+      rollbackTo(db.path, db.folder, LOOKUP_INDEXES);
+      runMigrations(db.path, db.folder);
 
-      expect([...tables(db.path), ...indexes(db.path), ...workPackageColumns(db.path)]).toEqual(
-        first,
-      );
+      expect([...tables(db.path), ...indexes(db.path), ...projectColumns(db.path)]).toEqual(first);
     } finally {
       db.cleanup();
     }
@@ -522,14 +549,24 @@ describe('the optimizer migration', () => {
    * which is why the fence is nullable.
    */
   it('leaves the outgoing release’s work package writes running', () => {
-    const db = tempDb();
+    const db = historicalDb();
     try {
-      runMigrations(db.path, FOLDER);
-      seedWorkPackage(db.path, 'p-1');
+      runMigrations(db.path, db.folder);
+      const outgoing = openDatabase(db.path);
+      try {
+        outgoing.run(
+          "INSERT INTO users(id,username,password_hash,created_at) VALUES('u-1','u','h',1)",
+        );
+        outgoing.run(
+          "INSERT INTO project(id,name,owner_id,restricted,revision,created_at) VALUES('p-1','Rewire the shed','u-1',0,0,1)",
+        );
+      } finally {
+        outgoing.close();
+      }
 
       const read = openDatabase(db.path);
       try {
-        expect(read.query(`SELECT id FROM work_package WHERE id = 'p-1'`).all()).toHaveLength(1);
+        expect(read.query(`SELECT id FROM project WHERE id = 'p-1'`).all()).toHaveLength(1);
       } finally {
         read.close();
       }
@@ -551,9 +588,8 @@ describe('what the cache table refuses', () => {
    * (2026-09-04).
    */
   it('refuses an ok row with no result and a failed row with one', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', 'NULL', 'NULL'))).toContain('CHECK');
@@ -566,9 +602,8 @@ describe('what the cache table refuses', () => {
   });
 
   it('accepts the three well-formed shapes', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', `'{"dtoVersion":1}'`, 'NULL'))).toBeNull();
@@ -590,9 +625,8 @@ describe('what the cache table refuses', () => {
   });
 
   it('refuses an unknown objective, status and failure reason', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
 
       expect(refusal(db.path, cacheRow('ok', `'{}'`, 'NULL').replace(`'pri'`, `'prio'`))).toContain(
@@ -606,9 +640,8 @@ describe('what the cache table refuses', () => {
   });
 
   it('takes its rows with the work package, by the cascade and nothing else', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
       expect(refusal(db.path, cacheRow('ok', `'{"dtoVersion":1}'`, 'NULL'))).toBeNull();
 
@@ -665,8 +698,7 @@ describe('a plan through the column it is stored in', () => {
     return schedule(rows, [], slices, new Map(), new Map([[PLATFORM, 1]]));
   }
 
-  function storeAndRead(path: string, resultJson: string): Schedule {
-    const db = openDrizzle(path);
+  function storeAndRead(db: Drizzle, resultJson: string): Schedule {
     db.insert(optimizedScheduleCache)
       .values({
         workPackageId: 'p-1',
@@ -692,9 +724,8 @@ describe('a plan through the column it is stored in', () => {
   }
 
   it('reloads a real plan out of result_json with both maps intact', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
       const plan = realPlan();
 
@@ -703,7 +734,7 @@ describe('a plan through the column it is stored in', () => {
       expect(plan.waitingForCapacity).toBeGreaterThan(0);
       expect(plan.eventsVisited).toBeGreaterThan(0);
 
-      const reloaded = storeAndRead(db.path, JSON.stringify(encodeSchedule(plan)));
+      const reloaded = storeAndRead(db.drizzle, JSON.stringify(encodeSchedule(plan)));
 
       expect(reloaded).toEqual(plan);
       expect(reloaded.slices.get(sliceKey('a', DEV))).toEqual(plan.slices.get(sliceKey('a', DEV)));
@@ -725,8 +756,7 @@ describe('a plan through the column it is stored in', () => {
    * half has to call could not be named from `apps/wbs/be-01` by anything but a
    * relative climb out of the app's own root.
    */
-  function storeAndReadResult(path: string, resultJson: string): OptimizedResult {
-    const db = openDrizzle(path);
+  function storeAndReadResult(db: Drizzle, resultJson: string): OptimizedResult {
     db.insert(optimizedScheduleCache)
       .values({
         workPackageId: 'p-1',
@@ -759,14 +789,16 @@ describe('a plan through the column it is stored in', () => {
   });
 
   it('reloads an OptimizedResult out of result_json, objectiveValues included', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
       const plan = realPlan();
       const source = solverResult(plan);
 
-      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(source)));
+      const reloaded = storeAndReadResult(
+        db.drizzle,
+        JSON.stringify(encodeOptimizedResult(source)),
+      );
 
       expect(reloaded.publication).toBe('solver');
       expect(reloaded.objectiveValues).toEqual(source.objectiveValues);
@@ -785,9 +817,8 @@ describe('a plan through the column it is stored in', () => {
    * read.
    */
   it("keeps a quantisation-floor row's real-domain value bit-equal through the column", () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
       const fractional = 0.2 + 0.2 + 0.2;
       const floor: OptimizedResult = {
@@ -800,7 +831,7 @@ describe('a plan through the column it is stored in', () => {
         schedule: realPlan(),
       };
 
-      const reloaded = storeAndReadResult(db.path, JSON.stringify(encodeOptimizedResult(floor)));
+      const reloaded = storeAndReadResult(db.drizzle, JSON.stringify(encodeOptimizedResult(floor)));
 
       expect(reloaded.publication).toBe('quantisation-floor');
       expect(reloaded.objectiveValues.makespan.value).toBe(fractional);
@@ -829,9 +860,8 @@ describe('a plan through the column it is stored in', () => {
         },
       ],
     ] as [string, (row: Record<string, unknown>) => void][]) {
-      const db = tempDb();
+      const db = currentDb();
       try {
-        runMigrations(db.path, FOLDER);
         seedWorkPackage(db.path, 'p-1');
         const payload = JSON.parse(
           JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
@@ -839,7 +869,9 @@ describe('a plan through the column it is stored in', () => {
         corrupt(payload);
         const text = JSON.stringify(payload);
 
-        expect(() => storeAndReadResult(db.path, text)).toThrow(new RegExp(defect.split('.')[0]));
+        expect(() => storeAndReadResult(db.drizzle, text)).toThrow(
+          new RegExp(defect.split('.')[0]),
+        );
         const row = openDatabase(db.path)
           .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
           .get() as { n: number } | null;
@@ -864,9 +896,8 @@ describe('a plan through the column it is stored in', () => {
    * column inside a `CHECK` is a NULL test and nothing else.
    */
   it("constrains only result_json's nullity, never its contents", () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       const ddl = openDatabase(db.path)
         .query(
           `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'optimized_schedule_cache'`,
@@ -891,16 +922,15 @@ describe('a plan through the column it is stored in', () => {
   });
 
   it('stores a truncated payload without complaint, so the decode is the only guard', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
       const whole = JSON.stringify(encodeSchedule(realPlan()));
 
       // No `CHECK` covers `result_json`'s contents (4.8), which is deliberate:
       // corruption must surface as `corrupt` on the read and be retryable,
       // rather than failing the write of a solve that already happened.
-      expect(() => storeAndRead(db.path, whole.slice(0, whole.length - 20))).toThrow();
+      expect(() => storeAndRead(db.drizzle, whole.slice(0, whole.length - 20))).toThrow();
       const row = openDatabase(db.path)
         .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
         .get() as { n: number } | null;
@@ -945,10 +975,8 @@ describe('what the deadline change must not do to the cache key', () => {
    * a running deployment is this one.
    */
   it('leaves the key columns exactly as they were, deadline included in none of them', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
-
       expect(primaryKeyColumns(db.path, 'optimized_schedule_cache')).toEqual([
         'work_package_id',
         'input_hash',
@@ -1005,11 +1033,10 @@ describe('what the deadline change must not do to the cache key', () => {
    * from both, each reds this case and nothing else.
    */
   it('keeps both contract versions’ rows through a store on each side', () => {
-    const db = tempDb();
+    const db = currentDb();
     try {
-      runMigrations(db.path, FOLDER);
       seedWorkPackage(db.path, 'p-1');
-      const handle = openDrizzle(db.path);
+      const handle = db.drizzle;
 
       for (const contractVersion of [BLUE, GREEN]) {
         expect(allocateGeneration(handle, 'p-1', contractVersion, 'h1', 1)).toBe(1);
