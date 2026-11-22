@@ -1,26 +1,36 @@
 ---
-# The sshd change of the bastion, confirmed by a fresh login or undone (slice 1.9). The paths,
-# owner and reload command are variables so node-roles.test.ts runs this file for real.
+# The sshd change of the bastion, confirmed by a fresh login as the operator or undone (slice
+# 1.9). Both drop-ins this file touches are copied aside first, so the rescue puts back exactly
+# what the host had: the `00-puni-bastion.conf` of a previous run, or none, and the hand-made
+# `10-puni-jump.conf`, or none. A run that changes nothing never reloads or rolls back: its
+# read-back and fresh login still run, and a failure there fails the play with sshd left as it
+# is. The paths, owner and reload command are variables so node-roles.test.ts runs this file.
 - name: Compute the forwards the drop-in names
   ansible.builtin.include_tasks: inputs.yml
 
-- name: Change sshd, confirm a fresh login as the operator, or put the hand-made drop-in back
+- name: Read which drop-ins the host has before the play
+  ansible.builtin.stat:
+    path: '{{ puni_bastion_sshd_dir }}/{{ item }}'
+  loop: [00-puni-bastion.conf, 10-puni-jump.conf]
+  register: puni_bastion_drop_ins_before
+
+- name: Keep a copy of each drop-in the host has, for the way back
+  # Proof: without the copy and restore of `00-puni-bastion.conf`, node-roles.test.ts `restores
+  # the previous run's drop-in when a changing run's fresh login fails` failed (2026-11-22).
+  when: item.stat.exists
+  ansible.builtin.copy:
+    src: '{{ item.stat.path }}'
+    dest: '{{ puni_bastion_backup_dir }}/{{ item.item }}.puni-backup'
+    remote_src: true
+    owner: '{{ puni_root_owner }}'
+    group: '{{ puni_root_group }}'
+    mode: '0600'
+  loop: '{{ puni_bastion_drop_ins_before.results }}'
+  loop_control:
+    label: '{{ item.item }}'
+
+- name: Change sshd, confirm a fresh login as the operator, or put both drop-ins back
   block:
-    - name: Read whether the hand-made drop-in is still there
-      ansible.builtin.stat:
-        path: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
-      register: puni_bastion_hand_drop_in
-
-    - name: Keep a copy of the hand-made drop-in for the way back
-      when: puni_bastion_hand_drop_in.stat.exists
-      ansible.builtin.copy:
-        src: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
-        dest: '{{ puni_bastion_backup_dir }}/10-puni-jump.conf.puni-backup'
-        remote_src: true
-        owner: '{{ puni_root_owner }}'
-        group: '{{ puni_root_group }}'
-        mode: '0600'
-
     - name: Render the bastion sshd drop-in, read before every other
       ansible.builtin.template:
         src: sshd.conf.j2
@@ -56,22 +66,37 @@
     - name: Log in afresh as the operator with the bastion's admin key
       ansible.builtin.include_tasks: ../../../tasks/fresh-connection.yml
       vars:
+        puni_fresh_user: '{{ puni_operator_name }}'
+        puni_fresh_key_file: '{{ puni_bastion_admin_private_key_file }}'
         puni_fresh_command: ['true']
 
   rescue:
-    # Proof: with this restore disabled, node-roles.test.ts `puts the hand-made drop-in back
-    # when a fresh login fails` failed: neither drop-in was left in place (2026-11-22).
-    - name: Put the hand-made drop-in back
-      when: puni_bastion_hand_drop_in.stat.exists | default(false)
+    - name: Fail with sshd left alone when this run changed nothing
+      # Proof: with this guard removed, node-roles.test.ts `leaves an unchanged sshd alone when
+      # the fresh login fails` failed: the rescue reloaded sshd (2026-11-22).
+      when: not (puni_bastion_drop_in is changed or puni_bastion_hand_removed is changed)
+      ansible.builtin.fail:
+        msg: >-
+          This run changed nothing in sshd, which was left as it is, but its check failed:
+          {{ ansible_failed_result.msg | default('') }}
+
+    - name: Put back each drop-in the host had before the play
+      # Proof: with this restore disabled, node-roles.test.ts `puts the hand-made drop-in back
+      # when a fresh login fails` failed: neither drop-in was left in place (2026-11-22).
+      when: item.stat.exists
       ansible.builtin.copy:
-        src: '{{ puni_bastion_backup_dir }}/10-puni-jump.conf.puni-backup'
-        dest: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
+        src: '{{ puni_bastion_backup_dir }}/{{ item.item }}.puni-backup'
+        dest: '{{ item.stat.path }}'
         remote_src: true
         owner: '{{ puni_root_owner }}'
         group: '{{ puni_root_group }}'
         mode: '0644'
+      loop: '{{ puni_bastion_drop_ins_before.results }}'
+      loop_control:
+        label: '{{ item.item }}'
 
-    - name: Remove the drop-in this play rendered
+    - name: Remove the drop-in this play created, where the host had none
+      when: not puni_bastion_drop_ins_before.results[0].stat.exists
       ansible.builtin.file:
         path: '{{ puni_bastion_sshd_dir }}/00-puni-bastion.conf'
         state: absent

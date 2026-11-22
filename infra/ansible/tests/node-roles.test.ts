@@ -1,4 +1,4 @@
-import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { beforeAll, describe, expect, it } from 'bun:test';
@@ -67,6 +67,25 @@ async function standIn(name: string, script: string): Promise<string> {
   await writeFile(path, `#!/bin/sh\n${script}\n`);
   await chmod(path, 0o755);
   return path;
+}
+
+/** Generates an ed25519 key pair in scratch; the public half is read back as one line. */
+async function keyPair(name: string): Promise<{ privateKey: string; publicKey: string }> {
+  const privateKey = join(await scratchAsync('node-roles-key-'), name);
+  const made = await tool([
+    'ssh-keygen',
+    '-q',
+    '-t',
+    'ed25519',
+    '-N',
+    '',
+    '-C',
+    name,
+    '-f',
+    privateKey,
+  ]);
+  expect(made.code).toBe(0);
+  return { privateKey, publicKey: (await tool(['cat', `${privateKey}.pub`])).stdout.trim() };
 }
 
 /** Runs one task file through tests/role-tasks.yml with `variables` as extra vars. */
@@ -264,9 +283,29 @@ const separatedFacts = {
 };
 
 describe("the network role's guards", () => {
+  let operatorKey = { puni_operator_private_key_file: '', puni_operator_authorized_keys: [''] };
+  beforeAll(async () => {
+    const key = await keyPair('operator');
+    operatorKey = {
+      puni_operator_private_key_file: key.privateKey,
+      puni_operator_authorized_keys: [key.publicKey],
+    };
+  });
+
+  it('refuses an operator key the base role does not install', async () => {
+    const refused = await taskFile({
+      ...separatedFacts,
+      ...operatorKey,
+      puni_operator_authorized_keys: [(await keyPair('other')).publicKey],
+    });
+    expect(refused.code).not.toBe(0);
+    expect(refused.output).toContain('is not one of the authorized keys this run installs');
+  });
+
   it('accepts a classified separated host, Docker bridges included', async () => {
     const accepted = await taskFile({
       ...separatedFacts,
+      ...operatorKey,
       ansible_interfaces: [...separatedFacts.ansible_interfaces, 'docker0', 'br-1a2b'],
     });
     expect(accepted.output).toContain('ok=');
@@ -276,6 +315,7 @@ describe("the network role's guards", () => {
   it('refuses an interface that reports less than the private MTU', async () => {
     const refused = await taskFile({
       ...separatedFacts,
+      ...operatorKey,
       ansible_enp8s0: { mtu: 1400, ipv4: { address: '10.10.1.11' } },
     });
     expect(refused.code).not.toBe(0);
@@ -285,6 +325,7 @@ describe("the network role's guards", () => {
   it('refuses an interface no class names', async () => {
     const refused = await taskFile({
       ...separatedFacts,
+      ...operatorKey,
       ansible_interfaces: [...separatedFacts.ansible_interfaces, 'eth9'],
     });
     expect(refused.code).not.toBe(0);
@@ -294,6 +335,7 @@ describe("the network role's guards", () => {
   it("refuses a private interface without the node's address", async () => {
     const refused = await taskFile({
       ...separatedFacts,
+      ...operatorKey,
       ansible_enp8s0: { mtu: 1442, ipv4: { address: '10.10.1.99' } },
     });
     expect(refused.code).not.toBe(0);
@@ -301,7 +343,11 @@ describe("the network role's guards", () => {
   });
 
   it('refuses public web ports on a host without ingress', async () => {
-    const refused = await taskFile({ ...separatedFacts, puni_public_ports: [80, 443] });
+    const refused = await taskFile({
+      ...separatedFacts,
+      ...operatorKey,
+      puni_public_ports: [80, 443],
+    });
     expect(refused.code).not.toBe(0);
     expect(refused.output).toContain('public ports that follow `ingress`');
   });
@@ -309,6 +355,7 @@ describe("the network role's guards", () => {
   it('refuses a play that does not come through the bastion', async () => {
     const variables = {
       ...separatedFacts,
+      ...operatorKey,
       puni_test_tasks: 'ssh-source.yml',
     };
     const refused = await taskFile(variables, {
@@ -324,30 +371,8 @@ describe("the network role's guards", () => {
 });
 
 describe('the shared task files', () => {
-  async function twoKeys(): Promise<string[]> {
-    const directory = await scratchAsync('node-roles-keys-');
-    const keys: string[] = [];
-    for (const name of ['one', 'two']) {
-      const made = await tool([
-        'ssh-keygen',
-        '-q',
-        '-t',
-        'ed25519',
-        '-N',
-        '',
-        '-C',
-        name,
-        '-f',
-        join(directory, name),
-      ]);
-      expect(made.code).toBe(0);
-      keys.push((await tool(['cat', join(directory, `${name}.pub`)])).stdout.trim());
-    }
-    return keys;
-  }
-
   it('installs two keys on two lines', async () => {
-    const keys = await twoKeys();
+    const keys = [(await keyPair('one')).publicKey, (await keyPair('two')).publicKey];
     const file = join(await scratchAsync('node-roles-home-'), 'authorized_keys');
     const installed = await taskFile({
       puni_test_tasks: 'authorized-keys.yml',
@@ -363,10 +388,9 @@ describe('the shared task files', () => {
   });
 
   it('refuses keys given as one string', async () => {
-    const [key] = await twoKeys();
     const refused = await taskFile({
       puni_test_tasks: 'authorized-keys.yml',
-      puni_keys: key,
+      puni_keys: (await keyPair('one')).publicKey,
       puni_keys_owner: identity.uid,
       puni_keys_group: identity.gid,
       puni_keys_file: join(await scratchAsync('node-roles-home-'), 'authorized_keys'),
@@ -376,31 +400,181 @@ describe('the shared task files', () => {
     expect(refused.output).toContain('needs a list of one-line keys');
   });
 
+  it('refuses a fresh-login key the run does not install', async () => {
+    const operator = await keyPair('operator');
+    const other = await keyPair('other');
+    const variables = {
+      puni_test_tasks: 'fresh-key.yml',
+      puni_fresh_key_file: operator.privateKey,
+    };
+    const accepted = await taskFile({
+      ...variables,
+      puni_fresh_authorized_keys: [other.publicKey, operator.publicKey],
+    });
+    expect(accepted.code).toBe(0);
+    const refused = await taskFile({ ...variables, puni_fresh_authorized_keys: [other.publicKey] });
+    expect(refused.code).not.toBe(0);
+    expect(refused.output).toContain('is not one of the authorized keys this run installs');
+  });
+
+  const freshVariables = {
+    puni_test_tasks: 'fresh-connection.yml',
+    puni_fresh_command: ['true'],
+    puni_fresh_user: 'puni-fleet',
+    puni_fresh_key_file: '/ops/operator-key',
+    ansible_host: '10.10.1.11',
+    ansible_user: 'root',
+  };
+
   it('fails when a fresh connection is refused, and opens it outside the multiplexed one', async () => {
     const log = join(await scratchAsync('node-roles-ssh-'), 'argv');
     const recording = await standIn('ssh', `printf '%s\\n' "$@" > ${log}`);
-    const variables = {
-      puni_test_tasks: 'fresh-connection.yml',
-      puni_fresh_command: ['true'],
-      ansible_host: '10.10.1.11',
-      ansible_user: 'puni-fleet',
-      ansible_ssh_private_key_file: '/ops/admin-key',
-    };
-    expect((await taskFile({ ...variables, puni_ssh_client: recording })).code).toBe(0);
-    const argv = (await readFile(log, 'utf8')).split('\n');
+    expect((await taskFile({ ...freshVariables, puni_ssh_client: recording })).code).toBe(0);
+    const argv = (await tool(['cat', log])).stdout.split('\n');
     for (const option of ['ControlMaster=no', 'ControlPath=none', 'BatchMode=yes']) {
       expect(argv).toContain(option);
     }
     expect(argv.slice(-4)).toEqual(['sudo', '-n', 'true', '']);
     const refused = await taskFile({
-      ...variables,
+      ...freshVariables,
       puni_ssh_client: await standIn('ssh', 'exit 255'),
     });
     expect(refused.code).not.toBe(0);
     expect(refused.output).toContain('Open a fresh connection and run the confirming command');
   });
+
+  it('logs in as the operator although the play connects as root', async () => {
+    // A stand-in sshd-side refusal of root: the first bastion run connects as root, which the new
+    // drop-in refuses, so a login as `ansible_user` could never confirm (review of 606ec3972).
+    const refusesRoot = await standIn(
+      'ssh',
+      ['for argument in "$@"; do', '  case "$argument" in root@*) exit 255 ;; esac', 'done'].join(
+        '\n',
+      ),
+    );
+    const accepted = await taskFile({ ...freshVariables, puni_ssh_client: refusesRoot });
+    expect(accepted.output).toContain('failed=0');
+  });
+
+  it('passes a quoted ProxyCommand through as one argument', async () => {
+    const log = join(await scratchAsync('node-roles-ssh-'), 'argv');
+    const recording = await standIn('ssh', `printf '%s\\n' "$@" > ${log}`);
+    const run = await taskFile({
+      ...freshVariables,
+      puni_ssh_client: recording,
+      ansible_ssh_common_args: `-o 'ProxyCommand=ssh -W %h:%p -i /ops/jump-key jump@203.0.113.12'`,
+    });
+    expect(run.code).toBe(0);
+    expect((await tool(['cat', log])).stdout.split('\n')).toContain(
+      'ProxyCommand=ssh -W %h:%p -i /ops/jump-key jump@203.0.113.12',
+    );
+  });
 });
 
+/** A stand-in that records each call's arguments as one line in `log`, then exits `code`. */
+async function recordingStandIn(name: string, log: string, code = 0): Promise<string> {
+  return standIn(name, `printf '%s\\n' "$*" >> ${log}\nexit ${String(code)}`);
+}
+
+describe('the confirmed firewall', () => {
+  async function firewallRun(
+    state: string,
+    options: { loaded: boolean; login: number },
+  ): Promise<{ run: Run; armed: number; marker: string | null; file: string }> {
+    const log = join(state, 'calls');
+    const nft = await standIn(
+      'nft',
+      `printf '%s\\n' "nft $*" >> ${log}\n[ "$1" = list ] && exit ${options.loaded ? '0' : '1'}\nexit 0`,
+    );
+    const file = join(state, 'puni-bastion.nft');
+    const run = await taskFile(
+      {
+        puni_test_tasks: 'confirmed-firewall.yml',
+        puni_fw_template: join(ansibleRoot, 'roles/bastion/templates/bastion.nft.j2'),
+        puni_fw_file: file,
+        puni_fw_table: 'inet puni_bastion',
+        puni_fw_unit: 'puni-bastion-firewall',
+        puni_fw_state_dir: join(state, 'state'),
+        puni_fw_unit_changed: false,
+        puni_nft: [nft],
+        puni_nft_check: nftCheck,
+        puni_systemd_run: [await recordingStandIn('systemd-run', log)],
+        puni_systemctl: [await recordingStandIn('systemctl', log)],
+        puni_ssh_client: await standIn('ssh', `exit ${String(options.login)}`),
+        puni_root_owner: identity.uid,
+        puni_root_group: identity.gid,
+        puni_fresh_user: 'puni-fleet',
+        puni_fresh_key_file: '/ops/bastion-admin-key',
+      },
+      { ...bastionInputs, inventory: await inventoryWith({}, { ansible_host: '203.0.113.12' }) },
+    );
+    const calls = (await tool(['cat', log])).stdout;
+    const marker = await tool(['cat', join(state, 'state/confirmed.sha256')]);
+    return {
+      run,
+      armed: calls.split('\n').filter((line) => line.includes('--on-active=5min')).length,
+      marker: marker.code === 0 ? marker.stdout.trim() : null,
+      file,
+    };
+  }
+
+  it('arms again on the run after a failed confirmation, and not once confirmed', async () => {
+    const state = await scratchAsync('node-roles-firewall-');
+    const failed = await firewallRun(state, { loaded: false, login: 255 });
+    expect(failed.run.code).not.toBe(0);
+    expect([failed.armed, failed.marker]).toEqual([1, null]);
+    // The file is unchanged now; the marker's absence alone makes the run arm and load again.
+    const again = await firewallRun(state, { loaded: true, login: 0 });
+    expect(again.run.output).toContain('failed=0');
+    expect(again.armed).toBe(2);
+    const sha = (await tool(['sha256sum', again.file])).stdout.split(' ')[0];
+    expect(again.marker).toBe(sha);
+    const settled = await firewallRun(state, { loaded: true, login: 0 });
+    expect(settled.run.output).toContain('failed=0');
+    expect(settled.armed).toBe(2);
+    // A table missing although the marker matches is loaded and confirmed again.
+    const unloaded = await firewallRun(state, { loaded: false, login: 0 });
+    expect(unloaded.armed).toBe(3);
+  });
+
+  it('writes a revert that puts back the confirmed file, or removes an unconfirmed one', async () => {
+    const state = await scratchAsync('node-roles-firewall-');
+    await firewallRun(state, { loaded: false, login: 255 });
+    const first = (await tool(['cat', join(state, 'state/revert.sh')])).stdout;
+    expect(first).toContain(`rm -f ${join(state, 'puni-bastion.nft')}`);
+    await firewallRun(state, { loaded: true, login: 0 });
+    expect((await tool(['cat', join(state, 'state/confirmed.nft')])).code).toBe(0);
+  });
+
+  it('stops on a ruleset nft refuses', async () => {
+    const state = await scratchAsync('node-roles-firewall-');
+    await writeFile(
+      join(state, 'broken.j2'),
+      'table inet t {\n  chain c {\n    type filter hook\n',
+    );
+    const run = await taskFile(
+      {
+        puni_test_tasks: 'confirmed-firewall.yml',
+        puni_fw_template: join(state, 'broken.j2'),
+        puni_fw_file: join(state, 'broken.nft'),
+        puni_fw_table: 'inet puni_bastion',
+        puni_fw_unit: 'puni-bastion-firewall',
+        puni_fw_state_dir: join(state, 'state'),
+        puni_fw_unit_changed: false,
+        puni_nft: ['false'],
+        puni_nft_check: nftCheck,
+        puni_systemd_run: ['false'],
+        puni_systemctl: ['false'],
+        puni_root_owner: identity.uid,
+        puni_root_group: identity.gid,
+      },
+      { inventory: 'localhost,' },
+    );
+    expect(run.code).not.toBe(0);
+    expect(run.output).toContain('Validate the ruleset before changing active rules');
+    expect(run.output).not.toContain('Arm the timer that reverts');
+  });
+});
 const bastionInputs = { inventory: 'inventory/production-hosts.yml', limit: 'm2bast1' };
 
 describe("the bastion's guards", () => {
@@ -421,34 +595,29 @@ describe("the bastion's guards", () => {
 
   it('refuses a forward that is not an address at port 22', async () => {
     const refused = await taskFile(
-      {
-        puni_test_role: 'bastion',
-        puni_test_tasks: 'inputs.yml',
-        puni_bastion_forwarded_hosts: ['m1plat1'],
-      },
-      {
-        ...bastionInputs,
-        inventory: await inventoryWith({ ansible_host: '10.10.1.11:2222' }),
-      },
+      { puni_test_role: 'bastion', puni_test_tasks: 'inputs.yml' },
+      { ...bastionInputs, inventory: await inventoryWith({ ansible_host: '10.10.1.11:2222' }) },
     );
     expect(refused.code).not.toBe(0);
     expect(refused.output).toContain('PermitOpen must name private addresses at port 22 only');
   });
 
   it("refuses the bastion's key inputs", async () => {
+    const admin = await keyPair('admin');
     const valid = {
       puni_test_role: 'bastion',
       puni_test_tasks: 'keys-inputs.yml',
       ansible_distribution: 'Ubuntu',
       ansible_distribution_version: '26.04',
       puni_bastion_jump_authorized_keys: ['ssh-ed25519 AAAAjump jump'],
-      puni_bastion_admin_authorized_keys: ['ssh-ed25519 AAAAadmin admin'],
+      puni_bastion_admin_authorized_keys: [admin.publicKey],
+      puni_bastion_admin_private_key_file: admin.privateKey,
       puni_operator_authorized_keys: ['ssh-ed25519 AAAAserver server'],
       puni_console_password_hash: '$6$salt$hash',
     };
     expect((await taskFile(valid)).code).toBe(0);
     for (const fault of [
-      { puni_bastion_admin_authorized_keys: ['ssh-ed25519 AAAAjump jump'] },
+      { puni_bastion_jump_authorized_keys: [admin.publicKey] },
       { puni_bastion_jump_authorized_keys: ['ssh-ed25519 AAAAserver server'] },
       { puni_bastion_jump_authorized_keys: 'ssh-ed25519 AAAAjump jump' },
       { puni_console_password_hash: 'plain' },
@@ -457,6 +626,12 @@ describe("the bastion's guards", () => {
       expect(refused.code).not.toBe(0);
       expect(refused.output).toContain('The jump key, the bastion');
     }
+    const otherKey = await taskFile({
+      ...valid,
+      puni_bastion_admin_private_key_file: (await keyPair('other')).privateKey,
+    });
+    expect(otherKey.code).not.toBe(0);
+    expect(otherKey.output).toContain('is not one of the authorized keys this run installs');
   });
 
   it('refuses a bastion whose private interface does not carry its address', async () => {
@@ -476,38 +651,20 @@ describe("the bastion's guards", () => {
     expect(refused.code).not.toBe(0);
     expect(refused.output).toContain('enp8s0 does not carry 10.10.1.12');
   });
-
-  it('stops on a ruleset nft refuses', async () => {
-    const directory = await scratchAsync('node-roles-ruleset-');
-    const good = join(directory, 'good.nft');
-    const broken = join(directory, 'broken.nft');
-    await writeFile(
-      good,
-      'table inet t {\n  chain c {\n    type filter hook input priority 0; policy accept;\n  }\n}\n',
-    );
-    await writeFile(broken, 'table inet t {\n  chain c {\n    type filter hook input\n');
-    const variables = {
-      puni_test_role: 'bastion',
-      puni_test_tasks: 'firewall-validate.yml',
-      puni_nft_check: nftCheck,
-    };
-    expect((await taskFile({ ...variables, puni_bastion_nft_file: good })).code).toBe(0);
-    const refused = await taskFile({ ...variables, puni_bastion_nft_file: broken });
-    expect(refused.code).not.toBe(0);
-    expect(refused.output).toContain('Validate the bastion firewall');
-  });
 });
 
-/** production-hosts.yml with m1plat1's and m2bast1's variables changed. */
+/** production-hosts.yml with m1plat1's and m2bast1's variables changed, and more servers. */
 async function inventoryWith(
   server: Record<string, unknown>,
   bastion: Record<string, unknown> = {},
+  agents: Record<string, Record<string, unknown>> = {},
 ): Promise<string> {
   const inventory = parse(
     await readFile(join(ansibleRoot, 'inventory/production-hosts.yml'), 'utf8'),
   ) as { all: { children: Record<string, { hosts: Record<string, Record<string, unknown>> }> } };
   Object.assign(inventory.all.children['k3s_bootstrap_servers'].hosts['m1plat1'], server);
   Object.assign(inventory.all.children['bastion'].hosts['m2bast1'], bastion);
+  Object.assign(inventory.all.children['k3s_agents'].hosts, agents);
   const path = join(await scratchAsync('node-roles-inventory-'), 'production-hosts.yml');
   await writeFile(path, stringify(inventory));
   return path;
@@ -533,7 +690,7 @@ async function sshdStandIn(options: readonly string[], validates = true): Promis
   );
 }
 
-const bastionOptions = [
+const bastionOptions = (permitOpen = 'permitopen 10.10.1.11:22') => [
   'pubkeyauthentication yes',
   'passwordauthentication no',
   'kbdinteractiveauthentication no',
@@ -545,95 +702,156 @@ const bastionOptions = [
   'allowstreamlocalforwarding no',
   'permittunnel no',
   'allowtcpforwarding local',
-  'permitopen 10.10.1.11:22',
+  permitOpen,
   'allowusers puni-fleet',
   'allowusers jump',
   'denyusers puni-console',
 ];
 
 describe("the bastion's sshd change", () => {
-  async function sshdRun(sshd: string, ssh: string) {
+  interface Host {
+    configuration: string;
+    backup: string;
+    reloads: string;
+  }
+  async function bastionHost(): Promise<Host> {
     const directory = await scratchAsync('node-roles-sshd-');
-    const configuration = join(directory, 'sshd_config.d');
-    const backup = join(directory, 'root');
-    await mkdir(configuration);
-    await mkdir(backup);
-    await writeFile(join(configuration, '10-puni-jump.conf'), 'AllowUsers root jump\n');
+    const host = {
+      configuration: join(directory, 'sshd_config.d'),
+      backup: join(directory, 'root'),
+      reloads: join(directory, 'reloads'),
+    };
+    await mkdir(host.configuration);
+    await mkdir(host.backup);
+    await writeFile(join(host.configuration, '10-puni-jump.conf'), 'AllowUsers root jump\n');
+    return host;
+  }
+  async function sshdRun(
+    host: Host,
+    sshd: string,
+    ssh: string,
+    agents: Record<string, Record<string, unknown>> = {},
+  ) {
     const run = await taskFile(
       {
         puni_test_role: 'bastion',
         puni_test_tasks: 'sshd.yml',
         puni_bastion_sshd: sshd,
         puni_ssh_client: ssh,
-        puni_bastion_sshd_dir: configuration,
-        puni_bastion_backup_dir: backup,
+        puni_bastion_sshd_dir: host.configuration,
+        puni_bastion_backup_dir: host.backup,
         puni_root_owner: identity.uid,
         puni_root_group: identity.gid,
-        puni_sshd_reload: ['true'],
-        ansible_user: 'puni-fleet',
-        ansible_ssh_private_key_file: '/ops/bastion-admin-key',
+        puni_sshd_reload: [await recordingStandIn('reload', host.reloads)],
+        // The first run connects as root; the fresh login must not.
+        ansible_user: 'root',
+        puni_bastion_admin_private_key_file: '/ops/bastion-admin-key',
       },
       // The bastion's public `ansible_host` is a host variable from $OPS; an extra variable would
       // replace every host's, the servers' that PermitOpen names among them.
-      { ...bastionInputs, inventory: await inventoryWith({}, { ansible_host: '203.0.113.12' }) },
+      {
+        ...bastionInputs,
+        inventory: await inventoryWith({}, { ansible_host: '203.0.113.12' }, agents),
+      },
     );
-    const present = async (name: string) =>
-      stat(join(configuration, name)).then(
-        () => true,
-        () => false,
-      );
+    const read = async (name: string) => {
+      const found = await tool(['cat', join(host.configuration, name)]);
+      return found.code === 0 ? found.stdout : null;
+    };
+    const reloads = await tool(['cat', host.reloads]);
     return {
       run,
-      drop: await present('00-puni-bastion.conf'),
-      hand: await present('10-puni-jump.conf'),
+      drop: await read('00-puni-bastion.conf'),
+      hand: await read('10-puni-jump.conf'),
+      // One line per reload, empty because the reload takes no arguments.
+      reloads: reloads.code === 0 ? reloads.stdout.split('\n').length - 1 : 0,
     };
   }
+  const refusesRoot = () =>
+    standIn(
+      'ssh',
+      ['for argument in "$@"; do', '  case "$argument" in root@*) exit 255 ;; esac', 'done'].join(
+        '\n',
+      ),
+    );
 
   it('installs the drop-in and removes the hand-made one when a fresh login succeeds', async () => {
-    const { run, drop, hand } = await sshdRun(
-      await sshdStandIn(bastionOptions),
-      await standIn('ssh', 'exit 0'),
+    const result = await sshdRun(
+      await bastionHost(),
+      await sshdStandIn(bastionOptions()),
+      await refusesRoot(),
     );
-    expect(run.output).toContain('failed=0');
-    expect([drop, hand]).toEqual([true, false]);
+    expect(result.run.output).toContain('failed=0');
+    expect([result.drop !== null, result.hand]).toEqual([true, null]);
   });
 
   it('puts the hand-made drop-in back when a fresh login fails', async () => {
-    // Proof: with the rescue's restore removed, this left neither drop-in in place (2026-11-22).
-    const { run, drop, hand } = await sshdRun(
-      await sshdStandIn(bastionOptions),
+    const result = await sshdRun(
+      await bastionHost(),
+      await sshdStandIn(bastionOptions()),
       await standIn('ssh', 'exit 255'),
     );
-    expect(run.output).toContain('sshd was put back as it was');
-    expect(run.output).toMatch(/fatal: .*\n?.*Open a fresh connection|non-zero return code/);
-    expect(run.output).toContain('Read back what sshd applies to jump');
-    expect([drop, hand]).toEqual([false, true]);
+    expect(result.run.output).toContain('sshd was put back as it was');
+    expect(result.run.output).toContain('Read back what sshd applies to jump');
+    expect([result.drop, result.hand]).toEqual([null, 'AllowUsers root jump\n']);
   });
 
   it('stops on an sshd configuration that does not validate, and puts sshd back', async () => {
-    const { run, drop, hand } = await sshdRun(
-      await sshdStandIn(bastionOptions, false),
-      await standIn('ssh', 'exit 0'),
+    const result = await sshdRun(
+      await bastionHost(),
+      await sshdStandIn(bastionOptions(), false),
+      await refusesRoot(),
     );
-    expect(run.output).toContain('sshd was put back as it was');
-    expect(run.output).toContain('Validate the whole sshd configuration');
-    expect(run.output).not.toContain('Read back what sshd applies to jump');
-    expect([drop, hand]).toEqual([false, true]);
+    expect(result.run.output).toContain('sshd was put back as it was');
+    expect(result.run.output).toContain('Validate the whole sshd configuration');
+    expect(result.run.output).not.toContain('Read back what sshd applies to jump');
+    expect([result.drop, result.hand]).toEqual([null, 'AllowUsers root jump\n']);
+  });
+
+  it("restores the previous run's drop-in when a changing run's fresh login fails", async () => {
+    const host = await bastionHost();
+    const first = await sshdRun(host, await sshdStandIn(bastionOptions()), await refusesRoot());
+    expect(first.run.output).toContain('failed=0');
+    // A second server changes the drop-in's PermitOpen; this run's fresh login then fails.
+    const second = await sshdRun(
+      host,
+      await sshdStandIn(bastionOptions('permitopen 10.10.1.11:22 10.10.1.13:22')),
+      await standIn('ssh', 'exit 255'),
+      { h6apps: { ansible_host: '10.10.1.13' } },
+    );
+    expect(second.run.output).toContain('sshd was put back as it was');
+    expect(second.drop).toBe(first.drop);
+    expect(second.hand).toBeNull();
+  });
+
+  it('leaves an unchanged sshd alone when the fresh login fails', async () => {
+    const host = await bastionHost();
+    const first = await sshdRun(host, await sshdStandIn(bastionOptions()), await refusesRoot());
+    expect(first.reloads).toBe(1);
+    const second = await sshdRun(
+      host,
+      await sshdStandIn(bastionOptions()),
+      await standIn('ssh', 'exit 255'),
+    );
+    expect(second.run.code).not.toBe(0);
+    expect(second.run.output).toContain('This run changed nothing in sshd');
+    expect([second.drop, second.hand, second.reloads]).toEqual([first.drop, null, 1]);
   });
 
   it('fails the read-back when an earlier drop-in sets another PermitOpen or adds root', async () => {
     for (const options of [
-      bastionOptions.map((line) =>
-        line.startsWith('permitopen') ? 'permitopen 10.10.1.99:22' : line,
-      ),
-      [...bastionOptions, 'allowusers root'],
+      bastionOptions('permitopen 10.10.1.99:22'),
+      [...bastionOptions(), 'allowusers root'],
     ]) {
-      const { run, hand } = await sshdRun(
+      const result = await sshdRun(
+        await bastionHost(),
         await sshdStandIn(options),
-        await standIn('ssh', 'exit 0'),
+        await refusesRoot(),
       );
-      expect(run.output).toContain('sshd applies other values to jump than the drop-in sets');
-      expect(hand).toBe(true);
+      expect(result.run.output).toContain(
+        'sshd applies other values to jump than the drop-in sets',
+      );
+      expect(result.hand).toBe('AllowUsers root jump\n');
     }
   });
 });

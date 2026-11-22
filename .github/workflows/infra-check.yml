@@ -80,7 +80,11 @@ jobs:
         env:
           PUNI_TEST_RUN: '["bash", "${{ github.workspace }}/infra/ansible/tests/controller-run.sh"]'
           PUNI_TEST_NFT_CHECK: '["nft", "-c", "-f"]'
-        run: bunx nx run tool-fleet:test:node-roles --output-style=stream
+        run: |
+          set -euo pipefail
+          PUNI_CONTROLLER_IMAGE=$(bun tools/tool-fleet/src/controller-image-cli.ts)
+          export PUNI_CONTROLLER_IMAGE
+          bunx nx run tool-fleet:test:node-roles --output-style=stream
 
       - name: tool-deploy test, lint, typecheck
         run: bunx nx run-many -t test lint typecheck -p tool-deploy --output-style=stream

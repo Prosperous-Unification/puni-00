@@ -34,3 +34,6 @@ puni_bastion_backup_dir: /root
 puni_root_owner: root
 puni_root_group: root
 puni_sshd_reload: [systemctl, reload, ssh]
+puni_nft: [/usr/sbin/nft]
+puni_systemd_run: [systemd-run]
+puni_systemctl: [systemctl]

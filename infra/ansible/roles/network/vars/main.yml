@@ -1,2 +1,8 @@
 ---
 puni_ssh_client: ssh
+puni_nft: [/usr/sbin/nft]
+puni_nft_check: [unshare, --net, nft, -c, -f]
+puni_systemd_run: [systemd-run]
+puni_systemctl: [systemctl]
+puni_root_owner: root
+puni_root_group: root

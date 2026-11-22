@@ -23,3 +23,9 @@
     fail_msg: >-
       The jump key, the bastion's admin key (lists, distinct from each other and from the servers'
       admin key) and the console account's SHA-512 password hash are required
+
+- name: Require the controller's admin key to be one the bastion installs
+  ansible.builtin.include_tasks: ../../../tasks/fresh-key.yml
+  vars:
+    puni_fresh_key_file: '{{ puni_bastion_admin_private_key_file }}'
+    puni_fresh_authorized_keys: '{{ puni_bastion_admin_authorized_keys }}'

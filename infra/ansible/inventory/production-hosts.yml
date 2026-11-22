@@ -32,6 +32,9 @@ all:
     puni_operator_name: puni-fleet
     # New hosts: no administrator keeps a cloud-init sudo grant.
     puni_remove_cloud_init_sudoers: true
+    # From $OPS, never here: `puni_operator_private_key_file` and, for the bastion,
+    # `puni_bastion_admin_private_key_file`, the controller's private keys that the fresh login
+    # confirming each access change uses (infra/ansible/tasks/fresh-connection.yml).
     # The local console account that sshd refuses (R49); its password hash is an input in $OPS.
     puni_console_account: puni-console
   children:

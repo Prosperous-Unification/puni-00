@@ -293,11 +293,21 @@ and the step reads back that the name answers (design decision 12).
       `puni_public_interfaces` (m1plat1: `enp3s0`, its default-route device); the `network` role
       refuses any interface that is not loopback, private, tailnet, pod network (`cni0`,
       `flannel.1`, `veth*`), declared public or a container bridge (`docker0`, `br-*`, whose
-      new outbound connections are allowed: the coordinator's decision). IPv6 is off on the
-      private interface (sysctl, read back) and new IPv6 there is dropped. Before it limits SSH
+      new outbound connections are allowed: the coordinator's decision). New IPv6 on the private interface is dropped by
+      the prerouting chain; IPv6 is not switched off by sysctl, because networkd resets
+      `disable_ipv6` whenever it configures the link and the role would then refuse to run
+      (the coordinator's decision of 2026-11-22, after a second review). Before it limits SSH
       the role requires the private interface to carry the node's address and the play's own
-      connection to come from the bastion; it arms a timer that deletes the new table and
-      cancels it only from a fresh controller login. The console account comes after a drop-in
+      connection to come from the bastion; the firewall then goes through `tasks/confirmed-firewall.yml`: a
+      marker holds the sha256 of the ruleset a fresh controller login confirmed, and whenever
+      it differs or the table is not loaded the run saves the live table, arms a timer that
+      restores the last confirmed file (or, with none, removes the new one and reloads the
+      saved table), loads the rules, and only the fresh login cancels the timer and writes the
+      marker. The fresh login is `puni_fresh_user` (the operator) with `puni_fresh_key_file`,
+      never `ansible_user`, which is root on a first run; the key file is an input in `$OPS`
+      (`puni_operator_private_key_file`, `puni_bastion_admin_private_key_file`), and its
+      public half must be one the run installs. A reboot before the timer fires loads the
+      unconfirmed file with no timer; the next run finds no marker and arms again. The console account comes after a drop-in
       that refuses it and every password, read back from `sshd -T`. Every key list is staged
       from a template loop and counted with `ssh-keygen -lf` before it is installed. Whether
       the public interface uses DHCPv6 or MLD was not read (the read was refused on
@@ -349,12 +359,14 @@ and the step reads back that the name answers (design decision 12).
       names the operator and `jump` in `AllowUsers` and refuses root, and the role removes the
       hand-made `10-puni-jump.conf`, whose `AllowUsers root jump` would accumulate; the hand-made
       nftables rules are left for A26 to read and remove.
-      Amended 2026-11-22 after review. The sshd change is a block whose rescue puts the
-      hand-made drop-in back, removes the new one and reloads, entered when validation, the
+      Amended 2026-11-22 after review. The sshd change copies aside both drop-ins the
+      host has (`00-puni-bastion.conf` of a previous run and the hand-made
+      `10-puni-jump.conf`) and is a block whose rescue puts back exactly those, removes the
+      new drop-in only where none existed, and reloads; it is entered when validation, the
       read-back (every option, and the `AllowUsers` and `DenyUsers` lines exactly) or a fresh
-      controller login as the operator fails; tested with a stand-in `sshd` and `ssh`. The
-      firewall loads behind a timer that deletes its table unless a fresh login cancels it;
-      its unit is shaped like `nftables.service` and passes `systemd-analyze verify`.
+      controller login as the operator fails. A run that changed nothing fails without
+      touching sshd. Tested with a stand-in `sshd` and `ssh`, across two runs. The firewall
+      goes through the same confirmed-firewall file as the servers'; its unit is shaped like `nftables.service` and passes `systemd-analyze verify`.
       `MaxAuthTries` is 6, and the controller's fresh login sets `IdentitiesOnly=yes` with one
       key (`tasks/fresh-connection.yml`); slice 2.5's `ProxyJump` settings should set the same.
       IPv6 arriving on the bastion's private interface is dropped; that interface,

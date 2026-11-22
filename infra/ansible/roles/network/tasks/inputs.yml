@@ -87,3 +87,10 @@
         (hostvars[inventory_hostname]['ansible_' ~ (puni_private_interface | replace('-', '_'))]
         .ipv4.address | default('')) == puni_node_ip
     fail_msg: '{{ puni_private_interface }} does not carry {{ puni_node_ip }}'
+
+- name: Require the controller's operator key to be one the base role installs
+  when: puni_public_ports is defined
+  ansible.builtin.include_tasks: ../../../tasks/fresh-key.yml
+  vars:
+    puni_fresh_key_file: '{{ puni_operator_private_key_file }}'
+    puni_fresh_authorized_keys: '{{ puni_operator_authorized_keys }}'

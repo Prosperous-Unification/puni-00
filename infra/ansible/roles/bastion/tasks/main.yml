@@ -92,20 +92,6 @@
     group: root
     mode: '0755'
 
-- name: Render the bastion firewall
-  ansible.builtin.template:
-    src: bastion.nft.j2
-    dest: /etc/nftables.d/puni-bastion.nft
-    owner: root
-    group: root
-    mode: '0600'
-  register: puni_bastion_ruleset
-
-- name: Validate the bastion firewall before changing active rules
-  ansible.builtin.include_tasks: firewall-validate.yml
-  vars:
-    puni_bastion_nft_file: /etc/nftables.d/puni-bastion.nft
-
 - name: Install the persistent bastion firewall service
   ansible.builtin.template:
     src: puni-bastion-firewall.service.j2
@@ -115,37 +101,20 @@
     mode: '0644'
   register: puni_bastion_unit
 
-- name: Apply the bastion firewall behind a timer that removes it unless a fresh login cancels it
-  when: puni_bastion_ruleset is changed or puni_bastion_unit is changed
-  block:
-    - name: Arm the timer that removes the bastion's table
-      ansible.builtin.command:
-        argv:
-          - systemd-run
-          - --on-active=5min
-          - --unit=puni-bastion-firewall-revert
-          - /usr/sbin/nft
-          - delete
-          - table
-          - inet
-          - puni_bastion
-      changed_when: true
-
-    - name: Load the bastion firewall
-      ansible.builtin.systemd_service:
-        name: puni-bastion-firewall
-        state: restarted
-        enabled: true
-        daemon_reload: true
-
-    - name: Cancel the timer from a fresh login through the new rules
-      ansible.builtin.include_tasks: ../../../tasks/fresh-connection.yml
-      vars:
-        puni_fresh_command: [systemctl, stop, puni-bastion-firewall-revert.timer]
-
-- name: Start the persistent bastion firewall
+- name: Enable the bastion firewall at boot
   ansible.builtin.systemd_service:
     name: puni-bastion-firewall
-    state: started
     enabled: true
     daemon_reload: true
+
+- name: Render, load and confirm the bastion firewall
+  ansible.builtin.include_tasks: ../../../tasks/confirmed-firewall.yml
+  vars:
+    puni_fw_template: '{{ role_path }}/templates/bastion.nft.j2'
+    puni_fw_file: /etc/nftables.d/puni-bastion.nft
+    puni_fw_table: inet puni_bastion
+    puni_fw_unit: puni-bastion-firewall
+    puni_fw_state_dir: /var/lib/puni/bastion-firewall
+    puni_fw_unit_changed: '{{ puni_bastion_unit is changed }}'
+    puni_fresh_user: '{{ puni_operator_name }}'
+    puni_fresh_key_file: '{{ puni_bastion_admin_private_key_file }}'
