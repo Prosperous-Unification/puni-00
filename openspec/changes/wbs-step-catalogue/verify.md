@@ -2482,3 +2482,26 @@ Nx typecheck passed.
   `twilight-burokrat:lint:source` reported one import and one export
   ordering error. The two declarations were sorted. The exact uncached
   Burokrat source lint target passed locally.
+
+### Retired package-local Step route witnesses
+
+The predecessor still mounts its project-local Step definition routes. In the
+detached checkout of `8c997e62a2833cabfbe802d2082fb36d60d3397c`, the original
+`apps/wbs/be-01/src/controller/step.controller.db.test.ts` has blob
+`481052b39a42e86e5d8c918490756a7e3c09c0a6`. A frozen offline Bun install
+followed by the focused Nx target passed all 54 tests with 336 assertions.
+
+```sh
+bunx nx run wbs-be-01:test:store --exclude-task-dependencies --skip-nx-cache \
+  --command='bun test ./src/controller/step.controller.db.test.ts --timeout=25000'
+```
+
+Twenty-seven witnesses remain in that predecessor because they require
+package-local definition creation and rename, native form/query rules for
+those routes, destructive cascade, or the old direct event. Current native
+HTTP tests cover the retired operation IDs, closed package values, catalogue
+authorization and validation, protected unbind and transactional fanout.
+The current step controller suite retains the 27 package-command,
+estimate-unit, allowance and replay witnesses. The catalogue unbind suite
+checks sparse parallelism on preview and apply and verifies that an
+unauthorized caller or another organization receives no protected details.

@@ -1315,6 +1315,46 @@ test('current global catalogue HTTP unbind preview and refusal retain exact 201 
   });
 }, 60000);
 
+test('current catalogue unbind protects sparse parallelism without disclosing it to other callers', async () => {
+  await withinFixture(async (fixture) => {
+    await healthyList(fixture);
+    const id = 'parallel-leaf',
+      name = 'Parallel leaf',
+      workPackageId = PROJECT + ':package';
+    await fixture.harness.publicWrites().uow.run(async ({ stores }) => {
+      await stores.workItems.insert(workItemRow({ id, name, workPackageId }), [], fixture.stamp);
+      const parallel = { workItemId: id, stepId: STEP, maxParallel: 2 };
+      await stores.stepParallels.set(parallel, fixture.stamp);
+      expect(await stores.stepParallels.listByWorkItems(workPackageId, [id])).toEqual([parallel]);
+      return { commit: true, value: undefined };
+    });
+    const before = snapshot(fixture);
+    const announcements = [...fixture.pushes];
+    const path = '/api/organization/step-bindings/' + STEP + ':binding';
+    const unbind = (actor: Actor, dryRun: boolean) =>
+      fixture.harness.call(actor, 'DELETE', path, { dryRun });
+    const protectedFacts = {
+      count: 1,
+      pairs: [{ id, name, workPackageId, stepId: STEP, facts: ['parallel'] }],
+    };
+    expect(await unbind('admin', true)).toEqual({
+      status: 200,
+      body: { wouldRefuse: 'step_nodes_in_use', ...protectedFacts },
+    });
+    expect(await unbind('admin', false)).toEqual({
+      status: 409,
+      body: { error: 'step_nodes_in_use', ...protectedFacts },
+    });
+    const denied = await unbind('reader', false);
+    expect(denied.status).toBe(403);
+    expect(denied.body).not.toHaveProperty('pairs');
+    fixture.harness.bind('admin', FOREIGN_ORGANIZATION);
+    expect(await unbind('admin', false)).toEqual({ status: 404, body: { error: 'not_found' } });
+    expect(snapshot(fixture)).toEqual(before);
+    expect(fixture.pushes).toEqual(announcements);
+  });
+}, 60000);
+
 test('current global catalogue HTTP unbind touches an empty project once without package announcements', async () => {
   await withinFixture(async (fixture) => {
     await healthyList(fixture);

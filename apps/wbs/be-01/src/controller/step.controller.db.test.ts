@@ -12,7 +12,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { AnnouncementCollector } from '@wbs/core';
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
@@ -29,10 +28,10 @@ import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { WorkItemBudgetRepository } from '@wbs/store-sqlite/work-item-budget';
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
-import type { Step, WorkItem, WriteStamp } from '../repository';
+import type { Step, WriteStamp } from '../repository';
 import { ActualRepository } from '../repository/actual';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -79,7 +78,6 @@ import { refusingProjects } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaceRead, refusingSpaces } from '../testing/space-fixture';
-import { workItemRow } from '../testing/work-item-fixture';
 import { refusingWorkPackageAddressSearch } from '../testing/work-package-address-search-fixture';
 import { refusingWorkPackageRanks } from '../testing/work-package-rank-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -97,6 +95,7 @@ let dir: string;
 let app: ReturnType<typeof buildApp>;
 let auth: AuthService;
 let stepStore: StepRepository;
+let catalogue: StepCatalogueRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
 let measures: StepMeasureRepository;
@@ -151,12 +150,8 @@ beforeEach(async () => {
     { at: 1, by: seededBy },
   );
 
-  await bindDevQaFixture(
-    new StepCatalogueRepository(db, OPEN, 'owned'),
-    'http-fixture-legacy',
-    PROJECT_ID,
-    wrote(),
-  );
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
+  await bindDevQaFixture(catalogue, 'http-fixture-legacy', PROJECT_ID, wrote());
 
   broadcast = recordingBroadcaster();
   const announcements = broadcast;
@@ -326,11 +321,44 @@ async function newWorkPackage(token: string): Promise<{ id: string; devId: strin
   return { id: body.workPackage.id, devId: dev.id, qaId: qa.id };
 }
 
-const addStep = (workPackageId: string, token: string, name: string): Promise<Response> =>
-  send(`/api/work-packages/${workPackageId}/steps`, token, {
-    method: 'POST',
-    body: JSON.stringify({ name }),
-  });
+async function bindFixtureStep(
+  name: string,
+  code: string,
+  defaultEstimateUnit: 'workdays' | 'minutes' = 'workdays',
+  defaultAllowancePercent = 0,
+) {
+  const id = crypto.randomUUID();
+  const bound = await catalogue.defineAndBindStep(
+    'http-fixture-legacy',
+    { id, name, code, position: 30, defaultEstimateUnit, defaultAllowancePercent },
+    {
+      bindingId: crypto.randomUUID(),
+      scopeKind: 'project',
+      scopeId: PROJECT_ID,
+      workItemTypeId: null,
+      position: 30,
+    },
+    wrote(),
+  );
+  if (!bound.ok) throw new Error('fixture step binding refused: ' + bound.reason);
+  return id;
+}
+
+async function unbindFixtureStep(stepId: string) {
+  const rows = await catalogue.readCatalogue('http-fixture-legacy');
+  const binding = rows?.bindings.find(
+    (entry) =>
+      entry.scopeKind === 'project' && entry.scopeId === PROJECT_ID && entry.stepId === stepId,
+  );
+  if (binding === undefined) throw new Error('fixture project binding absent');
+  const removed = await catalogue.unbindStep(
+    'http-fixture-legacy',
+    binding.bindingId,
+    { dryRun: false },
+    wrote(),
+  );
+  expect(removed).toMatchObject({ kind: 'unbound' });
+}
 
 /** One plan batch of a single command — the one way a plan is written to. */
 const planCommand = (
@@ -364,12 +392,7 @@ describe('the steps routes are the only spelling', () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
 
-    expect((await addStep(workPackage.id, token, 'Design')).status).toBe(200);
-
-    // The list is the work package read's — a second GET would be a second read of
-    // one fact, which is why `stepController` mounts none (see its JSDoc). What
-    // this asserts is that the list comes back under `steps` and names what the
-    // steps route just wrote.
+    await bindFixtureStep('Design', 'design');
     const read = await send(`/api/work-packages/${workPackage.id}`, token);
     const body = (await read.json()) as { steps: { name: string }[] };
     expect(body.steps.map((step) => step.name)).toEqual(['Dev', 'QA', 'Design']);
@@ -421,338 +444,7 @@ describe('the steps routes are the only spelling', () => {
   });
 });
 
-/**
- * TASK-256, the same class TASK-255 closed for saved plans, and what D24
- * replaced the mechanism with.
- *
- * `DeferringBroadcaster.held` was **instance** state and `services.ts` built
- * exactly one instance, so during any open hold *every* publish through that
- * object joined the batch's queue — including one from an HTTP route that had
- * already committed and was not part of the batch. A refused batch drops what
- * it collected, and the route's event went with it: the write happened; nobody
- * was told. TASK-256 made the queue per-caller with `AsyncLocalStorage`, which
- * answered "whose event is this" correctly and ambiently; the collector answers
- * it by which graph published, which is the same answer in a runtime that has
- * no `AsyncLocalStorage` at all.
- *
- * Steps are the worst case rather than another instance of it: `readScopeFor`
- * maps `step_added` / `step_renamed` / `step_removed` to `tree-and-steps`, so
- * these are the events the table refetches on. `PlanCommandKind`
- * (`libs/wbs/application/core/src/service/plan-command.ts`) declares no step command and
- * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts` never references `StepService`, so a step mutation is
- * reachable only through this controller — it is never *inside* a batch, and
- * being captured by one is always wrong.
- *
- * Two assertions, failing for different reasons. The collector's `pending`
- * empty says the event never entered a batch's collection, which is what makes
- * it survivable; the recorder says it actually went out while that batch was
- * open. An implementation that collected the event and sent it later passes the
- * second and fails the first — and still loses the event on a refusal.
- *
- * The window a route's *own* publish can be caught in — after its write, before
- * it publishes, with a batch open — is `announcement-ownership.db.test.ts`'s
- * (l), on real services.
- */
-describe('a step mutation is not captured by an unrelated batch', () => {
-  it('delivers an add made while an unrelated batch is collecting', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    broadcast.published.length = 0;
-
-    // A batch's collector, open beside the route. What used to be an ambient
-    // hold is an object the batch's own services were built over, so an
-    // unrelated route cannot publish into it however its call stack is rooted.
-    const batchCollector = new AnnouncementCollector(broadcast);
-
-    const res = await addStep(workPackage.id, token, 'Design');
-    expect(res.status).toBe(200);
-    const step = ((await res.json()) as { step: Step }).step;
-
-    // The refusal: the batch's own announcements would be dropped, never sent.
-    expect(batchCollector.pending).toEqual([]);
-    // `toEqual` on the whole array, not a `.some(...)` search: the step the
-    // event carries and the work package it was announced on are both part of the
-    // claim, and an event announced on the wrong work package would pass a count.
-    expect(broadcast.published).toEqual([
-      { workPackageId: workPackage.id, event: { type: 'step_added', step } },
-    ]);
-  });
-});
-
-describe('POST /api/work-packages/:id/steps', () => {
-  it('adds a step and answers with it', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await addStep(workPackage.id, token, 'Design');
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { step: Step };
-    expect(body.step.name).toBe('Design');
-    expect(body.step.workPackageId).toBe(workPackage.id);
-    expect(await stepStore.findById(body.step.id)).toEqual(body.step);
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(3);
-  });
-
-  it('codes a new step from its name, against the codes the work package holds', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await addStep(workPackage.id, token, 'Code Review!');
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { step: Step }).step.code).toBe('code-review');
-  });
-
-  it('writes the code its creator chose', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Implementation', code: 'impl' }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { step: Step }).step.code).toBe('impl');
-  });
-
-  it('refuses a reserved code and writes no step', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Review', code: 's2-review' }),
-    });
-
-    expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({ error: 'reserved_code' });
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(2);
-  });
-
-  it('refuses a code outside the grammar, and one the work package already holds', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    const post = (code: string) =>
-      send(`/api/work-packages/${workPackage.id}/steps`, token, {
-        method: 'POST',
-        body: JSON.stringify({ name: 'Design', code }),
-      });
-
-    const invalid = await post('Design');
-    expect(invalid.status).toBe(422);
-    expect(await invalid.json()).toEqual({ error: 'invalid_code' });
-    const taken = await post('dev');
-    expect(taken.status).toBe(409);
-    expect(await taken.json()).toEqual({ error: 'code_taken' });
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toHaveLength(2);
-  });
-
-  it('answers 409 taken for a name the work package already holds', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await addStep(workPackage.id, token, 'QA');
-
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ error: 'taken' });
-  });
-
-  it('answers 422 for a name of spaces, 404 for a work package that is not there, 401 unauthenticated', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    expect((await addStep(workPackage.id, token, '   ')).status).toBe(422);
-    expect((await addStep(crypto.randomUUID(), token, 'Design')).status).toBe(404);
-    expect((await addStep(workPackage.id, 'not-a-token', 'Design')).status).toBe(401);
-  });
-
-  /**
-   * The case Elysia's `t.Object({ name: t.String() })` used to answer and
-   * nothing asserted.
-   *
-   * When the route moved onto the framework-free shape the check moved into the
-   * handler, and inverting it — accepting a non-string by coercing it — left
-   * this whole file green. A refusal the framework performs is a refusal that
-   * disappears with the framework, so it is stated here, once, for both writes.
-   */
-  it('answers 422 for a body whose name is not a string, and for no body at all', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    const post = (body: string) =>
-      send(`/api/work-packages/${workPackage.id}/steps`, token, { method: 'POST', body });
-
-    expect((await post(JSON.stringify({ name: 42 }))).status).toBe(422);
-    expect((await post(JSON.stringify({}))).status).toBe(422);
-    expect((await post(JSON.stringify([]))).status).toBe(422);
-  });
-
-  it('answers 403 on a restricted work package the caller does not own', async () => {
-    const owner = await register('owner');
-    const stranger = await register('stranger');
-    const workPackage = await newWorkPackage(owner);
-    await send(`/api/work-packages/${workPackage.id}`, owner, {
-      method: 'PATCH',
-      body: JSON.stringify({ restricted: true }),
-    });
-
-    const res = await addStep(workPackage.id, stranger, 'Design');
-
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'forbidden' });
-  });
-});
-
-describe('PATCH /api/work-packages/:id/steps/:stepId', () => {
-  it('renames a step', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
-      token,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ name: 'Review' }),
-      },
-    );
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      step: {
-        id: workPackage.qaId,
-        workPackageId: workPackage.id,
-        name: 'Review',
-        position: 20,
-        code: 'qa',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    });
-  });
-
-  it('answers 409 taken, and 404 for a step of another work package', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    const other = await newWorkPackage(token);
-
-    const taken = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
-      token,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ name: 'Dev' }),
-      },
-    );
-    expect(taken.status).toBe(409);
-
-    const elsewhere = await send(
-      `/api/work-packages/${workPackage.id}/steps/${other.qaId}`,
-      token,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ name: 'Review' }),
-      },
-    );
-    expect(elsewhere.status).toBe(404);
-  });
-});
-
-describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
-  const item = (workPackageId: string, id: string, position: number): WorkItem =>
-    workItemRow({ id, workPackageId, position, name: 'Strip' });
-
-  it('removes a step nothing points at, answering 204', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-
-    const res = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
-      token,
-      {
-        method: 'DELETE',
-      },
-    );
-
-    expect(res.status).toBe(204);
-    expect(await stepStore.findById(workPackage.qaId)).toBeNull();
-  });
-
-  it('refuses with 409 and the counts, then removes on the cascade', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    await workItems.insert(item(workPackage.id, 'strip', 10), [], wrote());
-    await estimates.set({ workItemId: 'strip', stepId: workPackage.qaId, ...DAYS }, wrote());
-    const ada = await personAdded(
-      directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
-    );
-    await directory.assign('strip', workPackage.qaId, ada.id, wrote());
-
-    const refused = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
-      token,
-      {
-        method: 'DELETE',
-      },
-    );
-
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toEqual({
-      error: 'in_use',
-      inUse: {
-        estimates: 1,
-        actuals: 0,
-        progress: 0,
-        blockages: 0,
-        measures: 0,
-        attempts: 0,
-        claims: 0,
-        assignments: 1,
-        assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
-      },
-    });
-    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-
-    const confirmed = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
-      token,
-      { method: 'DELETE' },
-    );
-
-    expect(confirmed.status).toBe(204);
-    expect(await stepStore.findById(workPackage.qaId)).toBeNull();
-    expect(await estimates.listByWorkPackage(workPackage.id)).toEqual([]);
-    // The work package moved once for the removal, on top of the seed's zero.
-    const after = await workPackages.findById(workPackage.id);
-    expect(after?.revision).toBe(1);
-  });
-
-  it('answers 404 for a step that is not there and 403 on a work package the caller may not write to', async () => {
-    const owner = await register('owner');
-    const stranger = await register('stranger');
-    const workPackage = await newWorkPackage(owner);
-    await send(`/api/work-packages/${workPackage.id}`, owner, {
-      method: 'PATCH',
-      body: JSON.stringify({ restricted: true }),
-    });
-
-    const missing = await send(
-      `/api/work-packages/${workPackage.id}/steps/${crypto.randomUUID()}?cascade=true`,
-      owner,
-      { method: 'DELETE' },
-    );
-    expect(missing.status).toBe(404);
-
-    const theirs = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
-      stranger,
-      { method: 'DELETE' },
-    );
-    expect(theirs.status).toBe(403);
-    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-  });
-
+describe('package commands after project step binding changes', () => {
   it('appends nothing to the account’s undo stack', async () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
@@ -763,14 +455,9 @@ describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
       patch: { name: 'Strip the paint' },
     });
 
-    await addStep(workPackage.id, token, 'Design');
-    await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`, token, {
-      method: 'DELETE',
-    });
+    await bindFixtureStep('Design', 'design');
+    await unbindFixtureStep(workPackage.qaId);
 
-    // The step changes are not on the stack, so the key still reaches the
-    // rename — as the work package's start date behaves, and for the same reason:
-    // there is no compensating command for a step that took estimates with it.
     const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
       method: 'POST',
     });
@@ -797,18 +484,7 @@ describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
       stepId: workPackage.qaId,
     });
 
-    await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
-      token,
-      {
-        method: 'DELETE',
-      },
-    );
-
-    // The removal moved the work item's revision, so the entry's precondition
-    // no longer holds. Without that bump this undo would try to write a trio
-    // for a step that is not there — a foreign key error, a 500, on a key
-    // somebody pressed to be safe.
+    await unbindFixtureStep(workPackage.qaId);
     const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
       method: 'POST',
     });
@@ -824,22 +500,20 @@ describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`, token, {
-      method: 'DELETE',
-    });
+    await unbindFixtureStep(workPackage.qaId);
 
-    // A tab that was open when somebody else removed the step. Both of these
-    // used to reach the foreign key and answer 500 — the request is about a
-    // step that is not in the work package, which is the caller's world being out
-    // of date rather than this process being broken.
     const estimated = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: strip,
       stepId: workPackage.qaId,
       days: DAYS,
     });
-    expect(estimated.status).toBe(404);
-    expect(await estimated.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setEstimate' });
+    expect(estimated.status).toBe(422);
+    expect(await estimated.json()).toEqual({
+      error: 'step_not_resolved',
+      at: 0,
+      kind: 'setEstimate',
+    });
 
     const assigned = await planCommand(workPackage.id, token, {
       kind: 'setAssignee',
@@ -854,14 +528,13 @@ describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
   it('takes estimates for a step added after the work package was made', async () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
-    const added = await addStep(workPackage.id, token, 'Design');
-    const design = (await added.json()) as { step: { id: string } };
+    const design = await bindFixtureStep('Design', 'design');
     const strip = await newWorkItem(workPackage.id, token, 'Strip');
 
     const estimated = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: strip,
-      stepId: design.step.id,
+      stepId: design,
       days: { optimistic: 1, realistic: 2, pessimistic: 3 },
     });
 
@@ -870,251 +543,8 @@ describe('DELETE /api/work-packages/:id/steps/:stepId', () => {
     const body = (await tree.json()) as {
       workItems: { estimates: Record<string, unknown> }[];
     };
-    // `STARTING_STEPS` is the seed and not the set: the third step holds
-    // estimates the tree reports beside the two the work package was made with.
-    expect(body.workItems[0]?.estimates).toHaveProperty(design.step.id);
+    expect(body.workItems[0]?.estimates).toHaveProperty(design);
   });
-
-  it('takes the cascade only when it is asked for by name', async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    await workItems.insert(item(workPackage.id, 'strip', 10), [], wrote());
-    await estimates.set({ workItemId: 'strip', stepId: workPackage.qaId, ...DAYS }, wrote());
-
-    // Anything other than `true` is not a confirmation. A truthy-looking value
-    // taken as consent is how a step goes with its estimates on a request
-    // nobody meant as the second one.
-    const res = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=1`,
-      token,
-      {
-        method: 'DELETE',
-      },
-    );
-
-    expect(res.status).toBe(409);
-    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-  });
-});
-
-it('refuses undeclared name-body fields and query keys before changing steps', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  const before = await stepStore.listByWorkPackage(workPackage.id);
-  for (const [method, path] of [
-    ['POST', `/api/work-packages/${workPackage.id}/steps`],
-    ['PATCH', `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`],
-  ]) {
-    const extraBody = await send(path, token, {
-      method,
-      body: JSON.stringify({ name: 'Changed', unexpected: { nested: true } }),
-    });
-    expect(extraBody.status).toBe(422);
-    expect(await extraBody.json()).toEqual({ error: 'invalid_body' });
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
-    const extraQuery = await send(`${path}?unexpected=true`, token, {
-      method,
-      body: JSON.stringify({ name: 'Changed' }),
-    });
-    expect(extraQuery.status).toBe(400);
-    expect(await extraQuery.json()).toEqual({ error: 'invalid_query' });
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
-  }
-});
-
-it('refuses unknown cascade query keys and undeclared DELETE bodies without deleting usage', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  await workItems.insert(
-    workItemRow({ workPackageId: workPackage.id, id: 'strict-delete', position: 10 }),
-    [],
-    wrote(),
-  );
-  await estimates.set({ workItemId: 'strict-delete', stepId: workPackage.qaId, ...DAYS }, wrote());
-  const path = `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`;
-  for (const [url, body, error] of [
-    [`${path}&unexpected=true`, undefined, 'invalid_query'],
-    [path, '{}', 'invalid_body'],
-    [path, '{', 'invalid_body'],
-  ] as const) {
-    const refused = await send(url, token, { method: 'DELETE', body });
-    expect(refused.status).toBe(400);
-    expect(await refused.json()).toEqual({ error });
-    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-    expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(1);
-  }
-});
-
-it('uses the last repeated cascade value so a final false never confirms deletion', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  await workItems.insert(
-    workItemRow({ workPackageId: workPackage.id, id: 'duplicate-cascade', position: 10 }),
-    [],
-    wrote(),
-  );
-  await estimates.set(
-    { workItemId: 'duplicate-cascade', stepId: workPackage.qaId, ...DAYS },
-    wrote(),
-  );
-  const path = `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`;
-  const refused = await send(`${path}?cascade=true&cascade=false`, token, { method: 'DELETE' });
-  expect(refused.status).toBe(409);
-  expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-  expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(1);
-  const confirmed = await send(`${path}?cascade=false&cascade=true`, token, { method: 'DELETE' });
-  expect(confirmed.status).toBe(204);
-  expect(await confirmed.text()).toBe('');
-  expect(await stepStore.findById(workPackage.qaId)).toBeNull();
-  expect(await estimates.listByWorkPackage(workPackage.id)).toEqual([]);
-});
-
-it('keeps name shape refusals distinct from blank names and malformed JSON on both writes', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  const before = await stepStore.listByWorkPackage(workPackage.id);
-  for (const [method, path] of [
-    ['POST', `/api/work-packages/${workPackage.id}/steps`],
-    ['PATCH', `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`],
-  ]) {
-    for (const [body, status, error] of [
-      [undefined, 422, 'invalid_body'],
-      ['[]', 422, 'invalid_body'],
-      ['{"name":42}', 422, 'invalid_body'],
-      ['{"name":"   "}', 422, 'name_required'],
-      ['{', 400, 'invalid_json'],
-    ] as const) {
-      const refused = await send(path, token, { method, body });
-      expect(refused.status).toBe(status);
-      expect(await refused.json()).toEqual({ error });
-      expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
-    }
-  }
-});
-
-it('runs step origin and write-scope policies before parsing, authenticating admitted writes once', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  const path = `http://localhost/api/work-packages/${workPackage.id}/steps`;
-  const authenticate = spyOn(auth, 'authenticateOrRefuse');
-  try {
-    const wrongOrigin = await app.handle(
-      new Request(path, {
-        method: 'POST',
-        headers: {
-          cookie: `__Host-wbs_access=${token}`,
-          origin: 'https://other.example',
-          'content-type': 'application/json',
-        },
-        body: '{',
-      }),
-    );
-    expect(wrongOrigin.status).toBe(403);
-    expect(await wrongOrigin.json()).toEqual({ error: 'invalid_origin' });
-    expect(authenticate).toHaveBeenCalledTimes(0);
-    const written = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: '{"name":"Once"}',
-    });
-    expect(written.status).toBe(200);
-    expect(authenticate).toHaveBeenCalledTimes(1);
-  } finally {
-    authenticate.mockRestore();
-  }
-  const actualAuthenticate = auth.authenticateOrRefuse.bind(auth);
-  const readScope = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (credential) => {
-    const account = await actualAuthenticate(credential);
-    return account === null || typeof account === 'string'
-      ? account
-      : { ...account, scopes: ['read'] };
-  });
-  try {
-    const refused = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: '{',
-    });
-    expect(refused.status).toBe(403);
-    expect(await refused.json()).toEqual({ error: 'insufficient_scope' });
-    expect(readScope).toHaveBeenCalledTimes(1);
-    expect((await stepStore.listByWorkPackage(workPackage.id)).map((step) => step.name)).toEqual([
-      'Dev',
-      'QA',
-      'Once',
-    ]);
-  } finally {
-    readScope.mockRestore();
-  }
-});
-
-it('preserves URL-encoded and multipart name writes on both step endpoints', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  for (const method of ['POST', 'PATCH']) {
-    for (const media of ['urlencoded', 'multipart']) {
-      const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
-      const name = `${method} ${media}`;
-      const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
-      body.append('name', `  ${name}  `);
-      const reply = await app.handle(
-        new Request(`http://localhost${path}`, {
-          method,
-          headers: { authorization: `Bearer ${token}` },
-          body,
-        }),
-      );
-      expect(reply.status).toBe(200);
-      const answered = (await reply.json()) as { step: Step };
-      expect(answered.step.name).toBe(name);
-      expect(await stepStore.findById(answered.step.id)).toEqual(answered.step);
-    }
-  }
-});
-
-it('refuses repeated form names and strict extra form fields without changing steps', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  const before = await stepStore.listByWorkPackage(workPackage.id);
-  for (const method of ['POST', 'PATCH']) {
-    for (const media of ['urlencoded', 'multipart']) {
-      for (const extra of ['name', 'unexpected']) {
-        const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
-        const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
-        body.append('name', 'First');
-        body.append(extra, 'Second');
-        const reply = await app.handle(
-          new Request(`http://localhost${path}`, {
-            method,
-            headers: { authorization: `Bearer ${token}` },
-            body,
-          }),
-        );
-        expect(reply.status).toBe(422);
-        expect(await reply.json()).toEqual({ error: 'invalid_body' });
-        expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
-      }
-    }
-  }
-});
-
-it('refuses a multipart file as a step name without changing steps', async () => {
-  const token = await register('owner');
-  const workPackage = await newWorkPackage(token);
-  const before = await stepStore.listByWorkPackage(workPackage.id);
-  for (const method of ['POST', 'PATCH']) {
-    const path = `/api/work-packages/${workPackage.id}/steps${method === 'PATCH' ? `/${workPackage.qaId}` : ''}`;
-    const body = new FormData();
-    body.append('name', new File(['Not a name field'], 'name.txt'));
-    const reply = await app.handle(
-      new Request(`http://localhost${path}`, {
-        method,
-        headers: { authorization: `Bearer ${token}` },
-        body,
-      }),
-    );
-    expect(reply.status).toBe(422);
-    expect(await reply.json()).toEqual({ error: 'invalid_body' });
-    expect(await stepStore.listByWorkPackage(workPackage.id)).toEqual(before);
-  }
 });
 
 describe('a work package step allowance over HTTP', () => {
@@ -1143,11 +573,11 @@ describe('a work package step allowance over HTTP', () => {
     workPackageId: string,
     stepId: string,
     token: string,
-    allowancePercent: unknown,
+    allowanceBps: number,
   ): Promise<Response> =>
     send(`/api/work-packages/${workPackageId}/steps/${stepId}`, token, {
       method: 'PATCH',
-      body: JSON.stringify({ allowancePercent }),
+      body: JSON.stringify({ allowanceBps }),
     });
 
   it('sets the allowance, charges the estimate and undoes in one step', async () => {
@@ -1161,7 +591,7 @@ describe('a work package step allowance over HTTP', () => {
       days: { optimistic: 1.1, realistic: 1.1, pessimistic: 1.1 },
     });
 
-    const res = await patchAllowance(workPackage.id, workPackage.qaId, token, 30);
+    const res = await patchAllowance(workPackage.id, workPackage.qaId, token, 3000);
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
@@ -1186,12 +616,7 @@ describe('a work package step allowance over HTTP', () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
 
-    const res = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Review', allowancePercent: 12.5 }),
-    });
-
-    expect(res.status).toBe(200);
+    await bindFixtureStep('Review', 'review', 'workdays', 12.5);
     const read = await send(`/api/work-packages/${workPackage.id}`, token);
     const body = (await read.json()) as { steps: { name: string; allowancePercent: number }[] };
     expect(body.steps.map(({ name, allowancePercent }) => [name, allowancePercent])).toEqual([
@@ -1205,9 +630,9 @@ describe('a work package step allowance over HTTP', () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
 
-    const patched = await patchAllowance(workPackage.id, workPackage.qaId, token, 1000.01);
+    const patched = await patchAllowance(workPackage.id, workPackage.qaId, token, 100001);
     expect(patched.status).toBe(422);
-    expect(await patched.json()).toEqual({ error: 'invalid_allowance' });
+    expect(await patched.json()).toEqual({ error: 'invalid_body' });
 
     const batched = await planCommand(workPackage.id, token, {
       kind: 'setStepAllowance',
@@ -1250,15 +675,8 @@ describe('a work package step allowance over HTTP', () => {
   it('refuses an allowance undo after the step was removed', async () => {
     const token = await register('owner');
     const workPackage = await newWorkPackage(token);
-    expect((await patchAllowance(workPackage.id, workPackage.qaId, token, 30)).status).toBe(200);
-    const removed = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}`,
-      token,
-      {
-        method: 'DELETE',
-      },
-    );
-    expect(removed.status).toBe(204);
+    expect((await patchAllowance(workPackage.id, workPackage.qaId, token, 3000)).status).toBe(200);
+    await unbindFixtureStep(workPackage.qaId);
 
     const undone = await send(`/api/work-packages/${workPackage.id}/undo`, token, {
       method: 'POST',
@@ -1270,16 +688,15 @@ describe('a work package step allowance over HTTP', () => {
 });
 
 describe('estimate unit boundary', () => {
-  it('creates a minute step and absent unit reads workdays', async () => {
+  it('reads a minute step bound after package birth beside the original workday step', async () => {
     const token = await register('unit-owner');
     const workPackage = await newWorkPackage(token);
-    expect(await stepStore.findById(workPackage.devId)).toMatchObject({ estimateUnit: 'workdays' });
-    const response = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
-    });
+    const stepId = await bindFixtureStep('Agent', 'agent', 'minutes');
+    const response = await send(`/api/work-packages/${workPackage.id}`, token);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ step: { estimateUnit: 'minutes' } });
+    const body = (await response.json()) as { steps: Step[] };
+    expect(body.steps.find((step) => step.id === workPackage.devId)?.estimateUnit).toBe('workdays');
+    expect(body.steps.find((step) => step.id === stepId)?.estimateUnit).toBe('minutes');
   });
   it('refuses an unknown unit and changing a unit over three estimates, then changes after clearing', async () => {
     const token = await register('unit-owner');
@@ -1291,7 +708,7 @@ describe('estimate unit boundary', () => {
       });
     const unknown = await patch('hours');
     expect(unknown.status).toBe(422);
-    expect(await unknown.json()).toEqual({ error: 'invalid_estimate_unit' });
+    expect(await unknown.json()).toEqual({ error: 'invalid_body' });
     for (const name of ['A', 'B', 'C']) {
       const id = await newWorkItem(workPackage.id, token, name);
       expect(
@@ -1325,17 +742,12 @@ describe('estimate unit boundary', () => {
   it('stores whole minutes and refuses fractional and above-max minute commands atomically', async () => {
     const token = await register('unit-owner');
     const workPackage = await newWorkPackage(token);
-    const added = await send(`/api/work-packages/${workPackage.id}/steps`, token, {
-      method: 'POST',
-      body: JSON.stringify({ name: 'Agent', estimateUnit: 'minutes' }),
-    });
-    expect(added.status).toBe(200);
-    const { step } = (await added.json()) as { step: Step };
+    const stepId = await bindFixtureStep('Agent', 'agent', 'minutes');
     const id = await newWorkItem(workPackage.id, token, 'A');
     const initial = await planCommand(workPackage.id, token, {
       kind: 'setEstimate',
       workItemId: id,
-      stepId: step.id,
+      stepId,
       days: { optimistic: 30, realistic: 40, pessimistic: 90 },
     });
     expect(initial.status).toBe(200);
@@ -1358,7 +770,7 @@ describe('estimate unit boundary', () => {
             {
               kind: 'setEstimate',
               workItemId: id,
-              stepId: step.id,
+              stepId,
               days: { optimistic: point, realistic: point, pessimistic: point },
             },
           ],
@@ -1793,11 +1205,21 @@ describe('estimate unit boundary', () => {
         })
       ).status,
     ).toBe(200);
+    const renamed = await catalogue.patchStepDefinition(
+      'http-fixture-legacy',
+      workPackage.devId,
+      { name: 'Build' },
+      wrote(),
+    );
+    expect(renamed).toMatchObject({
+      ok: true,
+      definition: { id: workPackage.devId, name: 'Build' },
+    });
     expect(
       (
         await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
-          body: JSON.stringify({ estimateUnit: 'workdays', name: 'Build' }),
+          body: JSON.stringify({ estimateUnit: 'workdays' }),
         })
       ).status,
     ).toBe(200);
@@ -1813,7 +1235,7 @@ describe('estimate unit boundary', () => {
       (
         await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
           method: 'PATCH',
-          body: JSON.stringify({ allowancePercent: 30 }),
+          body: JSON.stringify({ allowanceBps: 3000 }),
         })
       ).status,
     ).toBe(200);
@@ -1940,66 +1362,10 @@ describe('estimate unit boundary', () => {
         })
       ).status,
     ).toBe(200);
-    expect(
-      (
-        await send(`/api/work-packages/${workPackage.id}/steps/${workPackage.devId}`, token, {
-          method: 'DELETE',
-        })
-      ).status,
-    ).toBe(204);
+    await unbindFixtureStep(workPackage.devId);
     expect(
       (await send(`/api/work-packages/${workPackage.id}/undo`, token, { method: 'POST' })).status,
     ).toBe(409);
     expect(await estimates.listByWorkPackage(workPackage.id)).toHaveLength(0);
   });
-});
-
-for (const cascade of [false, true])
-  it(`returns 409 for retained sparse step parallelism (cascade=${String(cascade)})`, async () => {
-    const token = await register('owner');
-    const workPackage = await newWorkPackage(token);
-    const strip = await newWorkItem(workPackage.id, token, 'Strip');
-    const owner = await workPackages.findById(workPackage.id);
-    if (owner === null) throw new Error('missing fixture work package');
-    const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
-    await parallels.set({ workItemId: strip, stepId: workPackage.qaId, maxParallel: 1 }, wrote());
-    const refused = await send(
-      `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=${String(cascade)}`,
-      token,
-      { method: 'DELETE' },
-    );
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toEqual({
-      error: 'referenced_by_step_parallel',
-      nodes: [{ workItemId: strip, stepId: workPackage.qaId }],
-    });
-    expect(await stepStore.findById(workPackage.qaId)).not.toBeNull();
-  });
-
-it('does not disclose sparse references to outsiders or a foreign work package', async () => {
-  const token = await register('owner');
-  const outsider = await register('outsider');
-  const workPackage = await newWorkPackage(token);
-  const foreign = await newWorkPackage(token);
-  const strip = await newWorkItem(workPackage.id, token, 'Strip');
-  await send(`/api/work-packages/${workPackage.id}`, token, {
-    method: 'PATCH',
-    body: JSON.stringify({ restricted: true }),
-  });
-  const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
-  await parallels.set({ workItemId: strip, stepId: workPackage.qaId, maxParallel: 1 }, wrote());
-  const denied = await send(
-    `/api/work-packages/${workPackage.id}/steps/${workPackage.qaId}?cascade=true`,
-    outsider,
-    { method: 'DELETE' },
-  );
-  expect(denied.status).toBe(403);
-  expect(await denied.json()).toEqual({ error: 'forbidden' });
-  const missing = await send(
-    `/api/work-packages/${foreign.id}/steps/${workPackage.qaId}?cascade=true`,
-    token,
-    { method: 'DELETE' },
-  );
-  expect(missing.status).toBe(404);
-  expect(await missing.json()).toEqual({ error: 'not_found' });
 });
