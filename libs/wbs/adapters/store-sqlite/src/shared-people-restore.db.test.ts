@@ -92,7 +92,7 @@ beforeEach(async () => {
   execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   for (const organizationId of ['org-a', 'org-b'])
     execute(
-      `INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('${organizationId}', 'ada', 'super_admin', 1)`,
+      `UPDATE organization_membership SET role='super_admin' WHERE organization_id='${organizationId}' AND user_id='ada'`,
     );
   for (const organizationId of ['org-a', 'org-b'])
     execute(

@@ -1,9 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { DomainVerificationSnapshot, SecurityPrincipal, WriteStamp } from '@wbs/core';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { messagesOf } from './constraint';
@@ -14,9 +14,10 @@ import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { OrganizationRepository } from './organization';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { UserRepository } from './user';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
  * The ownership side tables `organization-ownership-and-access`
@@ -49,18 +50,18 @@ const ORGANIZATION_TABLES = [
   'organization_activation',
   'external_system_organization',
   'person_organization',
-  'work_package_organization',
+  'project_organization',
   'saved_plan_organization',
   'organization_sso_connection',
   'organization_scim_token',
   'organization_scim_user',
   'organization_session_policy',
   'organization_audit',
-  'work_package_solution',
+  'project_solution',
   'delegation_use',
   'space',
-  'space_work_package',
-  'work_package_rank',
+  'space_project',
+  'project_rank',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -164,10 +165,22 @@ function tableNames(): string[] {
   }
 }
 
+let template: string | undefined;
+beforeAll(() => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-organization-records-template-'));
+  const path = join(directory, 'template.db');
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
+  template = path;
+}, 30_000);
+afterAll(() => {
+  if (template !== undefined) rmSync(dirname(template), { recursive: true, force: true });
+});
+
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-records-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  if (template === undefined) throw new Error('organization records fixture template is missing');
+  copyFileSync(template, path);
   connection = openConnection(path);
   await seedUsers(['u-a', 'u-b', 'u-c']);
 });
@@ -818,13 +831,19 @@ describe('20260927120000_add_organization_records', () => {
     }
   });
 
-  it('rolls back before activation, taking only its tables and keeping users', () => {
+  it('rolls back before activation, taking only its tables and keeping users', async () => {
+    connection.close();
+    path = join(dir, 'historical.db');
+    const migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+    runMigrations(path, migrations);
+    connection = openConnection(path);
+    await seedUsers(['u-a', 'u-b', 'u-c']);
     seedOrganization({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
     const withTables = tableNames();
     for (const table of ORGANIZATION_TABLES) expect(withTables).toContain(table);
     connection.close();
 
-    expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+    expect(rollbackTo(path, migrations, WORK_ITEM_FACTS)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -843,9 +862,9 @@ describe('20260927120000_add_organization_records', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -875,13 +894,13 @@ describe('20260927120000_add_organization_records', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -897,11 +916,11 @@ describe('20260927120000_add_organization_records', () => {
       withTables.filter(
         (name) =>
           name !== 'optimization_boundary_certificate' &&
-          name !== 'cross_work_package_dependency_activation' &&
-          name !== 'cross_work_package_dependency_activation_receipt' &&
+          name !== 'cross_project_dependency_activation' &&
+          name !== 'cross_project_dependency_activation_receipt' &&
           name !== 'external_dependency' &&
-          name !== 'work_package_abbreviation' &&
-          name !== 'work_package_abbreviation_counter' &&
+          name !== 'project_abbreviation' &&
+          name !== 'project_abbreviation_counter' &&
           name !== 'browser_auth_association' &&
           name !== 'browser_auth_lifecycle' &&
           name !== 'shared_people_audit' &&
@@ -912,7 +931,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'claim' &&
           name !== 'resource' &&
           name !== 'resource_organization' &&
-          name !== 'work_package_resource_capacity' &&
+          name !== 'project_resource_capacity' &&
           name !== 'work_item_resource_demand' &&
           name !== 'claim_occupancy' &&
           name !== 'organization_trusted_issuer' &&

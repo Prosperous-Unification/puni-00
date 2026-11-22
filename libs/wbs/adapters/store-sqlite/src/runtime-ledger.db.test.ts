@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +8,7 @@ import {
   RUNTIME_SCOPE,
   runtimeAcceptanceFixture,
 } from '@wbs/conformance/runtime-command-conformance';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { openDatabase, openExistingConnection } from './db';
@@ -16,39 +16,57 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { captureAppliedMigrationSet } from './migration-set';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const runtimeMigration = '20261022121000_add_runtime_commands';
 const previousMigration = '20261020130000_add_claim_occupancy';
-let directory: string;
 let dbPath: string;
 let source: SqliteSource;
-beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), 'runtime-ledger-'));
-  dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, migrations);
-  source = openSqliteSource({
-    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath,
+/** A Source owns the current ledger until it settles. Bootstrap and close failures retain the fixture. */
+function it(name: string, check: () => void | Promise<void>) {
+  test(name, async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'runtime-ledger-'));
+    dbPath = join(directory, 'plan.db');
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
+    source = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath,
+    });
+    try {
+      await check();
+    } finally {
+      await source.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
-});
-afterEach(async () => {
-  await source.close();
-  rmSync(directory, { recursive: true, force: true });
-});
+}
+
+/** A standalone installation case creates the exact database state named in its assertions. */
+function installationCase(name: string, check: (directory: string) => void | Promise<void>) {
+  test(name, async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'runtime-installation-'));
+    await check(directory);
+    rmSync(directory, { recursive: true, force: true });
+  });
+}
 
 async function audit() {
   return source.stores.runtimeCommands.inspectLedger();
 }
-function readInstallation() {
+function readInstallation(db = source.db) {
   return {
-    schema: source.db.all('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name'),
-    migrations: source.db.all('SELECT * FROM __drizzle_migrations ORDER BY id'),
-    ledger: source.db.all('SELECT * FROM runtime_ledger ORDER BY id'),
-    authority: source.db.all('SELECT * FROM runtime_authority ORDER BY rowid'),
-    bindings: source.db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
-    receipts: source.db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
+    schema: db.all('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name'),
+    migrations: db.all('SELECT * FROM __drizzle_migrations ORDER BY id'),
+    ledger: db.all('SELECT * FROM runtime_ledger ORDER BY id'),
+    authority: db.all('SELECT * FROM runtime_authority ORDER BY rowid'),
+    bindings: db.all('SELECT * FROM runtime_claim_binding ORDER BY rowid'),
+    receipts: db.all('SELECT * FROM runtime_command_receipt ORDER BY rowid'),
   };
 }
 
@@ -76,86 +94,106 @@ function expectRuntimeDownRefusal() {
 }
 
 describe('runtime ledger lifecycle', () => {
-  it('refuses retained old-branch migration identity during capture without changing ledger or runtime history', () => {
-    const oldRuntimeMigration = '20261022120000_add_runtime_commands';
-    const branchMigrations = join(directory, 'old-branch-migrations');
-    const branchPath = join(directory, 'old-branch.db');
-    const mainAdditions = new Set([
-      '20261022100000_add_machine_credential',
-      '20261022110000_widen_organization_audit_machine_credentials',
-      '20261022110100_check_machine_credential_id',
-      '20261022120000_scope_trusted_issuer_audience',
-      '20261022130000_add_organization_limits',
-      '20261022130100_widen_organization_audit_organization_limits',
-      // Alters `machine_credential`, which this old branch never had.
-      '20261028100000_add_agent_pool',
-      // Reads `machine_credential` for its P17 backfill, likewise.
-      '20261102120000_add_access_grants',
-      '20261103110000_add_initial_access_offers',
-      '20261102130000_widen_organization_audit_access',
-    ]);
-    for (const name of readdirSync(migrations)) {
-      if (mainAdditions.has(name)) continue;
-      cpSync(
-        join(migrations, name),
-        join(branchMigrations, name === runtimeMigration ? oldRuntimeMigration : name),
-        { recursive: true },
+  installationCase(
+    'refuses retained old-branch migration identity during capture without changing ledger or runtime history',
+    async (directory) => {
+      const oldRuntimeMigration = '20261022120000_add_runtime_commands';
+      const branchMigrations = join(directory, 'old-branch-migrations');
+      const branchPath = join(directory, 'old-branch.db');
+      // The original branch includes its actual migration names and SQL, before the merged timestamp changed.
+      const original = Bun.spawnSync(
+        [
+          'git',
+          'archive',
+          '--format=tar',
+          '360dc8bb928419132cf64ba52d101bdab936f4ef:apps/wbs/be-01/drizzle',
+        ],
+        {
+          cwd: new URL('../../../../../', import.meta.url).pathname,
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
       );
-    }
-    runMigrations(branchPath, branchMigrations);
-    const branch = openDatabase(branchPath);
-    try {
-      const ledger = branch
-        .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
-        .get();
-      if (ledger === null) throw new Error('old branch ledger missing');
-      // Raw retained-history fixture, not a claim of application admission.
-      const retained = runtimeAcceptanceFixture(ledger.ledger_id);
-      branch.run("INSERT INTO runtime_authority VALUES ('org','work_package','person','owner',1)");
-      branch.run(
-        "INSERT INTO runtime_claim_binding VALUES ('org','work_package','person','claim','store','attempt',?)",
-        [JSON.stringify(RUNTIME_CLAIM)],
-      );
-      branch.run(
-        "INSERT INTO runtime_command_receipt VALUES ('org','work_package','person','command',?)",
-        [JSON.stringify(retained)],
-      );
-      branch.run(
-        'UPDATE runtime_ledger SET authority_count=1,binding_count=1,receipt_count=1 WHERE id=1',
-      );
-      const readRetained = () => ({
-        schema: branch
-          .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
-          .all(),
-        migrations: branch.query('SELECT * FROM __drizzle_migrations ORDER BY id').all(),
-        ledger: branch.query('SELECT * FROM runtime_ledger ORDER BY id').all(),
-        authority: branch.query('SELECT * FROM runtime_authority ORDER BY rowid').all(),
-        bindings: branch.query('SELECT * FROM runtime_claim_binding ORDER BY rowid').all(),
-        receipts: branch.query('SELECT * FROM runtime_command_receipt ORDER BY rowid').all(),
-      });
-      const before = readRetained();
-      const beforeBytes = branch.serialize();
-      expect(
-        branch
-          .query<{ name: string }, [string]>('SELECT name FROM __drizzle_migrations WHERE name=?')
-          .all(oldRuntimeMigration),
-      ).toEqual([{ name: oldRuntimeMigration }]);
-      expect(before.authority).toHaveLength(1);
-      expect(before.bindings).toHaveLength(1);
-      expect(before.receipts).toHaveLength(1);
-      expect(() =>
-        captureAppliedMigrationSet(branchPath, migrations, {
-          target: 'integration',
-          attempt: 'old-branch',
-          candidate: 'unique-runtime',
-        }),
-      ).toThrow(`applied migration ${oldRuntimeMigration} is absent or changed in candidate`);
-      expect(readRetained()).toEqual(before);
-      expect(branch.serialize()).toEqual(beforeBytes);
-    } finally {
-      branch.close();
-    }
-  });
+      expect(original.exitCode, original.stderr.toString()).toBe(0);
+      await new Bun.Archive(original.stdout).extract(branchMigrations);
+      runMigrations(branchPath, branchMigrations);
+      const branch = openDatabase(branchPath);
+      try {
+        const ledger = branch
+          .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
+          .get();
+        if (ledger === null) throw new Error('old branch ledger missing');
+        // Raw retained-history fixture, not a claim of application admission.
+        const scope = { organizationId: 'org', projectId: 'project', personId: 'person' };
+        const retained = {
+          schemaVersion: 1,
+          scope,
+          commandId: 'command',
+          canonicalRequest: '["authority",1]',
+          requestDigest: 'a'.repeat(64),
+          receipt: {
+            schemaVersion: 1,
+            ledgerId: ledger.ledger_id,
+            scope,
+            commandId: 'command',
+            requestDigest: 'a'.repeat(64),
+            actorId: 'actor',
+            acceptance: { kind: 'authority', authority: { ownerId: 'owner', generation: 1 } },
+          },
+        };
+        branch.run("INSERT INTO runtime_authority VALUES ('org','project','person','owner',1)");
+        branch.run(
+          "INSERT INTO runtime_claim_binding VALUES ('org','project','person','claim','store','attempt',?)",
+          [JSON.stringify(RUNTIME_CLAIM)],
+        );
+        branch.run(
+          "INSERT INTO runtime_command_receipt VALUES ('org','project','person','command',?)",
+          [JSON.stringify(retained)],
+        );
+        branch.run(
+          'UPDATE runtime_ledger SET authority_count=1,binding_count=1,receipt_count=1 WHERE id=1',
+        );
+        const readRetained = () => ({
+          schema: branch
+            .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
+            .all(),
+          migrations: branch.query('SELECT * FROM __drizzle_migrations ORDER BY id').all(),
+          ledger: branch.query('SELECT * FROM runtime_ledger ORDER BY id').all(),
+          authority: branch.query('SELECT * FROM runtime_authority ORDER BY rowid').all(),
+          bindings: branch.query('SELECT * FROM runtime_claim_binding ORDER BY rowid').all(),
+          receipts: branch.query('SELECT * FROM runtime_command_receipt ORDER BY rowid').all(),
+        });
+        const before = readRetained();
+        const beforeBytes = branch.serialize();
+        expect(
+          branch
+            .query<{ name: string; hash: string }, [string]>(
+              'SELECT name,hash FROM __drizzle_migrations WHERE name=?',
+            )
+            .all(oldRuntimeMigration),
+        ).toEqual([
+          {
+            name: oldRuntimeMigration,
+            hash: 'ef8f1b818cb1e2d98f6f933f3e7125ac00cd1c428124afd5619c254cccaba00d',
+          },
+        ]);
+        expect(before.authority).toHaveLength(1);
+        expect(before.bindings).toHaveLength(1);
+        expect(before.receipts).toHaveLength(1);
+        expect(() =>
+          captureAppliedMigrationSet(branchPath, migrations, {
+            target: 'integration',
+            attempt: 'old-branch',
+            candidate: 'unique-runtime',
+          }),
+        ).toThrow(`applied migration ${oldRuntimeMigration} is absent or changed in candidate`);
+        expect(readRetained()).toEqual(before);
+        expect(branch.serialize()).toEqual(beforeBytes);
+      } finally {
+        branch.close();
+      }
+    },
+  );
 
   it('reopens committed permanent history without changing installation identity', async () => {
     const initial = await audit();
@@ -181,39 +219,50 @@ describe('runtime ledger lifecycle', () => {
       runtimeAcceptanceFixture(initial.ledgerId),
     );
   });
-  it('allows actual unused historical-prefix rollback and reinstall with a new ledger ID', () => {
-    const historicalMigrations = join(directory, 'historical-migrations');
-    const historicalPath = join(directory, 'historical.db');
-    for (const name of readdirSync(migrations).filter((name) => name <= runtimeMigration)) {
-      cpSync(join(migrations, name), join(historicalMigrations, name), { recursive: true });
-    }
-    runMigrations(historicalPath, historicalMigrations);
-    const markerOf = () => {
-      const native = openDatabase(historicalPath);
+  installationCase(
+    'allows actual unused historical-prefix rollback and reinstall with a new ledger ID',
+    (directory) => {
+      const historicalMigrations = copyRecoveryPrefix(directory, runtimeMigration);
+      const historicalPath = join(directory, 'historical.db');
+      runMigrations(historicalPath, historicalMigrations);
+      const markerOf = () => {
+        const native = openDatabase(historicalPath);
+        try {
+          const marker = native
+            .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
+            .get();
+          if (marker === null) throw new Error('historical installation marker missing');
+          return marker.ledger_id;
+        } finally {
+          native.close();
+        }
+      };
+      const initial = markerOf();
+      expect(rollbackTo(historicalPath, historicalMigrations, previousMigration)).toContain(
+        runtimeMigration,
+      );
+      runMigrations(historicalPath, historicalMigrations);
+      expect(markerOf()).not.toBe(initial);
+    },
+  );
+  installationCase(
+    'refuses current rename rollback before any runtime or ledger effects',
+    (directory) => {
+      const renamePath = join(directory, 'rename.db');
+      const prefix = copyRecoveryPrefix(directory, '20261110100000_rename_project_to_work_package');
+      runMigrations(renamePath, prefix);
+      const rename = openExistingConnection(renamePath);
       try {
-        const marker = native
-          .query<{ ledger_id: string }, []>('SELECT ledger_id FROM runtime_ledger WHERE id=1')
-          .get();
-        if (marker === null) throw new Error('historical installation marker missing');
-        return marker.ledger_id;
+        const before = readInstallation(rename.db);
+        expect(() => rollbackTo(renamePath, prefix, previousMigration)).toThrow(
+          'work-package rename rollback requires restoring the verified window snapshot',
+        );
+        expect(readInstallation(rename.db)).toEqual(before);
       } finally {
-        native.close();
+        rename.close();
       }
-    };
-    const initial = markerOf();
-    expect(rollbackTo(historicalPath, historicalMigrations, previousMigration)).toContain(
-      runtimeMigration,
-    );
-    runMigrations(historicalPath, historicalMigrations);
-    expect(markerOf()).not.toBe(initial);
-  });
-  it('refuses current rename rollback before any runtime or ledger effects', () => {
-    const before = readInstallation();
-    expect(() => rollbackTo(dbPath, migrations, previousMigration)).toThrow(
-      'work-package rename rollback requires restoring the verified window snapshot',
-    );
-    expect(readInstallation()).toEqual(before);
-  });
+    },
+  );
   for (const history of ['authority', 'binding', 'receipt'] as const) {
     it(`isolated historical down refuses retained ${history} and preserves complete installation`, async () => {
       const initial = await audit();
@@ -229,30 +278,41 @@ describe('runtime ledger lifecycle', () => {
       expect((await audit()).ledgerId).toBe(initial.ledgerId);
     });
   }
-  it('does not create a missing database during existing-file recovery', () => {
-    const absent = join(directory, 'missing.db');
-    expect(() => openExistingConnection(absent)).toThrow();
-    expect(existsSync(absent)).toBe(false);
-  });
-  it('constructs the generic source before explicit migration but never heals runtime schema', async () => {
-    const empty = join(directory, 'empty.db');
-    const generic = openSqliteSource({
-      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-      dbPath: empty,
-    });
-    try {
-      await assertRuntimeRejection(generic.stores.runtimeCommands.inspectLedger());
-      expect(generic.db.all("SELECT name FROM sqlite_master WHERE name='runtime_ledger'")).toEqual(
-        [],
-      );
-      runMigrations(empty, migrations);
-      expect(await generic.stores.runtimeCommands.inspectLedger()).toMatchObject({
-        authorityCount: 0,
+  installationCase(
+    'does not create a missing database during existing-file recovery',
+    (directory) => {
+      const absent = join(directory, 'missing.db');
+      expect(() => openExistingConnection(absent)).toThrow();
+      expect(existsSync(absent)).toBe(false);
+    },
+  );
+  installationCase(
+    'constructs the generic source before explicit migration but never heals runtime schema',
+    async (directory) => {
+      const empty = join(directory, 'empty.db');
+      const generic = openSqliteSource({
+        dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+        dbPath: empty,
       });
-    } finally {
-      await generic.close();
-    }
-  });
+      try {
+        await assertRuntimeRejection(generic.stores.runtimeCommands.inspectLedger());
+        expect(
+          generic.db.all("SELECT name FROM sqlite_master WHERE name='runtime_ledger'"),
+        ).toEqual([]);
+        const emptyDirectory = join(directory, 'explicit');
+        mkdirSync(emptyDirectory);
+        migrateEmptyCatalogueFixture(
+          { path: empty, directory: emptyDirectory, reportedAt: 1 },
+          { hasUnknownOwner: false },
+        );
+        expect(await generic.stores.runtimeCommands.inspectLedger()).toMatchObject({
+          authorityCount: 0,
+        });
+      } finally {
+        await generic.close();
+      }
+    },
+  );
 });
 
 describe('runtime installation integrity', () => {
@@ -449,11 +509,21 @@ describe('runtime persisted record boundaries', () => {
     source.db.run(
       "INSERT INTO users(id,username,password_hash,created_at) VALUES ('actor','actor','x',1)",
     );
+    source.db.run("INSERT INTO organization(id,name,created_at) VALUES ('org','Org',1)");
     source.db.run(
-      "INSERT INTO work_package(id,name,owner_id,revision,created_at) VALUES ('work_package','Plan','actor',0,1)",
+      "INSERT INTO project(id,organization_id,name,created_at) VALUES ('parent','org','Parent',1)",
     );
     source.db.run(
-      "INSERT INTO step(id,work_package_id,name,position) VALUES ('step','work_package','Step',1)",
+      "INSERT INTO work_package(id,name,project_id,created_by,revision,created_at) VALUES ('work_package','Plan','parent','actor',0,1)",
+    );
+    source.db.run(
+      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('work_package','org')",
+    );
+    source.db.run(
+      "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES ('step','org','step','Step','workdays',0,1,'organization','org','authored')",
+    );
+    source.db.run(
+      "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('work_package','step','workdays',0,0)",
     );
     source.db.run(
       "INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES ('work','work_package','Work',1,0)",
@@ -470,7 +540,10 @@ describe('runtime persisted record boundaries', () => {
     source.db.run("DELETE FROM claim WHERE id='claim'");
     source.db.run("DELETE FROM person WHERE id='person'");
     source.db.run("DELETE FROM work_item WHERE id='work'");
-    source.db.run("DELETE FROM step WHERE id='step'");
+    source.db.run(
+      "DELETE FROM work_package_step WHERE work_package_id='work_package' AND step_id='step'",
+    );
+    source.db.run("DELETE FROM step_definition WHERE id='step'");
     source.db.run("DELETE FROM work_package WHERE id='work_package'");
     expect(await store.readBinding(RUNTIME_SCOPE, 'claim')).toEqual(RUNTIME_CLAIM);
     expect(await store.readAcceptance(RUNTIME_SCOPE, 'command')).toEqual(

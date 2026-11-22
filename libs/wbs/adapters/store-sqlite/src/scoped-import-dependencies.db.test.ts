@@ -25,9 +25,9 @@ import { sql } from 'drizzle-orm';
 import { SqliteCommandAccess } from './command-access';
 import { openDatabase } from './db';
 import { MachineCredentialRepository } from './machine-credential';
-import { runMigrations } from './migrate';
 import { SqliteOrganizationAccess } from './organization-access';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedPackageParent } from './testing/legacy-package-parent';
@@ -35,9 +35,10 @@ import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ACTOR = 'importer';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
+// The fixture clock allocates a measure, the package, two creator grants, then its rows.
+const ALLOCATION = { packageId: 'import-2', firstRow: 'import-5', secondRow: 'import-6' };
 const PRINCIPAL = { id: ACTOR, username: ACTOR, scopes: ['read', 'write'] as const };
 const ACCESS = {
   principal: { id: ACTOR, authentication: undefined },
@@ -148,10 +149,36 @@ function snapshotTables(sqlite: SqliteSource) {
     }));
 }
 
+async function defineProjectStep(
+  sqlite: SqliteSource,
+  organizationId: string,
+  projectId: string,
+  identity: { id: string; name: string; code: string },
+) {
+  const definition = await sqlite.stores.stepCatalogue.defineAndBindStep(
+    organizationId,
+    {
+      ...identity,
+      position: 10,
+      defaultAllowancePercent: 0,
+      defaultEstimateUnit: 'workdays',
+    },
+    {
+      bindingId: identity.id + '-binding',
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position: 10,
+    },
+    { at: 1, by: 'other-owner' },
+  );
+  if (!definition.ok) throw new Error('fixture definition refused: ' + definition.reason);
+}
+
 async function harness(authoring: unknown = { state: 'active' }) {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-scoped-import-'));
   const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   seedDependencyAuthority(path);
   const captures: string[] = [];
   const statements: string[] = [];
@@ -176,6 +203,7 @@ async function harness(authoring: unknown = { state: 'active' }) {
     sql`INSERT INTO organization (id,name,created_at) VALUES ('org-a','A',1),('org-b','B',1)`,
   );
   seedPackageParent(path, 'org-a', 'fixture-project-a');
+  seedPackageParent(path, 'org-a', 'fixture-project-remote');
   seedPackageParent(path, 'org-b', 'fixture-project-b');
   sqlite.db.run(
     sql`INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a',${ACTOR},'member',1),('org-a','other-owner','member',1),('org-b','other-owner','member',1)`,
@@ -186,8 +214,13 @@ async function harness(authoring: unknown = { state: 'active' }) {
   sqlite.db.run(
     sql`UPDATE organization_activation SET state='activated',activated_at=1 WHERE singleton=1`,
   );
+  await defineProjectStep(sqlite, 'org-a', 'fixture-project-a', {
+    id: 'import-qa',
+    name: 'QA',
+    code: 'qa',
+  });
   for (const [id, organizationId, projectId] of [
-    ['remote', 'org-a', 'fixture-project-a'],
+    ['remote', 'org-a', 'fixture-project-remote'],
     ['foreign', 'org-b', 'fixture-project-b'],
   ] as const) {
     await sqlite.stores.workPackages.createInOrganization(
@@ -199,21 +232,16 @@ async function harness(authoring: unknown = { state: 'active' }) {
         restricted: true,
         startDate: '2026-09-14',
       }),
-      [
-        {
-          id: `${id}-step`,
-          workPackageId: id,
-          name: 'Build',
-          code: 'impl',
-          position: 10,
-          allowancePercent: 0,
-          estimateUnit: 'workdays',
-        },
-      ],
+      [],
       { at: 1, by: 'other-owner' },
       organizationId,
       { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
     );
+    await defineProjectStep(sqlite, organizationId, projectId, {
+      id: `${id}-step`,
+      name: 'Build',
+      code: 'impl',
+    });
     await sqlite.stores.workItems.insert(
       workItemRow({ id: `${id}-parent`, workPackageId: id, name: 'Parent' }),
       [],
@@ -476,7 +504,11 @@ describe('scoped import dependency admission', () => {
     document.externalMappings = [
       {
         source: { scope: 'whole', workPackageId: 'remote', workItemId: 'remote-leaf' },
-        destination: { scope: 'whole', workPackageId: 'import-1', workItemId: 'import-6' },
+        destination: {
+          scope: 'whole',
+          workPackageId: ALLOCATION.packageId,
+          workItemId: ALLOCATION.firstRow,
+        },
       },
     ];
     const imported = await fixture
@@ -488,7 +520,7 @@ describe('scoped import dependency admission', () => {
       );
     expect(imported.ok).toBe(true);
     if (!imported.ok) throw new Error('allocated local mapping refused');
-    expect(imported.workPackageId).toBe('import-1');
+    expect(imported.workPackageId).toBe(ALLOCATION.packageId);
     expect(
       await fixture.source.stores.typedDependencies.listByWorkPackage(imported.workPackageId),
     ).toHaveLength(2);
@@ -516,7 +548,11 @@ describe('scoped import dependency admission', () => {
     document.externalMappings = [
       {
         source: { scope: 'whole', workPackageId: 'remote', workItemId: 'remote-leaf' },
-        destination: { scope: 'whole', workPackageId: 'import-1', workItemId: 'import-6' },
+        destination: {
+          scope: 'whole',
+          workPackageId: ALLOCATION.packageId,
+          workItemId: ALLOCATION.firstRow,
+        },
       },
     ];
     await assertRefused(fixture, document, {
@@ -532,7 +568,11 @@ describe('scoped import dependency admission', () => {
     document.externalMappings = [
       {
         source: { scope: 'whole', workPackageId: 'remote', workItemId: 'remote-leaf' },
-        destination: { scope: 'whole', workPackageId: 'import-1', workItemId: 'import-7' },
+        destination: {
+          scope: 'whole',
+          workPackageId: ALLOCATION.packageId,
+          workItemId: ALLOCATION.secondRow,
+        },
       },
     ];
     await assertRefused(fixture, document, {
@@ -619,7 +659,7 @@ describe('scoped import transaction lifetime and effects', () => {
       this: ImportedPlanResource,
       ...args
     ) {
-      observations.push(args[3]);
+      observations.push(args[2]);
       return create.apply(this, args);
     });
     const requirements = fixture.requirements;
@@ -864,17 +904,7 @@ describe('scoped import transaction lifetime and effects', () => {
         projectId: 'fixture-project-a',
         startDate: '2026-09-14',
       }),
-      [
-        {
-          id: 'clean-step',
-          workPackageId: 'clean',
-          name: 'Build',
-          code: 'impl',
-          position: 10,
-          allowancePercent: 0,
-          estimateUnit: 'workdays',
-        },
-      ],
+      [],
       { ...STAMP, by: 'other-owner' },
       'org-a',
       { id: crypto.randomUUID(), auditId: crypto.randomUUID() },

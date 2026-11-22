@@ -40,21 +40,44 @@ function write(statement: string) {
     client.close();
   }
 }
+function seedBuildStep(workPackageId: string): void {
+  const client = openDatabase(path);
+  const projectId = 'project-' + workPackageId;
+  const stepId = workPackageId + '-s';
+  try {
+    client.transaction(() => {
+      client.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+        [projectId, projectId],
+      );
+      client.run('UPDATE work_package SET project_id=? WHERE id=?', [projectId, workPackageId]);
+      client.run(
+        "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,10,'project',?,'authored')",
+        [stepId, stepId, 'Build ' + workPackageId, projectId],
+      );
+      client.run(
+        "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,10,'authored')",
+        ['binding-' + stepId, projectId, stepId],
+      );
+      client.run(
+        "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+        [workPackageId, stepId],
+      );
+    })();
+  } finally {
+    client.close();
+  }
+}
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'connected-live-'));
   path = await openSpaceDatabase(folder);
   seedDependencyAuthority(path);
   write("UPDATE organization_activation SET state = 'activated', activated_at = 1");
-  write(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
-  );
   for (const id of ['a1', 'a2']) {
     write(
       `INSERT INTO work_item (id,work_package_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
     );
-    write(
-      `INSERT INTO step (id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
-    );
+    seedBuildStep(id);
   }
   write(
     "INSERT INTO external_dependency (id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
@@ -129,7 +152,7 @@ test.each(['isolated', 'shared'] as const)(
       `UPDATE organization SET shared_people=${mode === 'shared' ? '1' : '0'} WHERE id='org-a'`,
     );
     write("INSERT INTO work_item (id,work_package_id,position,name) VALUES ('a3','a3',10,'a3')");
-    write("INSERT INTO step (id,work_package_id,name,position) VALUES ('a3-s','a3','Build',10)");
+    seedBuildStep('a3');
     write("INSERT INTO person (id,name) VALUES ('p','P')");
     write(
       "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
@@ -183,7 +206,7 @@ test.each(['isolated', 'shared'] as const)(
 test('a shared person peer selects the same external component from either target', async () => {
   write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
   write("INSERT INTO work_item (id,work_package_id,position,name) VALUES ('a3','a3',10,'a3')");
-  write("INSERT INTO step (id,work_package_id,name,position) VALUES ('a3-s','a3','Build',10)");
+  seedBuildStep('a3');
   write("INSERT INTO person (id,name) VALUES ('p','P')");
   write(
     "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
@@ -217,9 +240,7 @@ test('alternating person and external bridges select one component from every ra
     write(
       `INSERT INTO work_item (id,work_package_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
     );
-    write(
-      `INSERT INTO step (id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
-    );
+    seedBuildStep(id);
   }
   for (const personId of ['p', 'q']) {
     write(`INSERT INTO person (id,name) VALUES ('${personId}','${personId}')`);
@@ -449,9 +470,7 @@ test.each(['isolated', 'shared'] as const)(
       write(
         `INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES ('${id}','${id}',10,'${id}','ready')`,
       );
-      write(
-        `INSERT INTO step(id,work_package_id,name,position) VALUES ('${id}-s','${id}','Build',10)`,
-      );
+      seedBuildStep(id);
     }
     write(
       "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('second','org-a','a4','a3','a4','a3','whole','whole','FS')",
@@ -497,7 +516,9 @@ test.each(['isolated', 'shared'] as const)(
       'a4',
     ]);
     expect(scheduled).toBe(2);
-    expect(queries.filter((query) => query.includes('from "step_node_attempt"'))).toHaveLength(4);
+    expect(
+      queries.filter((query) => query.includes('FROM step_node_attempt f LEFT JOIN work_item')),
+    ).toHaveLength(4);
     expect(captured.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
     for (const [successorId, predecessorId] of [
       ['a1', 'a2'],
@@ -846,7 +867,7 @@ for (const mode of ['isolated', 'shared'] as const) {
 
 test('connected export holds labels settings marker and sparse facts in one SQLite observation', async () => {
   write(
-    "INSERT INTO calendar_marker(id,work_package_id,date,name,created_at) VALUES('marker','a1','2026-10-22','Old marker',1)",
+    "INSERT INTO calendar_marker(id,scope_kind,scope_id,date,name,created_at) VALUES('marker','work_package','a1','2026-10-22','Old marker',1)",
   );
   let edited = false;
   const plans = createLivePlanStore({
@@ -896,7 +917,7 @@ test.each(['isolated', 'shared'] as const)(
     write(
       "INSERT INTO work_item(id,work_package_id,position,name,readiness) VALUES('a3','a3',10,'a3','ready')",
     );
-    write("INSERT INTO step(id,work_package_id,name,position) VALUES('a3-s','a3','Build',10)");
+    seedBuildStep('a3');
     write("INSERT INTO person(id,name) VALUES('p','Root P')");
     write(
       "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('p','org-a','Local P')",

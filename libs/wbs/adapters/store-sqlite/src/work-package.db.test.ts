@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { NewWorkPackage, Step, WorkPackage, WriteStamp } from '@wbs/core';
+import type { NewWorkPackage, WorkPackage, WriteStamp } from '@wbs/core';
 import { STEP_POSITION_STEP } from '@wbs/core';
 import { suggestStepCode } from '@wbs/domain';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
@@ -11,16 +11,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { messagesOf } from './constraint';
 import { type Connection, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { optimizationGeneration, solverQueue, solverSlot } from './schema';
+import { StepCatalogueRepository } from './step-catalogue';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent, seedPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-
 let dir: string;
 let repo: WorkPackageRepository;
+let catalogue: StepCatalogueRepository;
 let ownerId: string;
 let suiteOwner:
   { connection: Connection; closeAttempted: boolean; closeReturned: boolean } | undefined;
@@ -69,7 +69,6 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 /** Creates as a distinct real member so the tested human cannot inherit birth authority. */
 async function createForScopedChecks(
   requested: NewWorkPackage,
-  starting: readonly Step[],
   organizationId: string,
 ): Promise<WorkPackage> {
   const raw = openDatabase(join(dir, 'test.db')),
@@ -88,7 +87,7 @@ async function createForScopedChecks(
   }
   const created = await repo.createInOrganization(
     requested,
-    starting,
+    [],
     { ...wrote(), by: creator },
     organizationId,
     { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
@@ -111,7 +110,13 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-package-'));
   suiteDirectory = dir;
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  const custody = { hasUnknownOwner: false };
+  try {
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
+  } catch (cause) {
+    if (custody.hasUnknownOwner) suiteAcquisitionFailure = { cause };
+    throw cause;
+  }
   seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
   try {
     const connection = openConnection(path);
@@ -122,6 +127,7 @@ beforeEach(async () => {
   }
   const db = suiteOwner.connection.db;
   repo = new WorkPackageRepository(db, OPEN);
+  catalogue = new StepCatalogueRepository(db, OPEN, 'owned');
   ownerId = crypto.randomUUID();
   await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -203,21 +209,34 @@ function workPackage(name: string, createdAt: number): NewWorkPackage {
   };
 }
 
-function steps(workPackageId: string, ...names: string[]): Step[] {
+/** Authors project bindings before package birth so the repository must materialize their values. */
+async function bindSteps(organizationId: string, projectId: string, ...names: string[]) {
   const taken = new Set<string>();
-  return names.map((name, place) => {
+  for (const [place, name] of names.entries()) {
     const code = suggestStepCode(name, taken);
     taken.add(code);
-    return {
-      id: crypto.randomUUID(),
-      workPackageId,
-      name,
-      code,
-      position: (place + 1) * STEP_POSITION_STEP,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    };
-  });
+    const position = (place + 1) * STEP_POSITION_STEP;
+    const bound = await catalogue.defineAndBindStep(
+      organizationId,
+      {
+        id: crypto.randomUUID(),
+        name,
+        code,
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: crypto.randomUUID(),
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position,
+      },
+      wrote(),
+    );
+    expect(bound.ok).toBe(true);
+  }
 }
 
 /**
@@ -258,8 +277,8 @@ describe('WorkPackageRepository', () => {
   it('refuses one solution slug naming two work packages', async () => {
     const shed = workPackage('Rewire the shed', 100);
     const fence = workPackage('Paint the fence', 200);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
-    await repo.create(fence, steps(fence.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
+    await repo.create(fence, [], wrote());
     await repo.update(
       shed.id,
       { solutionRef: { slug: 'site-refresh', url: 'https://solutions.example/site-refresh' } },
@@ -277,9 +296,10 @@ describe('WorkPackageRepository', () => {
     ).toMatch(/UNIQUE/);
   });
 
-  it('writes a work package and its starting steps together', async () => {
+  it('writes a work package and its inherited step values together', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev', 'QA'), wrote());
+    await bindSteps('fixture-legacy-org', shed.projectId, 'Dev', 'QA');
+    await repo.create(shed, [], wrote());
 
     expect(await repo.findById(shed.id)).toMatchObject({
       name: 'Rewire the shed',
@@ -289,20 +309,37 @@ describe('WorkPackageRepository', () => {
       startDate: null,
     });
     expect((await repo.stepsOf(shed.id)).map((r) => r.name)).toEqual(['Dev', 'QA']);
+
+    const failed = workPackage('Refused package', 101);
+    const raw = openDatabase(join(dir, 'test.db'));
+    try {
+      raw.run(`CREATE TRIGGER refuse_package_step BEFORE INSERT ON work_package_step
+        WHEN NEW.step_id=(SELECT id FROM step_definition WHERE organization_id='fixture-legacy-org' AND name='QA')
+        BEGIN SELECT RAISE(ABORT,'injected QA materialization failure'); END`);
+      expect(await rejection(repo.create(failed, [], wrote()))).toContain(
+        'injected QA materialization failure',
+      );
+      expect(await repo.findById(failed.id)).toBeNull();
+      expect(
+        raw.query('SELECT step_id FROM work_package_step WHERE work_package_id=?').all(failed.id),
+      ).toEqual([]);
+    } finally {
+      raw.close();
+    }
   });
 
   it('lists work packages newest first, whoever owns them', async () => {
     const older = workPackage('Older', 100);
     const newer = workPackage('Newer', 200);
-    await repo.create(older, steps(older.id, 'Dev'), wrote());
-    await repo.create(newer, steps(newer.id, 'Dev'), wrote());
+    await repo.create(older, [], wrote());
+    await repo.create(newer, [], wrote());
 
     expect((await repo.list()).map((p) => p.name)).toEqual(['Newer', 'Older']);
   });
 
   it('patches name and restricted, leaving the rest alone', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     const updated = await repo.update(shed.id, { restricted: true }, wrote());
     if (typeof updated === 'string') throw new Error(`work package write refused: ${updated}`);
@@ -318,20 +355,31 @@ describe('WorkPackageRepository', () => {
     expect(await repo.update(crypto.randomUUID(), { name: 'Ghost' }, wrote())).toBeNull();
   });
 
-  it('refuses two steps with one name in one work package', async () => {
-    // The uniqueness lives in the schema rather than the service because two
-    // concurrent step additions both pass a check-then-insert.
+  it('refuses two catalogue steps with one name in a work package', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    expect(await rejection(repo.create(shed, steps(shed.id, 'Dev', 'Dev'), wrote()))).toMatch(
-      /UNIQUE/,
-    );
+    await bindSteps('fixture-legacy-org', shed.projectId, 'Dev', 'QA');
+    await repo.create(shed, [], wrote());
+    const published = await repo.stepsOf(shed.id);
+    expect(published.map(({ name }) => name)).toEqual(['Dev', 'QA']);
+    const qa = published.find(({ name }) => name === 'QA');
+    if (qa === undefined) throw new Error('expected bound QA definition');
+    const raw = openDatabase(join(dir, 'test.db'));
+    try {
+      // Exercise the physical uniqueness constraint independently of catalogue write admission.
+      expect(() => raw.run('UPDATE step_definition SET name=? WHERE id=?', ['Dev', qa.id])).toThrow(
+        /UNIQUE constraint failed: step_definition.organization_id, step_definition.name/,
+      );
+    } finally {
+      raw.close();
+    }
+    expect((await repo.stepsOf(shed.id)).map(({ name }) => name)).toEqual(['Dev', 'QA']);
   });
 
   it('lists per account: opened first by recency, then never-opened by creation', async () => {
     const a = workPackage('A', 100);
     const b = workPackage('B', 200);
     const c = workPackage('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
+    for (const p of [a, b, c]) await repo.create(p, [], wrote());
 
     await repo.recordOpen(a.id, { at: 1000, by: ownerId });
     await repo.recordOpen(b.id, { at: 2000, by: ownerId });
@@ -344,7 +392,7 @@ describe('WorkPackageRepository', () => {
   it('answers the update instant as the newest of its row, its work items and its plan events', async () => {
     const db = openDatabase(join(dir, 'test.db'));
     const a = workPackage('A', 100);
-    await repo.create(a, steps(a.id, 'Dev'), wrote());
+    await repo.create(a, [], wrote());
     const instant = async () => (await repo.listFor(ownerId))[0]?.updatedAt;
     const workItem = db.prepare(
       'INSERT INTO work_item (id, work_package_id, position, updated_at) VALUES (?, ?, ?, ?)',
@@ -380,7 +428,7 @@ describe('WorkPackageRepository', () => {
     const a = workPackage('A', 100);
     const b = workPackage('B', 200);
     const c = workPackage('C', 300);
-    for (const p of [a, b, c]) await repo.create(p, steps(p.id, 'Dev'), wrote());
+    for (const p of [a, b, c]) await repo.create(p, [], wrote());
     await repo.recordOpen(a.id, { at: 1000, by: ownerId });
     await repo.recordOpen(c.id, { at: 500, by: other });
 
@@ -406,7 +454,7 @@ describe('WorkPackageRepository', () => {
       [shed, ownerId],
       [fence, strip],
     ] as const)
-      await repo.create(p, steps(p.id, 'Dev'), { at: 1, by: actorId });
+      await repo.create(p, [], { at: 1, by: actorId });
     await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
 
     const listed = await repo.listFor(ownerId);
@@ -423,7 +471,7 @@ describe('WorkPackageRepository', () => {
 
   it('keeps one record per pair, holding the later moment', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     await repo.recordOpen(shed.id, { at: 1000, by: ownerId });
     await repo.recordOpen(shed.id, { at: 3000, by: ownerId });
@@ -433,7 +481,7 @@ describe('WorkPackageRepository', () => {
 
   it('patches the estimate method', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     const updated = await repo.update(shed.id, { estimateMethod: 'pessimistic' }, wrote());
     if (typeof updated === 'string') throw new Error(`work package write refused: ${updated}`);
@@ -448,7 +496,7 @@ describe('WorkPackageRepository', () => {
     // Written past the repository on purpose: this is the case where the
     // *stored* value is wrong, which no amount of request validation prevents.
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE work_package SET estimate_method = 'median' WHERE id = '${shed.id}'`);
@@ -461,7 +509,7 @@ describe('WorkPackageRepository', () => {
 
   it('patches the dependency reach', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     const updated = await repo.update(shed.id, { depReach: 'anchor-slice' }, wrote());
     if (typeof updated === 'string') throw new Error(`work package write refused: ${updated}`);
@@ -487,7 +535,7 @@ describe('WorkPackageRepository', () => {
     // `Received: "(resolved without throwing)"` — the work package came back read,
     // silently, under a rule nobody chose. Watched 2026-08-29.
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE work_package SET dep_reach = 'first-role' WHERE id = '${shed.id}'`);
@@ -504,7 +552,7 @@ describe('WorkPackageRepository', () => {
     // earlier — which is what makes `ceil` a change to every stored plan and
     // 1/4/1 a change to none.
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     expect(await repo.findById(shed.id)).toMatchObject({
       pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
@@ -514,7 +562,7 @@ describe('WorkPackageRepository', () => {
 
   it('patches the weights and the rounding, and moves the revision for each', async () => {
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
 
     const weighted = await repo.update(
       shed.id,
@@ -553,7 +601,7 @@ describe('WorkPackageRepository', () => {
     // rounding/`, `Received: "(resolved without throwing)"`. Watched
     // 2026-08-30.
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
       db.run(`UPDATE work_package SET estimate_rounding = 'nearest' WHERE id = '${shed.id}'`);
@@ -569,23 +617,23 @@ describe('WorkPackageRepository', () => {
     // `NaN`, which renders as a blank cell and reports itself as estimated.
     // Refused as a triple rather than a column at a time, because that is the
     // shape of the fault — see `PertWeights`.
-    //
-    // Proof: the `type.errors` branch in `toWorkPackage` replaced by a cast to the
-    // triple, and this failed on `Expected substring or pattern: /unusable PERT
-    // weights/`, `Received: "(resolved without throwing)"` — the workPackage read
-    // back happily and `tree` then answered `NaN` days. Watched 2026-08-30.
     const shed = workPackage('Rewire the shed', 100);
-    await repo.create(shed, steps(shed.id, 'Dev'), wrote());
+    await repo.create(shed, [], wrote());
     const db = openDatabase(join(dir, 'test.db'));
     try {
-      db.run(
-        `UPDATE work_package SET pert_weight_optimistic = 0, pert_weight_realistic = 0, pert_weight_pessimistic = 0 WHERE id = '${shed.id}'`,
-      );
+      expect(
+        db.run(
+          "UPDATE setting_value SET value_json=? WHERE scope_kind='work_package' AND scope_id=? AND key='pertWeights'",
+          [JSON.stringify({ optimistic: 0, realistic: 0, pessimistic: 0 }), shed.id],
+        ).changes,
+      ).toBe(1);
     } finally {
       db.close();
     }
 
-    expect(await rejection(repo.findById(shed.id))).toMatch(/unusable PERT weights/);
+    const refused = await rejection(repo.findById(shed.id));
+    expect(refused).toContain('invalid stored setting pertWeights at work_package/' + shed.id);
+    expect(refused).toContain('weights that sum to a finite number above zero');
   });
 
   it('costs one statement however many work packages there are', async () => {
@@ -595,7 +643,7 @@ describe('WorkPackageRepository', () => {
     // 1 against 51.
     for (let made = 0; made < 50; made += 1) {
       const p = workPackage(`Work package ${String(made)}`, 100 + made);
-      await repo.create(p, steps(p.id, 'Dev'), wrote());
+      await repo.create(p, [], wrote());
     }
     const statements: string[] = [];
     const counted = new WorkPackageRepository(
@@ -622,7 +670,7 @@ describe('WorkPackageRepository', () => {
     // connection, this connection is opened, used and closed here, and the
     // repository's own connection never has it off.
     const kept = workPackage('Rewire the shed', 100);
-    await repo.create(kept, steps(kept.id, 'Dev'), wrote());
+    await repo.create(kept, [], wrote());
     const orphan = workPackage('Orphan', 200);
     await repo.create(orphan, [], wrote());
     const db = openDatabase(join(dir, 'test.db'));
@@ -674,11 +722,9 @@ describe('WorkPackageRepository', () => {
     // left dangling — a stamp naming nobody would satisfy the match through
     // `created_by` instead, and the case would stop being about the owner.
     // The current counterpart names an absent account only in its real creation stamp.
-    expect(
-      await rejection(
-        repo.create(orphan, steps(orphan.id, 'Dev'), { at: 1, by: crypto.randomUUID() }),
-      ),
-    ).toMatch(/FOREIGN KEY/);
+    expect(await rejection(repo.create(orphan, [], { at: 1, by: crypto.randomUUID() }))).toMatch(
+      /FOREIGN KEY/,
+    );
   });
 });
 
@@ -1038,7 +1084,8 @@ describe('organization-scoped writes', () => {
       [ownerId],
     );
     const requested = { ...workPackage('Scoped target', 1), projectId: 'org-a-parent' };
-    const target = await createForScopedChecks(requested, steps(requested.id, 'Dev'), 'org-a');
+    await bindSteps('org-a', requested.projectId, 'Dev');
+    const target = await createForScopedChecks(requested, 'org-a');
     if (grantRoleId !== null)
       raw.run(
         "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES(?,'org-a','work_package',?,'user',?,?,'route',1)",
@@ -1054,7 +1101,9 @@ describe('organization-scoped writes', () => {
       [
         'work_package',
         'work_package_organization',
-        'step',
+        'step_definition',
+        'step_binding',
+        'work_package_step',
         'organization_audit',
         'command_journal',
         'event_log',
@@ -1109,8 +1158,8 @@ describe('organization-scoped writes', () => {
       );
       const owned = { ...workPackage('Owned', 1), projectId: 'org-a-parent' };
       const foreign = { ...workPackage('Foreign', 2), projectId: 'org-b-parent' };
-      await createForScopedChecks(owned, steps(owned.id, 'Dev'), 'org-a');
-      await createForScopedChecks(foreign, steps(foreign.id, 'Dev'), 'org-b');
+      await createForScopedChecks(owned, 'org-a');
+      await createForScopedChecks(foreign, 'org-b');
       raw.run(
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
         [ownerId],
@@ -1194,7 +1243,8 @@ describe('findCrossReferences', () => {
         "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
       );
       const mine = { ...workPackage('Mine', 1), projectId: 'org-a-parent' };
-      await createForScopedChecks(mine, steps(mine.id, 'Dev'), 'org-a');
+      await bindSteps('org-a', mine.projectId, 'Dev');
+      await createForScopedChecks(mine, 'org-a');
       raw.run(
         "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-m', ?, NULL, 0, 'Root')",
         [mine.id],
@@ -1213,7 +1263,9 @@ describe('findCrossReferences', () => {
         [mine.id, mine.id],
       );
       const stepId = raw
-        .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id = ?')
+        .query<{ id: string }, [string]>(
+          'SELECT step_id AS id FROM work_package_step WHERE work_package_id = ?',
+        )
         .get(mine.id)?.id;
       if (stepId === undefined) throw new Error('the work package has no step');
       raw.run("INSERT INTO person (id, name) VALUES ('pe-m', 'Mine')");
@@ -1248,8 +1300,8 @@ describe('findCrossReferences', () => {
       );
       const mine = { ...workPackage('Mine', 1), projectId: 'org-a-parent' };
       const theirs = { ...workPackage('Theirs', 2), projectId: 'org-a-parent' };
-      await createForScopedChecks(mine, steps(mine.id, 'Dev'), 'org-a');
-      await createForScopedChecks(theirs, steps(theirs.id, 'Dev'), 'org-a');
+      await createForScopedChecks(mine, 'org-a');
+      await createForScopedChecks(theirs, 'org-a');
       raw.run(
         "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-t', ?, NULL, 0, 'Root')",
         [theirs.id],
@@ -1310,7 +1362,7 @@ async function runOpeningStoreCase(
       [ownerId],
     );
     const draft = { ...workPackage('Opening target', 1), projectId: 'opening-parent' };
-    const target = await createForScopedChecks(draft, steps(draft.id, 'Dev'), 'opening-org');
+    const target = await createForScopedChecks(draft, 'opening-org');
     raw.run(
       "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('opening-viewer','opening-org','work_package',?,'user',?,'package-viewer','route',1)",
       [target.id, ownerId],

@@ -2120,3 +2120,16 @@ The fanout continuation tests hold the actual yield after the settings query.
 Removing either lifetime check independently let the resumed read issue SQL.
 The work-item continuation cases pause the actual tree reader. The original
 closure and zero-SQL assertions cover success, refusal and throw.
+
+Ten further SQLite owners passed 392 tests. Active package, connected-read,
+import, organization and command-ledger cases used the current catalogue.
+The retained command-ledger case used the original Git migration tree at
+`360dc8bb928419132cf64ba52d101bdab936f4ef`, including its original migration
+name, hash and receipt schema. The old organization and blockage down cases
+used their pinned schema prefixes and retained exact ledger assertions.
+
+All 39 scoped import cases passed with an authorized destination step binding.
+The duplicate and cycle cases still used relationships mapped to real allocated
+rows and checked the original declaration path. Runtime-ledger and work-package
+owners passed 63 and 51 cases respectively. The SQLite Nx typecheck passed.
+The previously repaired `tool-deploy:test` target passed all 1,789 tests uncached.

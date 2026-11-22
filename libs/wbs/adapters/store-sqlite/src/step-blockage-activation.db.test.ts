@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,7 +17,10 @@ import {
   readStepBlockageActivation,
   translateStepBlockageFailure,
 } from './step-blockage-activation';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -26,17 +29,31 @@ let path: string;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-blockage-admission-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
+  seedLegacyPackageParent(path, 'blockage-org', 'blockage-project');
   const sqlite = openDatabase(path);
-  sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)");
-  sqlite.run(
-    "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1)",
-  );
-  sqlite.run("INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1)");
-  sqlite.run(
-    "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0)",
-  );
-  sqlite.close();
+  try {
+    sqlite.run(
+      "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+    );
+    sqlite.run(
+      "INSERT INTO work_package (id,project_id,name,created_by,revision,created_at) VALUES ('p','blockage-project','Plan','u',0,1)",
+    );
+    sqlite.run(
+      "INSERT INTO step_definition (id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES ('dev','blockage-org','dev','Dev','workdays',0,1,'project','blockage-project','authored')",
+    );
+    sqlite.run(
+      "INSERT INTO step_binding (id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES ('dev-binding','blockage-org','project','blockage-project','dev',1,'authored')",
+    );
+    sqlite.run(
+      "INSERT INTO work_package_step (work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES ('p','dev','workdays',0,0)",
+    );
+    sqlite.run(
+      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0)",
+    );
+  } finally {
+    sqlite.close();
+  }
 });
 afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
@@ -274,9 +291,24 @@ for (const direction of ['forward', 'inverse', 'preconditions'] as const) {
 
 for (const retained of ['facts', 'forward-history', 'inverse-history', 'preconditions'] as const) {
   it(`refuses down migration over retained ${retained} without changing the ledger`, () => {
-    rollbackTo(path, FOLDER, '20261014140000_add_step_blockage_activation');
-    activateTestStepBlockages(path);
-    const sqlite = openDatabase(path);
+    const historical = join(directory, 'historical.db');
+    const parent = join(directory, 'historical');
+    mkdirSync(parent);
+    const migrations = copyRecoveryPrefix(parent, '20261103110000_add_initial_access_offers');
+    runMigrations(historical, migrations);
+    rollbackTo(historical, migrations, '20261014140000_add_step_blockage_activation');
+    activateTestStepBlockages(historical);
+    const sqlite = openDatabase(historical);
+    sqlite.run(
+      "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+    );
+    sqlite.run(
+      "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1)",
+    );
+    sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1)");
+    sqlite.run(
+      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0)",
+    );
     if (retained === 'facts')
       sqlite.run(
         "INSERT INTO step_blockage (work_item_id,step_id,blocked_at) VALUES ('a','dev',1)",
@@ -292,7 +324,7 @@ for (const retained of ['facts', 'forward-history', 'inverse-history', 'precondi
           : { do: 'patch' };
       const preconditions = retained === 'preconditions' ? { moveProgress: {} } : {};
       sqlite.run(
-        `INSERT INTO command_journal (id,work_package_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
+        `INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,undone,created_at)
         VALUES ('j','p','u',1,'deleteWorkItem',?,?,?,0,1)`,
         [JSON.stringify(payload), JSON.stringify(inverse), JSON.stringify(preconditions)],
       );
@@ -300,9 +332,9 @@ for (const retained of ['facts', 'forward-history', 'inverse-history', 'precondi
     const before = sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY id').all();
     sqlite.close();
     expect(() =>
-      rollbackTo(path, FOLDER, '20261014130000_add_shared_people_restore_receipts'),
+      rollbackTo(historical, migrations, '20261014130000_add_shared_people_restore_receipts'),
     ).toThrow('stopped-writer recovery integration required');
-    const reopened = openDatabase(path);
+    const reopened = openDatabase(historical);
     try {
       expect(reopened.query('SELECT * FROM __drizzle_migrations ORDER BY id').all()).toEqual(
         before,

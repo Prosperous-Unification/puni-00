@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { AccessDecisionRepository } from './access-decisions';
 import { openDatabase, openDrizzle } from './db';
 import { WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
 import {
   countAgentPersons,
   countBoundClaims,
@@ -18,8 +17,8 @@ import {
   readEffectiveLimits,
   sumStatedCapacity,
 } from './organization-limits';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -34,13 +33,14 @@ let db: ReturnType<typeof openDrizzle>;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-limits-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, { hasUnknownOwner: false });
   sqlite = openDatabase(path);
   for (const statement of [
     "INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1), ('bea', 'bea', 1), ('mo', 'mo', 1), ('vi', 'vi', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1), ('org-b', 'B', 1)",
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'dany', 'super_admin', 1), ('org-a', 'bea', 'admin', 1), ('org-a', 'mo', 'member', 1), ('org-a', 'vi', 'viewer', 1), ('org-b', 'dany', 'member', 1)",
-    "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('pa1', 'A one', 'dany', 1), ('pa2', 'A two', 'dany', 1), ('pb', 'B one', 'dany', 1)",
+    "INSERT INTO project (id, name, organization_id, created_by, created_at) VALUES ('parent-a', 'A', 'org-a', 'dany', 1), ('parent-b', 'B', 'org-b', 'dany', 1)",
+    "INSERT INTO work_package (id, name, project_id, created_by, created_at) VALUES ('pa1', 'A one', 'parent-a', 'dany', 1), ('pa2', 'A two', 'parent-a', 'dany', 1), ('pb', 'B one', 'parent-b', 'dany', 1)",
     "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('pa1', 'org-a'), ('pa2', 'org-a'), ('pb', 'org-b')",
   ])
     sqlite.run(statement);
@@ -79,11 +79,16 @@ function leaf(workPackageId: string, id: string, steps = 1): string[] {
   const stepIds: string[] = [];
   for (let n = 1; n <= steps; n++) {
     const stepId = `${id}-s${String(n)}`;
-    sqlite.run('INSERT INTO step (id, work_package_id, name) VALUES (?, ?, ?)', [
-      stepId,
-      workPackageId,
-      stepId,
-    ]);
+    sqlite.run(
+      `INSERT INTO step_definition (id, organization_id, code, name, estimate_unit, default_allowance_bps, position, defined_at_scope_kind, defined_at_scope_id, origin)
+       SELECT ?, organization_id, ?, ?, 'workdays', 0, ?, 'organization', organization_id, 'authored'
+       FROM work_package_organization WHERE resource_id = ?`,
+      [stepId, stepId, stepId, n, workPackageId],
+    );
+    sqlite.run(
+      "INSERT INTO work_package_step (work_package_id, step_id, estimate_unit, allowance_bps, allowance_revision) VALUES (?, ?, 'workdays', 0, 0)",
+      [workPackageId, stepId],
+    );
     stepIds.push(stepId);
   }
   return stepIds;

@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import {
   authorize,
@@ -17,7 +17,7 @@ import * as claimRoles from '@wbs/core/module/work-item/claims';
 import * as resourceRoles from '@wbs/core/ports/organization-access';
 import { CONTRIBUTOR_CAP } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { AccessDecisionRepository } from './access-decisions';
 import { messagesOf } from './constraint';
@@ -26,7 +26,6 @@ import * as enterpriseRoles from './enterprise-connection';
 import { resolveWorkPackageWriteScopeIn } from './fanout-capture';
 import { OPEN } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
-import { runMigrations } from './migrate';
 import { OnboardingRepository } from './onboarding';
 import * as membershipRoles from './organization';
 import { OrganizationRepository } from './organization';
@@ -35,10 +34,20 @@ import { readMembershipIn, SqliteOrganizationAccess } from './organization-acces
 import { SqliteOrganizationSelection } from './organization-selection';
 import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { admitResourceUseWorkPackage } from './resource-use';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { UserRepository } from './user';
 import * as workPackageRoles from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let template: string | undefined;
+beforeAll(() => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-organization-authorization-template-'));
+  const path = join(directory, 'template.db');
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
+  template = path;
+}, 30_000);
+afterAll(() => {
+  if (template !== undefined) rmSync(dirname(template), { recursive: true, force: true });
+});
 let dir: string;
 let sqlite: Database;
 let access: SqliteOrganizationAccess;
@@ -114,7 +123,8 @@ beforeEach(() => {
     });
     dir = directory;
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    if (template === undefined) throw new Error('organization authorization template is missing');
+    copyFileSync(template, path);
     const opened = openDatabase(path);
     fixtureCleanup.unshift(opened.close.bind(opened));
     sqlite = opened;
