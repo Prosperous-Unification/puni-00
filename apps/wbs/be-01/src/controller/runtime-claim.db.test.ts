@@ -31,6 +31,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
@@ -77,9 +78,11 @@ async function seeded(shared = false) {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
-  sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)",
-  );
+  expect(
+    sqlite.db.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND scope_id='a1' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.db.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
   );
@@ -88,18 +91,15 @@ async function seeded(shared = false) {
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  for (const id of ['dev', 'review'])
-    await source.stores.steps.add(
-      {
-        id,
-        workPackageId: 'a1',
-        name: id,
-        code: id,
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-      stamp,
-    );
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [
+      ['dev', 'dev'],
+      ['review', 'review'],
+    ],
+    stamp,
+  );
   await source.stores.workItems.insert(
     workItemRow({ id: 'leaf', workPackageId: 'a1', readiness: 'ready' }),
     [],
@@ -157,15 +157,14 @@ async function seeded(shared = false) {
   if (shared) {
     sqlite.db.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
     sqlite.db.run("UPDATE work_package SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
-    await source.stores.steps.add(
-      {
-        id: 'dev2',
-        workPackageId: 'a2',
-        name: 'dev2',
-        code: 'dev2',
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
+    sqlite.db.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('runtime-shared','org-a','Shared claims',1,'ada')",
+    );
+    sqlite.db.run("UPDATE work_package SET project_id='runtime-shared' WHERE id='a2'");
+    await bindRuntimeFixtureSteps(
+      source.stores.stepCatalogue,
+      'runtime-shared',
+      [['dev2', 'dev2']],
       stamp,
     );
     await source.stores.workItems.insert(
@@ -639,10 +638,6 @@ describe('conditional exact runtime claim', () => {
       "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-replay','org-a','work_package','a1','user','ada','package-contributor','route',1)",
     );
     sqlite.db.run("UPDATE work_package SET restricted=1 WHERE id='a1'");
-    sqlite.db.run(
-      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('someone','someone','x',1)",
-    );
-    sqlite.db.run("UPDATE work_package SET owner_id='someone' WHERE id='a1'");
     const audits = sqlite.db.all('SELECT * FROM organization_audit');
     blockCapture();
     const replayOnly = createPlanCommandRunner(

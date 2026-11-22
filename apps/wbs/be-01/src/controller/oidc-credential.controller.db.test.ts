@@ -2,7 +2,11 @@ import { JwksTokenVerifier } from '@wbs/auth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type LocalIssuer, LocalOidcIssuers } from '../testing/local-oidc-issuer';
-import { addAgentPerson, MACHINE_BEARER_NOT_ACCEPTED } from '../testing/machine-credential-fixture';
+import {
+  addAgentPerson,
+  grantCredential,
+  MACHINE_BEARER_NOT_ACCEPTED,
+} from '../testing/machine-credential-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
 import { callForwardedAssertion, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import {
@@ -11,6 +15,7 @@ import {
   type HarnessTrustedIssuers,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 const CONFIGURED = 'https://idp.test';
 const UPSTREAM_AUDIENCE = 'api://wbs';
@@ -102,17 +107,11 @@ async function populate(): Promise<void> {
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  workPackageA = await createWorkPackage('dany', 'Plan of A');
-  workPackageB = await createWorkPackage('bob', 'Plan of B');
+  workPackageA = await createFixturePackage(h, 'dany', 'Plan of A');
+  workPackageB = await createFixturePackage(h, 'bob', 'Plan of B');
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'mems-agent', 'org-a', h.userId('mem'));
   addAgentPerson(h.sqlite, 'bobs-agent', 'org-b', h.userId('bob'));
-}
-
-async function createWorkPackage(username: string, name: string): Promise<string> {
-  const created = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  return (created.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** Registers `issuer` for the caller's organization with `audience` and answers its id. */
@@ -145,7 +144,9 @@ async function claireCredential(): Promise<{ trustedIssuerId: string; id: string
   const trustedIssuerId = await trust('dany', ci, WBS);
   const created = await createOidc('dany', { trustedIssuerId });
   if (created.status !== 201) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  return { trustedIssuerId, id: (created.body as { id: string }).id };
+  const id = (created.body as { id: string }).id;
+  grantCredential(h.sqlite, 'org-a', id, 'package-viewer', 'work_package', workPackageA);
+  return { trustedIssuerId, id };
 }
 
 /** The token itself as a Bearer on `/api`, which M9 refuses. */
@@ -498,9 +499,10 @@ describe.each(TRANSPORTS)('a trusted issuer token, %s', (_, send) => {
   it('binds one subject in two organizations through one shared issuer URL', async () => {
     await claireCredential();
     const theirs = await trust('bob', ci, WBS_B);
-    expect(
-      (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' })).status,
-    ).toBe(201);
+    const created = await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' });
+    expect(created.status).toBe(201);
+    const id = (created.body as { id: string }).id;
+    grantCredential(h.sqlite, 'org-b', id, 'package-viewer', 'work_package', workPackageB);
     const a = await send(await ci.sign({ sub: MAIN, aud: WBS }), 'GET', '/api/work-packages');
     expect(workPackageIds(a)).toEqual([workPackageA]);
     const b = await send(await ci.sign({ sub: MAIN, aud: WBS_B }), 'GET', '/api/work-packages');

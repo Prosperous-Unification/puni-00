@@ -5204,6 +5204,24 @@
         }
       },
       {
+        "path": "libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-extra-qa.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor Memory capture pinned by libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-laundering.json. Running the retained producer at c8018843e6ff6827f7d97b67ff986cc717656578 creates a new capture."
+        }
+      },
+      {
+        "path": "libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-mixed-progress-patch.json.gz",
+        "format": "application/gzip",
+        "consumer": "libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical predecessor Memory capture pinned by libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-memory-laundering.json. Running the retained producer at c8018843e6ff6827f7d97b67ff986cc717656578 creates a new capture."
+        }
+      },
+      {
         "path": "libs/wbs/adapters/store-memory/src/testing/fixtures/legacy-laundering-progress.json.gz",
         "format": "application/gzip",
         "consumer": "libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts",

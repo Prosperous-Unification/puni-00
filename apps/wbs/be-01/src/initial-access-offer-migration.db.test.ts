@@ -1,18 +1,19 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const BASELINE = '20261102130000_widen_organization_audit_access';
 const MIGRATION = '20261103110000_add_initial_access_offers';
 let directory: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 function insertLegacy(
@@ -39,11 +40,10 @@ function insertLegacy(
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-initial-access-offers-'));
   path = join(directory, 'test.db');
-  const baseline = join(directory, 'baseline');
-  cpSync(FOLDER, baseline, { recursive: true });
-  for (const folder of readdirSync(baseline, { withFileTypes: true }))
-    if (folder.isDirectory() && folder.name > BASELINE)
-      rmSync(join(baseline, folder.name), { recursive: true, force: true });
+  const predecessor = join(directory, 'baseline');
+  mkdirSync(predecessor);
+  const baseline = copyRecoveryPrefix(predecessor, BASELINE);
+  migrations = copyRecoveryPrefix(directory, MIGRATION);
   runMigrations(path, baseline);
   db = openDatabase(path);
   for (const user of ['issuer', 'recipient'])
@@ -53,7 +53,7 @@ beforeEach(() => {
     for (const state of ['pending', 'revoked', 'consumed'] as const)
       insertLegacy(role + '-' + state, role, state);
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 afterEach(() => {
@@ -117,7 +117,7 @@ it('preserves every historical offer and old-writer insert as explicit initial a
 function rollbackOfferMigration(): string[] {
   db.close();
   try {
-    return rollbackTo(path, FOLDER, BASELINE);
+    return rollbackTo(path, migrations, BASELINE);
   } finally {
     db = openDatabase(path);
   }

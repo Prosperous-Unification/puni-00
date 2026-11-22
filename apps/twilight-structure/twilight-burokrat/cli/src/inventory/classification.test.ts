@@ -1808,6 +1808,56 @@ describe('shipped current-PR historical SQLite archive boundaries', () => {
   }
 });
 
+describe('shipped predecessor Memory archives', () => {
+  // Proof: removing the extra-qa wiki policy declaration made the classifier refuse its actual gzip.
+  const workspace = join(import.meta.dir, '../../../../../..');
+  const fixtureRoot = 'libs/wbs/adapters/store-memory/src/testing/fixtures/';
+
+  for (const policyPath of [
+    'docs/code-organization/rule-policy.json',
+    'docs/wiki-policy/policy.json',
+    'docs/wiki-policy/bootstrap-policy.json',
+  ]) {
+    test.each(['extra-qa', 'mixed-progress-patch'])(
+      'classifies Memory laundering archive %s with ' + policyPath,
+      async (scenario) => {
+        const envelope: unknown = JSON.parse(readFileSync(join(workspace, policyPath), 'utf8'));
+        if (
+          envelope === null ||
+          typeof envelope !== 'object' ||
+          !('classificationPolicy' in envelope)
+        )
+          throw new Error('Shipped policy lacks its classification boundary: ' + policyPath);
+        const repository = createRepository();
+        const path = fixtureRoot + 'legacy-laundering-' + scenario + '.json.gz';
+        write(repository, path, readFileSync(join(workspace, path)));
+        const invocation = await classify(
+          repository,
+          commitAll(repository),
+          writePolicy(repository, ClassificationPolicy.assert(envelope.classificationPolicy)),
+        );
+        expect(invocation.exitCode, output(invocation)).toBe(0);
+        const classified: unknown = JSON.parse(standardOutput(invocation));
+        expect(classified).toMatchObject({
+          entries: [
+            {
+              path,
+              blob: hash(repository, path),
+              classification: {
+                kind: 'content',
+                contentClass: 'binary',
+                format: 'application/gzip',
+                consumer: 'libs/wbs/adapters/store-memory/src/testing/legacy-memory-history.ts',
+                regenerationAuthority: { kind: 'external' },
+              },
+            },
+          ],
+        });
+      },
+    );
+  }
+});
+
 describe('shipped current-PR raw SQLite fixture boundaries', () => {
   // Proof: current-pr-raw-fixtures-real-red-v368 observed all fifteen exact missing
   // declarations. current-pr-raw-fixtures-green-controls-v369 passed fifteen exact

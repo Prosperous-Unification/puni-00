@@ -13,10 +13,11 @@ import {
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
+const THROUGH = '20261103110000_add_initial_access_offers';
 const MIGRATION = '20261102120000_add_access_grants';
 const BASELINE = '20261101120000_add_host_job_projection';
 const MATRIX = parsePermissionMatrix(
@@ -36,6 +37,7 @@ const credentialId = (n: number) => `00000000-0000-4000-8000-${String(n).padStar
 
 let dir: string;
 let path: string;
+let migrations: string;
 let db: Database;
 
 /**
@@ -60,12 +62,12 @@ function seedBaseline(): void {
      ('org-a', 'vi', 'viewer', 1), ('org-b', 'bo', 'member', 1), ('org-b', 'ada', 'viewer', 1)`,
   );
   db.run(
-    `INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES
+    `INSERT INTO project (id, name, owner_id, revision, created_at) VALUES
      ('p-mo', 'Mo', 'mo', 0, 1), ('p-out', 'Out', 'out', 0, 1), ('p-ada', 'Ada', 'ada', 0, 1),
      ('p-loose', 'Loose', 'mo', 0, 1), ('p-bo', 'Bo', 'bo', 0, 1), ('p-mo-b', 'Mo B', 'mo', 0, 1)`,
   );
   db.run(
-    `INSERT INTO work_package_organization (resource_id, organization_id) VALUES
+    `INSERT INTO project_organization (resource_id, organization_id) VALUES
      ('p-mo', 'org-a'), ('p-out', 'org-a'), ('p-ada', 'org-a'), ('p-bo', 'org-b'), ('p-mo-b', 'org-b')`,
   );
   db.run(
@@ -92,16 +94,17 @@ function seedBaseline(): void {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-access-grants-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-    '20261103110000_add_initial_access_offers',
+  migrations = copyRecoveryPrefix(dir, THROUGH);
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+    THROUGH,
     '20261102130000_widen_organization_audit_access',
     MIGRATION,
   ]);
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -139,7 +142,7 @@ const tablesLeft = () =>
 
 const customRole = (id: string, name: string, organizationId = 'org-a') =>
   db.run(
-    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'work package', '${organizationId}', 1)`,
+    `INSERT INTO access_role (id, name, object_kind, organization_id, created_at) VALUES ('${id}', '${name}', 'work_package', '${organizationId}', 1)`,
   );
 
 const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo') =>
@@ -152,7 +155,7 @@ const grant = (id: string, origin: string, subjectKind = 'user', subjectId = 'mo
 function rollBack(): string[] {
   db.close();
   try {
-    return rollbackTo(path, FOLDER, BASELINE);
+    return rollbackTo(path, migrations, BASELINE);
   } finally {
     db = openDatabase(path);
   }
@@ -356,7 +359,7 @@ describe(MIGRATION, () => {
         })),
       );
       expect(
-        db.query("SELECT COUNT(*) AS n FROM access_grant WHERE scope_kind = 'work_package'").get(),
+        db.query("SELECT COUNT(*) AS n FROM access_grant WHERE scope_kind = 'project'").get(),
       ).toEqual({ n: 0 });
     });
 
@@ -468,7 +471,7 @@ describe(MIGRATION, () => {
     it('rolls back over the backfill and the built-ins, dropping the five tables', () => {
       expect(tablesLeft()).toEqual(TABLES);
       expect(rollBack()).toEqual([
-        '20261103110000_add_initial_access_offers',
+        THROUGH,
         '20261102130000_widen_organization_audit_access',
         MIGRATION,
       ]);
@@ -511,8 +514,8 @@ describe(MIGRATION, () => {
     it('refuses rollback over a permission row of no built-in role', () => {
       // Isolate this historical grant guard before corrupting trusted state; the
       // newer audit rebuild independently rejects foreign-key violations.
-      expect(rollbackTo(path, FOLDER, MIGRATION)).toEqual([
-        '20261103110000_add_initial_access_offers',
+      expect(rollbackTo(path, migrations, MIGRATION)).toEqual([
+        THROUGH,
         '20261102130000_widen_organization_audit_access',
       ]);
       db.run('PRAGMA foreign_keys = OFF');

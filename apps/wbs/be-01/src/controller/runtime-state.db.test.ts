@@ -31,6 +31,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
 
 const actor: AuthenticatedUser = { id: 'ada', username: 'ada', scopes: ['read', 'write'] };
@@ -63,9 +64,11 @@ async function seeded() {
     await source.close();
     rmSync(directory, { recursive: true, force: true });
   });
-  sqlite.db.run(
-    `INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)`,
-  );
+  expect(
+    sqlite.db.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND scope_kind='work_package' AND scope_id='a1' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.db.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('runtime-ada','org-a','organization','org-a','user','ada','project-contributor','route',1)",
   );
@@ -77,15 +80,10 @@ async function seeded() {
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, stamp),
   ).toMatchObject({ ok: true });
-  await source.stores.steps.add(
-    {
-      id: 'dev',
-      workPackageId: 'a1',
-      name: 'Dev',
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays',
-    },
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [['dev', 'Dev']],
     stamp,
   );
   await source.stores.workItems.insert(workItemRow({ id: 'leaf', workPackageId: 'a1' }), [], stamp);
@@ -392,7 +390,7 @@ describe('admitted runtime observation', () => {
       'scope.personId',
       'agent',
     );
-    sqlite.db.run(`ALTER TABLE step RENAME TO unavailable_step`);
+    sqlite.db.run(`ALTER TABLE step_definition RENAME TO unavailable_step_definition`);
     const unreadable = await runtime.captureRuntimeObservation(context).then(
       () => null,
       (cause: unknown) => cause,

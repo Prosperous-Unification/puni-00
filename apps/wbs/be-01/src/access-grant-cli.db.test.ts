@@ -3,13 +3,12 @@ import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 setDefaultTimeout(30_000);
 
 const cli = new URL('./access-grant-cli.ts', import.meta.url).pathname;
-const migrations = new URL('../drizzle', import.meta.url).pathname;
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
 
 let directory: string;
@@ -41,7 +40,7 @@ const FIXTURE = [
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'access-grant-cli-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   const db = openDatabase(path);
   try {
     for (const statement of FIXTURE) db.run(statement);

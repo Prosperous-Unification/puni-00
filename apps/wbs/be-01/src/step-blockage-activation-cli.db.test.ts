@@ -3,13 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { openExistingConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, expect, setDefaultTimeout, test } from 'bun:test';
 
 setDefaultTimeout(30_000);
 
 const cli = new URL('./step-blockage-activation-cli.ts', import.meta.url).pathname;
-const migrations = new URL('../drizzle', import.meta.url).pathname;
 const receipt = {
   protocol: 'step-blockage-activation',
   version: 1,
@@ -26,7 +25,7 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'step-blockage-cli-'));
   path = join(directory, 'plan.db');
   file = join(directory, 'receipt.json');
-  runMigrations(path, migrations);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   writeFileSync(file, JSON.stringify(receipt));
 });
 afterEach(() => {

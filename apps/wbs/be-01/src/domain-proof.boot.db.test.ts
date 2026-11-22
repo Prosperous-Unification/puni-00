@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import type { EmailDelivery } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 
 import { buildApp } from './app';
 import { bootBe01, type BootOptions, type RunningBe } from './boot';
 import { openDatabase } from './repository/db';
-import { runMigrations } from './repository/migrate';
 import { DnsUnavailableError } from './runtime/authoritative-dns/failures';
 import type { DnsTransport } from './runtime/authoritative-dns/resolver';
 import { DnsCleanupError } from './runtime/authoritative-dns/transport';
@@ -30,7 +30,10 @@ beforeEach(() => {
   listenerStops = 0;
   directory = mkdtempSync(join(tmpdir(), 'wbs-domain-proof-boot-'));
   const dbPath = join(directory, 'boot.db');
-  runMigrations(dbPath, new URL('../drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   sqlite = openDatabase(dbPath);
   options = {
     dbPath,

@@ -1,5 +1,5 @@
 import { JwksTokenVerifier } from '@wbs/auth';
-import { MCP_INTERNAL_SECRET_HEADER } from '@wbs/contracts';
+import { MCP_INTERNAL_SECRET_HEADER, readWorkPackage } from '@wbs/contracts';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { exportJWK, generateKeyPair } from 'jose';
 
@@ -21,6 +21,7 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
@@ -75,19 +76,22 @@ beforeEach(async () => {
   h.bind('mem', 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  workPackageA = await createWorkPackage('dany', 'Plan of A');
-  workPackageB = await createWorkPackage('bob', 'Plan of B');
+  workPackageA = await createFixturePackage(h, 'dany', 'Plan of A');
+  workPackageB = await createFixturePackage(h, 'bob', 'Plan of B');
   const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
-  const firstStep = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1',
-    )
-    .get(workPackageA);
-  if (firstStep === null) throw new Error('created work package has no first step');
+  const read = await h.call('dany', 'GET', `/api/work-packages/${workPackageA}`);
+  if (read.status !== 200) throw new Error('fixture work package read refused', { cause: read });
+  const checked = await readWorkPackage.responses[0].schema.validator['~standard'].validate(
+    read.body,
+  );
+  if (checked.issues !== undefined)
+    throw new Error('fixture work package reply malformed', { cause: checked.issues });
+  const firstStep = checked.value.steps.at(0);
+  if (firstStep === undefined) throw new Error('created work package has no first step');
   firstStepId = firstStep.id;
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'codex', 'org-a', h.userId('dany'));
@@ -114,12 +118,6 @@ function openHarness(now?: () => number): OrganizationHarness {
       groupsClaim: 'wbs_groups',
     },
   });
-}
-
-async function createWorkPackage(username: string, name: string): Promise<string> {
-  const created = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  return (created.body as { workPackage: { id: string } }).workPackage.id;
 }
 
 /** Claire's key: issued by Dany for the agent person bound to Dany's account. */
@@ -406,6 +404,12 @@ describe('machine restricted-work-package grant and cap boundaries', () => {
   beforeEach(() => {
     h.grantPermissions('org-a', 'mem', ['organization.create_project', 'package.manage_settings']);
   });
+  function createMemberPackage(name: string): Promise<string> {
+    return createFixturePackage(h, 'mem', name, (method, path, body) =>
+      h.call(path === '/api/projects' ? 'mem' : 'dany', method, path, body),
+    );
+  }
+
   /** Acquire the MCP grant before measuring the protected call's complete effects. */
   async function admitMachine(workPackageId?: string) {
     const { id, key } = await claireKey();
@@ -423,7 +427,7 @@ describe('machine restricted-work-package grant and cap boundaries', () => {
   it.each(['commands', 'undo', 'redo', 'steps', 'calendar-markers', 'optimization/retry'])(
     'refuses %s recovery without mutations, audit or events',
     async (route) => {
-      const restricted = await createWorkPackage('mem', 'Restricted member work package');
+      const restricted = await createMemberPackage('Restricted member work package');
       expect(
         (await h.call('mem', 'PATCH', `/api/work-packages/${restricted}`, { restricted: true }))
           .status,
@@ -432,7 +436,8 @@ describe('machine restricted-work-package grant and cap boundaries', () => {
       const tables = [
         'work_package',
         'work_item',
-        'step',
+        'step_definition',
+        'step_binding',
         'calendar_marker',
         'command_journal',
         'organization_audit',
@@ -460,7 +465,7 @@ describe('machine restricted-work-package grant and cap boundaries', () => {
   );
 
   it('refuses saved-plan recovery save, rename and delete without effects', async () => {
-    const restricted = await createWorkPackage('mem', 'Restricted saved work package');
+    const restricted = await createMemberPackage('Restricted saved work package');
     const saved = await h.call('mem', 'POST', `/api/work-packages/${restricted}/saved-plans`, {
       name: 'Original',
     });

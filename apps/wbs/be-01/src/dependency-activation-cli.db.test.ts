@@ -4,13 +4,11 @@ import { join } from 'node:path';
 
 import { inspectDependencyActivation } from '@wbs/store-sqlite/cross-work-package-dependency-activation';
 import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it } from 'bun:test';
 
-import { runMigrations } from './repository/migrate';
-
 const CLI = new URL('./dependency-activation-cli.ts', import.meta.url).pathname;
-const FOLDER = new URL('../drizzle', import.meta.url).pathname;
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0))
@@ -20,7 +18,8 @@ function database(migrate = true): string {
   const directory = mkdtempSync(join(tmpdir(), 'dependency-inspect-'));
   directories.push(directory);
   const path = join(directory, 'plan.db');
-  if (migrate) runMigrations(path, FOLDER);
+  if (migrate)
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   return path;
 }
 function inspect(path: string | undefined, args = ['inspect']) {
@@ -85,7 +84,7 @@ for (const fault of [
   "PRAGMA ignore_check_constraints=ON; UPDATE cross_work_package_dependency_activation SET state='UNKNOWN'",
   "UPDATE cross_work_package_dependency_activation SET state='ENABLED'; INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'{}')",
   'DROP TABLE __drizzle_migrations',
-  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_work_package_dependency_activation'",
+  "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'",
   "UPDATE cross_work_package_dependency_activation SET state='ENABLED'",
   "INSERT INTO cross_work_package_dependency_activation_receipt VALUES (1,'{}')",
   'DROP TRIGGER external_dependency_admit_update',

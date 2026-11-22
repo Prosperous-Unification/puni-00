@@ -63,7 +63,10 @@ for (const fault of [
         };
         actorId?: string;
       };
-      if (fault === 'version') wire.schemaVersion = 2;
+      if (fault === 'version') {
+        expect(wire.schemaVersion).toBe(2);
+        wire.schemaVersion = 3;
+      }
       if (fault === 'scope') wire.scope.personId = 'other';
       if (fault === 'command') wire.commandId = 'other';
       if (fault === 'digest') wire.requestDigest = 'f'.repeat(64);
