@@ -8,6 +8,16 @@
   gather_facts: true
   serial: 1
   tasks:
+    # The firewall of a separated host is confirmed by a fresh login as the operator; A26 runs
+    # before the base role (A3), so the operator and its keys are created here first.
+    # Proof: dropping this include, or moving it after the network role, made ansible.test.ts
+    # `creates the operator before the network role in firewall.yml` fail (2026-11-22).
+    - name: Create the fleet operator the fresh login uses
+      when: puni_public_ports is defined
+      ansible.builtin.include_role:
+        name: base
+        tasks_from: operator.yml
+
     # A26 opens with a login on the provider's console as this account, before the base role
     # (A3) has run; a separated inventory therefore creates it here first.
     - name: Create the console account that sshd refuses

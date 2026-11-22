@@ -477,14 +477,49 @@ async function recordingStandIn(name: string, log: string, code = 0): Promise<st
 }
 
 describe('the confirmed firewall', () => {
+  /**
+   * One run against stand-ins: `systemd-run` arms by creating `pending` and refuses a unit name
+   * already taken, as systemd does; `systemctl is-active` reports it; a fresh login that succeeds
+   * cancels it. `nft list` prints the live table when `loaded`.
+   */
   async function firewallRun(
     state: string,
     options: { loaded: boolean; login: number },
-  ): Promise<{ run: Run; armed: number; marker: string | null; file: string }> {
+  ): Promise<{
+    run: Run;
+    armed: number;
+    marker: string | null;
+    file: string;
+    saved: string | null;
+  }> {
     const log = join(state, 'calls');
+    const pending = join(state, 'pending');
     const nft = await standIn(
       'nft',
-      `printf '%s\\n' "nft $*" >> ${log}\n[ "$1" = list ] && exit ${options.loaded ? '0' : '1'}\nexit 0`,
+      [
+        `printf '%s\\n' "nft $*" >> ${log}`,
+        `if [ "$1" = list ]; then ${options.loaded ? "echo 'table inet puni_bastion { live }'; exit 0" : 'exit 1'}; fi`,
+        'exit 0',
+      ].join('\n'),
+    );
+    const systemdRun = await standIn(
+      'systemd-run',
+      [
+        `if [ -e ${pending} ]; then echo 'Unit puni-bastion-firewall-revert.timer already exists.' >&2; exit 1; fi`,
+        `printf '%s\\n' "$*" >> ${log}`,
+        `touch ${pending}`,
+      ].join('\n'),
+    );
+    const systemctl = await standIn(
+      'systemctl',
+      [
+        `if [ "$1" = is-active ]; then [ -e ${pending} ] && exit 0; exit 3; fi`,
+        `printf '%s\\n' "systemctl $*" >> ${log}`,
+      ].join('\n'),
+    );
+    const ssh = await standIn(
+      'ssh',
+      options.login === 0 ? `rm -f ${pending}` : `exit ${String(options.login)}`,
     );
     const file = join(state, 'puni-bastion.nft');
     const run = await taskFile(
@@ -498,9 +533,9 @@ describe('the confirmed firewall', () => {
         puni_fw_unit_changed: false,
         puni_nft: [nft],
         puni_nft_check: nftCheck,
-        puni_systemd_run: [await recordingStandIn('systemd-run', log)],
-        puni_systemctl: [await recordingStandIn('systemctl', log)],
-        puni_ssh_client: await standIn('ssh', `exit ${String(options.login)}`),
+        puni_systemd_run: [systemdRun],
+        puni_systemctl: [systemctl],
+        puni_ssh_client: ssh,
         puni_root_owner: identity.uid,
         puni_root_group: identity.gid,
         puni_fresh_user: 'puni-fleet',
@@ -510,19 +545,24 @@ describe('the confirmed firewall', () => {
     );
     const calls = (await tool(['cat', log])).stdout;
     const marker = await tool(['cat', join(state, 'state/confirmed.sha256')]);
+    const saved = await tool(['cat', join(state, 'state/saved-table.nft')]);
     return {
       run,
       armed: calls.split('\n').filter((line) => line.includes('--on-active=5min')).length,
       marker: marker.code === 0 ? marker.stdout.trim() : null,
       file,
+      saved: saved.code === 0 ? saved.stdout : null,
     };
   }
+  /** The armed timer fires: its unit name is free again. */
+  const fire = (state: string) => tool(['rm', '-f', join(state, 'pending')]);
 
   it('arms again on the run after a failed confirmation, and not once confirmed', async () => {
     const state = await scratchAsync('node-roles-firewall-');
     const failed = await firewallRun(state, { loaded: false, login: 255 });
     expect(failed.run.code).not.toBe(0);
     expect([failed.armed, failed.marker]).toEqual([1, null]);
+    await fire(state);
     // The file is unchanged now; the marker's absence alone makes the run arm and load again.
     const again = await firewallRun(state, { loaded: true, login: 0 });
     expect(again.run.output).toContain('failed=0');
@@ -537,11 +577,23 @@ describe('the confirmed firewall', () => {
     expect(unloaded.armed).toBe(3);
   });
 
+  it('stops while a revert is pending, before it saves the unconfirmed table', async () => {
+    const state = await scratchAsync('node-roles-firewall-');
+    const failed = await firewallRun(state, { loaded: false, login: 255 });
+    expect(failed.run.code).not.toBe(0);
+    // The timer has not fired; the unconfirmed rules are live.
+    const rerun = await firewallRun(state, { loaded: true, login: 0 });
+    expect(rerun.run.code).not.toBe(0);
+    expect(rerun.run.output).toContain('A revert is pending');
+    expect([rerun.armed, rerun.saved, rerun.marker]).toEqual([1, failed.saved, null]);
+  });
+
   it('writes a revert that puts back the confirmed file, or removes an unconfirmed one', async () => {
     const state = await scratchAsync('node-roles-firewall-');
     await firewallRun(state, { loaded: false, login: 255 });
     const first = (await tool(['cat', join(state, 'state/revert.sh')])).stdout;
     expect(first).toContain(`rm -f ${join(state, 'puni-bastion.nft')}`);
+    await fire(state);
     await firewallRun(state, { loaded: true, login: 0 });
     expect((await tool(['cat', join(state, 'state/confirmed.nft')])).code).toBe(0);
   });

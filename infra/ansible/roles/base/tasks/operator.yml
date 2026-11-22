@@ -1,0 +1,48 @@
+---
+# The fleet operator: its account, exactly `puni_operator_authorized_keys`, and its sudo boundary.
+# `base` runs it, and so does playbooks/firewall.yml for a separated inventory before the
+# `network` role, because the fresh login that confirms a separated host's firewall logs in as
+# this operator (tasks/fresh-connection.yml) and A26 runs before A3.
+- name: Require the operator's name and keys
+  ansible.builtin.assert:
+    that:
+      - puni_operator_name | length > 0
+      - puni_operator_authorized_keys is sequence
+      - puni_operator_authorized_keys is not string
+      - puni_operator_authorized_keys | length > 0
+    fail_msg: The operator's name and a list of its authorized keys are required
+
+- name: Create the fleet operator
+  ansible.builtin.user:
+    name: '{{ puni_operator_name }}'
+    create_home: true
+    shell: /bin/bash
+    groups: sudo
+    append: true
+
+- name: Create the operator SSH directory
+  ansible.builtin.file:
+    path: '/home/{{ puni_operator_name }}/.ssh'
+    state: directory
+    owner: '{{ puni_operator_name }}'
+    group: '{{ puni_operator_name }}'
+    mode: '0700'
+
+- name: Install the exact operator authorized keys
+  # The keys tasks/fresh-key.yml checks the controller's key against, for separated hosts.
+  ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml
+  vars:
+    puni_keys: '{{ puni_operator_authorized_keys }}'
+    puni_keys_owner: '{{ puni_operator_name }}'
+    puni_keys_group: '{{ puni_operator_name }}'
+    puni_keys_file: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
+
+- name: Install the operator sudo boundary
+  # Proof: replacing the template newline with literal `\n` made the rendered-output visudo test fail.
+  ansible.builtin.template:
+    src: operator-sudoers.j2
+    dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
+    owner: root
+    group: root
+    mode: '0440'
+    validate: /usr/sbin/visudo -cf %s

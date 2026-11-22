@@ -74,6 +74,26 @@
     or 'content' not in puni_fw_marker
     or (puni_fw_marker.content | b64decode | trim) != puni_fw_rendered.stat.checksum
   block:
+    - name: Read whether a revert of an earlier run is still pending
+      ansible.builtin.command:
+        argv: '{{ puni_systemctl + ["is-active", puni_fw_unit ~ "-revert.timer"] }}'
+      register: puni_fw_pending
+      changed_when: false
+      failed_when: false
+
+    - name: Stop while a revert is pending
+      # The live table is then the unconfirmed one: saving it would make the pending revert, and
+      # a later one, load those rules back. The run stops before it touches the saved table, the
+      # revert script or the marker; after the timer fires the next run starts afresh.
+      # Proof: with this stop removed, node-roles.test.ts `stops while a revert is pending`
+      # failed: the rerun overwrote saved-table.nft before failing to arm (2026-11-22).
+      when: puni_fw_pending.rc == 0
+      ansible.builtin.fail:
+        msg: >-
+          A revert is pending ({{ puni_fw_unit }}-revert.timer is active): an earlier run's rules
+          were not confirmed. Wait for the timer to fire, or stop it after checking the rules,
+          then run again.
+
     - name: Save the live table for the revert
       ansible.builtin.copy:
         dest: '{{ puni_fw_state_dir }}/saved-table.nft'

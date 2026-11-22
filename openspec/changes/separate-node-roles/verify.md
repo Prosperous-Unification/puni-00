@@ -265,6 +265,18 @@ eight touched tool-fleet test files 189 pass, 0 fail; `tool-fleet:typecheck`, `t
 `infra/ansible/tests`, eslint on `controller-image-cli.ts` and shellcheck on
 `controller-run.sh`: clean. Not run on a host: any of it.
 
+## Third review (2026-11-22, after `34d29d45d`)
+
+| Guard                                                                                                                                              | Injected fault                                                | Observing test, result                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `firewall.yml` creates the operator before the `network` role, for separated inventories, and the key check reads the list `operator.yml` installs | the include dropped; the include moved after the network role | `ansible.test.ts` `creates the operator before the network role in firewall.yml`: fail each                                                                                                                   |
+| A rerun stops while a revert is pending, before it saves the live table                                                                            | the stop disabled                                             | `node-roles.test.ts` `stops while a revert is pending, before it saves the unconfirmed table`: fail (the stand-in `systemd-run` refuses a unit name already taken, and the rerun overwrote `saved-table.nft`) |
+
+Commands: `node-roles.test.ts` 37 pass, 0 fail, with `uvx` and through the controller image;
+`check-ansible.py` in the image with the `check.ts` judges: all empty; `ansible.test.ts`,
+`node-access.test.ts` and `placement.test.ts` 81 pass, 0 fail; eslint on `ansible.test.ts`
+and `tsc` on `infra/ansible/tests`: clean.
+
 ## Owner decisions
 
 Each row is a decision of the owner's, stated as a decision and dated; the assumption that

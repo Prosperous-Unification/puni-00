@@ -307,7 +307,11 @@ and the step reads back that the name answers (design decision 12).
       never `ansible_user`, which is root on a first run; the key file is an input in `$OPS`
       (`puni_operator_private_key_file`, `puni_bastion_admin_private_key_file`), and its
       public half must be one the run installs. A reboot before the timer fires loads the
-      unconfirmed file with no timer; the next run finds no marker and arms again. The console account comes after a drop-in
+      unconfirmed file with no timer; the next run finds no marker and arms again. A run that
+      finds the revert timer still active stops before it saves anything, because the live
+      table is then the unconfirmed one. The operator the fresh login uses comes from
+      `roles/base/tasks/operator.yml`, which `playbooks/firewall.yml` runs for a separated
+      inventory before the `network` role, so A26 can confirm before A3. The console account comes after a drop-in
       that refuses it and every password, read back from `sshd -T`. Every key list is staged
       from a template loop and counted with `ssh-keygen -lf` before it is installed. Whether
       the public interface uses DHCPv6 or MLD was not read (the read was refused on

@@ -38,39 +38,8 @@
     update_cache: true
     cache_valid_time: 3600
 
-- name: Create the fleet operator
-  ansible.builtin.user:
-    name: '{{ puni_operator_name }}'
-    create_home: true
-    shell: /bin/bash
-    groups: sudo
-    append: true
-
-- name: Create the operator SSH directory
-  ansible.builtin.file:
-    path: '/home/{{ puni_operator_name }}/.ssh'
-    state: directory
-    owner: '{{ puni_operator_name }}'
-    group: '{{ puni_operator_name }}'
-    mode: '0700'
-
-- name: Install the exact operator authorized keys
-  ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml
-  vars:
-    puni_keys: '{{ puni_operator_authorized_keys }}'
-    puni_keys_owner: '{{ puni_operator_name }}'
-    puni_keys_group: '{{ puni_operator_name }}'
-    puni_keys_file: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
-
-- name: Install the operator sudo boundary
-  # Proof: replacing the template newline with literal `\n` made the rendered-output visudo test fail.
-  ansible.builtin.template:
-    src: operator-sudoers.j2
-    dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
-    owner: root
-    group: root
-    mode: '0440'
-    validate: /usr/sbin/visudo -cf %s
+- name: Create the fleet operator with exactly its keys and its sudo boundary
+  ansible.builtin.include_tasks: operator.yml
 
 - name: Remove the broad cloud-init bootstrap sudo file
   ansible.builtin.file:
