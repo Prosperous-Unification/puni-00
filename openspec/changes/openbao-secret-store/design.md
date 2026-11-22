@@ -115,10 +115,22 @@ network listener on TCP 8200, which the Services and the NodePort reach, with th
 `disable_unauthed_generate_root_endpoints = false` and no TLS. Only `kubectl exec` into the
 server container reaches the socket, and `pods/exec` in `puni-secrets` is cluster-admin's
 alone, which already yields the seal key and the data (Risks). With Auth0 down, the operator
-calls `sys/generate-root/attempt` and `sys/generate-root/update` on the socket with `curl
---unix-socket` and the escrowed shares, since the CLI has no switch back to the legacy
-endpoints, and decodes the result locally with `bao operator generate-root -decode -otp`. The
-root token is revoked when the work is done. OpenBao v2.7.3 also enforces the option before
+uses the CLI's generic writes over the socket, because the image has no `curl` (its Dockerfile
+installs `ca-certificates libcap su-exec dumb-init tzdata gcompat` only) and `bao operator
+generate-root` has no switch back to the legacy endpoints; its `-decode` also reads the
+authenticated `sys/generate-root-token/attempt` first, so it cannot be used without a token:
+
+```sh
+export BAO_ADDR=unix:///openbao/run/break-glass.sock
+bao write -f sys/generate-root/attempt            # returns nonce and otp
+bao write sys/generate-root/update key=<share> nonce=<nonce>   # once per share
+bao write sys/decode-token encoded_token=<encoded> otp=<otp>
+```
+
+`sys/decode-token` is unauthenticated (`internal/vault/logical_system.go`, the
+`Unauthenticated` paths at v2.7.2 and v2.7.3), and the API client dials a `unix://` address
+(`api/client.go`). Task 3.8 proves the three commands. The root token is revoked when the work
+is done. OpenBao v2.7.3 also enforces the option before
 forwarding a request to an active node (GHSA-h8fh-pmch-cjww), which is one reason for the pin
 of D1. A third listener, `metrics_only`, serves
 Prometheus (D11). The render test refuses the generate-root option on any TCP listener, and a
@@ -145,8 +157,8 @@ outage rule. The agent injector and the CSI provider are rejected: new pods fail
 is sealed.
 
 **Orphans.** `Orphan` means a removed ExternalSecret leaves its Secret behind with no owner
-reference. `tool-fleet:health` lists every Secret that carries ESO's managed label and has no
-ExternalSecret of the same name, and the runbook's removal step deletes it once its last
+reference. `tool-fleet:health` lists every Secret that carries ESO's managed label and that no
+ExternalSecret in its namespace names as `spec.target.name`, and the runbook's removal step deletes it once its last
 reader is gone (task 1.8).
 
 ### D5 Store scoping
@@ -155,7 +167,8 @@ Per-namespace `SecretStore` only, each in the plan's `secret-sync` unit (plan de
 logs in as a dedicated `secret-reader` service account in its namespace, never the workload's,
 with a projected token whose audience is `openbao`. Chart values disable `ClusterSecretStore`,
 `ClusterExternalSecret`, `PushSecret` and `ClusterPushSecret`, set
-`processClusterGenerator` and `createClusterGenerator` to false and keep `genericTargets` off,
+`processClusterGenerator` and `crds.createClusterGenerator` to false and keep
+`genericTargets.enabled` off,
 and the secret rules refuse every generator kind. An admission rule of the `policy` unit refuses
 a pod that runs as a `secret-reader` account in any namespace, so the account is only ever a
 token that ESO requests (task 1.6).
@@ -163,7 +176,7 @@ token that ESO requests (task 1.6).
 **One Kubernetes auth role per reading namespace**, as the plan's decision 5 requires. A role
 binds `bound_service_account_names=secret-reader`,
 `bound_service_account_namespaces=<that namespace>` and `audience=openbao`, carries
-`token_bound_cidrs` set to the cluster's pod CIDR (D7), and carries one policy that reads that
+`token_bound_cidrs` set to m1plat1's pod subnet (D7), and carries one policy that reads that
 namespace's prefix (D6) and nothing else. Both are rendered by `tool-fleet secret-store` (D8a)
 from the store declaration and the `namespaces` unit's labels, never written by hand. The
 planner refuses a role that binds more than one namespace or another account, a role without
@@ -186,8 +199,9 @@ Instead:
 - Each grant is a read of one app's `database-owner` path. The planner refuses a grant to a
   path that does not end in `database-owner`, one to an app whose tenant or environment the
   database namespace does not serve, and one whose app is not declared.
-- `postgres`'s own values (its backup key) are at its platform prefix,
-  `kv/platform/postgres/`, and `postgres-nonproduction`'s at
+- `postgres` carries `puni.dev/tenant: puni`, as the plan's rule 2.4(r) requires of a database
+  unit's namespace, and `puni.dev/environment: platform`; the environment decides the prefix,
+  so its own values (its backup key) are at `kv/platform/postgres/`, and `postgres-nonproduction`'s at
   `kv/tenants/puni/staging/postgres-nonproduction/`, as its labels give.
 
 ### D6 Paths and tenancy
@@ -201,8 +215,8 @@ One KV v2 mount per cluster that reads the store, in the root namespace; no Open
 | `ci`  | the CI cluster, by its JWT mount (D7)    | `ci/<tenant>/<namespace>/<name>`, as the CI change names it |
 
 A platform namespace is one whose `puni.dev/environment` is `platform`, such as `puni-secrets`,
-`cattle-system` and `postgres`. An app, staging database or CI namespace carries
-`puni.dev/tenant`, and the environment (`production`, `staging`, `dev`) sits below the tenant,
+`cattle-system` and `postgres`, whatever tenant label it also carries. An app, database or CI
+namespace carries `puni.dev/tenant`, and the environment (`production`, `staging`, `dev`) sits below the tenant,
 so a tenant is a prefix and a policy (plan decision 13). `puni` is the first tenant and is built
 in the form any later tenant takes; onboarding another is a follow-up.
 
@@ -215,9 +229,10 @@ in the form any later tenant takes; onboarding another is a follow-up.
 
 The token comes from a Kubernetes auth role per tenant, `tenant-writer-<tenant>`, bound to the
 adapter's own service account in the adapter's namespace with audience `openbao`,
-`token_bound_cidrs` at the pod CIDR, a 15-minute TTL and no renewal past 1 hour. Its policy
-allows create, update, read and list on `kv/data/tenants/<tenant>/*` and
-`kv/metadata/tenants/<tenant>/*`, and nothing under `sys/`, `auth/`, `ci/` or another tenant.
+`token_bound_cidrs` at the pod subnet of the node the adapter runs on, a 15-minute TTL and no
+renewal past 1 hour. Its policy allows create and update on `kv/data/tenants/<tenant>/*` and
+nothing else: no read, no metadata, nothing under `sys/`, `auth/`, `ci/` or another tenant. The
+adapter writes values it holds already, so it needs neither; a later need is a declared change.
 The planner refuses a writer role whose policy reaches outside its tenant prefix. Values are
 therefore not part of the declaration, and the drift job compares configuration only:
 mounts, auth methods, roles and policies. The adapter itself is the plan's follow-up
@@ -227,23 +242,33 @@ mounts, auth methods, roles and policies. The adapter itself is the plan's follo
 
 | Caller                                    | Method                         | Binding                                                                                                                                                                                                              |
 | ----------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Platform-cluster `secret-reader` accounts | Kubernetes auth (TokenReview)  | one role per namespace (D5), audience `openbao`, bound to the pod CIDR                                                                                                                                               |
+| Platform-cluster `secret-reader` accounts | Kubernetes auth (TokenReview)  | one role per namespace (D5), audience `openbao`, bound to m1plat1's pod subnet                                                                                                                                       |
 | CI-cluster `secret-reader` accounts       | one JWT mount for that cluster | pinned `jwt_validation_pubkeys`, `bound_audiences=openbao`, `bound_claims` on the service-account name and namespace, 10-minute tokens, bound to the CI server's private address, one role per CI namespace on `ci/` |
-| Snapshot, drill and drift Jobs            | Kubernetes auth                | one account and role each in `puni-secrets`, bound to the pod CIDR; each policy also reads the canary                                                                                                                |
-| Operators                                 | OIDC through Auth0             | one role bound by subject and audience and requiring MFA; bound to the pod CIDR, which the Tailscale operator's proxy is in; no userpass                                                                             |
+| Snapshot, drill and drift Jobs            | Kubernetes auth                | one account and role each in `puni-secrets`; snapshot and drift bound to m1plat1's pod subnet, the drill to `127.0.0.1/32` (D11); each policy also reads the canary                                                  |
+| Operators                                 | OIDC through Auth0             | one role bound by subject and audience and requiring MFA; bound to m1plat1's pod subnet, where a ProxyClass that selects `platform-services` puts the Tailscale proxy; no userpass                                   |
 | GitHub Actions                            | none                           | no public route (D8)                                                                                                                                                                                                 |
 
-Every role carries `token_bound_cidrs`, so a token works only from where its caller is.
-Through the NodePort, traffic keeps the CI server's address (`externalTrafficPolicy: Local`),
-which is outside the pod CIDR, so the CI path can use the JWT role alone; in the cluster,
-traffic comes from the pod CIDR, so the JWT role is useless there. The planner refuses a role
+Every role carries `token_bound_cidrs`, so a token works only from where its caller is. The
+bound subnet is m1plat1's own pod subnet (the node's `spec.podCIDR`), not the cluster's pod
+CIDR: every caller of the platform roles runs on m1plat1 (D2), and a pod on a later agent node,
+such as a staging pod on the non-production node, gets an address outside it. The declaration
+records each cluster's subnet, read from the node at A7 and at each rehearsal, and the planner
+refuses a role bound to anything wider. Through the NodePort, traffic keeps the CI server's
+address (`externalTrafficPolicy: Local`), which is outside that subnet, so the CI path can use
+the JWT role alone; in the cluster, traffic comes from pod addresses, so the JWT role is
+useless there. The planner refuses a role
 without bound CIDRs and any JWT CEL role, which has no token fields and so no bound CIDRs.
 
-The operator role binds `bound_subject` to the owner's Auth0 user, `bound_audiences` to the
+The operator role binds `bound_subject` to the owner's Auth0 user id, `bound_audiences` to the
 application's client id, and `bound_claims` requiring `amr` to contain `mfa`; the Auth0
 application requires MFA. Auth0 is therefore a second trust root next to the age identity on
 the controller: whoever controls the tenant's signing keys or the owner's account can log in
-as the administrator (Risks, ADR 0079). The token lives 1 hour.
+as the administrator (Risks, ADR 0079). The token lives 1 hour. The owner's user id is personal
+data and stays out of this public repository: `store.json` names the value
+`operator-subject`, the private fleet repository holds it beside the bootstrap set, and
+`tool-fleet secret-store plan` reads it from the private checkout on the controller
+(`bun run private:checkout puni-fleet`) and fails when it is missing. The secret rules refuse a
+literal `bound_subject` in `store.json`.
 
 The CI cluster's service-account issuer is trusted by a pinned key, so no credential for the
 platform side is stored there (CI change, decision 2). JWT auth has no revocation check, hence
@@ -266,7 +291,8 @@ No Ingress, IngressRoute or Service of type LoadBalancer names the store. The CI
 SecretStores name `https://openbao.puni.internal:30820`; that cluster's CoreDNS resolves the
 name to m1plat1's private address from a hosts entry the CI change's Ansible writes from the
 inventory, and each SecretStore reads the server CA certificate, which is public, from a
-ConfigMap committed with the CI cluster's units.
+ConfigMap committed with the CI cluster's units. The CI change has no task for either yet; task
+4.4 here names them as its precondition.
 
 **Two layers, each proved without the other.** The host firewall (plan A26) drops the public
 interface and, in its prerouting rule, every private address that is not an enrolled node,
@@ -288,7 +314,9 @@ with each layer removed in turn:
 | The CI server                        | TLS handshake | TLS handshake      | TLS handshake      |
 
 So a dead listener cannot pass (the CI row needs a handshake), and the rows that each layer
-alone refuses show which layer carries them.
+alone refuses show which layer carries them. Until the plan's A13 joins the observability
+server, m1plat1 is the only node, so the enrolled-node row runs in the lab at P1 and again on
+the live cluster after A13.
 
 TLS ends in OpenBao, with a certificate from a CA Issuer whose signing Secret is a bootstrap
 Secret (D10). The Issuer and the Certificate are objects of the plan's `cert-manager` unit
@@ -297,7 +325,14 @@ its reader, and the server reads the certificate's Secret. The `issuers` unit, a
 too late. Inside `cert-manager` the two objects carry a resource sync wave after the chart and
 `SkipDryRunOnMissingResource=true`, so they are applied once cert-manager's webhook is Healthy;
 that is a wave inside one Application, not between Applications, which the plan leaves alone.
-The plan's order table is unchanged: `openbao` still needs `cert-manager`, for the Secret.
+
+**Amendment to the plan's A7.** `cert-manager` is first synced in A4, but the Issuer reads
+`openbao-server-ca`, which the playbook applies only in A7. So the two objects land in A7's
+revision, not A4's; A7 runs the playbook, then syncs `cert-manager`, then `openbao`; and A7's
+rollback reverts them in `cert-manager` too. This change edits the plan's A7 text to say so.
+The CA Secret's reader is now `cert-manager`, so `openbao` needs `cert-manager` (for the
+certificate's Secret), `storage` and the seal key; the server CA Secret drops from its needs
+(D13). The plan's order table is otherwise unchanged.
 
 The certificate's names are `openbao.puni.internal` and the in-cluster Service names; the
 tailnet name is never written in this repository, so the operator's client verifies the
@@ -350,21 +385,27 @@ never listens uninitialised, where the first caller to run `init` would get its 
 NetworkPolicy that admits nothing and with no NodePort or tailnet exposure, so `bao operator
 init` and the restore run only through `kubectl exec`.
 
-The declaration records the date of the first initialisation once A7 has it, and the secret
-rules then refuse `first-init`. As a second guard, `secret-store apply` and the snapshot Job
-refuse to run when the canary value is absent, so an empty store is never configured or
-snapshotted as latest. `apply` is exempt from the canary guard only while the declaration
-records no initialisation date, which is the A7 window in which `apply` creates the `kv` mount
-and the canary is written; once the date is committed the exemption is gone, so a store that
-lost its data after A7 is refused. The snapshot Job has no exemption.
+The declaration records, per cluster, the date of the first initialisation once that cluster
+has it (A7 for the platform cluster, its first boot for each rehearsal cluster), and the secret
+rules then refuse `first-init` for that cluster. As a second guard, `secret-store apply` and the
+snapshot Job refuse to run when the canary value is absent, so an empty store is never
+configured or snapshotted as latest. `apply` is exempt from the canary guard only while the
+declaration records no initialisation date for the cluster it targets, which is the A7 window
+in which `apply` creates the `kv` mount and the canary is written. The date is then forced:
+`apply` refuses a cluster whose store holds the canary while the declaration records no date
+for it, so the date commit cannot be skipped and the exemption cannot outlive A7. A recreated
+lab cluster gets a fresh entry of its own, so it is not blocked by another cluster's date. The
+snapshot Job has no exemption.
 
 **After an etcd restore the mode that runs is the one in etcd, not Git.** The restored
 StatefulSet carries whatever mode was live when the etcd snapshot was taken, usually `steady`,
 whose marker guard holds. A snapshot taken during A7 or a rebuild carries `first-init` or
-`restore`; either keeps the network listener closed, and `first-init` would self-initialise an
-empty store that the restore of D14 then replaces with `-force`. The cold-rebuild runbook
-therefore reads the live mode first (`kubectl get` of the StatefulSet's mode annotation), and
-scales the StatefulSet to zero if it is not `steady`, before it commits `restore`.
+`restore`; either keeps the network listener closed. A `first-init` pod self-initialises the
+fresh claim as soon as it starts, before anyone reads the mode. That store has no marker and
+holds nothing of value, so the cold-rebuild runbook reads the live mode first (`kubectl get` of
+the StatefulSet's mode annotation) and, if it is not `steady`, scales the StatefulSet to zero
+and deletes the unmarked claim before it commits `restore`; a claim with a marker is never
+deleted.
 
 ### D9 PKI
 
@@ -401,45 +442,69 @@ Rehearsal clusters take the same four from values made for the rehearsal (plan d
 **Snapshot storage rights.** `openbao-snapshot-storage` holds a key that can write and read
 the platform backup bucket's `openbao/` prefix and cannot delete; the bucket's lifecycle rule
 expires objects after 30 days, so retention needs no delete right and a stolen key cannot
-erase history. The off-region copy is written by the plan's off-region replication of
-[recovery](../../../docs/infra/recovery.md#off-region-copy) with its own credential, never by
-this key.
+erase history. Not verified: that the object store issues a key scoped to one prefix without
+delete; task 4.1 reads the key's rights back, and if the provider cannot scope it, the key
+covers a bucket of its own.
 
 ### D11 Audit, backup and alerts
 
 **Audit.** Two devices in server configuration, both with `log_raw` off: a file device on
 `stdout`, which the OTel collector ships with every other pod log once the plan's stage 3 runs
 it, and, until that collector ships it, a second file device at
-`/openbao/audit/audit.log` on a claim of its own, 2 GiB, `Retain`, rotated by size by a
+`/openbao/audit/audit.log` on a claim of its own, `Retain`, rotated by size at 1 GiB by a
 sidecar that sends SIGHUP to reopen the file. Before stage 3 the pod log alone would lose
-records with the pod. A request fails only when no device records it, so a full audit claim
-does not stop the store while stdout records (upstream audit documentation: with several
-devices a request completes when at least one writes the record, unless a device blocks);
-`OpenBaoAuditFailing` fires on either device's failures. The second device is removed in the revision that proves the collector ships the
-records (plan A14).
+records with the pod. A request fails only when no device records it (`AuditBroker.LogRequest`
+fails only when no backend logged), so a full audit claim does not stop the store while stdout
+records. For the same reason `vault_audit_log_request_failure` counts only requests that no
+device logged; a failing file device alone is a log line, not a metric. So the sidecar also
+checks that the file grows while the store serves requests, and exposes
+`openbao_audit_file_stalled` (1 when the file has not grown for 5 minutes while
+`vault_core_handle_request_count` rose); `OpenBaoAuditFileStalled` reads it. The second device is
+removed in the revision that proves the collector ships the records (plan A14).
+
+The claim requests 2 GiB and counts inside the 10 GiB the plan's decision 2 budgets for the
+store and the local etcd snapshots, beside a Raft database of a few MiB. A node-local claim is
+not bounded by its request: it shares the root filesystem, so the sidecar's rotation and
+`PlatformRootDiskLow`, not the claim size, keep it in bounds.
 
 **Backup.** OpenBao has no snapshot scheduler, so a CronJob runs `bao operator raft snapshot
 save` every 6 h to the platform backup bucket, 30-day retention by lifecycle (D10). The
-off-region copy of [recovery](../../../docs/infra/recovery.md#off-region-copy) is not yet
-running, so it must be before the first value that exists only in the store (task 4.2). A
-monthly drill Job restores the latest snapshot into an empty instance with the cluster seal key,
-reads the canary, and proves that a wrong key leaves it sealed. The snapshot Job and the drill
-log in through Kubernetes auth (D7), each with a policy that also reads the canary.
+snapshot Job logs in through Kubernetes auth (D7) with a policy that also reads the canary.
+
+**Loss mode, stated.** There is no off-region copy: neither this change nor the plan owns one.
+A loss of the object store's region loses every snapshot. What remains is the escrowed seal
+key and shares and a cold rebuild with an empty store, into which every escrowed value is
+written again and every generated value is generated anew. A later change owns the off-region
+copy (follow-up `openbao-offsite-snapshots`); until it lands, that loss is accepted.
+
+**Drill.** A monthly Job starts its own OpenBao instance in its pod, listening on `127.0.0.1`
+only, restores the latest snapshot into it with the cluster seal key and `-force`, reads the
+canary, and proves that a wrong key leaves a second instance sealed. The restored store carries
+the live store's Kubernetes auth configuration, so the drill logs in to its own instance with
+its own projected token against the role `snapshot-drill`, whose `token_bound_cidrs` is
+`127.0.0.1/32`: no caller on the live store's network listener comes from there. The
+Kubernetes auth method, with no reviewer token set, reviews each login with the server pod's
+own service-account token; the live server's account and the drill's account therefore both
+hold `system:auth-delegator` (TokenReview create), and nothing else cluster-wide. Upstream,
+`disable_local_ca_jwt` defaults to false, so the method uses the local token when no reviewer
+token is set (`internal/builtin/credential/kubernetes/path_config.go`); task 3.7 proves it in
+the drill pod.
 
 **Alerts**, rules of the plan's `alerts` unit, each with its data source and an absent-series
 companion, so a missing scrape fires instead of staying silent:
 
-| Alert                          | Source                                                                                      | Absent series                |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------- |
-| `OpenBaoSealed`                | OpenBao's `vault_core_unsealed`, scraped from the `metrics_only` listener on port 8210      | fires after 10 minutes       |
-| `OpenBaoAuditFailing`          | `vault_audit_log_request_failure` and `vault_audit_log_response_failure`, same listener     | covered by `OpenBaoSealed`'s |
-| `ExternalSecretSyncFailed`     | ESO's `externalsecret_status_condition{condition="Ready",status="False"}`                   | fires after 10 minutes       |
-| `OpenBaoSnapshotStale`         | kube-state-metrics `kube_cronjob_status_last_successful_time` of the snapshot CronJob, 12 h | fires                        |
-| `OpenBaoRestoreDrillFailed`    | kube-state-metrics `kube_job_status_failed` of the drill's Jobs                             | covered by the stale rule    |
-| `OpenBaoRestoreDrillStale`     | the drill CronJob's last successful time, older than 35 days                                | fires                        |
-| `OpenBaoConfigDrift`           | `kube_job_status_failed` of the drift CronJob's Jobs                                        | covered by the stale rule    |
-| `OpenBaoConfigDriftCheckStale` | the drift CronJob's last successful time, older than 2 h                                    | fires                        |
-| `PlatformRootDiskLow`          | node exporter `node_filesystem_avail_bytes{mountpoint="/"}` on m1plat1                      | fires after 10 minutes       |
+| Alert                          | Source                                                                                                       | Absent series                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `OpenBaoSealed`                | OpenBao's `vault_core_unsealed`, scraped from the `metrics_only` listener on port 8210                       | fires after 10 minutes       |
+| `OpenBaoAuditFailing`          | `vault_audit_log_request_failure` and `vault_audit_log_response_failure`, same listener: every device failed | covered by `OpenBaoSealed`'s |
+| `OpenBaoAuditFileStalled`      | the sidecar's `openbao_audit_file_stalled`, scraped from the server pod                                      | fires after 10 minutes       |
+| `ExternalSecretSyncFailed`     | ESO's `externalsecret_status_condition{condition="Ready",status="False"}`                                    | fires after 10 minutes       |
+| `OpenBaoSnapshotStale`         | kube-state-metrics `kube_cronjob_status_last_successful_time` of the snapshot CronJob, 12 h                  | fires                        |
+| `OpenBaoRestoreDrillFailed`    | kube-state-metrics `kube_job_status_failed` of the drill's Jobs                                              | covered by the stale rule    |
+| `OpenBaoRestoreDrillStale`     | the drill CronJob's last successful time, older than 35 days                                                 | fires                        |
+| `OpenBaoConfigDrift`           | `kube_job_status_failed` of the drift CronJob's Jobs                                                         | covered by the stale rule    |
+| `OpenBaoConfigDriftCheckStale` | the drift CronJob's last successful time, older than 2 h                                                     | fires                        |
+| `PlatformRootDiskLow`          | node exporter `node_filesystem_avail_bytes{mountpoint="/"}` on m1plat1                                       | fires after 10 minutes       |
 
 The `metrics_only` listener serves `sys/metrics` without a token and nothing else; the
 NetworkPolicy admits Prometheus's pods to it alone. Each rule gets a fire-on-fault proof at the
@@ -477,12 +542,12 @@ role (D5) in the revision that adds its first ExternalSecret. The old cluster's 
 The plan's order table holds the store's three units; this change fills them under
 `infra/argocd/units/` and adds no order of its own.
 
-| Order | Unit               | Needs (plan)                                                                   | Holds                                                                                               |
-| ----: | ------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-|     3 | `cert-manager`     | `namespaces`                                                                   | the plan's chart, and from this change the store's CA Issuer and server Certificate (D8)            |
-|     4 | `openbao`          | `storage`; `cert-manager`; the seal key and server CA Secret from the playbook | wrapper chart, Services, NetworkPolicy, the three Jobs, the declaration                             |
-|     5 | `external-secrets` | `policy`                                                                       | wrapper chart with its CRDs (`ServerSideApply=true`), `ignoreDifferences` on the injected CA bundle |
-|     6 | `secret-sync`      | `openbao`, `external-secrets`                                                  | every `secret-reader`, every SecretStore, every platform ExternalSecret                             |
+| Order | Unit               | Needs (plan)                                                  | Holds                                                                                               |
+| ----: | ------------------ | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+|     3 | `cert-manager`     | `namespaces`; from A7, the server CA Secret from the playbook | the plan's chart, and from A7's revision the store's CA Issuer and server Certificate (D8)          |
+|     4 | `openbao`          | `storage`; `cert-manager`; the seal key from the playbook     | wrapper chart, Services, NetworkPolicy, the three Jobs, the declaration                             |
+|     5 | `external-secrets` | `policy`                                                      | wrapper chart with its CRDs (`ServerSideApply=true`), `ignoreDifferences` on the injected CA bundle |
+|     6 | `secret-sync`      | `openbao`, `external-secrets`                                 | every `secret-reader`, every SecretStore, every platform ExternalSecret                             |
 
 All are in the `platform` project and are synced on command (plan rule 2.4(b)); none is
 automated. `secret-sync` writes into app namespaces by design, as the plan's rule 2.4(a)
@@ -534,7 +599,8 @@ Recovery is the plan's cold rebuild:
 1. The replacement server is built, etcd is restored from its snapshot with `restore.yml`, and
    the bootstrap playbook applies the bootstrap set.
 2. The operator reads the restored StatefulSet's mode (D8a). In `steady` the server finds no
-   marker and does not start; in another mode the StatefulSet is scaled to zero.
+   marker and does not start; in another mode the StatefulSet is scaled to zero and the
+   unmarked claim, which a `first-init` pod may already have self-initialised, is deleted.
 3. The operator commits `restore` and syncs `openbao`. The store listens behind a closed
    NetworkPolicy, and with no marker an `openbao` sync never reaches Healthy, which the runbook
    expects; `secret-sync` is therefore refused, as it should be.
@@ -588,7 +654,8 @@ initialisation is per cluster.
 | Database grants               | `<app prefix>/database-owner` paths, read by the database namespace that serves the app's environment (D5)   |
 | Store modes                   | `first-init`, `steady`, `restore`, with the marker refusal in `steady` and closed listeners otherwise        |
 | Platform interface            | values through a tenant-scoped token, configuration through Git and `apply` (D6)                             |
-| Off-region copy               | running before the first value that exists only in the store                                                 |
+| Off-region copy               | none; a region loss of the object store loses the snapshots (D11), owned by a later change                   |
+| Operator subject              | the owner's Auth0 user id, held in the private fleet repository (D7)                                         |
 | Bootstrap ciphertext location | the private fleet repository, because this one is public                                                     |
 
 ## Risks / Trade-offs
@@ -597,8 +664,8 @@ initialisation is per cluster.
   (the node's kubeconfig, Rancher's administrator, a synced unit, `kubectl exec` into the store
   pod, which also reaches the break-glass socket), yields the seal key and the data.
 - Auth0 is a second trust root: control of the tenant or the owner's account logs in as the
-  store's administrator. Bound by subject, audience and MFA, and by the pod CIDR, which only
-  the tailnet proxy and in-cluster pods reach.
+  store's administrator. Bound by subject, audience and MFA, and by m1plat1's pod
+  subnet, which only the tailnet proxy and the platform's own pods use.
 - m1plat1 is a single point for secret changes and holds the only Raft copy between snapshots;
   up to 6 h of writes can be lost (D14).
 - Its outage is a correlated outage of the store, Harbor, Argo CD and the control plane:
@@ -608,6 +675,8 @@ initialisation is per cluster.
 - Root on the CI server reads every `ci/<tenant>/` path (D7).
 - Revocation covers store access, not synced copies: a revoked reader keeps the Secret it has
   until the value is rotated; an orphaned Secret stays until the runbook removes it (D4).
+- A loss of the object store's region loses every snapshot; the escrowed material and a cold
+  rebuild with an empty store remain (D11).
 - Audit completeness is bounded by the log pipeline and its retention, and before stage 3 by
   the pod log and a 2 GiB claim on one node.
 - Rotating the CI cluster's service-account signing key breaks its JWT mount silently; runbook

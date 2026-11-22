@@ -42,7 +42,7 @@ exist under `infra/argocd`.
 ### Requirement: Only a namespace's reader can read its paths
 
 The store SHALL admit, through Kubernetes auth, only the `secret-reader` service account of a
-namespace, with audience `openbao` and from the pod CIDR, and only to that namespace's prefix:
+namespace, with audience `openbao` and from m1plat1's pod subnet, and only to that namespace's prefix:
 `kv/platform/<namespace>/` for a platform namespace and
 `kv/tenants/<tenant>/<environment>/<namespace>/` for a tenant's, computed from the namespace's
 labels. Every role SHALL carry `token_bound_cidrs`.
@@ -119,6 +119,13 @@ consumer pods SHALL start and restart with them, the sync playbook SHALL refuse 
 that need `secret-sync`, and `OpenBaoSealed` or `ExternalSecretSyncFailed` SHALL fire once the
 `alerts` unit runs.
 
+#### Scenario: A forced sync during an outage
+
+- **WHEN** OpenBao has zero ready replicas and an ExternalSecret is annotated with
+  `force-sync=<now>`
+- **THEN** the ExternalSecret reports Ready False with reason `SecretSyncedError`, and its
+  Secret's data and `resourceVersion` are unchanged
+
 #### Scenario: Store scaled to zero during a consumer restart
 
 - **WHEN** OpenBao has zero ready replicas and a consumer pod is deleted
@@ -158,8 +165,14 @@ on the controller, and no `ExternalSecret` SHALL target a member of it.
 ### Requirement: Store bring-up never pulls from a PUNI-operated registry
 
 Every image of a unit in the `puni.dev/needs` closure of `secret-sync`, that unit included,
-SHALL equal a digest-pinned `toolchain.json` entry from a declared upstream host, and the
+and of the units `argocd` and `tailscale-operator`, with the proxy image the latter's values
+name, SHALL equal a digest-pinned `toolchain.json` entry from a declared upstream host, and the
 secret rules MUST refuse any other image there.
+
+#### Scenario: The Tailscale proxy image is served by Harbor
+
+- **WHEN** the `tailscale-operator` unit's values set its proxy image to a Harbor host
+- **THEN** `tool-fleet:check` fails naming the image and unit
 
 #### Scenario: The OpenBao image is served by Harbor
 
@@ -234,6 +247,12 @@ SHALL refuse when it is absent, unless the declaration records no initialisation
 - **WHEN** the declaration records an initialisation date and `secret-store apply` runs
   against a store without the canary
 - **THEN** it exits nonzero naming the missing canary and writes nothing
+
+#### Scenario: The initialisation date was never committed
+
+- **WHEN** the store holds the canary and the declaration records no initialisation date for
+  that cluster
+- **THEN** `secret-store apply` exits nonzero naming the missing date
 
 #### Scenario: Snapshot of an empty store
 
@@ -333,10 +352,10 @@ enrolled node and pods masqueraded to its address even where the host firewall a
 
 ### Requirement: Snapshots restore only with the matching seal key
 
-The store SHALL be snapshotted every 6 hours to the platform backup bucket and the off-region
-copy with 30-day retention. A monthly automated drill SHALL restore the latest snapshot into an
-empty instance with the cluster seal key and read the canary, and an attended restore on a
-second machine SHALL use only the escrowed key, in A7 and after every rotation.
+The store SHALL be snapshotted every 6 hours to the platform backup bucket with 30-day
+retention. A monthly automated drill SHALL restore the latest snapshot into an empty instance
+with the cluster seal key and read the canary, and an attended restore on a second machine
+SHALL use only the escrowed key, in A7 and after every rotation.
 
 #### Scenario: Restore with the cluster seal key
 
@@ -364,6 +383,11 @@ the store SHALL write a second file audit device on a retained claim.
 - **WHEN** Prometheus can no longer scrape the store's metrics listener for 10 minutes
 - **THEN** the absent-series companion of `OpenBaoSealed` fires
 
+#### Scenario: The file audit device fails while stdout records
+
+- **WHEN** the file audit device's claim is full and stdout still records every request
+- **THEN** `OpenBaoAuditFileStalled` fires
+
 #### Scenario: The drift job stops
 
 - **WHEN** the drift CronJob has no successful run for 2 hours
@@ -372,11 +396,12 @@ the store SHALL write a second file audit device on a retained claim.
 ### Requirement: A tenant's values are written only under its prefix
 
 A tenant writer role SHALL be bound to the platform adapter's service account, with audience
-`openbao`, the pod CIDR, a 15-minute TTL, and a policy confined to
-`kv/data/tenants/<tenant>/` and `kv/metadata/tenants/<tenant>/`. Mounts, auth methods, roles
+`openbao`, its node's pod subnet, a 15-minute TTL, and a policy of create and update on
+`kv/data/tenants/<tenant>/` alone. Mounts, auth methods, roles
 and policies SHALL change only through the declaration and `secret-store apply`.
 
 #### Scenario: A writer policy outside its tenant
 
-- **WHEN** the declaration gives `tenant-writer-puni` a path under `kv/tenants/other/` or `sys/`
+- **WHEN** the declaration gives `tenant-writer-puni` a path under `kv/tenants/other/` or `sys/`,
+  or a capability other than create and update
 - **THEN** `tool-fleet secret-store plan` refuses, naming the role and path

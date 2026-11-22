@@ -91,18 +91,54 @@ Design only, first written 2026-11-15 and rewritten 2026-11-22 for the platform 
    listener and absent-series rules; a second audit device; Auth0 as a trust root with
    subject, audience, MFA and bound CIDRs. S3s applied, with the generator values corrected
    (`processClusterGenerator` and `crds.createClusterGenerator` default true) and ESO's token
-   grant narrowed through `serviceAccountTokenCreate: false`. This revision has not been
-   reviewed.
+   grant narrowed through `serviceAccountTokenCreate: false`. Reviewed in round 2 (item 8).
+
+8. **Round-2 review of PR #935 at bd5fbdda1** (Fable, high effort): no S1, four S2s, all
+   applied after a source check at v2.7.2/v2.7.3 (Opus 5.5, medium effort, 2026-11-22).
+   Break-glass uses `bao write` over the socket: the v2.7.3 Dockerfile installs no `curl`, and
+   `generate-root -decode` reads the authenticated attempt first; `sys/decode-token` is in the
+   system backend's `Unauthenticated` paths and the API client dials `unix://` addresses. The
+   store's Issuer and Certificate land in A7's revision of `cert-manager`, recorded as an
+   amendment to the plan's A7 text in `separate-node-roles/tasks.md`. The file audit device
+   gets a stall metric from its sidecar, because `AuditBroker.LogRequest` counts a failure only
+   when no device logged. The off-region copy is dropped and its loss mode stated, with a
+   follow-up named. S3s applied: replaced no-op faults, the restored `first-init` claim
+   wiped first, the drill's login on `127.0.0.1/32` with TokenReview through the local token
+   (`disable_local_ca_jwt` defaults to false), the owner's subject moved to the private fleet
+   repository, the CI change's DNS and CA dependency noted, a create-and-update writer policy,
+   a forced date commit per cluster, orphans matched by `spec.target.name`, bound CIDRs at
+   m1plat1's pod subnet, the object-store key's prefix scoping marked unverified, the audit
+   claim counted in the plan's 10 GiB, enrolled-node rows after A13, the spec synced, the
+   chart key `rbac.serviceAccountTokenCreate`, and `postgres`'s tenant label. This revision has
+   not been reviewed.
 
 Still unverified and owed by P1: ESO 2.15 against OpenBao 2.7.3 (task 3.11), the `bao` client's
 server name override through the Tailscale operator's exposure (task 3.13), Auth0's `amr`
 claim (task 3.8), ESO recreating a deleted Secret under `creationPolicy: Orphan` (task 3.9),
-and `tls_auto_reload` with a kubelet-updated Secret (task 3.10). Upstream-confirmed but not
+`tls_auto_reload` with a kubelet-updated Secret (task 3.10), the break-glass commands (task
+3.8), the drill's login through the local reviewer token (task 3.7), and the object store's
+prefix-scoped key without delete (task 4.1). Upstream-confirmed but not
 run: ESO keeps the Secret and reports `SecretSyncedError` on a provider failure, any annotation
 change forces a sync, `snapshot restore -force` bypasses the key check, a sealed StatefulSet is
 not Healthy, and resource sync waves wait for health.
 
 ## Checks run on this change
+
+Round-2 fold-in of 2026-11-22, on bd5fbdda1 plus the working tree (`origin/main` not merged):
+
+| Command                                                                                     | Result               |
+| ------------------------------------------------------------------------------------------- | -------------------- |
+| `./node_modules/.bin/openspec validate openbao-secret-store --strict`                       | valid                |
+| `./node_modules/.bin/openspec validate separate-node-roles --strict`                        | valid                |
+| `./node_modules/.bin/openspec validate --all --json`                                        | 355 of 355 passed    |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`                       | 1 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`        | 15 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/current-documents.test.ts`               | 18 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/retired-roots.test.ts`                   | 3 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/check-documents-target.test.ts`          | 6 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                 | 37 pass, 0 fail      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0, empty stderr |
+| `nx format:check --files=<the five changed files>`                                          | exit 0               |
 
 Review fold-in of 2026-11-22, on b76a05306 plus the working tree (`origin/main` 7a0279c7d
 not merged; it adds no ADR and no file of the plan, `host-postgres` or the CI change):

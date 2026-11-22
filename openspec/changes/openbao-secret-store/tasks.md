@@ -28,11 +28,10 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
 - [ ] 1.3 Refuse cluster-scoped ESO kinds, `PushSecret`, every generator kind, the injector and
       the CSI provider anywhere under `infra/argocd`; refuse ESO values with
       `processClusterGenerator`, `crds.createClusterGenerator`, `genericTargets.enabled` or
-      `serviceAccountTokenCreate` other than design D5 and D13 set; refuse a `SecretStore`
+      `rbac.serviceAccountTokenCreate` other than design D5 and D13 set; refuse a `SecretStore`
       outside `secret-sync`, an `ExternalSecret` outside `secret-sync` and the staging and
       production overlays, and a Vault-kind issuer. Tests: one refusal fixture per kind (fault:
-      scan `secret-sync` only); one per chart value (fault: read the chart's defaults instead
-      of the unit's values); one per misplaced object (fault: accept any unit of the
+      scan `secret-sync` only); one per chart value (fault: read the keys at the wrapper chart's top level instead of under its `external-secrets` dependency key, so all four read as unset and pass); one per misplaced object (fault: accept any unit of the
       `platform` project).
 - [ ] 1.4 Refuse an `ExternalSecret` whose store is in another namespace, whose
       `deletionPolicy` or `creationPolicy` differ from Retain and Orphan, whose remote key lies
@@ -71,8 +70,7 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       `steady` only); generate-root enabled on the TCP listener (fault: check the first listener
       only); `first-init` after initialisation (fault: ignore the date); `first-init` refused on
       a rehearsal cluster with no date of its own (fault: read the platform cluster's date for
-      every cluster); a pod as `secret-reader` (fault: match the account in the pod's own
-      namespace only).
+      every cluster); a pod as `secret-reader` (fault: read the deprecated `spec.serviceAccount` field instead of `spec.serviceAccountName`, which the fixture sets).
 - [ ] 1.7 Measure the store, ESO and the drill instance in P1 (task 3.15) and replace the
       plan's assumed 1,024 MiB row in its design decision 2 by a commit; the platform node's
       placement check admits the sum. Test: the placement check refuses the plan with the
@@ -81,21 +79,17 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       rotation, store modes and the marker, break-glass through the socket, restore, cold
       rebuild with the live-mode read, wipe-and-retry of a failed first boot, orphaned Secret
       removal, SIGHUP reload, CI JWT key rotation) and link it from
-      `docs/infra/platform.md#secrets`. `tool-fleet:health` lists orphaned synced Secrets. Test:
-      a Secret with ESO's managed label and no ExternalSecret is listed (fault: match by owner
-      reference, which `Orphan` never sets).
+      `docs/infra/platform.md#secrets`. `tool-fleet:health` lists orphaned synced Secrets. Test: a Secret with ESO's managed label that no ExternalSecret names as `spec.target.name` is listed, and one named by an ExternalSecret of another name is not (fault: match the Secret's name against ExternalSecret names instead of their `spec.target.name`).
 
 ## 2. Store configuration
 
 - [ ] 2.1 `tool-fleet secret-store plan|apply` (design D8a): a pure planner from the
       declaration, the `namespaces` unit's labels and a live read to a difference; dry-run by
       default; adopts the self-init objects; allow-lists OpenBao built-ins; refuses unknown live
-      mounts, auth methods, roles and policies; refuses without the canary once the declaration
-      records an initialisation date. Tests: `plans no change for an identical store`,
+      mounts, auth methods, roles and policies; refuses without the canary once the declaration records the cluster's initialisation date, and refuses a store holding the canary while no date is recorded for it. Tests: `plans no change for an identical store`,
       `adopts the self-init objects without a refusal`, `refuses an undeclared policy` (fault:
       compare declared names only), `refuses an undeclared auth method` (fault: list mounts
-      only), `dry-run writes nothing` (fault: apply on plan), `applies before the initialisation date` and `refuses without a canary after it` (fault: key the exemption
-      on the mode instead of the date).
+      only), `dry-run writes nothing` (fault: apply on plan), `applies before the initialisation date`, `refuses without a canary after it` (fault: remove the canary read from `apply`) and `refuses a canary without a recorded date` (fault: remove the date check).
 - [ ] 2.2 Render OpenBao values: one Raft voter, the selector and toleration of design D2,
       static seal from `file://`, self-init rendered from the declaration, the three modes with
       the `steady` init container that refuses an absent marker, the three listeners of design
@@ -115,10 +109,10 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       (CI change). Test: the render check refuses a certificate missing a required name (fault:
       check the first name only).
 - [ ] 2.4 Declare the Kubernetes auth mount and one role per reading namespace with its policy
-      (design D5, D6), audience and bound CIDRs, the per-namespace token Roles of `secret-sync`,
+      (design D5, D6), audience and bound CIDRs at the cluster's recorded node pod subnet, the per-namespace token Roles of `secret-sync`,
       and the database grants. Tests: the planner refuses a role with two namespaces (fault:
       trust the role name for the namespace); one without the bound account name (fault: check
-      namespaces only); one without audience or bound CIDRs (fault: check bound CIDRs only); a
+      namespaces only); one without audience or bound CIDRs (fault: check bound CIDRs only); one bound to the cluster's whole pod CIDR (fault: accept any range inside the pod CIDR); a
       policy path the labels do not give (fault: read the tenant label only); a wildcard above a
       prefix (fault: match a trailing `*` only); a grant to a path not ending in
       `database-owner` (fault: check the tenant only); a grant to an environment the database
@@ -129,24 +123,22 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       accept a JWKS URL) or without bound claims (fault: check keys only), and a CEL role (fault:
       list standard roles only).
 - [ ] 2.6 Declare Job identities (snapshot, drill, drift), each with a canary read, and the
-      operator OIDC role bound by subject, audience and the `amr` claim. Tests: the planner
+      operator OIDC role bound by subject, audience and the `amr` claim, its subject read from the private fleet checkout; the drill role bound to `127.0.0.1/32`; `system:auth-delegator` for the server's and the drill's accounts only. Tests: the planner
       refuses a Job policy with write capability on `sys/` other than the snapshot read (fault:
       check `create` only); an OIDC role without `bound_subject` (fault: check audiences only)
-      or without the MFA claim (fault: check `bound_subject` only).
+      or without the MFA claim (fault: check `bound_subject` only); a literal `bound_subject` in `store.json` (fault: accept any non-empty subject); a missing private subject value (fault: default to an empty subject).
 - [ ] 2.7 `tool-fleet secret-store generate`: a value from a declared password policy written
       with check-and-set 0 to a declared path. Tests: refuses an existing path and leaves it
       unchanged (fault: write without check-and-set); refuses an undeclared path (fault: accept
       a path under any declared prefix).
 - [ ] 2.8 Snapshot CronJob (6 h, 30 days by bucket lifecycle), monthly drill Job, drift CronJob,
       each with the selector and toleration; the snapshot Job refuses when the canary is
-      absent; the snapshot key has no delete right. Alert rules for the `alerts` unit, with the
-      sources and absent-series companions of design D11. Tests: a snapshot against a store
+      absent; the snapshot key has no delete right. The audit sidecar's rotation and `openbao_audit_file_stalled` metric. Alert rules for the `alerts` unit, with the sources and absent-series companions of design D11. Tests: a snapshot against a store
       without the canary uploads nothing (fault: check after upload); the alert-rule check fails
       for a rule without its absent companion (fault: check expressions only) and for a missing
-      `OpenBaoConfigDriftCheckStale` (fault: check the list against the rules present).
+      `OpenBaoConfigDriftCheckStale` (fault: check the list against the rules present); the sidecar reports a stall when the file stops growing while requests rise (fault: compare the file size with itself).
 - [ ] 2.9 Tenant writer role `tenant-writer-<tenant>` (design D6), declared only once the
-      adapter exists. Test: the planner refuses a writer policy outside its tenant prefix or on
-      `sys/` (fault: check the tenant segment only).
+      adapter exists. Policy: create and update on `kv/data/tenants/<tenant>/*` alone. Tests: the planner refuses a writer policy outside its tenant prefix or on `sys/` (fault: check the tenant segment only), and one with read, list or a metadata path (fault: check paths only).
 
 ## 3. P1 rehearsal proofs
 
@@ -166,12 +158,10 @@ and the taint, with values made for the rehearsal. The plan's receipt 2.7/A7 is 
       generator CRD installed.
 - [ ] 3.6 Wrong-key, wrong-audience and wrong-account JWT logins denied; a valid CI token from
       inside the platform cluster denied by the bound CIDR.
-- [ ] 3.7 Restore succeeds with the cluster seal key and stays sealed with a wrong key.
+- [ ] 3.7 The drill restores with the cluster seal key and `-force` into its own instance on `127.0.0.1`, logs in as `snapshot-drill` with its own token reviewed through the local token, reads the canary, and a second instance stays sealed with a wrong key; the same drill token is refused on the live store's listener.
 - [ ] 3.8 First operator OIDC login with MFA, an Auth0 token without `amr` `mfa` refused,
-      `sys/rotate/recovery/init`; then, with Auth0 unreachable, a root token from the recovery
-      shares through the break-glass socket by `kubectl exec`, and the same attempt on the
-      Service refused.
-- [ ] 3.9 Cold rebuild: etcd restored to a fresh lab server; the live mode read; the `steady`
+      `sys/rotate/recovery/init`; then, with Auth0 unreachable, by `kubectl exec` with `BAO_ADDR=unix:///openbao/run/break-glass.sock`: `bao write -f sys/generate-root/attempt`, `bao write sys/generate-root/update key=… nonce=…` per share and `bao write sys/decode-token encoded_token=… otp=…`, the decoded token used once and revoked; the same attempt on the Service refused.
+- [ ] 3.9 Cold rebuild: etcd restored to a fresh lab server; the live mode read and, when it is not `steady`, the StatefulSet scaled to zero and the unmarked claim deleted; the `steady`
       store refusing its empty claim; `restore` committed, `openbao` not Healthy as expected,
       `bao operator init` and `snapshot restore -force` by `kubectl exec`; init root token
       rejected (403); the marker written; `steady` again; then orders 4 to 7 Synced and Healthy
@@ -189,29 +179,29 @@ and the taint, with values made for the rehearsal. The plan's receipt 2.7/A7 is 
       layers, with the host rule removed and with the NetworkPolicy removed.
 - [ ] 3.15 Memory of the store, ESO and the drill instance under the rehearsal's load, for
       task 1.7.
-- [ ] 3.16 A full audit claim: requests still complete with the stdout device recording, and
-      `OpenBaoAuditFailing` would fire on the failures metric.
+- [ ] 3.16 A full audit claim: requests still complete with the stdout device recording, `vault_audit_log_request_failure` stays flat, and `OpenBaoAuditFileStalled` is observed firing.
 - [ ] 3.17 Wipe-and-retry of a failed first boot, as the runbook states.
 
 ## 4. Attended activation, at the plan's steps
 
 - [ ] 4.1 Before the plan's A7: the four bootstrap Secrets of design D10 generated, encrypted
       into the fleet repository's directory and escrowed, with the plan's A2; the snapshot key
-      made without delete, the bucket's 30-day lifecycle set. Receipt: "escrowed" per Secret,
+      made without delete and its rights read back (prefix scoping is unverified for the provider; if it cannot scope, a bucket of its own), the bucket's 30-day lifecycle set. Receipt: "escrowed" per Secret,
       no value.
-- [ ] 4.2 P2, the plan's A7 on m1plat1. In `first-init`: sync `openbao`; self-init; through `kubectl exec`,
+- [ ] 4.2 P2, the plan's A7 on m1plat1. Run the playbook with the bootstrap set; sync `cert-manager` with the store's Issuer and Certificate (the plan's A7 as amended); in `first-init`: sync `openbao`; self-init; through `kubectl exec`,
       `Initialized: true` read and the marker written. Commit `steady` (no initialisation
       date yet) and sync `openbao`; the owner signs its tailnet device; first OIDC login;
       recovery shares generated and escrowed; `apply` the declaration; canary and registry CA
-      key pair written; commit the initialisation date; sync `external-secrets`, then
+      key pair written; commit the initialisation date for the platform cluster, which `apply` then requires; sync `external-secrets`, then
       `secret-sync` and `issuers` (the plan's commands). Repeat 3.1, 3.4 and 3.6 to 3.8 live;
       the layered probe of design D8; the attended escrow restore on a second machine; the
-      first snapshot. The off-region copy runs before the first value without an escrow copy.
+      first snapshot. The enrolled-node rows of the probe wait for 4.6.
       Receipt: the plan's A7 receipt and these, no value.
 - [ ] 4.3 P3: each consumer of design D12 at its plan step, one receipt per consumer: its
       ExternalSecret Ready and its reader refused a path of another environment.
-- [ ] 4.4 The CI cluster's JWT mount, before the CI change's CI-A3: the pinned key read from
-      that cluster; runbook entry and alert for its service-account key rotation.
+- [ ] 4.4 The CI cluster's JWT mount, before the CI change's CI-A3: the pinned key read from that cluster; runbook entry and alert for its service-account key rotation. Precondition owed by the CI change, which has no task for it yet: its CoreDNS hosts entry for `openbao.puni.internal` and the CA ConfigMap of its SecretStores (design D8).
 - [ ] 4.5 At the plan's A14: each alert of design D11 fired by its fault, the absent-series
       companions by a dropped scrape; then the second audit device removed once the collector's
       records are read back in Elasticsearch.
+- [ ] 4.6 After the plan's A13 joins the observability server: the enrolled-node and pod rows of
+      the layered probe of design D8, live, with each layer removed in turn.
