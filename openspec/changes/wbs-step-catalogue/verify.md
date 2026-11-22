@@ -2210,3 +2210,12 @@ The claim fixtures inherit authored steps through scoped package creation.
 The audit check compares the recorded historical row and exact ledger after
 refusal. Current measure retention isolates the physical foreign key before
 deleting the referenced row. The SQLite Nx typecheck passed.
+
+Focused SQLite Nx verification passed 59 claim race, local dependency,
+migration rollback, blockage recovery and working-plan ordering tests.
+The migration inventory checks every current folder and down script. The
+historical rollback suite uses the original 110-migration project schema and
+checks exact ledgers, restored schema text and retained rows. The working-plan
+subtree uses real leaf values in both groups and independent retained-state
+reads. The blockage CLI retains missing and unreadable file refusals. SQLite
+Nx typecheck passed.

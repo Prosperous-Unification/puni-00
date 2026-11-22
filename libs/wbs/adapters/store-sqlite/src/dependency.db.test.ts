@@ -12,13 +12,13 @@ import type { Drizzle } from './db';
 import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 
 let dir: string;
 let dbPath: string;
@@ -38,7 +38,8 @@ const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-dependency-'));
   dbPath = join(dir, 'test.db');
-  runMigrations(dbPath, FOLDER);
+  custody.hasUnknownOwner = false;
+  migrateEmptyCatalogueFixture({ path: dbPath, directory: dir, reportedAt: 1 }, custody);
   seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
   db = openDrizzle(dbPath);
   repo = new DependencyRepository(db, OPEN);
@@ -55,23 +56,13 @@ beforeEach(async () => {
       id: workPackageId,
       projectId: 'fixture-project',
     }),
-    [
-      {
-        id: crypto.randomUUID(),
-        workPackageId,
-        name: 'Dev',
-        position: 10,
-        code: 'dev',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
+    [],
     wrote(),
   );
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 async function addWorkItem(name: string): Promise<string> {

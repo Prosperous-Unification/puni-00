@@ -11,7 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
@@ -31,11 +31,11 @@ const INIT = '20260426171432_talented_smiling_tiger';
 const USERS = '20260804194845_add_users';
 const WBS = '20260805154500_add_wbs_domain';
 const DEPS = '20260806084828_add_dependencies';
-const ACCESS = '20260806160000_add_work_package_access';
+const ACCESS = '20260806160000_add_project_access';
 const METHOD = '20260806170000_add_estimate_method';
 const CAL = '20260806180000_add_calendar_dates';
 const TEAMS = '20260806190000_add_teams_and_assignees';
-// Columns on `workPackage` and `work_item` rather than tables of its own, so it
+// Columns on `project` and `work_item` rather than tables of its own, so it
 // appears in the order and in nothing else this file checks.
 const REVISIONS = '20260807090000_add_revisions';
 // One table of its own, so it reverses ahead of the domain it references.
@@ -53,11 +53,11 @@ const MAX_PARALLEL = '20260812100001_add_max_parallel';
 // A table of its own, and the one whose rollback ordering matters most: its rows
 // were seeded from `service_team.size`, so it has to reverse before the migration
 // that adds that column.
-const PER_WORK_PACKAGE_CAPACITY = '20260813120000_add_work_package_team_capacity';
+const PER_WORK_PACKAGE_CAPACITY = '20260813120000_add_project_team_capacity';
 // Newest but one now, and a table of its own: `work_item_team` references
 // `work_item` and `service_team`, so it reverses ahead of both.
 const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
-// The newest, and a table of its own again. It references `workPackage` alone and is
+// The newest, and a table of its own again. It references `project` alone and is
 // seeded from a constant rather than from any column, so unlike the capacity
 // table above it has no ordering constraint of its own — its place at the head
 // of the reversal is only that it was applied last.
@@ -70,7 +70,7 @@ const WORK_ITEM_TEAM = '20260814100000_add_work_item_team';
 // `work_item_team` applied. Renumbered on the rebase; see verify.md.
 const PRIORITY_BANDS = '20260814110000_add_priority_band';
 /**
- * The newest, and a table of its own again. It references `workPackage` and `users`,
+ * The newest, and a table of its own again. It references `project` and `users`,
  * so it reverses ahead of both — the same place `JOURNAL` sits for the same
  * reason.
  *
@@ -181,7 +181,7 @@ const SOLUTION_REF = '20260824020000_add_solution_ref';
 const WORK_ITEM_TYPE = '20260830010000_add_work_item_type';
 const EXTERNAL_REF = '20260830020000_add_external_ref';
 /**
- * The newest, and a column on `workPackage` alone: `dep_reach`, `NOT NULL DEFAULT
+ * The newest, and a column on `project` alone: `dep_reach`, `NOT NULL DEFAULT
  * 'whole-item'`, added by `dep-reach-whole-item`. Additive forward, dropped by
  * its own `down.sql`, so it appears in the order and in nothing else this file
  * checks.
@@ -237,7 +237,7 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
 /**
  * The newest, and the optimizer's own: four tables plus one nullable column on
- * `workPackage`. Additive forward and dropped whole by its own `down.sql`, so it
+ * `project`. Additive forward and dropped whole by its own `down.sql`, so it
  * appears in the order and in nothing else this file checks — except that it
  * now **heads** every descending reversal list below, because the newest
  * migration is the first thing any rollback reverses.
@@ -245,14 +245,14 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 /**
  * The newest: the three work package settings the optimizer is steered by, on
- * `workPackage`. Additive forward and dropped column by named column on the way
+ * `project`. Additive forward and dropped column by named column on the way
  * back, so it now **heads** every descending reversal list below and tails
  * every ascending one — the newest migration is the first thing any rollback
  * reverses.
  */
-const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
- * The newest: the `(work_package_id, id)` index that serves
+ * The newest: the `(project_id, id)` index that serves
  * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
  * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
@@ -419,13 +419,13 @@ function seedEveryRenamedTable(dbPath: string): void {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
     );
     db.run(
-      'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
         " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
     );
-    db.run("INSERT INTO role (id, work_package_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
-    db.run("INSERT INTO role (id, work_package_id, name, position) VALUES ('r2', 'p', 'QA', 20)");
+    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r1', 'p', 'Dev', 10)");
+    db.run("INSERT INTO role (id, project_id, name, position) VALUES ('r2', 'p', 'QA', 20)");
     db.run(
-      'INSERT INTO work_item (id, work_package_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
+      'INSERT INTO work_item (id, project_id, parent_id, position, name, notes, priority, max_parallel, revision)' +
         " VALUES ('w1', 'p', NULL, 10, 'Strip', '', 25, 1, 0)",
     );
     db.run(
@@ -445,7 +445,7 @@ function seedEveryRenamedTable(dbPath: string): void {
     db.run("INSERT INTO person (id, name) VALUES ('pe1', 'Ada')");
     db.run("INSERT INTO assignment (work_item_id, role_id, person_id) VALUES ('w1', 'r1', 'pe1')");
     db.run(
-      'INSERT INTO plan_event (id, work_package_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
+      'INSERT INTO plan_event (id, project_id, user_id, kind, label, work_item_id, role_id, before, after, created_at)' +
         " VALUES ('e1', 'p', 'u', 'estimate', 'estimate Strip', 'w1', 'r1'," +
         ' \'{"do":"clear_estimate"}\', \'{"do":"set_estimate"}\', 1000)',
     );
@@ -493,12 +493,12 @@ function tables(dbPath: string): string[] {
   }
 }
 
-/** The `workPackage` table's column names, in declaration order. */
-function workPackageColumns(dbPath: string): string[] {
+/** The `project` table's column names, in declaration order. */
+function projectColumns(dbPath: string): string[] {
   const db = openDatabase(dbPath);
   try {
     return db
-      .query<{ name: string }, []>("SELECT name FROM pragma_table_info('work_package')")
+      .query<{ name: string }, []>("SELECT name FROM pragma_table_info('project')")
       .all()
       .map((r) => r.name);
   } finally {
@@ -659,13 +659,13 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_FROZEN,
       TYPED_DEPENDENCY,
       '20260927220000_add_organization_audit',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260928020000_add_email_verification',
       '20260928030000_add_delegation_use',
       '20260928040000_add_email_challenge',
       '20260928200000_add_work_item_status_facts',
       '20260929100000_add_spaces',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20261001010000_add_browser_credential_revocations',
       '20261005110000_add_shared_people',
       '20261011120000_add_browser_auth_lifecycle',
@@ -695,9 +695,9 @@ describe('readMigrationFolders', () => {
       '20261022130100_widen_organization_audit_organization_limits',
       '20261022140000_add_resource_provider',
       '20261022140100_widen_organization_audit_compute_providers',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022211000_add_external_dependencies',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022213000_add_optimization_boundary_certificates',
       '20261023100000_add_claim_lease',
       '20261023140000_add_measure',
@@ -716,6 +716,15 @@ describe('readMigrationFolders', () => {
       '20261102120000_add_access_grants',
       '20261102130000_widen_organization_audit_access',
       '20261103110000_add_initial_access_offers',
+      '20261110100000_rename_project_to_work_package',
+      '20261110110000_add_project',
+      '20261110110100_widen_organization_audit_projects',
+      '20261110120000_add_setting_value',
+      '20261110120100_space_holds_projects_people_teams',
+      '20261115120000_add_step_migration_report',
+      '20261115130000_add_step_catalogue',
+      '20261118180000_add_resource_use_locations',
+      '20261118210000_add_step_retirements',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -783,13 +792,24 @@ describe('readMigrationFolders', () => {
 });
 
 describe('rollbackTo, against a real database', () => {
+  let history: string;
+  let closeHistory: (() => void) | undefined;
+  beforeAll(() => {
+    const selected = folderBefore('20261110100000_rename_project_to_work_package');
+    history = selected.path;
+    closeHistory = selected.cleanup;
+  });
+  afterAll(() => {
+    closeHistory?.();
+  });
+
   it('exact set restores an older newly introduced migration after a newer baseline', () => {
     const db = tempDb();
     const candidateFolder = mkdtempSync(join(tmpdir(), 'wbs-older-candidate-'));
     const candidateName = '20261001020000_older_candidate_probe';
     try {
-      cpSync(FOLDER, candidateFolder, { recursive: true });
-      runMigrations(db.path, FOLDER);
+      cpSync(history, candidateFolder, { recursive: true });
+      runMigrations(db.path, history);
       const originalNames = appliedNames(db.path);
       expect(originalNames.at(-1)).toBe('20261103110000_add_initial_access_offers');
       const candidate = join(candidateFolder, candidateName);
@@ -821,7 +841,7 @@ describe('rollbackTo, against a real database', () => {
   it('reverses the newest migration and leaves the earlier one applied', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, history);
       expect(tables(db.path)).toContain('users');
       expect(appliedNames(db.path)).toEqual([
         INIT,
@@ -877,13 +897,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_FROZEN,
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
@@ -913,9 +933,9 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
         '20261023140000_add_measure',
@@ -936,7 +956,7 @@ describe('rollbackTo, against a real database', () => {
         '20261103110000_add_initial_access_offers',
       ]);
 
-      const reversed = rollbackTo(db.path, FOLDER, INIT);
+      const reversed = rollbackTo(db.path, history, INIT);
 
       expect(reversed).toEqual([
         '20261103110000_add_initial_access_offers',
@@ -957,9 +977,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -989,13 +1009,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1065,9 +1085,9 @@ describe('rollbackTo, against a real database', () => {
     // database missing the table it believes is there.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, INIT);
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, history);
+      rollbackTo(db.path, history, INIT);
+      runMigrations(db.path, history);
 
       expect(tables(db.path)).toContain('users');
       expect(appliedNames(db.path)).toEqual([
@@ -1124,13 +1144,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_FROZEN,
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
         '20261005110000_add_shared_people',
         '20261011120000_add_browser_auth_lifecycle',
@@ -1160,9 +1180,9 @@ describe('rollbackTo, against a real database', () => {
         '20261022130100_widen_organization_audit_organization_limits',
         '20261022140000_add_resource_provider',
         '20261022140100_widen_organization_audit_compute_providers',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022211000_add_external_dependencies',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022213000_add_optimization_boundary_certificates',
         '20261023100000_add_claim_lease',
         '20261023140000_add_measure',
@@ -1203,13 +1223,13 @@ describe('rollbackTo, against a real database', () => {
     // on the August rule, which is the one thing the column default is for.
     //
     // Proof: `down.sql` replaced by a valid statement that does not drop the
-    // column (`UPDATE workPackage SET dep_reach = 'whole-item';`) and this failed on
+    // column (`UPDATE project SET dep_reach = 'whole-item';`) and this failed on
     // `Expected to not contain: "dep_reach"`. Both watched 2026-08-29.
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      rollbackTo(db.path, FOLDER, SOLUTION_REF);
-      expect(workPackageColumns(db.path)).not.toContain('dep_reach');
+      runMigrations(db.path, history);
+      rollbackTo(db.path, history, SOLUTION_REF);
+      expect(projectColumns(db.path)).not.toContain('dep_reach');
 
       const before = openDatabase(db.path);
       try {
@@ -1217,28 +1237,28 @@ describe('rollbackTo, against a real database', () => {
           "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'owner', 'x', 1)",
         );
         before.run(
-          "INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'Rewire the shed', 'u1', 1)",
+          "INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'Rewire the shed', 'u1', 1)",
         );
       } finally {
         before.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, history);
 
-      expect(workPackageColumns(db.path)).toContain('dep_reach');
+      expect(projectColumns(db.path)).toContain('dep_reach');
       const after = openDatabase(db.path);
       try {
         expect(
           after
-            .query<{ dep_reach: string }, []>("SELECT dep_reach FROM work_package WHERE id = 'p1'")
+            .query<{ dep_reach: string }, []>("SELECT dep_reach FROM project WHERE id = 'p1'")
             .get(),
         ).toEqual({ dep_reach: 'whole-item' });
       } finally {
         after.close();
       }
 
-      rollbackTo(db.path, FOLDER, SOLUTION_REF);
-      expect(workPackageColumns(db.path)).not.toContain('dep_reach');
+      rollbackTo(db.path, history, SOLUTION_REF);
+      expect(projectColumns(db.path)).not.toContain('dep_reach');
     } finally {
       db.cleanup();
     }
@@ -1247,8 +1267,8 @@ describe('rollbackTo, against a real database', () => {
   it('unwinds every migration when there was no baseline', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
+      runMigrations(db.path, history);
+      const reversed = rollbackTo(db.path, history, ROLLBACK_ALL);
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
@@ -1270,9 +1290,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1302,13 +1322,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1368,7 +1388,7 @@ describe('rollbackTo, against a real database', () => {
         'examples',
         'event_log',
         'event_sequencer',
-        'work_package',
+        'project',
         'work_item',
         // `step` since 20260831120000_rename_role_to_step; a rollback all the
         // way to INIT reverses that rename first, so by the time the WBS
@@ -1389,7 +1409,7 @@ describe('rollbackTo, against a real database', () => {
   it('does nothing when the target is already the newest applied', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, history);
       // The newest applied migration, which is what makes this the case a shared
       // stamp breaks: `migrationsToRollback` filters on `created_at >` strictly,
       // so a baseline that shares its stamp with another folder answers `[]` here
@@ -1403,10 +1423,10 @@ describe('rollbackTo, against a real database', () => {
       // The newest is read off disk rather than named: this line asserted
       // `AUDIT_COLUMNS` and before that the role → step rename, and each new
       // migration broke it in a way that says nothing about rollback.
-      const newest = readMigrationFolders(FOLDER).at(-1)?.name;
+      const newest = readMigrationFolders(history).at(-1)?.name;
       expect(newest).toBeDefined();
-      expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
-      expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+      expect(rollbackTo(db.path, history, newest ?? '')).toEqual([]);
+      expect(rollbackTo(db.path, history, AUDIT_COLUMNS)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -1425,9 +1445,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1457,13 +1477,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1484,16 +1504,16 @@ describe('rollbackTo, against a real database', () => {
         SAVED_PLAN,
         LOOKUP_INDEXES,
       ]);
-      expect(rollbackTo(db.path, FOLDER, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
-      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
-      expect(rollbackTo(db.path, FOLDER, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
-      expect(rollbackTo(db.path, FOLDER, EXTERNAL_REF)).toEqual([DEP_REACH]);
+      expect(rollbackTo(db.path, history, RENAME_ROLE_TO_STEP)).toEqual([AUDIT_COLUMNS]);
+      expect(rollbackTo(db.path, history, WEIGHTS_AND_ROUNDING)).toEqual([RENAME_ROLE_TO_STEP]);
+      expect(rollbackTo(db.path, history, DEP_REACH)).toEqual([WEIGHTS_AND_ROUNDING]);
+      expect(rollbackTo(db.path, history, EXTERNAL_REF)).toEqual([DEP_REACH]);
       // Only the reach, because the line above already reversed it —
       // `rollbackTo` performs the rollback rather than describing it, so each
       // step here starts from what the previous one left.
-      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_TYPE)).toEqual([EXTERNAL_REF]);
-      expect(rollbackTo(db.path, FOLDER, SOLUTION_REF)).toEqual([WORK_ITEM_TYPE]);
-      expect(rollbackTo(db.path, FOLDER, OIDC_IDENTITY)).toEqual([SOLUTION_REF]);
+      expect(rollbackTo(db.path, history, WORK_ITEM_TYPE)).toEqual([EXTERNAL_REF]);
+      expect(rollbackTo(db.path, history, SOLUTION_REF)).toEqual([WORK_ITEM_TYPE]);
+      expect(rollbackTo(db.path, history, OIDC_IDENTITY)).toEqual([SOLUTION_REF]);
       expect(tables(db.path)).toContain('users');
     } finally {
       db.cleanup();
@@ -1533,20 +1553,20 @@ describe('rollbackTo, against a real database', () => {
       // empty snapshots and pass on any down.sql that restored the names.
       expect(rowsBefore['role']).toHaveLength(2);
       expect(rowsBefore['estimate']).toHaveLength(1);
-      expect(schemaBefore.map((o) => o.name)).toContain('role_work_package_name');
+      expect(schemaBefore.map((o) => o.name)).toContain('role_project_name');
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, history);
 
       // The rename really happened, or everything below is a comparison of two
       // identical databases.
       expect(tables(db.path)).toContain('step');
       expect(tables(db.path)).not.toContain('role');
       expect(appliedNames(db.path)).toContain(RENAME_ROLE_TO_STEP);
-      expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_work_package_name');
+      expect(schemaObjects(db.path).map((o) => o.name)).toContain('step_project_name');
 
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
-      expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+      expect(rollbackTo(db.path, history, WEIGHTS_AND_ROUNDING)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -1565,9 +1585,9 @@ describe('rollbackTo, against a real database', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -1597,13 +1617,13 @@ describe('rollbackTo, against a real database', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -1649,8 +1669,8 @@ describe('rollbackTo, against a real database', () => {
     const db = tempDb();
     const copy = mkdtempSync(join(tmpdir(), 'wbs-drift-'));
     try {
-      runMigrations(db.path, FOLDER);
-      cpSync(FOLDER, copy, { recursive: true });
+      runMigrations(db.path, history);
+      cpSync(history, copy, { recursive: true });
       appendFileSync(join(copy, USERS, 'migration.sql'), '\n-- edited after the fact\n');
       const schemaBefore = schemaObjects(db.path);
       const rowsBefore = tableRows(db.path);

@@ -7,12 +7,11 @@ import {
   clockOf,
   createWorkingPlan,
   type Decision,
+  type NewStepDefinition,
   type PlanTransactionalStores,
   type Scope,
   servicesOver,
-  type Step,
   type UnitOfWork,
-  type WorkPackage,
   type WriteStamp,
 } from '@wbs/core';
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core';
@@ -24,13 +23,12 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, it } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PROJECT = 'fixture-project';
 const OWNER = 'working-plan-order-owner';
 const WORK_PACKAGE = 'working-plan-order-work-package';
 const ROW = 'working-plan-order-row';
@@ -63,35 +61,64 @@ function captureAdmittedStores(uow: UnitOfWork): {
   };
 }
 
-async function sqliteEstimateRunner(name: string) {
-  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
+const DEFAULT_STEP: NewStepDefinition = {
+  id: 'step',
+  name: 'Step',
+  code: 'step',
+  position: 10,
+  defaultEstimateUnit: 'workdays',
+  defaultAllowancePercent: 0,
+};
+
+async function openWorkingPlanSource(
+  directory: string,
+  definitions: readonly NewStepDefinition[] = [DEFAULT_STEP],
+  name?: string,
+) {
   const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+  const custody = { hasUnknownOwner: false };
+  try {
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: PROJECT,
+        stamp: STAMP,
+        definitions,
+      },
+      custody,
+    );
+  } catch (cause) {
+    if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
+    throw cause;
+  }
   activateTestStepBlockages(path);
   const source = openSqliteSource({
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
   });
-  await source.stores.users.create(
-    { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-    STAMP,
-  );
-  await source.stores.workPackages.create(
-    workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project', name }),
-    [
-      {
-        id: 'step',
-        workPackageId: WORK_PACKAGE,
-        name: 'Step',
-        position: 10,
-        code: 'step',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
-    STAMP,
-  );
+  try {
+    const draft = workPackageRow({
+      id: WORK_PACKAGE,
+      projectId: PROJECT,
+      ...(name === undefined ? {} : { name }),
+    });
+    expect(await source.stores.workPackages.create(draft, [], STAMP)).toMatchObject({
+      id: WORK_PACKAGE,
+      projectId: PROJECT,
+    });
+    return source;
+  } catch (cause) {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+    throw cause;
+  }
+}
+
+async function sqliteEstimateRunner(name: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
+  const source = await openWorkingPlanSource(directory, [DEFAULT_STEP], name);
   await source.stores.workItems.insert(
     workItemRow({ id: ROW, workPackageId: WORK_PACKAGE }),
     [],
@@ -224,34 +251,17 @@ it('uses an ordinary SQLite write between batches as the next before-image', asy
 
 it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
-
-  try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    const workPackage: WorkPackage = workPackageRow({
-      id: WORK_PACKAGE,
-      projectId: 'fixture-project',
-    });
-    const steps: Step[] = STEPS.map((id) => ({
+  const source = await openWorkingPlanSource(
+    directory,
+    STEPS.map((id) => ({
+      ...DEFAULT_STEP,
       id,
-      workPackageId: WORK_PACKAGE,
       name: id,
       code: id === 'step-A' ? 'step-a' : 'step-a-2',
-      position: 10,
-      allowancePercent: 0,
-      estimateUnit: 'workdays' as const,
-    }));
-    await source.stores.workPackages.create(workPackage, steps, STAMP);
+    })),
+  );
+
+  try {
     await source.stores.workItems.insert(
       workItemRow({ id: ROW, workPackageId: WORK_PACKAGE }),
       [],
@@ -316,35 +326,9 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
 
 it('keeps SQLite dependency order authoritative after a WorkingPlan add', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-edge-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
       await source.stores.workItems.insert(
         workItemRow({ id, workPackageId: WORK_PACKAGE }),
@@ -383,35 +367,9 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
 
 it('advances SQLite assignment and directory cascades before the next runner command', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     await source.stores.workItems.insert(
       workItemRow({ id: ROW, workPackageId: WORK_PACKAGE, name: 'Before directory writes' }),
       [],
@@ -577,35 +535,9 @@ it('advances SQLite assignment and directory cascades before the next runner com
 
 it('rolls back a successful directory write when its retained reload fails', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-rollback-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     await source.stores.workItems.insert(
       workItemRow({ id: ROW, workPackageId: WORK_PACKAGE, name: 'Before rollback' }),
       [],
@@ -689,35 +621,9 @@ it('rolls back a successful directory write when its retained reload fails', asy
 
 it('places every new subtree row and value group in SQLite authoritative order', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-subtree-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['m-existing', 'z-existing']) {
       await source.stores.workItems.insert(
         workItemRow({ id, workPackageId: WORK_PACKAGE }),
@@ -751,6 +657,12 @@ it('places every new subtree row and value group in SQLite authoritative order',
         rows: [
           workItemRow({ id: 'b-new-root', workPackageId: WORK_PACKAGE, name: 'New root' }),
           workItemRow({
+            id: 'c-new-sibling',
+            workPackageId: WORK_PACKAGE,
+            parentId: 'b-new-root',
+            name: 'New sibling',
+          }),
+          workItemRow({
             id: 'a-new-child',
             workPackageId: WORK_PACKAGE,
             parentId: 'b-new-root',
@@ -761,7 +673,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
         reparented: [],
         estimates: [
           {
-            workItemId: 'b-new-root',
+            workItemId: 'c-new-sibling',
             stepId: 'step',
             optimistic: 2,
             realistic: 3,
@@ -776,16 +688,16 @@ it('places every new subtree row and value group in SQLite authoritative order',
           },
         ],
         actuals: [
-          { workItemId: 'b-new-root', stepId: 'step', days: 2, recordedAt: 2 },
+          { workItemId: 'c-new-sibling', stepId: 'step', days: 2, recordedAt: 2 },
           { workItemId: 'a-new-child', stepId: 'step', days: 3, recordedAt: 2 },
         ],
         progress: [
-          { workItemId: 'b-new-root', stepId: 'step', state: 'in_progress', statedAt: 2 },
+          { workItemId: 'c-new-sibling', stepId: 'step', state: 'in_progress', statedAt: 2 },
           { workItemId: 'a-new-child', stepId: 'step', state: 'done', statedAt: 2 },
         ],
         measures: [
           {
-            workItemId: 'b-new-root',
+            workItemId: 'c-new-sibling',
             stepId: 'step',
             metric: 'token_estimate',
             value: 2,
@@ -839,6 +751,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
     expect(retained[0].map(({ id }) => id)).toEqual([
       'a-new-child',
       'b-new-root',
+      'c-new-sibling',
       'm-existing',
       'z-existing',
     ]);
@@ -848,10 +761,10 @@ it('places every new subtree row and value group in SQLite authoritative order',
       retained[3].map(({ workItemId }) => workItemId),
       retained[4].map(({ workItemId }) => workItemId),
     ]).toEqual([
-      ['a-new-child', 'b-new-root', 'z-existing'],
-      ['a-new-child', 'b-new-root'],
-      ['a-new-child', 'b-new-root'],
-      ['a-new-child', 'b-new-root'],
+      ['a-new-child', 'c-new-sibling', 'z-existing'],
+      ['a-new-child', 'c-new-sibling'],
+      ['a-new-child', 'c-new-sibling'],
+      ['a-new-child', 'c-new-sibling'],
     ]);
     workingPlan.close();
   } finally {
@@ -862,36 +775,9 @@ it('places every new subtree row and value group in SQLite authoritative order',
 
 it('keeps SQLite work-item order authoritative immediately after a runner insert', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    const workPackage: WorkPackage = workPackageRow({
-      id: WORK_PACKAGE,
-      projectId: 'fixture-project',
-    });
-    const steps: Step[] = [
-      {
-        id: 'step',
-        workPackageId: WORK_PACKAGE,
-        name: 'Step',
-        position: 10,
-        code: 'step',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ];
-    await source.stores.workPackages.create(workPackage, steps, STAMP);
     for (const id of ['z-existing', 'm-unaffected']) {
       await source.stores.workItems.insert(
         workItemRow({ id, workPackageId: WORK_PACKAGE }),
@@ -1031,35 +917,9 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
 
 it('refreshes a dependency survivor before the next runner command and preserves undo', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-dependency-survivor-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['doomed', 'survivor']) {
       await source.stores.workItems.insert(
         workItemRow({
@@ -1169,35 +1029,9 @@ it('refreshes a dependency survivor before the next runner command and preserves
 
 it('keeps every SQLite value group in source order after runner sets populate an earlier group', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-value-order-'));
-  const path = join(directory, 'source.db');
-  runMigrations(path, MIGRATIONS);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  activateTestStepBlockages(path);
-  const source = openSqliteSource({
-    dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  const source = await openWorkingPlanSource(directory);
 
   try {
-    await source.stores.users.create(
-      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-      STAMP,
-    );
-    await source.stores.workPackages.create(
-      workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project' }),
-      [
-        {
-          id: 'step',
-          workPackageId: WORK_PACKAGE,
-          name: 'Step',
-          position: 10,
-          code: 'step',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      STAMP,
-    );
     for (const id of ['z-existing', 'a-earlier']) {
       await source.stores.workItems.insert(
         workItemRow({ id, workPackageId: WORK_PACKAGE }),
