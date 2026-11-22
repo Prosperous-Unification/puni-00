@@ -9,10 +9,12 @@ import { type Drizzle, openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { project } from './schema';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const BASE = '20261022140100_widen_organization_audit_compute_providers';
 const ABBREVIATIONS = '20261022210000_add_project_abbreviations';
+const custody = { hasUnknownOwner: false };
 let writersSettled = true;
 let directory: string;
 let path: string;
@@ -47,13 +49,14 @@ beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-abbreviation-'));
   path = join(directory, 'store.db');
   writersSettled = true;
+  custody.hasUnknownOwner = false;
 });
 afterEach(() => {
   if (!writersSettled) throw new Error('writer settlement unknown; retained ' + directory);
-  rmSync(directory, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 function seedCurrent(): void {
-  runMigrations(path, FOLDER);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   raw((sqlite) => {
     sqlite.run("INSERT INTO users (id,username,created_at) VALUES ('u','Owner',1)");
     sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('a','A',1),('b','B',1)");

@@ -2175,3 +2175,12 @@ original schema and immutable migration names. The estimate read used the
 same SQL and bind counts for one and 21 facts. Injecting one bound query per
 fact failed that equality. The original reader was restored before the combined
 run. SQLite Nx typecheck passed.
+
+Focused SQLite Nx verification passed 68 tests across actuals, current parent
+package creation, ownership preflight, historical step estimate units and
+abbreviation allocation. The package birth faults preserve grant and audit
+rows, settings, package step values and abbreviation allocation. The original
+unit rollback order remains explicit. The retained actual foreign key refuses
+step deletion until the actual is removed. The current allocator exercises
+real concurrent writers, and ownership preflight observes all three findings
+inside the same snapshot across a competing commit. SQLite Nx typecheck passed.

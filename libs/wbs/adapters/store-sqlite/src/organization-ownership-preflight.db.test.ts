@@ -6,17 +6,18 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
 import { openConnection, openDatabase, openReadOnlyConnection } from './db';
-import { runMigrations } from './migrate';
 import { preflightOrganizationOwnership } from './organization-ownership-preflight';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 let directory: string;
 let path: string;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'ownership-preflight-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  custody.hasUnknownOwner = false;
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   // Migrations seed external systems; keep these focused fixtures explicitly empty.
   const database = openDatabase(path);
   try {
@@ -27,7 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  rmSync(directory, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 function write(...statements: string[]): void {
@@ -72,7 +73,7 @@ test('reports all three findings together without dropping any probe', async () 
     "INSERT INTO tag (id, name) VALUES ('drift', 'Original')",
     'DROP TRIGGER tag_organization_name_bridge',
     "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
-    "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work_package:gone', 1)",
+    "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work-package:gone', 1)",
   );
   expect(await inspect()).toEqual({
     marker: 'pre_activation',
@@ -119,7 +120,7 @@ test('pins marker and every finding across a competing commit and all probes', a
           "UPDATE organization_activation SET state = 'activated', activated_at = 5",
           "INSERT INTO tag (id, name) VALUES ('later', 'Committed after marker')",
           "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
-          "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work_package:gone', 1)",
+          "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('work-package:gone', 1)",
           'COMMIT',
         );
       }

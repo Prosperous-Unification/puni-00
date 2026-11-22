@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,32 +8,22 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { type Connection, openConnection, openDatabase } from './db';
 import { WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
-import { readMigrationFolders } from './migrate-down';
 import { SavedPlanRepository } from './saved-plan';
+import { StepCatalogueRepository } from './step-catalogue';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { WorkPackageRepository } from './work-package';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 let directory: string, sqlite: Database, connection: Connection, packages: WorkPackageRepository;
+let custody: { hasUnknownOwner: boolean; sqlite?: Database; connection?: Connection };
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'current-parent-package-'));
-  const selected = join(directory, 'migrations'),
-    path = join(directory, 'store.db');
-  mkdirSync(selected);
-  const folders = readMigrationFolders(folder);
-  for (const upper of [
-    '20261110100000_rename_project_to_work_package',
-    '20261110110000_add_project',
-    '20261110110101',
-  ]) {
-    for (const migration of folders.filter(({ name }) => name < upper)) {
-      const target = join(selected, migration.name);
-      cpSync(join(folder, migration.name), target, { recursive: true });
-    }
-    runMigrations(path, selected);
-  }
+  const path = join(directory, 'store.db');
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   sqlite = openDatabase(path);
+  custody.sqlite = sqlite;
   connection = openConnection(path);
+  custody.connection = connection;
   packages = new WorkPackageRepository(connection.db, new WriteCoordinator());
   sqlite.run("INSERT INTO users(id,username,created_at) VALUES('creator','Creator',1)");
   sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1),('org-b','B',1)");
@@ -45,10 +35,37 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
-  connection.close();
-  sqlite.close();
-  rmSync(directory, { recursive: true });
+  try {
+    custody.connection?.close();
+  } finally {
+    custody.sqlite?.close();
+  }
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true });
 });
+
+async function bindParentStep() {
+  const catalogue = new StepCatalogueRepository(connection.db, new WriteCoordinator(), 'owned');
+  const bound = await catalogue.defineAndBindStep(
+    'org-a',
+    {
+      id: 'dev',
+      name: 'Dev',
+      code: 'dev',
+      position: 10,
+      defaultAllowancePercent: 0,
+      defaultEstimateUnit: 'workdays',
+    },
+    {
+      bindingId: 'dev-binding',
+      scopeKind: 'project',
+      scopeId: 'parent',
+      workItemTypeId: null,
+      position: 10,
+    },
+    { by: 'creator', at: 1 },
+  );
+  expect(bound.ok).toBe(true);
+}
 
 function create(parent = 'parent', id = 'package') {
   sqlite.run(
@@ -56,17 +73,7 @@ function create(parent = 'parent', id = 'package') {
   );
   return packages.createInOrganization(
     { ...workPackageRow({ id, projectId: parent, createdAt: 17 }), projectId: parent },
-    [
-      {
-        id: id + '-step',
-        workPackageId: id,
-        name: 'Dev',
-        position: 10,
-        code: 'DEV',
-        allowancePercent: 0,
-        estimateUnit: 'workdays',
-      },
-    ],
+    [],
     { by: 'creator', at: 17 },
     'org-a',
     { id: id + '-grant', auditId: id + '-audit' },
@@ -77,7 +84,8 @@ function snapshot() {
     [
       'work_package',
       'work_package_organization',
-      'step',
+      'work_package_step',
+      'setting_value',
       'work_package_abbreviation',
       'work_package_abbreviation_counter',
       'access_grant',
@@ -86,9 +94,25 @@ function snapshot() {
   );
 }
 it('creates an ownerless package under its explicit current-schema parent with creator grant and audit', async () => {
+  await bindParentStep();
   const created = await create();
   expect(created).toMatchObject({ id: 'package', projectId: 'parent' });
   expect(created).not.toHaveProperty('ownerId');
+  expect(
+    sqlite
+      .query(
+        'SELECT work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision FROM work_package_step',
+      )
+      .all(),
+  ).toEqual([
+    {
+      work_package_id: 'package',
+      step_id: 'dev',
+      estimate_unit: 'workdays',
+      allowance_bps: 0,
+      allowance_revision: 0,
+    },
+  ]);
   expect(sqlite.query('SELECT project_id,created_by FROM work_package').all()).toEqual([
     { project_id: 'parent', created_by: 'creator' },
   ]);
@@ -115,14 +139,16 @@ it('creates an ownerless package under its explicit current-schema parent with c
 it.each(['missing', 'foreign'])(
   'refuses parent %s identically before any constituent write',
   async (parent) => {
+    await bindParentStep();
     const before = snapshot();
     expect(await create(parent)).toBe('not_found');
     expect(snapshot()).toEqual(before);
   },
 );
-it.each(['work_package_organization', 'step', 'access_grant', 'organization_audit'])(
+it.each(['work_package_organization', 'work_package_step', 'access_grant', 'organization_audit'])(
   'rolls all birth state back when %s insertion fails',
   async (table) => {
+    await bindParentStep();
     sqlite.run(
       'CREATE TRIGGER fail_birth BEFORE INSERT ON ' +
         table +
