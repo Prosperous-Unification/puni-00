@@ -480,11 +480,34 @@ jobs:
           # absent systemd-run reach ci-run-runtime.ts; a probe reporting memory.max=max, swap 3G or a
           # 2240 MB heap was refused; dropping a scope property, setpriv or the environment restoration
           # failed the scope argv and environment ledger.
+          # A-CI-LEAF-MEMORYMAX-2 (R5-32): run 44917747487 lost the tool-fleet leaf inside this cap with no
+          # OOM record, so memory is ruled out and the scope also bounds tasks and CPU. TasksMax=4096 turns a
+          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the first hosted scope,
+          # #967's workspace run 44925912318, peaked at 90). AllowedCPUs=0-2 pins the scope to three of the
+          # runner's four vCPUs, so CPU 3 stays free for the runner agent, the sampler and the OS whatever
+          # the suite does: a 300% CPUQuota bounds only the average per 100 ms period and lets the scope
+          # fill all four cores between throttles, and CPUWeight protects nothing on an idle sibling.
+          # Inside the scope nproc reports 3. --slice=system.slice makes the scope's cgroup path a
+          # contract: the sampler reads its pids, memory and CPU counters from outside, and a wrapper inside
+          # the scope copies pids.events and memory.events out before systemd removes the cgroup.
+          # The probe must also report pids.max=4096 and cpuset.cpus.effective=0-2, or the step refuses.
+          # Proof (2026-11-21, pr-merge-base.test.ts): dropping -p TasksMax, -p AllowedCPUs, --slice or the
+          # events wrapper failed the scope ledger test; with pids.max and cpuset.cpus.effective dropped from
+          # the probe and its report check, pids.max=max or absent, cpus 0-3 and an absent cpuset file all
+          # reached the runtime; dropping sample_scope, its count check or the system.slice path failed the
+          # sampler test; accepting any events copy, reading pids.peak without its existence check or
+          # dropping the empty-copy `absent` branch failed the telemetry test, and dropping pidsPeak from the
+          # copy failed the ledger.
           memory_max=12G
           memory_max_bytes=12884901888
           cgroup_root=/sys/fs/cgroup
+          tasks_max=4096
+          allowed_cpus=0-2
           scope_unit="ci-gate-$partition-$$"
-          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          scope_cgroup="$cgroup_root/system.slice/$scope_unit.scope"
+          scope_events="$(mktemp)"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue
+            -p "TasksMax=$tasks_max" -p "AllowedCPUs=$allowed_cpus")
           gate_uid="$(id -u)"
           gate_gid="$(id -g)"
           gate_groups="$(id -G | tr ' ' ,)"
@@ -521,7 +544,7 @@ jobs:
           run_in_scope() {
             local unit=$1
             shift
-            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --unit="$unit" \
+            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --slice=system.slice --unit="$unit" \
               "${scope_properties[@]}" -- \
               setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
               env -i "${gate_environment[@]}" "$@"
@@ -530,11 +553,25 @@ jobs:
           heap_script='process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))'
           # shellcheck disable=SC2016 # expanded by the probe's own bash inside the scope
           scope_probe='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" &&
-            printf "memoryMax=%s swapMax=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
-              "$(cat "$cgroup/memory.swap.max")" \
-              "$(node -e "$1")"'
+            printf "memoryMax=%s swapMax=%s pidsMax=%s cpus=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
+              "$(cat "$cgroup/memory.swap.max")" "$(cat "$cgroup/pids.max")" \
+              "$(cat "$cgroup/cpuset.cpus.effective")" "$(node -e "$1")"'
+          # $0 is the cgroup root and $1 the events file; the rest is the gate command. Its status is the
+          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable. A kernel
+          # without pids.peak lacks the file, which the copy records as `pidsPeak=unavailable`.
+          # shellcheck disable=SC2016 # expanded by the wrapper's own bash inside the scope
+          scope_gate='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" events=$1
+            shift
+            "$@"
+            status=$?
+            peak=unavailable
+            if [ -e "$cgroup/pids.peak" ]; then peak="$(cat "$cgroup/pids.peak")"; fi
+            printf "pidsEventsMax=%s memoryEventsOomKill=%s pidsPeak=%s\n" \
+              "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
+              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" "$peak" > "$events"
+            exit "$status"'
           refuse_uncapped() {
-            printf 'A-CI-LEAF-MEMORYMAX-1: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
+            printf 'A-CI-LEAF-MEMORYMAX-2: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
             exit 1
           }
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
@@ -545,9 +582,11 @@ jobs:
           #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
           #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
-          #   MemAvailable, node/bun process counts and the largest-RSS process. Its failure writes
+          #   MemAvailable, node/bun process counts, the largest-RSS process and the gate scope's own
+          #   pids, memory, peak and CPU counters (A-CI-LEAF-MEMORYMAX-2). Its failure writes
           #   `unavailable` and never changes the gate status; it is stopped before the end record.
-          # - End record (best-effort): `free -m`, `df -h /`, leaked children and kernel OOM lines; its
+          # - End record (best-effort): `free -m`, `df -h /`, leaked children, the scope's pids.events max
+          #   and memory.events oom_kill counts, and kernel OOM lines; its
           #   failure writes `runtime headroom end unavailable` and must not turn a passing gate red.
           # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
           # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
@@ -559,20 +598,43 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$scope_unit.scope"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope"
             free -m
             df -h /
+          }
+          is_count() {
+            local value
+            for value; do
+              case $value in '' | *[!0-9]*) return 1 ;; esac
+            done
+          }
+          # The gate scope's own counters, read from outside it: all four, or `unavailable` before the scope
+          # starts and after systemd removes its cgroup. scopeCpuUsec rising by about 90000000 between
+          # 30-second samples is a CPU-bound series: three CPUs, all busy.
+          sample_scope() {
+            local pids memory peak cpu
+            if pids="$(cat "$scope_cgroup/pids.current" 2> /dev/null)" &&
+              memory="$(cat "$scope_cgroup/memory.current" 2> /dev/null)" &&
+              peak="$(cat "$scope_cgroup/memory.peak" 2> /dev/null)" &&
+              cpu="$(awk '$1 == "usage_usec" { print $2 }' "$scope_cgroup/cpu.stat" 2> /dev/null)" &&
+              is_count "$pids" "$memory" "$peak" "$cpu"; then
+              printf 'scopePids=%s scopeMemKiB=%s scopePeakKiB=%s scopeCpuUsec=%s' \
+                "$pids" "$((memory / 1024))" "$((peak / 1024))" "$cpu"
+            else
+              printf 'scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable'
+            fi
           }
           sample_headroom() {
             local available processes
             if available="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)" &&
               processes="$(ps -eo rss=,comm=)"; then
-              printf 'runtime headroom sample utc=%s memAvailableKiB=%s %s\n' "$(headroom_utc)" "$available" \
+              printf 'runtime headroom sample utc=%s memAvailableKiB=%s %s %s\n' "$(headroom_utc)" "$available" \
                 "$(awk '$2 == "node" { n++ } $2 == "bun" { b++ } $1 > top { top = $1; name = $2 }
-                  END { printf "node=%d bun=%d topRssKiB=%d top=%s", n, b, top, name }' <<< "$processes")"
+                  END { printf "node=%d bun=%d topRssKiB=%d top=%s", n, b, top, name }' <<< "$processes")" \
+                "$(sample_scope)"
             else
               printf 'runtime headroom sample unavailable utc=%s\n' "$(headroom_utc)"
             fi
@@ -580,7 +642,30 @@ jobs:
           record_headroom_end() {
             printf 'runtime headroom end partition=%s utc=%s\n' "$partition" "$(headroom_utc)" &&
               free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
-              record_kernel_oom
+              record_scope_events && record_kernel_oom
+          }
+          # What the scope's wrapper copied out of pids.events, memory.events and pids.peak before it exited:
+          # a max count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed,
+          # pidsPeak the most tasks the scope held. `absent` means the wrapper never wrote (it was killed);
+          # `unavailable` means it wrote something that is not three counts.
+          record_scope_events() {
+            local events refused killed peak
+            events="$(cat "$scope_events")"
+            if [ -z "$events" ]; then
+              printf 'runtime headroom scope events absent\n'
+              return
+            fi
+            refused="${events#pidsEventsMax=}"
+            refused="${refused%% *}"
+            killed="${events#* memoryEventsOomKill=}"
+            killed="${killed%% *}"
+            peak="${events##* pidsPeak=}"
+            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed pidsPeak=$peak" ] &&
+              is_count "$refused" "$killed" && { [ "$peak" = unavailable ] || is_count "$peak"; }; then
+              printf 'runtime headroom scope events %s\n' "$events"
+            else
+              printf 'runtime headroom scope events unavailable\n'
+            fi
           }
           # The kernel log since the phase began, filtered to OOM-killer lines: a test the scope killed
           # shows here, an abort or a fixture's os.killpg does not.
@@ -594,12 +679,12 @@ jobs:
           phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
           if ! scope_report="$(run_in_scope "$scope_unit-probe" bash -c "$scope_probe" "$cgroup_root" "$heap_script" 2>> nx-gate.log)"; then
-            refuse_uncapped "cannot open a MemoryMax=$memory_max systemd scope with sudo -n systemd-run"
+            refuse_uncapped "cannot open a MemoryMax=$memory_max TasksMax=$tasks_max AllowedCPUs=$allowed_cpus systemd scope with sudo -n systemd-run"
           fi
-          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 heapSizeLimit="}"
+          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 pidsMax=$tasks_max cpus=$allowed_cpus heapSizeLimit="}"
           case "$scope_heap" in
             "$scope_report" | '' | *[!0-9]*)
-              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 and a heap limit"
+              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 pidsMax=$tasks_max cpus=$allowed_cpus and a heap limit"
               ;;
           esac
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
@@ -620,7 +705,7 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          run_in_scope "$scope_unit" \
+          run_in_scope "$scope_unit" bash -c "$scope_gate" "$cgroup_root" "$scope_events" \
             timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1
@@ -801,11 +886,34 @@ jobs:
           # absent systemd-run reach ci-run-runtime.ts; a probe reporting memory.max=max, swap 3G or a
           # 2240 MB heap was refused; dropping a scope property, setpriv or the environment restoration
           # failed the scope argv and environment ledger.
+          # A-CI-LEAF-MEMORYMAX-2 (R5-32): run 44917747487 lost the tool-fleet leaf inside this cap with no
+          # OOM record, so memory is ruled out and the scope also bounds tasks and CPU. TasksMax=4096 turns a
+          # fork or thread storm into EAGAIN inside the scope (pids counts threads; the first hosted scope,
+          # #967's workspace run 44925912318, peaked at 90). AllowedCPUs=0-2 pins the scope to three of the
+          # runner's four vCPUs, so CPU 3 stays free for the runner agent, the sampler and the OS whatever
+          # the suite does: a 300% CPUQuota bounds only the average per 100 ms period and lets the scope
+          # fill all four cores between throttles, and CPUWeight protects nothing on an idle sibling.
+          # Inside the scope nproc reports 3. --slice=system.slice makes the scope's cgroup path a
+          # contract: the sampler reads its pids, memory and CPU counters from outside, and a wrapper inside
+          # the scope copies pids.events and memory.events out before systemd removes the cgroup.
+          # The probe must also report pids.max=4096 and cpuset.cpus.effective=0-2, or the step refuses.
+          # Proof (2026-11-21, pr-merge-base.test.ts): dropping -p TasksMax, -p AllowedCPUs, --slice or the
+          # events wrapper failed the scope ledger test; with pids.max and cpuset.cpus.effective dropped from
+          # the probe and its report check, pids.max=max or absent, cpus 0-3 and an absent cpuset file all
+          # reached the runtime; dropping sample_scope, its count check or the system.slice path failed the
+          # sampler test; accepting any events copy, reading pids.peak without its existence check or
+          # dropping the empty-copy `absent` branch failed the telemetry test, and dropping pidsPeak from the
+          # copy failed the ledger.
           memory_max=12G
           memory_max_bytes=12884901888
           cgroup_root=/sys/fs/cgroup
+          tasks_max=4096
+          allowed_cpus=0-2
           scope_unit="ci-gate-$partition-$$"
-          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue)
+          scope_cgroup="$cgroup_root/system.slice/$scope_unit.scope"
+          scope_events="$(mktemp)"
+          scope_properties=(-p "MemoryMax=$memory_max" -p MemorySwapMax=0 -p OOMPolicy=continue
+            -p "TasksMax=$tasks_max" -p "AllowedCPUs=$allowed_cpus")
           gate_uid="$(id -u)"
           gate_gid="$(id -g)"
           gate_groups="$(id -G | tr ' ' ,)"
@@ -842,7 +950,7 @@ jobs:
           run_in_scope() {
             local unit=$1
             shift
-            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --unit="$unit" \
+            sudo -n systemd-run --scope --quiet --collect --expand-environment=no --slice=system.slice --unit="$unit" \
               "${scope_properties[@]}" -- \
               setpriv --reuid="$gate_uid" --regid="$gate_gid" --groups="$gate_groups" -- \
               env -i "${gate_environment[@]}" "$@"
@@ -851,11 +959,25 @@ jobs:
           heap_script='process.stdout.write(String(require("v8").getHeapStatistics().heap_size_limit))'
           # shellcheck disable=SC2016 # expanded by the probe's own bash inside the scope
           scope_probe='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" &&
-            printf "memoryMax=%s swapMax=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
-              "$(cat "$cgroup/memory.swap.max")" \
-              "$(node -e "$1")"'
+            printf "memoryMax=%s swapMax=%s pidsMax=%s cpus=%s heapSizeLimit=%s\n" "$(cat "$cgroup/memory.max")" \
+              "$(cat "$cgroup/memory.swap.max")" "$(cat "$cgroup/pids.max")" \
+              "$(cat "$cgroup/cpuset.cpus.effective")" "$(node -e "$1")"'
+          # $0 is the cgroup root and $1 the events file; the rest is the gate command. Its status is the
+          # scope's; the counters are telemetry, and an unreadable one leaves the file unparseable. A kernel
+          # without pids.peak lacks the file, which the copy records as `pidsPeak=unavailable`.
+          # shellcheck disable=SC2016 # expanded by the wrapper's own bash inside the scope
+          scope_gate='cgroup="$0$(cut -d: -f3 /proc/self/cgroup)" events=$1
+            shift
+            "$@"
+            status=$?
+            peak=unavailable
+            if [ -e "$cgroup/pids.peak" ]; then peak="$(cat "$cgroup/pids.peak")"; fi
+            printf "pidsEventsMax=%s memoryEventsOomKill=%s pidsPeak=%s\n" \
+              "$(awk "\$1 == \"max\" { print \$2 }" "$cgroup/pids.events")" \
+              "$(awk "\$1 == \"oom_kill\" { print \$2 }" "$cgroup/memory.events")" "$peak" > "$events"
+            exit "$status"'
           refuse_uncapped() {
-            printf 'A-CI-LEAF-MEMORYMAX-1: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
+            printf 'A-CI-LEAF-MEMORYMAX-2: %s; refusing to run the gate uncapped\n' "$1" | tee -a nx-gate.log >&2
             exit 1
           }
           # R5-32 (A-CI-WORKSPACE-MEMORY-1, -2): hosted 16 GB runners of these shards have been lost
@@ -866,9 +988,11 @@ jobs:
           #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
           #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
-          #   MemAvailable, node/bun process counts and the largest-RSS process. Its failure writes
+          #   MemAvailable, node/bun process counts, the largest-RSS process and the gate scope's own
+          #   pids, memory, peak and CPU counters (A-CI-LEAF-MEMORYMAX-2). Its failure writes
           #   `unavailable` and never changes the gate status; it is stopped before the end record.
-          # - End record (best-effort): `free -m`, `df -h /`, leaked children and kernel OOM lines; its
+          # - End record (best-effort): `free -m`, `df -h /`, leaked children, the scope's pids.events max
+          #   and memory.events oom_kill counts, and kernel OOM lines; its
           #   failure writes `runtime headroom end unavailable` and must not turn a passing gate red.
           # Every record runs with NO_COLOR=1 and prints the heap limit without util.inspect: on
           # ab1607590 the runner's colour-capable environment made `node -p` wrap it in ANSI escapes.
@@ -880,20 +1004,43 @@ jobs:
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s scope=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$scope_unit.scope"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope"
             free -m
             df -h /
+          }
+          is_count() {
+            local value
+            for value; do
+              case $value in '' | *[!0-9]*) return 1 ;; esac
+            done
+          }
+          # The gate scope's own counters, read from outside it: all four, or `unavailable` before the scope
+          # starts and after systemd removes its cgroup. scopeCpuUsec rising by about 90000000 between
+          # 30-second samples is a CPU-bound series: three CPUs, all busy.
+          sample_scope() {
+            local pids memory peak cpu
+            if pids="$(cat "$scope_cgroup/pids.current" 2> /dev/null)" &&
+              memory="$(cat "$scope_cgroup/memory.current" 2> /dev/null)" &&
+              peak="$(cat "$scope_cgroup/memory.peak" 2> /dev/null)" &&
+              cpu="$(awk '$1 == "usage_usec" { print $2 }' "$scope_cgroup/cpu.stat" 2> /dev/null)" &&
+              is_count "$pids" "$memory" "$peak" "$cpu"; then
+              printf 'scopePids=%s scopeMemKiB=%s scopePeakKiB=%s scopeCpuUsec=%s' \
+                "$pids" "$((memory / 1024))" "$((peak / 1024))" "$cpu"
+            else
+              printf 'scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable'
+            fi
           }
           sample_headroom() {
             local available processes
             if available="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)" &&
               processes="$(ps -eo rss=,comm=)"; then
-              printf 'runtime headroom sample utc=%s memAvailableKiB=%s %s\n' "$(headroom_utc)" "$available" \
+              printf 'runtime headroom sample utc=%s memAvailableKiB=%s %s %s\n' "$(headroom_utc)" "$available" \
                 "$(awk '$2 == "node" { n++ } $2 == "bun" { b++ } $1 > top { top = $1; name = $2 }
-                  END { printf "node=%d bun=%d topRssKiB=%d top=%s", n, b, top, name }' <<< "$processes")"
+                  END { printf "node=%d bun=%d topRssKiB=%d top=%s", n, b, top, name }' <<< "$processes")" \
+                "$(sample_scope)"
             else
               printf 'runtime headroom sample unavailable utc=%s\n' "$(headroom_utc)"
             fi
@@ -901,7 +1048,30 @@ jobs:
           record_headroom_end() {
             printf 'runtime headroom end partition=%s utc=%s\n' "$partition" "$(headroom_utc)" &&
               free -m && df -h / && ps -eo pid=,rss=,comm= --sort=-rss | awk 'NR <= 5' &&
-              record_kernel_oom
+              record_scope_events && record_kernel_oom
+          }
+          # What the scope's wrapper copied out of pids.events, memory.events and pids.peak before it exited:
+          # a max count above zero is a fork refused by TasksMax, an oom_kill count a process the cap killed,
+          # pidsPeak the most tasks the scope held. `absent` means the wrapper never wrote (it was killed);
+          # `unavailable` means it wrote something that is not three counts.
+          record_scope_events() {
+            local events refused killed peak
+            events="$(cat "$scope_events")"
+            if [ -z "$events" ]; then
+              printf 'runtime headroom scope events absent\n'
+              return
+            fi
+            refused="${events#pidsEventsMax=}"
+            refused="${refused%% *}"
+            killed="${events#* memoryEventsOomKill=}"
+            killed="${killed%% *}"
+            peak="${events##* pidsPeak=}"
+            if [ "$events" = "pidsEventsMax=$refused memoryEventsOomKill=$killed pidsPeak=$peak" ] &&
+              is_count "$refused" "$killed" && { [ "$peak" = unavailable ] || is_count "$peak"; }; then
+              printf 'runtime headroom scope events %s\n' "$events"
+            else
+              printf 'runtime headroom scope events unavailable\n'
+            fi
           }
           # The kernel log since the phase began, filtered to OOM-killer lines: a test the scope killed
           # shows here, an abort or a fixture's os.killpg does not.
@@ -915,12 +1085,12 @@ jobs:
           phase_epoch="$(date +%s)"
           printf 'runtime phase start partition=%s head=%s utc=%s\n' "$partition" "$GITHUB_SHA" "$(headroom_utc)" > nx-gate.log
           if ! scope_report="$(run_in_scope "$scope_unit-probe" bash -c "$scope_probe" "$cgroup_root" "$heap_script" 2>> nx-gate.log)"; then
-            refuse_uncapped "cannot open a MemoryMax=$memory_max systemd scope with sudo -n systemd-run"
+            refuse_uncapped "cannot open a MemoryMax=$memory_max TasksMax=$tasks_max AllowedCPUs=$allowed_cpus systemd scope with sudo -n systemd-run"
           fi
-          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 heapSizeLimit="}"
+          scope_heap="${scope_report#"memoryMax=$memory_max_bytes swapMax=0 pidsMax=$tasks_max cpus=$allowed_cpus heapSizeLimit="}"
           case "$scope_heap" in
             "$scope_report" | '' | *[!0-9]*)
-              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 and a heap limit"
+              refuse_uncapped "the probe scope reported '$scope_report', not memoryMax=$memory_max_bytes swapMax=0 pidsMax=$tasks_max cpus=$allowed_cpus and a heap limit"
               ;;
           esac
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
@@ -941,7 +1111,7 @@ jobs:
           sampler_pid=$!
           printf 'runtime headroom sampler pid=%s\n' "$sampler_pid" >> nx-gate.log
           set +e
-          run_in_scope "$scope_unit" \
+          run_in_scope "$scope_unit" bash -c "$scope_gate" "$cgroup_root" "$scope_events" \
             timeout --signal=TERM --kill-after=30s "${phase_limit}m" \
             bun run tools/tool-git-hooks/src/hooks/ci-run-runtime.ts "$partition" "$GATE_BASE" "$GITHUB_SHA" . "$GATE_MODE" \
             >> nx-gate.log 2>&1

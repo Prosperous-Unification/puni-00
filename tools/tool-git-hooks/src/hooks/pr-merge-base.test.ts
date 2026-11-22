@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -241,17 +241,28 @@ printf '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 42
     if (!absent.includes(name)) writeFileSync(join(bin, name), text, { mode: 0o755 });
 }
 
-/** What the memory scope's kernel files report to the probe, and which chain programs are absent. */
+/**
+ * What the scope's kernel files report to the probe and to the events wrapper, and which chain
+ * programs are absent. A `null` file is absent, as `cpuset.cpus.effective` is when the cpuset
+ * controller is not enabled for the scope.
+ */
 interface ScopeFixture {
   absent?: readonly string[];
   memoryMax?: string;
   swapMax?: string;
+  pidsMax?: string | null;
+  cpus?: string | null;
+  pidsEventsMax?: string | null;
+  oomKills?: string;
+  pidsPeak?: string | null;
 }
 
 /**
- * The capped steps read the probe scope's memory.max and memory.swap.max under `cgroup_root`. The
- * fake chain opens no cgroup, so the probe runs in this process's own cgroup: the fixture copies
- * that path under a scratch root and points the step's one `cgroup_root=` line at it.
+ * The capped steps read the probe scope's memory.max, memory.swap.max, pids.max and
+ * cpuset.cpus.effective, and the gate wrapper its pids.events and memory.events, under
+ * `cgroup_root`. The fake chain opens no cgroup, so both run in this process's own cgroup: the
+ * fixture writes those files at that path under a scratch root and points the step's one
+ * `cgroup_root=` line at it.
  */
 function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): string {
   const assignment = 'cgroup_root=/sys/fs/cgroup\n';
@@ -264,6 +275,21 @@ function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): s
   mkdirSync(join(cgroupRoot, own), { recursive: true });
   writeFileSync(join(cgroupRoot, own, 'memory.max'), `${fixture.memoryMax ?? '12884901888'}\n`);
   writeFileSync(join(cgroupRoot, own, 'memory.swap.max'), `${fixture.swapMax ?? '0'}\n`);
+  const optional = {
+    'pids.max': fixture.pidsMax === undefined ? '4096' : fixture.pidsMax,
+    'cpuset.cpus.effective': fixture.cpus === undefined ? '0-2' : fixture.cpus,
+    'pids.events':
+      fixture.pidsEventsMax === undefined
+        ? 'max 0'
+        : fixture.pidsEventsMax && `max ${fixture.pidsEventsMax}`,
+    'pids.peak': fixture.pidsPeak === undefined ? '90' : fixture.pidsPeak,
+  };
+  for (const [file, value] of Object.entries(optional))
+    if (value !== null) writeFileSync(join(cgroupRoot, own, file), `${value}\n`);
+  writeFileSync(
+    join(cgroupRoot, own, 'memory.events'),
+    `low 0\nhigh 0\nmax 0\noom 0\noom_kill ${fixture.oomKills ?? '0'}\noom_group_kill 0\n`,
+  );
   return script.replace(assignment, `cgroup_root='${cgroupRoot}'\n`);
 }
 
@@ -297,6 +323,9 @@ case "$*" in
   *ci-run-runtime.ts*)
     printf '%s\\n' "$*" >> "$NX_CALLS"
     printf 'runtime environment sentinel=%s nodeOptions=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" "\${NODE_OPTIONS:-}" >> "$SCOPE_CALLS"
+    # The scope's wrapper is this process's grandparent (wrapper, timeout, runtime): killing it
+    # stands in for the OOM killer or a foreign signal taking the wrapper down with the gate.
+    if [ -n "\${KILL_SCOPE_WRAPPER:-}" ]; then kill -9 "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
     exit "\${RUNTIME_STATUS:-0}" ;;
 esac
 exec '${process.execPath}' "$@"
@@ -532,25 +561,42 @@ test('the heavy leaf step refuses a missing, non-numeric or zero phase budget be
 // `--expand-environment=no`, the setpriv line or `env -i "${gate_environment[@]}"` (the runtime
 // then saw an empty sentinel) failed this test, and so did deleting the heap pin (empty
 // nodeOptions). A 137 from the capped phase must reach the phase end record and the step.
+// A-CI-LEAF-MEMORYMAX-2: the scope also carries TasksMax=4096 and AllowedCPUs=0-2 in the explicit
+// system.slice, and a wrapper inside it copies pids.events and memory.events into the end record.
+// Proof (2026-11-21): dropping `-p "TasksMax=$tasks_max"`, `-p "AllowedCPUs=$allowed_cpus"` or
+// `--slice=system.slice` failed the ledger; running the gate without the events wrapper left
+// `runtime headroom scope events unavailable` where the counts were expected.
 test.each(headroomShards)(
-  '%s step runs its Nx phase in a MemoryMax=12G scope as this user with its environment',
+  '%s step runs its Nx phase in a capped scope as this user with its environment',
   async (job, name, partition) => {
     const id = (flag: string) =>
       Bun.spawnSync(['id', flag], { stdout: 'pipe' }).stdout.toString().trim();
     const sentinel = 'spaced value=with\tseparators';
-    for (const [status, inherited, nodeOptions] of [
-      ['0', '', '--max-old-space-size=4096'],
-      ['137', '--enable-source-maps', '--enable-source-maps --max-old-space-size=4096'],
-      ['0', '--max-old-space-size=4096', '--max-old-space-size=4096'],
+    for (const [status, inherited, nodeOptions, refused, killed, peak] of [
+      ['0', '', '--max-old-space-size=4096', '0', '0', '90'],
+      [
+        '137',
+        '--enable-source-maps',
+        '--enable-source-maps --max-old-space-size=4096',
+        '3',
+        '1',
+        '4096',
+      ],
+      ['0', '--max-old-space-size=4096', '--max-old-space-size=4096', '0', '0', '90'],
     ] as const) {
       const h = history();
-      const execution = runStep(h, step(job, name), {
-        GATE_MODE: 'affected',
-        GATE_BASE: h.base,
-        RUNTIME_STATUS: status,
-        GATE_ENVIRONMENT_SENTINEL: sentinel,
-        NODE_OPTIONS: inherited,
-      });
+      const execution = runStep(
+        h,
+        step(job, name),
+        {
+          GATE_MODE: 'affected',
+          GATE_BASE: h.base,
+          RUNTIME_STATUS: status,
+          GATE_ENVIRONMENT_SENTINEL: sentinel,
+          NODE_OPTIONS: inherited,
+        },
+        { pidsEventsMax: refused, oomKills: killed, pidsPeak: peak },
+      );
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
         Number(status),
       );
@@ -558,8 +604,9 @@ test.each(headroomShards)(
       const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
       expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
       const scope = (suffix: string) =>
-        `systemd-run --scope --quiet --collect --expand-environment=no --unit=${unit}${suffix} ` +
-        '-p MemoryMax=12G -p MemorySwapMax=0 -p OOMPolicy=continue -- setpriv';
+        'systemd-run --scope --quiet --collect --expand-environment=no --slice=system.slice ' +
+        `--unit=${unit}${suffix} -p MemoryMax=12G -p MemorySwapMax=0 -p OOMPolicy=continue ` +
+        '-p TasksMax=4096 -p AllowedCPUs=0-2 -- setpriv';
       const identity = `setpriv --reuid=${id('-u')} --regid=${id('-g')} --groups=${id('-G').replaceAll(' ', ',')} -- env`;
       expect(ledger.slice(0, 5)).toEqual([
         scope('-probe'),
@@ -574,15 +621,24 @@ test.each(headroomShards)(
         `ci-run-runtime.ts ${partition} ${h.base} ${h.merge} . affected`,
       );
       const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
-      const heap = / heapSizeLimit=([0-9]+) memoryMax=12G scope=(\S+)\n/.exec(log);
+      const heap =
+        / heapSizeLimit=([0-9]+) memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=(\S+)\n/.exec(
+          log,
+        );
       expect(heap?.[2]).toBe(`${unit}.scope`);
       // The pinned 4096 MiB old space, measured by Node inside the probe scope.
       expect(Number(heap?.[1])).toBeGreaterThanOrEqual(4294967296);
       expect(log).toMatch(
         new RegExp(`runtime phase end partition=${partition} .* exit=${status}\n`),
       );
+      const events = log.indexOf(
+        `runtime headroom scope events pidsEventsMax=${refused} memoryEventsOomKill=${killed} pidsPeak=${peak}\n`,
+      );
+      expect(events, log).toBeGreaterThan(
+        log.indexOf(`runtime headroom end partition=${partition}`),
+      );
       const kernel = log.indexOf('runtime headroom kernel oom since=@');
-      expect(kernel).toBeGreaterThan(log.indexOf(`runtime headroom end partition=${partition}`));
+      expect(kernel).toBeGreaterThan(events);
       expect(log.slice(kernel)).toContain('Out of memory: Killed process 4242 (bun)');
       expect(log.slice(kernel)).not.toContain('apparmor');
     }
@@ -592,6 +648,8 @@ test.each(headroomShards)(
 // Proof (2026-11-21): with the probe deleted, an absent systemd-run reached ci-run-runtime.ts;
 // with the probe's report check deleted, memory.max=max, a 3 GiB swap allowance and a 2240 MB heap
 // all reached it; with the heap-figure refusal deleted, a conflicting 2048 pin reached it.
+// A-CI-LEAF-MEMORYMAX-2: with pids.max and cpuset.cpus.effective dropped from the probe and its
+// report check, pids.max=max, an absent pids.max, cpus 0-3 and an absent cpuset file reached it.
 test.each(headroomShards)(
   '%s step refuses before runtime work when the memory scope or heap pin is wrong',
   async (job, name) => {
@@ -600,6 +658,10 @@ test.each(headroomShards)(
       ['sudo without a password', { SUDO_STATUS: '1' }, {}, 'cannot open a MemoryMax=12G'],
       ['an unlimited memory.max', {}, { memoryMax: 'max' }, "reported 'memoryMax=max swapMax=0"],
       ['a swap allowance', {}, { swapMax: '3221225472' }, 'swapMax=3221225472'],
+      ['an unlimited pids.max', {}, { pidsMax: 'max' }, 'swapMax=0 pidsMax=max cpus=0-2'],
+      ['an absent pids.max', {}, { pidsMax: null }, 'swapMax=0 pidsMax= cpus=0-2'],
+      ['all four vCPUs', {}, { cpus: '0-3' }, 'pidsMax=4096 cpus=0-3 heapSizeLimit='],
+      ['no cpuset controller', {}, { cpus: null }, 'pidsMax=4096 cpus= heapSizeLimit='],
       ['a constrained heap', { FAKE_NODE_HEAP: '2348810240' }, {}, 'heap limit 2348810240'],
       [
         'a conflicting heap figure',
@@ -627,7 +689,7 @@ test.each(headroomShards)(
       expect(stderr, fault).toContain(message);
       expect(await execution.calls.text(), fault).not.toContain('ci-run-runtime.ts');
       if (!message.startsWith('A-NODE-HEAP-1')) {
-        expect(stderr, fault).toContain('A-CI-LEAF-MEMORYMAX-1: ');
+        expect(stderr, fault).toContain('A-CI-LEAF-MEMORYMAX-2: ');
         const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
         expect(log, fault).toContain('refusing to run the gate uncapped');
         expect(log, fault).not.toContain('runtime headroom start');
@@ -681,12 +743,14 @@ test.each(headroomShards)(
       expect(start, status).toBe(1);
       expect(lines[start], status).toMatch(
         new RegExp(
-          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G scope=ci-gate-${partition}-[0-9]+\\.scope$`,
+          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=ci-gate-${partition}-[0-9]+\\.scope$`,
         ),
       );
+      // The first sample precedes the gate scope, and the fixture never creates its cgroup, so the
+      // scope fields read `unavailable`; `samples the gate scope's own cgroup` covers live values.
       expect(
         lines.filter((line) =>
-          /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+$/.test(
+          /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable$/.test(
             line,
           ),
         ).length,
@@ -714,6 +778,72 @@ test.each(headroomShards)(
   },
 );
 
+/**
+ * The sampler's functions and the scope's cgroup path, cut from the production step text. The fake
+ * chain opens no cgroup and the sampler first fires 30 s into the phase, so the full-step tests see
+ * the scope fields only as `unavailable`; this runs the same functions against a scratch cgroup.
+ */
+function samplerShell(production: string): string {
+  const definition = (name: string) => {
+    const match = new RegExp(`^${name}\\(\\) \\{(?: .*\\}|\\n[\\s\\S]*?\\n\\})\\n`, 'm').exec(
+      production,
+    );
+    if (!match) throw new Error(`Missing ${name} in the production step`);
+    return match[0];
+  };
+  const path = /^scope_cgroup=.*\n/m.exec(production)?.[0];
+  if (path === undefined) throw new Error('Missing scope_cgroup in the production step');
+  return (
+    ['headroom_utc', 'is_count', 'sample_scope', 'sample_headroom'].map(definition).join('') + path
+  );
+}
+
+// A-CI-LEAF-MEMORYMAX-2: each sample carries the gate scope's pids, memory, peak and CPU counters,
+// read from outside under the explicit system.slice path, or `unavailable` for all four when the
+// scope is absent, a file is missing or unreadable, or a value is not a count. A sample never fails.
+// Proof (2026-11-21): deleting `"$(sample_scope)"` from sample_headroom, or the is_count check,
+// failed this test; so did reading the path under `$cgroup_root/$scope_unit.scope`.
+test.each(headroomShards)("%s step samples the gate scope's own cgroup", (job, name) => {
+  const h = history();
+  const unit = 'ci-gate-test-4242';
+  const scope = join(h.root, 'cgroup', 'system.slice', `${unit}.scope`);
+  const shell = samplerShell(step(job, name));
+  const sample = () => {
+    const invocation = Bun.spawnSync(['bash', '-c', `set -euo pipefail\n${shell}sample_headroom`], {
+      env: { ...process.env, cgroup_root: join(h.root, 'cgroup'), scope_unit: unit },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    return invocation.stdout.toString();
+  };
+  const unavailable =
+    ' scopePids=unavailable scopeMemKiB=unavailable scopePeakKiB=unavailable scopeCpuUsec=unavailable\n';
+  expect(sample()).toEndWith(unavailable);
+  mkdirSync(scope, { recursive: true });
+  const counters = {
+    'pids.current': '37',
+    'memory.current': String(5 * 1024 * 1024),
+    'memory.peak': String(9 * 1024 * 1024 + 512),
+    'cpu.stat': 'usage_usec 123456789\nuser_usec 100000000\nsystem_usec 23456789',
+  };
+  for (const [file, value] of Object.entries(counters))
+    writeFileSync(join(scope, file), `${value}\n`);
+  expect(sample()).toMatch(
+    /^runtime headroom sample utc=\S+ memAvailableKiB=[0-9]+ node=[0-9]+ bun=[0-9]+ topRssKiB=[0-9]+ top=\S+ scopePids=37 scopeMemKiB=5120 scopePeakKiB=9216 scopeCpuUsec=123456789\n$/,
+  );
+  writeFileSync(join(scope, 'pids.current'), 'max\n');
+  expect(sample(), 'a non-count').toEndWith(unavailable);
+  writeFileSync(join(scope, 'pids.current'), '37\n');
+  chmodSync(join(scope, 'memory.peak'), 0o000);
+  expect(sample(), 'an unreadable memory.peak').toEndWith(unavailable);
+  rmSync(join(scope, 'memory.peak'));
+  expect(sample(), 'an absent memory.peak').toEndWith(unavailable);
+  writeFileSync(join(scope, 'memory.peak'), '0\n');
+  writeFileSync(join(scope, 'cpu.stat'), 'user_usec 1\n');
+  expect(sample(), 'a cpu.stat without usage_usec').toEndWith(unavailable);
+});
+
 test.each(headroomShards)(
   '%s headroom telemetry failures leave the gate status unchanged',
   async (job, name, partition) => {
@@ -739,6 +869,47 @@ test.each(headroomShards)(
       expect(
         lines.some((line) => line.startsWith(`runtime phase end partition=${partition}`)),
       ).toBe(true);
+    }
+    // The wrapper's copy, read by the end record without changing the gate status:
+    // - an absent pids.events leaves it malformed: `unavailable`;
+    // - an absent pids.peak is recorded in it as `pidsPeak=unavailable`, the counts still stand;
+    // - a killed wrapper never writes it: `absent`, and the step reports the kill's 137.
+    // Proof (2026-11-21): accepting any copy text printed `pidsEventsMax=`; reading pids.peak
+    // without its existence check failed the absent-peak case; dropping the empty-copy branch
+    // printed `unavailable` for the killed wrapper.
+    for (const [status, fixture, env, expected, code] of [
+      ['0', { pidsEventsMax: null }, {}, 'runtime headroom scope events unavailable', 0],
+      ['7', { pidsEventsMax: null }, {}, 'runtime headroom scope events unavailable', 7],
+      [
+        '0',
+        { pidsPeak: null },
+        {},
+        'runtime headroom scope events pidsEventsMax=0 memoryEventsOomKill=0 pidsPeak=unavailable',
+        0,
+      ],
+      ['0', {}, { KILL_SCOPE_WRAPPER: '1' }, 'runtime headroom scope events absent', 137],
+    ] as const) {
+      const h = history();
+      const execution = runStep(
+        h,
+        step(job, name),
+        { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status, ...env },
+        fixture,
+      );
+      expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(code);
+      const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+      expect(lines, expected).toContain(expected);
+      expect(
+        lines.some(
+          (line) =>
+            line.startsWith(`runtime phase end partition=${partition} `) &&
+            line.endsWith(` exit=${String(code)}`),
+        ),
+        expected,
+      ).toBe(true);
+      expect(lines.some((line) => line.startsWith('runtime headroom kernel oom since=@'))).toBe(
+        true,
+      );
     }
     // The start record is strict: a missing tool fails before any gate work.
     const h = history();

@@ -276,3 +276,22 @@ The cap's first hosted run (#964, job 136732392386) failed `gate workspace` afte
 Node heap. Inside the 12 GiB scope Node defaults to a 2240 MB heap. The steps therefore pin
 `--max-old-space-size=4096`, as the gate hosts have done since #956 (A-NODE-HEAP-1). That is the
 uncapped runner's default figure, so lint durations should match the earlier uncapped runs.
+
+## Task and CPU caps, 2026-11-21
+
+On main `b7ad74ab4` (run 44917747487) the capped `workspace` job took 20m41s, and the leaves
+`wbs-core` (7m32s), `tool-devsync` (20m46s) and `wbs-store-sqlite` (20m50s) passed. The
+`tool-fleet` leaf was lost again after 67 minutes, with no log, inside its memory cap
+([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+A-CI-LEAF-MEMORYMAX-2 adds `TasksMax=4096` and `AllowedCPUs=0-2` to the same scope. The Nx phase
+now runs on three of the runner's four vCPUs, which changes no budget. If the phase were entirely
+CPU-bound, it would take at most 4/3 as long:
+
+| Shard        | Measured               | At 4/3   | Phase   |
+| ------------ | ---------------------- | -------- | ------- |
+| `tool-fleet` | 42.9 min task estimate | 57.2 min | 75 min  |
+| `workspace`  | 20m41s job (run above) | 27.6 min | 105 min |
+
+The other leaves are shorter than `tool-fleet`. The next hosted run's samples now carry the
+scope's `scopeCpuUsec`, so the real slowdown can be read from them.
