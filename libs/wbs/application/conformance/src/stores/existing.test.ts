@@ -125,6 +125,8 @@ describe('the migrated existing store kits', () => {
       'stepCatalogue.unbindStep:borrowed-expiry',
       'stepCatalogue.unbindStep:detached-refusal',
       'stepCatalogue.unbindStep:source-close',
+      'stepCatalogue.readRetiredCodes:owned-detached-state',
+      'stepCatalogue.readRetiredCodes:writer-snapshot-and-rollback',
       'stepCatalogue.factRead:estimate-borrowed-expiry',
       'stepCatalogue.factRead:estimate-public-source-close',
       'stepCatalogue.factWrite:estimate-after-unbind',

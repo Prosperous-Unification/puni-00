@@ -10,7 +10,11 @@ import {
 import type { CaseExecution, ExecutionReport, TerminalCaseStatus } from './case-runner';
 import type { Gap, SourceDeclaration } from './source-declaration';
 
-/** The implemented source-family cases, independently enumerated from the manifest. */
+/**
+ * The implemented source-family cases, independently enumerated from the manifest.
+ * Proof: omitting the two readRetiredCodes IDs failed the existing independent
+ * implemented-inventory equality after actual registrations were reached (v326).
+ */
 export const SOURCE_CONFORMANCE_CASES = [
   'livePlans.read:legacy-and-absence',
   'workPackages.create:steps',
@@ -68,6 +72,8 @@ export const SOURCE_CONFORMANCE_CASES = [
   'stepCatalogue.unbindStep:borrowed-expiry',
   'stepCatalogue.unbindStep:detached-refusal',
   'stepCatalogue.unbindStep:source-close',
+  'stepCatalogue.readRetiredCodes:owned-detached-state',
+  'stepCatalogue.readRetiredCodes:writer-snapshot-and-rollback',
   'stepCatalogue.factRead:estimate-borrowed-expiry',
   'stepCatalogue.factRead:estimate-public-source-close',
   'stepCatalogue.factWrite:estimate-after-unbind',

@@ -128,7 +128,7 @@ describe('terminal certification', () => {
     // while the same case remained excluded.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('capability status mismatch: work packages: work packages.create:steps (passed)');
+    }).toThrow('capability status mismatch: workPackages: workPackages.create:steps (passed)');
   });
 
   it('absent accounts do not create fake methods', async () => {

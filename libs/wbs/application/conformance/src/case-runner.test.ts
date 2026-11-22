@@ -39,7 +39,7 @@ describe('case execution', () => {
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow(
-      'failed cases: work packages: work packages.create:steps (setup: injected setup failure)',
+      'failed cases: workPackages: workPackages.create:steps (setup: injected setup failure)',
     );
   });
 
@@ -70,7 +70,7 @@ describe('case execution', () => {
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow(
-      'failed cases: work packages: work packages.create:steps (assertion: injected assertion failure)',
+      'failed cases: workPackages: workPackages.create:steps (assertion: injected assertion failure)',
     );
   });
 
@@ -105,7 +105,7 @@ describe('case execution', () => {
         report,
       });
     }).toThrow(
-      'failed cases: work packages: work packages.create:steps (cleanup: injected close failure)',
+      'failed cases: workPackages: workPackages.create:steps (cleanup: injected close failure)',
     );
     const execution = report.cases[0];
     expect(execution.status).toBe('failed');
@@ -142,7 +142,7 @@ describe('case execution', () => {
     // expected `failed cases ... (assertion: undefined)`, received no throw.
     expect(() => {
       certifyExecution({ declaration, registrations, report });
-    }).toThrow('failed cases: work packages: work packages.create:steps (assertion: undefined)');
+    }).toThrow('failed cases: workPackages: workPackages.create:steps (assertion: undefined)');
   });
 
   it('an undefined assertion rejection is retained when cleanup also fails', async () => {
@@ -169,7 +169,7 @@ describe('case execution', () => {
     expect(() => {
       certifyExecution({ declaration, registrations, report });
     }).toThrow(
-      'failed cases: work packages: work packages.create:steps (cleanup: undefined; cleanup failed: injected close failure)',
+      'failed cases: workPackages: workPackages.create:steps (cleanup: undefined; cleanup failed: injected close failure)',
     );
   });
 
