@@ -108,6 +108,7 @@ async function runPerformanceLevel(
   descriptors?: ReturnType<typeof healthyScratchDescriptors>,
   fault?:
     | 'first-signal'
+    | 'readiness-hold'
     | 'waitpid-echild'
     | 'partial-evidence'
     | 'selection-mutate'
@@ -166,6 +167,12 @@ async function runPerformanceLevel(
     environment['PUNI_VERDICT_FAULT_MARKER'] = verdictMarker;
   if (fault === 'selection-mutate')
     environment['PUNI_SELECTION_SPAWN_TRACE'] = join(root, '..', 'observed-spawns.jsonl');
+  if (fault === 'readiness-hold') {
+    const observed = launchedDescriptors?.[0];
+    if (observed === undefined) throw Error('Performance readiness hold lacks a service');
+    environment['PUNI_READINESS_FAULT_URL'] = observed.url;
+    environment['PUNI_READINESS_FAULT_MARKER'] = join(root, '..', 'readiness-held');
+  }
   const preloadArguments =
     fault === undefined
       ? []
@@ -1425,7 +1432,13 @@ describe('Performance level target production boundary', () => {
 
   it('a cancelled supervisor stops its owned services and frees the shifted ports', async () => {
     const fixture = await committedPerformanceFixture('hang');
-    const run = runPerformanceLevel(fixture.root, fixture.policyPath).then(
+    const held = Bun.file(join(fixture.root, '..', 'readiness-held'));
+    const run = runPerformanceLevel(
+      fixture.root,
+      fixture.policyPath,
+      undefined,
+      'readiness-hold',
+    ).then(
       () => new Error('cancelled run unexpectedly succeeded'),
       (error: unknown) => error,
     );
@@ -1436,7 +1449,9 @@ describe('Performance level target production boundary', () => {
     // The HTTP observer passed with the same 1000 ms pause before returning.
     // HTTP observation leaves the supervisor's ports available throughout startup.
     while (!ready && Date.now() - started < 60_000) {
-      ready = (await Promise.all(shiftedPorts().map(isServiceReady))).every(Boolean);
+      ready =
+        (await held.exists()) &&
+        (await Promise.all(shiftedPorts().map(isServiceReady))).every(Boolean);
       if (!ready) {
         // Proof: a foreign listener on 10200 surfaced the production occupied-port
         // refusal here in 241 ms, rather than reaching the readiness deadline.

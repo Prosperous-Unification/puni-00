@@ -60,7 +60,7 @@ export class TestLevelExecution {
     environment: Record<string, string>,
     output?: { stdout: number | 'pipe'; stderr: number | 'pipe' },
   ): Bun.Subprocess {
-    this.assertOpen();
+    this.assertActive();
     try {
       const child = this.native.spawn(argv, cwd, environment, output);
       this.children.add(child);
@@ -74,7 +74,7 @@ export class TestLevelExecution {
 
   /** Create only fresh owned judge scratch; no caller-supplied existing directory becomes disposable. */
   createJudgeDirectory(temporaryDirectory: string): string {
-    this.assertOpen();
+    this.assertActive();
     const directory = mkdtempSync(join(temporaryDirectory, 'puni-burokrat-cwd-'));
     this.judgeDirectories.add(directory);
     return directory;
@@ -156,7 +156,8 @@ export class TestLevelExecution {
     if (this.cancellation !== undefined) throw this.cancellation.cause;
   }
 
-  private assertOpen(): void {
+  /** Preserve owned cancellation before continuing work, even while child cleanup is pending. */
+  assertActive(): void {
     if (this.cancellation !== undefined) throw this.cancellation.cause;
     if (this.isClosing) throw new Error('test-level execution is closing');
   }

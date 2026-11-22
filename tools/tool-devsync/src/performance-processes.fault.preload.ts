@@ -26,6 +26,23 @@ let armedInventory = false;
 let failedInventory = false;
 let exitedScanPid: string | undefined;
 
+if (fault === 'readiness-hold') {
+  const url = process.env['PUNI_READINESS_FAULT_URL'];
+  const marker = process.env['PUNI_READINESS_FAULT_MARKER'];
+  if (url === undefined || marker === undefined) throw Error('Readiness fault input is absent');
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (...args: Parameters<typeof fetch>): Promise<Response> => {
+      const response = await nativeFetch(...args);
+      if (args[0] !== url || !response.ok) return response;
+      await response.body?.cancel();
+      await nativeWriteFile(marker, 'held');
+      return new Response(null, { status: 503 });
+    },
+    { preconnect: nativeFetch.preconnect },
+  );
+}
+
 if (fault === 'descriptor-cancel-reject') {
   const nativeCancel: unknown = Reflect.get(ReadableStreamDefaultReader.prototype, 'cancel');
   if (typeof nativeCancel !== 'function')

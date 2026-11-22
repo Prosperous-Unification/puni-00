@@ -70,11 +70,14 @@ if (mode === 'replace-charged') {
   // This owned fixture launches only the selected native-stdio helper overload; retain its exact native child capability.
   Bun.spawn = intercepted as typeof Bun.spawn;
 }
+let lastGuardReport = 'no guard progress reported';
 const guard = new SingletonGuard(
   runtime,
   () => lock,
   environment,
-  () => undefined,
+  (line) => {
+    lastGuardReport = line;
+  },
 );
 function publish(phase: string, fields: Readonly<Record<string, unknown>> = {}): void {
   const draft = join(root, 'receipt.draft');
@@ -114,7 +117,13 @@ try {
   if (queued.kind !== 'queued') throw new Error(queued.reason);
   await guard.tick();
   if (mode === 'replace-charged') {
-    await until(() => runtime.guardObligation().holder !== null);
+    const deadline = performance.now() + 8000;
+    while (runtime.guardObligation().holder === null) {
+      if (performance.now() >= deadline)
+        throw new Error('initial charged guard did not converge: ' + lastGuardReport);
+      await guard.tick();
+      await Bun.sleep(20);
+    }
     const old = runtime.guardObligation().holder;
     if (old === null) throw new Error('fixture original guard missing');
     const admitted = runtime.pollHostJob(queued.ticket, () => undefined);

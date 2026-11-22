@@ -510,7 +510,12 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
     const pending = new Set(descriptors.map((descriptor) => descriptor.url));
     const failures = new Map<string, string>();
     const deadline = Date.now() + deadlineMs;
-    while (Date.now() < deadline) {
+    for (;;) {
+      // Proof: holding the supervisor's readiness response while all three ports were healthy
+      // and sending SIGTERM failed the production cancellation test at its 15-second exit bound.
+      execution.assertActive();
+      if (pending.size === 0) return;
+      if (Date.now() >= deadline) break;
       for (const [index, descriptor] of descriptors.entries()) {
         if (!pending.has(descriptor.url)) continue;
         const child = children.at(index);
@@ -534,8 +539,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
           failures.set(descriptor.url, String(cause));
         }
       }
-      if (pending.size === 0) return;
-      await Bun.sleep(100);
+      if (pending.size > 0) await Bun.sleep(100);
     }
     throw new Error(
       `Performance readiness timed out: ${[...pending].map((url) => `${url} (${failures.get(url) ?? 'non-2xx/3xx response'})`).join(', ')}`,
