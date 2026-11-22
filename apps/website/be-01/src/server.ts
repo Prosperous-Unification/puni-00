@@ -1497,6 +1497,35 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         origin,
       );
     }
+    if (path === '/operator/chat/reset' && request.method === 'POST') {
+      const session = operatorSession(request, now);
+      // Proof: allowing a missing session made an unauthenticated reset return 204.
+      if (!session) return attachCors(failure('operator_unauthorized', 401), origin);
+      const csrf = request.headers.get('x-puni-csrf');
+      // Proof: removing the CSRF check made the wrong-token reset return 204.
+      if (!csrf || !equal(digest(csrf), session.csrfHash))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const resetRate = admitRequestRate('/operator/chat/reset', source, now);
+      if (resetRate.kind !== 'admitted') return attachCors(rateRefusal(resetRate), origin);
+      const claim = draftClaim(request);
+      const claimHash = claim === null ? null : digest(claim);
+      const draft = claimHash === null ? null : store.findDraft(claimHash, now);
+      const conversation = draft === null ? null : store.findConversation(draft.id);
+      const latest =
+        conversation === null ? null : store.findLatestConversationOperation(conversation.id);
+      const browser = secret();
+      store.resetBrowserAllowance(claimHash, digest(browser), now, 'fresh');
+      // Proof: omitting this abort left the operator fixture's active provider signal live.
+      if (latest?.state === 'inflight') conversationAborts.get(latest.id)?.abort();
+      const headers = new Headers({
+        'Set-Cookie': cookie(browserCookie, browser, 31 * 24 * 60 * 60),
+        'Cache-Control': 'no-store',
+      });
+      // Proof: omitting draft cookie expiry made the mounted fresh-session cookie check fail.
+      headers.append('Set-Cookie', cookie(draftCookie, '', 0));
+      headers.append('Set-Cookie', cookie(replayCookie, '', 0));
+      return attachCors(new Response(null, { status: 204, headers }), origin);
+    }
     if (path === '/operator/guardrails' && request.method === 'GET') {
       if (!operatorSession(request, now))
         return attachCors(failure('operator_unauthorized', 401), origin);

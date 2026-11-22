@@ -503,3 +503,41 @@ test('migration rollback refuses to discard orphaned retained financial records'
   expect(database.query('SELECT count(*) AS count FROM paid_attempt').get()).toEqual({ count: 1 });
   database.close();
 });
+
+test('a fresh reset renews only the testing browser and charges each new conversation normally', () => {
+  const { store, path } = fixture();
+  for (let index = 0; index < 3; index++) {
+    const claim = `before-${String(index)}`;
+    const at = now + index * 61_000;
+    draft(store, claim, 'old-browser', at);
+    stop(store, ask(claim, 'shared', at));
+  }
+
+  const resetAt = now + 183_000;
+  expect(store.resetBrowserAllowance('before-2', 'new-browser', resetAt, 'fresh')).toBe(true);
+  expect(store.hasBrowserClaim('new-browser', resetAt)).toBe(true);
+  expect(store.admitConversationOperation(ask('before-2', 'shared', resetAt)).kind).toBe(
+    'draft_unavailable',
+  );
+  using database = new Database(path, { readonly: true });
+  expect(
+    database
+      .query("SELECT browser_hash FROM intake_draft_browser WHERE draft_id = 'before-2'")
+      .get(),
+  ).toEqual({ browser_hash: 'old-browser' });
+  expect(store.readSiteSpend(resetAt)).toBe(3000);
+
+  draft(store, 'ordinary', 'ordinary', resetAt);
+  expect(store.admitConversationOperation(ask('ordinary', 'shared', resetAt)).kind).toBe(
+    'rate_limited',
+  );
+  for (let index = 0; index < 4; index++) {
+    const claim = `after-${String(index)}`;
+    const at = resetAt + index * 61_000;
+    draft(store, claim, 'new-browser', at);
+    if (index < 3) stop(store, ask(claim, 'shared', at));
+    else
+      expect(store.admitConversationOperation(ask(claim, 'shared', at)).kind).toBe('rate_limited');
+  }
+  expect(store.readSiteSpend(resetAt)).toBe(6000);
+});
