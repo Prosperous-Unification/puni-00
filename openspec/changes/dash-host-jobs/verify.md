@@ -5049,7 +5049,7 @@ own.
 | `bunx prettier --check` on the changed files                                                                                   | all matched files use Prettier code style                                                                                                         |
 | `bunx openspec validate --all --json`                                                                                          | exit 0; 352 items, 352 passed, 0 failed                                                                                                           |
 | `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                 | exit 0                                                                                                                                            |
-| a `gate` calibration on h2puni across a backup hour                                                                            | not run: no host touched; follows the launcher refresh (S28-A2)                                                                                   |
+| a `gate` calibration on h2puni across a backup hour                                                                            | run 2026-11-22 (job ad0a8150, launcher 9d5778028): exit 0, record complete, see the host proof below                                              |
 
 | Injected fault                                                         | Observed                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -5128,3 +5128,23 @@ long-lived labelled container that was never bounded.
 | the job's own removed container judged by lifetime | `a container labelled with this job removed before inspection stays unverified` failed: verdict `lifetime-bounded`                                                                                                |
 | the die-before-create check removed                | `a removed host-service container whose die precedes its create stays unverified` failed: verdict `lifetime-bounded`, lifetime -5.0 s                                                                             |
 | the earlier negatives rerun on the fixed code      | each still fails its test: the `No such container` branch 7, die times 5, the wait 1, the missing-die check 1, the lifetime comparison 1, the `Action` check 1, `isAttributed` 1, the shape 1, the audit branch 1 |
+
+### Host proof (h2puni, 2026-11-22)
+
+The first complete h2puni `gate` calibration record. Series `2026-11-22b` cold run, Dash job
+`ad0a8150-7fe0-4801-b1ec-242ad545bc28`, launcher `9d5778028` (carries #981), 17:32:15Z to
+22:52:24Z, `GATE_EXIT=0`, no failed Nx task. The hourly keinos/sqlite3 snapshot containers from
+claire #144 ran inside the job's window; the settlement printed, in this order:
+
+```
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 2 leftover processes in dash-job-ad0a8150-7fe0-4801-b1ec-242ad545bc28.scope after its session ended; SIGTERM
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 attributed 058694eb9e4a host-service=sqlite3-backup from its create event (ended before inspection, lifetime 0.2 s)
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 compute released: owned process group terminal and declared containers gone
+ops job: ad0a8150-7fe0-4801-b1ec-242ad545bc28 tmp released: tmp directory removed and holds verified
+```
+
+No `attribution incomplete` line. The previous series (`2026-11-22a` cold, job `e1b18304`,
+launcher `b17861f83` without #981) ended with two `unverified: container ended or was unreadable
+before its bound was read` lines for the same backup containers, so the same host, backup and
+job type separate the two Dash versions. Log: `~/gate-calibrate-cold-2026-11-22b-h2.log` on
+h2puni; the record feeds `ops job propose --type gate` after the two warm runs of the series.
