@@ -472,7 +472,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Service of type NodePort in a staging namespace denied at admission; two fixture
       builds of one app finishing in reverse order, the later commit's render staying in
       the pins directory and the earlier one refused; a fixture build whose source commit
-      adds a migration refused by the render step; a recreated Tailscale proxy pod
+      edits an applied migration refused by the render step; a recreated Tailscale proxy pod
       answering again under its name, and what that needed from the owner.
       Stop: a unit cannot become Healthy, or validation cannot pass with one node. Then
       design decisions 3 and 6 are revised before the step that part gates. Fallbacks already
@@ -697,9 +697,10 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       the app is not a superset, by name and hash, of that of the commit the directory's
       head names is refused with a message that names the attended path of design
       decision 9, because a removed or edited migration cannot be reversed from the
-      candidate image (fault: compare counts only); a WBS render without the schema hook
-      of slice 3.9, or whose hook image differs from the backend's, is refused (fault:
-      read the Deployment alone); a directory that holds the `HOLD` marker of design decision 7 is
+      candidate image (fault: compare counts only); a WBS render with a backend replica
+      and without the schema hook of slice 3.9, or whose hook image differs from the
+      backend's, is refused, and so is a render at zero replicas that carries the hook
+      (fault: read the Deployment alone); a directory that holds the `HOLD` marker of design decision 7 is
       left as it is and the step exits nonzero, so a publication during a hold starts no
       writer (fault: clear the directory before looking for the marker); the
       promotion check refuses a base manifest changed since the commit staging ran
@@ -742,53 +743,91 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       deploy tooling's owner for carrying the hook in the staging overlay (slice 3.5). In
       `tools/tool-deploy/src/k8s`: a script `staging-schema-hook`, run with `bun` from the
       candidate backend image's own directory, which calls only that image's CLIs. In
-      order: it refuses an unfinished attempt of another candidate; asks
-      `migrate-capabilities-cli.ts` for `capture-v1` and `restore-v1-sha256`; runs
+      order: it fails when no store is at `DB_PATH`; on an attempt record it never
+      captures and never exits 0: for another candidate, or for a record that marks a
+      failed reversal, it refuses and prints the manual completion command, and for its
+      own candidate it runs the reversal below against the recorded capture, removes the
+      record on an equal ledger and exits nonzero; it asks
+      `migrate-capabilities-cli.ts` for `capture-v1` and `restore-v1-sha256`; on every
+      run, also with nothing pending, it runs `mcp-service-settings-check-cli.ts` and
+      `trusted-issuer-audience-check-cli.ts` on the live store with the candidate's
+      environment, as the release coordinator does before its snapshot, and fails on
+      either refusal or on a candidate that lacks either file; runs
       `migrate-status-cli.ts --capture` with target `staging`, the source commit as
       attempt and the image digest as candidate; exits 0 when the pending set is empty,
-      having written nothing; otherwise checks free space on the claim, takes a
+      having written nothing; otherwise requires free space on the claim of at least
+      twice the store's size plus 1 GiB, takes a
       `VACUUM INTO` snapshot with `integrity_check` and a SHA-256, writes the capture's
-      bytes and SHA-256 beside it under `/data/schema-hook` and an attempt record last;
+      bytes and SHA-256 and the names of the store's schema objects beside it under
+      `/data/schema-hook` and an attempt record last;
       runs `migrate-cli.ts`; captures again and requires the applied set to be the
-      captured one plus the captured pending one, with nothing pending. On a failure
+      captured one plus the captured pending one, with nothing pending; and removes the
+      snapshot kept from the attempt before only now. On a failure
       after the attempt record it runs
       `migrate-down-cli.ts --capture-file --capture-sha256 --target --attempt --candidate`,
-      captures again, requires the complete name and hash ledger to equal the first
-      capture, removes the attempt record and exits nonzero; if the reversal or that
+      captures again, requires the complete name and hash ledger and the schema
+      objects to equal the first capture's, removes the attempt record and exits
+      nonzero; if the reversal or that
       comparison fails it keeps the record and the snapshot, prints the manual
       completion command with the capture's path and SHA-256 and exits nonzero. The
       script is carried byte for byte in a ConfigMap of the staging overlay, as the
       backup runner is, with a test of the equality. The tool also prints the same Job
       as a plain manifest, without the hook annotations, for the attended schema step
-      of design decision 9. The staging overlay's render holds,
+      of design decision 9, and for a removal it prints the comparison of that
+      decision: the set `--to=<name>` would reverse beside the intended one, and each
+      selected `down.sql` statement that drops or deletes from a table holding rows; it
+      refuses to print a runnable Job unless the sets are equal, and marks one that
+      needs the owner's decision. The staging overlay requests 16 GiB for `wbs-data`
+      (design decision 2). Its render holds,
       besides the backend: the parameter ConfigMap in wave -2, listing the candidate
-      digest first and then up to two digests of earlier renders; the hook Job in wave
+      digest first and then up to two digests of earlier renders, and the candidate's
+      `wbs-backend-config` in that wave; with a backend replica, the hook Job in wave
       -1, annotated `argocd.argoproj.io/hook: Sync` and
       `hook-delete-policy: BeforeHookCreation`, with `backoffLimit: 0`, no
       `ttlSecondsAfterFinished`, the candidate digest, the backend's service account
-      without its token, the controller label, the `nonproduction` selector, the data
-      claim and the security context of the release coordinator's schema Job; and the
-      Deployment in wave 0. Rule 2.4(w), lettered after the CI change's (s) to (v): a WBS staging render has that hook
-      with the backend's digest and those waves, and no production or platform
+      without its token, the backend's `envFrom` of `wbs-backend-config` and
+      `wbs-backend-secrets` and nothing more, the controller label, the `nonproduction`
+      selector, the data claim and the security context of the release coordinator's
+      schema Job; and the Deployment in wave 0. A render at zero replicas, which the
+      baseline, A18's first sync and a hold are, holds no hook. Rule 2.4(w), lettered
+      after the CI change's (s) to (v): a WBS staging render with a backend replica has
+      that hook with the backend's digest, its `envFrom` and those waves; one at zero
+      replicas has none; and no production or platform
       Application has a hook that runs a migration. Test: the script against a fixture
       store with the real CLIs, and the rule against rendered fixtures. Negatives, each
       with its own fault and `Proof:` comment: a failing migration leaves the ledger
       equal to the capture and exits nonzero (fault: skip the reversal); a reversal that
       leaves a table behind keeps the attempt record and names the manual command
       (fault: compare the newest name only); an attempt record of another candidate is
-      refused (fault: overwrite it); a run with nothing pending writes no snapshot
-      (fault: snapshot first); a claim without room for the snapshot is refused before
-      any migration (fault: migrate first); a hook in wave 0 or later is refused by the
+      refused (fault: overwrite it); a second run of the same candidate on its own
+      record reverses from the recorded capture and exits nonzero (fault: capture
+      again); a record that marks a failed reversal is refused with nothing pending
+      (fault: exit 0 on an empty pending set); a candidate whose machine grant settings
+      are missing on an activated store fails before any write, with nothing pending
+      (fault: run the preflights only when something is pending); an unaccepted
+      breaking audience fails the same way (fault: skip the second CLI); a candidate
+      without the preflight files is refused (fault: skip a missing file); a run with
+      nothing pending writes no snapshot
+      (fault: snapshot first); a claim with less free space than twice the store plus
+      1 GiB is refused before any migration (fault: migrate first); a removal whose
+      `--to` set differs from the intended one prints no runnable Job (fault: compare
+      the named migration only); a selected `down.sql` that drops a table holding rows
+      is marked for the owner (fault: read the table's existence only); a hook in wave 0 or later is refused by the
       rule (fault: read the annotation's presence only); a production overlay with the
       hook is refused (fault: scope the rule to staging files); the ConfigMap's script
       differs from the source by one byte (fault: compare lengths). The rehearsal
       2.7/A18 gains a case: on k3d under Argo CD, an additive migration is applied by a
       new pins commit with no command and the new pod serves; a failing one leaves the
       sync failed, the old pod serving, the ledger equal and no further commit applied
-      until a new one arrives; and what a repeated attempt at the same commit does
+      until a new one arrives; an edit that the old backend acknowledges while that
+      failing migration and its reversal run is read afterwards, with no table's row
+      count lower than before and no schema object left over; a candidate that would
+      refuse to boot fails the sync with the old pod serving; a commit that edits an
+      applied migration is refused by the render step; a zero-replica render syncs with
+      no hook pod; and what a repeated attempt at the same commit does
       under self-heal is observed and recorded. Stop: the hook cannot be made to run
-      before the Deployment's wave on this version, or the old pod cannot keep serving
-      while the Job holds the claim on the same node. Then schema-changing commits stay
+      before the Deployment's wave on this version, the old pod cannot keep serving
+      while the Job holds the claim on the same node, or the acknowledged edit is lost. Then schema-changing commits stay
       on the attended path and the owner is told that R20 does not hold for them.
 
 The dev environment's delivery is not in this change: it is the follow-up
@@ -914,7 +953,7 @@ this change reserves is step A25, so those namespaces are not an open end.
 
 - [ ] A12 Create the observability server. Who: owner, as A1, with at least 24 GiB (R2: 12
       vCPUs and 24 GiB assumed, 16 and 32 if the provider has no such class with the
-      disk), a root disk of at least 225 GiB and a public IPv4 address for ports 80
+      disk), a root disk of at least 233 GiB and a public IPv4 address for ports 80
       and 443, because it carries the non-production environments in the minimal profile.
       Receipt: as A1. Stop: `free -m` or `df -h /` shows less, or the host has no public
       IPv4 address. Rollback: delete the server.
@@ -982,7 +1021,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       with a root disk of at least 50 GiB (design decision 2). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
       80 and 443. Rollback: delete the server. If the sum of design decision 2 did not hold
       and the owner chose a non-production server of its own, it is created here too, as
-      the first growth step of design decision 11, with a root disk of at least 85 GiB.
+      the first growth step of design decision 11, with a root disk of at least 90 GiB.
 - [ ] A17 Join h6apps and give h7obs the non-production capabilities, after the 1.3
       revisions for both, slices 1.7 and 2.10, the receipt 2.7/A18, and the sum of design
       decision 2 holding for this node at the reading after A15. Who: operator. Commands: `playbooks/firewall.yml` limited to
@@ -1021,7 +1060,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       Compose dev stack and the dev poller on h2puni); take the final backup of the dev store
       as design decision 7 states and record its file name, stamp and SHA-256; merge the
       staging overlay with the workload at zero replicas and its backup CronJob
-      suspended; for WBS that overlay has been on `main` since A23's baseline, so read
+      suspended, which for WBS carries no schema hook (slice 3.9); for WBS that overlay has been on `main` since A23's baseline, so read
       the head of the app's pins directory, the baseline or a build after it, which
       must show zero replicas and the suspended job;
       only then merge the app's staging Application file, which the root applies at

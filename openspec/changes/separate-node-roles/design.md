@@ -443,9 +443,9 @@ Elasticsearch 100, Prometheus 10, two signal stores of 2 each. With 30 GiB assum
 system and images and a fifth of the whole disk kept free, the root disk needs
 (114 + 30) / 0.8 = 180 GiB. The kubelet evicts at 10% free on the node filesystem and 15% on
 the image filesystem (both k3s templates), so a fifth leaves room above both. With
-non-production on the node the claims grow by 36 GiB: the three staging claims at 13, the
-same again reserved for dev and 10 for `nonproduction-db`. The floor is then
-(114 + 36 + 30) / 0.8 = 225 GiB. A12 reads the new server's disk and stops on a smaller
+non-production on the node the claims grow by 42 GiB: the three staging claims at 19,
+with the tracker's at 16 for the schema hook's snapshots (decision 9), 13 reserved for dev
+and 10 for `nonproduction-db`. The floor is then (114 + 42 + 30) / 0.8 = 233 GiB. A12 reads the new server's disk and stops on a smaller
 one, and A14 measures growth.
 
 **CI server.** It carries a cluster of its own, and its budget is decision 5 of the change
@@ -462,12 +462,12 @@ assumed under 256 MiB per cluster, and A8 reads them with Argo CD.
 
 **Disk elsewhere.**
 
-| Node            | What lands there                                                                                                                   |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots; `platform-db` and a drill, at first         |
-| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                  |
-| Non-production  | The same three claims, with `wbs-data` assumed at 10 GiB because the dev database is 2.2 GB today; on h7obs in the minimal profile |
-| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                       |
+| Node            | What lands there                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots; `platform-db` and a drill, at first                                                                   |
+| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                                                                            |
+| Non-production  | The same three claims, with staging's `wbs-data` at 16 GiB: the dev database is 2.2 GB today and the schema hook keeps two snapshots beside it (decision 9); on h7obs in the minimal profile |
+| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                                                                                 |
 
 **Minimum disk per role.** A requirement of the role, not of a provider's product: the step
 that creates a server reads `df -h /` and stops on less, before anything is installed. A
@@ -477,9 +477,9 @@ type that has the memory and not the disk fails there, whoever sells it.
 | ---------------------------------------- | ----------------: | --------------------------------------------------------------------------------------------- |
 | Platform, with `platform-db`             |           175 GiB | above                                                                                         |
 | Production apps                          |            50 GiB | above                                                                                         |
-| Observability with non-production        |           225 GiB | above; 180 without non-production                                                             |
+| Observability with non-production        |           233 GiB | above; 180 without non-production                                                             |
 | CI                                       |           150 GiB | assumed: today's gate hosts have that and run near full; the CI change's decision 5 counts it |
-| Non-production, on a server of its own   |            85 GiB | the 36 GiB of claims and 30 for the system and images, with a fifth kept free                 |
+| Non-production, on a server of its own   |            90 GiB | the 42 GiB of claims and 30 for the system and images, with a fifth kept free                 |
 | Database server (change `host-postgres`) |           140 GiB | that change's decision 2                                                                      |
 | Operator host (change `add-agent-hosts`) |           100 GiB | that change: OpenClaw's state is about 21 GiB today, and the sessions' work filled 460 GB     |
 
@@ -1244,35 +1244,77 @@ The build itself:
   forward and to reverse exactly the additions on abort. The release coordinator does
   this for production, but it suspends a Flux unit and writes with a cluster credential,
   and neither exists for an automated sync. So the staging render carries a Job that does
-  the same with the candidate image's own CLIs and no credential (slice 3.9):
+  the same with the candidate image's own CLIs and no credential beyond the backend's
+  own environment (slice 3.9):
   - _Where it runs._ It is a hook of the staging Application in the `Sync` phase, one
-    wave before the Deployment and one after the solver parameter ConfigMap. `PreSync`
+    wave before the Deployment and one after the solver parameter ConfigMap and the
+    candidate's `wbs-backend-config`. `PreSync`
     was not taken: that phase holds hooks only, and the Job's image has to be in the
     admission list before its pod is created. Argo CD applies waves in order and waits
     for each to be healthy; a hook that fails marks the sync failed, and the Deployment's
     wave is not applied.
-  - _What it does._ Capability check; capture; nothing more when nothing is pending;
-    otherwise a `VACUUM INTO` snapshot with its integrity check and SHA-256, the capture
-    and an attempt record written to the data claim; the forward migration; and a second
+  - _What it does._ Capability check; then, on every run and before anything is
+    written, the candidate's two boot preflights on the live store, read-only: the
+    machine grant settings and the trusted issuer audience, which the release
+    coordinator runs before its snapshot (`execute.ts`). The backend refuses to boot on
+    an activated store that lacks those settings (`boot.ts`), and `Recreate` removes the
+    serving pod before the new one starts, so a candidate that would refuse must fail
+    the sync here, while the old pod serves, also when nothing is pending. Then the
+    capture; nothing more when nothing is pending; otherwise a `VACUUM INTO` snapshot
+    with its integrity check and SHA-256, the capture, the list of schema objects and an
+    attempt record written to the data claim; the forward migration; and a second
     capture that must equal the first plus what was pending. On a failure it runs the
-    exact-set reversal against the recorded capture and compares the complete ledger.
+    exact-set reversal against the recorded capture and compares the complete ledger
+    and the list of schema objects.
+  - _What the preflights read._ `DB_PATH` on the data claim and the backend's own
+    environment, by the `envFrom` the Deployment has: the candidate render's
+    `wbs-backend-config`, applied in the wave before the hook, and
+    `wbs-backend-secrets`. The Job holds nothing the backend does not hold, and still
+    no ServiceAccount token. A candidate image without the two CLIs is refused: the
+    coordinator's exception for a declared older candidate has no place on a path that
+    never moves backwards.
   - _Where the capture lives._ On the data claim, under `/data/schema-hook`. A ConfigMap
     or a Secret would need a ServiceAccount token, and the solver namespace's admission
     admits the backend's account without one. The capture is as durable as the database
     it describes, and a second pod finds it after the first one died.
-  - _No fence._ The old backend keeps serving while the Job migrates, as the old colour
-    does in the Compose swap: forward migrations are additive, which the migration lint
-    holds, and both pods are on the claim's node. Scaling the backend to zero from the
-    hook was weighed and not taken: it needs a token and a Role in the trusted namespace,
-    and a failed hook would then have to bring the old pod back. With no fence a failed
-    hook changes nothing that serves: the old pod runs on, on the old schema.
+  - _No fence, and what gives exclusive access._ The release coordinator refuses a
+    schema Job while a writer pod exists (`execute.ts`), and a `ReadWriteOnce` claim
+    does not keep a second pod of the same node out. The hook does not ask for zero
+    writers: scaling the backend down from the hook needs a token and a Role in the
+    trusted namespace, and a failed hook would then have to bring the old pod back. It
+    relies on SQLite's own lock, as the Compose swap does while the old colour serves
+    (`AGENTS.md`, Migrations): forward migrations are additive, which the migration lint
+    holds; the store opens with a busy timeout (`db.ts`); a migration and a reversal
+    hold the write lock for their transactions, and the old backend's writes wait
+    behind them or fail with a busy error once the timeout passes. The consequence is
+    accepted for staging: during a long migration writes may be slow or refused, and
+    what was acknowledged must still be there. Ledger equality does not prove that, so
+    the rehearsal has the old backend acknowledge an edit while a failing migration and
+    its reversal run, and reads that edit afterwards, with no table's row count lower
+    than before and no schema object left over. A lost edit is slice 3.9's stop. With
+    no fence a failed hook changes nothing that serves: the old pod runs on, on the old
+    schema.
   - _The admission list._ The render writes the candidate digest first and then up to two
     digests of earlier renders, so the pod that is running stays admitted across two
     publications that failed. After a third in a row the old pod would not be admitted
     again if it restarted; the staging sync alert fires at the first.
-  - _The backup before a change._ The snapshot above, on the claim, kept until the next
-    one succeeds, and the hourly custody job, which reads one transaction and needs no
-    pause.
+  - _The backup before a change, and its room._ The snapshot above, on the claim, kept
+    until the next one succeeds, and the hourly custody job, which reads one
+    transaction and needs no pause. At the worst moment the claim holds the store, its
+    WAL, the retained snapshot, the incoming one and what a migration or a reversal
+    rewrites when it rebuilds a table. For the tracker's 2.2 GB of today that is three
+    copies, 1 GiB of WAL and one more copy for a rebuild: about 10 GiB. The base
+    claim's 5 GiB (`deploy/k8s/wbs/base/storage.yaml`) is too small, and the 10 GiB
+    first assumed for staging leaves no margin, so the staging overlay requests 16 GiB
+    (decision 2). The hook refuses before any write unless the claim's free space is at
+    least twice the store's size plus 1 GiB, and removes the retained snapshot only
+    after the new attempt has succeeded.
+  - _When the render carries no hook._ A render at zero replicas carries none: the
+    baseline A23 seeds, the first sync of A18, which comes before the store is
+    restored, and a directory under the `HOLD` marker of decision 7, which the render
+    step leaves untouched. The hook is in a render exactly when the backend has a
+    replica, and rule 2.4(w) holds both directions. A hook that finds no store at
+    `DB_PATH` fails the sync and writes nothing.
   - _What stays attended, and when._ Three cases, each refused by the render step or by
     the hook and named in its message. A source commit whose migration set is not a
     superset of the one staging runs, which is a revert or an edit of an applied
@@ -1284,14 +1326,32 @@ The build itself:
   - _The attended schema step._ It is the same script, run as a plain Job that the
     operator creates from the manifest the tool prints, with the image about to run and
     the workload at zero replicas; A18 to A20 use it when a restored store is behind its
-    image. For a commit that removes a migration the Job runs the image that applied
-    it, with `migrate-down-cli.ts --to=<name>`, the operator interface `AGENTS.md`
-    keeps for this, and the ledger is read back before the render is committed by hand.
+    image. A commit that removes a migration takes more care, because the operator
+    interface `AGENTS.md` keeps for it, `migrate-down-cli.ts --to=<name>`, selects by
+    stamp: it reverses every applied migration stamped after the named one
+    (`migrate-down.ts`), which can include migrations the target still needs, and a
+    `down.sql` may drop a table with its rows, as the one that removes `actual` does.
+    So the order is fixed, and nothing is run on a stamp alone. The writers are fenced:
+    the workload at zero replicas and its pods read gone. A fresh backup of the stopped
+    store is taken and verified as decision 7 states. The operator writes down the
+    intended set of removals, reads the applied ledger with the capture, and computes
+    the set `--to=<name>` would reverse; the step refuses before any SQL unless the two
+    sets are equal by name and hash. The `down.sql` of each selected migration is read:
+    a statement that drops a table or a column, or deletes rows, of a table that holds
+    rows in the stopped store stops the step for the owner's dated decision, because
+    that data is the tracker's. Only then does the Job, from the image that applied the
+    migrations, run the reversal; the ledger is read back and must equal the one before
+    less the intended set, and only then is the render committed by hand.
     The release coordinator's own transaction is not used on the new cluster: it
     requires a Flux unit to suspend, which an Argo CD cluster does not have.
   - _Repeated attempts._ With self-heal on, Argo CD may try a failed sync of the same
-    commit again. Each attempt is whole: it finds nothing pending, or it migrates and
-    reverses again. What this version does at the same commit is read in the rehearsal.
+    commit again. A run that finds an attempt record never captures again and never
+    exits 0. For its own candidate it resumes from the recorded capture: it runs the
+    exact-set reversal against that capture, compares the ledger and the schema
+    objects, removes the record and exits nonzero, so that the next attempt starts from
+    the captured state and not from partial progress. A record of another candidate,
+    or one that marks a failed reversal, is refused with the manual completion
+    command. What this version does at the same commit is read in the rehearsal.
 - **The website API migrates itself at start, and that is safe to automate.** Read from
   source (verify.md has the lines). The API is the one owner of the website database; the
   request app is a browser application and holds no store. `WebsiteStore`'s constructor

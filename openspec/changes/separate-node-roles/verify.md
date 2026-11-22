@@ -476,3 +476,23 @@ self-heal timeout. Not verified: which of the two holds; that a `Sync` hook in w
 finishes before a Deployment in wave 0 is applied on this version; and that the hook's pod
 and the serving backend hold the claim together on one node. Slice 3.9's rehearsal case
 shows all three, and its stop keeps schema changes attended if one fails.
+
+A review of that closing pass by Codex (`gpt-6.2-astra`, high effort, on 2026-11-22) found
+the MLflow and website items closed and seven defects in the staging schema hook, all
+folded here:
+
+| Finding                                                              | What was read                                                                                                                                                                                       | Now                                                                                                                             |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| The attended removal ran `--to` on a stamp before reading the ledger | `libs/wbs/adapters/store-sqlite/src/migrate-down.ts` (`migrationsToRollback`: every applied migration stamped after the baseline); `20260817130000_add_actual/down.sql` (drops `actual`)            | Fence, fresh backup, the two sets compared before any SQL, destructive statements on tables with rows to the owner (decision 9) |
+| The hook skipped the coordinator's boot preflights                   | `tools/tool-deploy/src/k8s/execute.ts` (the two CLIs before the snapshot; `CAPTURE_ENV_FROM`); `apps/wbs/be-01/src/boot.ts` (refusal on an activated store); `backend.yaml` (`Recreate`, `envFrom`) | Both preflights on every run with the backend's own `envFrom`                                                                   |
+| Exclusive access; ledger equality as the only proof                  | `execute.ts` (`writerPods` refusal); `libs/wbs/adapters/store-sqlite/src/db.ts` (busy timeout); `AGENTS.md`, Migrations                                                                             | SQLite's lock, stated with its cost; an acknowledged concurrent edit read in the rehearsal                                      |
+| A retry of the same candidate recaptured partial progress            | slice 3.9 as it stood                                                                                                                                                                               | A record is never recaptured and never ends in exit 0                                                                           |
+| The hook ran at bootstrap and during a hold                          | A18's order: the first sync precedes the restore                                                                                                                                                    | No hook in a zero-replica render; rule 2.4(w) holds both directions                                                             |
+| No room counted for the snapshots                                    | `deploy/k8s/wbs/base/storage.yaml` (5 GiB); the dev store's 2.2 GB                                                                                                                                  | Staging's claim at 16 GiB; a free-space floor in the hook; disk minimums 233 and 90 GiB                                         |
+| The rehearsal refused an added migration                             | slice 2.7                                                                                                                                                                                           | It refuses an edited one                                                                                                        |
+
+Not verified: that the two preflight CLIs need nothing beyond the backend's `envFrom`
+on the new cluster's overlay, which slice 3.5's owner renders; the busy timeout's length
+against a real migration of the tracker; and the drizzle migrator's transaction
+boundaries, on which the survival of a concurrent edit rests. The rehearsal reads the
+last two.

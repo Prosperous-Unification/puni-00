@@ -1090,6 +1090,39 @@ a hook.
 - **WHEN** an attempt record of another image digest is on the claim
 - **THEN** the hook refuses to migrate
 
+#### Scenario: An edit made during a failed migration
+
+- **WHEN** the old backend acknowledges an edit while a failing migration and its reversal run
+- **THEN** the edit is read afterwards and no table has fewer rows than before
+
+### Requirement: The staging schema hook refuses what it cannot finish
+
+The hook SHALL run the candidate's boot preflights on the live store with the backend's
+own configuration on every run, and fail the sync when either refuses. A run that finds
+an attempt record SHALL NOT capture again or exit 0. A render at zero replicas SHALL
+carry no hook. The hook SHALL refuse without free space of twice the store plus 1 GiB.
+
+#### Scenario: A candidate that would refuse to boot
+
+- **WHEN** the candidate's machine grant settings are missing on an activated store and no
+  migration is pending
+- **THEN** the hook fails, the sync is failed and the old backend serves
+
+#### Scenario: The same candidate tried again
+
+- **WHEN** the hook finds its own candidate's attempt record
+- **THEN** it reverses from the recorded capture, removes the record and exits nonzero
+
+#### Scenario: A render at zero replicas
+
+- **WHEN** the staging render has no backend replica, as a baseline or a hold has
+- **THEN** it carries no hook and the delivery check refuses one that does
+
+#### Scenario: A removal that would reverse more than intended
+
+- **WHEN** the set an attended reversal would remove differs from the intended set
+- **THEN** no reversal runs
+
 #### Scenario: Hook in a production overlay
 
 - **WHEN** a production or platform Application's source holds a hook that runs a migration
