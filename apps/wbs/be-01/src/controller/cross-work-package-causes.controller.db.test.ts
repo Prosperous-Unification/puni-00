@@ -1,3 +1,4 @@
+import { bindCatalogueStep, createProject } from '@wbs/contracts';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it } from 'bun:test';
 
@@ -18,23 +19,56 @@ async function fixture() {
   harness.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
   harness.grantPermissions('org-a', 'ada', [
     'organization.create_project',
+    'organization.manage_settings',
     'package.manage_settings',
   ]);
   harness.bind('ada', 'org-a');
   harness.activate();
+  const createPackage = async (name: string) => {
+    const answer = await harness.call('ada', createProject.method, createProject.path, {
+      name: `${name} engagement`,
+      workPackage: { name },
+    });
+    expect(answer.status).toBe(201);
+    const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+      answer.body,
+    );
+    if (checked.issues !== undefined)
+      throw new Error('fixture project malformed', { cause: checked.issues });
+    const { project, workPackage } = checked.value;
+    if (workPackage === undefined) throw new Error('fixture project omitted work package');
+    return { id: workPackage.id, projectId: project.id };
+  };
   const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const step = body.steps.at(0);
-    if (step === undefined) throw new Error('work package fixture omitted step');
+    const workPackage = await createPackage(name);
+    const rowId = `${workPackage.id}-row`;
     harness.sqlite.run(
       'INSERT INTO work_item (id, work_package_id, position, name) VALUES (?, ?, 10, ?)',
-      [`${body.workPackage.id}-row`, body.workPackage.id, name],
+      [rowId, workPackage.id, name],
     );
-    return { id: body.workPackage.id, rowId: `${body.workPackage.id}-row`, stepId: step.id };
+    return { ...workPackage, rowId };
   };
   const upstream = await create('Upstream');
+  const bound = await harness.call('ada', bindCatalogueStep.method, bindCatalogueStep.path, {
+    scopeKind: 'project',
+    scopeId: upstream.projectId,
+    workItemTypeId: null,
+    position: 10,
+    define: {
+      code: 'dev',
+      name: 'Dev',
+      position: 10,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowanceBps: 0,
+    },
+  });
+  expect(bound.status).toBe(201);
+  const binding = await bindCatalogueStep.responses[0].schema.validator['~standard'].validate(
+    bound.body,
+  );
+  if (binding.issues !== undefined)
+    throw new Error('fixture step binding malformed', { cause: binding.issues });
+  const stepId = binding.value.binding.stepId;
   const downstream = await create('Downstream');
   const tail = await create('Tail');
   harness.organization('org-b');
@@ -65,7 +99,17 @@ async function fixture() {
       )
       .all(`work-package:${workPackageId}`)
       .map(({ message }) => JSON.parse(message) as unknown);
-  return { harness, upstream, downstream, tail, foreign, foreignTail, events };
+  return {
+    harness,
+    upstream,
+    downstream,
+    tail,
+    foreign,
+    foreignTail,
+    events,
+    createPackage,
+    stepId,
+  };
 }
 
 /**
@@ -79,7 +123,17 @@ async function fixture() {
 for (const cause of ['estimate', 'calendar', 'capacity', 'engine', 'objective'])
   for (const shared of [false, true])
     it(`${cause} scheduling edit invalidates dependency readers in ${shared ? 'shared' : 'isolated'} mode`, async () => {
-      const { harness, upstream, downstream, tail, foreign, foreignTail, events } = await fixture();
+      const {
+        harness,
+        upstream,
+        downstream,
+        tail,
+        foreign,
+        foreignTail,
+        events,
+        createPackage,
+        stepId,
+      } = await fixture();
       if (shared)
         harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
       harness.sqlite.run("INSERT INTO service_team (id, name) VALUES ('cause-team', 'Cause team')");
@@ -91,11 +145,7 @@ for (const cause of ['estimate', 'calendar', 'capacity', 'engine', 'objective'])
       harness.sqlite.run("UPDATE work_package SET schedule_engine = 'optimized' WHERE id = ?", [
         upstream.id,
       ]);
-      const created = await harness.call('ada', 'POST', '/api/work-packages', {
-        name: 'Unconnected observer',
-      });
-      expect(created.status).toBe(200);
-      const unrelated = (created.body as { workPackage: { id: string } }).workPackage.id;
+      const { id: unrelated } = await createPackage('Unconnected observer');
       const endpoints = harness.sqlite.query('SELECT * FROM external_dependency ORDER BY id').all();
       const mutate = async (cause: string) => {
         if (cause === 'estimate')
@@ -104,7 +154,7 @@ for (const cause of ['estimate', 'calendar', 'capacity', 'engine', 'objective'])
               {
                 kind: 'setEstimate',
                 workItemId: upstream.rowId,
-                stepId: upstream.stepId,
+                stepId,
                 days: { optimistic: 3, realistic: 4, pessimistic: 5 },
               },
             ],
