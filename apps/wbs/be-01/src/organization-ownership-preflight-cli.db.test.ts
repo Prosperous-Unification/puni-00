@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
-import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { migrateEmptyCatalogueFixture } from '@wbs/store-sqlite/testing/catalogue-database';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 const cli = new URL('./organization-ownership-preflight-cli.ts', import.meta.url).pathname;
-const migrations = new URL('../drizzle', import.meta.url).pathname;
+const custody = { hasUnknownOwner: false };
 const databaseModule = new URL(
   '../../../../libs/wbs/adapters/store-sqlite/src/db.ts',
   import.meta.url,
@@ -18,7 +18,8 @@ let path: string;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'ownership-preflight-cli-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  custody.hasUnknownOwner = false;
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
   // Migrations seed external systems; keep these focused fixtures explicitly empty.
   const database = openDatabase(path);
   try {
@@ -29,8 +30,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  chmodSync(path, 0o600);
-  rmSync(directory, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 function run(args: string[] = [], dbPath = path, preload?: string) {

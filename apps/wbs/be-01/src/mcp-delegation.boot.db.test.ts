@@ -1,4 +1,5 @@
 import { JwksTokenVerifier } from '@wbs/auth';
+import { createProject, createWorkPackage } from '@wbs/contracts';
 import {
   afterAll,
   afterEach,
@@ -194,36 +195,44 @@ async function activateTwoOrganizations(process: BootedBrowserProcess): Promise<
         [grantId, organizationId, organizationId, accountId, grantedRole],
       );
   }
-  const created = await call(
-    process,
-    'POST',
-    '/api/work-packages',
-    { ...bearer(tokenOf(await requestDelegation(process, 'auth0|ada'))), origin: BOOTED_ORIGIN },
-    { name: 'A plan' },
-  );
-  expect(created.status).toBe(200);
-  const foreign = await call(
-    process,
-    'POST',
-    '/api/work-packages',
-    {
-      ...bearer(
-        tokenOf(
-          await requestDelegation(process, 'auth0|grace', {
-            organizationId: 'org-b',
-            userId: 'u-grace',
-          }),
-        ),
-      ),
+  const create = async (subject: string, organizationId: string, userId: string, name: string) => {
+    const headers = async () => ({
+      ...bearer(tokenOf(await requestDelegation(process, subject, { organizationId, userId }))),
       origin: BOOTED_ORIGIN,
-    },
-    { name: 'B plan' },
-  );
-  expect(foreign.status).toBe(200);
+    });
+    const parent = await call(process, createProject.method, createProject.path, await headers(), {
+      name: name + ' engagement',
+    });
+    expect(parent.status).toBe(201);
+    const project = await createProject.responses[0].schema.validator['~standard'].validate(
+      parent.body,
+    );
+    if (project.issues !== undefined)
+      throw new Error('fixture project reply malformed', { cause: project.issues });
+    const created = await call(
+      process,
+      createWorkPackage.method,
+      createWorkPackage.path,
+      await headers(),
+      {
+        projectId: project.value.project.id,
+        name,
+      },
+    );
+    expect(created.status).toBe(200);
+    const workPackage = await createWorkPackage.responses[0].schema.validator['~standard'].validate(
+      created.body,
+    );
+    if (workPackage.issues !== undefined)
+      throw new Error('fixture work package reply malformed', { cause: workPackage.issues });
+    return workPackage.value.workPackage.id;
+  };
+  await create('auth0|ada', 'org-a', 'u-ada', 'A plan');
+  const foreign = await create('auth0|grace', 'org-b', 'u-grace', 'B plan');
   process.sqlite.run(
     "DELETE FROM access_grant WHERE id IN ('setup-create-org-a','setup-create-org-b')",
   );
-  return (foreign.body as { workPackage: { id: string } }).workPackage.id;
+  return foreign;
 }
 
 const workPackageNames = (answer: { body: unknown }) =>

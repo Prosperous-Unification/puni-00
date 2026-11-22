@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
- * A step PATCH that sets an allowance, alone or with a rename, over real
+ * A package step PATCH that sets an allowance over real
  * SQLite and the composed services: the rollback these cases assert is the
  * source's unit of work, which the controller fixtures only count.
  */
@@ -14,30 +15,24 @@ let qa: string;
 beforeEach(async () => {
   h = OrganizationHarness.openComposed();
   await h.register('ada');
+  await h.register('admin');
   h.organization('org-a');
   h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
+  h.member('org-a', 'admin', 'admin', ['org-admin']);
   h.grantPermissions('org-a', 'ada', ['organization.create_project', 'package.manage_settings']);
   h.bind('ada', 'org-a');
+  h.bind('admin', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Rewire the shed' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const body = created.body as {
-    workPackage: { id: string };
-    steps: { id: string; name: string }[];
-  };
-  workPackage = body.workPackage.id;
-  qa = stepNamed(body.steps, 'QA');
+  workPackage = await createFixturePackage(h, 'ada', 'Rewire the shed');
+  const { steps } = await readFixturePackage(h, 'ada', workPackage);
+  const step = steps.find(({ name }) => name === 'QA');
+  if (step === undefined) throw new Error('the fixture work package needs a QA step');
+  qa = step.id;
 });
 
 afterEach(() => {
   h.close();
 });
-
-function stepNamed(steps: readonly { id: string; name: string }[], name: string): string {
-  const step = steps.find((each) => each.name === name);
-  if (step === undefined) throw new Error(`a work package without its seed step ${name}`);
-  return step.id;
-}
 
 const patchQa = (body: unknown): Promise<Answer> =>
   h.call('ada', 'PATCH', `/api/work-packages/${workPackage}/steps/${qa}`, body);
@@ -47,11 +42,10 @@ const batch = (commands: unknown[]): Promise<Answer> =>
 
 /** QA's name and allowance as a plan read shows them. */
 async function qaNow(): Promise<{ name: string; allowancePercent: number }> {
-  const read = await h.call('ada', 'GET', `/api/work-packages/${workPackage}`);
-  const steps = (read.body as { steps: { id: string; name: string; allowancePercent: number }[] })
-    .steps;
+  const { steps } = await readFixturePackage(h, 'ada', workPackage);
   const held = steps.find((step) => step.id === qa);
   if (held === undefined) throw new Error('QA is gone');
+  if (held.allowancePercent === undefined) throw new Error('QA has no effective allowance');
   return { name: held.name, allowancePercent: held.allowancePercent };
 }
 
@@ -80,7 +74,7 @@ describe('an allowance that would push the plan past the calendar', () => {
   it('is a typed 422 over HTTP and in a batch, and changes nothing', async () => {
     await nearTheCalendarEdge();
 
-    expect(await patchQa({ allowancePercent: 1000 })).toEqual({
+    expect(await patchQa({ allowanceBps: 100_000 })).toEqual({
       status: 422,
       body: { error: 'calendar_range' },
     });
@@ -92,29 +86,19 @@ describe('an allowance that would push the plan past the calendar', () => {
     );
     expect(await qaNow()).toEqual({ name: 'QA', allowancePercent: 0 });
   });
-
-  it('takes back the rename sent in the same edit', async () => {
-    await nearTheCalendarEdge();
-
-    expect(await patchQa({ name: 'Review', allowancePercent: 1000 })).toEqual({
-      status: 422,
-      body: { error: 'calendar_range' },
-    });
-    expect(await qaNow()).toEqual({ name: 'QA', allowancePercent: 0 });
-  });
 });
 
-describe('a rename and an allowance in one edit', () => {
-  it('writes no allowance when the rename is refused', async () => {
-    expect(await patchQa({ name: 'Dev', allowancePercent: 30 })).toEqual({
-      status: 409,
-      body: { error: 'taken' },
-    });
+describe('catalogue definitions and package allowances', () => {
+  it('refuses a definition name on the allowance route and writes neither value', async () => {
+    expect((await patchQa({ name: 'Review', allowanceBps: 3000 })).status).toBe(422);
     expect(await qaNow()).toEqual({ name: 'QA', allowancePercent: 0 });
   });
 
-  it('writes both, as one undo entry for the allowance', async () => {
-    expect(await patchQa({ name: 'Review', allowancePercent: 30 })).toMatchObject({
+  it('undoes the package allowance while retaining the catalogue name', async () => {
+    expect(
+      await h.call('admin', 'PATCH', `/api/organization/steps/${qa}`, { name: 'Review' }),
+    ).toMatchObject({ status: 200, body: { definition: { id: qa, name: 'Review' } } });
+    expect(await patchQa({ allowanceBps: 3000 })).toMatchObject({
       status: 200,
       body: {
         step: { estimateUnit: 'workdays' as const, id: qa, name: 'Review', allowancePercent: 30 },
@@ -124,7 +108,6 @@ describe('a rename and an allowance in one edit', () => {
     expect((await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).status).toBe(
       200,
     );
-    // Step renames are not journalled, so the undo takes back only the allowance.
     expect(await qaNow()).toEqual({ name: 'Review', allowancePercent: 0 });
     expect(await h.call('ada', 'POST', `/api/work-packages/${workPackage}/undo`)).toMatchObject({
       status: 409,

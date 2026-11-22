@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * The capacity mode route (`share-people-across-work-packages`, slice 8) over
@@ -18,14 +19,6 @@ let platform: string;
 let billing: string;
 
 const MODE = '/api/organization';
-
-async function create(name: string): Promise<string> {
-  const answer = await h.call('ada', 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  h.grant('org-a', 'ada', 'package-manager', 'work_package', workPackageId);
-  return workPackageId;
-}
 
 async function plan(workPackageId: string): Promise<void> {
   await h.call('ada', 'PATCH', `/api/work-packages/${workPackageId}`, { startDate: '2026-10-05' });
@@ -104,8 +97,8 @@ async function populate(): Promise<void> {
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-a', 'org-a', 'Ana')",
   );
-  platform = await create('Platform');
-  billing = await create('Billing');
+  platform = await createFixturePackage(h, 'ada', 'Platform');
+  billing = await createFixturePackage(h, 'ada', 'Billing');
   await plan(platform);
   await plan(billing);
 }

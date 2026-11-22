@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * Work-item pages and the single work-item read (`list-search-and-paging`,
@@ -36,12 +37,6 @@ interface Page {
   workPackageRevision: number;
 }
 
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
-}
-
 async function batch(username: string, workPackageId: string, commands: unknown[]) {
   const answer = await h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands,
@@ -71,8 +66,8 @@ beforeEach(async () => {
   h.bind('ada', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   // a { a1 { a11 }, a2 }, b, c { c1 } — seven work items across three levels.
   const applied = await batch('ada', own, [
     child('a', null, null),
@@ -172,10 +167,10 @@ describe('GET /api/work-packages/:id/work-item-rows', () => {
       'name',
       'number',
       'parentId',
-      'workPackageId',
       'revision',
       'status',
       'updatedAt',
+      'workPackageId',
     ]);
     expect(outline.rows.every((row) => typeof row.updatedAt === 'number')).toBe(true);
     const grouped = await page(`fields=notes,slices&parentId=${refs['a1'] ?? ''}`);

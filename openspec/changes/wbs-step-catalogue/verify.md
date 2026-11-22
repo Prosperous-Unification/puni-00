@@ -2505,3 +2505,20 @@ The current step controller suite retains the 27 package-command,
 estimate-unit, allowance and replay witnesses. The catalogue unbind suite
 checks sparse parallelism on preview and apply and verifies that an
 unauthorized caller or another organization receives no protected details.
+
+The same predecessor's `step-marker-organization.controller.db.test.ts`
+(blob `395126d6b0b12b0ed0192b0c4ac843b610e1bdfe`) passed 19 tests with 143
+assertions through the focused Nx target. It still exercises the retired
+combined rename and allowance rollback in both activation modes and sparse
+reference privacy with both cascade settings. On the current schema the
+same suite passed 15 tests with 96 assertions for marker access, package
+allowance permissions, late grant revocation and rollback on persistence
+failure. The current catalogue unbind suite covers sparse references in
+preview and execution.
+
+The predecessor's `step-allowance-edit.controller.db.test.ts` (blob
+`311de6a4d45f75c231a8daeb04e20710501cea17`) passed all four tests with 15
+assertions through the focused Nx target. The current suite passed three
+tests with 12 assertions. It exercises the same calendar-range refusal on
+both current edit paths, refusal of a definition name on the package values
+route, and undo of the package allowance after a separate catalogue rename.

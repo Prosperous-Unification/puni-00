@@ -31,6 +31,7 @@ import { TEST_JWT_KEY } from './testing/auth-fixture';
 import { TEST_MCP_SERVICE_SETTINGS } from './testing/machine-grant-fixture';
 import { OrganizationHarness } from './testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './testing/organization-limits-fixture';
+import { createFixturePackage, readFixturePackage } from './testing/space-rollup';
 
 async function awaitPhase<T>(promise: Promise<T>, phase: string, milliseconds = 8000): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -108,33 +109,43 @@ async function runIntegration(
     harness.member('org-a', 'ada', 'admin', ['org-admin']);
     harness.bind('ada', 'org-a');
     harness.activate();
-    const created = await awaitPhase(
-      harness.call('ada', 'POST', '/api/work-packages', { name: 'Runtime dispatch' }),
+    const workPackageId = await awaitPhase(
+      createFixturePackage(harness, 'ada', 'Runtime dispatch'),
       'work_package',
     );
-    assert(
-      created.body !== null && typeof created.body === 'object' && 'workPackage' in created.body,
-    );
-    const workPackage = created.body.workPackage;
-    assert(
-      workPackage !== null &&
-        typeof workPackage === 'object' &&
-        'id' in workPackage &&
-        typeof workPackage.id === 'string',
-    );
+    const fixture = await readFixturePackage(harness, 'ada', workPackageId);
     harness.sqlite.run("INSERT INTO person (id, name) VALUES ('person', 'Person')");
     harness.sqlite.run(
       "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('person', 'org-a', 'Person')",
     );
     // Proof: position 100 produced a real FS workflow prerequisite refusal;
     // placing Plan before default Dev/QA restored the same conditional integration.
-    harness.sqlite.run(
-      "INSERT INTO step (id, work_package_id, name, position, code) VALUES ('step', ?, 'Plan', 0, 'plan')",
-      [workPackage.id],
-    );
+    await harness.publicWrites().uow.run(async ({ stores }) => {
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: 'step',
+          code: 'plan',
+          name: 'Plan',
+          position: 0,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: 'plan-binding',
+          scopeKind: 'project',
+          scopeId: fixture.workPackage.projectId,
+          workItemTypeId: null,
+          position: 0,
+        },
+        { at: 1, by: harness.userId('ada') },
+      );
+      if (!bound.ok) throw new Error('runtime dispatch plan binding refused: ' + bound.reason);
+      return { commit: true, value: undefined };
+    });
     harness.sqlite.run(
       "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('work', ?, 10, 'Work', 'ready')",
-      [workPackage.id],
+      [workPackageId],
     );
     const credential = harness.token('ada');
     const actorId = harness.userId('ada');
@@ -267,7 +278,7 @@ async function runIntegration(
             'http://127.0.0.1:' +
               String(running.port) +
               '/api/work-packages/' +
-              encodeURIComponent(workPackage.id) +
+              encodeURIComponent(workPackageId) +
               '/runtime-state?personId=person',
             { headers },
           ),
@@ -288,7 +299,7 @@ async function runIntegration(
         base: 'http://127.0.0.1:' + String(running.port),
         credential,
         organizationId: 'org-a',
-        workPackageId: workPackage.id,
+        projectId: workPackageId,
         path: join(directory, 'runs.sqlite'),
         ...(variant === 'delayed-ready'
           ? { readyHold: 'after-build' }
