@@ -87,18 +87,33 @@ async function open() {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  const created = await request('POST', '/api/work-packages', { name: 'Plan' });
+  const parent = await request('POST', '/api/projects', { name: 'Authority project' });
+  expect(parent.status).toBe(201);
+  const {
+    project: { id: projectId },
+  } = (await parent.json()) as { project: { id: string } };
+  const define = (name: string, code: string, position: number) =>
+    request('POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position,
+      define: { name, code, position, defaultAllowanceBps: 0, defaultEstimateUnit: 'workdays' },
+    });
+  const bound = await define('Build', 'build', 10);
+  expect(bound.status).toBe(201);
+  const {
+    binding: { stepId, bindingId },
+  } = (await bound.json()) as { binding: { stepId: string; bindingId: string } };
+  const created = await request('POST', '/api/work-packages', { name: 'Plan', projectId });
   expect(created.status).toBe(200);
-  const workPackage = harness.sqlite.query<{ id: string }, []>('SELECT id FROM work_package').get();
-  if (workPackage === null) throw new Error('fixture work package is absent');
-  const step = harness.sqlite
-    .query<{ id: string }, []>('SELECT id FROM step ORDER BY position LIMIT 1')
-    .get();
-  if (step === null) throw new Error('fixture step is absent');
-  const path = `/api/work-packages/${workPackage.id}`;
+  const {
+    workPackage: { id: workPackageId },
+  } = (await created.json()) as { workPackage: { id: string } };
+  const path = `/api/work-packages/${workPackageId}`;
   const commands = [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Row' }];
   expect((await request('POST', `${path}/commands`, { commands })).status).toBe(200);
-  return { request, path, stepId: step.id, workPackageId: workPackage.id, cookie };
+  return { request, path, stepId, bindingId, define, projectId, workPackageId, cookie };
 }
 
 /** Includes all command, history, audit and fan-out rows, excluding only the injected authority. */
@@ -198,21 +213,22 @@ describe('current command authority on the process writer', () => {
               return fixture.request('POST', `${fixture.path}/${operation}`);
             case 'prelude':
               return fixture.request('PATCH', `${fixture.path}/steps/${fixture.stepId}`, {
-                name: 'Queued',
-                allowancePercent: 10,
+                estimateUnit: 'minutes',
+                allowanceBps: 1000,
               });
             case 'work_package':
               return fixture.request('PATCH', fixture.path, { startDate: '2026-10-22' });
             case 'step':
-              return fixture.request('POST', `${fixture.path}/steps`, { name: 'Queued' });
+              return fixture.define('Queued', 'queued', 20);
             case 'step-rename':
-              return fixture.request('PATCH', `${fixture.path}/steps/${fixture.stepId}`, {
+              return fixture.request('PATCH', `/api/organization/steps/${fixture.stepId}`, {
                 name: 'Queued',
               });
             case 'step-remove':
               return fixture.request(
                 'DELETE',
-                `${fixture.path}/steps/${fixture.stepId}?cascade=true`,
+                `/api/organization/step-bindings/${fixture.bindingId}`,
+                { dryRun: false },
               );
             case 'batch':
               return fixture.request('POST', `${fixture.path}/commands`, {
@@ -250,9 +266,10 @@ describe('current command authority on the process writer', () => {
             error = 'not_a_member';
           } else if (fault === 'demotion') {
             harness.sqlite.run(
-              "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
+              "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=?",
               [userId],
             );
+            harness.grant('org-a', 'ada', 'org-viewer');
             error = 'forbidden';
           } else {
             harness.sqlite.run(
@@ -474,7 +491,11 @@ for (const operation of ['work package update', 'bare step removal', 'recovery w
       await harness.register('owner');
       harness.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
       harness.grantPermissions('org-a', 'owner', ['organization.create_project']);
-      harness.sqlite.run('UPDATE work_package SET owner_id=?, restricted=1 WHERE id=?', [
+      harness.sqlite.run(
+        "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND origin='creation' AND subject_id=?",
+        [harness.userId('owner'), fixture.workPackageId, principal.id],
+      );
+      harness.sqlite.run('UPDATE work_package SET created_by=?, restricted=1 WHERE id=?', [
         harness.userId('owner'),
         fixture.workPackageId,
       ]);
@@ -522,7 +543,7 @@ for (const operation of ['work package update', 'bare step removal', 'recovery w
     expect(observedPushes).toBe(pushesBefore);
     expect(effects()).toEqual(before);
     expect(
-      harness.sqlite.query('SELECT id FROM step WHERE id=?').get(fixture.stepId),
+      harness.sqlite.query('SELECT id FROM step_definition WHERE id=?').get(fixture.stepId),
     ).not.toBeNull();
   });
 }
@@ -702,29 +723,27 @@ for (const operation of [
     };
     const pending = harness.callWith(
       grant,
-      operation === 'prelude' || operation === 'ordinary'
+      operation === 'prelude' || operation === 'ordinary' || operation === 'recovery'
         ? 'PATCH'
-        : operation === 'recovery'
-          ? 'DELETE'
-          : 'POST',
+        : 'POST',
       operation === 'directory'
         ? '/api/directory/commands'
-        : operation === 'prelude'
+        : operation === 'prelude' || operation === 'recovery'
           ? `${fixture.path}/steps/${fixture.stepId}`
           : operation === 'ordinary'
             ? fixture.path
-            : operation === 'recovery'
-              ? `${fixture.path}/steps/${fixture.stepId}?cascade=true`
-              : `${fixture.path}/${operation === 'batch' ? 'commands' : operation}`,
+            : `${fixture.path}/${operation === 'batch' ? 'commands' : operation}`,
       operation === 'batch'
         ? { commands: [{ kind: 'createWorkItem', parentId: null, name: 'Queued' }] }
         : operation === 'directory'
           ? { commands: [{ kind: 'createTeam', name: 'Queued' }] }
           : operation === 'prelude'
-            ? { name: 'Queued', allowancePercent: 10 }
+            ? { estimateUnit: 'minutes', allowanceBps: 1000 }
             : operation === 'ordinary'
               ? { name: 'Queued' }
-              : undefined,
+              : operation === 'recovery'
+                ? { estimateUnit: 'minutes' }
+                : undefined,
       {
         [MCP_INTERNAL_SECRET_HEADER]: TEST_MACHINE_GRANT_ENV['MCP_BE_INTERNAL_SECRET'],
         [DEPENDENCY_SEMANTICS_HEADER]: DEPENDENCY_SEMANTICS,
@@ -901,6 +920,7 @@ for (const fault of ['membership', 'revocation'] as const)
       (
         await fixture.request('POST', '/api/work-packages', {
           name: 'Remote',
+          projectId: fixture.projectId,
           abbreviation: 'REMOTE',
         })
       ).status,

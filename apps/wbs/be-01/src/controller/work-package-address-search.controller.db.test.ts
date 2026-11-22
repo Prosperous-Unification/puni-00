@@ -1,10 +1,14 @@
+import { createProject, createWorkPackage } from '@wbs/contracts';
 import { decodeCursor, encodeCursor } from '@wbs/core/service/list-query';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { readFixturePackage } from '../testing/space-rollup';
 let h: OrganizationHarness;
+let ordinal: number;
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
+  ordinal = 0;
   for (const username of ['ada', 'grace']) await h.register(username);
   for (const organization of ['org-a', 'org-b']) h.organization(organization);
   h.member('org-a', 'ada', 'member', ['project-contributor', 'org-viewer']);
@@ -15,13 +19,59 @@ beforeEach(async () => {
   h.bind('grace', 'org-b');
   h.activate();
 });
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 async function create(username: string, name: string, abbreviation: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name, abbreviation });
+  const organizationId = username === 'ada' ? 'org-a' : 'org-b';
+  const number = String(++ordinal);
+  const created = await h.call(username, createProject.method, createProject.path, { name });
+  expect(created.status).toBe(201);
+  const parent = await createProject.responses[0].schema.validator['~standard'].validate(
+    created.body,
+  );
+  if (parent.issues !== undefined) throw new Error('address fixture Project reply malformed');
+  const projectId = parent.value.project.id;
+  const answer = await h.call(username, createWorkPackage.method, createWorkPackage.path, {
+    projectId,
+    name,
+    abbreviation,
+  });
   expect(answer.status).toBe(200);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  const plan = await createWorkPackage.responses[0].schema.validator['~standard'].validate(
+    answer.body,
+  );
+  if (plan.issues !== undefined) throw new Error('address fixture Work Package reply malformed');
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    for (const [code, position] of [
+      ['dev', 10],
+      ['qa', 20],
+    ] as const) {
+      const id = code + '-' + number;
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        organizationId,
+        {
+          id,
+          code: id,
+          name: id,
+          position,
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+        {
+          bindingId: id + '-binding',
+          scopeKind: 'project',
+          scopeId: projectId,
+          workItemTypeId: null,
+          position,
+        },
+        { at: 1, by: h.userId(username) },
+      );
+      if (!bound.ok) throw new Error('address fixture Step binding refused: ' + bound.reason);
+    }
+    return { commit: true, value: undefined };
+  });
+  return plan.value.workPackage.id;
 }
 it('alphabetic prefix is bounded and organization scoped', async () => {
   await create('ada', 'Alpha one', 'AX');
@@ -92,7 +142,7 @@ it('selected work package scopes steps and work items and caps flattened candida
     'descendant-step',
   ]);
   expect(page.candidates[1].reference).toBeNull();
-  expect(page.addressRevision.startsWith('qar1:')).toBe(true);
+  expect(page.addressRevision).toMatch(/^qar2:[0-9a-f]{64}$/);
   expect(page.nextCursor).not.toBeNull();
   let next = page;
   const all = [...page.candidates];
@@ -237,7 +287,7 @@ it('refuses duplicate numbers and missing endpoints without changing database st
     ).toEqual({ status, body });
   expect(captureState()).toEqual(before);
 });
-it('changes revision for leafhood and uncoded step order but keeps label-only edits', async () => {
+it('changes revision for leafhood and catalogue binding order but keeps label-only edits', async () => {
   const selected = await create('ada', 'Selected', 'P');
   work(selected, 'leaf');
   const first = await candidates(selected, 'limit=1');
@@ -254,9 +304,16 @@ it('changes revision for leafhood and uncoded step order but keeps label-only ed
     ).status,
   ).toBe(409);
   const second = await candidates(selected);
-  h.sqlite.run('UPDATE step SET code=NULL,position=position+100 WHERE work_package_id=?', [
-    selected,
-  ]);
+  const { workPackage, steps } = await readFixturePackage(h, 'ada', selected);
+  const ids = steps.map(({ id }) => id + '-binding').reverse();
+  expect(ids).toHaveLength(2);
+  expect(
+    await h.call('ada', 'POST', '/api/organization/step-bindings/reorder', {
+      scopeKind: 'project',
+      scopeId: workPackage.projectId,
+      ids,
+    }),
+  ).toMatchObject({ status: 204 });
   expect((await candidates(selected)).addressRevision).not.toBe(second.addressRevision);
 });
 it('fails missing abbreviation evidence visibly even outside the discovery match', async () => {
@@ -276,14 +333,8 @@ it('viewer can discover a restricted work package and leaf steps belong to that 
   h.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [selected]);
   h.sqlite.run("UPDATE organization_membership SET role='viewer' WHERE organization_id='org-a'");
   const page = await candidates(selected);
-  const stepIds = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id=?')
-    .all(selected)
-    .map((step) => step.id);
-  const otherIds = h.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id=?')
-    .all(other)
-    .map((step) => step.id);
+  const stepIds = (await readFixturePackage(h, 'ada', selected)).steps.map(({ id }) => id);
+  const otherIds = (await readFixturePackage(h, 'ada', other)).steps.map(({ id }) => id);
   expect(
     page.candidates
       .filter((candidate) => candidate.endpoint.scope === 'node')
@@ -309,25 +360,11 @@ it('viewer can discover a restricted work package and leaf steps belong to that 
   );
 });
 it('legacy authority keeps duplicate organization codes as separate explicit choices', async () => {
-  h.close();
-  h = OrganizationHarness.open();
-  await h.register('ada');
-  await h.register('grace');
-  h.organization('org-a');
-  h.organization('org-b');
   const first = await create('ada', 'First', 'SAME');
-  const second = await create('grace', 'Second', 'OTHER');
-  h.sqlite.run(
-    "INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,'org-a')",
-    [first],
-  );
-  h.sqlite.run(
-    "INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,'org-b')",
-    [second],
-  );
-  h.sqlite.run("UPDATE work_package_abbreviation SET abbreviation='SAME' WHERE work_package_id=?", [
-    second,
-  ]);
+  const second = await create('grace', 'Second', 'SAME');
+  // Exercise preactivation discovery with persisted organization namespaces from two parents.
+  h.sqlite.run('DROP TRIGGER organization_activation_no_revert');
+  h.sqlite.run("UPDATE organization_activation SET state='pre_activation',activated_at=NULL");
   const answer = await h.call('ada', 'GET', '/api/work-package-addresses/work-packages?q=same');
   expect(answer.status).toBe(200);
   expect(
