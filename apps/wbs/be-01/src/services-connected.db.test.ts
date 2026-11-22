@@ -56,6 +56,9 @@ afterEach(async () => {
   for (const close of cleanups.splice(0)) await close();
 });
 
+// The mounted route borrows once for the connected tree and once for the package timezone.
+const mountedTreeReads = 2;
+
 function compose(source: SqliteSource, optimizer?: OptimizerRuntime) {
   const errors: string[] = [];
   let bound: ReturnType<SqliteSource['bindLivePlans']> | undefined;
@@ -125,6 +128,26 @@ function stream(bytes: string) {
     },
   });
 }
+function seedStep(
+  sqlite: ReturnType<typeof openDatabase>,
+  owner: string,
+  step: string,
+  position: number,
+) {
+  const project = 'project-' + owner;
+  sqlite.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES(?,'org-a',?,?,'workdays',0,?,'project',?,'authored')",
+    [step, step, step, position, project],
+  );
+  sqlite.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES(?,'org-a','project',?,?,?,'authored')",
+    ['binding-' + step, project, step, position],
+  );
+  sqlite.run(
+    "INSERT INTO work_package_step(work_package_id,step_id,estimate_unit,allowance_bps,allowance_revision) VALUES(?,?,'workdays',0,0)",
+    [owner, step],
+  );
+}
 async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated', held = false) {
   const folder = mkdtempSync(join(tmpdir(), 'connected-composition-'));
   const path = await openSpaceDatabase(folder);
@@ -142,17 +165,21 @@ async function fixture(runtime = true, mode: 'isolated' | 'shared' = 'isolated',
   sqlite.run(
     "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
   );
+  for (const owner of ['a1', 'a2', 'a3']) {
+    const project = 'project-' + owner;
+    sqlite.run(
+      "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES(?,'org-a',?,1,'ada')",
+      [project, project],
+    );
+    sqlite.run('UPDATE work_package SET project_id=? WHERE id=?', [project, owner]);
+  }
   for (const id of ['a1', 'a2']) {
     sqlite.run('INSERT INTO work_item(id,work_package_id,position,name) VALUES(?,?,10,?)', [
       id,
       id,
       id,
     ]);
-    sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,10)', [
-      id + '-s',
-      id,
-      'Build',
-    ]);
+    seedStep(sqlite, id, id + '-s', 10);
     sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,1,1,1)',
       [id, id + '-s'],
@@ -511,7 +538,7 @@ for (const mode of ['isolated', 'shared'] as const) {
     const observations = f.probe.observations;
     const first = await f.tree();
     expect(f.launched).toHaveLength(2);
-    expect(f.probe.observations - observations).toBe(1);
+    expect(f.probe.observations - observations).toBe(mountedTreeReads);
     expect(f.probe.writerReads.length).toBeGreaterThan(0);
     expect(f.probe.writerReads.every((open) => open === 0)).toBe(true);
     expect(first).toMatchObject({
@@ -704,7 +731,7 @@ async function displacedFixture() {
   f.sqlite.run(
     "UPDATE work_package SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id='a3'",
   );
-  f.sqlite.run("INSERT INTO step(id,work_package_id,name,position) VALUES('c-s','a3','Build',10)");
+  seedStep(f.sqlite, 'a3', 'c-s', 10);
   f.sqlite.run("INSERT INTO service_team(id,name) VALUES('c-team','C capacity')");
   f.sqlite.run(
     "INSERT INTO service_team_organization(resource_id,organization_id,name) VALUES('c-team','org-a','C capacity')",
@@ -817,7 +844,7 @@ test('displaced mounted live admission retains B pre-selection question after C 
   const f = await displacedFixture();
   const observations = f.probe.observations;
   const tree = await f.tree();
-  expect(f.probe.observations - observations).toBe(1);
+  expect(f.probe.observations - observations).toBe(mountedTreeReads);
   expect(tree).toMatchObject({
     optimization: { variants: { pri: { state: 'idle' }, time: { state: 'idle' } } },
   });
@@ -947,7 +974,8 @@ async function interleavingFixture() {
   f.sqlite.run('DELETE FROM external_dependency');
   f.sqlite.run('DELETE FROM estimate');
   f.sqlite.run('DELETE FROM work_item');
-  f.sqlite.run('DELETE FROM step');
+  f.sqlite.run("DELETE FROM work_package_step WHERE step_id IN ('a1-s','a2-s')");
+  f.sqlite.run("DELETE FROM step_binding WHERE step_id IN ('a1-s','a2-s')");
   f.sqlite.run(
     "UPDATE work_package SET schedule_engine='optimized',schedule_objective='pri',optimization_enabled=1 WHERE id IN ('a1','a2')",
   );
@@ -965,13 +993,7 @@ async function interleavingFixture() {
       [workPackage, workPackage],
     );
     const steps = workPackage === 'a1' ? ['design', 'test'] : ['build'];
-    for (const [position, step] of steps.entries())
-      f.sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,?)', [
-        step,
-        workPackage,
-        step,
-        position,
-      ]);
+    for (const [position, step] of steps.entries()) seedStep(f.sqlite, workPackage, step, position);
     for (const [position, suffix] of ['long', 'short'].entries()) {
       const id = workPackage + '-' + suffix;
       f.sqlite.run(
@@ -1136,7 +1158,7 @@ test('mounted interleaving selects both durable Pri candidates once and retains 
   for (let repeat = 0; repeat < 2; repeat++) {
     const observations = f.probe.observations;
     const tree = await f.tree();
-    expect(f.probe.observations - observations).toBe(1);
+    expect(f.probe.observations - observations).toBe(mountedTreeReads);
     expect(tree.slices.map((slice) => [slice.id, slice.earliestStart])).toEqual([
       ['a1-long\u0000design', 1],
       ['a1-long\u0000test', 7],
@@ -1208,7 +1230,7 @@ for (const state of ['idle', 'pending', 'failed', 'corrupt', 'boundary-infeasibl
       });
       const observations = f.probe.observations;
       await f.tree();
-      expect(f.probe.observations - observations).toBe(1);
+      expect(f.probe.observations - observations).toBe(mountedTreeReads);
       expect(f.launched).toHaveLength(1);
     }
     const tree = await f.tree(f.app, 'a2');
@@ -1277,7 +1299,7 @@ for (const cohort of ['isolated-connected', 'shared-connected', 'shared-local'] 
   test(`mounted ${cohort} export refuses an unreadable retained member opaquely for both media`, async () => {
     const f = await fixture(false, cohort === 'isolated-connected' ? 'isolated' : 'shared');
     f.sqlite.run("UPDATE work_package SET optimization_enabled=0,schedule_engine='fast'");
-    f.sqlite.run("UPDATE step SET code='build'");
+
     if (cohort === 'shared-local') {
       f.sqlite.run("DELETE FROM external_dependency WHERE id='edge'");
       f.sqlite.run("INSERT INTO person(id,name) VALUES('export-person','Export person')");

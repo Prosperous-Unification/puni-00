@@ -9,6 +9,7 @@ import {
   beginOptimizationDrain,
   finishOptimizationDrain,
   type OptimizationDrainFinish,
+  readOptimizationClosedState,
   releaseSolverSlot,
   type SolverSlotRelease,
   type SolverSlotReleaseOutcome,
@@ -28,7 +29,11 @@ export function createOptimizationLifecycle(
   uow: UnitOfWork,
   delivery: CommittedFanoutDelivery,
 ): OptimizationLifecycle {
-  async function own<T>(workPackageId: string, write: () => T): Promise<T> {
+  async function own<T>(
+    workPackageId: string,
+    write: () => T,
+    releasingContract?: string,
+  ): Promise<T> {
     const settled = await uow.run<{
       value: T;
       events: readonly CommittedWorkPackageEvent[];
@@ -41,7 +46,13 @@ export function createOptimizationLifecycle(
       const owner = await capture.resolveLifecycleOwner(workPackageId);
       // Proof: omitting this branch let an absent target reach capture with an
       // undefined organization and throw instead of returning its no-op result.
-      if (owner.kind !== 'scoped')
+      // An open release changes slot liveness only. Published placements come from cached outcomes.
+      // Proof: capturing malformed estimate days on an open release stranded the dequeued starting slot.
+      if (
+        owner.kind !== 'scoped' ||
+        (releasingContract !== undefined &&
+          readOptimizationClosedState(db, workPackageId, releasingContract) === null)
+      )
         return { commit: true as const, value: { value: write(), events: [] } };
       // Proof: moving this old capture after the raw retirement lost B's
       // selected-ready displacement event at unchanged input hash.
@@ -77,6 +88,7 @@ export function createOptimizationLifecycle(
       own(workPackageId, () => finishOptimizationDrain(db, workPackageId, contractVersion)),
     // Proof: omitting the composed release owner left a populated last-slot
     // deletion with no old-cause event in the installed lifecycle test.
-    releaseSlot: (slot) => own(slot.workPackageId, () => releaseSolverSlot(db, slot)),
+    releaseSlot: (slot) =>
+      own(slot.workPackageId, () => releaseSolverSlot(db, slot), slot.contractVersion),
   };
 }

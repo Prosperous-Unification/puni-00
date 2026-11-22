@@ -2376,3 +2376,19 @@ Nx typecheck passed.
   retain the real original project names, multi-migration rollback list,
   historical step table, and precise guards. The legacy backfill
   exercises both native connections and its durable event log.
+
+### Agent pool, step parallelism and connected solver release
+
+- Uncached focused Nx passed all 31 agent-pool cases and all six SQLite
+  sparse step-parallelism cases. Agent-pool audit assertions start after
+  the real project and package fixture grants. The parallelism conformance
+  uses real catalogue bindings, including a definition held by a different
+  project, and retains every common validation and rollback assertion.
+- The connected native suite passed all 34 cases. Its malformed-estimate
+  case previously left a starting solver slot after startup refused the
+  plan input. The ordinary release checks both durable drain markers on
+  its own writer and frees the slot while preserving the original input
+  refusal. Releases that can finalize a drain still use transactional
+  capture and outbox recording. Thirteen selected native lifecycle cases
+  passed, including exact release rollback, selected-contract retirement
+  and linked dependency safety.

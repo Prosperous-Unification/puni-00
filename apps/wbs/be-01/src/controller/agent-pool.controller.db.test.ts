@@ -4,6 +4,7 @@ import { CLAIM_LEASE_MS } from '@wbs/domain';
 import { SqliteOrganizationAccess } from '@wbs/store-sqlite/organization-access';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
   grantCredential,
@@ -37,6 +38,7 @@ let onResolve: (() => void) | undefined;
 let h: OrganizationHarness;
 let workPackageId: string;
 let firstStepId: string;
+let fixtureAuditRow: number;
 let machineGrants: HarnessMachineGrants;
 
 beforeAll(async () => {
@@ -77,13 +79,34 @@ beforeEach(async () => {
   for (const username of ['dany', 'ada', 'mem', 'vic']) h.bind(username, 'org-a');
   h.bind('bob', 'org-b');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
+  const createdProject = await h.call('dany', 'POST', '/api/projects', { name: 'Pool project' });
+  if (createdProject.status !== 201)
+    throw new Error('pool fixture project refused: ' + JSON.stringify(createdProject));
+  const parent = h.sqlite
+    .query<{ id: string }, []>(
+      "SELECT id FROM project WHERE organization_id='org-a' AND name='Pool project'",
+    )
+    .get();
+  if (parent === null) throw new Error('pool fixture project is absent');
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, 'org-a', parent.id, {
+      by: h.userId('dany'),
+      at: now,
+    });
+    return { commit: true, value: undefined };
+  });
+  const created = await h.call('dany', 'POST', '/api/work-packages', {
+    name: 'Plan of A',
+    projectId: parent.id,
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   const plan = created.body as { workPackage: { id: string }; steps: { id: string }[] };
   workPackageId = plan.workPackage.id;
   const first = plan.steps.at(0);
   if (first === undefined) throw new Error('pool fixture work package has no first step');
   firstStepId = first.id;
+  // Project and package creation have their own audit. All pool witnesses start here.
+  fixtureAuditRow = count('SELECT max(rowid) AS n FROM organization_audit');
 });
 
 afterEach(async () => {
@@ -118,9 +141,9 @@ async function createPool(
   return answer.body as KeysDocument;
 }
 
-function count(sql: string, ...params: string[]): number {
-  const row = h.sqlite.query<{ n: number }, string[]>(sql).get(...params);
-  if (row === null) throw new Error('count answered no row');
+function count(sql: string, ...params: (string | number)[]): number {
+  const row = h.sqlite.query<{ n: number }, (string | number)[]>(sql).get(...params);
+  if (row === null || !Number.isSafeInteger(row.n)) throw new Error('count answered no integer');
   return row.n;
 }
 
@@ -130,7 +153,8 @@ const agentPersons = () =>
   );
 const credentials = () => count('SELECT COUNT(*) AS n FROM machine_credential');
 const pools = () => count('SELECT COUNT(*) AS n FROM agent_pool');
-const auditCount = () => count('SELECT COUNT(*) AS n FROM organization_audit');
+const auditCount = () =>
+  count('SELECT COUNT(*) AS n FROM organization_audit WHERE rowid > ?', fixtureAuditRow);
 
 /**
  * The audit's rows, oldest first. Each agent call's grant writes its own
@@ -138,10 +162,10 @@ const auditCount = () => count('SELECT COUNT(*) AS n FROM organization_audit');
  */
 function auditRows(): { action: string; subject_kind: string; detail: string }[] {
   return h.sqlite
-    .query<{ action: string; subject_kind: string; detail: string }, []>(
-      'SELECT action, subject_kind, detail FROM organization_audit ORDER BY rowid',
+    .query<{ action: string; subject_kind: string; detail: string }, [number]>(
+      'SELECT action, subject_kind, detail FROM organization_audit WHERE rowid > ? ORDER BY rowid',
     )
-    .all();
+    .all(fixtureAuditRow);
 }
 
 /** The audit's actions, oldest first, without the agents' grant issuance. */
@@ -834,11 +858,11 @@ function readGrantAudits() {
         role_id: string;
         origin: string;
       },
-      []
+      [number]
     >(
-      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' ORDER BY rowid",
+      "SELECT id,organization_id,actor_id,action,subject_id,json_extract(detail,'$.subjectId') AS grant_subject_id,json_extract(detail,'$.subjectKind') AS grant_subject_kind,json_extract(detail,'$.scopeKind') AS scope_kind,json_extract(detail,'$.scopeId') AS scope_id,json_extract(detail,'$.roleId') AS role_id,json_extract(detail,'$.origin') AS origin FROM organization_audit WHERE subject_kind='access_grant' AND rowid > ? ORDER BY rowid",
     )
-    .all();
+    .all(fixtureAuditRow);
 }
 
 for (const operation of ['rekey', 'revoke'] as const) {

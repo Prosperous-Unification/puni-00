@@ -1,47 +1,56 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { stepParallelConformance } from '@wbs/conformance';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe } from 'bun:test';
 
-import { runMigrations } from './migrate';
-import { openSqliteSource } from './source';
-import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import type { SqliteSource } from './source';
+import { createScopePackage, openScopedServiceFixture } from './testing/scoped-service-fixture';
 
-let directory: string;
-let source: ReturnType<typeof openSqliteSource>;
+let fixture: ReturnType<typeof openScopedServiceFixture> | undefined;
+let source: SqliteSource;
 const stamp = { at: 1, by: 'u' };
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), 'step-parallel-'));
-  const path = join(directory, 'plan.db');
-  runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
-  seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-  source = openSqliteSource({
-    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
+  fixture = openScopedServiceFixture('step-parallel-');
+  source = fixture.source;
   const { stores } = source;
   await stores.users.create({ id: 'u', username: 'u', passwordHash: 'x', createdAt: 1 }, stamp);
-  for (const id of ['p', 'foreign']) {
-    await stores.workPackages.create(
-      workPackageRow({ id, projectId: 'fixture-project' }),
-      [],
-      stamp,
-    );
-  }
-  for (const [id, workPackageId, name] of [
-    ['dev', 'p', 'Dev'],
-    ['qa', 'p', 'QA'],
+  for (const [id, stepId, name] of [
+    ['p', 'dev', 'Dev'],
     ['foreign', 'foreign', 'Foreign'],
   ] as const)
-    await stores.steps.add(
-      { id, workPackageId, name, allowancePercent: 0, estimateUnit: 'workdays' },
+    await createScopePackage(
+      source,
+      workPackageRow({ id, projectId: 'fixture-project' }),
+      {
+        id: stepId,
+        code: stepId,
+        name,
+        position: 10,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
       stamp,
     );
+  const qa = await stores.stepCatalogue.defineAndBindStep(
+    'fixture-legacy-org',
+    {
+      id: 'qa',
+      code: 'qa',
+      name: 'QA',
+      position: 20,
+      defaultAllowancePercent: 0,
+      defaultEstimateUnit: 'workdays',
+    },
+    {
+      bindingId: 'qa:binding',
+      scopeKind: 'project',
+      scopeId: 'p:project',
+      workItemTypeId: null,
+      position: 20,
+    },
+    stamp,
+  );
+  if (!qa.ok) throw new Error('QA conformance binding refused: ' + qa.reason);
   for (const [id, parentId] of [
     ['a', null],
     ['parent', null],
@@ -50,8 +59,8 @@ beforeEach(async () => {
     await stores.workItems.insert(workItemRow({ id, parentId, workPackageId: 'p' }), [], stamp);
 });
 afterEach(async () => {
-  await source.close();
-  rmSync(directory, { recursive: true, force: true });
+  await fixture?.close();
+  fixture = undefined;
 });
 describe('store-sqlite sparse step parallelism', () => {
   stepParallelConformance(() => ({ source, stamp }));
