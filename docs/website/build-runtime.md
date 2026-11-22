@@ -176,7 +176,8 @@ Provision `WEBSITE_TEST_RESET_SECRET` as 32 random bytes encoded in 64 lowercase
 in the encrypted preview runtime Secret. The feature is disabled when unset, refuses malformed
 configuration, and refuses enablement on production origins. Never commit or log its value.
 
-Open `https://dev.request.puni.dev/#test-reset=<secret>`. The legacy development app origin
+Open `https://dev.request.puni.dev/#test-reset=<secret>`, or run `bin/puni-website-dev-reset.sh`
+(`--help` for options), which reads the secret from `website-dev/website-runtime` and opens the link. The legacy development app origin
 `https://dev.app.puni.dev` remains accepted; production and lookalike hostnames are refused.
 The app removes the fragment before
 analytics or initial API requests, sends a secret-authenticated POST to `/testing/reset`, then
