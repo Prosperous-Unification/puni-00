@@ -80,6 +80,25 @@ server name override through the Tailscale operator's exposure (task 3.13).
 
 ## Checks run on this change
 
+Rewrite of 2026-11-22, at the branch merged with `origin/main` 2d3294922:
+
+| Command                                                                                     | Result               |
+| ------------------------------------------------------------------------------------------- | -------------------- |
+| `./node_modules/.bin/openspec validate openbao-secret-store --strict`                       | valid                |
+| `./node_modules/.bin/openspec validate --all --json`                                        | 355 of 355 passed    |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`                       | 1 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`        | 15 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/current-documents.test.ts`               | 18 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/retired-roots.test.ts`                   | 3 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                 | 37 pass, 0 fail      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0, empty stderr |
+| `nx format:check --files=<the ten changed files>`                                           | exit 0               |
+
+Not established: `env -u CLAUDECODE bun test tools/tool-devsync/src/check-documents-target.test.ts`
+failed 5 of 6 while the laptop's disk was full and Nx's database refused writes (`DiskFull`).
+
+Earlier revisions:
+
 | Command                                                                                                                                                                                     | Result                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `bunx prettier --check` on the changed files                                                                                                                                                | pass                                                                |
@@ -88,4 +107,4 @@ server name override through the Tailscale operator's exposure (task 3.13).
 | `env -u CLAUDECODE bun test tools/tool-devsync/src/{adr-index,repo-namespacing-handoff,retired-roots,check-documents-target}.test.ts tools/tool-rename-work-package/src/allow-list.test.ts` | 28 pass after staging; untracked files fail the link test by design |
 
 No new safety check is implemented by this change, so no R5 proof is owed yet; each check in
-task group 1 carries its own.
+task groups 1 and 2 carries its own named fault.
