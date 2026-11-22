@@ -1,3 +1,5 @@
+import type { Monotonic } from '../clock';
+
 /** Independently admitted installed toolchain locations; the selected candidate supplies none of these paths. */
 export interface TestLevelAssets {
   readonly nodeModules: string;
@@ -51,11 +53,13 @@ export interface TestLevelContext {
   readonly environment: Readonly<Record<string, string | undefined>>;
   readonly assets: TestLevelAssets;
   readonly judge: TestLevelJudge;
+  readonly monotonic: Monotonic;
 }
 
 /** Snapshot only execution inputs; actual judge capabilities retain their selected provider receiver. */
 export function retainTestLevelContext(context: TestLevelContext): TestLevelContext {
   const judge = context.judge;
+  const monotonic = context.monotonic;
   const identity = judge.identity.bind(judge);
   const performance = judge.performance.bind(judge);
   return {
@@ -63,6 +67,7 @@ export function retainTestLevelContext(context: TestLevelContext): TestLevelCont
     callerDirectory: context.callerDirectory,
     environment: { ...context.environment },
     assets: { ...context.assets },
+    monotonic: { now: monotonic.now.bind(monotonic) },
     judge: {
       identity,
       performance,

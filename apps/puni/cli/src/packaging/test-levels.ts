@@ -94,8 +94,8 @@ export async function runInstalledBrowser(
   const retained = { ...request },
     selected = await readTestLevelContext(supplied);
   if (selected.kind === 'refused') return selected.status;
-  const { runBrowser } = await import('@puni/dash/runtime');
-  return await runBrowser(retained, selected.context);
+  const { monotonicClock, runBrowser } = await import('@puni/dash/runtime');
+  return await runBrowser(retained, { ...selected.context, monotonic: monotonicClock() });
 }
 
 /** Execute actual owned Performance code with separately selected policy and authenticated judge assets. */
@@ -106,6 +106,6 @@ export async function runInstalledPerformance(
   const retained = { ...request },
     selected = await readTestLevelContext(supplied);
   if (selected.kind === 'refused') return selected.status;
-  const { runPerformance } = await import('@puni/dash/runtime');
-  return await runPerformance(retained, selected.context);
+  const { monotonicClock, runPerformance } = await import('@puni/dash/runtime');
+  return await runPerformance(retained, { ...selected.context, monotonic: monotonicClock() });
 }

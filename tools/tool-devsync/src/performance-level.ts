@@ -1,4 +1,4 @@
-import { createPerformanceRuntime } from '@puni/dash/performance-level';
+import { createPerformanceRuntime, monotonicClock } from '@puni/dash/performance-level';
 
 import { createSourceTestLevelContext } from './source-test-level-context';
 
@@ -11,14 +11,16 @@ export async function runPerformanceLevel(
   policy?: string,
   services?: FixtureServices,
 ): Promise<void> {
-  const owned = createPerformanceRuntime(createSourceTestLevelContext());
+  const owned = createPerformanceRuntime(createSourceTestLevelContext(monotonicClock()));
   if (services === undefined) await owned.runPerformanceLevel(root, policy);
   else await owned.runPerformanceFixture(root, policy, services);
 }
 export async function readIdentity(
   ...arguments_: Parameters<Runtime['readIdentity']>
 ): Promise<string> {
-  return await createPerformanceRuntime(createSourceTestLevelContext()).readIdentity(...arguments_);
+  return await createPerformanceRuntime(
+    createSourceTestLevelContext(monotonicClock()),
+  ).readIdentity(...arguments_);
 }
 export {
   assertCandidateServiceDescriptors,

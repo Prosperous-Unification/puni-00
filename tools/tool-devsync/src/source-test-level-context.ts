@@ -14,7 +14,9 @@ import { createLaunch } from '@shared/bun-startup';
  * owner. Fresh trusted cwd and captured protected Bun startup preserve candidate isolation;
  * the execution owner alone releases that cwd after tree/numeric/EOF settlement.
  */
-export function createSourceTestLevelContext(): TestLevelContext {
+export function createSourceTestLevelContext(
+  clock: TestLevelContext['monotonic'],
+): TestLevelContext {
   const root = resolve(import.meta.dir, '../../..');
   const runtime = process.execPath,
     environment = { ...process.env },
@@ -72,6 +74,7 @@ export function createSourceTestLevelContext(): TestLevelContext {
     runtime,
     callerDirectory,
     environment,
+    monotonic: clock,
     assets: {
       nodeModules: join(root, 'node_modules'),
       playwrightEntrypoint: join(root, 'node_modules/playwright/cli.js'),

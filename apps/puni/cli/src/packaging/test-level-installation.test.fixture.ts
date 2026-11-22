@@ -13,7 +13,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { createPerformanceProcessOwner } from '@puni/dash/performance-processes';
+import { createPerformanceProcessOwner, monotonicClock } from '@puni/dash/performance-processes';
 import { createLaunch } from '@shared/bun-startup';
 import { createExecutionFixture } from '@tools/performance-execution-fixture';
 import { expect } from 'bun:test';
@@ -104,7 +104,7 @@ if(completion===null||typeof completion!=='object'||!['drain','exit'].includes(c
 writeFileSync(${JSON.stringify(completion)},JSON.stringify(completion));if(completion.kind==='exit')process.exit(completion.status);process.exitCode=completion.status;
 `,
   );
-  const owner = createPerformanceProcessOwner();
+  const owner = createPerformanceProcessOwner(monotonicClock());
   let stopping: Promise<void> | undefined;
   const stop = () => (stopping ??= owner.stop());
   let known = false;

@@ -509,13 +509,13 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
   ): Promise<void> {
     const pending = new Set(descriptors.map((descriptor) => descriptor.url));
     const failures = new Map<string, string>();
-    const deadline = Date.now() + deadlineMs;
+    const deadline = context.monotonic.now() + deadlineMs;
     for (;;) {
       // Proof: holding the supervisor's readiness response while all three ports were healthy
       // and sending SIGTERM failed the production cancellation test at its 15-second exit bound.
       execution.assertActive();
       if (pending.size === 0) return;
-      if (Date.now() >= deadline) break;
+      if (context.monotonic.now() >= deadline) break;
       for (const [index, descriptor] of descriptors.entries()) {
         if (!pending.has(descriptor.url)) continue;
         const child = children.at(index);
@@ -772,7 +772,9 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
   }
 
   async function readIdentity(root: string, revision: string): Promise<string> {
-    return await runTestLevelExecution((execution) => readIdentityIn(execution, root, revision));
+    return await runTestLevelExecution(context.monotonic, (execution) =>
+      readIdentityIn(execution, root, revision),
+    );
   }
 
   async function checkPerformance(
@@ -935,7 +937,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
       // Roles select closed Bun vectors; descriptor command text is never interpreted.
       const [backend, gateway, frontend] = normalizedDescriptors;
       const serviceChildren: Bun.Subprocess[] = [];
-      const serviceDeadline = Date.now() + 120_000;
+      const serviceDeadline = context.monotonic.now() + 120_000;
       if (fixtureServices === undefined) {
         const roles = [
           [backend, 'src/testing/ordinary-browser-server.ts'],
@@ -960,7 +962,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
         const buildExit = await awaitChildWithin(
           execution,
           build,
-          Math.max(0, serviceDeadline - Date.now()),
+          Math.max(0, serviceDeadline - context.monotonic.now()),
           'frontend build',
         );
         if (buildExit !== 0)
@@ -1000,7 +1002,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
         execution,
         normalizedDescriptors,
         serviceChildren,
-        Math.max(0, serviceDeadline - Date.now()),
+        Math.max(0, serviceDeadline - context.monotonic.now()),
       );
       await assertPinnedCheckout(
         checkoutRoot,
@@ -1323,7 +1325,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
     candidateRoot: string,
     rulePolicyPath?: string,
   ): Promise<void> {
-    await runTestLevelExecution((execution) =>
+    await runTestLevelExecution(context.monotonic, (execution) =>
       withPerformanceLock(candidateRoot, () =>
         execution.observeOperation(
           runLockedPerformanceLevel(execution, candidateRoot, rulePolicyPath),
@@ -1338,7 +1340,7 @@ export function createPerformanceRuntime(selection: TestLevelContext) {
     services: readonly FixtureService[],
   ): Promise<void> {
     const kept = retainFixtureServices(services);
-    await runTestLevelExecution((execution) =>
+    await runTestLevelExecution(context.monotonic, (execution) =>
       withPerformanceLock(candidateRoot, () =>
         execution.observeOperation(
           runLockedPerformanceLevel(execution, candidateRoot, rulePolicyPath, kept),

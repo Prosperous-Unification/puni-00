@@ -220,7 +220,7 @@ export function createBrowserRuntime(selection: TestLevelContext) {
     environment: Record<string, string>,
     timeoutMs: number,
   ): Promise<Invocation> {
-    return await runTestLevelExecution((execution) =>
+    return await runTestLevelExecution(context.monotonic, (execution) =>
       runIn(execution, argv, cwd, environment, timeoutMs),
     );
   }
@@ -326,7 +326,7 @@ export function createBrowserRuntime(selection: TestLevelContext) {
     waitMs: number,
   ): Promise<T> {
     const lock = join(root, 'tmp/junit/browser', `${mode}.lock`);
-    const deadline = Date.now() + waitMs;
+    const deadline = context.monotonic.now() + waitMs;
     let acquired = false;
     while (!acquired) {
       try {
@@ -341,7 +341,7 @@ export function createBrowserRuntime(selection: TestLevelContext) {
         )
           throw cause;
         // Proof: retaining a lock directory made the stuck-lock negative refuse by the deadline.
-        if (Date.now() >= deadline)
+        if (context.monotonic.now() >= deadline)
           throw new Error(`Browser ${mode} publication lock timed out`, { cause });
         await Bun.sleep(10);
       }
@@ -779,7 +779,7 @@ export function createBrowserRuntime(selection: TestLevelContext) {
 
   async function runBrowserLevel(candidateRoot: string, mode: Mode): Promise<void> {
     const root = resolve(candidateRoot);
-    await runTestLevelExecution((execution) =>
+    await runTestLevelExecution(context.monotonic, (execution) =>
       withBrowserInvocation(root, mode, (publish) =>
         execution.observeOperation(collectBrowserLevel(execution, root, mode, publish)),
       ),

@@ -1,3 +1,4 @@
+export { monotonicClock } from './clock';
 export { createPerformanceRuntime } from './test-levels/performance';
 export {
   assertCandidateServiceDescriptors,

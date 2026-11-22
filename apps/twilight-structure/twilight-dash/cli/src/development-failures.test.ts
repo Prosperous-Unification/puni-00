@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, it } from 'bun:test';
 
-const fixture = fileURLToPath(new URL('./development-failures.fixture.ts', import.meta.url));
+const fixture = fileURLToPath(new URL('./development-failures.test.fixture.ts', import.meta.url));
 for (const mode of ['delivery', 'late-sink'] as const) {
   it(
     'development owner retains bounded ' + mode + ' failure without losing custody',

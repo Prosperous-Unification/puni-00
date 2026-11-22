@@ -1,78 +1,76 @@
-import { createBrowserRuntime } from '@puni/dash/browser-level';
+import { createBrowserRuntime, monotonicClock } from '@puni/dash/browser-level';
 
 import { createSourceTestLevelContext } from './source-test-level-context';
 
 type Runtime = ReturnType<typeof createBrowserRuntime>;
+
+function createSourceBrowserRuntime(): Runtime {
+  return createBrowserRuntime(createSourceTestLevelContext(monotonicClock()));
+}
 export function assertClean(
   ...arguments_: Parameters<Runtime['assertClean']>
 ): ReturnType<Runtime['assertClean']> {
-  return createBrowserRuntime(createSourceTestLevelContext()).assertClean(...arguments_);
+  return createSourceBrowserRuntime().assertClean(...arguments_);
 }
 export function decodeBrowserText(
   ...arguments_: Parameters<Runtime['decodeBrowserText']>
 ): ReturnType<Runtime['decodeBrowserText']> {
-  return createBrowserRuntime(createSourceTestLevelContext()).decodeBrowserText(...arguments_);
+  return createSourceBrowserRuntime().decodeBrowserText(...arguments_);
 }
 export function parseJson(
   ...arguments_: Parameters<Runtime['parseJson']>
 ): ReturnType<Runtime['parseJson']> {
-  return createBrowserRuntime(createSourceTestLevelContext()).parseJson(...arguments_);
+  return createSourceBrowserRuntime().parseJson(...arguments_);
 }
 export async function run(
   ...arguments_: Parameters<Runtime['run']>
 ): Promise<Awaited<ReturnType<Runtime['run']>>> {
-  return await createBrowserRuntime(createSourceTestLevelContext()).run(...arguments_);
+  return await createSourceBrowserRuntime().run(...arguments_);
 }
 export async function browserServedFiles(
   ...arguments_: Parameters<Runtime['browserServedFiles']>
 ): Promise<Awaited<ReturnType<Runtime['browserServedFiles']>>> {
-  return await createBrowserRuntime(createSourceTestLevelContext()).browserServedFiles(
-    ...arguments_,
-  );
+  return await createSourceBrowserRuntime().browserServedFiles(...arguments_);
 }
 export function validatedPortShift(
   ...arguments_: Parameters<Runtime['validatedPortShift']>
 ): ReturnType<Runtime['validatedPortShift']> {
-  return createBrowserRuntime(createSourceTestLevelContext()).validatedPortShift(...arguments_);
+  return createSourceBrowserRuntime().validatedPortShift(...arguments_);
 }
 export function runtimeEnvironment(
   ...arguments_: Parameters<Runtime['runtimeEnvironment']>
 ): ReturnType<Runtime['runtimeEnvironment']> {
-  return createBrowserRuntime(createSourceTestLevelContext()).runtimeEnvironment(...arguments_);
+  return createSourceBrowserRuntime().runtimeEnvironment(...arguments_);
 }
 export async function assertBrowserInputs(
   ...arguments_: Parameters<Runtime['assertBrowserInputs']>
 ): Promise<Awaited<ReturnType<Runtime['assertBrowserInputs']>>> {
-  await createBrowserRuntime(createSourceTestLevelContext()).assertBrowserInputs(...arguments_);
+  await createSourceBrowserRuntime().assertBrowserInputs(...arguments_);
 }
 export async function withBrowserInvocation(
   ...arguments_: Parameters<Runtime['withBrowserInvocation']>
 ): Promise<Awaited<ReturnType<Runtime['withBrowserInvocation']>>> {
-  await createBrowserRuntime(createSourceTestLevelContext()).withBrowserInvocation(...arguments_);
+  await createSourceBrowserRuntime().withBrowserInvocation(...arguments_);
 }
 export async function publishBrowserBundle(
   ...arguments_: Parameters<Runtime['publishBrowserBundle']>
 ): Promise<Awaited<ReturnType<Runtime['publishBrowserBundle']>>> {
-  return await createBrowserRuntime(createSourceTestLevelContext()).publishBrowserBundle(
-    ...arguments_,
-  );
+  return await createSourceBrowserRuntime().publishBrowserBundle(...arguments_);
 }
 export async function readBrowserPublication(
   ...arguments_: Parameters<Runtime['readBrowserPublication']>
 ): Promise<Awaited<ReturnType<Runtime['readBrowserPublication']>>> {
-  return await createBrowserRuntime(createSourceTestLevelContext()).readBrowserPublication(
-    ...arguments_,
-  );
+  return await createSourceBrowserRuntime().readBrowserPublication(...arguments_);
 }
 export function assertBrowserCommand(
   ...arguments_: Parameters<Runtime['assertBrowserCommand']>
 ): ReturnType<Runtime['assertBrowserCommand']> {
-  createBrowserRuntime(createSourceTestLevelContext()).assertBrowserCommand(...arguments_);
+  createSourceBrowserRuntime().assertBrowserCommand(...arguments_);
 }
 export async function runBrowserLevel(
   ...arguments_: Parameters<Runtime['runBrowserLevel']>
 ): Promise<Awaited<ReturnType<Runtime['runBrowserLevel']>>> {
-  await createBrowserRuntime(createSourceTestLevelContext()).runBrowserLevel(...arguments_);
+  await createSourceBrowserRuntime().runBrowserLevel(...arguments_);
 }
 
 if (import.meta.main) {

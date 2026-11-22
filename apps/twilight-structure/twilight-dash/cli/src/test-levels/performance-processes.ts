@@ -2,6 +2,8 @@ import { closeSync, readdirSync, readFileSync } from 'node:fs';
 
 import { dlopen, ptr, toArrayBuffer } from 'bun:ffi';
 
+import type { Monotonic } from '../clock';
+
 const PR_SET_CHILD_SUBREAPER = 36;
 const PR_GET_CHILD_SUBREAPER = 37;
 const SYS_PIDFD_OPEN = 434;
@@ -148,7 +150,7 @@ function signalOwned(
 }
 
 /** Owns service descendants through Linux subreaper and pidfd identity. */
-export function createPerformanceProcessOwner(): PerformanceProcessOwner {
+export function createPerformanceProcessOwner(monotonic: Monotonic): PerformanceProcessOwner {
   if (libc === undefined) throw new Error('Performance process ownership requires Linux');
   const subreaper = new Int32Array(1);
   // Proof: when this prerequisite guard was disabled, injected PR_SET_CHILD_SUBREAPER
@@ -326,13 +328,13 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
     },
     async stop() {
       stopping = true;
-      const started = Date.now();
+      const started = monotonic.now();
       const failures = new Map<string, unknown>();
       const remember = (cause: unknown): void => {
         failures.set(String(cause), cause);
       };
       try {
-        while (Date.now() - started < CLEANUP_MS) {
+        while (monotonic.now() - started < CLEANUP_MS) {
           const selected = discover(remember);
           for (const identity of selected.values()) {
             try {
@@ -362,7 +364,11 @@ export function createPerformanceProcessOwner(): PerformanceProcessOwner {
               }
               // Proof: the first-signal preload made the first owned PID's
               // pidfd_send_signal fail; cleanup now still terminates its sibling.
-              signalOwned(entry, Date.now() - started < GRACE_MS ? SIGTERM : SIGKILL, selected);
+              signalOwned(
+                entry,
+                monotonic.now() - started < GRACE_MS ? SIGTERM : SIGKILL,
+                selected,
+              );
             } catch (cause) {
               remember(cause);
             }

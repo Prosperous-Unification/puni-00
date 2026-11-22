@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { Monotonic } from '../clock';
 import { createPerformanceProcessOwner } from './performance-processes';
 
 /** Unknown numeric, EOF, native tree or release state retains every still-owned judge namespace. */
@@ -19,7 +20,7 @@ class TestLevelCancellation extends Error {}
  * after the native tree and all captured channels settle; callers cannot register arbitrary cleanup paths.
  */
 export class TestLevelExecution {
-  private readonly native = createPerformanceProcessOwner();
+  private readonly native: ReturnType<typeof createPerformanceProcessOwner>;
   private readonly observations: Promise<{ ok: true } | { ok: false; cause: unknown }>[] = [];
   private readonly judgeDirectories = new Set<string>();
   private stopping: Promise<void> | undefined;
@@ -37,7 +38,8 @@ export class TestLevelExecution {
     this.cancel('SIGTERM');
   };
 
-  constructor() {
+  constructor(monotonic: Monotonic) {
+    this.native = createPerformanceProcessOwner(monotonic);
     process.on('SIGINT', this.onInterrupt);
     process.on('SIGTERM', this.onTermination);
   }
@@ -237,9 +239,10 @@ export class TestLevelExecution {
 
 /** Keep original operation and every cleanup cause, including failures before the operation creates its checkout. */
 export async function runTestLevelExecution<Value>(
+  monotonic: Monotonic,
   execute: (execution: TestLevelExecution) => Promise<Value>,
 ): Promise<Value> {
-  const execution = new TestLevelExecution();
+  const execution = new TestLevelExecution(monotonic);
   const completed = await (async () => await execute(execution))().then(
     (value) => ({ ok: true as const, value }),
     (cause: unknown) => ({ ok: false as const, cause }),

@@ -1,3 +1,4 @@
+export { monotonicClock } from './clock';
 export {
   createPerformanceProcessOwner,
   type PerformanceProcessOwner,
