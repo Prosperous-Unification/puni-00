@@ -125,11 +125,11 @@ session token in `__Host-wbs_access`, the `__Host-wbs_organization` cookie that
 (`patch.accountId`), then `POST /api/organization/machine-credentials`
 `{ source: 'api_key', name, personId }`. The answer carries the key once: save it to a file and
 `chmod 600` it. A pool of agents comes from the organization page's agent pools panel and
-`twilight-dash pool import` instead ([`pool import`](../apps/twilight-structure/twilight-dash/cli/README.md#pool-import)).
+`puni dash pool import` instead ([`pool import`](../apps/twilight-structure/twilight-dash/cli/README.md#pool-import)).
 Lease timing has no knob: claims hold for the real 15 minutes.
 
 The agent connects to `http://127.0.0.1:7302/mcp` with
-[`twilight-dash mcp token`](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)
+[`puni dash mcp token`](../apps/twilight-structure/twilight-dash/cli/README.md#mcp-token)
 as its `headersHelper`, which exchanges the key for a fresh token at mcp-01's token endpoint
 on every run. For Claude Code, an `.mcp.json` such as:
 
@@ -139,13 +139,13 @@ on every run. For Claude Code, an `.mcp.json` such as:
     "wbs": {
       "type": "http",
       "url": "http://127.0.0.1:7302/mcp",
-      "headersHelper": "bun <repo>/apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts mcp token --resource http://127.0.0.1:7302/mcp --key-file <key file>"
+      "headersHelper": "puni dash mcp token --resource http://127.0.0.1:7302/mcp --key-file <key file>"
     }
   }
 }
 ```
 
-`activated-organization-server.test.ts` runs this path: the key, the helper, one tool call.
+`activated-organization-server.db.test.ts` runs this path: the key, the helper, one tool call.
 A human's consent on `/mcp` still cannot complete here: be-01 boots without
 `WBS_DELEGATION_VERIFY_KEY`, and there is no upstream login for mcp-01 to send the human to.
 `bun run dev` starts mcp-01, but its seeded `.env` points `WBS_API_URL` at the deployed dev

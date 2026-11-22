@@ -29,8 +29,8 @@ import { WorkItemRepository } from '../repository/work-item';
 import { WorkPackageRepository } from '../repository/work-package';
 import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
 import { workPackageRow } from '../testing/work-package-fixture';
-import { bindProjectFixtureSteps } from './fixtures/project-steps';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll } from 'bun:test';
 
-import { migrateOrganizationCatalogueFixture } from '../../testing/organization-catalogue-fixture';
+import { migrateOrganizationCatalogueFixture } from './organization-catalogue-fixture';
 
 /** Migrates and closes one real catalogue database before this suite, then gives each solver scenario an independent file. */
 export function prepareOptimizationDatabase(): (path: string) => void {

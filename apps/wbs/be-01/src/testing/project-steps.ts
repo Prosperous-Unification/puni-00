@@ -2,7 +2,7 @@ import type { WriteStamp } from '@wbs/core';
 import type { Drizzle } from '@wbs/store-sqlite/db';
 import { StepCatalogueRepository } from '@wbs/store-sqlite/step-catalogue';
 
-import { OPEN } from '../../repository/gate';
+import { OPEN } from '../repository/gate';
 
 /** Authors stable fixture IDs through the real catalogue writer and binds them to the named project. */
 export async function bindProjectFixtureSteps(

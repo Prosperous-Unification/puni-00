@@ -33,8 +33,8 @@ import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { readOptimizedPair, storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
+import { prepareOptimizationDatabase } from '../testing/optimization-database';
 import { seedLegacyProject } from '../testing/project-fixture';
-import { prepareOptimizationDatabase } from './fixtures/optimization-database';
 
 const copyOptimizationDatabase = prepareOptimizationDatabase();
 

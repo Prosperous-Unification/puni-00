@@ -114,7 +114,7 @@ async function serveActivatedOrganization({
         browserSessionAuthority: 'enabled',
         organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
         // Proof: without these settings, `issues an agent's key a token at the local
-        // mcp-01…` (activated-organization-server.test.ts) saw `mcp token` exit 1 on the
+        // mcp-01…` (activated-organization-server.db.test.ts) saw `mcp token` exit 1 on the
         // token endpoint's HTTP 502 server_error; watched 2026-10-29.
         mcpService: loadMcpServiceSettings({
           ...TEST_MACHINE_GRANT_ENV,
@@ -125,7 +125,7 @@ async function serveActivatedOrganization({
       {
         openSource: openSqliteSource,
         // Proof: with Elysia's default listener here, `serves the owner an
-        // activated organization on loopback…` (activated-organization-server.test.ts)
+        // activated organization on loopback…` (activated-organization-server.db.test.ts)
         // reached the server on the host's LAN address; watched 2026-10-24.
         startListener: (server, listenPort, ready) =>
           server.listen({ port: listenPort, hostname: HOSTNAME }, ready),
@@ -151,7 +151,7 @@ async function serveActivatedOrganization({
     );
   } catch (cause) {
     // Proof: with this cleanup removed, `deletes its database directory when
-    // it cannot start` (activated-organization-server.test.ts) found
+    // it cannot start` (activated-organization-server.db.test.ts) found
     // `wbs-activated-organization-*` left in the child's TMPDIR; watched
     // 2026-10-24.
     await running?.stop();

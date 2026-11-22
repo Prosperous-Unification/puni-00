@@ -34,10 +34,10 @@ import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
 import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
+import { prepareOptimizationDatabase } from '../testing/optimization-database';
 import { seedLegacyProject } from '../testing/project-fixture';
 import { refusingProjectRead } from '../testing/project-fixture';
-import { prepareOptimizationDatabase } from './fixtures/optimization-database';
-import { bindProjectFixtureSteps } from './fixtures/project-steps';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
 import { optimizerWiring } from './optimizer-wiring';
 
 const copyOptimizationDatabase = prepareOptimizationDatabase();

@@ -30,8 +30,8 @@ import { nodeDigest } from '../runtime/bun-runtime';
 import { capturedSchedulerFixture } from '../testing/captured-scheduler-fixture';
 import { migrateOrganizationCatalogueFixture } from '../testing/organization-catalogue-fixture';
 import { seedLegacyProject } from '../testing/project-fixture';
+import { bindProjectFixtureSteps } from '../testing/project-steps';
 import { workPackageRow } from '../testing/work-package-fixture';
-import { bindProjectFixtureSteps } from './fixtures/project-steps';
 import { fastScheduler } from './optimizer-wiring';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
