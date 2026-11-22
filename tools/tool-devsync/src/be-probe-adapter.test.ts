@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { createShebang } from '@shared/bun-startup';
+import { createLaunch, createShebang } from '@shared/bun-startup';
 import { afterEach, expect, it } from 'bun:test';
 
 const adapter = resolve(import.meta.dir, '../../../bin/dev-be-probe.ts');
@@ -37,7 +37,7 @@ function invoke(
   args: string[] = ['https://example.invalid'],
   environment: Record<string, string> = {},
 ) {
-  return Bun.spawnSync([adapter, ...args], {
+  return Bun.spawnSync([...createLaunch(join(fixture.tools, 'bun'), adapter), ...args], {
     cwd: fixture.caller,
     env: {
       PATH: fixture.tools + ':/usr/bin:/bin',

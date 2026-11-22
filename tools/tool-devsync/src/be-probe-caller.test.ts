@@ -59,8 +59,15 @@ function createFixture(continueDeployment = false) {
   return { root, tools, gitCalls, sshCalls };
 }
 
-function deploy(fixture: ReturnType<typeof createFixture>, selection?: string) {
-  const environment: Record<string, string> = { PATH: fixture.tools + ':/usr/bin:/bin' };
+function deploy(
+  fixture: ReturnType<typeof createFixture>,
+  selection?: string,
+  supplied: Readonly<Record<string, string>> = {},
+) {
+  const environment: Record<string, string> = {
+    ...supplied,
+    PATH: fixture.tools + ':/usr/bin:/bin',
+  };
   if (selection !== undefined) environment['PUNI_EXECUTABLE'] = selection;
   const bash = Bun.which('bash');
   if (bash === null)
@@ -99,11 +106,11 @@ it('manual deployment enters its controlled existing path only after silent sele
   const captured = join(fixture.root, 'preflight.json');
   writeFileSync(
     selected,
-    'import{writeFileSync}from"node:fs";export function main(args,context){writeFileSync(' +
+    'import{writeFileSync}from"node:fs";export function main(args,context){if(process.env.NODE_OPTIONS!==undefined)throw new Error("startup option reached selected PUNI");writeFileSync(' +
       JSON.stringify(captured) +
       ',JSON.stringify(args));context.stdout("suppressed help bytes");return {kind:"drain",status:0}}\n',
   );
-  const child = deploy(fixture, selected);
+  const child = deploy(fixture, selected, { NODE_OPTIONS: '--no-warnings' });
   expect(child.signalCode, child.stderr.toString()).toBeUndefined();
   expect(child.exitedDueToTimeout).toBe(false);
   expect(child.exitCode, child.stderr.toString()).toBe(75);

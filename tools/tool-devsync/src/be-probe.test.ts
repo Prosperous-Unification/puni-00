@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { createLaunch } from '@shared/bun-startup';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const PROBE = join(import.meta.dir, '../../../bin/dev-be-probe.ts');
@@ -39,7 +40,7 @@ async function runProbe(origin: string): Promise<{ exitCode: number; output: str
       JSON.stringify(pathToFileURL(join(root, 'apps/puni/cli/src/entrypoint.ts')).href) +
       ';\n',
   );
-  const child = Bun.spawn([PROBE, origin], {
+  const child = Bun.spawn([...createLaunch(process.execPath, PROBE), origin], {
     env: { ...process.env, PUNI_EXECUTABLE: selected },
     stdout: 'pipe',
     stderr: 'pipe',

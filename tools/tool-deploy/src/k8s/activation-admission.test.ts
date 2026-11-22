@@ -362,21 +362,20 @@ for (const [name, command] of [
       const root = mkdtempSync('/tmp/activation-real-baseline-');
       roots.push(root);
       const path = join(root, 'wbs.sqlite');
-      if (route === 'fresh') {
-        const staged = join(root, 'drizzle');
-        mkdirSync(staged);
-        for (const migration of readdirSync(migrations)) {
-          if (
-            /^\d{14}_/.test(migration) &&
-            migration < '20261014140000_add_step_blockage_activation'
-          )
-            cpSync(join(migrations, migration), join(staged, migration), { recursive: true });
-        }
-        migrateFixture(path, staged, false);
-      } else {
-        migrateFixture(path, migrations, false);
-        migrateFixture(path, migrations, true);
+      const staged = join(root, 'drizzle');
+      mkdirSync(staged);
+      // Roll back from the actual receipt migration. Using today's tree made both
+      // rollback cases stop at the unrelated catalogue admission boundary.
+      const tip =
+        route === 'fresh'
+          ? '20261014130000_add_shared_people_restore_receipts'
+          : '20261015100000_add_step_blockage_activation_receipt';
+      for (const migration of readdirSync(migrations)) {
+        if (/^\d{14}_/.test(migration) && migration <= tip)
+          cpSync(join(migrations, migration), join(staged, migration), { recursive: true });
       }
+      migrateFixture(path, staged, false);
+      if (route === 'rollback') migrateFixture(path, staged, true);
       const before = readFileSync(path);
       const child = Bun.spawnSync({
         cmd: [...command()],

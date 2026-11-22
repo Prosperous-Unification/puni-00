@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
+import { createLaunch } from '@shared/bun-startup';
 import { $ } from 'bun';
 import { afterAll, expect, it } from 'bun:test';
 
@@ -332,7 +333,8 @@ it('packs and installs the captured PUNI package outside its checkout with prote
     ...environment,
     PUNI_EXECUTABLE: join(install, 'node_modules/puni/dist/puni.mjs'),
   };
-  const preflight = Bun.spawn([backendCaller, '--preflight'], {
+  const probe = createLaunch(process.execPath, backendCaller);
+  const preflight = Bun.spawn([...probe, '--preflight'], {
     cwd: candidate,
     env: backendCallerEnvironment,
     stdin: 'ignore',
@@ -356,7 +358,7 @@ it('packs and installs the captured PUNI package outside its checkout with prote
       Response.json({ user: null, features: { onboarding: false, organizations: false } }),
   });
   try {
-    const child = Bun.spawn([backendCaller, 'http://127.0.0.1:' + String(callerBackend.port)], {
+    const child = Bun.spawn([...probe, 'http://127.0.0.1:' + String(callerBackend.port)], {
       cwd: candidate,
       env: backendCallerEnvironment,
       stdin: 'ignore',

@@ -203,7 +203,7 @@ it('maps success-shaped 503 resume replies to unavailable on the live socket', a
   try {
     await until(() => frames.length === 1);
     socket.send(
-      '{"type":"resume","resume_points":{"workPackage:00000000-0000-4000-8000-0000000000aa":0}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":0}}',
     );
     await until(() => frames.length > 1);
     // Proof: routing the rejection through the forward frame changed these exact bytes.

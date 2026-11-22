@@ -116,10 +116,10 @@ const failures = [
     operation: 'resume' as const,
     route: '/internal/resume',
     request:
-      '{"type":"resume","resume_points":{"workPackage:00000000-0000-4000-8000-0000000000aa":3,"workPackage:00000000-0000-4000-8000-000000000001":8}}',
+      '{"type":"resume","resume_points":{"work-package:00000000-0000-4000-8000-0000000000aa":3,"work-package:00000000-0000-4000-8000-000000000001":8}}',
     expectedRaw: [
-      '{"type":"resume_denied","subscription":"workPackage:00000000-0000-4000-8000-0000000000aa","reason":"unavailable"}',
-      '{"type":"resume_denied","subscription":"workPackage:00000000-0000-4000-8000-000000000001","reason":"unavailable"}',
+      '{"type":"resume_denied","subscription":"work-package:00000000-0000-4000-8000-0000000000aa","reason":"unavailable"}',
+      '{"type":"resume_denied","subscription":"work-package:00000000-0000-4000-8000-000000000001","reason":"unavailable"}',
       '{"type":"resume_ack","replayed":{}}',
     ],
   },

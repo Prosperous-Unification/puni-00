@@ -15,13 +15,14 @@ import {
   OrganizationActivationRefused,
   readOrganizationActivation as readMarker,
 } from './organization-activation';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 /** Reads the marker through drizzle over a raw fixture connection, as repositories will. */
 function readOrganizationActivation(db: Database): ReturnType<typeof readMarker> {
   return readMarker(drizzle({ client: db }));
 }
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** Main's step code column, stamped after the marker and so reversed before it. */
@@ -39,11 +40,13 @@ const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-activation-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, INITIAL_ACCESS_OFFERS);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -107,7 +110,7 @@ describe('readOrganizationActivation', () => {
   });
 
   it('refuses an absent marker table', () => {
-    rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP);
+    rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP);
     expect(withDb(readBrokenMarker)).toBe('absent');
   });
 
@@ -210,8 +213,8 @@ describe('organization activation marker schema', () => {
   });
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
-      '20261103110000_add_initial_access_offers',
+    expect(rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toEqual([
+      INITIAL_ACCESS_OFFERS,
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
@@ -229,9 +232,9 @@ describe('organization activation marker schema', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -261,13 +264,13 @@ describe('organization activation marker schema', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -277,8 +280,8 @@ describe('organization activation marker schema', () => {
       STEP_CODE,
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
-    runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20261103110000_add_initial_access_offers');
+    runMigrations(path, migrations);
+    expect(readAppliedMigrations().at(-1)).toBe(INITIAL_ACCESS_OFFERS);
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 
@@ -307,10 +310,10 @@ describe('organization activation marker schema', () => {
     ],
   ])('refuses rollback across %s and changes nothing', (_label, prepare) => {
     // Isolate this migration's reversal: newer migrations commit their own reversal first.
-    rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION);
+    rollbackTo(path, migrations, ORGANIZATION_ACTIVATION);
     withDb(prepare);
     const before = withDb((db) => db.query('SELECT * FROM organization_activation').all());
-    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow(
+    expect(() => rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toThrow(
       /permanent|organization_activation_must_be_pre_activation/,
     );
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_ACTIVATION);
