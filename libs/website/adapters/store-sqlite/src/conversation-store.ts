@@ -23,6 +23,7 @@ import {
   refuseRollingAllowance,
   refuseSiteWindow,
 } from './anonymous-admission';
+import { followableDraftPredicate } from './followable-draft';
 import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
 import { applyScopingReply, type DraftScoping, readDraftScoping } from './scoping-store';
 
@@ -72,6 +73,8 @@ export interface ConversationContext {
   scoping: DraftScoping;
   brief: string;
   visitorTurns: number;
+  /** The draft's request was already submitted; the turn is a follow-up on the same draft. */
+  submitted: boolean;
 }
 
 /**
@@ -472,12 +475,14 @@ export function admitConversationOperation(
             scoping_version: unknown;
             start_conversation: unknown;
             starting_choice: unknown;
+            consumed_at: number | null;
           },
           [string, number]
         >(
-          'SELECT id, description, brief, scoping_version, start_conversation, starting_choice FROM intake_draft WHERE claim_hash = ? AND expires_at > ? AND consumed_at IS NULL',
+          `SELECT draft.id, draft.description, draft.brief, draft.scoping_version, draft.start_conversation, draft.starting_choice, draft.consumed_at FROM intake_draft AS draft WHERE draft.claim_hash = ? AND draft.expires_at > ? AND ${followableDraftPredicate}`,
         )
         .get(request.claimHash, request.now);
+      // Proof: restoring `consumed_at IS NULL` here refused every follow-up in submitted-conversation.test.ts.
       if (!draft) return { kind: 'draft_unavailable' };
       const scoping = readDraftScoping(database, draft.id, draft);
       // Proof: bypassing either key or description comparison admitted the forged-initial fixture before reservation.
@@ -509,8 +514,14 @@ export function admitConversationOperation(
         conversation = findConversationRow(database, draft.id);
         if (!conversation) throw new Error('Conversation insert was not visible');
       }
-      if (conversation.state === 'handed_off')
-        throw new Error('Handed-off conversation has an unconsumed draft');
+      if (conversation.state === 'handed_off') {
+        if (draft.consumed_at === null)
+          throw new Error('Handed-off conversation has an unconsumed draft');
+        // Earlier binaries handed a submitted draft's conversation off; follow-ups reopen it.
+        // Proof: keeping the throw for submitted drafts failed the earlier-binary reopen test in submitted-conversation.test.ts.
+        database.query("UPDATE conversation SET state = 'open' WHERE id = ?").run(conversation.id);
+        conversation = { ...conversation, state: 'open' };
+      }
       const exhaustedReason =
         conversation.state === 'exhausted' ? conversation.exhausted_reason : null;
       if (conversation.state === 'exhausted' && exhaustedReason === null)
@@ -580,7 +591,12 @@ export function admitConversationOperation(
         throw new Error('Missing normalized conversation answer');
       const stage = deriveReplyStage(visitorTurns);
       const history = listModelContext(database, conversation.id);
-      const context = { scoping, brief: draft.brief, visitorTurns };
+      const context = {
+        scoping,
+        brief: draft.brief,
+        visitorTurns,
+        submitted: draft.consumed_at !== null,
+      };
       let reservedMicroUsd: number | null = null;
       if (request.pricing.kind === 'paid') {
         // Proof: disabling the paid-attempt cap admitted the eleventh interrupted operation.
@@ -782,10 +798,11 @@ function settleConversationOperation(
       // Proof: capturing a declined reply stored the decline as the draft brief in the brief-stage refusal test.
       const draft = database
         .query<{ id: string }, [string, number]>(
-          'SELECT id FROM intake_draft WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND expires_at > ?',
+          `SELECT draft.id FROM intake_draft AS draft WHERE draft.id = (SELECT draft_id FROM conversation WHERE id = ?) AND draft.expires_at > ? AND ${followableDraftPredicate}`,
         )
         .get(operation.conversation_id, now);
       // Proof: bypassing this guard completed known-invalid replies after expiry, consumption and missing ownership.
+      // Proof: restoring `consumed_at IS NULL` here refused the follow-up settlement in submitted-conversation.test.ts.
       if (!draft) return false;
       if (
         structured?.kind === 'valid' &&
@@ -917,15 +934,6 @@ export function readSourceSalt(database: Database, utcDay: string): Uint8Array {
       return row.salt;
     })
     .immediate();
-}
-
-/** Marks the draft's conversation, if any, `handed_off`; call inside the claim-consuming transaction. */
-export function handOffConversation(database: Database, draftId: string): void {
-  database
-    .query(
-      "UPDATE conversation SET state = 'handed_off', exhausted_reason = NULL WHERE draft_id = ?",
-    )
-    .run(draftId);
 }
 
 /**

@@ -981,6 +981,11 @@ textarea {
   /* Briefs are written as lines and bullets; the operator reads them as written. */
   white-space: pre-line;
 }
+.submission-follow-ups {
+  margin: 0;
+  padding-left: var(--space-4);
+  white-space: pre-line;
+}
 .submission-head {
   display: flex;
   justify-content: space-between;
@@ -1211,6 +1216,12 @@ body:has(.night-shell) {
   text-decoration: underline;
   text-decoration-color: var(--accent);
   text-underline-offset: 6px;
+}
+.harness:has([data-email-only]) > .harness-bar {
+  display: none;
+}
+.harness-handoff {
+  align-self: flex-start;
 }
 .harness-text-button {
   display: inline-flex;
@@ -1565,6 +1576,138 @@ body:has(.night-shell) {
 .proposal-card .proposal-thanks {
   font-size: var(--text-h3);
   color: #fff;
+}
+.receipt-success {
+  align-items: center;
+  gap: var(--space-2);
+  padding: clamp(1.5rem, 5vw, 2.5rem) var(--space-4);
+  text-align: center;
+}
+.receipt-success::before {
+  border-color: rgb(160 242 192 / 0.22);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgb(96 227 156 / 0.13), transparent 70%),
+    rgb(255 255 255 / 0.04);
+}
+.receipt-success h2 {
+  font-size: clamp(1.375rem, 3vw, 1.75rem);
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+}
+.receipt-next {
+  margin-top: var(--space-3);
+}
+/* The recorded-request confirmation, as a reply in the conversation thread. */
+.submission-receipt {
+  align-self: flex-start;
+  width: min(100%, 520px);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid rgb(160 242 192 / 0.22);
+  border-radius: 20px 20px 20px 6px;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgb(96 227 156 / 0.13), transparent 70%),
+    rgb(255 255 255 / 0.04);
+}
+.submission-receipt .receipt-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.receipt-emblem {
+  position: relative;
+  display: grid;
+  width: 80px;
+  height: 76px;
+  place-items: center;
+}
+.receipt-check {
+  display: grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  border: 1px solid rgb(186 252 211 / 0.65);
+  border-radius: 50%;
+  background: linear-gradient(150deg, #bdfedb, #62e4a1);
+  box-shadow:
+    0 0 0 6px rgb(136 241 181 / 0.11),
+    0 8px 28px rgb(98 228 161 / 0.3);
+  color: #103623;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: receipt-check-in 430ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.receipt-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.receipt-sparkles span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--sparkle-size, 12px);
+  aspect-ratio: 1;
+  background: var(--sparkle-color, #c6ffdd);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  animation: receipt-sparkle 760ms ease-out var(--sparkle-delay, 80ms) both;
+}
+.receipt-sparkles span:nth-child(1) {
+  --sparkle-x: -57px;
+  --sparkle-y: -30px;
+}
+.receipt-sparkles span:nth-child(2) {
+  --sparkle-x: 51px;
+  --sparkle-y: -35px;
+  --sparkle-color: #ffe2a0;
+  --sparkle-delay: 110ms;
+  --sparkle-size: 15px;
+}
+.receipt-sparkles span:nth-child(3) {
+  --sparkle-x: -51px;
+  --sparkle-y: 16px;
+  --sparkle-color: #ffe2a0;
+  --sparkle-delay: 150ms;
+  --sparkle-size: 8px;
+}
+.receipt-sparkles span:nth-child(4) {
+  --sparkle-x: 47px;
+  --sparkle-y: 21px;
+  --sparkle-delay: 160ms;
+  --sparkle-size: 9px;
+}
+@keyframes receipt-check-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes receipt-sparkle {
+  0% {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(var(--sparkle-x), var(--sparkle-y)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sparkle-x), var(--sparkle-y)) scale(0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .receipt-check {
+    animation: none;
+  }
+  .receipt-sparkles {
+    display: none;
+  }
 }
 .proposal-receipt .reference {
   color: #fff;

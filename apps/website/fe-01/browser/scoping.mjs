@@ -224,12 +224,11 @@ try {
     await page.screenshot({ path: `${outDir}/scoping-contact-${String(width)}.png` });
     assert(draft.proposals.length === 0, 'proposal posted before explicit contact submit');
     await page.getByRole('button', { name: 'Send my request', exact: true }).click();
-    await page.getByText('Request saved.', { exact: true }).waitFor();
+    await page.getByText('Your request is recorded.', { exact: true }).waitFor();
     assert(
-      (await page
-        .getByText(`Reply address: scoping-${runTag}-${String(width)}@example.test`)
-        .count()) === 1,
-      'missing destination email',
+      draft.proposals.length === 1 &&
+        draft.proposals[0].email === `scoping-${runTag}-${String(width)}@example.test`,
+      'request posted without the destination email',
     );
     if (env['PUNI_FIXTURE_DATABASE']) {
       const database = new Database(env['PUNI_FIXTURE_DATABASE'], { readonly: true });
@@ -547,7 +546,7 @@ try {
       .getByRole('textbox', { name: 'Email', exact: true })
       .fill(`scoping-capped-${runTag}@example.test`);
     await capped.page.getByRole('button', { name: 'Send my request', exact: true }).click();
-    await capped.page.getByText('Request saved.', { exact: true }).waitFor();
+    await capped.page.getByText('Your request is recorded.', { exact: true }).waitFor();
     assert(capped.posts.length === 1, 'manual capped request bought inference');
     await capped.context.close();
   }

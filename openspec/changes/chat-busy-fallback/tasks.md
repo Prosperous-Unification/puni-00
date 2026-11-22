@@ -1,0 +1,3 @@
+- [x] Prove a simulated rate-limit refusal hides the composer and offers the manual route.
+- [x] Restore explicit retry at the end of the server wait window.
+- [x] Verify the browser flow and website frontend targets.

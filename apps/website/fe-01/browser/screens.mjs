@@ -4,6 +4,7 @@ import { env } from 'node:process';
 
 import { chromium } from 'playwright';
 
+import { findResponseTimePromise } from './response-time.ts';
 import { auditScopedEditor } from './scoped-contrast.mjs';
 
 // Two fixture stacks: demo replies (DEMO_AUTH=1, 4218/3118) and AI chat off (DEMO_AUTH=0, 4219/3119).
@@ -992,10 +993,10 @@ try {
       const problems = state.check ? await state.check(page, consoleTexts, state.stack) : [];
       problems.push(...(await auditFocus(page)));
       problems.push(...(await auditMasthead(page)));
-      // W11: a person reads every request and replies by email; no page states a response time.
+      // W11: see findResponseTimePromise; only the approved chat receipt sentence passes.
       // Proof: "We reply within 2 days." added to the receipt lead made manual-receipt report this at every width.
-      const responseTime = /within \d+ (hours|days)/i.exec(await page.locator('body').innerText());
-      if (responseTime) problems.push(`states a response time: "${responseTime[0]}"`);
+      const responseTime = findResponseTimePromise(await page.locator('body').innerText());
+      if (responseTime) problems.push(`states a response time: "${responseTime}"`);
       if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
       if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
       if (audit.cls >= 0.05) problems.push(`CLS ${audit.cls.toFixed(3)}`);

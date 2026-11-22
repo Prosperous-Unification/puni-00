@@ -41,13 +41,11 @@ interface PendingCheck {
   isSettled: boolean;
 }
 
-/** The reply being streamed, or the last one that ended without a confirmed finish. */
-interface LiveReply {
-  attempt: ConversationAttempt;
-  text: string;
-  phase: 'submitted' | 'streaming' | 'stopped' | 'failed';
-  failure: string;
-}
+/** The active attempt or its unconfirmed outcome. A limited attempt retains its retry identity. */
+type LiveReply = { attempt: ConversationAttempt; text: string } & (
+  | { phase: 'submitted' | 'streaming' | 'stopped' | 'failed'; failure: string }
+  | { phase: 'limited'; retryAfterMs: number | null }
+);
 
 /**
  * Maps a refused or broken stream request to the line under the reply. A refusal that changes
@@ -113,7 +111,8 @@ export function LiveHarness({
   const [live, setLive] = useState<LiveReply | null>(null);
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
-  const [isReviewOpen, setReviewOpen] = useState(false);
+  const [review, setReview] = useState<'standard' | 'compact' | null>(null);
+  const isReviewOpen = review !== null;
   const [isReviewFocused, setReviewFocused] = useState(false);
   const reviewFocus = useRef(false);
   const updateReviewFocus = useCallback((isFocused: boolean) => {
@@ -123,6 +122,10 @@ export function LiveHarness({
   const isSending = useRef(false);
   const isMountedStart = useRef(false);
   const [receipt, setReceipt] = useState<string | null>(null);
+  // Set when this page submitted, until the reread conversation carries the server's mark.
+  const [localSubmission, setLocalSubmission] = useState<Conversation['submission']>(null);
+  const submission = conversation.submission ?? localSubmission;
+  const isSubmitted = submission !== null;
   const reading = useRef<AbortController | null>(null);
   const stopping = useRef<string | null>(null);
   const thread = useRef<HTMLDivElement>(null);
@@ -130,6 +133,31 @@ export function LiveHarness({
   const mode = selectComposerMode(conversation);
   const stopped = live === null ? selectStoppedAttempt(conversation) : null;
   const isBusy = live?.phase === 'submitted' || live?.phase === 'streaming';
+  const isLimited = live?.phase === 'limited';
+  // Proof: dropping the submission condition hid the composer after submit in conversation-harness.test.tsx.
+  const isFinal =
+    !isSubmitted &&
+    live === null &&
+    stopped === null &&
+    conversation.scoping.version === 1 &&
+    !conversation.scoping.emailInvitationDeclined &&
+    (conversation.stage === 'exhausted' ||
+      (conversation.scoping.questionId === null && conversation.brief.trim() !== ''));
+  const emailOnly = review === 'compact' || isFinal;
+
+  useEffect(() => {
+    if (live?.phase !== 'limited' || live.retryAfterMs === null) return;
+    const timer = window.setTimeout(() => {
+      setLive((replies) =>
+        replies === live
+          ? { ...live, phase: 'failed', failure: 'You can retry your message.' }
+          : replies,
+      );
+    }, live.retryAfterMs);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [live]);
 
   const visibleQuestion =
     conversation.scoping.version === 1 &&
@@ -237,7 +265,14 @@ export function LiveHarness({
   useLayoutEffect(() => {
     const viewport = thread.current;
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
-  }, [conversation.turns.length, live?.text, live?.phase, receipt, stopped?.idempotencyKey]);
+  }, [
+    conversation.turns.length,
+    live?.text,
+    live?.phase,
+    receipt,
+    submission?.turnsBefore,
+    stopped?.idempotencyKey,
+  ]);
 
   async function refresh(): Promise<Conversation | null> {
     try {
@@ -366,12 +401,23 @@ export function LiveHarness({
         await refresh();
         return;
       }
+      if (
+        conversation.scoping.version === 1 &&
+        error instanceof ApiFailure &&
+        error.code === 'rate_limited'
+      ) {
+        const seconds = error.retryAfterSeconds;
+        // A browser timer above the signed 32-bit limit would fire before the server window.
+        const retryAfterMs = seconds !== null && seconds <= 2_147_483 ? seconds * 1_000 : null;
+        setLive({ attempt, text, phase: 'limited', retryAfterMs });
+        return;
+      }
       setLive({ attempt, text, phase: 'failed', failure: describeStreamFailure(error) });
       if (error instanceof ApiFailure && error.status === 503) {
         if (conversation.scoping.version === 'legacy') onReload();
         else {
           await refresh();
-          setReviewOpen(true);
+          setReview('standard');
         }
       } else if (changesConversation(error)) {
         await refresh();
@@ -493,15 +539,24 @@ export function LiveHarness({
                 : 'Your Home request is ready below. Press Send when you want to start the conversation.'}
             </p>
           )}
+          {/* The confirmation sits where the request was recorded; later turns are follow-ups.
+              Proof: dropping the per-turn placement lost it in the reload and exhausted-after-submit tests. */}
           {conversation.turns.map((turn, index) => {
             const label = turn.role === 'assistant' ? labelReply(index) : null;
             return (
-              <div key={index} className={`build-message ${turn.role}`}>
-                {label && <span className="message-label">{label}</span>}
-                <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
-              </div>
+              <React.Fragment key={index}>
+                {submission?.turnsBefore === index && <SubmissionReceipt />}
+                <div className={`build-message ${turn.role}`}>
+                  {label && <span className="message-label">{label}</span>}
+                  <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
+                </div>
+              </React.Fragment>
             );
           })}
+          {/* Proof: dropping this trailing placement lost the fresh confirmation in the recorded-request test. */}
+          {submission !== null && submission.turnsBefore >= conversation.turns.length && (
+            <SubmissionReceipt />
+          )}
           {conversation.latestOperation?.truncated && live === null && (
             <p className="harness-aside">This reply reached its length limit.</p>
           )}
@@ -510,7 +565,7 @@ export function LiveHarness({
               <p>{pendingMessage}</p>
             </div>
           )}
-          {live !== null && (
+          {live !== null && !isLimited && (!emailOnly || isBusy) && (
             <div
               className={
                 live.phase === 'stopped' || live.phase === 'failed'
@@ -536,7 +591,14 @@ export function LiveHarness({
               )}
             </div>
           )}
-          {retryable !== null && (
+          {isLimited && !emailOnly && (
+            <p className="harness-status" role="status">
+              {isSubmitted
+                ? 'PUNI chat is busy right now. You can retry once it frees up.'
+                : 'PUNI chat is busy right now. You can still send your request.'}
+            </p>
+          )}
+          {retryable !== null && !emailOnly && (
             <div className="harness-interrupted" role="status">
               <span className="interrupted-label">
                 {live?.phase === 'failed' ? live.failure : 'Stopped'}
@@ -583,15 +645,17 @@ export function LiveHarness({
                 ))}
               </div>
             )}
-          {conversation.scoping.version === 1 && (
-            <div className="request-entry">
+          {/* One submission per draft: after it, follow-ups are ordinary conversation turns.
+              Proof: dropping !isSubmitted kept the email form in the recorded-request and reload tests. */}
+          {conversation.scoping.version === 1 && !isSubmitted && (
+            <div className="request-entry" data-email-only={emailOnly || undefined}>
               {/* Once the contact form is open this would repeat it; focus moves to its email. */}
-              {!isReviewOpen && (
+              {!isReviewOpen && !isFinal && (
                 <button
                   type="button"
-                  className="harness-text-button"
+                  className={isLimited ? 'glass-button harness-handoff' : 'harness-text-button'}
                   onClick={() => {
-                    setReviewOpen(true);
+                    setReview(isLimited ? 'compact' : 'standard');
                   }}
                 >
                   Send my request now
@@ -606,24 +670,31 @@ export function LiveHarness({
                       ? 'default'
                       : 'early'
                 }
-                contact={isReviewOpen}
+                contact={isReviewOpen || isFinal}
+                emailOnly={emailOnly}
+                editLabel={isLimited ? 'Edit brief' : undefined}
                 onFocusChange={updateReviewFocus}
                 open={
                   isReviewOpen ||
                   (offersProposal(conversation) && !conversation.scoping.emailInvitationDeclined)
                 }
                 onOpen={() => {
-                  setReviewOpen(true);
+                  setReview('standard');
                 }}
                 onClose={() => {
-                  setReviewOpen(false);
+                  setReview(null);
                 }}
                 onRefresh={async () => {
                   await refresh();
                 }}
                 onSubmitted={() => {
-                  setReceipt('saved');
+                  setLocalSubmission({ turnsBefore: conversation.turns.length });
+                  // The unmounted editor no longer reports focus; the composer opens again.
+                  // Proof: keeping the editor's focus hid the composer after submit in conversation-harness.test.tsx.
+                  setReview(null);
+                  updateReviewFocus(false);
                   onHandedOff();
+                  void refresh();
                 }}
               />
             </div>
@@ -671,7 +742,9 @@ export function LiveHarness({
             </p>
           )}
           {receipt !== null ? (
-            <p className="harness-closed">Your request is with a person at PUNI.</p>
+            conversation.scoping.version === 'legacy' && (
+              <p className="harness-closed">Your request is with a person at PUNI.</p>
+            )
           ) : isCheckFailed ? (
             <p className="harness-closed harness-check-failed">
               We couldn’t check this browser for AI chat. A person still reads every brief.{' '}
@@ -680,7 +753,7 @@ export function LiveHarness({
               </a>
             </p>
           ) : mode.kind === 'closed' ? (
-            <p className="harness-closed">{describeExhaustion(mode.reason)}</p>
+            <p className="harness-closed">{describeExhaustion(mode.reason, isSubmitted)}</p>
           ) : mode.kind === 'answering' ? (
             <p className="harness-closed">
               PUNI is still answering your last message.
@@ -688,7 +761,7 @@ export function LiveHarness({
                 [ Refresh ]
               </button>
             </p>
-          ) : (
+          ) : isLimited || emailOnly ? null : (
             <form
               className="harness-composer"
               onSubmit={(event) => {
@@ -761,6 +834,28 @@ export function LiveHarness({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The in-thread reply confirming the request was saved. The chat stays open below it, so it
+ * offers no next action of its own.
+ */
+export function SubmissionReceipt() {
+  return (
+    <div className="build-message assistant submission-receipt" role="status">
+      <div className="receipt-emblem" aria-hidden="true">
+        <span className="receipt-check">✓</span>
+        <span className="receipt-sparkles">
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
+      <p className="receipt-title">Your request is recorded.</p>
+      <p>PUNI will contact you by email within 4 hours.</p>
     </div>
   );
 }
@@ -1008,7 +1103,10 @@ export function PausedHarness({
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
-          {conversation.scoping.version === 1 ? (
+          {/* Proof: offering the editor again let the paused submitted-chat test submit a second time. */}
+          {conversation.submission !== null ? (
+            <SubmissionReceipt />
+          ) : conversation.scoping.version === 1 ? (
             <RequestEditor
               draft={conversation}
               route="manual"

@@ -60,6 +60,7 @@ test('successful Start over still navigates when sessionStorage removeItem raise
           latestOperation: null,
           exhaustedReason: null,
           challenge: null,
+          submission: null,
         });
       if (path === '/draft/discard') {
         discards++;
@@ -119,5 +120,69 @@ test('editor cleanup does not swallow programmer errors', () => {
     expect(() => clearRequestEditor('claim')).toThrow('Broken storage adapter');
   } finally {
     Object.assign(globalThis, { sessionStorage: storage });
+  }
+});
+
+test('a reloaded submitted chat offers no Start over', async () => {
+  const dom = new JSDOM('<!doctype html><body><div id="root"></div></body>', {
+    url: 'http://localhost:4201/',
+  });
+  const network = globalThis.fetch;
+  Object.assign(dom.window, {
+    matchMedia: () => ({
+      matches: false,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }),
+  });
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    navigator: dom.window.navigator,
+    IS_REACT_ACT_ENVIRONMENT: true,
+  });
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0]) => {
+      await Promise.resolve();
+      const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+      if (path === '/entry') return Response.json({ available: true, reason: null });
+      if (path === '/conversation')
+        return Response.json({
+          scoping: { version: 'legacy' },
+          stage: 'clarify',
+          turns: [],
+          visitorTurnsRemaining: 8,
+          visitorTurnLimit: 8,
+          provider: 'disabled',
+          brief: '',
+          description: 'Booking app',
+          csrfToken: 'a'.repeat(64),
+          initialOperation: null,
+          latestOperation: null,
+          exhaustedReason: null,
+          challenge: null,
+          submission: { turnsBefore: 0 },
+        });
+      throw new Error('Unexpected ' + path);
+    },
+    { preconnect: network.preconnect },
+  );
+  const container = dom.window.document.querySelector('#root');
+  if (!container) throw new Error('Missing root');
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(<BuildPage />);
+      await Bun.sleep(10);
+    });
+    expect(container.textContent).toContain('Booking app');
+    expect(container.textContent).not.toContain('Start over');
+    expect(container.textContent).toContain('Your request is recorded.');
+  } finally {
+    act(() => {
+      root.unmount();
+    });
+    globalThis.fetch = network;
+    dom.window.close();
   }
 });

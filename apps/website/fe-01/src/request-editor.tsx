@@ -148,6 +148,8 @@ export function RequestEditor({
   draft,
   open,
   contact = false,
+  editLabel = 'Add references or edit brief',
+  emailOnly = false,
   route = 'default',
   onOpen,
   onClose,
@@ -158,6 +160,8 @@ export function RequestEditor({
   draft: EditableDraft;
   open: boolean;
   contact?: boolean;
+  editLabel?: string | undefined;
+  emailOnly?: boolean;
   route?: AnalyticsReviewRoute;
   onOpen: () => void;
   onClose: () => void;
@@ -547,7 +551,7 @@ export function RequestEditor({
             setEditing(true);
           }}
         >
-          Add references or edit brief
+          {editLabel}
         </button>
       )}
       <section hidden={!isEditorOpen} className="proposal-card" aria-label="Your request editor">
@@ -633,7 +637,7 @@ export function RequestEditor({
               </button>
             </div>
           </>
-        ) : (
+        ) : emailOnly ? null : (
           <div role="region" aria-label="Final request" className="request-preview">
             <p>
               {final.kind === 'ready'
@@ -642,7 +646,7 @@ export function RequestEditor({
             </p>
           </div>
         )}
-        {candidate !== null && candidate !== fields.brief && (
+        {!emailOnly && candidate !== null && candidate !== fields.brief && (
           <details>
             <summary>AI suggested brief</summary>
             <p className="submission-brief">{candidate}</p>
@@ -665,7 +669,7 @@ export function RequestEditor({
         )}
         {!isEditing && (
           <>
-            {(!hasDeclined || isContactOpen) && (
+            {!emailOnly && (!hasDeclined || isContactOpen) && (
               <p className="proposal-lead">
                 Leave your email and a person at PUNI replies with a starting point and any
                 questions.
@@ -701,44 +705,57 @@ export function RequestEditor({
                   </button>
                 </div>
                 <p className="proposal-privacy">
-                  Danylo Fedorov · <a href="mailto:dany@puni.dev">dany@puni.dev</a>. We use your
-                  email to discuss this request. No newsletter signup.{' '}
-                  <a href={`${siteOrigin}/privacy/`}>Privacy</a> ·{' '}
-                  <a href="/manual">Recover a receipt</a>
+                  {emailOnly ? (
+                    <>A person at PUNI will reply about your request. </>
+                  ) : (
+                    <>
+                      Danylo Fedorov · <a href="mailto:dany@puni.dev">dany@puni.dev</a>. We use your
+                      email to discuss this request. No newsletter signup.{' '}
+                    </>
+                  )}
+                  <a href={`${siteOrigin}/privacy/`}>Privacy</a>
+                  {!emailOnly && (
+                    <>
+                      {' '}
+                      · <a href="/manual">Recover a receipt</a>
+                    </>
+                  )}
                 </p>
               </form>
             )}
-            <div className="scoping-answers request-actions">
-              <button
-                type="button"
-                className="harness-text-button"
-                onClick={() => {
-                  setEditing(true);
-                }}
-              >
-                Change this
-              </button>
-              {!isContactOpen && (
+            {!emailOnly && (
+              <div className="scoping-answers request-actions">
                 <button
                   type="button"
-                  className="glass-button"
+                  className="harness-text-button"
                   onClick={() => {
-                    setContactOpen(true);
-                    onOpen();
+                    setEditing(true);
                   }}
                 >
-                  Ask PUNI to help
+                  Change this
                 </button>
-              )}
-              <button
-                type="button"
-                className="harness-text-button"
-                disabled={isPending}
-                onClick={() => void keepExploring()}
-              >
-                Keep exploring
-              </button>
-            </div>
+                {!isContactOpen && (
+                  <button
+                    type="button"
+                    className="glass-button"
+                    onClick={() => {
+                      setContactOpen(true);
+                      onOpen();
+                    }}
+                  >
+                    Ask PUNI to help
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="harness-text-button"
+                  disabled={isPending}
+                  onClick={() => void keepExploring()}
+                >
+                  Keep exploring
+                </button>
+              </div>
+            )}
           </>
         )}
         {remote !== null && (

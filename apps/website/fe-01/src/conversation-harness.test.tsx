@@ -44,6 +44,7 @@ const briefed: Conversation = {
   },
   exhaustedReason: null,
   challenge: null,
+  submission: null,
 };
 
 test('the rendered thread never shows brief markers', () => {
@@ -120,7 +121,11 @@ beforeAll(() => {
     IS_REACT_ACT_ENVIRONMENT: true,
   });
   // jsdom lays nothing out and has no scrollIntoView; the card scrolls its failure line into view.
-  Object.assign(dom.window.HTMLElement.prototype, { scrollIntoView: () => undefined });
+  Object.assign(dom.window.HTMLElement.prototype, {
+    scrollIntoView: () => undefined,
+    attachEvent: () => undefined,
+    detachEvent: () => undefined,
+  });
 });
 afterAll(() => {
   globalThis.fetch = realFetch;
@@ -513,6 +518,7 @@ const unsentWithCheck: Conversation = {
 function stubApi(options: {
   streamStatus?: number;
   streamCode?: string;
+  retryAfter?: string;
   reread?: unknown;
   marker?: unknown;
 }) {
@@ -532,7 +538,10 @@ function stubApi(options: {
         if (options.streamStatus)
           return new Response(JSON.stringify({ code: options.streamCode }), {
             status: options.streamStatus,
-            headers: { 'content-type': 'application/json' },
+            headers: {
+              'content-type': 'application/json',
+              ...(options.retryAfter === undefined ? {} : { 'retry-after': options.retryAfter }),
+            },
           });
         return new Response(
           (options.marker
@@ -835,6 +844,89 @@ test('selected answer carries current revision and exact text once across double
   harness.unmount();
 });
 
+test('rate-limited chat offers manual handoff until the retry window opens', async () => {
+  const api = stubApi({ streamStatus: 429, streamCode: 'rate_limited', retryAfter: '1' });
+  const harness = await mountHarness(
+    {
+      ...scoped,
+      turns: [],
+      initialOperation: {
+        state: 'not-started',
+        idempotencyKey: 'initial:draft-1',
+        truncated: false,
+      },
+    },
+    () => Promise.resolve(null),
+  );
+  const { container } = harness;
+  const actions = () =>
+    [...container.querySelectorAll('button')].map((button) => button.textContent.trim());
+  try {
+    for (let tick = 0; tick < 10 && api.posts.length === 0; tick += 1) {
+      await act(async () => {
+        await Bun.sleep(5);
+      });
+    }
+    expect(api.posts).toHaveLength(1);
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'PUNI chat is busy right now. You can still send your request.',
+    );
+    expect(container.querySelector('.harness-composer')).toBeNull();
+    expect(container.querySelector('.typing')).toBeNull();
+    expect(actions()).toContain('Send my request now');
+    expect(actions()).toContain('Edit brief');
+    expect(actions()).not.toContain('[ Retry ]');
+    await act(async () => {
+      await Bun.sleep(1050);
+    });
+    expect(actions()).toContain('[ Retry ]');
+    expect(api.posts).toHaveLength(1);
+  } finally {
+    harness.unmount();
+  }
+});
+
+test('sending from the busy screen opens the same email-only handoff', async () => {
+  const api = stubApi({ streamStatus: 429, streamCode: 'rate_limited' });
+  const harness = await mountHarness(
+    {
+      ...scoped,
+      turns: [],
+      initialOperation: {
+        state: 'not-started',
+        idempotencyKey: 'initial:draft-1',
+        truncated: false,
+      },
+    },
+    () => Promise.resolve(null),
+  );
+  const { container } = harness;
+  try {
+    await settleUntil(
+      () => container.textContent.includes('PUNI chat is busy right now.'),
+      () => container.innerHTML,
+    );
+    const shortcut = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Send my request now',
+    );
+    if (!shortcut) throw new Error('Missing manual handoff');
+    act(() => {
+      shortcut.click();
+    });
+    const email = container.querySelector('input[type="email"]');
+    expect(email).not.toBeNull();
+    expect(dom.window.document.activeElement).toBe(email);
+    expect(container.querySelector('[data-email-only]')).not.toBeNull();
+    expect(
+      container.querySelector('.request-preview, .request-actions, .harness-composer'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain('PUNI chat is busy right now.');
+    expect(api.posts).toHaveLength(1);
+  } finally {
+    harness.unmount();
+  }
+});
+
 test('Retry after an automatic initial refusal is an explicit request', async () => {
   const api = stubApi({ streamStatus: 502, streamCode: 'provider_error' });
   const harness = await mountHarness(
@@ -1128,7 +1220,6 @@ test('anonymous scoped questions and candidate review do not mount an email form
     scoped,
     {
       ...scoped,
-      brief: 'Visitor-reviewed brief',
       scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Proposed first step' },
     },
   ]) {
@@ -1141,6 +1232,29 @@ test('anonymous scoped questions and candidate review do not mount an email form
     );
     expect(markup).toContain('Send my request now');
     expect(markup).not.toContain('type="email"');
+  }
+});
+
+test('a completed scoped brief shows an email-only handoff', async () => {
+  if (scoped.scoping.version !== 1) throw new Error('Expected a scoped fixture');
+  const finished: Conversation = {
+    ...scoped,
+    brief: 'Visitor-reviewed brief',
+    scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Visitor-reviewed brief' },
+  };
+  const harness = await mountHarness(finished, () => Promise.resolve(null));
+  try {
+    const { container } = harness;
+    expect(container.querySelector('input[type="email"]')).not.toBeNull();
+    expect(container.querySelector('.harness-composer')).toBeNull();
+    expect(container.querySelector('.request-preview')).toBeNull();
+    expect(container.textContent).not.toContain('Ask PUNI to help');
+    expect(container.textContent).not.toContain('Send my request now');
+    expect(container.textContent).not.toContain('Change this');
+    expect(container.textContent).not.toContain('Keep exploring');
+    expect(container.textContent).toContain('Send my request');
+  } finally {
+    harness.unmount();
   }
 });
 
@@ -1174,4 +1288,127 @@ test('opening the contact form retires its shortcut and moves focus to the email
     harness.container.querySelector('input[type="email"]'),
   );
   harness.unmount();
+});
+
+/** A scoped conversation with a saved brief and no further question: the final email step. */
+function finishedScoped(): Conversation {
+  if (scoped.scoping.version !== 1) throw new Error('Expected a scoped fixture');
+  return {
+    ...scoped,
+    brief: 'Visitor-reviewed brief',
+    scoping: { ...scoped.scoping, questionId: null, candidateBrief: 'Visitor-reviewed brief' },
+  };
+}
+
+/** Sets a React-controlled input's value, as a visitor's typing would. */
+function fillInput(field: HTMLInputElement, text: string): void {
+  act(() => {
+    Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')?.set?.call(
+      field,
+      text,
+    );
+    field.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+}
+
+test('a recorded chat request is confirmed in the thread and the chat stays open', async () => {
+  const finished = finishedScoped();
+  const proposals: unknown[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      await Promise.resolve();
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/proposals')) {
+        proposals.push(JSON.parse(typeof init?.body === 'string' ? init.body : 'null'));
+        return new Response(JSON.stringify({ receipt: 'f'.repeat(32) }), {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/conversation'))
+        return new Response(
+          JSON.stringify({ ...finished, submission: { turnsBefore: finished.turns.length } }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(finished, () => Promise.resolve(null));
+  try {
+    const { container } = harness;
+    const email = container.querySelector('input[type="email"]');
+    if (!(email instanceof dom.window.HTMLInputElement)) throw new Error('email field absent');
+    fillInput(email, 'visitor@example.test');
+    const form = email.closest('form');
+    if (!form) throw new Error('request form absent');
+    await act(async () => {
+      form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+    await settleUntil(
+      () => container.textContent.includes('Your request is recorded.'),
+      () => container.innerHTML,
+    );
+    expect(proposals).toHaveLength(1);
+    const receipt = container.querySelector('.harness-thread .submission-receipt');
+    expect(receipt?.textContent).toContain('PUNI will contact you by email within 4 hours.');
+    expect(container.textContent).not.toContain('Chat more');
+    expect(container.querySelector('a[href*="#request"]')).toBeNull();
+    expect(container.querySelector('input[type="email"]')).toBeNull();
+    expect(container.textContent).not.toContain('Send my request now');
+    expect(
+      container.querySelector('.harness-dock:not([hidden]) form.harness-composer'),
+    ).not.toBeNull();
+  } finally {
+    harness.unmount();
+  }
+});
+
+test('a reloaded submitted chat places the confirmation between earlier turns and follow-ups', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness
+      initial={{ ...scoped, submission: { turnsBefore: 4 } }}
+      onReload={() => undefined}
+      onHandedOff={() => undefined}
+    />,
+  );
+  const confirmation = markup.indexOf('Your request is recorded.');
+  expect(confirmation).toBeGreaterThan(markup.indexOf('What do they do today?'));
+  expect(confirmation).toBeLessThan(markup.indexOf('>Paper<'));
+  expect(markup).toContain('harness-composer');
+  expect(markup).not.toContain('Send my request now');
+  expect(markup).not.toContain('type="email"');
+});
+
+test('an exhausted chat after submission closes the composer without asking for the request again', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness
+      initial={{
+        ...scoped,
+        stage: 'exhausted',
+        exhaustedReason: 'turns',
+        submission: { turnsBefore: 2 },
+      }}
+      onReload={() => undefined}
+      onHandedOff={() => undefined}
+    />,
+  );
+  expect(markup).toContain('This conversation reached its limit. PUNI already has your request.');
+  expect(markup).not.toContain('Send your brief');
+  expect(markup).not.toContain('harness-composer');
+  expect(markup).not.toContain('type="email"');
+  expect(markup).toContain('Your request is recorded.');
+});
+
+test('a paused submitted chat shows the confirmation instead of a second request form', () => {
+  const markup = renderToStaticMarkup(
+    <PausedHarness
+      conversation={{ ...finishedScoped(), provider: 'paused', submission: { turnsBefore: 6 } }}
+      onHandedOff={() => undefined}
+    />,
+  );
+  expect(markup).toContain('Your request is recorded.');
+  expect(markup).not.toContain('type="email"');
+  expect(markup).not.toContain('Send my request');
 });

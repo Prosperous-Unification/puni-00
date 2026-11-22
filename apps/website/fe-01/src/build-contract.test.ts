@@ -80,6 +80,7 @@ describe('conversation provider values', () => {
     latestOperation: null,
     exhaustedReason: null,
     challenge: null,
+    submission: null,
   };
 
   test('accepts paused and rejects values outside the contract', () => {
@@ -134,6 +135,44 @@ describe('conversation provider values', () => {
   });
 });
 
+describe('conversation submission boundary', () => {
+  const base = {
+    stage: 'clarify',
+    turns: [
+      { role: 'user', content: 'Opening' },
+      { role: 'assistant', content: 'Reply' },
+    ],
+    visitorTurnsRemaining: 7,
+    visitorTurnLimit: 8,
+    provider: 'openrouter',
+    brief: '',
+    description: 'Opening',
+    csrfToken: 'token',
+    initialOperation: null,
+    latestOperation: null,
+    exhaustedReason: null,
+    challenge: null,
+    submission: { turnsBefore: 2 },
+  };
+
+  test('accepts the saved submission point and refuses an absent or impossible one', () => {
+    expect(parseConversation(base).submission).toEqual({ turnsBefore: 2 });
+    expect(parseConversation({ ...base, submission: null }).submission).toBeNull();
+    const { submission: _submission, ...withoutSubmission } = base;
+    expect(() => parseConversation(withoutSubmission)).toThrow(InvalidConversation);
+    for (const submission of [
+      { turnsBefore: 3 },
+      { turnsBefore: -1 },
+      { turnsBefore: 1.5 },
+      { turnsBefore: '2' },
+      {},
+      [],
+      true,
+    ])
+      expect(() => parseConversation({ ...base, submission })).toThrow(InvalidConversation);
+  });
+});
+
 describe('versioned conversation scoping boundary', () => {
   const legacy = {
     stage: 'clarify',
@@ -148,6 +187,7 @@ describe('versioned conversation scoping boundary', () => {
     latestOperation: null,
     exhaustedReason: null,
     challenge: null,
+    submission: null,
   };
   const scoping = {
     version: 1,
@@ -238,6 +278,7 @@ test('selected stopped attempts retain their raw retry payload and reject malfor
     },
     exhaustedReason: null,
     challenge: null,
+    submission: null,
     scoping: {
       version: 1,
       startConversation: true,
@@ -302,6 +343,7 @@ test('reply failure survives refresh and completed failure is not a stopped retr
     provider: 'openrouter',
     exhaustedReason: null,
     challenge: null,
+    submission: null,
     initialOperation: {
       state: 'completed',
       idempotencyKey: 'initial:draft',
@@ -347,6 +389,7 @@ test('versioned contact does not open from the legacy third-turn stage alone', (
     latestOperation: null,
     exhaustedReason: null,
     challenge: null,
+    submission: null,
     scoping: {
       version: 1,
       startConversation: true,

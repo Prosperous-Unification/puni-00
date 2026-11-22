@@ -822,7 +822,7 @@ test('brief markers in visitor text never set the brief', () => {
   store.close();
 });
 
-test('a proposal submission hands the conversation off with the claim', () => {
+test('a legacy proposal submission closes the conversation to its claim without handing it off', () => {
   const store = new WebsiteStore(databaseFile());
   store.createDraft(
     'draft-1',
@@ -846,10 +846,7 @@ test('a proposal submission hands the conversation off with the claim', () => {
       'source-test',
     ),
   ).toEqual({ kind: 'created', receipt: 'receipt', siteCount: 1 });
-  expect(store.findConversation('draft-1')).toMatchObject({
-    state: 'handed_off',
-    exhaustedReason: null,
-  });
+  expect(store.findConversation('draft-1')).toMatchObject({ state: 'open', exhaustedReason: null });
   expect(store.admitConversationOperation(ask('claim-1', 'after-key-1', 'More'))).toEqual({
     kind: 'draft_unavailable',
   });

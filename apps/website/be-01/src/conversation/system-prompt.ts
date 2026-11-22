@@ -91,7 +91,11 @@ export function composeSystemText(stage: ConversationReplyStage): string {
 }
 
 /** Separately recorded version; legacy v3 and saved replay remain unchanged. Proof: stale v4 failed mounted new-v5 identity checks for historical v1/v2/v3/v4 replay cases. */
-export const scopingPromptVersion = 'puni-scoping-v11';
+export const scopingPromptVersion = 'puni-scoping-v12';
+
+/** Server-owned line appended once the draft's request is submitted and the chat continues. */
+export const submittedScopingHint =
+  'The visitor already sent this request for human review. Do not invite the request action again or ask for an email. Answer the follow-up and keep useful new facts clear for the person reviewing the request.';
 
 /**
  * Exact source: openspec/changes/conversion-scoping/system-prompt.md. Catalogue IDs are server-owned.
@@ -205,9 +209,11 @@ export const scopingPublicMaterial = {
 } as const;
 
 /**
- * Private instructions, public catalogues and final allowance hint contain no visitor content.
+ * Private instructions, public catalogues, the final allowance hint and the submitted hint
+ * ({@link submittedScopingHint}) contain no visitor content.
  * Proof: removing public composition failed the mounted full-text pricing/outbound catalogue test.
  */
-export function composeScopingSystemText(finalTurn: boolean): string {
-  return `${scopingSystemPrompt}\nPublic scoping material: ${JSON.stringify(scopingPublicMaterial)}\nQuestion catalogue: ${JSON.stringify(scopingQuestions)}${finalTurn ? '\nThis is the final available reply. Offer a useful human-review next step; do not require another chat answer.' : ''}`;
+export function composeScopingSystemText(finalTurn: boolean, submitted: boolean): string {
+  // Proof: dropping the submitted hint failed the mounted follow-up outbound system-text assertion.
+  return `${scopingSystemPrompt}\nPublic scoping material: ${JSON.stringify(scopingPublicMaterial)}\nQuestion catalogue: ${JSON.stringify(scopingQuestions)}${finalTurn ? '\nThis is the final available reply. Offer a useful human-review next step; do not require another chat answer.' : ''}${submitted ? `\n${submittedScopingHint}` : ''}`;
 }

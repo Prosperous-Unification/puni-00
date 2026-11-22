@@ -22,6 +22,7 @@ const conversation = {
   latestOperation: null,
   exhaustedReason: null,
   challenge: null,
+  submission: null,
   provider: 'openrouter',
   scoping: {
     version: 1,

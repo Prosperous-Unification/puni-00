@@ -14,7 +14,9 @@ input directory. "Sync" of a platform unit means
 `fleet_ansible --limit m1plat1 --extra-vars puni_sync_units=<units> playbooks/argocd-sync.yml`
 (design decision 3). Every step that syncs a unit which exposes a Service on the tailnet
 includes one more action: the owner signs the device the Tailscale operator made for it,
-and the step reads back that the name answers (design decision 12).
+and the step reads back that the name answers (design decision 12). From A7 until A14 every
+step's receipt also includes `tool-fleet:health`'s reading of the store's audit file
+(pull request #935, design D11), because the alert that watches it first syncs in A14.
 
 ## 0. Decisions
 
@@ -1172,14 +1174,16 @@ this change reserves is step A25, so those namespaces are not an open end.
       pull request #935 merged and amended as design decision 9 lists, its own slices
       landed under `infra/argocd`, and the receipt 2.7/A7. Who: operator; owner for the values. Commands: add the
       seal key, the server CA Secret and the rest of #935's bootstrap set to the secret file
-      list and run `playbooks/argocd.yml` again; sync `openbao`; follow #935's runbook to
+      list and run `playbooks/argocd.yml` again; sync `cert-manager`, whose revision for this
+      step adds the store's CA Issuer and server Certificate (#935 design D8); sync `openbao`; follow #935's runbook to
       the point where the store serves and its recovery material is escrowed; sync
       `external-secrets`; the owner writes the registry CA key pair and one canary value into
       the store; sync `secret-sync`, then `issuers`. Receipt: orders 4 to 7 Synced and
       Healthy, `rancher` excepted, which A27 syncs; the canary read back through its ExternalSecret; the registry CA issuer Ready;
       the store's pods on m1plat1; #935's own receipts for seal, escrow and a first snapshot.
       Stop: the store does not serve, or the canary does not arrive. Rollback: reduce the
-      three units to their markers and sync, then remove the bootstrap Secrets; the store's
+      three units to their markers, revert the store's Issuer and Certificate in `cert-manager`,
+      and sync both, then remove the bootstrap Secrets; the store's
       claim stays until the owner removes it.
 - [ ] A8 Measure Argo CD (R24). Who: operator. After 24 hours and one merge that changes the
       tree, read each container's working set and `memory.stat`. Receipt: the per-container

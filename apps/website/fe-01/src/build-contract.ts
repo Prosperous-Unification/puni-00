@@ -77,6 +77,11 @@ export interface Conversation {
     (ConversationOperation & { message: string; answer?: ScopingAnswerRequest | null }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   challenge: BrowserChallenge | null;
+  /**
+   * Null until the request is submitted. The chat then continues on the same draft;
+   * `turnsBefore` counts the saved turns that preceded the submission.
+   */
+  submission: { turnsBefore: number } | null;
 }
 
 /** The `GET /draft` body: the manual brief's draft and the conversation provider now. */
@@ -372,6 +377,23 @@ export function parseConversation(value: unknown): Conversation {
   // Proof: defaulting an absent challenge to null made the missing-challenge contract case pass.
   if (!('challenge' in value)) throw new InvalidConversation('challenge');
   const challenge = parseChallenge(value.challenge);
+  const rawSubmission = 'submission' in value ? value.submission : undefined;
+  let submission: Conversation['submission'] = null;
+  // Proof: defaulting an absent submission to null, or accepting a count past the saved turns, passed the malformed-submission contract cases.
+  if (rawSubmission !== null) {
+    const turnsBefore =
+      typeof rawSubmission === 'object' && 'turnsBefore' in rawSubmission
+        ? rawSubmission.turnsBefore
+        : undefined;
+    if (
+      Array.isArray(rawSubmission) ||
+      !Number.isSafeInteger(turnsBefore) ||
+      Number(turnsBefore) < 0 ||
+      Number(turnsBefore) > turns.length
+    )
+      throw new InvalidConversation('submission');
+    submission = { turnsBefore: Number(turnsBefore) };
+  }
   const expiresAt = 'expiresAt' in value ? value.expiresAt : undefined;
   // Proof: bypassing date validation accepted malformed expiry values in build-contract.test.ts.
   if (
@@ -394,6 +416,7 @@ export function parseConversation(value: unknown): Conversation {
     initialOperation,
     latestOperation,
     exhaustedReason,
+    submission,
   };
 }
 
@@ -505,8 +528,19 @@ export function offersProposal(conversation: Conversation): boolean {
   );
 }
 
-/** The one line that replaces the composer when a conversation is exhausted. */
-export function describeExhaustion(reason: ConversationExhaustedReason): string {
+/**
+ * The one line that replaces the composer when a conversation is exhausted. After submission
+ * the request is already with PUNI, so the line does not ask for it again.
+ */
+export function describeExhaustion(
+  reason: ConversationExhaustedReason,
+  isSubmitted: boolean,
+): string {
+  // Proof: ignoring isSubmitted asked a submitted visitor to send the brief in the exhaustion-after-submit test.
+  if (isSubmitted)
+    return reason === 'turns' || reason === 'conversation_spend'
+      ? 'This conversation reached its limit. PUNI already has your request.'
+      : 'AI chat reached today’s limit. PUNI already has your request.';
   const copy: Record<ConversationExhaustedReason, string> = {
     turns: 'This conversation reached its limit. Send your brief to a person.',
     conversation_spend: 'This conversation used its AI allowance. Send your brief to a person.',

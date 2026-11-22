@@ -1,4 +1,4 @@
-# System prompt: `puni-scoping-v11`
+# System prompt: `puni-scoping-v12`
 
 ## Private instructions
 
@@ -119,6 +119,6 @@ The following reviewed material is publishable content, following the existing p
 
 ## Composed system input
 
-The actual single system message is the private instruction block, a newline and `Public scoping material: ` followed by compact JSON of the public block, then a newline and `Question catalogue: ` followed by compact JSON of the reviewed shared question catalogue. On the eighth visitor turn including landing, append the existing final hint on its own line: `This is the final available reply. Offer a useful human-review next step; do not require another chat answer.` Canonical shared starting-choice labels supply the five public offers. The same complete composed bytes reach request reservation and the provider, once each.
+The actual single system message is the private instruction block, a newline and `Public scoping material: ` followed by compact JSON of the public block, then a newline and `Question catalogue: ` followed by compact JSON of the reviewed shared question catalogue. On the eighth visitor turn including landing, append the existing final hint on its own line: `This is the final available reply. Offer a useful human-review next step; do not require another chat answer.` Once the draft's request is submitted and the chat continues, append the submitted hint on its own line after any final hint: `The visitor already sent this request for human review. Do not invite the request action again or ask for an email. Answer the follow-up and keep useful new facts clear for the person reviewing the request.` The untrusted context then carries `submitted: true`. Canonical shared starting-choice labels supply the five public offers. The same complete composed bytes reach request reservation and the provider, once each.
 
-Visitor context stays in user messages. The complete composed input is versioned v11; reply schema remains 1. Deterministic scripted transport tests prove shape and lifecycle only; paid model judgment and truncation at the configured 700-token ceiling remain an activation evaluation. Historical v1–v10 replay and legacy `puni-sales-v3` stay unchanged.
+Visitor context stays in user messages. The complete composed input is versioned v12 (v12 adds only the submitted hint and the `submitted` context field to v11); reply schema remains 1. Deterministic scripted transport tests prove shape and lifecycle only; paid model judgment and truncation at the configured 700-token ceiling remain an activation evaluation. Historical v1–v11 replay and legacy `puni-sales-v3` stay unchanged.
