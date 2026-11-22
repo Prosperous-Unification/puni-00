@@ -58,8 +58,7 @@ import { openConnection, openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { digestSharedPeople } from './shared-people-backup';
 import { restoreApprovedSharedPeople } from './shared-people-restore';
-import { readRecoveryState } from './testing/recovery-state';
-import { MIGRATIONS_FOLDER } from './testing/space-database';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -118,10 +117,16 @@ function prepare(name: 'pending' | 'completed') {
   const immutableTransport = ['shared_people_audit', 'event_log', 'event_sequencer'].map(
     (table) => ({ table, rows: query(path, 'SELECT * FROM ' + table + ' ORDER BY rowid') }),
   );
-  runMigrations(path, MIGRATIONS_FOLDER);
+  const rename = '20261110100000_rename_project_to_work_package';
+  const migrations = copyRecoveryPrefix(directory, rename);
+  runMigrations(path, migrations);
   const afterLedger = query(path, 'SELECT * FROM __drizzle_migrations ORDER BY id');
   expect(afterLedger).toHaveLength(111);
   expect(afterLedger.slice(0, 110)).toEqual(ledger);
+  expect(afterLedger.at(-1)).toMatchObject({
+    name: rename,
+    hash: sha(readFileSync(join(migrations, rename, 'migration.sql'))),
+  });
   expect(identityRows(path)).toEqual(before);
   expect(immutableTransport).toEqual(
     immutableTransport.map(({ table }) => ({

@@ -7,12 +7,13 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const LAST_MIGRATION = '20261103110000_add_initial_access_offers';
 
 /** The migration under test: slice 3b.1's three work package settings columns. */
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
-const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
+const WORK_PACKAGE_SETTINGS = '20260904140000_add_project_settings';
 /**
  * Newer than the settings columns, so a rollback aimed at the optimizer
  * tables reverses it first — this file names it only to say so.
@@ -79,7 +80,7 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
 
 /**
- * What `20260904140000_add_work_package_settings` adds, **enumerated rather than
+ * What `20260904140000_add_project_settings` adds, **enumerated rather than
  * counted** (tasks.md 3b.7).
  *
  * A `down.sql` written from "the settings columns" drops two of three and
@@ -103,10 +104,11 @@ const ADDED_COLUMNS = ['optimization_enabled', 'schedule_engine', 'schedule_obje
  */
 const NOT_OURS = 'optimization_delete_pending_at';
 
-function tempDb(): { path: string; cleanup: () => void } {
+function tempDb(): { path: string; migrations: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), 'wbs-work-package-settings-'));
   return {
     path: join(dir, 'test.db'),
+    migrations: copyRecoveryPrefix(dir, LAST_MIGRATION),
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },
@@ -117,7 +119,7 @@ function workPackageColumns(path: string): string[] {
   const db = openDatabase(path);
   try {
     return db
-      .query('PRAGMA table_info(work package)')
+      .query('PRAGMA table_info(project)')
       .all()
       .map((row) => (row as { name: string }).name);
   } finally {
@@ -137,7 +139,7 @@ function workPackageDdl(path: string): string {
   const db = openDatabase(path);
   try {
     const row = db
-      .query<{ sql: string }, []>(`SELECT sql FROM sqlite_master WHERE name = 'work_package'`)
+      .query<{ sql: string }, []>(`SELECT sql FROM sqlite_master WHERE name = 'project'`)
       .get();
     return row?.sql ?? '';
   } finally {
@@ -165,7 +167,7 @@ function seedWorkPackage(path: string, id: string): void {
       `INSERT INTO users (id, username, password_hash, created_at) VALUES ('u-1', 'u', 'h', 1)`,
     );
     db.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at)
+      `INSERT INTO project (id, name, owner_id, restricted, revision, created_at)
        VALUES ('${id}', 'Rewire the shed', 'u-1', 0, 0, 1)`,
     );
   } finally {
@@ -179,7 +181,7 @@ function settingsOf(path: string, id: string): Record<string, unknown> | null {
     return db
       .query(
         `SELECT optimization_enabled, schedule_engine, schedule_objective
-           FROM work_package WHERE id = '${id}'`,
+           FROM project WHERE id = '${id}'`,
       )
       .get() as Record<string, unknown> | null;
   } finally {
@@ -191,7 +193,7 @@ describe('the work package settings migration', () => {
   it('adds the three settings columns and touches nothing else on work package', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       const migrated = workPackageColumns(db.path);
 
       for (const column of ADDED_COLUMNS) expect(migrated).toContain(column);
@@ -201,7 +203,7 @@ describe('the work package settings migration', () => {
       // and nothing else, which is the claim `PRAGMA`-plus-`toContain` alone
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, OPTIMIZER_TABLES)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -220,9 +222,9 @@ describe('the work package settings migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -252,13 +254,13 @@ describe('the work package settings migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -310,8 +312,8 @@ describe('the work package settings migration', () => {
   it('leaves a work package written before it switched off, on the fast engine', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+      runMigrations(db.path, db.migrations);
+      expect(rollbackTo(db.path, db.migrations, OPTIMIZER_TABLES)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -330,9 +332,9 @@ describe('the work package settings migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -362,13 +364,13 @@ describe('the work package settings migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -387,7 +389,7 @@ describe('the work package settings migration', () => {
       ]);
 
       seedWorkPackage(db.path, 'p-unmigrated');
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       expect(settingsOf(db.path, 'p-unmigrated')).toEqual({
         optimization_enabled: 0,
@@ -413,17 +415,17 @@ describe('the work package settings migration', () => {
   it('refuses a value outside each column vocabulary', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seedWorkPackage(db.path, 'p-1');
 
       expect(
-        refusal(db.path, `UPDATE work_package SET optimization_enabled = 2 WHERE id = 'p-1'`),
+        refusal(db.path, `UPDATE project SET optimization_enabled = 2 WHERE id = 'p-1'`),
       ).toContain('CHECK');
       expect(
-        refusal(db.path, `UPDATE work_package SET schedule_engine = 'turbo' WHERE id = 'p-1'`),
+        refusal(db.path, `UPDATE project SET schedule_engine = 'turbo' WHERE id = 'p-1'`),
       ).toContain('CHECK');
       expect(
-        refusal(db.path, `UPDATE work_package SET schedule_objective = 'cost' WHERE id = 'p-1'`),
+        refusal(db.path, `UPDATE project SET schedule_objective = 'cost' WHERE id = 'p-1'`),
       ).toContain('CHECK');
 
       // The control: every value the vocabulary does hold is accepted, so the
@@ -431,7 +433,7 @@ describe('the work package settings migration', () => {
       expect(
         refusal(
           db.path,
-          `UPDATE work_package SET optimization_enabled = 1, schedule_engine = 'optimized',
+          `UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized',
              schedule_objective = 'time' WHERE id = 'p-1'`,
         ),
       ).toBeNull();
@@ -453,11 +455,11 @@ describe('the work package settings migration', () => {
   it('rolls back each named column and re-applies onto the rolled-back file', () => {
     const db = tempDb();
     try {
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
       seedWorkPackage(db.path, 'p-1');
       const migratedDdl = workPackageDdl(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+      expect(rollbackTo(db.path, db.migrations, OPTIMIZER_TABLES)).toEqual([
         '20261103110000_add_initial_access_offers',
         '20261102130000_widen_organization_audit_access',
         '20261102120000_add_access_grants',
@@ -476,9 +478,9 @@ describe('the work package settings migration', () => {
         '20261023140000_add_measure',
         '20261023100000_add_claim_lease',
         '20261022213000_add_optimization_boundary_certificates',
-        '20261022212000_add_cross_work_package_dependency_activation',
+        '20261022212000_add_cross_project_dependency_activation',
         '20261022211000_add_external_dependencies',
-        '20261022210000_add_work_package_abbreviations',
+        '20261022210000_add_project_abbreviations',
         '20261022140100_widen_organization_audit_compute_providers',
         '20261022140000_add_resource_provider',
         '20261022130100_widen_organization_audit_organization_limits',
@@ -508,13 +510,13 @@ describe('the work package settings migration', () => {
         '20261011120000_add_browser_auth_lifecycle',
         '20261005110000_add_shared_people',
         '20261001010000_add_browser_credential_revocations',
-        '20260929180000_add_work_package_rank',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
-        '20260928010000_add_work_package_solution',
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
@@ -541,12 +543,12 @@ describe('the work package settings migration', () => {
       // that lost a plan would be a different and much worse kind of bug.
       const stillThere = openDatabase(db.path);
       try {
-        expect(stillThere.query(`SELECT id FROM work_package`).all()).toEqual([{ id: 'p-1' }]);
+        expect(stillThere.query(`SELECT id FROM project`).all()).toEqual([{ id: 'p-1' }]);
       } finally {
         stillThere.close();
       }
 
-      runMigrations(db.path, FOLDER);
+      runMigrations(db.path, db.migrations);
 
       // The whole stored `CREATE TABLE`, so a re-apply that dropped a `CHECK`
       // or reordered a column is a diff rather than a pass.

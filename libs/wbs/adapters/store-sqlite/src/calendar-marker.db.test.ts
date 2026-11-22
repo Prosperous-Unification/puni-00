@@ -10,13 +10,9 @@ import { asc } from 'drizzle-orm';
 import type { Connection } from './db';
 import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { calendarMarker } from './schema';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
-import { UserRepository } from './user';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -36,38 +32,50 @@ describe('calendar_marker', () => {
   let path: string;
   let conn: Connection;
 
+  let custody: { hasUnknownOwner: boolean; connection?: Connection };
   beforeEach(async () => {
+    custody = { hasUnknownOwner: false };
     dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [
+          {
+            id: 'st-1',
+            name: 'Build',
+            code: 'build',
+            position: 10,
+            defaultAllowancePercent: 0,
+            defaultEstimateUnit: 'workdays',
+          },
+        ],
+      },
+      custody,
+    );
     const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
-    );
-    await new WorkPackageRepository(seed.db, OPEN).create(
-      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Build',
-          position: 10,
-          code: 'build',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote,
-    );
-    seed.close();
+    try {
+      expect(
+        await new WorkPackageRepository(seed.db, OPEN).create(
+          workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+          [],
+          wrote,
+        ),
+      ).toMatchObject({ id: 'p1', projectId: 'fixture-project' });
+    } finally {
+      seed.close();
+    }
     conn = openConnection(path);
+    custody.connection = conn;
   });
 
   afterEach(() => {
-    conn.close();
-    rmSync(dir, { recursive: true, force: true });
+    custody.connection?.close();
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('round-trips a marker', async () => {
