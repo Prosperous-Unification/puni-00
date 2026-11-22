@@ -352,7 +352,7 @@ describe('the CI private-nesting step', () => {
 const heavyLeaves = [
   { project: 'tool-fleet', job: 90, phase: 75 },
   { project: 'tool-devsync', job: 60, phase: 45 },
-  { project: 'wbs-store-sqlite', job: 60, phase: 45 },
+  { project: 'wbs-store-sqlite', job: 90, phase: 75 },
   { project: 'wbs-core', job: 45, phase: 30 },
 ];
 

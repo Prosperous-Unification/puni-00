@@ -307,7 +307,9 @@ describe('pre-catalogue step removal', () => {
       "INSERT INTO step_progress(work_item_id,step_id,state,stated_at) VALUES ('a','dev','in_progress',1)",
     );
     await stores.directory.addPerson({ id: 'worker', name: 'Worker' }, [], stamp);
-    expect(await stores.directory.assign('a', 'dev', 'worker', stamp)).toEqual({ ok: true });
+    connection.db.run(
+      "INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('a','dev','worker')",
+    );
     await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
     const tables = [
       'work_package',

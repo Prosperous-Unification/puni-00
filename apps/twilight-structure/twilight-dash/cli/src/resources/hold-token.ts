@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  type BigIntStats,
   closeSync,
   constants,
   fstatSync,
@@ -83,13 +84,33 @@ function removeOwnedDraft(path: string): void {
   }
 }
 
+function sameFile(left: BigIntStats, right: BigIntStats): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs
+  );
+}
+
+function sameObservation(left: BigIntStats, right: BigIntStats): boolean {
+  return sameFile(left, right) && left.nlink === right.nlink && left.ctimeNs === right.ctimeNs;
+}
+
 /**
  * Observe physical owner-only token bytes through a nonblocking, no-follow FD. Absence models
- * removal; symlinks, unreadability, invalid UTF-8 and concurrent metadata mutation throw.
+ * removal. Symlinks, unreadability, invalid UTF-8 and concurrent metadata mutation throw.
+ * A publication's draft link removal permits one fresh stable read of the same file and bytes.
  * Stable cooperating parent namespaces are required;
  * this descriptor observation is not an atomic hostile-namespace compare-and-unlink capability.
  */
-function readToken<T>(path: string, decode: (token: Token) => T): T | undefined {
+function readToken<T>(
+  path: string,
+  decode: (token: Token) => T,
+  expected?: { readonly stat: BigIntStats; readonly bytes: string },
+): T | undefined {
   requirePath(path);
   let descriptor: number;
   try {
@@ -109,6 +130,9 @@ function readToken<T>(path: string, decode: (token: Token) => T): T | undefined 
     // Proof: token-current-uid admitted stable foreign UID observations without this guard.
     if (owner === undefined || before.uid !== BigInt(owner))
       throw new Error('hold token must belong to the current user');
+    // Proof: without the saved observation, a replacement inode with identical bytes was admitted on retry.
+    if (expected !== undefined && !sameObservation(expected.stat, before))
+      throw new Error('hold token changed during observation');
     // Proof: token-bom-exact replay returned present when BOM bytes were normalized instead of preserved.
     // Proof: fatal-utf8-stage reached downstream grammar instead of decoder TypeError without fatal decoding; neither path admits invalid bytes.
     const bytes = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
@@ -116,15 +140,20 @@ function readToken<T>(path: string, decode: (token: Token) => T): T | undefined 
     );
     const after = fstatSync(descriptor, { bigint: true });
     // Proof: token-read-time-change admitted bytes after actual same-inode utimes between fstats.
-    if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.mode !== after.mode ||
-      before.uid !== after.uid ||
-      before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs ||
-      before.ctimeNs !== after.ctimeNs
-    )
+    if (!sameObservation(before, after)) {
+      if (
+        expected === undefined &&
+        before.nlink === 2n &&
+        after.nlink === 1n &&
+        sameFile(before, after)
+      ) {
+        const stable = readToken(path, (token) => token, { stat: after, bytes });
+        if (stable !== undefined) return decode(stable);
+      }
+      throw new Error('hold token changed during observation');
+    }
+    // Proof: without this check, differing byte observations were admitted during the draft removal retry.
+    if (expected !== undefined && expected.bytes !== bytes)
       throw new Error('hold token changed during observation');
     return decode(
       Object.freeze({

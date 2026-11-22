@@ -94,7 +94,7 @@ spec:
                mount.name != volume.name || (has(mount.readOnly) && mount.readOnly)))) &&
            (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
              !has(container.volumeMounts) || container.volumeMounts.all(mount,
-               mount.name != volume.name || (has(mount.readOnly) && mount.readOnly))))))))
+               mount.name != volume.name || (has(mount.readOnly) && mount.readOnly)))))))
       message: Forge PUNI installation mounts must be read-only for every container type
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||

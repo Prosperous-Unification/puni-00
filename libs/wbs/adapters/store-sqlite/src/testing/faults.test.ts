@@ -9,13 +9,20 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import * as publicSqlite from '../index';
-import { runMigrations } from '../migrate';
+import { seedCurrentProjectFixture } from './current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
 import { openSqliteSourceWithFault, sqliteLateWriteControl } from './faults';
-import { seedLegacyPackageParent } from './legacy-package-parent';
 
-const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const stamp = { at: 1, by: 'owner' };
+const development = {
+  id: 'step-1',
+  name: 'Dev',
+  position: 10,
+  code: 'dev',
+  defaultAllowancePercent: 0,
+  defaultEstimateUnit: 'workdays',
+} as const;
+
 const entry = (id: string): NewJournalEntry => ({
   id,
   workPackageId: 'p1',
@@ -141,33 +148,30 @@ describe('SQLite conformance fault controls', () => {
   it('reaches a journal late write inside the real SQLite transaction', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
-    runMigrations(dbPath, MIGRATIONS);
-    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+    await seedCurrentProjectFixture(
+      {
+        path: dbPath,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp,
+        definitions: [development],
+      },
+      { hasUnknownOwner: false },
+    );
     const control = sqliteLateWriteControl('journal-history-insert');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
       control,
     );
     try {
-      await source.stores.users.create(
-        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-        stamp,
-      );
-      await source.stores.workPackages.create(
-        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
-        [
-          {
-            id: 'step-1',
-            workPackageId: 'p1',
-            name: 'Dev',
-            position: 10,
-            code: 'dev',
-            allowancePercent: 0,
-            estimateUnit: 'workdays' as const,
-          },
-        ],
-        stamp,
-      );
+      expect(
+        await source.stores.workPackages.create(
+          workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
+          [],
+          stamp,
+        ),
+      ).toMatchObject({ id: 'p1' });
       await source.stores.journal.append(entry('sentinel'), event('sentinel'));
       control.arm();
 
@@ -214,33 +218,30 @@ describe('SQLite conformance fault controls', () => {
   it('reaches the final subtree write inside the real SQLite transaction', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
-    runMigrations(dbPath, MIGRATIONS);
-    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+    await seedCurrentProjectFixture(
+      {
+        path: dbPath,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp,
+        definitions: [development],
+      },
+      { hasUnknownOwner: false },
+    );
     const control = sqliteLateWriteControl('subtree-final-satellite');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
       control,
     );
     try {
-      await source.stores.users.create(
-        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-        stamp,
-      );
-      await source.stores.workPackages.create(
-        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
-        [
-          {
-            id: 'step-1',
-            workPackageId: 'p1',
-            name: 'Dev',
-            position: 10,
-            code: 'dev',
-            allowancePercent: 0,
-            estimateUnit: 'workdays' as const,
-          },
-        ],
-        stamp,
-      );
+      expect(
+        await source.stores.workPackages.create(
+          workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
+          [],
+          stamp,
+        ),
+      ).toMatchObject({ id: 'p1' });
       await source.stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
       expect(await source.stores.estimates.listByWorkPackage('p1')).toEqual([
         ...subtree('sentinel').estimates,
@@ -284,23 +285,30 @@ describe('SQLite conformance fault controls', () => {
   it('reaches the schedule body inside the real SQLite saved-plan transaction', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sqlite-fault-'));
     const dbPath = join(directory, 'source.db');
-    runMigrations(dbPath, MIGRATIONS);
-    seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+    await seedCurrentProjectFixture(
+      {
+        path: dbPath,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp,
+        definitions: [],
+      },
+      { hasUnknownOwner: false },
+    );
     const control = sqliteLateWriteControl('saved-plan-schedule-body');
     const source = openSqliteSourceWithFault(
       { dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY, dbPath },
       control,
     );
     try {
-      await source.stores.users.create(
-        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-        stamp,
-      );
-      await source.stores.workPackages.create(
-        workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
-        [],
-        stamp,
-      );
+      expect(
+        await source.stores.workPackages.create(
+          workPackageRow({ id: 'p1', projectId: 'fixture-project' }),
+          [],
+          stamp,
+        ),
+      ).toMatchObject({ id: 'p1' });
       await source.history.savedPlans.write(savedPlan('sentinel'), () => Promise.resolve(null));
       control.arm();
 

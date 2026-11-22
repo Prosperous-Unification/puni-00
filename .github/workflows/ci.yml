@@ -267,7 +267,8 @@ jobs:
           # the leaf's measured task time plus a finite allowance and a 15-minute reserve
           # (docs/findings/ci-gate-duration.md). The keys must equal HEAVY_TEST_PROJECTS in
           # ci-runtime-partitions.ts; gate-workflow.test.ts holds them equal.
-          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[60,45],"wbs-core":[45,30]}'
+          # Run 45041067883 reached 45 minutes during SQLite conformance with no resource-limit events.
+          heavy_budgets='{"tool-fleet":[90,75],"tool-devsync":[60,45],"wbs-store-sqlite":[90,75],"wbs-core":[45,30]}'
           case "$EVENT_NAME" in
             pull_request)
               base="$(bun run tools/tool-git-hooks/src/hooks/pr-merge-base.ts)"

@@ -189,8 +189,8 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
 - **CI** (`.github/workflows/ci.yml`): PRs run `nx affected` or document checks from the
   validated synthetic merge parent; push, merge_group and dispatch run the full gate; an unmapped
   event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
-  workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet 90 min, tool-devsync
-  and wbs-store-sqlite 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
+  workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet and wbs-store-sqlite
+  90 min, tool-devsync 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
   scope with `MemoryMax=12G`, `TasksMax=4096` and `AllowedCPUs=0-2`, A-CI-LEAF-MEMORYMAX-1 and -2;
   the tool-fleet leaf also keeps one living comment on issue #963 every 45 s, A-CI-LEAF-RECORDER-2,
   and refuses an AWS-hosted runner with exit 78 and a marker artifact, A-CI-LEAF-AWS-1),

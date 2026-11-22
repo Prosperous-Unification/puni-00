@@ -13,9 +13,8 @@ import { ClaimRepository } from './claim';
 import { type Drizzle, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { MeasureEstimateRepository } from './measure-estimate';
 import { runMigrations } from './migrate';
-import { actual, estimate, stepMeasure, stepProgress } from './schema';
+import { actual, assignment, estimate, measureEstimate, stepMeasure, stepProgress } from './schema';
 import { StepRepository } from './step';
 import { StepCatalogueRepository } from './step-catalogue';
 import { StepNodeAttemptRepository } from './step-node-attempt';
@@ -42,7 +41,6 @@ let dir: string;
 let ownerId: string;
 let steps: StepRepository;
 let workPackages: WorkPackageRepository;
-let measureEstimates: MeasureEstimateRepository;
 let attempts: StepNodeAttemptRepository;
 let directory: DirectoryRepository;
 let workItems: WorkItemRepository;
@@ -115,7 +113,6 @@ function openRepositories(path: string) {
   directory = new DirectoryRepository(db, OPEN);
   workItems = new WorkItemRepository(db, OPEN);
   claims = new ClaimRepository(db, OPEN);
-  measureEstimates = new MeasureEstimateRepository(db, OPEN);
 }
 
 async function seedOwner() {
@@ -160,6 +157,10 @@ function historicalSteps(id: string) {
   allowance_bps / 100.0 AS allowancePercent, estimate_unit AS estimateUnit FROM step WHERE work_package_id = ? ORDER BY position, id`,
     )
     .all(id);
+}
+
+function seedHistoricalAssignment(workItemId: string, stepId: string, personId: string) {
+  db.insert(assignment).values({ workItemId, stepId, personId }).run();
 }
 
 function historicalEstimates() {
@@ -648,8 +649,8 @@ describe('StepRepository pre-catalogue writes', () => {
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', devId, ada.id, wrote());
-    await directory.assign('strip', qaId, ada.id, wrote());
+    seedHistoricalAssignment('strip', devId, ada.id);
+    seedHistoricalAssignment('strip', qaId, ada.id);
 
     const usage = await steps.usageOf(workPackageId, qaId);
 
@@ -677,8 +678,8 @@ describe('StepRepository pre-catalogue writes', () => {
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', qaId, ada.id, wrote());
-    await directory.assign('strip', devId, ada.id, wrote());
+    seedHistoricalAssignment('strip', qaId, ada.id);
+    seedHistoricalAssignment('strip', devId, ada.id);
 
     const removed = await steps.remove(workPackageId, qaId, true, wrote());
 
@@ -704,7 +705,7 @@ describe('StepRepository pre-catalogue writes', () => {
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('sand', qaId, ada.id, wrote());
+    seedHistoricalAssignment('sand', qaId, ada.id);
     const workPackageBefore = await revisionOf(workPackageId);
     const stripBefore = await workItemRevisionOf('strip');
     const sandBefore = await workItemRevisionOf('sand');
@@ -727,7 +728,7 @@ describe('StepRepository pre-catalogue writes', () => {
     const ada = await personAdded(
       directory.addPerson({ id: crypto.randomUUID(), name: 'Ada' }, [], wrote()),
     );
-    await directory.assign('strip', qaId, ada.id, wrote());
+    seedHistoricalAssignment('strip', qaId, ada.id);
     const before = await revisionOf(workPackageId);
 
     const refused = await steps.remove(workPackageId, qaId, false, wrote());
@@ -1154,10 +1155,9 @@ describe('StepRepository pre-catalogue writes', () => {
     // A three-point tokens trio has no legacy row (`wbs-measure-budgets`
     // design D28), so it is counted from `measure_estimate`; a single-point
     // one is its legacy row and counts once.
-    await measureEstimates.set(
-      { workItemId: 'strip', stepId: qaId, key: 'tokens', ...DAYS, singlePoint: false },
-      wrote(),
-    );
+    db.insert(measureEstimate)
+      .values({ workItemId: 'strip', stepId: qaId, measureKey: 'tokens', ...DAYS })
+      .run();
     const usage = {
       estimates: 0,
       actuals: 0,
@@ -1174,18 +1174,15 @@ describe('StepRepository pre-catalogue writes', () => {
       reason: 'in_use',
       usage,
     });
-    await measureEstimates.set(
-      {
+    db.insert(stepMeasure)
+      .values({
         workItemId: 'sand',
         stepId: qaId,
-        key: 'tokens',
-        optimistic: 7,
-        realistic: 7,
-        pessimistic: 7,
-        singlePoint: true,
-      },
-      wrote(),
-    );
+        metric: 'token_estimate',
+        value: 7,
+        recordedAt: 1,
+      })
+      .run();
     expect((await steps.usageOf(workPackageId, qaId)).measures).toBe(2);
     expect(await steps.remove(workPackageId, qaId, true, wrote())).toEqual({
       ok: true,

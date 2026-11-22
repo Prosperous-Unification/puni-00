@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -283,6 +284,54 @@ it('rejects actual same-inode timestamp change between token byte observation an
       [
         'const fstat=fs.fstatSync;let calls=0;',
         'await mock.module("node:fs",()=>({...fs,fstatSync(descriptor,options){if(++calls===2)fs.utimesSync(path,1,1);const stat=fstat(descriptor,options);trace.push({call:calls,dev:stat.dev,ino:stat.ino,size:stat.size,mode:stat.mode,uid:stat.uid,mtimeNs:stat.mtimeNs,ctimeNs:stat.ctimeNs});return stat;}}));',
+      ].join('\n'),
+    ),
+  ).toEqual({ kind: 'refused', message: 'hold token changed during observation' });
+});
+it('reads the same published token when its draft link is removed during observation', () => {
+  const f = createFixture(),
+    hold = createHold(f.path, identity);
+  linkSync(f.path, f.path + '.draft');
+  expect(
+    inspectPhysicalToken(
+      f,
+      'token-published-draft-removal',
+      [
+        'const fstat=fs.fstatSync;let calls=0;',
+        'await mock.module("node:fs",()=>({...fs,fstatSync(descriptor,options){if(++calls===2)fs.unlinkSync(path+".draft");const stat=fstat(descriptor,options);trace.push({call:calls,nlink:stat.nlink,ino:stat.ino,ctimeNs:stat.ctimeNs});return stat;}}));',
+      ].join('\n'),
+    ),
+  ).toMatchObject({
+    kind: 'admitted',
+    token: { path: f.path, bytes: hold.bytes, inode: hold.inode.toString() },
+  });
+});
+it('refuses an identical replacement encountered after observing draft removal', () => {
+  const f = createFixture();
+  createHold(f.path, identity);
+  linkSync(f.path, f.path + '.draft');
+  expect(
+    inspectPhysicalToken(
+      f,
+      'token-publication-replacement',
+      [
+        'const fstat=fs.fstatSync;let calls=0;',
+        'await mock.module("node:fs",()=>({...fs,fstatSync(descriptor,options){if(++calls!==2)return fstat(descriptor,options);fs.unlinkSync(path+".draft");const stat=fstat(descriptor,options);fs.renameSync(path,path+".original");fs.writeFileSync(path,bytes,{mode:0o600});trace.push({ino:stat.ino,replacement:fs.lstatSync(path,{bigint:true}).ino});return stat;}}));',
+      ].join('\n'),
+    ),
+  ).toEqual({ kind: 'refused', message: 'hold token changed during observation' });
+});
+it('refuses changed byte observations during the draft removal retry', () => {
+  const f = createFixture();
+  createHold(f.path, identity);
+  linkSync(f.path, f.path + '.draft');
+  expect(
+    inspectPhysicalToken(
+      f,
+      'token-publication-bytes',
+      [
+        'const fstat=fs.fstatSync,read=fs.readFileSync;let stats=0,reads=0;',
+        'await mock.module("node:fs",()=>({...fs,fstatSync(fd,options){if(++stats===2)fs.unlinkSync(path+".draft");return fstat(fd,options);},readFileSync(fd,options){const observed=read(fd,options);return ++reads===1?Buffer.from(bytes.replace("123456","123457")):observed;}}));',
       ].join('\n'),
     ),
   ).toEqual({ kind: 'refused', message: 'hold token changed during observation' });
