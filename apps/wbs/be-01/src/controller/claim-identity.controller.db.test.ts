@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { exportJWK, generateKeyPair } from 'jose';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const ISSUER = 'https://idp.test';
 const AUDIENCE = 'api://wbs';
@@ -55,15 +56,9 @@ beforeEach(async () => {
   h.member('org-a', 'kat', 'member', ['project-contributor', 'org-viewer']);
   for (const username of ['dany', 'mem', 'kat']) h.bind(username, 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Claims' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-  const step = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position LIMIT 1',
-    )
-    .get(workPackageId);
-  if (step === null) throw new Error('claim identity work package has no first step');
+  workPackageId = await createFixturePackage(h, 'dany', 'Claims');
+  const step = (await readFixturePackage(h, 'dany', workPackageId)).steps.at(0);
+  if (step === undefined) throw new Error('claim identity work package has no first step');
   firstStep = step.id;
   const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],

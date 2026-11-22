@@ -19,6 +19,32 @@ beforeEach(async () => {
     "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('parent','org-a','Parent',1,?),('foreign-parent','org-b','Foreign',1,?)",
     [harness.userId('creator'), harness.userId('foreign')],
   );
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    for (const step of planDocumentFixture().steps) {
+      if (step.code === null) throw new Error('import fixture step code missing');
+      const bound = await stores.stepCatalogue.defineAndBindStep(
+        'org-a',
+        {
+          id: step.id,
+          code: step.code,
+          name: step.name.trim(),
+          position: step.position,
+          defaultEstimateUnit: step.estimateUnit,
+          defaultAllowancePercent: step.allowancePercent,
+        },
+        {
+          bindingId: step.id + '-binding',
+          scopeKind: 'project',
+          scopeId: 'parent',
+          workItemTypeId: null,
+          position: step.position,
+        },
+        { by: harness.userId('creator'), at: 1 },
+      );
+      if (!bound.ok) throw new Error('import fixture step refused: ' + bound.reason);
+    }
+    return { commit: true, value: undefined };
+  });
 });
 afterEach(async () => {
   await harness.closeComposed();
@@ -168,7 +194,8 @@ it('imports a restricted historical document into the outer parent with actual c
     ).status,
   ).toBe(403);
   expect(
-    harness.sqlite.query('SELECT id FROM step WHERE work_package_id=?').all(id).length,
+    harness.sqlite.query('SELECT step_id FROM work_package_step WHERE work_package_id=?').all(id)
+      .length,
   ).toBeGreaterThan(0);
 });
 it.each(['creator-audit', 'later-import-row'] as const)(

@@ -26,6 +26,7 @@ import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
 import { afterEach, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 
 import { nodeDigest } from '../runtime/bun-runtime';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
   grantCredential,
@@ -34,6 +35,7 @@ import {
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
+import { createFixturePackage } from '../testing/space-rollup';
 
 const cleanups: (() => Promise<void>)[] = [];
 let machineGrants: HarnessMachineGrants;
@@ -59,11 +61,7 @@ async function mountRuntime() {
   harness.bind('creator', 'org-a');
   harness.bind('super', 'org-a');
   harness.activate();
-  const created = await harness.call('creator', 'POST', '/api/work-packages', {
-    name: 'Principal cap',
-  });
-  expect(created.status).toBe(200);
-  const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const workPackageId = await createFixturePackage(harness, 'creator', 'Principal cap');
   addAgentPerson(harness.sqlite, 'agent', 'org-a', harness.userId('super'));
   addAgentPerson(harness.sqlite, 'unbound', 'org-a', null);
   addAgentPerson(harness.sqlite, 'other-account', 'org-a', harness.userId('creator'));
@@ -354,10 +352,10 @@ async function createQueuedFixture() {
     rmSync(directory, { recursive: true, force: true });
   });
   sqlite.db.run(
-    "INSERT INTO organization_membership (organization_id,user_id,role,created_at) VALUES ('org-a','ada','super_admin',1)",
+    "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a' AND user_id='ada'",
   );
   sqlite.db.run(
-    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('queued-ada','org-a','organization','org-a','user','ada','org-admin','route',1),('queued-ada-package','org-a','work_package','a1','user','ada','package-manager','route',1),('queued-credential','org-a','work_package','a1','machine_credential','verified','package-manager','route',1)",
+    "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('queued-ada','org-a','organization','org-a','user','ada','org-admin','route',1),('queued-credential','org-a','work_package','a1','machine_credential','verified','package-manager','route',1)",
   );
   sqlite.db.run(
     "INSERT INTO users (id,username,password_hash,created_at) VALUES ('creator','creator','x',1)",
@@ -373,15 +371,10 @@ async function createQueuedFixture() {
   expect(
     await source.stores.directory.patchPerson('agent', { accountId: 'ada' }, { at: 2, by: 'ada' }),
   ).toMatchObject({ ok: true });
-  await source.stores.steps.add(
-    {
-      id: 'dev',
-      workPackageId: 'a1',
-      name: 'Dev',
-      code: 'dev',
-      allowancePercent: 0,
-      estimateUnit: 'workdays',
-    },
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [['dev', 'Dev']],
     { at: 2, by: 'ada' },
   );
   for (const id of ['leaf', 'other'])
@@ -487,7 +480,7 @@ async function createQueuedFixture() {
     },
   };
   acceptReply(await runner.writeRuntime(human, writeRequest));
-  sqlite.db.run("UPDATE work_package SET restricted=1, owner_id='creator' WHERE id='a1'");
+  sqlite.db.run("UPDATE work_package SET restricted=1, created_by='creator' WHERE id='a1'");
   await source.stores.directory.patchPerson('agent', { accountId: null }, { at: 3, by: 'ada' });
   const freshBasis = acceptReply(await receiver.readRuntimeState(human, {})).basis;
   const history = () => ({

@@ -47,9 +47,7 @@ afterEach(() => {
 });
 
 async function workPackage(username: string, name: string): Promise<string> {
-  const answer = await world.h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  return await world.h.createProjectPackage(username, name);
 }
 
 /** Provisions `userName` in org-a and binds it to `username`, as an SSO activation would. */
@@ -310,6 +308,8 @@ describe('SCIM deprovisioning', () => {
 
 it('ends a real selected-organization cookie’s browser and gateway access at once', async () => {
   const cookieWorld = await openScimWorld(true);
+  // The real browser session and its signed organization cookie expire on wall time.
+  cookieWorld.clock.at = Date.now();
   const { h } = cookieWorld;
   try {
     // Issued as ada would through her own selected session.
@@ -345,7 +345,7 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
       return { status: response.status, body: await response.text() };
     };
     const created = await h.app.handle(
-      new Request('http://localhost/api/work-packages', {
+      new Request('http://localhost/api/projects', {
         method: 'POST',
         headers: {
           cookie,
@@ -353,10 +353,10 @@ it('ends a real selected-organization cookie’s browser and gateway access at o
           'content-type': 'application/json',
           'X-WBS-Expected-Organization': 'org-a',
         },
-        body: JSON.stringify({ name: 'A plan' }),
+        body: JSON.stringify({ name: 'A project', workPackage: { name: 'A plan' } }),
       }),
     );
-    expect(created.status).toBe(200);
+    expect(created.status).toBe(201);
     const workPackageId = ((await created.json()) as { workPackage: { id: string } }).workPackage
       .id;
     const gatewayPath = `/internal/gateway/work-packages/${workPackageId}/browser-access`;

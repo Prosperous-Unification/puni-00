@@ -13,6 +13,7 @@ import {
 } from '../testing/machine-credential-fixture';
 import { callForwarded, forwardingMachineGrants } from '../testing/mcp-forwarded-call';
 import { type HarnessMachineGrants, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
@@ -43,8 +44,7 @@ beforeEach(async () => {
   h.bind('owner', 'org-a');
   h.bind('viewer', 'org-a');
   h.activate();
-  const workPackage = await h.call('owner', 'POST', '/api/work-packages', { name: 'Gates' });
-  workPackageId = (workPackage.body as { workPackage: { id: string } }).workPackage.id;
+  workPackageId = await createFixturePackage(h, 'owner', 'Gates');
   const created = await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
     commands: [{ kind: 'createWorkItem', parentId: null, name: 'Leaf' }],
   });
@@ -223,7 +223,6 @@ it('keeps a deleted work package from stranding a linked host job', async () => 
   ).toBe(200);
   // Work package deletion has no public route in this increment; mirror the orphan-history fixture.
   h.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
-  h.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
   h.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
   expect(await publish(hostJobEvent(2, useId, 'release_verified', linked))).toEqual({
     status: 200,

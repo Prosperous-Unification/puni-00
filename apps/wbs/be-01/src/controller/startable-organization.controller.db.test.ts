@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * The startable read (`GET /api/work-packages/:id/startable`, `wbs-team-claims`
@@ -75,9 +76,7 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  return await createFixturePackage(h, username, name);
 }
 
 async function stepsOf(username: string, workPackageId: string): Promise<[string, string]> {
@@ -226,7 +225,7 @@ describe('the startable read', () => {
         capacity: 8,
         occupied: 4,
         free: 4,
-        occupancyScope: 'project',
+        occupancyScope: 'work_package',
         directory: null,
       },
     ]);

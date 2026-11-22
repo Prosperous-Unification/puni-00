@@ -2,6 +2,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage } from '../testing/space-rollup';
 
 /**
  * Directory commands under organization isolation (task 3.4, part 2), over
@@ -106,21 +107,16 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  if (
-    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
-      ?.state === 'activated'
-  )
-    h.grant(
-      username === 'grace' ? 'org-b' : 'org-a',
-      username,
-      'package-manager',
-      'work_package',
-      workPackageId,
-    );
-  return workPackageId;
+  return await createFixturePackage(h, username, name);
+}
+
+function packageEventTypes(workPackageId: string): string[] {
+  return h.sqlite
+    .query<{ message: string }, [string]>(
+      'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+    )
+    .all(`work-package:${workPackageId}`)
+    .map(({ message }) => (JSON.parse(message) as { type: string }).type);
 }
 
 function directory(username: string, commands: unknown[]): Promise<Answer> {
@@ -849,6 +845,7 @@ describe('after activation', () => {
   it('retains the first rename when the second raw owner fails after capture', async () => {
     await seedSharedStandalonePerson([own]);
     const actorId = h.userId('ada');
+    const eventsBefore = packageEventTypes(own);
     let pushes = 0;
     pushDuringTest = () => {
       pushes += 1;
@@ -889,13 +886,7 @@ describe('after activation', () => {
         .get()?.name,
     ).toBe('Ada after capture');
     expect(h.sqlite.query("SELECT * FROM person_team WHERE person_id = 'pe-a'").all()).toEqual([]);
-    const messages = h.sqlite
-      .query<{ message: string }, [string]>(
-        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
-      )
-      .all(`work-package:${own}`)
-      .map(({ message }) => JSON.parse(message) as { type: string });
-    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(packageEventTypes(own)).toEqual([...eventsBefore, 'directory_changed']);
     expect(pushes).toBe(1);
   });
 
@@ -905,6 +896,7 @@ describe('after activation', () => {
       "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('standalone-person-row-0', 'tm-a')",
     );
     const actorId = h.userId('ada');
+    const eventsBefore = packageEventTypes(own);
     let pushes = 0;
     pushDuringTest = () => {
       pushes += 1;
@@ -945,13 +937,7 @@ describe('after activation', () => {
         .get()?.name,
     ).toBe('Retained team');
     expect(h.sqlite.query("SELECT * FROM team_service WHERE team_id = 'tm-a'").all()).toEqual([]);
-    const messages = h.sqlite
-      .query<{ message: string }, [string]>(
-        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
-      )
-      .all(`work-package:${own}`)
-      .map(({ message }) => JSON.parse(message) as { type: string });
-    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(packageEventTypes(own)).toEqual([...eventsBefore, 'directory_changed']);
     expect(pushes).toBe(1);
   });
 
@@ -1161,6 +1147,7 @@ describe('after activation', () => {
   it('announces a committed standalone rename once when the later link patch fails', async () => {
     await seedSharedStandalonePerson([own]);
     const actorId = h.userId('ada');
+    const eventsBefore = packageEventTypes(own);
     let pushes = 0;
     pushDuringTest = () => {
       pushes += 1;
@@ -1192,13 +1179,7 @@ describe('after activation', () => {
         )
         .get()?.name,
     ).toBe('Announced Ada');
-    const messages = h.sqlite
-      .query<{ message: string }, [string]>(
-        'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
-      )
-      .all(`work-package:${own}`)
-      .map(({ message }) => JSON.parse(message) as { type: string });
-    expect(messages.map(({ type }) => type)).toEqual(['directory_changed']);
+    expect(packageEventTypes(own)).toEqual([...eventsBefore, 'directory_changed']);
     expect(pushes).toBe(1);
   });
 
@@ -1295,8 +1276,9 @@ describe('after activation', () => {
     };
     countOwners = true;
     countCaptures = true;
+    // Proof: the obsolete work_package subscription let the cascade succeed and failed rejectedError.
     h.sqlite.run(
-      `CREATE TRIGGER fail_standalone_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work_package:${second}' BEGIN SELECT RAISE(FAIL, 'injected directory fan-out failure'); END`,
+      `CREATE TRIGGER fail_standalone_fanout BEFORE INSERT ON event_log WHEN NEW.subscription = 'work-package:${second}' BEGIN SELECT RAISE(FAIL, 'injected directory fan-out failure'); END`,
     );
     try {
       await rejectedError(

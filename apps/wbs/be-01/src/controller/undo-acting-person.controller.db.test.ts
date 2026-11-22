@@ -11,6 +11,7 @@ import {
   type HarnessMachineGrants,
   OrganizationHarness,
 } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let machineGrants: HarnessMachineGrants;
 let h: OrganizationHarness;
@@ -41,13 +42,8 @@ beforeEach(async () => {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  const opened = created.body as {
-    workPackage: { id: string };
-    steps: { id: string; name: string }[];
-  };
-  workPackageId = opened.workPackage.id;
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  const opened = await readFixturePackage(h, 'dany', workPackageId);
   const qaStep = opened.steps.find(({ name }) => name === 'QA');
   if (qaStep === undefined) throw new Error('a work package without its seed step QA');
   qa = qaStep.id;
@@ -222,7 +218,7 @@ describe('undo per acting person over HTTP', () => {
     const history = h.sqlite.query('SELECT * FROM command_journal').all();
     expect(
       await as('codex', 'PATCH', `/api/work-packages/${workPackageId}/steps/${qa}`, {
-        allowancePercent: 25,
+        allowanceBps: 2500,
       }),
     ).toMatchObject({
       status: 403,

@@ -512,11 +512,7 @@ it('does not use descendant grants outside the organization comparison scope', a
     'organization.manage_members',
     'organization.manage_access',
   ]);
-  const created = await h.call('owner', 'POST', '/api/work-packages', {
-    name: 'Descendant comparison',
-  });
-  expect(created.status).toBe(200);
-  const packageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  const packageId = await h.createProjectPackage('owner', 'Descendant comparison');
   h.grant('org', 'clerk', 'package-viewer', 'work_package', packageId);
   expect(await offer('clerk', 'recipient@example.org', 'project-viewer')).toEqual({
     status: 403,

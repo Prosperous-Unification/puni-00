@@ -10,6 +10,7 @@ import {
   issueApiKey,
 } from '../testing/machine-credential-fixture';
 import { type Answer, OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /** mcp-01's dedicated secret in these tests. */
 const SECRET = 'm'.repeat(32);
@@ -63,15 +64,8 @@ async function openMachineFixture(connected = false) {
   h.member('org-a', 'dany', 'super_admin', ['org-super-admin']);
   h.bind('dany', 'org-a');
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
-  if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-  steps = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .all(workPackageId)
-    .map(({ id }) => id);
+  workPackageId = await createFixturePackage(h, 'dany', 'Plan of A');
+  steps = (await readFixturePackage(h, 'dany', workPackageId)).steps.map(({ id }) => id);
   if (steps.length < 2) throw new Error(`the work package holds ${String(steps.length)} steps`);
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'claire-worker', 'org-a', h.userId('dany'));
@@ -524,13 +518,10 @@ async function connectedBatch() {
   await h.register('owner');
   h.member('org-a', 'owner', 'member', ['project-contributor', 'org-viewer']);
   h.grantPermissions('org-a', 'owner', ['organization.create_project']);
-  const created = await h.call('dany', 'POST', '/api/work-packages', {
-    name: 'Restricted predecessor',
-  });
-  expectApplied(created);
-  const predecessorWorkPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  h.bind('owner', 'org-a');
+  const predecessorWorkPackageId = await createFixturePackage(h, 'owner', 'Restricted predecessor');
   const rows = await h.call(
-    'dany',
+    'owner',
     'POST',
     `/api/work-packages/${predecessorWorkPackageId}/commands`,
     {
@@ -553,10 +544,7 @@ async function connectedBatch() {
     [await grantFor(claireKey), beforeOptIn],
   ] as const)
     expectApplied(await commands(asGrant(grant), [{ kind: 'claimWorkItem', workItemId }]));
-  h.sqlite.run('UPDATE work_package SET owner_id=?, restricted=1 WHERE id=?', [
-    h.userId('owner'),
-    predecessorWorkPackageId,
-  ]);
+  h.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [predecessorWorkPackageId]);
   h.sqlite.run(
     "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
     [h.userId('dany')],

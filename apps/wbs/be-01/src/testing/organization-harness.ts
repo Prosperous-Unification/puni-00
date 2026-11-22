@@ -12,7 +12,7 @@ import {
   trustedIssuerDiscovery,
   TrustedIssuerKeySets,
 } from '@wbs/auth';
-import type { AuthenticatedUser } from '@wbs/contracts';
+import { type AuthenticatedUser, createProject } from '@wbs/contracts';
 import type { DependencyRuntimeCapability } from '@wbs/contracts/dependency-runtime';
 import {
   type CapacityModeSwitch,
@@ -1486,6 +1486,21 @@ export class OrganizationHarness {
 
   organization(id: string): void {
     this.sqlite.run('INSERT INTO organization (id, name, created_at) VALUES (?, ?, 1)', [id, id]);
+  }
+
+  /** Creates a Project and its first Work Package through the named account's current session. */
+  async createProjectPackage(username: string, name: string): Promise<string> {
+    const reply = await this.call(username, 'POST', '/api/projects', {
+      name: name + ' engagement',
+      workPackage: { name },
+    });
+    if (reply.status !== 201) throw new Error('fixture project creation refused', { cause: reply });
+    const checked = await createProject.responses[0].schema.validator['~standard'].validate(
+      reply.body,
+    );
+    if (checked.issues !== undefined || checked.value.workPackage === undefined)
+      throw new Error('fixture project creation omitted requested package', { cause: reply });
+    return checked.value.workPackage.id;
   }
 
   member(

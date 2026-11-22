@@ -143,8 +143,13 @@ test('issues a native direct context only for its own current membership', async
       typeof answer.body.token !== 'string'
     )
       throw new Error('context token missing');
+    const parent = await harness.callWith(answer.body.token, 'POST', '/api/projects', {
+      name: 'Context project',
+    });
+    expect(parent.status).toBe(201);
     const aWorkPackage = await harness.callWith(answer.body.token, 'POST', '/api/work-packages', {
       name: 'A work package',
+      projectId: (parent.body as { project: { id: string } }).project.id,
     });
     expect(aWorkPackage.status).toBe(200);
     for (const cookie of [

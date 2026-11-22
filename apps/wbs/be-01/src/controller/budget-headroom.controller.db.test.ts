@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * The headroom read (`GET /api/work-packages/:id/budget-headroom`,
@@ -33,11 +34,7 @@ beforeEach(async () => {
   h.activate();
   own = await create('ada', 'A plan');
   foreign = await create('grace', 'B plan');
-  const first = h.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id = ? ORDER BY position',
-    )
-    .get(own)?.id;
+  const first = (await readFixturePackage(h, 'ada', own)).steps.at(0)?.id;
   if (first === undefined) throw new Error('the work package has no step');
   dev = first;
   const built = await batch([
@@ -58,9 +55,7 @@ afterEach(() => {
 });
 
 async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
+  return await createFixturePackage(h, username, name);
 }
 
 async function batch(commands: readonly unknown[]) {
