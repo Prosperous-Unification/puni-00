@@ -1002,8 +1002,9 @@ nothing before the link dies. Neither outcome changes the lever order.
 ### Amendment, 2026-11-22 (third): refuse AWS hosts for the tool-fleet leaf and requeue
 
 The second amendment's first lever is now in place, as assumption **A-CI-LEAF-AWS-1**, for Dany to
-confirm. It does not explain the fault. It stops the fault from costing about 68 minutes of red
-main per AWS draw.
+confirm. It does not explain the fault. It turns an AWS draw from a lost runner into a refusal
+in about a minute of runner time, followed by an automatic requeue. It does not shorten red main
+much: see the arithmetic.
 
 **Refusal.** Both copies of the shared step check the start record's cloud right after writing
 it. On `partition=heavy-tool-fleet` with `cloud=aws` the step does four things before the sampler,
@@ -1011,12 +1012,14 @@ the recorder or the gate scope starts. It writes the refusal line to `nx-gate.lo
 `aws_refused=true` to the step outputs, a line to the job summary and `aws-refused.txt` to the
 workspace. Then it exits 78. The gate-log upload still carries `nx-gate.log`. A new
 `if: always()` upload, gated on `aws_refused == 'true'`, publishes the marker artifact
-`aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}`. Every other partition runs
+`aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}`. Only `gate_heavy` uploads that
+marker, so only the tool-fleet leaf can trigger a requeue. Every other partition runs
 unchanged, and so does the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`. An
 unreadable DMI file proves nothing about the host, so it must not refuse.
 
-**Requeue.** A new job, `requeue tool-fleet leaf`, needs `gate_heavy` and runs when that job
-failed on attempt 1, 2 or 3. It is the only job in `ci.yml` with `actions: write`, and it is
+**Requeue.** A new job, `requeue tool-fleet leaf`, needs `gate_heavy` and `gate`, so it fires at
+the end of the run, and runs when `gate_heavy` failed on attempt 1, 2 or 3. `gate` does not need
+it. It is the only job in `ci.yml` with `actions: write`, and it is
 `continue-on-error`, so its own failure is visible but changes no verdict. It lists this run's
 artifacts by the marker's name and goes on only if this attempt's marker exists, so an ordinary
 failure is never rerun automatically. A fork pull request's token cannot requeue, so that case
@@ -1025,11 +1028,24 @@ logs a line and stops.
 The brief asked this job to run `gh run rerun --failed` itself. This change makes an assumption
 instead, **A-CI-LEAF-AWS-2**, which is unverified: a run cannot rerun its own failed jobs while
 one of its jobs, this one, is still running. GitHub's re-run documentation describes re-runs of
-finished runs only. So the job dispatches `ci-requeue.yml` with the run id and attempt. That
-workflow checks the inputs and the marker again. It then polls the run every 20 s, for at most 15
-minutes, until it completes, and runs `gh run rerun <run> --failed`. It prints
-`A-CI-LEAF-AWS-1: requeued attempt N+1 after an AWS refusal`. It stops without rerunning if the
-run has already moved to another attempt. The rerun includes the requeue job, a dependent of the
+finished runs only. So the job dispatches `ci-requeue.yml` with the run id, the attempt and the
+run's head commit. The dispatch names no ref, so it runs that file from the default branch, and
+the first dispatch fails until the file is on main. That workflow checks the inputs and the
+marker again. It polls the run once a minute, for at most 150 minutes, until it completes. It
+tolerates three consecutive failed or malformed polls; a polled attempt outside 1 to 4 counts as
+malformed. It stops without rerunning when the run has moved to another attempt or records
+another head. It also stops when the run concluded anything but `failure`: off main
+`cancel-in-progress` cancels a superseded PR run, and rerunning it would cancel the newer
+commit's live run. Only a `failure` gets `gh run rerun <run> --failed` and the line
+`A-CI-LEAF-AWS-1: requeued attempt N+1 after an AWS refusal`.
+
+The #982 review found the first version's 15-minute wait too short. That version fired at about
+20 minutes, after `gate_heavy`. Main runs complete about 85 to 88 minutes after they start, with
+`gate twilight` last, so every real requeue would have timed out unrerun. The native alternative
+is a separate workflow on `workflow_run: completed`, which fires only after the run completes and
+needs no wait. It was not taken because it is unverified whether `workflow_run` fires for an
+attempt that `GITHUB_TOKEN` started, which every requeued attempt is. A `workflow_dispatch` from
+`GITHUB_TOKEN` is documented to start a run. The rerun includes the requeue job, a dependent of the
 failed leaf, so the chain carries itself to attempt 4 and no further. `--failed` also reruns any
 other failed job of the same attempt.
 
@@ -1038,10 +1054,13 @@ the requeue. Main stays red until an attempt draws Azure.
 
 **Arithmetic.** About two thirds of today's runners were AWS. The chance that all four attempts
 draw AWS is 0.67^4 ≈ 0.20, so about 80% of runs reach an Azure leaf within four attempts. The
-expected number of attempts is 1 + 0.67 + 0.45 + 0.30 ≈ 2.4, or about 1.4 reruns. A refused
+expected number of attempts is 1 + 0.67 + 0.45 + 0.30 ≈ 2.42, or about 1.4 reruns. A refused
 attempt costs the job's setup, about 1 to 2 minutes of runner time, plus the requeue job and the
-waiter, instead of a 68-minute loss. The other 20% end red after four attempts, with four refusal
-lines and no lost runner. The figure is only as good as the two-thirds share.
+waiter's polling. Wall-clock red main is different. The rerun waits for the whole run to complete,
+about 88 minutes. The requeued Azure leaf then takes its own 31 to 40 minutes, so one refusal
+still means about 2 hours of red main. A lost runner had meant about 68 minutes of red main with
+no automatic retry. The other 20% end red after four attempts, with four refusal lines and no
+lost runner. The figure is only as good as the two-thirds share.
 
 **Proof plan.** On the next main runs:
 
@@ -1067,8 +1086,13 @@ runs both requeue scripts against a fake `gh`. Each of these faults failed a tes
 - dropping `< 4`, adding `actions: write` to `gate_heavy`, or making `gate` need the requeue;
 - dropping `always()` from the marker upload;
 - skipping either marker check or the fork guard;
-- widening the attempt bound, admitting any run id, or skipping the completion wait, the
-  moved-attempt check or the poll bound;
+- dropping `gate` from the requeue job's needs, or the head commit from the dispatch;
+- widening the attempt bound, admitting any run id or head commit, or skipping the completion
+  wait, the moved-attempt check or the poll bound;
+- in the waiter, dropping the conclusion check (a cancelled run was rerun), the head check, or
+  the polled attempt's 1-4 check (a garbled attempt read as moved);
+- in the waiter, exiting on the first failed poll, never resetting the failure count, or a
+  45-poll bound;
 - dropping `--failed`.
 
 **What stays unexplained.** The AWS host-side fault itself. A refused leaf never starts the
