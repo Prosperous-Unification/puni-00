@@ -1,5 +1,6 @@
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -11,7 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, expect, test } from 'bun:test';
+import { scratchSync } from '@tools/test-scratch';
+import { afterEach, beforeAll, expect, test } from 'bun:test';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const APP_ROOT = join(REPO_ROOT, 'apps/wbs/be-01');
@@ -23,6 +25,22 @@ const processPath = (() => {
   return path;
 })();
 const roots: string[] = [];
+let predecessor: string;
+beforeAll(() => {
+  const root = scratchSync('wbs-rename-predecessor-');
+  predecessor = join(root, 'predecessor.db');
+  const setup = `
+    import { runMigrations } from '@wbs/store-sqlite/migrate';
+    import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
+    runMigrations(process.argv[1], copyRecoveryPrefix(process.argv[2], '20261103110000_add_initial_access_offers'));
+  `;
+  const migrated = Bun.spawnSync([process.execPath, '-e', setup, predecessor, root], {
+    cwd: APP_ROOT,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  expect(migrated.exitCode, migrated.stderr.toString()).toBe(0);
+}, 30_000);
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -37,17 +55,8 @@ function fixture() {
   const sourcePath = join(artifacts, 'source.db');
   const snapshotPath = join(artifacts, 'snapshot.db');
   const reportPath = join(artifacts, 'report.json');
-  const setup = `
-    import { runMigrations } from '@wbs/store-sqlite/migrate';
-    import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
-    runMigrations(process.argv[1], copyRecoveryPrefix(process.argv[2], '20261103110000_add_initial_access_offers'));
-  `;
-  const migrated = Bun.spawnSync([process.execPath, '-e', setup, sourcePath, root], {
-    cwd: APP_ROOT,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  expect(migrated.exitCode, migrated.stderr.toString()).toBe(0);
+  // The migration subprocess closed its only connection before this template is copied.
+  copyFileSync(predecessor, sourcePath);
   const produced = Bun.spawnSync(
     [process.execPath, 'run', 'src/backup-db-cli.ts', snapshotPath, '--report=' + reportPath],
     { cwd: APP_ROOT, env: { ...process.env, DB_PATH: sourcePath }, stdout: 'pipe', stderr: 'pipe' },
