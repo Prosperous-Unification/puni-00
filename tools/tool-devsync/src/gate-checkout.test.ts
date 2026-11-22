@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { holdLock } from '@shared/heavy-lock';
 import { expect, it } from 'bun:test';
 
 import { createPerformanceProcessOwner } from './performance-processes';
@@ -107,7 +108,6 @@ for (const mode of [
       git(tree, 'checkout', '-q', '-B', 'original', original);
       const release = Promise.withResolvers<undefined>(),
         entered = Promise.withResolvers<undefined>();
-      const { holdLock } = await import('@shared/heavy-lock');
       const blocking =
         mode === 'queued'
           ? holdLock(path, async () => {
