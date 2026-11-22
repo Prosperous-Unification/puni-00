@@ -1,5 +1,6 @@
 import {
   type CatalogueStepBinding,
+  type CatalogueWriteObservation,
   type NewStepBinding,
   type NewStepDefinition,
   type PackageStepRecord,
@@ -165,12 +166,7 @@ const definitionColumns = sql`id, organization_id AS "organizationId", code, nam
   estimate_unit AS "defaultEstimateUnit", default_allowance_bps AS "defaultAllowanceBps", position,
   defined_at_scope_kind AS "definedAtScopeKind", defined_at_scope_id AS "definedAtScopeId", origin`;
 
-/** Only this method creates the marker; the existing executor returns it unchanged only after confirmed rollback. Cleanup aggregates must remain failures. */
-class UnbindRollback extends Error {
-  constructor(readonly outcome: StepUnbindOutcome) {
-    super('catalogue unbind candidate rolled back');
-  }
-}
+type CatalogueWrite<T> = T | { readonly apply: () => T; readonly observe?: boolean };
 
 /**
  * Current119 persistence over the supplied connection; retained117 physical identities survive retirement. Source public methods use
@@ -253,6 +249,34 @@ export class StepCatalogueRepository implements StepCatalogue {
         clearSqliteWriteFailure(this.db);
         throw primary;
       }
+    });
+  }
+
+  /** A planner can await observation only under Source's existing borrowed writer. */
+  private async write<T extends object>(
+    plan: (db: Drizzle) => CatalogueWrite<T>,
+    beforeWrite: CatalogueWriteObservation | undefined,
+  ): Promise<T> {
+    if (beforeWrite === undefined)
+      return await this.execute('write', (db) => {
+        const prepared = plan(db);
+        return 'apply' in prepared ? prepared.apply() : prepared;
+      });
+    // Proof: omitting the owner check admitted an observer on the standalone SQLite repository.
+    if (this.writeScope !== 'borrowed')
+      throw new Error('catalogue observation requires the borrowed Source writer');
+    assertSqliteWriteUsable(this.db);
+    if (this.hasUncertainOwner) throw new Error('catalogue transaction owner is uncertain');
+    const prepared = this.executeBorrowed('read', plan);
+    if (!('apply' in prepared)) return prepared;
+    if (prepared.observe === false) return await this.execute('write', prepared.apply);
+    await beforeWrite.capture();
+    // Proof: omitting the fence let reorder write after the borrowed Source had rolled back.
+    beforeWrite.assertOpen?.();
+    // Proof: reusing the original plan removed a binding protected by an estimate written during capture.
+    return await this.execute('write', (db) => {
+      const current = plan(db);
+      return 'apply' in current ? current.apply() : current;
     });
   }
 
@@ -350,12 +374,13 @@ export class StepCatalogueRepository implements StepCatalogue {
     stepId: string,
     patch: StepDefinitionPatch,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepDefinitionPatched> {
     const owner = readCatalogueId(organizationId, 'organization address'),
       id = readCatalogueId(stepId, 'definition address'),
       retained = retainStepDefinitionPatch(patch),
       act = retainCatalogueStamp(stamp);
-    return await this.execute('write', (db): StepDefinitionPatched => {
+    return await this.write<StepDefinitionPatched>((db) => {
       if (!this.organizationExists(db, owner)) return { ok: false, reason: 'not_found' };
       const current = this.ownedDefinition(db, owner, id);
       if (current === null) return { ok: false, reason: 'not_found' };
@@ -392,14 +417,19 @@ export class StepCatalogueRepository implements StepCatalogue {
       const targets = mergeCatalogueTargets(
         bindings.map((binding) => this.captureTargets(db, owner, binding)),
       );
-      const rows = db.all<{ id: unknown }>(
-        sql`UPDATE step_definition SET name=${changed.name},estimate_unit=${changed.defaultEstimateUnit},default_allowance_bps=${Math.round(changed.defaultAllowancePercent * 100)},updated_at=${act.at} WHERE id=${id} AND organization_id=${owner} RETURNING id`,
-      );
-      if (rows.length !== 1 || rows.at(0)?.id !== id)
-        throw new Error('catalogue definition patch did not update its identity');
-      touchCatalogueTargetsIn(db, targets, act);
-      return { ok: true, definition: structuredClone(changed), ...targets };
-    });
+      return {
+        observe: changed.name !== current.name,
+        apply: (): StepDefinitionPatched => {
+          const rows = db.all<{ id: unknown }>(
+            sql`UPDATE step_definition SET name=${changed.name},estimate_unit=${changed.defaultEstimateUnit},default_allowance_bps=${Math.round(changed.defaultAllowancePercent * 100)},updated_at=${act.at} WHERE id=${id} AND organization_id=${owner} RETURNING id`,
+          );
+          if (rows.length !== 1 || rows.at(0)?.id !== id)
+            throw new Error('catalogue definition patch did not update its identity');
+          touchCatalogueTargetsIn(db, targets, act);
+          return { ok: true, definition: structuredClone(changed), ...targets };
+        },
+      };
+    }, beforeWrite);
   }
 
   /** Retires only an unbound current identity; physical definitions, WPS, history and cache revisions are retained byte-for-byte. */
@@ -481,9 +511,10 @@ export class StepCatalogueRepository implements StepCatalogue {
     scope: StepScope,
     ids: readonly string[],
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepBindingsReordered> {
     const kept = retainStepReorder(organizationId, scope, ids, stamp);
-    return await this.execute('write', (db): StepBindingsReordered => {
+    return await this.write<StepBindingsReordered>((db) => {
       if (
         !this.organizationExists(db, kept.organizationId) ||
         !this.scopeExists(db, kept.organizationId, kept.scope)
@@ -496,84 +527,93 @@ export class StepCatalogueRepository implements StepCatalogue {
       if (order.kind === 'stale_order') return { ok: false, reason: 'stale_order' };
       if (order.kind === 'unchanged') return { ok: true, workPackageIds: [], projectIds: [] };
       const targets = this.captureTargets(db, kept.organizationId, kept.scope);
-      for (const next of order.positions) {
-        const changed = db.all<{ id: unknown }>(
-          sql`UPDATE step_binding SET position=${next.position} WHERE id=${next.bindingId} AND organization_id=${kept.organizationId} AND scope_kind=${kept.scope.scopeKind} AND scope_id=${kept.scope.scopeId} RETURNING id`,
-        );
-        // Proof: an actual SQLite trigger suppressed the second UPDATE; omitting this check made the public write resolve instead of reject. Exact restore passed; only zero-row necessity is credited (verification-reorder-lifetime-20261119.json).
-        if (changed.length !== 1 || changed.at(0)?.id !== next.bindingId)
-          throw new Error('catalogue reorder binding disappeared');
-      }
-      touchCatalogueTargetsIn(db, targets, kept.stamp);
-      return { ok: true, ...targets };
-    });
+      return {
+        apply: (): StepBindingsReordered => {
+          for (const next of order.positions) {
+            const changed = db.all<{ id: unknown }>(
+              sql`UPDATE step_binding SET position=${next.position} WHERE id=${next.bindingId} AND organization_id=${kept.organizationId} AND scope_kind=${kept.scope.scopeKind} AND scope_id=${kept.scope.scopeId} RETURNING id`,
+            );
+            // Proof: an actual SQLite trigger suppressed the second UPDATE; omitting this check made the public write resolve instead of reject. Exact restore passed; only zero-row necessity is credited (verification-reorder-lifetime-20261119.json).
+            if (changed.length !== 1 || changed.at(0)?.id !== next.bindingId)
+              throw new Error('catalogue reorder binding disappeared');
+          }
+          touchCatalogueTargetsIn(db, targets, kept.stamp);
+          return { ok: true, ...targets };
+        },
+      };
+    }, beforeWrite);
   }
 
-  /** Proposed DELETE is rolled back locally before any preview/refusal returns, including inside a committing borrowed caller. */
+  /** Checks the projected removal, then deletes only the admitted binding. */
   async unbindStep(
     organizationId: string,
     bindingId: string,
     options: StepUnbindOptions,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepUnbindOutcome> {
     const kept = retainStepUnbind(organizationId, bindingId, options, stamp);
-    try {
-      return await this.execute('write', (db): StepUnbindOutcome => {
-        if (!this.organizationExists(db, kept.organizationId))
-          throw new UnbindRollback({ kind: 'not_found' });
-        const attribution = db
-          .all<{ organizationId: unknown; actualOrganizationId: unknown }>(
-            sql`SELECT b.organization_id AS "organizationId", o.id AS "actualOrganizationId" FROM step_binding b LEFT JOIN organization o ON o.id=b.organization_id WHERE b.id=${kept.bindingId}`,
-          )
-          .at(0);
-        if (attribution === undefined) throw new UnbindRollback({ kind: 'not_found' });
-        const owner = readCatalogueId(attribution.organizationId, 'binding organization');
-        if (attribution.actualOrganizationId !== owner)
-          throw new Error('catalogue binding organization is absent');
-        if (owner !== kept.organizationId) throw new UnbindRollback({ kind: 'not_found' });
-        const beforeRows = this.bindingRows(db, owner).map(
-          (row) => decodeBinding(row, owner).binding,
-        );
-        const bound = beforeRows.find((row) => row.bindingId === kept.bindingId);
-        if (bound === undefined) throw new Error('catalogue owned binding disappeared');
-        const identities = new Map<string, StepIdentity>();
-        for (const row of db.all<StepDefinitionRecord>(
-          sql`SELECT ${definitionColumns} FROM step_definition WHERE organization_id=${owner} ORDER BY id COLLATE BINARY`,
-        )) {
-          const identity = readStepIdentity(row);
-          if (identities.has(identity.id))
-            throw new Error('catalogue duplicate definition identity');
-          identities.set(identity.id, identity);
-        }
-        const chains = this.scopeChains(db, owner, { scopeKind: 'organization', scopeId: owner });
-        const captured = captureSqliteStepUsage(db, owner, chains, identities);
-        db.run(
-          sql`DELETE FROM step_binding WHERE id=${kept.bindingId} AND organization_id=${owner}`,
-        );
-        const afterRows = this.bindingRows(db, owner).map(
-          (row) => decodeBinding(row, owner).binding,
-        );
-        const usage = projectStepNodesInUse(
-          captured.packages,
-          projectCatalogueBindings(owner, beforeRows, identities),
-          projectCatalogueBindings(owner, afterRows, identities),
-          captured.facts,
-        );
-        if (usage.count > 0)
-          throw new UnbindRollback(
-            kept.options.dryRun
-              ? { kind: 'preview', wouldRefuse: 'step_nodes_in_use', ...usage }
-              : { kind: 'step_nodes_in_use', ...usage },
+    return await this.write<StepUnbindOutcome>((db) => {
+      if (!this.organizationExists(db, kept.organizationId)) return { kind: 'not_found' };
+      const attribution = db
+        .all<{ organizationId: unknown; actualOrganizationId: unknown }>(
+          sql`SELECT b.organization_id AS "organizationId", o.id AS "actualOrganizationId" FROM step_binding b LEFT JOIN organization o ON o.id=b.organization_id WHERE b.id=${kept.bindingId}`,
+        )
+        .at(0);
+      if (attribution === undefined) return { kind: 'not_found' };
+      const owner = readCatalogueId(attribution.organizationId, 'binding organization');
+      if (attribution.actualOrganizationId !== owner)
+        throw new Error('catalogue binding organization is absent');
+      if (owner !== kept.organizationId) return { kind: 'not_found' };
+      const beforeRows = this.bindingRows(db, owner).map(
+        (row) => decodeBinding(row, owner).binding,
+      );
+      const bound = beforeRows.find((row) => row.bindingId === kept.bindingId);
+      if (bound === undefined) throw new Error('catalogue owned binding disappeared');
+      const identities = new Map<string, StepIdentity>();
+      for (const row of db.all<StepDefinitionRecord>(
+        sql`SELECT ${definitionColumns} FROM step_definition WHERE organization_id=${owner} ORDER BY id COLLATE BINARY`,
+      )) {
+        const identity = readStepIdentity(row);
+        if (identities.has(identity.id)) throw new Error('catalogue duplicate definition identity');
+        identities.set(identity.id, identity);
+      }
+      const chains = this.scopeChains(db, owner, { scopeKind: 'organization', scopeId: owner });
+      const captured = captureSqliteStepUsage(db, owner, chains, identities);
+      const afterRows = beforeRows.filter((row) => row.bindingId !== kept.bindingId);
+      const usage = projectStepNodesInUse(
+        captured.packages,
+        projectCatalogueBindings(owner, beforeRows, identities),
+        projectCatalogueBindings(owner, afterRows, identities),
+        captured.facts,
+      );
+      if (usage.count > 0)
+        return kept.options.dryRun
+          ? { kind: 'preview', wouldRefuse: 'step_nodes_in_use', ...usage }
+          : { kind: 'step_nodes_in_use', ...usage };
+      if (kept.options.dryRun) return { kind: 'preview', wouldRefuse: null };
+      const targets = this.captureTargets(db, owner, bound);
+      return {
+        apply: () => {
+          const deleted = db.all<{ id: unknown }>(
+            sql`DELETE FROM step_binding WHERE id=${kept.bindingId} AND organization_id=${owner} RETURNING id`,
           );
-        if (kept.options.dryRun) throw new UnbindRollback({ kind: 'preview', wouldRefuse: null });
-        const targets = this.captureTargets(db, owner, bound);
-        touchCatalogueTargetsIn(db, targets, kept.stamp);
-        return { kind: 'unbound', ...targets };
-      });
-    } catch (cause: unknown) {
-      if (cause instanceof UnbindRollback) return structuredClone(cause.outcome);
-      throw cause;
-    }
+          const surviving = this.bindingRows(db, owner).map(
+            (row) => decodeBinding(row, owner).binding,
+          );
+          // Proof: suppressing DELETE or injecting another DELETE must preserve the complete
+          // binding ledger; omitting the surviving-row comparison admitted the wider deletion.
+          if (
+            deleted.length !== 1 ||
+            deleted.at(0)?.id !== kept.bindingId ||
+            JSON.stringify(surviving) !== JSON.stringify(afterRows)
+          )
+            throw new Error('catalogue removal did not match admitted bindings');
+          touchCatalogueTargetsIn(db, targets, kept.stamp);
+          return { kind: 'unbound', ...targets };
+        },
+      };
+    }, beforeWrite);
   }
 
   async readManifest(organizationId: string, projectId: string) {
@@ -687,13 +727,14 @@ export class StepCatalogueRepository implements StepCatalogue {
     definition: NewStepDefinition,
     binding: Omit<NewStepBinding, 'stepId'>,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepDefinedAndBound> {
     const owner = readCatalogueId(organizationId, 'organization address'),
       retained = retainStepDefinition(definition);
     const kept = retained.definition,
       boundDraft = retainStepBinding({ ...structuredClone(binding), stepId: kept.id }),
       act = retainCatalogueStamp(stamp);
-    return await this.execute('write', (db): StepDefinedAndBound => {
+    return await this.write<StepDefinedAndBound>((db) => {
       if (
         !this.organizationExists(db, owner) ||
         !this.scopeExists(db, owner, boundDraft) ||
@@ -729,59 +770,64 @@ export class StepCatalogueRepository implements StepCatalogue {
         organizationId: owner,
         origin: 'authored',
       };
-      db.insert(stepDefinition)
-        .values({
-          id: created.id,
-          organizationId: owner,
-          code: created.code,
-          name: created.name,
-          estimateUnit: created.defaultEstimateUnit,
-          defaultAllowancePercent: retained.defaultAllowanceBps / 100,
-          position: created.position,
-          createdAt: act.at,
-          createdBy: act.by,
-          updatedAt: null,
-          definedAtScopeKind: created.definedAt.scopeKind,
-          definedAtScopeId: created.definedAt.scopeId,
-          origin: 'authored',
-          legacyWorkPackageId: null,
-          legacyCode: null,
-          legacyCodeCaptured: 0,
-        })
-        .run();
-      db.insert(stepBinding)
-        .values({
-          id: bound.bindingId,
-          organizationId: owner,
-          scopeKind: bound.scopeKind,
-          scopeId: bound.scopeId,
-          stepId: bound.stepId,
-          workItemTypeId: bound.workItemTypeId,
-          position: bound.position,
-          origin: 'authored',
-        })
-        .run();
-      this.materializeScope(db, owner, bound);
-      const targets = this.captureTargets(db, owner, bound);
-      touchCatalogueTargetsIn(db, targets, act);
       return {
-        ok: true,
-        definition: structuredClone(created),
-        binding: structuredClone(bound),
-        ...targets,
+        apply: (): StepDefinedAndBound => {
+          db.insert(stepDefinition)
+            .values({
+              id: created.id,
+              organizationId: owner,
+              code: created.code,
+              name: created.name,
+              estimateUnit: created.defaultEstimateUnit,
+              defaultAllowancePercent: retained.defaultAllowanceBps / 100,
+              position: created.position,
+              createdAt: act.at,
+              createdBy: act.by,
+              updatedAt: null,
+              definedAtScopeKind: created.definedAt.scopeKind,
+              definedAtScopeId: created.definedAt.scopeId,
+              origin: 'authored',
+              legacyWorkPackageId: null,
+              legacyCode: null,
+              legacyCodeCaptured: 0,
+            })
+            .run();
+          db.insert(stepBinding)
+            .values({
+              id: bound.bindingId,
+              organizationId: owner,
+              scopeKind: bound.scopeKind,
+              scopeId: bound.scopeId,
+              stepId: bound.stepId,
+              workItemTypeId: bound.workItemTypeId,
+              position: bound.position,
+              origin: 'authored',
+            })
+            .run();
+          this.materializeScope(db, owner, bound);
+          const targets = this.captureTargets(db, owner, bound);
+          touchCatalogueTargetsIn(db, targets, act);
+          return {
+            ok: true,
+            definition: structuredClone(created),
+            binding: structuredClone(bound),
+            ...targets,
+          };
+        },
       };
-    });
+    }, beforeWrite);
   }
 
   async bindStep(
     organizationId: string,
     binding: NewStepBinding,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepBound> {
     const owner = readCatalogueId(organizationId, 'organization address'),
       kept = retainStepBinding(binding);
     const act = retainCatalogueStamp(stamp);
-    return await this.execute('write', (db): StepBound => {
+    return await this.write<StepBound>((db) => {
       if (
         !this.organizationExists(db, owner) ||
         !this.scopeExists(db, owner, kept) ||
@@ -792,23 +838,27 @@ export class StepCatalogueRepository implements StepCatalogue {
         return { ok: false, reason: 'not_found' };
       if (this.duplicateBinding(db, kept)) return { ok: false, reason: 'duplicate_binding' };
       const bound: CatalogueStepBinding = { ...kept, organizationId: owner, origin: 'authored' };
-      db.insert(stepBinding)
-        .values({
-          id: bound.bindingId,
-          organizationId: owner,
-          scopeKind: bound.scopeKind,
-          scopeId: bound.scopeId,
-          stepId: bound.stepId,
-          workItemTypeId: bound.workItemTypeId,
-          position: bound.position,
-          origin: 'authored',
-        })
-        .run();
-      this.materializeScope(db, owner, bound);
-      const targets = this.captureTargets(db, owner, bound);
-      touchCatalogueTargetsIn(db, targets, act);
-      return { ok: true, binding: structuredClone(bound), ...targets };
-    });
+      return {
+        apply: (): StepBound => {
+          db.insert(stepBinding)
+            .values({
+              id: bound.bindingId,
+              organizationId: owner,
+              scopeKind: bound.scopeKind,
+              scopeId: bound.scopeId,
+              stepId: bound.stepId,
+              workItemTypeId: bound.workItemTypeId,
+              position: bound.position,
+              origin: 'authored',
+            })
+            .run();
+          this.materializeScope(db, owner, bound);
+          const targets = this.captureTargets(db, owner, bound);
+          touchCatalogueTargetsIn(db, targets, act);
+          return { ok: true, binding: structuredClone(bound), ...targets };
+        },
+      };
+    }, beforeWrite);
   }
 }
 

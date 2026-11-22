@@ -8,6 +8,8 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
+import { OPEN } from '../gate';
+import { StepCatalogueRepository } from '../step-catalogue';
 import { openSqliteStepCatalogueCase } from './step-catalogue-fixture';
 
 for (const owner of CATALOGUE_REORDER_LIFETIME_ASSERTIONS) {
@@ -162,4 +164,102 @@ test('catalogue reorder sqlite reorder-life:native-zero-update', async () => {
     throw cleanup;
   }
   if (primary !== undefined) throw primary.cause;
+}, 30000);
+
+test('catalogue unbind refuses a suppressed or widened SQLite delete', async () => {
+  const fixture = await openSqliteStepCatalogueCase(
+    'stepCatalogue.unbindStep:estimate-refusal-and-preview',
+  );
+  try {
+    const { port, source, seed } = fixture;
+    for (const [index, bindingId] of ['unbind-native-a', 'unbind-native-b'].entries())
+      expect(
+        (
+          await port.defineAndBindStep(
+            seed.organizationId,
+            {
+              id: bindingId + ':step',
+              code: bindingId,
+              name: bindingId,
+              defaultEstimateUnit: 'minutes',
+              defaultAllowancePercent: 7,
+              position: (index + 1) * 10,
+            },
+            {
+              bindingId,
+              scopeKind: 'project',
+              scopeId: seed.projectId,
+              workItemTypeId: null,
+              position: (index + 1) * 10,
+            },
+            seed.stamp,
+          )
+        ).ok,
+      ).toBe(true);
+    for (const trigger of [
+      "CREATE TRIGGER unbind_native_fault BEFORE DELETE ON step_binding WHEN OLD.id='unbind-native-a' BEGIN SELECT RAISE(IGNORE); END",
+      "CREATE TRIGGER unbind_native_fault AFTER DELETE ON step_binding WHEN OLD.id='unbind-native-a' BEGIN DELETE FROM step_binding WHERE id='unbind-native-b'; END",
+    ]) {
+      source.db.run(sql.raw(trigger));
+      const before = fixture.readEvidence();
+      await rejects(
+        port.unbindStep(seed.organizationId, 'unbind-native-a', { dryRun: false }, seed.stamp),
+        /catalogue removal did not match admitted bindings/,
+      );
+      expect(fixture.readEvidence()).toEqual(before);
+      source.db.run(sql.raw('DROP TRIGGER unbind_native_fault'));
+    }
+    expect(
+      await port.unbindStep(seed.organizationId, 'unbind-native-a', { dryRun: false }, seed.stamp),
+    ).toMatchObject({ kind: 'unbound' });
+    expect(
+      (await port.readCatalogue(seed.organizationId))?.bindings.map(({ bindingId }) => bindingId),
+    ).toEqual(['unbind-native-b']);
+  } finally {
+    await fixture.close();
+  }
+}, 30000);
+
+test('catalogue observation refuses a repository without a borrowed writer', async () => {
+  const fixture = await openSqliteStepCatalogueCase(
+    'stepCatalogue.unbindStep:estimate-refusal-and-preview',
+  );
+  try {
+    const { source, seed } = fixture;
+    const standalone = new StepCatalogueRepository(source.db, OPEN, 'owned');
+    const before = fixture.readEvidence();
+    let captures = 0;
+    await rejects(
+      standalone.defineAndBindStep(
+        seed.organizationId,
+        {
+          id: 'owned-observed',
+          code: 'owned-observed',
+          name: 'Owned observed',
+          defaultEstimateUnit: 'minutes',
+          defaultAllowancePercent: 0,
+          position: 10,
+        },
+        {
+          bindingId: 'owned-observed:binding',
+          scopeKind: 'project',
+          scopeId: seed.projectId,
+          workItemTypeId: null,
+          position: 10,
+        },
+        seed.stamp,
+        {
+          capture: () => {
+            captures += 1;
+            return Promise.resolve();
+          },
+        },
+      ),
+      /catalogue observation requires the borrowed Source writer/,
+    );
+    expect(captures).toBe(0);
+    expect(fixture.readEvidence()).toEqual(before);
+  } finally {
+    await fixture.close();
+  }
 }, 30000);

@@ -75,9 +75,6 @@ export const STEP_CATALOGUE_UNBIND_ASSERTIONS: readonly {
         realistic: 2,
         pessimistic: 3,
       };
-      expect(await source.stores.estimates.set(estimate, seed.stamp)).toBe('written');
-      expect(fixture.readEvidence().estimates).toEqual([estimate]);
-      const before = fixture.readEvidence();
       const pairs: readonly StepInUsePair[] = [
         {
           id: 'unbind-leaf',
@@ -87,6 +84,27 @@ export const STEP_CATALOGUE_UNBIND_ASSERTIONS: readonly {
           facts: ['estimate'],
         },
       ];
+      await source.uow.run(async ({ stores }) => {
+        const changed = await stores.stepCatalogue.unbindStep(
+          seed.organizationId,
+          'unbind-primary',
+          { dryRun: false },
+          seed.stamp,
+          {
+            async capture() {
+              expect(await stores.estimates.set(estimate, seed.stamp)).toBe('written');
+            },
+          },
+        );
+        expect(changed).toEqual({
+          kind: 'step_nodes_in_use',
+          count: 1,
+          pairs,
+        });
+        return { commit: true, value: undefined };
+      });
+      expect(fixture.readEvidence().estimates).toEqual([estimate]);
+      const before = fixture.readEvidence();
       requireUnbind(fixture);
       expect(
         await port.unbindStep(seed.organizationId, 'unbind-primary', { dryRun: false }, seed.stamp),

@@ -10,7 +10,6 @@ import {
 } from '@wbs/domain';
 
 import type { AccessDecisions } from '../ports/access-decisions';
-import { AnnouncementCollector } from '../ports/announcement-collector';
 import type { Clock } from '../ports/clock';
 import type { CommandAccess } from '../ports/command-access';
 import type { RefusedOrganizationAccess } from '../ports/organization-access';
@@ -19,6 +18,7 @@ import type { SettingTarget } from '../ports/setting-store';
 import { retainSettingStamp } from '../ports/setting-store';
 import type {
   CatalogueStepBinding,
+  CatalogueWriteObservation,
   StepCatalogueRows,
   StepDefinition,
   StepDefinitionPatch,
@@ -29,11 +29,16 @@ import type {
 } from '../ports/step-catalogue';
 import type { ProjectStepManifest } from '../ports/step-manifest';
 import type { PlanTransactionalStores } from '../ports/stores';
-import type { UnitOfWork } from '../ports/unit-of-work';
-import type { Broadcaster } from '../ports/work-package-event';
+import type { Scope, UnitOfWork } from '../ports/unit-of-work';
+import { subscriptionFor, type WorkPackageEvent } from '../ports/work-package-event';
 import { projectCatalogueBindings } from '../step-catalogue/step-catalogue';
 import { projectReadableStepUsage } from '../step-catalogue/step-usage';
 import { type Authorization, authorize, requireAccessDecisions } from './authorize';
+import {
+  type CommittedFanoutDelivery,
+  type CommittedWorkPackageEvent,
+  recordCommittedFanout,
+} from './committed-fanout';
 
 export type CatalogueReadRefusal =
   | RefusedOrganizationAccess
@@ -105,7 +110,7 @@ export interface StepCataloguePurposeOptions {
   readonly uow: UnitOfWork;
   readonly commandAccess: CommandAccess;
   readonly clock: Clock;
-  readonly announcements: Broadcaster;
+  readonly delivery: CommittedFanoutDelivery;
 }
 
 /**
@@ -114,8 +119,8 @@ export interface StepCataloguePurposeOptions {
  * A space is first resolved in the selected organization, then its actual owner is
  * checked for organization.manage_spaces. No project or space grant is synthesized.
  * Definition defaults never traverse a package value writer or an estimate veto.
- * Affected package identities come from the atomic lower mutation; publication is
- * collected once per package and sent only after the same unit of work commits.
+ * The same write loan records direct and dependent-plan events. Delivery starts
+ * after that loan commits and releases the writer.
  */
 export class StepCataloguePurpose {
   constructor(private readonly options: StepCataloguePurposeOptions) {}
@@ -276,12 +281,14 @@ export class StepCataloguePurpose {
       this.options.clock.stampFor(caller.principal.id),
       caller.principal.id,
     );
-    const announcements = new AnnouncementCollector(this.options.announcements);
-    const outcome = await this.options.uow.run<CatalogueBound>(async ({ stores }) => {
+    const events: CommittedWorkPackageEvent[] = [];
+    const outcome = await this.options.uow.run<CatalogueBound>(async (scope) => {
+      const { stores } = scope;
       const admitted = await this.resolve(caller);
       if (!admitted.ok) return { commit: false, value: admitted };
       const permission = await this.admitScope(stores, caller, admitted.organizationId, draft);
       if (!permission.ok) return { commit: false, value: permission };
+      const observation = this.observeWrite(scope, admitted.organizationId, events);
       const binding = {
         bindingId: this.options.clock.newId(),
         scopeKind: draft.scopeKind,
@@ -301,10 +308,10 @@ export class StepCataloguePurpose {
           { ...draft.define, id: this.options.clock.newId(), name },
           binding,
           stamp,
+          observation.beforeWrite,
         );
         if (!created.ok) return { commit: false, value: created };
-        for (const workPackageId of created.workPackageIds)
-          await announcements.publish(workPackageId, { type: 'step_catalogue_changed' });
+        await observation.record(created.workPackageIds);
         return {
           commit: true,
           value: { ok: true, definition: created.definition, binding: created.binding },
@@ -314,13 +321,13 @@ export class StepCataloguePurpose {
         admitted.organizationId,
         { ...binding, stepId: draft.stepId },
         stamp,
+        observation.beforeWrite,
       );
       if (!bound.ok) return { commit: false, value: bound };
-      for (const workPackageId of bound.workPackageIds)
-        await announcements.publish(workPackageId, { type: 'step_catalogue_changed' });
+      await observation.record(bound.workPackageIds);
       return { commit: true, value: { ok: true, binding: bound.binding } };
     });
-    if (outcome.ok) await announcements.send();
+    if (events.length > 0) await this.options.delivery.deliverCommitted(events);
     return outcome;
   }
 
@@ -343,8 +350,9 @@ export class StepCataloguePurpose {
       this.options.clock.stampFor(caller.principal.id),
       caller.principal.id,
     );
-    const announcements = new AnnouncementCollector(this.options.announcements);
-    const outcome = await this.options.uow.run<CataloguePatched>(async ({ stores }) => {
+    const events: CommittedWorkPackageEvent[] = [];
+    const outcome = await this.options.uow.run<CataloguePatched>(async (scope) => {
+      const { stores } = scope;
       const admitted = await this.resolve(caller);
       if (!admitted.ok) return { commit: false, value: admitted };
       const permission = await authorize(
@@ -354,6 +362,7 @@ export class StepCataloguePurpose {
         'organization.manage_settings',
       );
       if (!permission.ok) return { commit: false, value: permission };
+      const observation = this.observeWrite(scope, admitted.organizationId, events);
       const name = patch.name === undefined ? undefined : cleanName(patch.name);
       if (name === null) return { commit: false, value: { ok: false, reason: 'name_required' } };
       const updated = await stores.stepCatalogue.patchStepDefinition(
@@ -361,13 +370,13 @@ export class StepCataloguePurpose {
         stepId,
         { ...patch, ...(name === undefined ? {} : { name }) },
         stamp,
+        observation.beforeWrite,
       );
       if (!updated.ok) return { commit: false, value: updated };
-      for (const workPackageId of updated.workPackageIds)
-        await announcements.publish(workPackageId, { type: 'step_catalogue_changed' });
+      await observation.record(updated.workPackageIds);
       return { commit: true, value: { ok: true, definition: updated.definition } };
     });
-    if (outcome.ok) await announcements.send();
+    if (events.length > 0) await this.options.delivery.deliverCommitted(events);
     return outcome;
   }
 
@@ -401,11 +410,11 @@ export class StepCataloguePurpose {
   /** Resolves scope permission and exact current binding membership under the same retained write loan. */
   async reorder(
     caller: ProjectCaller,
-    scope: StepScope,
+    bindingScope: StepScope,
     ids: readonly string[],
   ): Promise<CatalogueReordered> {
     caller = structuredClone(caller);
-    scope = { ...scope };
+    bindingScope = { ...bindingScope };
     ids = [...ids];
     if (!caller.principal.scopes.includes('write'))
       return { ok: false, reason: 'insufficient_scope' };
@@ -413,25 +422,32 @@ export class StepCataloguePurpose {
       this.options.clock.stampFor(caller.principal.id),
       caller.principal.id,
     );
-    const announcements = new AnnouncementCollector(this.options.announcements);
-    const outcome = await this.options.uow.run<CatalogueReordered>(async ({ stores }) => {
+    const events: CommittedWorkPackageEvent[] = [];
+    const outcome = await this.options.uow.run<CatalogueReordered>(async (scope) => {
+      const { stores } = scope;
       const admitted = await this.resolve(caller);
       if (!admitted.ok) return { commit: false, value: admitted };
-      const permission = await this.admitScope(stores, caller, admitted.organizationId, scope);
+      const permission = await this.admitScope(
+        stores,
+        caller,
+        admitted.organizationId,
+        bindingScope,
+      );
       // Proof: omitting denial made the mounted reader organization reorder return204instead of403; exact restore passed (verification-reorder-20261119.json).
       if (!permission.ok) return { commit: false, value: permission };
+      const observation = this.observeWrite(scope, admitted.organizationId, events);
       const changed = await stores.stepCatalogue.reorderBindings(
         admitted.organizationId,
-        scope,
+        bindingScope,
         ids,
         stamp,
+        observation.beforeWrite,
       );
       if (!changed.ok) return { commit: false, value: changed };
-      for (const workPackageId of changed.workPackageIds)
-        await announcements.publish(workPackageId, { type: 'step_catalogue_changed' });
+      await observation.record(changed.workPackageIds);
       return { commit: true, value: { ok: true } };
     });
-    if (outcome.ok) await announcements.send();
+    if (events.length > 0) await this.options.delivery.deliverCommitted(events);
     return outcome;
   }
 
@@ -449,8 +465,9 @@ export class StepCataloguePurpose {
       this.options.clock.stampFor(caller.principal.id),
       caller.principal.id,
     );
-    const announcements = new AnnouncementCollector(this.options.announcements);
-    const outcome = await this.options.uow.run<CatalogueUnbound>(async ({ stores }) => {
+    const events: CommittedWorkPackageEvent[] = [];
+    const outcome = await this.options.uow.run<CatalogueUnbound>(async (scope) => {
+      const { stores } = scope;
       const admitted = await this.resolve(caller);
       if (!admitted.ok) return { commit: false, value: admitted };
       const catalogue = await stores.stepCatalogue.readCatalogue(admitted.organizationId);
@@ -461,11 +478,13 @@ export class StepCataloguePurpose {
       const permission = await this.admitScope(stores, caller, admitted.organizationId, binding);
       // Proof: omitting this denial made the mounted stored-scope unbind admission test return200 for a reader instead of403; exact restore passed (verification-unbind-20261119.json).
       if (!permission.ok) return { commit: false, value: permission };
+      const observation = this.observeWrite(scope, admitted.organizationId, events);
       const changed = await stores.stepCatalogue.unbindStep(
         admitted.organizationId,
         bindingId,
         options,
         stamp,
+        observation.beforeWrite,
       );
       switch (changed.kind) {
         case 'not_found':
@@ -483,8 +502,7 @@ export class StepCataloguePurpose {
         case 'preview':
           return { commit: false, value: { ok: true, ...changed } };
         case 'unbound':
-          for (const workPackageId of changed.workPackageIds)
-            await announcements.publish(workPackageId, { type: 'step_catalogue_changed' });
+          await observation.record(changed.workPackageIds);
           return { commit: true, value: { ok: true, kind: 'unbound' } };
         default: {
           const impossible: never = changed;
@@ -492,8 +510,37 @@ export class StepCataloguePurpose {
         }
       }
     });
-    if (outcome.ok && outcome.kind === 'unbound') await announcements.send();
+    if (events.length > 0) await this.options.delivery.deliverCommitted(events);
     return outcome;
+  }
+
+  /** Records both kinds of invalidation on the mutation's writer after capturing actual changes. */
+  private observeWrite(scope: Scope, organizationId: string, events: CommittedWorkPackageEvent[]) {
+    const { eventLog } = scope.stores;
+    const now = () => this.options.delivery.now();
+    let recordDependents: (() => Promise<readonly CommittedWorkPackageEvent[]>) | undefined;
+    const beforeWrite: CatalogueWriteObservation = {
+      async capture() {
+        const capture = scope.fanoutCapture;
+        // Proof: making absent capture optional committed the rename in the real Source write.
+        if (capture === undefined) throw new Error('catalogue writer lacks dependency capture');
+        const before = await capture.capture(organizationId);
+        recordDependents = async () =>
+          await recordCommittedFanout(eventLog, before, await capture.capture(organizationId), now);
+      },
+    };
+    return {
+      beforeWrite,
+      async record(workPackageIds: readonly string[]) {
+        for (const workPackageId of workPackageIds) {
+          const event: WorkPackageEvent = { type: 'step_catalogue_changed' };
+          const recorded = await eventLog.recordEvent(subscriptionFor(workPackageId), event, now());
+          events.push({ workPackageId, event, recorded });
+        }
+        if (recordDependents !== undefined)
+          for (const dependent of await recordDependents()) events.push(dependent);
+      },
+    };
   }
 
   private async resolve(caller: ProjectCaller) {

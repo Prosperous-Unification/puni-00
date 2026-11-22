@@ -1,5 +1,6 @@
 import {
   type CatalogueStepBinding,
+  type CatalogueWriteObservation,
   compareStepUsageIds,
   type NewStepBinding,
   type PackageStepRecord,
@@ -102,6 +103,23 @@ async function settleCatalogue<T>(work: () => T): Promise<T> {
   return Promise.resolve(work());
 }
 
+type CatalogueWrite<T> = T | { readonly apply: () => T; readonly observe?: boolean };
+/** Retains synchronous publication and replans if another operation used the loan during capture. */
+async function writeCatalogue<T extends object>(
+  plan: () => CatalogueWrite<T>,
+  beforeWrite: CatalogueWriteObservation | undefined,
+): Promise<T> {
+  const prepared = plan();
+  if (!('apply' in prepared)) return prepared;
+  if (beforeWrite === undefined || prepared.observe === false) return prepared.apply();
+  await beforeWrite.capture();
+  // Proof: omitting the fence let a closed working plan change the still-open Memory Source.
+  beforeWrite.assertOpen?.();
+  // Proof: applying the old plan restored a binding removed during capture.
+  const current = plan();
+  return 'apply' in current ? current.apply() : current;
+}
+
 /** Borrowed synchronous row operations: Source owns serialization/staging and the loan guard. */
 function catalogueOperations(
   tables: MemoryStepCatalogueTables,
@@ -183,12 +201,13 @@ function catalogueOperations(
       stepId,
       patch,
       stamp,
+      beforeWrite,
     ): Promise<StepDefinitionPatched> {
       const owner = readCatalogueId(organizationId, 'organization identity'),
         id = readCatalogueId(stepId, 'definition address'),
         retained = retainStepDefinitionPatch(patch),
         act = retainCatalogueStamp(stamp);
-      return await settleCatalogue<StepDefinitionPatched>(() => {
+      return await writeCatalogue<StepDefinitionPatched>(() => {
         if (!organizationExists(owner)) return { ok: false, reason: 'not_found' };
         const raw = tables.definitions.get(id);
         if (raw === undefined) return { ok: false, reason: 'not_found' };
@@ -245,10 +264,15 @@ function catalogueOperations(
           defaultAllowanceBps: retained.defaultAllowanceBps ?? raw.defaultAllowanceBps,
           updatedAt: act.at,
         });
-        publish(prepared);
-        touch();
-        return { ok: true, definition: structuredClone(changed), ...targets };
-      });
+        return {
+          observe: changed.name !== current.name,
+          apply: (): StepDefinitionPatched => {
+            publish(prepared);
+            touch();
+            return { ok: true, definition: structuredClone(changed), ...targets };
+          },
+        };
+      }, beforeWrite);
     },
     async retireStepDefinition(organizationId, stepId, stamp): Promise<StepDefinitionRetired> {
       const owner = readCatalogueId(organizationId, 'organization identity'),
@@ -286,9 +310,15 @@ function catalogueOperations(
         return { ok: true };
       });
     },
-    reorderBindings(organizationId, scope, ids, stamp): Promise<StepBindingsReordered> {
+    reorderBindings(
+      organizationId,
+      scope,
+      ids,
+      stamp,
+      beforeWrite,
+    ): Promise<StepBindingsReordered> {
       const kept = retainStepReorder(organizationId, scope, ids, stamp);
-      return settleCatalogue<StepBindingsReordered>(() => {
+      return writeCatalogue<StepBindingsReordered>(() => {
         if (
           !organizationExists(kept.organizationId) ||
           !scopeExists(kept.organizationId, kept.scope)
@@ -311,13 +341,17 @@ function catalogueOperations(
           kept.scope,
         );
         const touch = prepareMemoryCatalogueTouches(context, targets, kept.stamp);
-        publish(prepared);
-        touch();
-        return { ok: true, ...targets };
-      });
+        return {
+          apply: (): StepBindingsReordered => {
+            publish(prepared);
+            touch();
+            return { ok: true, ...targets };
+          },
+        };
+      }, beforeWrite);
     },
-    unbindStep(organizationId, bindingId, options, stamp): Promise<StepUnbindOutcome> {
-      return settleCatalogue<StepUnbindOutcome>(() => {
+    unbindStep(organizationId, bindingId, options, stamp, beforeWrite): Promise<StepUnbindOutcome> {
+      return writeCatalogue<StepUnbindOutcome>(() => {
         const kept = retainStepUnbind(organizationId, bindingId, options, stamp);
         if (!organizationExists(kept.organizationId)) return { kind: 'not_found' };
         const raw = tables.bindings.get(kept.bindingId);
@@ -355,13 +389,17 @@ function catalogueOperations(
         if (kept.options.dryRun) return { kind: 'preview', wouldRefuse: null };
         const targets = captureMemoryCatalogueTargets(tables, context, kept.organizationId, bound);
         const touch = prepareMemoryCatalogueTouches(context, targets, kept.stamp);
-        publish(prepared);
-        touch();
         return {
-          ...targets,
-          kind: 'unbound',
+          apply: (): StepUnbindOutcome => {
+            publish(prepared);
+            touch();
+            return {
+              ...targets,
+              kind: 'unbound',
+            };
+          },
         };
-      });
+      }, beforeWrite);
     },
     readManifest(organizationId, projectId) {
       return settleCatalogue(() => {
@@ -445,8 +483,14 @@ function catalogueOperations(
           : structuredClone(readMemoryCataloguePackageIn(tables, context, chain));
       });
     },
-    defineAndBindStep(organizationId, definition, binding, stamp): Promise<StepDefinedAndBound> {
-      return settleCatalogue<StepDefinedAndBound>(() => {
+    defineAndBindStep(
+      organizationId,
+      definition,
+      binding,
+      stamp,
+      beforeWrite,
+    ): Promise<StepDefinedAndBound> {
+      return writeCatalogue<StepDefinedAndBound>(() => {
         const retained = retainStepDefinition(definition),
           kept = retained.definition;
         const first = retainStepBinding({ ...binding, stepId: kept.id }),
@@ -498,13 +542,17 @@ function catalogueOperations(
         materialize(prepared, organizationId, first);
         const targets = captureMemoryCatalogueTargets(prepared, context, organizationId, first);
         const touch = prepareMemoryCatalogueTouches(context, targets, act);
-        publish(prepared);
-        touch();
-        return structuredClone({ ok: true, definition: defined, binding: bound, ...targets });
-      });
+        return {
+          apply: (): StepDefinedAndBound => {
+            publish(prepared);
+            touch();
+            return structuredClone({ ok: true, definition: defined, binding: bound, ...targets });
+          },
+        };
+      }, beforeWrite);
     },
-    bindStep(organizationId, binding, stamp): Promise<StepBound> {
-      return settleCatalogue<StepBound>(() => {
+    bindStep(organizationId, binding, stamp, beforeWrite): Promise<StepBound> {
+      return writeCatalogue<StepBound>(() => {
         const kept = retainStepBinding(binding);
         const act = retainCatalogueStamp(stamp);
         readCatalogueId(organizationId, 'organization identity');
@@ -533,10 +581,14 @@ function catalogueOperations(
         materialize(prepared, organizationId, kept);
         const targets = captureMemoryCatalogueTargets(prepared, context, organizationId, kept);
         const touch = prepareMemoryCatalogueTouches(context, targets, act);
-        publish(prepared);
-        touch();
-        return structuredClone({ ok: true, binding: bound, ...targets });
-      });
+        return {
+          apply: (): StepBound => {
+            publish(prepared);
+            touch();
+            return structuredClone({ ok: true, binding: bound, ...targets });
+          },
+        };
+      }, beforeWrite);
     },
   };
   return { port };

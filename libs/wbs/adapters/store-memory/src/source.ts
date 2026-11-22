@@ -1053,7 +1053,7 @@ function openMemorySourceWithSeams(
       },
     },
     stepCatalogue: {
-      async reorderBindings(organizationId, scope, ids, stamp) {
+      async reorderBindings(organizationId, scope, ids, stamp, beforeWrite) {
         assertSourceOpen();
         // Proof: REORDER_MEMORY_RETAIN omitted this clone; all three actual queued scope/IDs/audit cases failed, then exact restore passed (verification-reorder-lifetime-20261119.json).
         const kept = structuredClone({ organizationId, scope, ids, stamp });
@@ -1063,11 +1063,12 @@ function openMemorySourceWithSeams(
             kept.scope,
             kept.ids,
             kept.stamp,
+            beforeWrite,
           );
           return { commit: written.ok, value: written };
         });
       },
-      async patchStepDefinition(organizationId, stepId, patch, stamp) {
+      async patchStepDefinition(organizationId, stepId, patch, stamp, beforeWrite) {
         assertSourceOpen();
         const kept = structuredClone({ organizationId, stepId, patch, stamp });
         return await uow.run(async ({ stores: borrowed }) => {
@@ -1076,6 +1077,7 @@ function openMemorySourceWithSeams(
             kept.stepId,
             kept.patch,
             kept.stamp,
+            beforeWrite,
           );
           return { commit: written.ok, value: written };
         });
@@ -1120,7 +1122,7 @@ function openMemorySourceWithSeams(
           workPackageId,
         );
       },
-      async defineAndBindStep(organizationId, definition, binding, stamp) {
+      async defineAndBindStep(organizationId, definition, binding, stamp, beforeWrite) {
         assertSourceOpen();
         const retained = structuredClone({ organizationId, definition, binding, stamp });
         return await uow.run(async ({ stores: borrowed }) => {
@@ -1129,11 +1131,12 @@ function openMemorySourceWithSeams(
             retained.definition,
             retained.binding,
             retained.stamp,
+            beforeWrite,
           );
           return { commit: written.ok, value: written };
         });
       },
-      async bindStep(organizationId, binding, stamp) {
+      async bindStep(organizationId, binding, stamp, beforeWrite) {
         assertSourceOpen();
         const retained = structuredClone({ organizationId, binding, stamp });
         return await uow.run(async ({ stores: borrowed }) => {
@@ -1141,11 +1144,12 @@ function openMemorySourceWithSeams(
             retained.organizationId,
             retained.binding,
             retained.stamp,
+            beforeWrite,
           );
           return { commit: written.ok, value: written };
         });
       },
-      async unbindStep(organizationId, bindingId, options, stamp) {
+      async unbindStep(organizationId, bindingId, options, stamp, beforeWrite) {
         assertSourceOpen();
         const retained = structuredClone({ organizationId, bindingId, options, stamp });
         return await uow.run(async ({ stores: borrowed }) => {
@@ -1154,6 +1158,7 @@ function openMemorySourceWithSeams(
             retained.bindingId,
             retained.options,
             retained.stamp,
+            beforeWrite,
           );
           return { commit: written.kind === 'unbound', value: written };
         });

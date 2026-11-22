@@ -148,6 +148,13 @@ export type StepUnbindOutcome =
   | { readonly kind: 'preview'; readonly wouldRefuse: null }
   | ({ readonly kind: 'preview'; readonly wouldRefuse: 'step_nodes_in_use' } & StepNodesInUse);
 
+/** Before an admitted change to live Step projections, while the caller owns the same write loan. */
+export interface CatalogueWriteObservation {
+  capture(): Promise<void>;
+  /** The Source installs its real loan assertion before handing work to an adapter. */
+  assertOpen?(): void;
+}
+
 /**
  * Required catalogue operations on the source/catalog owner's existing lifetime.
  * Application-facing callers admit the retained actual scope inside the same
@@ -183,6 +190,7 @@ export interface StepCatalogue {
     scope: StepScope,
     ids: readonly string[],
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepBindingsReordered>;
 
   /** Actual organization metadata; null only for an absent organization. Arrays are detached; no package settings are guessed. */
@@ -216,6 +224,7 @@ export interface StepCatalogue {
     definition: NewStepDefinition,
     binding: Omit<NewStepBinding, 'stepId'>,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepDefinedAndBound>;
   /**
    * Binds an existing same-organization definition at an actual scope and
@@ -224,7 +233,12 @@ export interface StepCatalogue {
    * are not_found. Success advances actual reached package/project revisions once
    * even for provenance-only changes and returns both sorted unique ID lists.
    */
-  bindStep(organizationId: string, binding: NewStepBinding, stamp: WriteStamp): Promise<StepBound>;
+  bindStep(
+    organizationId: string,
+    binding: NewStepBinding,
+    stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
+  ): Promise<StepBound>;
   /**
    * Changes an active own-organization definition on the same writer. Retired,
    * foreign and absent addresses are not_found; retained names remain reserved.
@@ -238,6 +252,7 @@ export interface StepCatalogue {
     stepId: string,
     patch: StepDefinitionPatch,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepDefinitionPatched>;
   /**
    * Adds only the required retirement record for an active unbound definition.
@@ -254,8 +269,7 @@ export interface StepCatalogue {
   /**
    * Removes only the addressed binding on the existing current writer. A protected
    * leaf/step that loses its final matching binding refuses with total count and
-   * first200 pairs. Preview evaluates the same proposed state then rolls it back;
-   * it writes/announces nothing. Explicit package values are never deleted.
+   * first200 pairs. Preview evaluates the same proposed state without persisting or announcing it. Explicit package values are never deleted.
    * Current scope permission admission is required inside the same write loan;
    * organizationId and stamp are not authority. All nested returns are detached.
    * Foreign/absent binding addresses are not_found before private metadata.
@@ -267,5 +281,6 @@ export interface StepCatalogue {
     bindingId: string,
     options: StepUnbindOptions,
     stamp: WriteStamp,
+    beforeWrite?: CatalogueWriteObservation,
   ): Promise<StepUnbindOutcome>;
 }

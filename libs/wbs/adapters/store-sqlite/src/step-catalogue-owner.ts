@@ -10,7 +10,7 @@ export function ownStepCatalogue(
   getUow: () => UnitOfWork<TransactionalStores>,
 ): StepCatalogue {
   return {
-    async reorderBindings(organizationId, scope, ids, stamp) {
+    async reorderBindings(organizationId, scope, ids, stamp, beforeWrite) {
       // Proof: REORDER_SQLITE_RETAIN omitted this clone; actual queued scope/IDs/audit owners all failed, then exact restore passed (verification-reorder-lifetime-20261119.json).
       const kept = structuredClone({ organizationId, scope, ids, stamp });
       return await getUow().run(async ({ stores }) => {
@@ -19,11 +19,12 @@ export function ownStepCatalogue(
           kept.scope,
           kept.ids,
           kept.stamp,
+          beforeWrite,
         );
         return { commit: written.ok, value: written };
       });
     },
-    async patchStepDefinition(organizationId, stepId, patch, stamp) {
+    async patchStepDefinition(organizationId, stepId, patch, stamp, beforeWrite) {
       const kept = structuredClone({ organizationId, stepId, patch, stamp });
       return await getUow().run(async ({ stores }) => {
         const written = await stores.stepCatalogue.patchStepDefinition(
@@ -31,6 +32,7 @@ export function ownStepCatalogue(
           kept.stepId,
           kept.patch,
           kept.stamp,
+          beforeWrite,
         );
         return { commit: written.ok, value: written };
       });
@@ -82,7 +84,7 @@ export function ownStepCatalogue(
         ),
       );
     },
-    async defineAndBindStep(organizationId, definition, binding, stamp) {
+    async defineAndBindStep(organizationId, definition, binding, stamp, beforeWrite) {
       const retained = structuredClone({ organizationId, definition, binding, stamp });
       return await getUow().run(async ({ stores }) => {
         const written = await stores.stepCatalogue.defineAndBindStep(
@@ -90,22 +92,24 @@ export function ownStepCatalogue(
           retained.definition,
           retained.binding,
           retained.stamp,
+          beforeWrite,
         );
         return { commit: written.ok, value: written };
       });
     },
-    async bindStep(organizationId, binding, stamp) {
+    async bindStep(organizationId, binding, stamp, beforeWrite) {
       const retained = structuredClone({ organizationId, binding, stamp });
       return await getUow().run(async ({ stores }) => {
         const written = await stores.stepCatalogue.bindStep(
           retained.organizationId,
           retained.binding,
           retained.stamp,
+          beforeWrite,
         );
         return { commit: written.ok, value: written };
       });
     },
-    async unbindStep(organizationId, bindingId, options, stamp) {
+    async unbindStep(organizationId, bindingId, options, stamp, beforeWrite) {
       const retained = structuredClone({ organizationId, bindingId, options, stamp });
       return await getUow().run(async ({ stores }) => {
         const written = await stores.stepCatalogue.unbindStep(
@@ -113,6 +117,7 @@ export function ownStepCatalogue(
           retained.bindingId,
           retained.options,
           retained.stamp,
+          beforeWrite,
         );
         return { commit: written.kind === 'unbound', value: written };
       });

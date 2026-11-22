@@ -798,7 +798,7 @@ export function mountedEndpoints(
         uow: opts.writes.uow,
         commandAccess: opts.writes.commandAccess,
         clock: spaceClock,
-        announcements: opts.writes.announcements,
+        delivery: opts.writes.committedFanout,
       }),
       opts.organizations,
     ),

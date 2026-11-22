@@ -10,6 +10,7 @@ import {
 
 import type {
   CatalogueStepBinding,
+  CatalogueWriteObservation,
   NewStepBinding,
   NewStepDefinition,
   PackageStep,
@@ -295,6 +296,22 @@ export function planStepBindingOrder(
 
 /** Uses the actual Source/loan expiry callback; no parallel token, authority decision or escaped callback is introduced. */
 export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void): StepCatalogue {
+  const guard = (beforeWrite: CatalogueWriteObservation | undefined) => {
+    if (beforeWrite === undefined) return undefined;
+    const capture = beforeWrite.capture.bind(beforeWrite);
+    const assertUpstreamOpen = beforeWrite.assertOpen?.bind(beforeWrite);
+    return {
+      capture: () => {
+        assertOpen();
+        return capture();
+      },
+      assertOpen: () => {
+        // Proof: dropping the outer fence let held reorder mutate after the working plan closed.
+        assertUpstreamOpen?.();
+        assertOpen();
+      },
+    };
+  };
   return {
     // Proof: neutralizing both fences admitted ordinary and repair expired reads in both Sources (catalogue-import-retirement-fault-retirement-loan-v2); combined guard evidence, not individual fences.
     async readRetiredCodes(organizationId) {
@@ -303,7 +320,7 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
       assertOpen();
       return structuredClone(codes);
     },
-    async reorderBindings(organizationId, scope, ids, stamp) {
+    async reorderBindings(organizationId, scope, ids, stamp, beforeWrite) {
       // Proof: REORDER_LOAN_GUARD neutralized both admission calls in this method; actual Memory ordinary/repair expired loans resolved. Exact restore passed; entry/post-await are not individually certified (verification-reorder-lifetime-20261119.json).
       assertOpen();
       const kept = retainStepReorder(organizationId, scope, ids, stamp);
@@ -312,11 +329,12 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
         kept.scope,
         kept.ids,
         kept.stamp,
+        guard(beforeWrite),
       );
       assertOpen();
       return structuredClone(written);
     },
-    async patchStepDefinition(organizationId, stepId, patch, stamp) {
+    async patchStepDefinition(organizationId, stepId, patch, stamp, beforeWrite) {
       assertOpen();
       const kept = structuredClone({ organizationId, stepId, patch, stamp });
       const written = await port.patchStepDefinition(
@@ -324,6 +342,7 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
         kept.stepId,
         kept.patch,
         kept.stamp,
+        guard(beforeWrite),
       );
       assertOpen();
       return structuredClone(written);
@@ -370,7 +389,7 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
       assertOpen();
       return structuredClone(rows);
     },
-    async defineAndBindStep(organizationId, definition, binding, stamp) {
+    async defineAndBindStep(organizationId, definition, binding, stamp, beforeWrite) {
       assertOpen();
       const kept = structuredClone({ organizationId, definition, binding, stamp });
       const written = await port.defineAndBindStep(
@@ -378,18 +397,24 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
         kept.definition,
         kept.binding,
         kept.stamp,
+        guard(beforeWrite),
       );
       assertOpen();
       return structuredClone(written);
     },
-    async bindStep(organizationId, binding, stamp) {
+    async bindStep(organizationId, binding, stamp, beforeWrite) {
       assertOpen();
       const kept = structuredClone({ organizationId, binding, stamp });
-      const written = await port.bindStep(kept.organizationId, kept.binding, kept.stamp);
+      const written = await port.bindStep(
+        kept.organizationId,
+        kept.binding,
+        kept.stamp,
+        guard(beforeWrite),
+      );
       assertOpen();
       return structuredClone(written);
     },
-    async unbindStep(organizationId, bindingId, options, stamp) {
+    async unbindStep(organizationId, bindingId, options, stamp, beforeWrite) {
       assertOpen();
       const kept = structuredClone({ organizationId, bindingId, options, stamp });
       const written = await port.unbindStep(
@@ -397,6 +422,7 @@ export function guardStepCatalogue(port: StepCatalogue, assertOpen: () => void):
         kept.bindingId,
         kept.options,
         kept.stamp,
+        guard(beforeWrite),
       );
       assertOpen();
       return structuredClone(written);

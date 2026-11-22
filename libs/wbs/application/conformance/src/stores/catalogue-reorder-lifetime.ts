@@ -1,4 +1,5 @@
 import type { StepBindingsReordered, StepCatalogue } from '@wbs/core';
+import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
 import { expect } from 'bun:test';
 
 import type { StepCatalogueFixture } from '../step-catalogue-fixture';
@@ -360,6 +361,89 @@ async function queuedClose(fixture: StepCatalogueFixture) {
   expect(String(queued.cause)).toMatch(/closed/);
 }
 
+async function observationOutlivesLoan(fixture: StepCatalogueFixture) {
+  const { scope, next } = await prepareReorder(fixture);
+  const { source, seed } = fixture;
+  const before = fixture.readEvidence();
+  const entered = Promise.withResolvers<undefined>();
+  const resume = Promise.withResolvers<undefined>();
+  const { pending } = await source.uow.run(async ({ stores }) => {
+    const pending = observeReorder(() =>
+      stores.stepCatalogue.reorderBindings(seed.organizationId, scope, next, seed.stamp, {
+        async capture() {
+          entered.resolve(undefined);
+          await resume.promise;
+        },
+      }),
+    );
+    await Promise.race([entered.promise, pending]);
+    return { commit: false, value: { pending } };
+  });
+  resume.resolve(undefined);
+  const settled = await pending;
+  expect(settled.ok).toBe(false);
+  if (settled.ok) throw Error('catalogue mutation returned from a closed loan');
+  expect(String(settled.cause)).toMatch(/closed/);
+  expect(fixture.readEvidence()).toEqual(before);
+}
+
+async function observationOutlivesWorkingPlan(fixture: StepCatalogueFixture) {
+  const { scope, next } = await prepareReorder(fixture);
+  const { source, seed } = fixture;
+  const before = fixture.readEvidence();
+  const entered = Promise.withResolvers<undefined>();
+  const resume = Promise.withResolvers<undefined>();
+  const settled = await source.uow.run(async (loan) => {
+    const plan = createWorkingPlan(loan, seed.workPackageId);
+    const pending = observeReorder(() =>
+      plan.stores.stepCatalogue.reorderBindings(seed.organizationId, scope, next, seed.stamp, {
+        async capture() {
+          entered.resolve(undefined);
+          await resume.promise;
+        },
+      }),
+    );
+    await Promise.race([entered.promise, pending]);
+    plan.close();
+    resume.resolve(undefined);
+    return { commit: true, value: await pending };
+  });
+  expect(settled.ok).toBe(false);
+  if (settled.ok) throw Error('catalogue mutation returned from a closed working plan');
+  expect(String(settled.cause)).toMatch(/Working plan .* is closed/);
+  expect(fixture.readEvidence()).toEqual(before);
+}
+
+async function reorderRevalidatesMembership(fixture: StepCatalogueFixture) {
+  const { scope, next } = await prepareReorder(fixture);
+  const { source, port, seed } = fixture;
+  await source.uow.run(async ({ stores }) => {
+    const changed = await stores.stepCatalogue.reorderBindings(
+      seed.organizationId,
+      scope,
+      next,
+      seed.stamp,
+      {
+        async capture() {
+          const removed = await stores.stepCatalogue.unbindStep(
+            seed.organizationId,
+            'reorder-life-b',
+            { dryRun: false },
+            seed.stamp,
+          );
+          expect(removed.kind).toBe('unbound');
+        },
+      },
+    );
+    expect(changed).toEqual({ ok: false, reason: 'stale_order' });
+    return { commit: true, value: undefined };
+  });
+  const catalogue = await port.readCatalogue(seed.organizationId);
+  expect(catalogue?.bindings.map(({ bindingId, position }) => ({ bindingId, position }))).toEqual([
+    { bindingId: 'reorder-life-a', position: 10 },
+  ]);
+}
+
 export const CATALOGUE_REORDER_LIFETIME_ASSERTIONS = [
   ...(['scope', 'ids', 'stamp'] as const).map((field) => ({
     caseId: 'reorder-life:queued-' + field,
@@ -376,6 +460,12 @@ export const CATALOGUE_REORDER_LIFETIME_ASSERTIONS = [
     assert: (fixture: StepCatalogueFixture, readAudit: ReadReorderAudit) =>
       expiredLoan(fixture, readAudit, 'repair'),
   },
+  { caseId: 'reorder-life:observation-outlives-loan', assert: observationOutlivesLoan },
+  {
+    caseId: 'reorder-life:observation-outlives-working-plan',
+    assert: observationOutlivesWorkingPlan,
+  },
+  { caseId: 'reorder-life:observation-changes-membership', assert: reorderRevalidatesMembership },
   { caseId: 'reorder-life:source-closed', assert: sourceClosed },
   { caseId: 'reorder-life:queued-close', assert: queuedClose },
   { caseId: 'reorder-life:detached-success', assert: detachedSuccess },
