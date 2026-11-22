@@ -55,7 +55,6 @@ test('browser starts cookieless before interaction and sets sanitized global/con
       allow_google_signals: false,
       allow_ad_personalization_signals: false,
       allow_enhanced_conversions: false,
-      user_data: null,
       cookie_domain: 'puni.dev',
       cookie_prefix: 'puni_dev',
       page_location: 'https://dev.request.puni.dev/',
@@ -67,6 +66,30 @@ test('browser starts cookieless before interaction and sets sanitized global/con
   await loaded(window);
   expect(analytics.getState()).toEqual({ status: 'cookieless' });
   expect(queue(window).filter((command) => command[0] === 'event')).toHaveLength(1);
+  analytics.dispose();
+  dom.window.close();
+});
+
+test('vendor keeps global privacy controls out of stream config before load and after withdrawal', async () => {
+  const { dom, window } = browser();
+  const analytics = createBrowserAnalytics(window, options);
+  function expectPrivacyControls() {
+    const commands = queue(window);
+    expect(commands[1]).toMatchObject([
+      'set',
+      { url_passthrough: false, ads_data_redaction: true, user_data: null },
+    ]);
+    expect(commands[3]?.slice(0, 2)).toEqual(['config', options.measurementId]);
+    const configuration = commands[3]?.[2];
+    expect(configuration).not.toHaveProperty('url_passthrough');
+    expect(configuration).not.toHaveProperty('ads_data_redaction');
+    expect(configuration).not.toHaveProperty('user_data');
+  }
+  expectPrivacyControls();
+  await loaded(window);
+  analytics.reject();
+  analytics.accept();
+  expectPrivacyControls();
   analytics.dispose();
   dom.window.close();
 });
