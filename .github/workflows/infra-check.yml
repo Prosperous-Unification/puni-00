@@ -74,6 +74,18 @@ jobs:
       - name: tool-fleet:check (test, lint, typecheck, then every artifact family)
         run: bunx nx run tool-fleet:check --output-style=stream
 
+      # The node and bastion roles' guards (openspec/changes/separate-node-roles): renders and
+      # each guard's task file, run by the controller's locked Ansible with stand-in binaries.
+      - name: tool-fleet:test:node-roles (role guards in the locked controller)
+        env:
+          PUNI_TEST_RUN: '["bash", "${{ github.workspace }}/infra/ansible/tests/controller-run.sh"]'
+          PUNI_TEST_NFT_CHECK: '["nft", "-c", "-f"]'
+        run: |
+          set -euo pipefail
+          PUNI_CONTROLLER_IMAGE=$(bun tools/tool-fleet/src/controller-image-cli.ts)
+          export PUNI_CONTROLLER_IMAGE
+          bunx nx run tool-fleet:test:node-roles --output-style=stream
+
       - name: tool-deploy test, lint, typecheck
         run: bunx nx run-many -t test lint typecheck -p tool-deploy --output-style=stream
 

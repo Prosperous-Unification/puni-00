@@ -1,0 +1,10 @@
+---
+- name: Require the host's tailnet tag
+  # Proof: with the tag condition removed, node-roles.test.ts `refuses a tailnet tag of no trust
+  # class` failed (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_tailscale_tag in puni_tailscale_tags
+      - puni_tailscale_package_version is match('^[0-9][0-9A-Za-z.+~:-]+$')
+      - puni_tailscale_repository.keyring.sha256 is match('^[0-9a-f]{64}$')
+    fail_msg: 'puni_tailscale_tag must be one of {{ puni_tailscale_tags }}'

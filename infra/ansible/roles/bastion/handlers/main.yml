@@ -1,0 +1,11 @@
+---
+- name: Reload sshd
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: reloaded
+
+- name: Restart bastion firewall
+  ansible.builtin.systemd_service:
+    name: puni-bastion-firewall
+    state: restarted
+    daemon_reload: true

@@ -1,0 +1,31 @@
+---
+- name: Require the bastion's keys and console password from $OPS
+  # Three distinct keys (R55): the jump key, which `jump` alone accepts; the bastion's admin key,
+  # for the operator's shell here; and the servers' admin key, which never lands on this host.
+  # Proof: removing the jump/admin distinctness condition, and separately the jump keys' `is not
+  # string`, each made node-roles.test.ts `refuses the bastion's key inputs` fail (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version in ['24.04', '26.04']
+      - puni_bastion_jump_authorized_keys is sequence
+      - puni_bastion_jump_authorized_keys is not string
+      - puni_bastion_admin_authorized_keys is sequence
+      - puni_bastion_admin_authorized_keys is not string
+      - puni_bastion_jump_authorized_keys | length > 0
+      - puni_bastion_admin_authorized_keys | length > 0
+      - puni_bastion_jump_authorized_keys | intersect(puni_bastion_admin_authorized_keys) | length == 0
+      - >-
+        puni_operator_authorized_keys is not defined or
+        (puni_operator_authorized_keys | intersect(puni_bastion_jump_authorized_keys
+        + puni_bastion_admin_authorized_keys) | length == 0)
+      - puni_console_password_hash is match('^\$6\$')
+    fail_msg: >-
+      The jump key, the bastion's admin key (lists, distinct from each other and from the servers'
+      admin key) and the console account's SHA-512 password hash are required
+
+- name: Require the controller's admin key to be one the bastion installs
+  ansible.builtin.include_tasks: ../../../tasks/fresh-key.yml
+  vars:
+    puni_fresh_key_file: '{{ puni_bastion_admin_private_key_file }}'
+    puni_fresh_authorized_keys: '{{ puni_bastion_admin_authorized_keys }}'

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { decodeRetainedToolchain, readToolchain } from './contracts';
+import { decodeFleet, decodeRetainedToolchain, readToolchain } from './contracts';
 import { selectedHelpers } from './k3d-helper-images.fixture.test';
 
 const sha256 = 'a'.repeat(64);
@@ -112,7 +112,13 @@ const validToolchain = {
       arch: 'amd64',
     },
   },
-  hostPackages: { dockerIo: '29.1.3-0ubuntu3~24.04.2' },
+  hostPackages: { dockerIo: '29.1.3-0ubuntu3~24.04.2', tailscale: '1.104.7' },
+  hostRepositories: {
+    tailscale: {
+      url: 'https://example.test/tailscale',
+      keyring: { url: 'https://example.test/tailscale.gpg', sha256 },
+    },
+  },
   terraform: {
     hcloudProvider: {
       version: '1.0.0',
@@ -285,6 +291,32 @@ describe('readToolchain', () => {
     ).rejects.toThrow(/dockerIo/);
   });
 
+  it('rejects a missing Tailscale package or repository lock', async () => {
+    const { tailscale: _version, ...packagesWithoutTailscale } = validToolchain.hostPackages;
+    expect(
+      readToolchain(
+        await writeToolchain({ ...validToolchain, hostPackages: packagesWithoutTailscale }),
+      ),
+    ).rejects.toThrow(/hostPackages\.tailscale/);
+    const { hostRepositories: _repositories, ...withoutRepositories } = validToolchain;
+    expect(readToolchain(await writeToolchain(withoutRepositories))).rejects.toThrow(
+      /hostRepositories/,
+    );
+    expect(
+      readToolchain(
+        await writeToolchain({
+          ...validToolchain,
+          hostRepositories: {
+            tailscale: {
+              ...validToolchain.hostRepositories.tailscale,
+              keyring: { url: 'https://example.test/k.gpg', sha256: 'abc' },
+            },
+          },
+        }),
+      ),
+    ).rejects.toThrow(/sha256/);
+  });
+
   it('rejects a missing SQLite backup runner image lock', async () => {
     const { sqliteBackup: _removed, ...runtimeImages } = validToolchain.runtimeImages;
     expect(
@@ -430,6 +462,11 @@ describe('decodeRetainedToolchain', () => {
     file: 'toolchain-k3d-helpers-without-crane.json',
     sha256: '5fa350e57fca1228287d101f41c8156f3845cb262f690cc29eb743bb3c31d31e',
   };
+  // At 7a0279c7d, the last main revision before Tailscale was locked.
+  const craneLock = {
+    file: 'toolchain-crane-without-tailscale.json',
+    sha256: '05b5187b721799d5f78d40f121d130b69fd0311f7f4f5bbc45d7f2d9864da538',
+  };
   const historicalLock = {
     file: 'toolchain-historical.json',
     sha256: '4a5353e0b60d6cb9720d48cb695ea81766e198daff0beb64707925558ad6bc05',
@@ -453,6 +490,15 @@ describe('decodeRetainedToolchain', () => {
     expect(lock.binaries).not.toHaveProperty('crane');
     const path = await writeToolchain(JSON.parse(Buffer.from(bytes).toString('utf8')));
     expect(readToolchain(path)).rejects.toThrow(/crane/);
+  });
+
+  it('still decodes a retained crane lock committed before Tailscale was locked', async () => {
+    const bytes = await readRetainedBytes(craneLock);
+    const lock = decodeRetainedToolchain(bytes, craneLock.sha256);
+    expect(lock.binaries).toHaveProperty('crane');
+    expect(lock).not.toHaveProperty('hostRepositories');
+    const path = await writeToolchain(JSON.parse(Buffer.from(bytes).toString('utf8')));
+    expect(readToolchain(path)).rejects.toThrow(/hostRepositories|tailscale/);
   });
 
   it('still checks k3d agreement on a retained k3dHelpers lock', async () => {
@@ -515,4 +561,203 @@ describe('crane digest copies', () => {
       expect(digests).toEqual([executableSha256]);
     });
   }
+});
+
+describe('platform capabilities of the separated node roles', () => {
+  const machineId = (digit: string) => digit.repeat(32);
+  function fleetWith(
+    platformNodes: readonly { id: string; capabilities: readonly string[] }[],
+    floor: Record<string, number>,
+    workerCapabilities: readonly string[] = ['execution'],
+  ): Record<string, unknown> {
+    return {
+      schemaVersion: 1,
+      revision: 'capabilities-test',
+      clusters: [
+        {
+          id: 'platform-2',
+          purpose: 'platform',
+          apiEndpoint: 'https://10.10.1.11:6443',
+          controlPlane: 'single',
+          bootstrap: 'required',
+          requiredCapabilities: floor,
+        },
+        {
+          id: 'workers',
+          purpose: 'workers',
+          apiEndpoint: 'https://workers.example.invalid:6443',
+          controlPlane: 'single',
+          bootstrap: 'required',
+          requiredCapabilities: {},
+        },
+      ],
+      nodes: [
+        ...platformNodes.map(({ id, capabilities }, index) => ({
+          id,
+          cluster: 'platform-2',
+          capabilities,
+          lifecycle: 'present',
+          provider: {
+            kind: 'ssh',
+            machineId: machineId(String(index + 1)),
+            address: `10.10.1.${String(11 + index)}`,
+          },
+        })),
+        {
+          id: 'w1',
+          cluster: 'workers',
+          capabilities: ['control-plane'],
+          lifecycle: 'present',
+          provider: { kind: 'hcloud', instanceId: '901' },
+        },
+        {
+          id: 'w2',
+          cluster: 'workers',
+          capabilities: workerCapabilities,
+          lifecycle: 'present',
+          provider: { kind: 'hcloud', instanceId: '902' },
+        },
+      ],
+    };
+  }
+
+  for (const capability of ['platform-services', 'nonproduction'] as const) {
+    it(`accepts a platform node that carries ${capability}`, () => {
+      const nodes =
+        capability === 'platform-services'
+          ? [{ id: 'm1plat1', capabilities: ['control-plane', 'platform-services'] }]
+          : [
+              { id: 'm1plat1', capabilities: ['control-plane', 'platform-services'] },
+              { id: 'h7obs', capabilities: ['observability', 'nonproduction', 'ingress'] },
+            ];
+      const fleet = decodeFleet(fleetWith(nodes, { [capability]: 1 }));
+      expect(fleet.nodes.some((node) => node.capabilities.includes(capability))).toBe(true);
+    });
+
+    it(`refuses a workers node that carries ${capability}`, () => {
+      // Proof: adding each capability to purposeCapabilities.workers made this resolve instead of
+      // throw, once for `platform-services` and once for `nonproduction` (2026-11-22).
+      expect(() =>
+        decodeFleet(
+          fleetWith([{ id: 'm1plat1', capabilities: ['control-plane', 'platform-services'] }], {}, [
+            'execution',
+            capability,
+          ]),
+        ),
+      ).toThrow(/Platform capability for w2 must belong to platform/);
+    });
+
+    it(`refuses a platform floor of ${capability} that the nodes do not provide`, () => {
+      // The server of such a cluster must carry `platform-services`, so its floor is raised
+      // past the one server instead.
+      const floor = capability === 'platform-services' ? 2 : 1;
+      const provided = floor - 1;
+      expect(() =>
+        decodeFleet(
+          fleetWith([{ id: 'm1plat1', capabilities: ['control-plane', 'platform-services'] }], {
+            [capability]: floor,
+          }),
+        ),
+      ).toThrow(
+        new RegExp(
+          `platform-2 capability ${capability} requires ${String(floor)} but provides ${String(provided)}`,
+        ),
+      );
+    });
+  }
+});
+
+describe('trust classes of a platform cluster that requires platform-services', () => {
+  interface Node {
+    id: string;
+    capabilities: readonly string[];
+  }
+  const server: Node = { id: 'm1plat1', capabilities: ['control-plane', 'platform-services'] };
+  const apps: Node = { id: 'h6apps', capabilities: ['product', 'ingress'] };
+  const observability: Node = {
+    id: 'h7obs',
+    capabilities: ['observability', 'nonproduction', 'ingress'],
+  };
+  function fleetOf(nodes: readonly Node[]): Record<string, unknown> {
+    return {
+      schemaVersion: 1,
+      revision: 'trust-classes-test',
+      clusters: [
+        {
+          id: 'platform-2',
+          purpose: 'platform',
+          apiEndpoint: 'https://10.10.1.11:6443',
+          controlPlane: 'single',
+          bootstrap: 'required',
+          requiredCapabilities: { 'platform-services': 1 },
+        },
+      ],
+      nodes: nodes.map(({ id, capabilities }, index) => ({
+        id,
+        cluster: 'platform-2',
+        capabilities,
+        lifecycle: 'present',
+        provider: {
+          kind: 'ssh',
+          machineId: String(index + 1).repeat(32),
+          address: `10.10.1.${String(11 + index)}`,
+        },
+      })),
+    };
+  }
+
+  it('accepts the minimal profile, observability with nonproduction and ingress', () => {
+    // Proof: splitting the monitoring class into `observability` and `nonproduction, ingress`
+    // (refusing any node with two roles' capabilities) made this throw on h7obs (2026-11-22).
+    const fleet = decodeFleet(fleetOf([server, apps, observability]));
+    expect(fleet.nodes.map(({ id }) => id)).toEqual(['m1plat1', 'h6apps', 'h7obs']);
+  });
+
+  it('refuses a platform-services server that also carries product', () => {
+    // Proof: dropping the server's capability comparison made this fail (2026-11-22).
+    expect(() =>
+      decodeFleet(fleetOf([{ ...server, capabilities: [...server.capabilities, 'product'] }])),
+    ).toThrow(/Server m1plat1 of platform-2 carries product/);
+  });
+
+  it('refuses a platform-services server that also carries observability', () => {
+    // Proof: comparing against the earlier list of product, nonproduction and ingress made this
+    // fail (2026-11-22).
+    expect(() =>
+      decodeFleet(
+        fleetOf([{ ...server, capabilities: [...server.capabilities, 'observability'] }]),
+      ),
+    ).toThrow(/Server m1plat1 of platform-2 carries observability/);
+  });
+
+  it('refuses a server without platform-services', () => {
+    expect(() =>
+      decodeFleet(fleetOf([{ ...server, capabilities: ['control-plane'] }, observability])),
+    ).toThrow(/Server m1plat1 of platform-2 lacks platform-services/);
+  });
+
+  it('refuses an agent that carries product and nonproduction', () => {
+    // Proof: checking the server only made this fail (2026-11-22).
+    expect(() =>
+      decodeFleet(
+        fleetOf([server, { id: 'h6apps', capabilities: ['product', 'nonproduction', 'ingress'] }]),
+      ),
+    ).toThrow(/Node h6apps carries both product and nonproduction/);
+  });
+
+  it('refuses product and nonproduction on one node in every cluster', () => {
+    const legacy = fleetOf([
+      { id: 'h4claw', capabilities: ['control-plane', 'product', 'ingress'] },
+      { id: 'h3mon', capabilities: ['observability', 'nonproduction', 'product'] },
+    ]);
+    const [cluster] = legacy['clusters'] as Record<string, unknown>[];
+    cluster['requiredCapabilities'] = {};
+    expect(() => decodeFleet(legacy)).toThrow(/Node h3mon carries both product and nonproduction/);
+  });
+
+  it('refuses a co-location no profile names', () => {
+    expect(() =>
+      decodeFleet(fleetOf([server, { id: 'h6apps', capabilities: ['product', 'observability'] }])),
+    ).toThrow(/Node h6apps of platform-2 carries product, observability: no trust class/);
+  });
 });

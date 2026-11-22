@@ -1,0 +1,37 @@
+---
+# Opens a new SSH connection from the controller, outside the play's own multiplexed one, as the
+# operator who will log in after this change, and runs `puni_fresh_command` there with sudo. A
+# change that locks that operator out fails here while the play's existing connection can still
+# undo it (separate-node-roles, slices 1.8 and 1.9). The play may connect as root on its first
+# run; the login to confirm is `puni_fresh_user` with `puni_fresh_key_file`, never
+# `ansible_user`. `ansible_ssh_common_args` (the controller's ProxyJump or ProxyCommand) is
+# passed through verbatim; every part this file adds is quoted, and the command line is split
+# once, by shell rules, so a quoted ProxyCommand stays one argument.
+- name: Require the settings of a fresh connection
+  ansible.builtin.assert:
+    that:
+      - ansible_host is defined
+      - puni_fresh_user | length > 0
+      - puni_fresh_key_file is match('^/')
+      - puni_fresh_command is sequence
+      - puni_fresh_command is not string
+    fail_msg: >-
+      A fresh connection needs ansible_host, the operator to log in as and that operator's
+      private key file on the controller
+
+- name: Open a fresh connection and run the confirming command
+  # Proof: with `failed_when: false` added, node-roles.test.ts `fails when a fresh connection is
+  # refused` failed; logging in as `ansible_user` made its `logs in as the operator although the
+  # play connects as root` case fail against a stand-in that refuses root (2026-11-22).
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    cmd: >-
+      {{ ([puni_ssh_client, '-o', 'ControlMaster=no', '-o', 'ControlPath=none',
+           '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ConnectTimeout=20',
+           '-i', puni_fresh_key_file, '-p', (ansible_port | default(22) | string)])
+         | map('quote') | join(' ') }}
+      {{ ansible_ssh_common_args | default('') }}
+      {{ ([puni_fresh_user ~ '@' ~ ansible_host, 'sudo', '-n'] + puni_fresh_command)
+         | map('quote') | join(' ') }}
+  changed_when: false

@@ -1,6 +1,6 @@
 ---
 - name: Inspect a host before or after fleet enrollment
-  hosts: all
+  hosts: k3s_bootstrap_servers:k3s_join_servers:k3s_agents
   become: true
   gather_facts: true
   tasks:
@@ -263,8 +263,8 @@
         that:
           - >-
             getent_passwd[puni_operator_name] is none or
-            (puni_preflight_operator_keys.content | default('') | b64decode | trim)
-            == (puni_operator_authorized_keys | join('\n') | trim)
+            (puni_preflight_operator_keys.content | default('') | b64decode).splitlines()
+            | map('trim') | select | list == puni_operator_authorized_keys | map('trim') | list
         fail_msg: >-
           {{ puni_operator_name }} exists with other authorized keys, which the base role would
           replace; choose a new operator name or reconcile its keys first

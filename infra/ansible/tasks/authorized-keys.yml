@@ -1,0 +1,63 @@
+---
+# Installs exactly `puni_keys` as the authorized keys of `puni_keys_owner` (group
+# `puni_keys_group`) at `puni_keys_file`,
+# the way roles/gate_host does (H2-A7, 2026-11-04): a template loop writes one key per line, the
+# staged file is counted with `ssh-keygen -lf` against the list, and only then replaces the live
+# file, so a bad render stops the play while the old keys still log in. `content: |` with
+# `join('\n')` wrote the two characters `\n` under ansible-core 2.21.3 and left one usable key.
+- name: Require the keys as a list of one-line strings
+  # Proof: with `is not string` removed, node-roles.test.ts `refuses keys given as one string`
+  # failed: a string passed this assertion (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_keys is sequence
+      - puni_keys is not string
+      - puni_keys is not mapping
+      - puni_keys | length > 0
+      - puni_keys | select('string') | list | length == puni_keys | length
+      - puni_keys | select('search', '\n') | list | length == 0
+      - puni_keys_owner | string | length > 0
+      - puni_keys_group | string | length > 0
+      - puni_keys_file is match('^/')
+    fail_msg: '{{ puni_keys_file }} needs a list of one-line keys, not {{ puni_keys | type_debug }}'
+
+- name: Stage the exact authorized keys
+  ansible.builtin.template:
+    src: '{{ role_path }}/../../templates/authorized_keys.j2'
+    dest: '{{ puni_keys_file }}.staged'
+    owner: '{{ puni_keys_owner }}'
+    group: '{{ puni_keys_group }}'
+    mode: '0600'
+  # Written and removed on every run; the install below reports the change.
+  changed_when: false
+
+- name: Fingerprint the staged authorized keys
+  ansible.builtin.command:
+    argv: [ssh-keygen, -lf, '{{ puni_keys_file }}.staged']
+  register: puni_keys_probe
+  changed_when: false
+
+- name: Require one parsed key per listed key
+  # Proof: reinstating `content: |` with `join('\n')` for the staged file made node-roles.test.ts
+  # `installs two keys on two lines` fail here with `holds 1 keys` (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_keys_probe.stdout_lines | length == puni_keys | length
+    fail_msg: >-
+      {{ puni_keys_file }}.staged holds {{ puni_keys_probe.stdout_lines | length }} keys, but
+      {{ puni_keys | length }} are listed: a caller whose key did not parse would be locked out
+
+- name: Install the exact authorized keys
+  ansible.builtin.copy:
+    src: '{{ puni_keys_file }}.staged'
+    dest: '{{ puni_keys_file }}'
+    remote_src: true
+    owner: '{{ puni_keys_owner }}'
+    group: '{{ puni_keys_group }}'
+    mode: '0600'
+
+- name: Remove the staged authorized keys
+  ansible.builtin.file:
+    path: '{{ puni_keys_file }}.staged'
+    state: absent
+  changed_when: false
