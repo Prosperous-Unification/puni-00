@@ -1,7 +1,14 @@
 import type { BrowserChallenge } from './browser-check';
 import type { QuestionId, ReplyFailure, ScopingAnswerRequest, StartingChoiceId } from './scoping';
 
-export type ProposalStatus = 'submitted' | 'reviewing' | 'contacted' | 'closed';
+export const proposalStatuses = [
+  'submitted',
+  'reviewing',
+  'contacted',
+  'closed',
+  'irrelevant',
+] as const;
+export type ProposalStatus = (typeof proposalStatuses)[number];
 
 export interface DraftView {
   scoping: ConversationScoping;

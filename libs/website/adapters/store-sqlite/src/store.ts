@@ -2,7 +2,12 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import type { ProposalStatus, ScopingReply, SubmissionView } from '@website/contracts';
+import {
+  type ProposalStatus,
+  proposalStatuses,
+  type ScopingReply,
+  type SubmissionView,
+} from '@website/contracts';
 import { Database } from 'bun:sqlite';
 
 import { effectiveVisitorTurns } from './anonymous-admission';
@@ -178,7 +183,7 @@ interface SessionRow {
 }
 
 interface StatusRow {
-  status: ProposalStatus;
+  status: Exclude<ProposalStatus, 'irrelevant'>;
 }
 
 interface MigrationRow {
@@ -842,7 +847,12 @@ export class WebsiteStore {
   listSubmissions(): SubmissionView[] {
     const rows = this.database
       .query<SubmissionRow, []>(
-        'SELECT proposal_submission.id, intake_draft.description, proposal_submission.brief, proposal_submission.email, proposal_submission.status, proposal_submission.created_at, proposal_submission.updated_at FROM proposal_submission JOIN intake_draft ON intake_draft.id = proposal_submission.draft_id ORDER BY proposal_submission.created_at DESC',
+        `SELECT submission.id, draft.description, submission.brief, submission.email,
+                CASE WHEN submission.irrelevant_at IS NULL THEN submission.status ELSE 'irrelevant' END AS status,
+                submission.created_at, COALESCE(submission.irrelevant_at, submission.updated_at) AS updated_at
+           FROM proposal_submission AS submission
+           JOIN intake_draft AS draft ON draft.id = submission.draft_id
+          ORDER BY submission.created_at DESC`,
       )
       .all();
     // Proof: dropping the created_at condition listed the opening as a follow-up in submitted-conversation.test.ts.
@@ -861,16 +871,26 @@ export class WebsiteStore {
     }));
   }
 
-  advanceSubmission(id: string, next: ProposalStatus, now: number): boolean {
+  /** Marks requests irrelevant from any status or advances them one workflow step. */
+  advanceSubmission(id: string, next: Exclude<ProposalStatus, 'submitted'>, now: number): boolean {
+    if (next === 'irrelevant') {
+      // Proof: omitting the null predicate let the mounted test mark the same request twice.
+      const write = this.database
+        .query(
+          'UPDATE proposal_submission SET irrelevant_at = ? WHERE id = ? AND irrelevant_at IS NULL',
+        )
+        .run(now, id);
+      return write.changes === 1;
+    }
     const row = this.database
       .query<StatusRow, [string]>('SELECT status FROM proposal_submission WHERE id = ?')
       .get(id);
     if (!row) return false;
-    const order: ProposalStatus[] = ['submitted', 'reviewing', 'contacted', 'closed'];
-    if (order.indexOf(next) !== order.indexOf(row.status) + 1) return false;
+    if (proposalStatuses.indexOf(next) !== proposalStatuses.indexOf(row.status) + 1) return false;
+    // Proof: removing the irrelevance predicate let the mounted test advance a marked request.
     const write = this.database
       .query(
-        'UPDATE proposal_submission SET status = ?, updated_at = ?, updated_by = ? WHERE id = ? AND status = ?',
+        'UPDATE proposal_submission SET status = ?, updated_at = ?, updated_by = ? WHERE id = ? AND status = ? AND irrelevant_at IS NULL',
       )
       .run(next, now, 'local-operator', id, row.status);
     return write.changes === 1;

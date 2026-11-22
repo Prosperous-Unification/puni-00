@@ -1,0 +1,4 @@
+- [x] Prove the authenticated status route marks each workflow status Irrelevant and retains the request.
+- [x] Add the reversible SQLite migration and project the effective status.
+- [x] Verify inbox filters and the Irrelevant action in a mounted component.
+- [x] Run the website-scoped checks and record the guard fault proofs.
