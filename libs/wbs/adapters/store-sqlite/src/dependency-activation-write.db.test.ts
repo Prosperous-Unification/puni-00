@@ -19,7 +19,7 @@ import {
   inspectDependencyActivation,
 } from './cross-work-package-dependency-activation';
 import { openConnection } from './db';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const RECEIPT = {
@@ -36,15 +36,18 @@ const RECEIPT = {
 let directory: string;
 let path: string;
 let connection: ReturnType<typeof openConnection>;
+let owner: { hasUnknownOwner: boolean; connection?: ReturnType<typeof openConnection> };
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-activation-write-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
+  owner = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, owner);
   connection = openConnection(path);
+  owner.connection = connection;
 });
 afterEach(() => {
-  connection.close();
-  rmSync(directory, { recursive: true, force: true });
+  owner.connection?.close();
+  if (!owner.hasUnknownOwner) rmSync(directory, { recursive: true, force: true });
 });
 
 it('atomically persists exact authority and permits identical retries with no live edges', () => {
@@ -170,7 +173,7 @@ it('refuses malformed existing database bytes without replacing them', () => {
 });
 
 it('requires the external dependency identity even when omitted from both artifacts and ledger', () => {
-  const staged = join(directory, 'migrations');
+  const staged = join(directory, 'without-external-dependencies');
   mkdirSync(staged);
   const omitted = '20261022211000_add_external_dependencies';
   for (const name of readdirSync(FOLDER)) {

@@ -2184,3 +2184,11 @@ unit rollback order remains explicit. The retained actual foreign key refuses
 step deletion until the actual is removed. The current allocator exercises
 real concurrent writers, and ownership preflight observes all three findings
 inside the same snapshot across a competing commit. SQLite Nx typecheck passed.
+
+Focused SQLite Nx verification passed 94 tests across dependency activation,
+optimizer rows, external references, calendar markers, runtime commands and
+agent pools. The fixtures use the current catalogue. Dependency activation
+uses a separate incomplete candidate ledger for its refusal witness and keeps
+its rollback snapshots. Optimizer reads still name malformed stored values.
+The agent-pool property retains all 25 seeded histories and creates a fresh
+owned database for each history. SQLite Nx typecheck passed.

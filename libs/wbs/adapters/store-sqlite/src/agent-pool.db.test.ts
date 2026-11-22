@@ -9,11 +9,10 @@ import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
 import { AgentPoolRepository } from './agent-pool';
-import { openConnection, openDatabase, openDrizzle } from './db';
+import { openConnection, openDatabase } from './db';
 import { OPEN, WriteCoordinator } from './gate';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CAP = 8;
 const DEFAULTS: OrganizationLimitValues = {
   maxAgentPersons: CAP,
@@ -23,11 +22,16 @@ const DEFAULTS: OrganizationLimitValues = {
 
 let dir: string;
 let path: string;
+let closePool: (() => void) | undefined;
+const custody = { hasUnknownOwner: false };
 
 /** A migrated, activated store with one organization whose admin is `dany`. */
 function freshStore(): void {
-  rmSync(path, { force: true });
-  runMigrations(path, FOLDER);
+  closePool?.();
+  closePool = undefined;
+  const databaseDirectory = mkdtempSync(join(dir, 'store-'));
+  path = join(databaseDirectory, 'test.db');
+  migrateEmptyCatalogueFixture({ path, directory: databaseDirectory, reportedAt: 1 }, custody);
   const sqlite = openDatabase(path);
   try {
     sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
@@ -75,16 +79,20 @@ function seedDirectHolder(): void {
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-agent-pool-'));
-  path = join(dir, 'test.db');
+  closePool = undefined;
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  closePool?.();
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 /** The pools over a fresh connection and one process-wide write turn, as be-01 composes them. */
 function openPools(): AgentPoolRepository {
-  return new AgentPoolRepository(openDrizzle(path), new WriteCoordinator(), DEFAULTS);
+  const connection = openConnection(path);
+  closePool = connection.close.bind(connection);
+  return new AgentPoolRepository(connection.db, new WriteCoordinator(), DEFAULTS);
 }
 
 let pools = 0;

@@ -8,15 +8,12 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CalendarMarkerRepository } from './calendar-marker';
-import type { Connection } from './db';
 import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -82,58 +79,45 @@ function marker(overrides: Partial<CalendarMarker> = {}): CalendarMarker {
  */
 describe('CalendarMarkerRepository', () => {
   let dir: string;
-  let conn: Connection;
+  let closeConnection: (() => void) | undefined;
+  const custody = { hasUnknownOwner: false };
   let markers: CalendarMarkerRepository;
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-calendar-marker-repo-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    closeConnection = undefined;
+    custody.hasUnknownOwner = false;
+    migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     const seed = openConnection(path);
-    await new UserRepository(seed.db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
-    );
-    const workPackages = new WorkPackageRepository(seed.db, OPEN);
-    await workPackages.create(
-      workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Build',
-          position: 10,
-          code: 'build',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote,
-    );
-    await workPackages.create(
-      workPackageRow({ id: 'p2', name: 'Re-roof the barn', projectId: 'fixture-project' }),
-      [
-        {
-          id: 'st-2',
-          workPackageId: 'p2',
-          name: 'Strip',
-          position: 10,
-          code: 'strip',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
-      wrote,
-    );
-    seed.close();
-    conn = openConnection(path);
+    try {
+      await new UserRepository(seed.db, OPEN).create(
+        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+        wrote,
+      );
+      const workPackages = new WorkPackageRepository(seed.db, OPEN);
+      await workPackages.create(
+        workPackageRow({ id: 'p1', name: 'Rewire the shed', projectId: 'fixture-project' }),
+        [],
+        wrote,
+      );
+      await workPackages.create(
+        workPackageRow({ id: 'p2', name: 'Re-roof the barn', projectId: 'fixture-project' }),
+        [],
+        wrote,
+      );
+    } finally {
+      seed.close();
+    }
+    const conn = openConnection(path);
+    closeConnection = conn.close.bind(conn);
     markers = new CalendarMarkerRepository(conn.db, OPEN);
   });
 
   afterEach(() => {
-    conn.close();
-    rmSync(dir, { recursive: true, force: true });
+    closeConnection?.();
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('round-trips a marker through create and list', async () => {
