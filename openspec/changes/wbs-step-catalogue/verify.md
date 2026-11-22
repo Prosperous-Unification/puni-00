@@ -2219,3 +2219,21 @@ checks exact ledgers, restored schema text and retained rows. The working-plan
 subtree uses real leaf values in both groups and independent retained-state
 reads. The blockage CLI retains missing and unreadable file refusals. SQLite
 Nx typecheck passed.
+
+### SQLite index, grant, fan-out and plan history fixtures
+
+- The uncached Nx SQLite test target passed 53 tests across
+  `constraint.db.test.ts`, `fanout-capture.db.test.ts`,
+  `package-creator-grant.db.test.ts`, `typed-dependency-migration.db.test.ts`
+  and `plan-event.db.test.ts`. Historical index and typed-dependency witnesses
+  use the original migration prefix. Current fan-out uses real project-bound
+  definitions and retains its exact recipient, rollback, read-fault and revoked
+  permission assertions. The package creator witness checks inherited step
+  materialization before rollback. The history fixture uses one owned
+  connection and matches the stored-command parser's error type.
+- The uncached Nx SQLite test target passed another 16 tests across
+  `delegation-use.db.test.ts` and `machine-token-audit.db.test.ts`.
+  Delegation rollback matches the original CHECK refusal and retains the
+  complete rollback order. All 25 seeded audit histories run on the current
+  schema. The focused `priority-band.db.test.ts` target passed all seven
+  tests, including the raw SQLite cascade and read-without-write witnesses.

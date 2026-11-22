@@ -5,18 +5,15 @@ import { join } from 'node:path';
 import type { WorkPackage, WriteStamp } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
-import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
-import { openDatabase, openDrizzle } from './db';
+import { openConnection } from './db';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
-import { UserRepository } from './user';
+import type { CatalogueFixtureCustody } from './testing/catalogue-database';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { WorkPackageRepository } from './work-package';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
 /** The stamp every write here carries; `owner` is the account the setup creates first. */
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -42,8 +39,8 @@ const RECUT: readonly PriorityBand[] = [
  */
 describe('a work package’s priority ladder', () => {
   let dir: string;
-  /** The raw handle, for the two claims that are about rows rather than about the store. */
-  let sqlite: Database;
+  let custody: CatalogueFixtureCustody;
+  let connection: ReturnType<typeof openConnection> | undefined;
   let bands: PriorityBandRepository;
 
   const workPackage = (id: string, name: string): WorkPackage =>
@@ -53,18 +50,39 @@ describe('a work package’s priority ladder', () => {
       projectId: 'fixture-project',
     });
 
+  function fixtureDb() {
+    if (connection === undefined) throw new Error('priority band fixture has no database');
+    return connection.db;
+  }
+
+  function countBands(workPackageId?: string): number {
+    const where =
+      workPackageId === undefined ? sql.empty() : sql`WHERE work_package_id = ${workPackageId}`;
+    return fixtureDb().get<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM work_package_priority_band ${where}`,
+    ).n;
+  }
+
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-priority-band-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
-    const db = openDrizzle(path);
-    sqlite = openDatabase(path);
-    bands = new PriorityBandRepository(db, OPEN);
-    await new UserRepository(db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [],
+      },
+      custody,
     );
+    custody.hasUnknownOwner = true;
+    connection = openConnection(path);
+    custody.hasUnknownOwner = false;
+    const { db } = connection;
+    bands = new PriorityBandRepository(db, OPEN);
     const workPackages = new WorkPackageRepository(db, OPEN);
     // Created **through the repository**, which is the release under test — so
     // neither work package is seeded by the migration and both are in the state every
@@ -75,8 +93,9 @@ describe('a work package’s priority ladder', () => {
   });
 
   afterEach(() => {
-    sqlite.close();
-    rmSync(dir, { recursive: true, force: true });
+    connection?.close();
+    connection = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
   });
 
   it('answers the default ladder for a work package holding no rows of its own', async () => {
@@ -94,10 +113,7 @@ describe('a work package’s priority ladder', () => {
     // No rows were written to get that answer: the read is a fallback, not a
     // lazy seeding, so two clients reading the same unconfigured work package do not
     // race to insert.
-    expect(
-      sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package_priority_band').get()
-        ?.n,
-    ).toBe(0);
+    expect(countBands()).toBe(0);
   });
 
   it('answers a work package’s own ladder rather than the default one', async () => {
@@ -121,14 +137,14 @@ describe('a work package’s priority ladder', () => {
     // way to tell an `ORDER BY` from a query planner that happens to agree with
     // it. Rank 0 is the most important rung on every face, and a list in
     // insertion order would colour a plan by whichever row SQLite reached first.
-    sqlite.run('DELETE FROM work_package_priority_band WHERE work_package_id = ?', ['p1']);
+    const db = fixtureDb();
+    db.run(sql`DELETE FROM work_package_priority_band WHERE work_package_id = 'p1'`);
     for (const rank of [3, 0, 4, 2, 1]) {
       const band = RECUT.at(rank);
       if (band === undefined) throw new Error(`no band at rank ${String(rank)}`);
-      sqlite.run(
-        'INSERT INTO work_package_priority_band (work_package_id, rank, starts_at, label, default_value) VALUES (?, ?, ?, ?, ?)',
-        ['p1', rank, band.startsAt, band.label, band.defaultValue],
-      );
+      db.run(sql`INSERT INTO work_package_priority_band
+        (work_package_id, rank, starts_at, label, default_value)
+        VALUES ('p1', ${rank}, ${band.startsAt}, ${band.label}, ${band.defaultValue})`);
     }
 
     expect((await bands.listFor('p1')).map((band) => band.label)).toEqual([
@@ -149,13 +165,7 @@ describe('a work package’s priority ladder', () => {
     await bands.replace('p1', DEFAULT_PRIORITY_BANDS, wrote);
 
     expect(await bands.listFor('p1')).toEqual([...DEFAULT_PRIORITY_BANDS]);
-    expect(
-      sqlite
-        .query<{ n: number }, [string]>(
-          'SELECT COUNT(*) AS n FROM work_package_priority_band WHERE work_package_id = ?',
-        )
-        .get('p1')?.n,
-    ).toBe(5);
+    expect(countBands('p1')).toBe(5);
   });
 
   it('trims a name on the way in, so two spellings of one word are one', async () => {
@@ -173,10 +183,7 @@ describe('a work package’s priority ladder', () => {
       ok: false,
       reason: 'not_found',
     });
-    expect(
-      sqlite.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM work_package_priority_band').get()
-        ?.n,
-    ).toBe(0);
+    expect(countBands()).toBe(0);
   });
 
   it('loses its ladder when the work package goes, by the cascade and nothing else', async () => {
@@ -187,14 +194,8 @@ describe('a work package’s priority ladder', () => {
     // writing work packages against the migrated schema` in `migrate.test.ts` fails on
     // `FOREIGN KEY constraint failed`. Watched 2026-08-14.
     await bands.replace('p1', RECUT, wrote);
-    sqlite.run('DELETE FROM work_package WHERE id = ?', ['p1']);
+    fixtureDb().run(sql`DELETE FROM work_package WHERE id = 'p1'`);
 
-    expect(
-      sqlite
-        .query<{ n: number }, [string]>(
-          'SELECT COUNT(*) AS n FROM work_package_priority_band WHERE work_package_id = ?',
-        )
-        .get('p1')?.n,
-    ).toBe(0);
+    expect(countBands('p1')).toBe(0);
   });
 });

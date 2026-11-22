@@ -1,9 +1,10 @@
+import { rejects } from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import { readSharedPeople } from '@wbs/core';
+import { readSharedPeople, subscriptionFor } from '@wbs/core';
 import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
 import { displaySchedule } from '@wbs/core/service/shared-people';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
@@ -29,6 +30,7 @@ import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
 import { readSettingTargetIn } from './settings';
 import { openSqliteSource } from './source';
+import { StepCatalogueRepository } from './step-catalogue';
 import { StepNodeAttemptRepository } from './step-node-attempt';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
@@ -37,6 +39,38 @@ import { WorkPackageRepository } from './work-package';
 import { WorkPackageRankRepository } from './work-package-rank';
 
 const directories: string[] = [];
+
+async function bindBuildStep(
+  path: string,
+  stepId = 'build',
+  projectId = 'fixture-parent-org-a',
+): Promise<void> {
+  const connection = openConnection(path);
+  try {
+    const bound = await new StepCatalogueRepository(connection.db, OPEN, 'owned').defineAndBindStep(
+      'org-a',
+      {
+        id: stepId,
+        code: stepId,
+        name: stepId,
+        position: 10,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: stepId + '-binding',
+        scopeKind: 'project',
+        scopeId: projectId,
+        workItemTypeId: null,
+        position: 10,
+      },
+      { at: 1, by: 'ada' },
+    );
+    expect(bound.ok).toBe(true);
+  } finally {
+    connection.close();
+  }
+}
 
 afterEach(() => {
   for (const directory of directories.splice(0))
@@ -86,6 +120,7 @@ it('captures staged upstream displacement on the borrowed writer without admitti
   const directory = mkdtempSync(join(tmpdir(), 'wbs-fanout-capture-'));
   directories.push(directory);
   const path = await openSpaceDatabase(directory);
+  await bindBuildStep(path);
   const seed = openDatabase(path);
   seed.run("UPDATE organization_activation SET state = 'activated', activated_at = 1");
   seed.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
@@ -103,15 +138,12 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     seed.run(
       `INSERT INTO work_item (id, work_package_id, position, name) VALUES ('${workPackageId}', '${workPackageId}', 10, '${workPackageId}')`,
     );
-    seed.run(
-      `INSERT INTO step (id, work_package_id, name, position) VALUES ('${workPackageId}-step', '${workPackageId}', '${workPackageId}-step', 10)`,
-    );
     const days = workPackageId === 'a2' ? 2 : 1;
     seed.run(
-      `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', '${workPackageId}-step', ${String(days)}, ${String(days)}, ${String(days)})`,
+      `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('${workPackageId}', 'build', ${String(days)}, ${String(days)}, ${String(days)})`,
     );
     seed.run(
-      `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${workPackageId}', '${workPackageId}-step', 'ana')`,
+      `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('${workPackageId}', 'build', 'ana')`,
     );
   }
   seed.close();
@@ -139,8 +171,8 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     undefined,
     chain.input.elsewhere,
   );
-  const fastStart = chain.scheduled.fast.slices.get(sliceKey('a1', 'a1-step'))?.earliestStart;
-  const optimizedStart = optimized.slices.get(sliceKey('a1', 'a1-step'))?.earliestStart;
+  const fastStart = chain.scheduled.fast.slices.get(sliceKey('a1', 'build'))?.earliestStart;
+  const optimizedStart = optimized.slices.get(sliceKey('a1', 'build'))?.earliestStart;
   expect(optimizedStart).not.toBe(fastStart);
   const ready = openConnection(path);
   try {
@@ -234,10 +266,10 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     expect(displaySchedule(selected.settings, selected.outcome).engine).toBe('optimized');
     expect(
       displaySchedule(selected.settings, selected.outcome).planned.slices.get(
-        sliceKey('a1', 'a1-step'),
+        sliceKey('a1', 'build'),
       )?.earliestStart,
     ).toBe(optimizedStart);
-    expect(selected.outcome.fast.slices.get(sliceKey('a1', 'a1-step'))?.earliestStart).toBe(
+    expect(selected.outcome.fast.slices.get(sliceKey('a1', 'build'))?.earliestStart).toBe(
       fastStart,
     );
     expect(before.observation.workPackages[0]?.inputHash).toBe(
@@ -252,8 +284,8 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     const afterDownstream = after.observation.workPackages[1]?.outcome;
     if (beforeDownstream.kind !== 'scheduled' || afterDownstream.kind !== 'scheduled')
       throw new Error('missing downstream schedule');
-    expect(beforeDownstream.fast.slices.get(sliceKey('a2', 'a2-step'))?.earliestStart).toBe(2);
-    expect(afterDownstream.fast.slices.get(sliceKey('a2', 'a2-step'))?.earliestStart).toBe(1);
+    expect(beforeDownstream.fast.slices.get(sliceKey('a2', 'build'))?.earliestStart).toBe(2);
+    expect(afterDownstream.fast.slices.get(sliceKey('a2', 'build'))?.earliestStart).toBe(1);
     expect(
       compareSharedPeopleFanout({
         before: before.observation,
@@ -291,6 +323,7 @@ it('records remote completion without shared people and rolls dependency events 
   directories.push(directory);
   const path = await openSpaceDatabase(directory);
   seedDependencyAuthority(path);
+  await bindBuildStep(path);
   const connection = openConnection(path);
   try {
     connection.db.run(
@@ -301,10 +334,7 @@ it('records remote completion without shared people and rolls dependency events 
         sql`INSERT INTO work_item (id, work_package_id, position, name) VALUES (${workPackageId}, ${workPackageId}, 10, ${workPackageId})`,
       );
       connection.db.run(
-        sql`INSERT INTO step (id, work_package_id, name, position) VALUES (${`${workPackageId}-step`}, ${workPackageId}, 'Build', 10)`,
-      );
-      connection.db.run(
-        sql`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (${workPackageId}, ${`${workPackageId}-step`}, 1, 1, 1)`,
+        sql`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (${workPackageId}, 'build', 1, 1, 1)`,
       );
     }
     connection.db.run(
@@ -326,7 +356,7 @@ it('records remote completion without shared people and rolls dependency events 
     );
     connection.db.run(
       sql.raw(
-        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('a1', 'a1-step', 'done', 1)",
+        "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('a1', 'build', 'done', 1)",
       ),
     );
     const after = await readFanoutObservationIn(
@@ -345,7 +375,7 @@ it('records remote completion without shared people and rolls dependency events 
       { type: 'elsewhere_changed', workPackageId: 'a2', causeWorkPackageId: 'a1' },
     ]);
     expect(
-      connection.db.all(sql`SELECT * FROM event_log WHERE subscription = 'work_package:a2'`),
+      connection.db.all(sql`SELECT * FROM event_log WHERE subscription = ${subscriptionFor('a2')}`),
     ).toHaveLength(1);
     connection.db.run(sql.raw('ROLLBACK'));
     expect(connection.db.all(sql`SELECT * FROM step_progress`)).toHaveLength(0);
@@ -379,20 +409,26 @@ it.each(['isolated', 'shared'])(
       const schedulerOf = () => {
         throw new Error('dependency invalidation cannot schedule');
       };
-      expect(
+      await rejects(
         readFanoutObservationIn(
           connection.db,
           'org-a',
           { schedulerOf },
           createReadSnapshotLifetime(),
         ),
-      ).rejects.toThrow('dependency fan-out endpoint is unreadable');
+        { message: 'dependency fan-out endpoint is unreadable' },
+      );
       connection.db.run(
         sql.raw(
-          "UPDATE external_dependency SET predecessor_work_package_id = 'a1' WHERE id = 'edge'",
+          "INSERT INTO work_item (id, work_package_id, position, name) VALUES ('a1-row', 'a1', 10, 'A1'), ('a2-row', 'a2', 10, 'A2')",
         ),
       );
-      expect(
+      connection.db.run(
+        sql.raw(
+          "UPDATE external_dependency SET predecessor_work_package_id = 'a1', predecessor_work_item_id = 'a1-row' WHERE id = 'edge'",
+        ),
+      );
+      await rejects(
         readFanoutObservationIn(
           connection.db,
           'org-a',
@@ -406,7 +442,8 @@ it.each(['isolated', 'shared'])(
           },
           createReadSnapshotLifetime(),
         ),
-      ).rejects.toThrow('injected endpoint read failure');
+        { message: 'injected endpoint read failure' },
+      );
     } finally {
       connection.close();
     }
@@ -551,11 +588,16 @@ it.each(['external', 'alternating', 'disconnected'])(
       );
       connection.db.run(sql.raw("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'"));
       for (const workPackageId of ['a1', 'a2', 'a3', 'a4']) {
+        const projectId = 'parent-' + workPackageId;
         connection.db.run(
-          sql`INSERT INTO work_item (id, work_package_id, position, name) VALUES (${workPackageId}, ${workPackageId}, 10, ${workPackageId})`,
+          sql`INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (${projectId}, 'org-a', ${projectId}, 1, 'ada')`,
         );
         connection.db.run(
-          sql`INSERT INTO step (id, work_package_id, name, position) VALUES (${`${workPackageId}-step`}, ${workPackageId}, 'Build', 10)`,
+          sql`UPDATE work_package SET project_id = ${projectId} WHERE id = ${workPackageId}`,
+        );
+        await bindBuildStep(path, workPackageId + '-step', projectId);
+        connection.db.run(
+          sql`INSERT INTO work_item (id, work_package_id, position, name) VALUES (${workPackageId}, ${workPackageId}, 10, ${workPackageId})`,
         );
       }
       connection.db.run(
@@ -583,7 +625,7 @@ it.each(['external', 'alternating', 'disconnected'])(
           ['a4', 'q'],
         ])
           connection.db.run(
-            sql`INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (${workPackageId}, ${`${workPackageId}-step`}, ${personId})`,
+            sql`INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (${workPackageId}, ${workPackageId + '-step'}, ${personId})`,
           );
       }
       const capturedIds: string[] = [];
@@ -623,7 +665,7 @@ it.each(['external', 'alternating', 'disconnected'])(
       capturedIds.length = 0;
       const causeWorkPackageId = topology === 'alternating' ? 'a1' : 'a2';
       connection.db.run(
-        sql`INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (${causeWorkPackageId}, ${`${causeWorkPackageId}-step`}, 'done', 1)`,
+        sql`INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (${causeWorkPackageId}, ${causeWorkPackageId + '-step'}, 'done', 1)`,
       );
       const after = await readFanoutObservationIn(
         connection.db,
@@ -650,7 +692,7 @@ it.each(['external', 'alternating', 'disconnected'])(
         })),
       );
       connection.db.run(
-        sql`UPDATE step SET code = 'delivery' WHERE id = ${`${causeWorkPackageId}-step`}`,
+        sql`UPDATE step_definition SET code = 'delivery' WHERE id = ${causeWorkPackageId + '-step'}`,
       );
       const relabeled = await readFanoutObservationIn(
         connection.db,
@@ -939,7 +981,7 @@ it('rechecks manage_settings before work package fanout observation after its gr
   try {
     connection.db.run(
       sql.raw(
-        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+        "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = 'ada'",
       ),
     );
     connection.db.run(
@@ -952,14 +994,18 @@ it('rechecks manage_settings before work package fanout observation after its gr
       principal: { id: 'ada' },
       scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'admin' as const },
     };
-    expect(
-      await authorizeWorkPackageFanoutIn(connection.db, createReadSnapshotLifetime())(
-        'a1',
-        'ada',
-        access,
-        { name: 'Denied' },
+    const authorize = authorizeWorkPackageFanoutIn(connection.db, createReadSnapshotLifetime());
+    expect(await authorize('a1', 'ada', access, { name: 'Allowed' })).toMatchObject({ ok: true });
+    connection.db.run(
+      sql.raw(
+        "DELETE FROM access_grant WHERE scope_kind = 'work_package' AND scope_id = 'a1' AND subject_kind = 'user' AND subject_id = 'ada' AND origin = 'creation'",
       ),
-    ).toMatchObject({ ok: false, reason: 'forbidden', permission: 'package.manage_settings' });
+    );
+    expect(await authorize('a1', 'ada', access, { name: 'Denied' })).toMatchObject({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'package.manage_settings',
+    });
   } finally {
     connection.close();
   }

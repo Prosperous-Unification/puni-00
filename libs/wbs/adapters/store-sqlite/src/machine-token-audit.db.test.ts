@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -6,9 +6,10 @@ import type { MachineTokenAuditOutcome, MachineTokenIssuance } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
-import { openDatabase, openDrizzle } from './db';
+import { type Connection, openConnection, openDatabase } from './db';
 import { WriteCoordinator } from './gate';
 import { MachineTokenAuditRepository } from './machine-token-audit';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 /** The SQLite error behind a rejected store call, which drizzle wraps as its `cause`. */
 async function failureOf(attempt: Promise<unknown>): Promise<string> {
@@ -19,21 +20,23 @@ async function failureOf(attempt: Promise<unknown>): Promise<string> {
   if (!(failure instanceof Error)) throw new Error('the store call resolved');
   return failure.cause instanceof Error ? failure.cause.message : failure.message;
 }
-import { runMigrations } from './migrate';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 /** 2026-10-26T09:00:00Z: a real-epoch instant, because a small fake clock hides a day bug. */
 const MORNING = Date.UTC(2026, 9, 26, 9, 0, 0);
 const DAY_MS = 86_400_000;
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
 
 let dir: string;
+let opened: Connection | undefined;
+let custody = { hasUnknownOwner: false };
 let path: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-machine-token-audit-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  opened = undefined;
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: MORNING }, custody);
   const sqlite = openDatabase(path);
   try {
     sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
@@ -43,6 +46,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  opened?.close();
+  if (custody.hasUnknownOwner) throw new Error('uncertain audit fixture owner; retained ' + dir);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -60,7 +65,8 @@ function issuance(runId: string | null, credentialId = CREDENTIAL): MachineToken
 /** The audit over a fresh connection and one process-wide write turn, as be-01 composes it. */
 function openAudit() {
   const gate = new WriteCoordinator();
-  return { audit: new MachineTokenAuditRepository(openDrizzle(path), gate), gate };
+  opened = openConnection(path);
+  return { audit: new MachineTokenAuditRepository(opened.db, gate), gate };
 }
 
 /** A clock that moves one millisecond per read, from `start`. */
@@ -284,23 +290,24 @@ describe('the issuance audit as a model invariant', () => {
       ],
       { maxCommands: 8 },
     );
+    const seedPath = path;
+    path = join(dir, 'history.db');
     await fc.assert(
       fc.asyncProperty(commands, async (history) => {
-        rmSync(path, { force: true });
-        runMigrations(path, FOLDER);
-        const sqlite = openDatabase(path);
-        try {
-          sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
-        } finally {
-          sqlite.close();
-        }
+        copyFileSync(seedPath, path);
         const world: AuditWorld = { audit: openAudit().audit, clock: ticking(MORNING) };
-        const model: AuditModel = { runs: new Set(), overflow: false };
-        for (let seeded = 0; seeded < 98; seeded += 1)
-          expect(
-            await world.audit.record(issuance(`seed-${String(seeded)}`), world.clock, newId),
-          ).toBe(expectIssuance(model, `seed-${String(seeded)}`));
-        await fc.asyncModelRun(() => ({ model, real: world }), history);
+        try {
+          const model: AuditModel = { runs: new Set(), overflow: false };
+          for (let seeded = 0; seeded < 98; seeded += 1)
+            expect(
+              await world.audit.record(issuance(`seed-${String(seeded)}`), world.clock, newId),
+            ).toBe(expectIssuance(model, `seed-${String(seeded)}`));
+          await fc.asyncModelRun(() => ({ model, real: world }), history);
+        } finally {
+          opened?.close();
+          opened = undefined;
+          rmSync(path);
+        }
       }),
       { numRuns: 25, seed: 20261026 },
     );

@@ -9,21 +9,30 @@ import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 let directory: string, sqlite: Database, source: SqliteSource;
-const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let openedSource: SqliteSource | undefined;
+let openedSqlite: Database | undefined;
+let custody = { hasUnknownOwner: false };
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'creator-store-'));
   const path = join(directory, 'store.db');
-  runMigrations(path, migrations);
+  openedSource = undefined;
+  openedSqlite = undefined;
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+  custody.hasUnknownOwner = true;
   sqlite = openDatabase(path);
+  openedSqlite = sqlite;
   source = openSqliteSource({
     dbPath: path,
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
   });
+  openedSource = source;
+  custody.hasUnknownOwner = false;
   sqlite.run("INSERT INTO users(id,username,created_at) VALUES('creator','Creator',1)");
   sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1)");
   sqlite.run(
@@ -35,10 +44,21 @@ beforeEach(() => {
   sqlite.run(
     "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','creator','member',1)",
   );
+  sqlite.run(
+    "INSERT INTO step_definition(id,organization_id,code,name,estimate_unit,default_allowance_bps,position,defined_at_scope_kind,defined_at_scope_id,origin) VALUES('catalogue-dev','org-a','DEV','Dev','workdays',0,10,'project','parent-a','authored')",
+  );
+  sqlite.run(
+    "INSERT INTO step_binding(id,organization_id,scope_kind,scope_id,step_id,position,origin) VALUES('bind-dev','org-a','project','parent-a','catalogue-dev',10,'authored')",
+  );
 });
 afterEach(async () => {
-  await source.close();
-  sqlite.close();
+  try {
+    await openedSource?.close();
+  } finally {
+    openedSqlite?.close();
+  }
+  if (custody.hasUnknownOwner)
+    throw new Error('creator fixture ownership uncertain; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -68,7 +88,10 @@ function snapshot() {
     [
       'work_package',
       'work_package_organization',
-      'step',
+      'step_definition',
+      'step_binding',
+      'work_package_step',
+      'setting_value',
       'work_package_abbreviation',
       'work_package_abbreviation_counter',
       'access_grant',
@@ -181,6 +204,9 @@ it('rolls creator rows and all package constituents back with a later borrowed S
       'org-a',
       grant,
     );
+    expect(await scope.stores.workPackages.stepsOf(draft.id)).toMatchObject([
+      { id: 'catalogue-dev', name: 'Dev' },
+    ]);
     return { commit: false, value: undefined };
   });
   expect(snapshot()).toEqual(before);
@@ -225,7 +251,7 @@ it('retains the complete explicit birth before its repository waits', async () =
     { id: 'p-grant', created_at: 17, created_by: 'creator' },
   ]);
   expect(await source.stores.workPackages.stepsOf('p')).toMatchObject([
-    { id: 'p-step', name: 'Dev' },
+    { id: 'catalogue-dev', name: 'Dev' },
   ]);
 });
 
