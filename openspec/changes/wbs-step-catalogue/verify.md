@@ -2421,3 +2421,14 @@ Nx typecheck passed.
   arrays previously reached the parser as if they were valid. The dense
   parser rejects both before a writer accepts the record. Astra reproduced
   both omissions and verified the final parser and writer behavior.
+
+### Mounted step-attempt controller checkpoint
+
+- The complete focused controller owner improved from 63 passing cases
+  and 61 failures in hosted CI to 93 passing and 31 failing locally.
+  Current fixture fixes preserve real mounted binding removal, rollback,
+  malformed replay and first-child timestamp witnesses. The remaining
+  failures cover 26 historical move cases, one historical parent deletion,
+  and four historical physical step deletions. These scenarios remain
+  visible in the suite. A logger stdout EPERM also appeared under the Nx
+  harness, including a focused run in which all eight cases passed.
