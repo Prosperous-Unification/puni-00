@@ -5499,6 +5499,7 @@ test('resolves merged step identities only in connected saved comparison meaning
     const initial = connectedReads(workPackageId, '2026-10-05');
     return {
       ...initial,
+      leafSteps: [{ workItemId, stepIds: [stepId] }],
       workPackage: {
         ...initial.workPackage,
         name,
@@ -5620,7 +5621,7 @@ test('resolves merged step identities only in connected saved comparison meaning
   const loserPacket = buildPacket('z-dev', 100);
   const loserInput = JSON.stringify(loserPacket.input),
     loserSchedule = JSON.stringify(loserPacket.schedule.body);
-  expect(domain.readSavedPlanInput(JSON.parse(loserInput), 12)).toEqual(loserPacket.input);
+  expect(domain.readSavedPlanInput(JSON.parse(loserInput), 13)).toEqual(loserPacket.input);
   expect(domain.readSavedConnectedScheduleBody(JSON.parse(loserSchedule))).toEqual(
     loserPacket.schedule.body,
   );
@@ -5633,7 +5634,7 @@ test('resolves merged step identities only in connected saved comparison meaning
   ) => {
     withinStore(store.path, (db) => {
       db.run(sql`INSERT INTO saved_plan(id,work_package_id,name,created_by,created_by_id,created_at,input_schema_version,input_bytes,input_sha256,schedule_schema_version,schedule_bytes,schedule_sha256,schedule_input_sha256,scheduler_algorithm_id)
-      VALUES(${id},'w-one',${id},'Catalogue Author','catalogue-author',80,12,${Buffer.byteLength(input)},${hashBytes(input)},4,${Buffer.byteLength(schedule)},${hashBytes(schedule)},${hashBytes(input)},${algorithmId})`);
+      VALUES(${id},'w-one',${id},'Catalogue Author','catalogue-author',80,13,${Buffer.byteLength(input)},${hashBytes(input)},4,${Buffer.byteLength(schedule)},${hashBytes(schedule)},${hashBytes(input)},${algorithmId})`);
       db.run(
         sql`INSERT INTO saved_plan_organization(resource_id,organization_id) VALUES(${id},'org-a')`,
       );
@@ -5723,7 +5724,7 @@ test('resolves merged step identities only in connected saved comparison meaning
     survivorSchedule = JSON.stringify(survivorPacket.schedule.body);
   const changedInput = JSON.stringify(changedPacket.input),
     changedSchedule = JSON.stringify(changedPacket.schedule.body);
-  expect(domain.readSavedPlanInput(JSON.parse(survivorInput), 12)).toEqual(survivorPacket.input);
+  expect(domain.readSavedPlanInput(JSON.parse(survivorInput), 13)).toEqual(survivorPacket.input);
   expect(domain.readSavedConnectedScheduleBody(JSON.parse(survivorSchedule))).toEqual(
     survivorPacket.schedule.body,
   );
@@ -5855,7 +5856,7 @@ test('resolves merged step identities only in connected saved comparison meaning
       name: id,
       createdBy: 'Catalogue Author',
       createdAt: 80,
-      input: { schemaVersion: 12, bytes: input, sha256: hashBytes(input) },
+      input: { schemaVersion: 13, bytes: input, sha256: hashBytes(input) },
       schedule: {
         present: true,
         body: { schemaVersion: 4, bytes: schedule, sha256: hashBytes(schedule) },
@@ -5897,7 +5898,7 @@ test('resolves merged step identities only in connected saved comparison meaning
     packet: ReturnType<typeof buildPacket>,
   ): Parameters<typeof summarizeSavedComparisonSide>[0] => ({
     comparison: { kind: 'captured' as const },
-    ...domain.projectSavedPlanInput(packet.input, 12),
+    ...domain.projectSavedPlanInput(packet.input, 13),
     schedule: {
       present: true,
       algorithmId: packet.schedule.body.algorithmId,

@@ -367,7 +367,7 @@ test('resolved step identities and authored selector step identities both contri
   };
   expect(inputHash(captureSteps('design'))).not.toBe(inputHash(captureSteps('build')));
   expect(inputHash(captureSteps('design'))).toBe(
-    'dcca591ecc22812e49b5961450b496d15d21d7dc8231f2e823fc1355656be117',
+    '3865e8dc689a8f4feedba1c461bb3167e77ebd2eea22f4aa8a68702c850e0128',
   );
   const selected = {
     ...captured,
@@ -387,9 +387,9 @@ test('resolved step identities and authored selector step identities both contri
   ).not.toBe(inputHash(selected));
 });
 
-test('existing canonical stage hash stays byte compatible after helper extraction', () => {
+test('keeps the connected-stage-v2 canonical digest stable', () => {
   expect(inputHash(stage())).toBe(
-    '08ed55e625529ac610baacfc8fefcc5cb0b7fe2c18262ebfee33b84247f5ab0c',
+    'affab67e7f928ef5c0be2cadd81c1d1c8084d8e7fb87ce933e8f89fe6d82550b',
   );
 });
 

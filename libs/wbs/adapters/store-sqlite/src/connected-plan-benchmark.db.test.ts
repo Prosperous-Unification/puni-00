@@ -17,6 +17,7 @@ import { ChainSnapshotRepository, createLivePlanStore } from './chain-snapshot';
 import * as connectedCapture from './connected-plan-capture';
 import { openConnection, openReadOnlyConnection } from './db';
 import { OPEN } from './gate';
+import { StepCatalogueRepository } from './step-catalogue';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { openSpaceDatabase } from './testing/space-database';
 import { WorkItemRepository } from './work-item';
@@ -29,34 +30,63 @@ for (const shape of ['sparse', 'dense'] as const) {
     try {
       const path = await openSpaceDatabase(folder);
       seedDependencyAuthority(path);
-      const fixture = buildConnectedBenchmark(shape);
+      const benchmark = buildConnectedBenchmark(shape);
+      const stepId = 'benchmark-dev';
+      const fixture = {
+        ...benchmark,
+        workPackages: benchmark.workPackages.map((member) => ({ ...member, stepId })),
+      };
+      const projectId = 'benchmark-project';
+      const stamp = { at: 1, by: 'ada' };
       const connection = openConnection(path);
       try {
         connection.db.run(sql`UPDATE organization_activation SET state='activated',activated_at=1`);
         connection.db.run(
-          sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES ('org-a','ada','member',1)`,
+          sql`INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES (${projectId},'org-a','Benchmark',1,'ada')`,
         );
+        const defined = await new StepCatalogueRepository(
+          connection.db,
+          OPEN,
+          'owned',
+        ).defineAndBindStep(
+          'org-a',
+          {
+            id: stepId,
+            name: 'Development',
+            code: 'dev',
+            position: 10,
+            defaultAllowancePercent: 0,
+            defaultEstimateUnit: 'workdays',
+          },
+          {
+            bindingId: 'benchmark-dev-binding',
+            scopeKind: 'project',
+            scopeId: projectId,
+            position: 10,
+            workItemTypeId: null,
+          },
+          stamp,
+        );
+        if (!defined.ok) throw new Error('benchmark step binding refused: ' + defined.reason);
         connection.db.run(sql`UPDATE organization SET shared_people=1 WHERE id='org-a'`);
         const workPackages = new WorkPackageRepository(connection.db, OPEN);
         const people = new Set<string>();
         for (const member of fixture.workPackages) {
-          await workPackages.createInOrganization(
+          const created = await workPackages.createInOrganization(
             workPackageRow({
               id: member.workPackageId,
               name: member.workPackageId,
-              projectId: 'fixture-parent-org-a',
+              projectId,
               startDate: '2026-10-05',
             }),
             [],
-            { at: 1, by: 'ada' },
+            stamp,
             'org-a',
             { id: crypto.randomUUID(), auditId: crypto.randomUUID() },
           );
+          if (typeof created === 'string') throw new Error('benchmark package refused: ' + created);
           connection.db.run(
             sql`INSERT INTO work_item(id,work_package_id,position,name) VALUES (${member.workItemId},${member.workPackageId},10,${member.workItemId})`,
-          );
-          connection.db.run(
-            sql`INSERT INTO step(id,work_package_id,name,position) VALUES (${member.stepId},${member.workPackageId},${member.stepId},10)`,
           );
           connection.db.run(
             sql`INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (${member.workItemId},${member.stepId},1,1,1)`,
@@ -266,13 +296,13 @@ for (const shape of ['sparse', 'dense'] as const) {
         expect(deriveSamples).toHaveLength(1);
         expect(scheduledComponents).toBe(1);
         expect(requiredIds.map((id) => fullCaptures.get(id))).toEqual(requiredIds.map(() => 1));
-        // Full-input capture and live metadata each read the work-item table once per member.
+        // Both the capture and live metadata reuse one work-item read per member.
         expect(
           liveRows.mock.calls
             .map(([workPackageId]) => workPackageId)
             .filter((id) => requiredIds.includes(id))
             .sort(),
-        ).toEqual([...requiredIds, ...requiredIds].sort());
+        ).toEqual(requiredIds);
         for (const member of fixture.workPackages) {
           const entry = members.find(({ workPackageId }) => workPackageId === member.workPackageId);
           if (entry?.plan.kind !== 'connected')

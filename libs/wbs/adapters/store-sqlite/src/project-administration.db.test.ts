@@ -16,44 +16,55 @@ import { afterEach, beforeEach, expect, it } from 'bun:test';
 import { AccessDecisionRepository } from './access-decisions';
 import { SqliteCommandAccess } from './command-access';
 import { type Connection, openConnection, openDatabase } from './db';
-import { WriteCoordinator } from './gate';
+import { OPEN, WriteCoordinator } from './gate';
 import { MachineCredentialRepository } from './machine-credential';
 import { runMigrations } from './migrate';
 import { readMigrationFolders } from './migrate-down';
 import { SqliteOrganizationAccess } from './organization-access';
 import { SqliteProjectAdministration } from './project-administration';
+import { StepCatalogueRepository } from './step-catalogue';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION_CEILING = '20261110120100_space_holds_projects_people_teams';
+const CATALOGUE_CEILING = '20261118210000_add_step_retirements';
 let directory: string, sqlite: Database, connection: Connection, gate: WriteCoordinator;
 let administration: SqliteProjectAdministration;
 let deleteProject: SqliteProjectAdministration['delete'];
 let selected: string | null;
 let awaitSelection: () => Promise<void>;
 
-function openFixture(state: 'activated' | 'pre_activation') {
+function openFixture(
+  state: 'activated' | 'pre_activation',
+  epoch: 'space' | 'catalogue' = 'space',
+) {
   directory = mkdtempSync(join(tmpdir(), 'project-authority-'));
   const migrations = join(directory, 'migrations'),
     path = join(directory, 'store.db');
-  mkdirSync(migrations);
   const folders = readMigrationFolders(FOLDER);
-  for (const ceiling of [
-    '20261110095999',
-    '20261110100000_rename_project_to_work_package',
-    '20261110110100_widen_organization_audit_projects',
-    MIGRATION_CEILING,
-  ]) {
-    for (const migration of folders.filter(({ name }) => name <= ceiling))
-      cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
-    runMigrations(path, migrations);
+  if (epoch === 'space') {
+    mkdirSync(migrations);
+    for (const ceiling of [
+      '20261110095999',
+      '20261110100000_rename_project_to_work_package',
+      '20261110110100_widen_organization_audit_projects',
+      MIGRATION_CEILING,
+    ]) {
+      for (const migration of folders.filter(({ name }) => name <= ceiling))
+        cpSync(join(FOLDER, migration.name), join(migrations, migration.name), { recursive: true });
+      runMigrations(path, migrations);
+    }
+  } else {
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   }
   sqlite = openDatabase(path);
   connection = openConnection(path);
   gate = new WriteCoordinator();
+  const ceiling = epoch === 'space' ? MIGRATION_CEILING : CATALOGUE_CEILING;
   const expectedMigrations = folders
-    .filter(({ name }) => name <= MIGRATION_CEILING)
+    .filter(({ name }) => name <= ceiling)
     .map(({ name, hash }) => ({ name, hash }));
-  expect(expectedMigrations.at(-1)?.name).toBe(MIGRATION_CEILING);
+  expect(expectedMigrations.at(-1)?.name).toBe(ceiling);
   expect(
     sqlite
       .query<{ name: string; hash: string }, []>(
@@ -844,6 +855,28 @@ for (const drift of ['organization', 'membership'] as const)
     expect(combinedWrites()).toEqual(before);
   });
 it('retains the complete combined birth and current caller before the admitted queue', async () => {
+  closeFixture();
+  openFixture('activated', 'catalogue');
+  const bound = await new StepCatalogueRepository(connection.db, OPEN, 'owned').defineAndBindStep(
+    'org-a',
+    {
+      id: 'research-definition',
+      name: 'Research',
+      code: 'research',
+      position: 10,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowancePercent: 0,
+    },
+    {
+      bindingId: 'research-binding',
+      scopeKind: 'organization',
+      scopeId: 'org-a',
+      workItemTypeId: null,
+      position: 10,
+    },
+    { at: 1, by: 'creator' },
+  );
+  if (!bound.ok) throw new Error('combined birth catalogue setup refused: ' + bound.reason);
   const evidence = createCaller(),
     child = combinedFirst(),
     birth = { ...createBirth() },
@@ -861,7 +894,7 @@ it('retains the complete combined birth and current caller before the admitted q
     kind: 'created_with_work_package',
     project: { name: 'Original', createdBy: 'creator', workPackageCount: 1 },
     workPackage: { name: 'First', createdAt: 20 },
-    steps: [{ name: 'Research' }],
+    steps: [{ id: 'research-definition', name: 'Research' }],
   });
   expect(
     sqlite.query("SELECT subject_id,created_at FROM access_grant WHERE id='new-w-grant'").get(),

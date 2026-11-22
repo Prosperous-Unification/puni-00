@@ -1,6 +1,6 @@
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { servicesOver } from '@wbs/core/compose';
 import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
@@ -22,6 +22,7 @@ import {
 import { openSqliteSource } from './source';
 import { isSqliteCleanupUnknown } from './sqlite-cleanup';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const BASELINE = '20261110110100_widen_organization_audit_projects';
@@ -585,13 +586,31 @@ it('lifts persisted non-default settings and agreed project factors while real r
   expectRefusal(() => refuseRollback(store), 'snapshot');
   expect(captureStore(store.path)).toEqual(liftedBeforeDown);
   installSpaceTransition(store);
-  expect(await readConsumers(store.path)).toEqual(expected);
-  withinStore(store.path, (sqlite) =>
+  const retained = captureStore(store.path);
+  const consumerDirectory = mkdtempSync(join(dirname(store.path), 'current-consumer-'));
+  const consumerPath = join(consumerDirectory, 'store.db');
+  withinStore(store.path, (sqlite) => sqlite.run('VACUUM INTO ?', [consumerPath]));
+  withinStore(consumerPath, (sqlite) => {
+    // Catalogue conversion requires one common workflow for the two packages under Agreed.
+    const copied = sqlite.run(
+      "INSERT INTO step(id,work_package_id,name,code,position,estimate_unit,allowance_bps,created_at) SELECT 'settings-step-inherited','settings-inherited',name,code,position,estimate_unit,allowance_bps,created_at FROM step WHERE id='settings-step'",
+    );
+    expect(copied.changes).toBe(1);
+  });
+  try {
+    applyHistoricalCatalogueFixture(consumerPath, consumerDirectory, {});
+  } catch (cause: unknown) {
+    if (isSqliteCleanupUnknown(cause)) hasUnknownOwner = true;
+    throw cause;
+  }
+  applyMigrations(consumerPath, FOLDER);
+  expect(await readConsumers(consumerPath)).toEqual(expected);
+  withinStore(consumerPath, (sqlite) =>
     sqlite.run(
       "UPDATE setting_value SET value_json='2' WHERE scope_kind='project' AND scope_id='settings-agreed-project' AND key='budgetFactor'",
     ),
   );
-  const changed = await readConsumers(store.path);
+  const changed = await readConsumers(consumerPath);
   expect(changed.packages.map(({ id, budgetFactor }) => ({ id, budgetFactor }))).toEqual([
     { id: 'settings-override', budgetFactor: 2 },
     { id: 'settings-inherited', budgetFactor: 2 },
@@ -619,7 +638,7 @@ it('lifts persisted non-default settings and agreed project factors while real r
       },
     ],
   });
-  const retained = captureStore(store.path);
+  expect(captureStore(store.path)).toEqual(retained);
   expectRefusal(() => refuseRollback(store), 'snapshot');
   expect(captureStore(store.path)).toEqual(retained);
 });

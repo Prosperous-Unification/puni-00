@@ -8,17 +8,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { rollbackTo } from './migrate-down';
+import { runMigrations } from './migrate';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { SpaceRepository } from './space';
-import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
+import { openSpaceDatabase } from './testing/space-database';
 
 const BEFORE_SPACES = '20260928200000_add_work_item_status_facts';
+const SPACE_WINDOW = '20261110120100_space_holds_projects_people_teams';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
 
 /**
  * `20260929100000_add_spaces`: a space and its membership, the composite
- * references that make cross-organization membership impossible, and the
- * rollback that refuses while any space exists.
+ * references that make cross-organization membership impossible.
  */
 describe('spaces', () => {
   let dir: string;
@@ -132,37 +134,6 @@ describe('spaces', () => {
     });
   });
 
-  describe('the guarded current rollback', () => {
-    it('refuses the project-space transition without changing schema or assignments when empty', () => {
-      const before = raw((sqlite) => ({
-        schema: sqlite
-          .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
-          .all(),
-        ledger: sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY created_at').all(),
-      }));
-      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow();
-      expect(
-        raw((sqlite) => ({
-          schema: sqlite
-            .query('SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name')
-            .all(),
-          ledger: sqlite.query('SELECT * FROM __drizzle_migrations ORDER BY created_at').all(),
-        })),
-      ).toEqual(before);
-    });
-    it('refuses while a space exists and retains its current project assignment', () => {
-      insertSpace('s-1', 'org-a');
-      insertMember('s-1', 'a1');
-      const before = members();
-      // Historical package-pair down proof, preserved without current transition credit.
-      // Proof, observed 2026-09-29: with the guard's INSERT removed from
-      // `down.sql`, this rollback answered `[SPACES]` and dropped both tables.
-      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow();
-      expect(count('space')).toBe(1);
-      expect(members()).toEqual(before);
-    });
-  });
-
   describe('SpaceRepository', () => {
     spaceStoreConformance((): SpaceStoreFixture => ({
       store: new SpaceRepository(openDrizzle(path), OPEN),
@@ -192,5 +163,73 @@ describe('spaces', () => {
         reason: 'not_found',
       });
     });
+  });
+});
+
+describe('the guarded project-space migration window', () => {
+  let directory: string;
+  let path: string;
+  let folder: string;
+
+  beforeEach(() => {
+    directory = mkdtempSync(join(tmpdir(), 'wbs-space-window-'));
+    path = join(directory, 'store.db');
+    folder = copyRecoveryPrefix(directory, SPACE_WINDOW);
+    runMigrations(path, folder);
+    const sqlite = openDatabase(path);
+    try {
+      expect(
+        sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
+      ).toEqual(readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })));
+      sqlite.run("INSERT INTO users(id,username,created_at) VALUES('ada','ada',1)");
+      sqlite.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1)");
+      sqlite.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('a1','org-a','A1',1,'ada')",
+      );
+      sqlite.run(
+        "INSERT INTO work_package(id,project_id,name,created_at,created_by) VALUES('a1','a1','A1',1,'ada')",
+      );
+      sqlite.run(
+        "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('a1','org-a')",
+      );
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  function expectWindowRefusal() {
+    const before = readRecoveryState(path);
+    expect(() => rollbackTo(path, folder, BEFORE_SPACES)).toThrow(
+      'rolling back ' +
+        SPACE_WINDOW +
+        ' failed: space project rollback requires restoring the verified window snapshot',
+    );
+    expect(readRecoveryState(path)).toEqual(before);
+  }
+
+  it('refuses the project-space transition without changing schema or assignments when empty', () => {
+    expectWindowRefusal();
+  });
+
+  it('refuses while a space exists and retains its project assignment', () => {
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(
+        "INSERT INTO space(id,organization_id,name,revision,created_at,created_by) VALUES('s-1','org-a','Q3',0,1,'ada')",
+      );
+      sqlite.run("UPDATE project SET space_id='s-1',space_position=10 WHERE id='a1'");
+      expect(sqlite.query('SELECT space_id,space_position FROM project').all()).toEqual([
+        { space_id: 's-1', space_position: 10 },
+      ]);
+    } finally {
+      sqlite.close();
+    }
+    // Historical package-pair proof, observed 2026-09-29: removing the original
+    // guard's INSERT let that rollback return [SPACES] and drop both tables.
+    expectWindowRefusal();
   });
 });

@@ -6,28 +6,29 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 
 import { openDatabase } from './db';
-import { runMigrations } from './migrate';
 import * as schema from './schema';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 let dir: string;
 let path: string;
+let custody = { hasUnknownOwner: false };
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-schema-indexes-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path, directory: dir, reportedAt: 1 }, custody);
 });
 
 afterEach(() => {
-  rmSync(dir, { recursive: true, force: true });
+  if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
-/** Every index `schema.ts` declares, by name. */
+/** Every current index in `schema.ts`, by name. The historical reader binds `step` only before catalogue117. */
 function declaredIndexes(): string[] {
   const names: string[] = [];
   for (const exported of Object.values(schema)) {
+    if (exported === schema.step) continue;
     // Only the table objects have a config. Everything else this module exports
     // is a helper or a constant, and `getTableConfig` throws on those rather
     // than answering an empty one — hence the catch instead of a type guard.
@@ -82,6 +83,8 @@ function indexesInDatabase(): string[] {
  */
 describe('schema.ts and the migrated database agree about indexes', () => {
   it('declares every index the database holds, and no others', () => {
+    // Proof: omitting the attempt location index from the current declaration
+    // failed on resource_use_location_attempt in the fully migrated fixture.
     expect(declaredIndexes()).toEqual(indexesInDatabase());
   });
 

@@ -7,14 +7,16 @@ import { expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const projectsAudit = '20261110110100_widen_organization_audit_projects';
 
-it('keeps the full current parent schema and irreversible window independently of historical fixtures', () => {
+it('keeps the full project parent schema at its irreversible migration window', () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-current-migrations-')),
     path = join(directory, 'store.db');
   try {
-    runMigrations(path, FOLDER);
+    const folder = copyRecoveryPrefix(directory, projectsAudit);
+    runMigrations(path, folder);
     const sqlite = openDatabase(path);
     try {
       const ledger = () =>
@@ -35,24 +37,24 @@ it('keeps the full current parent schema and irreversible window independently o
           .query<{ name: string; notnull: number }, []>('PRAGMA table_info(work_package)')
           .all();
       expect(applied).toEqual(
-        readMigrationFolders(FOLDER).map(({ name, hash }) => ({ name, hash })),
+        readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })),
       );
       expect(
         applied.some(({ name }) => name === '20261110100000_rename_project_to_work_package'),
       ).toBe(true);
       expect(applied.some(({ name }) => name === '20261110110000_add_project')).toBe(true);
-      expect(
-        applied.some(({ name }) => name === '20261110110100_widen_organization_audit_projects'),
-      ).toBe(true);
+      expect(applied.at(-1)?.name).toBe(projectsAudit);
       expect(before.some(({ type, name }) => type === 'table' && name === 'project')).toBe(true);
       expect(columns.find(({ name }) => name === 'project_id')?.notnull).toBe(1);
       expect(columns.find(({ name }) => name === 'created_by')?.notnull).toBe(1);
       expect(columns.some(({ name }) => name === 'owner_id')).toBe(false);
-      expect(() => rollbackTo(path, FOLDER, '20261103110000_add_initial_access_offers')).toThrow(
-        'audit project rollback requires restoring the verified window snapshot',
+      const state = readRecoveryState(path);
+      expect(() => rollbackTo(path, folder, '20261103110000_add_initial_access_offers')).toThrow(
+        'rolling back ' +
+          projectsAudit +
+          ' failed: audit project rollback requires restoring the verified window snapshot',
       );
-      expect(ledger()).toEqual(applied);
-      expect(schema()).toEqual(before);
+      expect(readRecoveryState(path)).toEqual(state);
     } finally {
       sqlite.close();
     }

@@ -27,6 +27,7 @@ import {
 import * as connections from './db';
 import { type Connection, openConnection } from './db';
 import { runMigrations } from './migrate';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const SKELETON = '20260426171432_talented_smiling_tiger';
@@ -82,7 +83,10 @@ describe('snapshotDatabase and restoreDatabase', () => {
     expect(snapshot.migrations).toEqual([SKELETON]);
     expect(snapshot.path).toBe(snapshotPath);
 
-    runMigrations(dbPath, FOLDER);
+    migrateEmptyCatalogueFixture(
+      { path: dbPath, directory: dir, reportedAt: 1 },
+      { hasUnknownOwner: false },
+    );
     const connection = openConnection(dbPath);
     try {
       connection.db.run(sql.raw("INSERT INTO backup_marker (v) VALUES ('after')"));

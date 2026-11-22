@@ -2,44 +2,65 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
-import { runMigrations } from './migrate';
+import { openConnection, openDrizzle } from './db';
+import { OPEN } from './gate';
 import { reserveSolverSlot } from './optimization-admission';
 import { allocateGeneration } from './optimization-generation';
 import { solverSlot } from './schema';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
-const dirs: string[] = [];
+const dirs: { dir: string; custody: { hasUnknownOwner: boolean } }[] = [];
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const { dir, custody } of dirs.splice(0))
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true, force: true });
 });
 
 describe('reserveSolverSlot cross-coordinator capacity', () => {
-  it('shares both ceilings and reclaims abandoned seats only after their stored deadlines', () => {
+  it('shares both ceilings and reclaims abandoned seats only after their stored deadlines', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-optimization-global-admission-'));
-    dirs.push(dir);
+    const custody = { hasUnknownOwner: false };
+    dirs.push({ dir, custody });
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    const raw = openDatabase(path);
+    const stamp = { by: 'u-1', at: 1 };
+    const projectId = 'fixture-project';
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        projectId,
+        organizationId: 'fixture-legacy-org',
+        stamp,
+        definitions: [],
+      },
+      custody,
+    );
+    const seed = openConnection(path);
     try {
-      raw.run(
-        `INSERT INTO users (id, username, password_hash, created_at)
-         VALUES ('u-1', 'owner', 'hash', 1)`,
-      );
-      for (let workPackage = 1; workPackage <= 5; workPackage += 1) {
-        raw.run(
-          `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
-                                optimization_enabled, schedule_engine, schedule_objective)
-           VALUES (?, ?, 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
-          [`p-${String(workPackage)}`, `Plan ${String(workPackage)}`],
+      const workPackages = new WorkPackageRepository(seed.db, OPEN);
+      for (let index = 1; index <= 5; index += 1) {
+        const workPackage = await workPackages.create(
+          workPackageRow({
+            id: `p-${String(index)}`,
+            name: `Plan ${String(index)}`,
+            projectId,
+            optimizationEnabled: true,
+            scheduleEngine: 'optimized',
+            scheduleObjective: 'pri',
+          }),
+          [],
+          stamp,
         );
+        if (typeof workPackage === 'string')
+          throw new Error('admission fixture package refused: ' + workPackage);
       }
     } finally {
-      raw.close();
+      seed.close();
     }
 
     const blue = openDrizzle(path);

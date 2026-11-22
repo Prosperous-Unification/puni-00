@@ -13,18 +13,19 @@ import type { Connection } from './db';
 import { openConnection } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { savedPlan, workItem } from './schema';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { nodeDigest } from './testing/node-digest';
 import { HOLDER_CASE_BUDGET_MS, WriteLockHolder } from './testing/write-lock-holder';
-import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+function readerDb(reader: Connection | undefined): Connection['db'] {
+  if (reader === undefined) throw new Error('saved-plan fixture reader was not acquired');
+  return reader.db;
+}
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -33,7 +34,8 @@ const OPENED_AT = 1_756_000_123;
 describe('SavedPlanService.save answers snapshot_busy without holding up an edit', () => {
   let dir: string;
   let path: string;
-  let reader: Connection;
+  let reader: Connection | undefined;
+  let custody: { hasUnknownOwner: boolean };
 
   const item = (id: string, position: number) => ({
     id,
@@ -60,15 +62,30 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-busy-svc-'));
     path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
-    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+    custody = { hasUnknownOwner: false };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory: dir,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp: wrote,
+        definitions: [
+          {
+            id: 'st-1',
+            code: 'dev',
+            name: 'Dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+        ],
+      },
+      custody,
+    );
     const seed = openConnection(path);
     const db = seed.db;
-    await new UserRepository(db, OPEN).create(
-      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-      wrote,
-    );
-    await new WorkPackageRepository(db, OPEN).create(
+    const created = await new WorkPackageRepository(db, OPEN).create(
       workPackageRow({
         id: 'p1',
         name: 'Rewire the shed',
@@ -76,17 +93,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [
-        {
-          id: 'st-1',
-          workPackageId: 'p1',
-          name: 'Dev',
-          position: 10,
-          code: 'dev',
-          allowancePercent: 0,
-          estimateUnit: 'workdays' as const,
-        },
-      ],
+      [],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -97,13 +104,16 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
     await items.insert(item('wi-1', 10), [], wrote);
     await items.insert(item('wi-2', 20), [], wrote);
     seed.close();
+    if (typeof created === 'string')
+      throw new Error('saved plan fixture package refused: ' + created);
     reader = openConnection(path);
   });
 
   afterEach(async () => {
     await WriteLockHolder.stopAll();
-    reader.close();
-    rmSync(dir, { recursive: true, force: true });
+    reader?.close();
+    reader = undefined;
+    if (!custody.hasUnknownOwner) rmSync(dir, { recursive: true });
   });
 
   const service = (): SavedPlanService =>
@@ -117,10 +127,10 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
     });
 
   const headerIds = async (): Promise<string[]> =>
-    (await reader.db.select().from(savedPlan)).map((row) => row.id).sort();
+    (await readerDb(reader).select().from(savedPlan)).map((row) => row.id).sort();
 
   const itemIds = async (): Promise<string[]> =>
-    (await reader.db.select().from(workItem)).map((row) => row.id).sort();
+    (await readerDb(reader).select().from(workItem)).map((row) => row.id).sort();
 
   /**
    * The whole refusal, end to end, and the promise that comes with it.
@@ -162,7 +172,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
       // the holder and then lands, which is the spec's "a live edit issued
       // during that window still completes". Releasing first would let the
       // holder commit before the edit began and skip the wait under load.
-      await new WorkItemRepository(reader.db, OPEN).insert(item('wi-3', 30), [], wrote);
+      await new WorkItemRepository(readerDb(reader), OPEN).insert(item('wi-3', 30), [], wrote);
       expect(await itemIds()).toEqual(['wi-1', 'wi-2', 'wi-3']);
       // The edit could only land after the holder committed.
       expect(await headerIds()).toEqual(['sp-other']);

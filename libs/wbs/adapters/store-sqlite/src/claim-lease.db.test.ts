@@ -198,7 +198,8 @@ async function seeded(cap = 40) {
   );
   if (!nested.ok) throw new Error(`the inner leaf was refused: ${JSON.stringify(nested)}`);
   const inner = nested.results[0]?.id ?? '';
-  const [firstStep] = created.steps.map(({ id }) => id);
+  const firstStep = (await source.stores.workPackages.stepsOf(workPackageId)).at(0);
+  if (firstStep === undefined) throw new Error('lease fixture first step missing');
   /** A claim of a leaf's first step, or of a non-leaf's subtree. */
   const claim = (workItemId: string, personId: string, extra: { parentClaim?: string } = {}) =>
     ({
@@ -206,7 +207,7 @@ async function seeded(cap = 40) {
       workItemId,
       personId,
       runId: `run-${personId}`,
-      ...(workItemId === parent ? {} : { steps: [firstStep] }),
+      ...(workItemId === parent ? {} : { steps: [firstStep.id] }),
       ...extra,
     }) as PlanCommand;
   const leases = () =>

@@ -16,12 +16,10 @@ import { describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -75,14 +73,31 @@ async function openWorld(attempts: {
 }): Promise<World & { close: () => Promise<void> }> {
   const directory = mkdtempSync(join(tmpdir(), 'budget-admission-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
-  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: { by: 'dany', at: 1 },
+      definitions: [
+        {
+          id: 'budget-dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    { hasUnknownOwner: false },
+  );
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     organizationDefaultLimits: DEFAULTS,
   });
-  source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   const broadcast = recordingBroadcaster();
   const options = {
     admission: LEGACY_EDIT_ADMISSION,
@@ -138,9 +153,8 @@ async function openWorld(attempts: {
     return id;
   };
   const parentId = idOf('P');
-  const stepId = source.db.get<{ id: string }>(
-    sql`SELECT id FROM step WHERE work_package_id = ${workPackageId} ORDER BY position LIMIT 1`,
-  ).id;
+  const stepId = created.steps.at(0)?.id;
+  if (stepId === undefined) throw new Error('admission fixture package has no bound workflow');
   const budget = await run([
     {
       kind: 'setBudget',

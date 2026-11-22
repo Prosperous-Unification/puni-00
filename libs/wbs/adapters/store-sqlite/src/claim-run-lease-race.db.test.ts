@@ -16,12 +16,11 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { CAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -59,29 +58,38 @@ function principalOf(pin: CredentialPin | null): AuthenticatedUser {
   };
 }
 
+let custody = { hasUnknownOwner: false };
 let directory: string | null = null;
 let source: SqliteSource | null = null;
 
-afterEach(async () => {
+async function closeWorld() {
   await source?.close();
-  if (directory !== null) rmSync(directory, { recursive: true, force: true });
   source = null;
-  directory = null;
-});
+  if (directory !== null) {
+    if (custody.hasUnknownOwner)
+      throw new Error('uncertain lease race fixture owner; retained ' + directory);
+    rmSync(directory, { recursive: true, force: true });
+    directory = null;
+  }
+}
+
+afterEach(closeWorld);
 
 /** A fresh store: organization A, Dany its admin, the agent `codex`, and `LEAVES` root leaves. */
 async function openWorld(clock: { now: number }) {
-  await source?.close();
-  if (directory !== null) rmSync(directory, { recursive: true, force: true });
+  await closeWorld();
   directory = mkdtempSync(join(tmpdir(), 'claim-run-lease-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path: dbPath, directory, reportedAt: 1 }, custody);
+  custody.hasUnknownOwner = true;
   const opened = openSqliteSource({
     dbPath,
     dependencyCapability: CAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     organizationDefaultLimits: DEFAULTS,
   });
   source = opened;
+  custody.hasUnknownOwner = false;
   opened.db.run(sql`INSERT INTO users (id, username, created_at) VALUES ('dany', 'dany', 1)`);
   opened.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
   seedPackageParent(dbPath, 'org-a', 'fixture-project');
@@ -105,6 +113,29 @@ async function openWorld(clock: { now: number }) {
     dependencyContext: createLocalDependencyContext(opened.stores),
   };
   const graph = servicesOver(opened.stores, options);
+  for (const [position, name] of ['Dev', 'QA'].entries()) {
+    const id = name.toLowerCase();
+    const defined = await opened.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id,
+        code: id,
+        name,
+        position: position + 1,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: position + 1,
+      },
+      { at: 1, by: 'dany' },
+    );
+    if (!defined.ok) throw new Error('lease fixture step refused: ' + defined.reason);
+  }
   const created = await seedOrganizationPackage(
     opened.stores.workPackages,
     options.clock,
@@ -114,7 +145,7 @@ async function openWorld(clock: { now: number }) {
     'Runs',
   );
   const workPackageId = created.workPackage.id;
-  const firstStep = created.steps.at(0);
+  const firstStep = (await opened.stores.workPackages.stepsOf(workPackageId)).at(0);
   if (firstStep === undefined) throw new Error('run fixture first step missing');
 
   const runner = createPlanCommandRunner({

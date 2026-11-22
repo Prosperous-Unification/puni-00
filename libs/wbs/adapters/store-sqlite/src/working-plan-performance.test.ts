@@ -27,12 +27,10 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { expect, it } from 'bun:test';
 import type { Logger } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
-import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const OWNER = 'working-plan-performance-owner';
 const WORK_PACKAGE = 'working-plan-performance-work-package';
 const STEP = 'working-plan-performance-step';
@@ -202,33 +200,39 @@ function changedDays(index: number) {
 async function performanceFixture(name: string): Promise<PerformanceFixture> {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-performance-'));
   const dbPath = join(directory, 'source.db');
-  runMigrations(dbPath, MIGRATIONS);
-  seedLegacyPackageParent(dbPath, 'fixture-legacy-org', 'fixture-project');
+  await seedCurrentProjectFixture(
+    {
+      path: dbPath,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp: STAMP,
+      definitions: [
+        {
+          id: STEP,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          defaultAllowancePercent: 0,
+          defaultEstimateUnit: 'workdays',
+        },
+      ],
+    },
+    { hasUnknownOwner: false },
+  );
   const counts = emptyCounts();
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
     logger: sqlCounter(counts),
   });
-  await source.stores.users.create(
-    { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
-    STAMP,
-  );
-  await source.stores.workPackages.create(
+  const created = await source.stores.workPackages.create(
     workPackageRow({ id: WORK_PACKAGE, projectId: 'fixture-project', name }),
-    [
-      {
-        id: STEP,
-        workPackageId: WORK_PACKAGE,
-        name: 'Step',
-        position: 10,
-        code: 'step',
-        allowancePercent: 0,
-        estimateUnit: 'workdays' as const,
-      },
-    ],
+    [],
     STAMP,
   );
+  if (typeof created === 'string')
+    throw new Error('performance fixture package refused: ' + created);
   const firstPerson = await source.stores.directory.addPerson(
     { id: 'person-a', name: 'Person A' },
     [],

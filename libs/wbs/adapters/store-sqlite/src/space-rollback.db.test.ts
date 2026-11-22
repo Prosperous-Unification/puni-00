@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -13,6 +13,7 @@ import { rollbackTo } from './migrate-down';
 import { SpaceRepository } from './space';
 import { removeSavedSpaces, restoreSpaces, saveSpaces } from './space-rollback';
 import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
 
 const BEFORE_SPACES = '20260928200000_add_work_item_status_facts';
@@ -88,10 +89,10 @@ describe('space rollback save, remove and restore', () => {
   }
 
   /** Keeps the public operator path; an unexpected wrapper failure retains the fixture. */
-  function rollBackSpaces(): void {
+  function rollBackSpaces(folder: string): void {
     if (path === undefined) throw new Error('space rollback database is absent');
     try {
-      rollbackTo(path, FOLDER, BEFORE_SPACES);
+      rollbackTo(path, folder, BEFORE_SPACES);
     } catch (cause: unknown) {
       const expected =
         'rolling back ' +
@@ -189,12 +190,13 @@ describe('space rollback save, remove and restore', () => {
       ),
     );
   /** Independent filesystem names/raw SHA256s, without the rollback selector or saved ledger as its oracle. */
-  const expectedLedger = () =>
+  const expectedLedger = (through?: string) =>
     readdirSync(FOLDER, { withFileTypes: true })
       .filter(
         (entry) => entry.isDirectory() && existsSync(join(FOLDER, entry.name, 'migration.sql')),
       )
       .map((entry) => entry.name)
+      .filter((name) => through === undefined || name <= through)
       .sort()
       .map((name) => ({
         name,
@@ -239,7 +241,29 @@ describe('space rollback save, remove and restore', () => {
   });
 
   it('refuses the full old rollback with authored projects and engagements, retaining every schema row and full ledger', async () => {
+    if (dir === undefined) throw new Error('space rollback fixture directory is absent');
+    const windowDirectory = join(dir, 'space-window');
+    mkdirSync(windowDirectory);
+    const folder = copyRecoveryPrefix(windowDirectory, SPACE_WINDOW);
+    path = join(windowDirectory, 'store.db');
+    try {
+      runMigrations(path, folder);
+    } catch (cause: unknown) {
+      if (isSqliteCleanupUnknown(cause)) uncertain.push(cause);
+      throw cause;
+    }
     withinStore((db) => {
+      db.run("INSERT INTO users(id,username,created_at) VALUES('ada','ada',1)");
+      db.run("INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1),('org-b','B',1)");
+      db.run(
+        "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES('fixture-parent-org-a','org-a','Fixture A',1,'ada'),('rollback-second-org-a','org-a','Rollback second',1,'ada'),('fixture-parent-org-b','org-b','Fixture B',1,'ada')",
+      );
+      db.run(
+        "INSERT INTO work_package(id,project_id,name,created_at,created_by) VALUES('a1','fixture-parent-org-a','A1',1,'ada'),('a2','rollback-second-org-a','A2',1,'ada'),('a3','fixture-parent-org-a','A3',1,'ada'),('a4','fixture-parent-org-a','A4',1,'ada'),('b1','fixture-parent-org-b','B1',1,'ada')",
+      );
+      db.run(
+        "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('a1','org-a'),('a2','org-a'),('a3','org-a'),('a4','org-a'),('b1','org-b')",
+      );
       db.run("INSERT INTO person(id,name) VALUES('rollback-person','Rollback Person')");
       db.run(
         "INSERT INTO person_organization(resource_id,organization_id,name) VALUES('rollback-person','org-a','Rollback Person')",
@@ -250,19 +274,42 @@ describe('space rollback save, remove and restore', () => {
       );
     });
     await withSpaceStore(async (store) => {
+      expect(
+        (await store.create({ id: 's-1', organizationId: 'org-a', name: 'Q3' }, wrote)).ok,
+      ).toBe(true);
+      expect(
+        (await store.create({ id: 's-2', organizationId: 'org-b', name: 'Launch' }, wrote)).ok,
+      ).toBe(true);
+      expect(await store.addProject('org-a', 's-1', SECOND_PROJECT, null, wrote)).toEqual({
+        ok: true,
+        position: 10,
+      });
+      expect(
+        await store.addProject('org-a', 's-1', FIRST_PROJECT, null, { at: 2, by: 'ada' }),
+      ).toEqual({
+        ok: true,
+        position: 5,
+      });
+      expect(await store.addProject('org-b', 's-2', OTHER_PROJECT, null, wrote)).toEqual({
+        ok: true,
+        position: 10,
+      });
       expect(await store.addPerson('org-a', 's-1', 'rollback-person', wrote)).toBe(true);
       expect(await store.addTeam('org-a', 's-1', 'rollback-team', wrote)).toBe(true);
     });
-    expect(ledger()).toEqual(expectedLedger());
+    const expected = expectedLedger(SPACE_WINDOW);
+    expect(ledger()).toEqual(expected);
     expect(ledger().at(-1)?.name).toBe(SPACE_WINDOW);
     const before = fullSnapshot();
-    expect(rollBackSpaces).toThrow(
+    expect(() => {
+      rollBackSpaces(folder);
+    }).toThrow(
       'rolling back ' +
         SPACE_WINDOW +
         ' failed: space project rollback requires restoring the verified window snapshot',
     );
     expect(fullSnapshot()).toEqual(before);
-    expect(ledger()).toEqual(expectedLedger());
+    expect(ledger()).toEqual(expected);
   });
 
   it('refuses to remove a save that no longer matches, deleting nothing', async () => {

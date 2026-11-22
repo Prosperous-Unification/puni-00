@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import * as database from './db';
 import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
-import { rollbackTo } from './migrate-down';
+import { runMigrations } from './migrate';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { organization } from './schema';
 import { SharedPeopleRestoreApprovalRepository } from './shared-people-restore-approval';
 import {
@@ -16,9 +16,11 @@ import {
   restoreSharedPeople,
   saveSharedPeople,
 } from './shared-people-rollback';
-import { readRecoveryState } from './testing/recovery-state';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
 import { MIGRATIONS_FOLDER, openSpaceDatabase } from './testing/space-database';
 import * as rankBackup from './work-package-rank-rollback';
+
+const RANK_WINDOW = '20261110100000_rename_project_to_work_package';
 
 let directory: string;
 let path: string;
@@ -165,9 +167,11 @@ describe('combined shared people recovery', () => {
         "INSERT INTO work_package_rank (work_package_id, organization_id, position, created_at, updated_at, created_by) VALUES ('a1', 'org-a', 3, 1, 2, 'ada')",
       );
       if (issued) {
-        execute(
-          "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'super_admin', 1)",
-        );
+        expect(
+          execute(
+            "UPDATE organization_membership SET role='super_admin' WHERE organization_id='org-a' AND user_id='ada' RETURNING role",
+          ),
+        ).toEqual([{ role: 'super_admin' }]);
         execute("UPDATE organization_activation SET state = 'activated', activated_at = 1");
         execute(
           "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES ('approval-security','org-a','organization','org-a','user','ada','org-super-admin','route',1)",
@@ -190,7 +194,13 @@ describe('combined shared people recovery', () => {
         );
       }
       expect(execute('SELECT * FROM shared_people_audit')).toEqual([]);
-      // Keep recovery evidence on current111; historical down availability is tested on a native prefix.
+      expect(execute('SELECT id FROM shared_people_restore_operation')).toEqual([
+        { id: 'restore-1' },
+      ]);
+      expect(execute('SELECT id FROM shared_people_restore_approval')).toEqual(
+        issued ? [{ id: 'approval-1' }] : [],
+      );
+      // Only the operation and its optional approval remain as recovery evidence.
       execute("DELETE FROM access_grant WHERE id='approval-security'");
       const saved = save();
       const recoveryState = () => ({
@@ -225,7 +235,9 @@ describe('combined shared people recovery', () => {
             for (const statement of down.split('--> statement-breakpoint'))
               if (statement.trim() !== '') sqlite.run(statement.trim());
           })();
-        }).toThrow('shared people restore evidence is recorded');
+        }).toThrow(
+          'CHECK constraint failed: shared people restore evidence is recorded: rollback cannot discard approvals',
+        );
         expect(sqlite.query('SELECT * FROM sqlite_temp_master ORDER BY name').all()).toEqual(temp);
       } finally {
         sqlite.close();
@@ -241,14 +253,49 @@ describe('combined shared people recovery', () => {
     expect(save().organizations.every((each) => each.mode === 'isolated')).toBe(true);
     expect(ranks()).toEqual([]);
     const empty = readRecoveryState(path);
-    expect(() =>
-      rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
-    ).toThrow('verified window snapshot');
-    expect(readRecoveryState(path)).toEqual(empty);
     expect(() => restoreSharedPeople(connection.db, saved, 202)).toThrow(
       'unsupported capacity mode shared',
     );
     expect(readRecoveryState(path)).toEqual(empty);
+
+    const windowDirectory = join(directory, 'rename-window');
+    mkdirSync(windowDirectory);
+    const folder = copyRecoveryPrefix(windowDirectory, RANK_WINDOW);
+    const historicalPath = join(windowDirectory, 'store.db');
+    runMigrations(historicalPath, folder);
+    const historical = openConnection(historicalPath);
+    try {
+      expect(historical.db.all('SELECT name,hash FROM __drizzle_migrations ORDER BY name')).toEqual(
+        readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })),
+      );
+      historical.db.run("INSERT INTO users(id,username,created_at) VALUES('ada','ada',1)");
+      historical.db.run(
+        "INSERT INTO organization(id,name,created_at,shared_people) VALUES('org-a','A',1,1),('org-b','B',1,0)",
+      );
+      historical.db.run(
+        "INSERT INTO work_package(id,name,owner_id,created_at,created_by) VALUES('a1','A1','ada',1,'ada'),('b1','B1','ada',1,'ada')",
+      );
+      historical.db.run(
+        "INSERT INTO work_package_organization(resource_id,organization_id) VALUES('a1','org-a'),('b1','org-b')",
+      );
+      historical.db.run(
+        "INSERT INTO work_package_rank(work_package_id,organization_id,position,created_at,updated_at,created_by) VALUES('a1','org-a',3,1,2,'ada'),('b1','org-b',7,4,NULL,'ada')",
+      );
+      expect(saveSharedPeople(historicalPath)).toEqual(saved);
+      expect(removeSharedPeople(historical.db, saved, 101)).toEqual({ organizations: 2, ranks: 2 });
+      expect(saveSharedPeople(historicalPath)).toEqual(save());
+      const before = readRecoveryState(historicalPath);
+      expect(() =>
+        rollbackTo(historicalPath, folder, '20261001010000_add_browser_credential_revocations'),
+      ).toThrow(
+        'rolling back ' +
+          RANK_WINDOW +
+          ' failed: work-package rename rollback requires restoring the verified window snapshot',
+      );
+      expect(readRecoveryState(historicalPath)).toEqual(before);
+    } finally {
+      historical.close();
+    }
   });
 
   it('rolls back a late remove failure including already deleted ranks and cleared modes', () => {

@@ -13,12 +13,15 @@ import { runMigrations } from './migrate';
 import { duplicateMigrationStamps, readMigrationFolders, rollbackTo } from './migrate-down';
 import { calendarMarker } from './schema';
 import { isSqliteCleanupUnknown } from './sqlite-cleanup';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { UserRepository } from './user';
 import { WorkPackageRepository } from './work-package';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
+const SPACE_WINDOW = '20261110120100_space_holds_projects_people_teams';
 /** Immutable historical folder identity; later entity renames do not rename migrations. */
 const PREVIOUS = '20260904140000_add_project_settings';
 const wrote: WriteStamp = { at: 1, by: 'owner' };
@@ -248,7 +251,13 @@ describe('20260905090000_add_calendar_marker', () => {
     // than requesting it. Watched failing exactly that way on h2puni,
     // 2026-09-05, before the seed was narrowed — the fault reproduces, and the
     // narrowing is what makes the red mean this table.
-    migrate(path, FOLDER);
+    if (directory === undefined) throw new Error('Calendar fixture directory was not acquired');
+    const custody = { hasUnknownOwner: false };
+    try {
+      migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
+    } finally {
+      hasUnknownOwner = custody.hasUnknownOwner;
+    }
     await seedWorkPackageWithMarkers(path);
 
     withinStore(path, (db) => {
@@ -258,14 +267,16 @@ describe('20260905090000_add_calendar_marker', () => {
     });
   });
 
-  it('refuses latest full-chain rollback without changing schema, rows or migration identities', () => {
-    migrate(path, FOLDER);
+  it('refuses historical space-window rollback without changing schema, rows or migration identities', () => {
+    if (directory === undefined) throw new Error('Calendar fixture directory was not acquired');
+    const historical = copyRecoveryPrefix(directory, SPACE_WINDOW);
+    migrate(path, historical);
     const before = captureStore(path);
     const expected =
       'rolling back 20261110120100_space_holds_projects_people_teams failed: space project rollback requires restoring the verified window snapshot';
     let refusal: { cause: unknown } | undefined;
     try {
-      rollbackTo(path, FOLDER, PREVIOUS);
+      rollbackTo(path, historical, PREVIOUS);
     } catch (cause: unknown) {
       refusal = { cause };
       // The public wrapper still owns an untagged finally-close. Unexpected failures

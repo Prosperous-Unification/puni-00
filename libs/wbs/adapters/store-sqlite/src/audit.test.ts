@@ -172,6 +172,11 @@ const EXEMPT = new Set([
   // A host job's projection is a runtime attestation: its authority and the
   // accepted event envelope carry who sent it and when (`dash-host-jobs` J10).
   'resourceHostJobRecord',
+  // Catalogue links and explicit values inherit authorship from their definitions
+  // and recorded operations, with no audit columns on either relation.
+  // Proof: injecting auditColumns into stepBinding failed the exemption check.
+  'stepBinding',
+  'workPackageStep',
 ]);
 
 /**
@@ -311,6 +316,14 @@ describe('every write fills the audit columns', () => {
       .filter((write) => !write.statement.includes('auditOnCreateBesidesCreatedAt('))
       // A host operator's row: dated, with no WBS user to name as its author.
       .filter((write) => !write.statement.includes('auditOnOperatorCreate('))
+      // A newly authored definition has no edit instant until its first patch.
+      // Proof: replacing authored createdBy with null failed the stepDefinition insert check.
+      .filter(
+        (write) =>
+          write.file !== 'step-catalogue.ts' ||
+          write.table !== 'stepDefinition' ||
+          !/createdAt: act[.]at,\s*createdBy: act[.]by,\s*updatedAt: null,/.test(write.statement),
+      )
       .map((write) => `${write.file}: insert into ${write.table}`);
     expect(missing).toEqual([]);
   });
@@ -319,6 +332,16 @@ describe('every write fills the audit columns', () => {
     const missing = writes
       .filter((write) => write.kind === 'update')
       .filter((write) => !write.statement.includes('auditOnUpdate('))
+      // Space recovery moves only the relationship and preserves the project's audit row.
+      // Proof: adding revision to the recovery update failed the project update check.
+      .filter(
+        (write) =>
+          write.file !== 'space-rollback.ts' ||
+          write.table !== 'project' ||
+          !/[.]set[(][{] spaceId: (?:null|saved[.]id), spacePosition: (?:null|member[.]position) [}][)]/.test(
+            write.statement,
+          ),
+      )
       .map((write) => `${write.file}: update of ${write.table}`);
     expect(missing).toEqual([]);
   });

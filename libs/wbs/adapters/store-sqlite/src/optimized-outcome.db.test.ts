@@ -4,21 +4,24 @@ import { join } from 'node:path';
 
 import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import type { SolverFailureReason } from '@wbs/contracts/solver/solver-failure-disposition';
+import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { openDatabase, openDrizzle } from './db';
+import { type Connection, openConnection, openDatabase } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
-import { runMigrations } from './migrate';
 import { reserveSolverSlot } from './optimization-admission';
 import { allocateGeneration } from './optimization-generation';
 import { storeOptimizedOutcomeAndRecord } from './optimized-outcome';
 import type { OutcomeWrite } from './optimized-schedule-cache';
 import { scheduleInputHash } from './schedule-input-hash';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
+import { WorkItemRepository } from './work-item';
+import { WorkPackageRepository } from './work-package';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';
 const BUDGET = 60_000;
 const INPUT: ScheduleInput = {
@@ -51,31 +54,64 @@ const RESULT: OptimizedResult = {
   schedule: schedule(INPUT.rows, INPUT.edges, INPUT.slices, INPUT.notBefore, INPUT.poolSizes),
 };
 
-const dirs: string[] = [];
+const fixtures: {
+  directory: string;
+  custody: { hasUnknownOwner: boolean };
+  connection?: Connection;
+}[] = [];
 
-function database(): { path: string; db: ReturnType<typeof openDrizzle> } {
-  const dir = mkdtempSync(join(tmpdir(), 'wbs-optimized-outcome-'));
-  dirs.push(dir);
-  const path = join(dir, 'outcome.db');
-  runMigrations(path, FOLDER);
-  const raw = openDatabase(path);
-  try {
-    raw.run(
-      `INSERT INTO users (id, username, password_hash, created_at)
-       VALUES ('u-1', 'owner', 'hash', 1)`,
-    );
-    raw.run(
-      `INSERT INTO work_package (id, name, owner_id, restricted, revision, created_at,
-                            optimization_enabled, schedule_engine, schedule_objective)
-       VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
-    );
-  } finally {
-    raw.close();
-  }
-  return { path, db: openDrizzle(path) };
+async function database(): Promise<{ path: string; db: Connection['db'] }> {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-optimized-outcome-'));
+  const custody = { hasUnknownOwner: false };
+  const fixture: (typeof fixtures)[number] = { directory, custody };
+  fixtures.push(fixture);
+  const path = join(directory, 'outcome.db');
+  const stamp = { at: 1, by: 'u-1' };
+  await seedCurrentProjectFixture(
+    {
+      path,
+      directory,
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      stamp,
+      definitions: [
+        {
+          id: 'step-dev',
+          code: 'dev',
+          name: 'Dev',
+          position: 10,
+          defaultEstimateUnit: 'workdays',
+          defaultAllowancePercent: 0,
+        },
+      ],
+    },
+    custody,
+  );
+  const connection = openConnection(path);
+  fixture.connection = connection;
+  const db = connection.db;
+  const created = await new WorkPackageRepository(db, OPEN).create(
+    workPackageRow({
+      id: 'p-1',
+      name: 'Plan',
+      projectId: 'fixture-project',
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'pri',
+    }),
+    [],
+    stamp,
+  );
+  if (typeof created === 'string') throw new Error('outcome fixture package refused: ' + created);
+  await new WorkItemRepository(db, OPEN).insert(
+    workItemRow({ id: 'w-1', workPackageId: 'p-1', position: 10 }),
+    [],
+    stamp,
+  );
+  return { path, db };
 }
 
-function admittedWrite(db: ReturnType<typeof openDrizzle>): OutcomeWrite {
+function admittedWrite(db: Connection['db']): OutcomeWrite {
   const generation = allocateGeneration(db, 'p-1', CONTRACT, HASH, 2);
   const admission = reserveSolverSlot(db, {
     workPackageId: 'p-1',
@@ -106,23 +142,25 @@ function admittedWrite(db: ReturnType<typeof openDrizzle>): OutcomeWrite {
 }
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const { connection, custody, directory } of fixtures.splice(0)) {
+    connection?.close();
+    if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true });
+  }
 });
 
 describe('optimized outcome events', () => {
-  it('records each typed failure with its full release identity and no schedule', async () => {
-    const reasons: readonly SolverFailureReason[] = [
-      'timeout',
-      'invalid-output',
-      'no-solution',
-      'internal-error',
-      'oom',
-      'horizon-overflow',
-      'objective-overflow',
-    ];
-
-    for (const reason of reasons) {
-      const { path, db } = database();
+  const reasons: readonly SolverFailureReason[] = [
+    'timeout',
+    'invalid-output',
+    'no-solution',
+    'internal-error',
+    'oom',
+    'horizon-overflow',
+    'objective-overflow',
+  ];
+  for (const reason of reasons)
+    it('records ' + reason + ' with its full release identity and no schedule', async () => {
+      const { path, db } = await database();
       const eventLog = new DrizzleEventLogStore(db, OPEN);
       const committed = storeOptimizedOutcomeAndRecord(db, eventLog, {
         ...admittedWrite(db),
@@ -154,12 +192,11 @@ describe('optimized outcome events', () => {
       } finally {
         raw.close();
       }
-    }
-    // Proof: restricting the event transaction to ok outcomes leaves the first event absent.
-  });
+      // Proof: restricting the event transaction to ok outcomes leaves the event absent.
+    });
 
-  it('rolls a plan-infeasible certificate back when recording its event crashes', () => {
-    const { path, db } = database();
+  it('rolls a plan-infeasible certificate back when recording its event crashes', async () => {
+    const { path, db } = await database();
     const write: OutcomeWrite = {
       ...admittedWrite(db),
       outcome: {
@@ -195,7 +232,7 @@ describe('optimized outcome events', () => {
   });
 
   it('replays the durable record when the process stops before the live push', async () => {
-    const { db } = database();
+    const { db } = await database();
     const eventLog = new DrizzleEventLogStore(db, OPEN);
     const committed = storeOptimizedOutcomeAndRecord(db, eventLog, admittedWrite(db));
 

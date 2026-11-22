@@ -8,14 +8,17 @@ import { canonicalRuntimeRequest } from '@wbs/contracts';
 import { parseStoredRuntimeAcceptance2 } from '@wbs/core/ports/runtime-command-records';
 import { expect, test } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
 async function openRuntimeFixture() {
   const directory = mkdtempSync(join(tmpdir(), 'runtime-format-'));
   const dbPath = join(directory, 'store.db');
-  runMigrations(dbPath, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,

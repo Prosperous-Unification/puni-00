@@ -261,7 +261,7 @@ export function renameProjectIn(
   const renamed = readProjectRow(
     tx
       .update(project)
-      .set({ name, revision, updatedAt: act.at })
+      .set({ name, revision, ...auditOnUpdate({ at: act.at }) })
       .where(and(eq(project.organizationId, organizationId), eq(project.id, projectId)))
       .returning()
       .get(),

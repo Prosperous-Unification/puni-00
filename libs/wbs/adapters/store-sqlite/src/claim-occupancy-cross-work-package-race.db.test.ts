@@ -14,8 +14,8 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
@@ -26,27 +26,35 @@ import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-pac
  * process (one write coordinator) and across two connections (two
  * coordinators, ordered by SQLite's `BEGIN IMMEDIATE`).
  */
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
 const ORG = 'org-race';
 const RAM = 'resource-host-ram';
 
+let custody = { hasUnknownOwner: false };
 let directory: string;
 let dbPath: string;
 let source: SqliteSource;
+let opened: SqliteSource | undefined;
 
 beforeEach(() => {
+  opened = undefined;
   directory = mkdtempSync(join(tmpdir(), 'claim-occupancy-cross-work-package-race-'));
   dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  custody = { hasUnknownOwner: false };
+  migrateEmptyCatalogueFixture({ path: dbPath, directory, reportedAt: 1 }, custody);
+  custody.hasUnknownOwner = true;
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
   });
+  opened = source;
+  custody.hasUnknownOwner = false;
 });
 
 afterEach(async () => {
-  await source.close();
+  await opened?.close();
+  if (custody.hasUnknownOwner)
+    throw new Error('uncertain occupancy fixture owner; retained ' + directory);
   rmSync(directory, { recursive: true, force: true });
 });
 
@@ -81,6 +89,29 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     sql`INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES(${ORG},${F},'member',1)`,
   );
   seedPackageParent(dbPath, ORG, 'fixture-project');
+  for (const [position, name] of ['Dev', 'QA'].entries()) {
+    const id = name.toLowerCase();
+    const defined = await source.stores.stepCatalogue.defineAndBindStep(
+      ORG,
+      {
+        id,
+        code: id,
+        name,
+        position: position + 1,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: id + '-binding',
+        scopeKind: 'project',
+        scopeId: 'fixture-project',
+        workItemTypeId: null,
+        position: position + 1,
+      },
+      { at: 1, by: F },
+    );
+    if (!defined.ok) throw new Error('lease fixture step refused: ' + defined.reason);
+  }
   const created = [
     expectCreated(
       await seedOrganizationPackage(
@@ -104,8 +135,8 @@ async function seeded(hold: Hold | null, stale: ResourceUnits[] | null = null) {
     ),
   ] as const;
   const workPackages = [created[0].workPackage.id, created[1].workPackage.id] as const;
-  const firstA = created[0].steps.at(0);
-  const firstB = created[1].steps.at(0);
+  const firstA = (await source.stores.workPackages.stepsOf(workPackages[0])).at(0);
+  const firstB = (await source.stores.workPackages.stepsOf(workPackages[1])).at(0);
   if (firstA === undefined || firstB === undefined)
     throw new Error('race fixture work package omitted its first workflow step');
   const stepIds = [firstA.id, firstB.id] as const;

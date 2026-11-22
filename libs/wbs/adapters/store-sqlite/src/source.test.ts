@@ -10,58 +10,70 @@ import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { type Connection, openConnection } from './db';
-import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import {
+  type CatalogueFixtureCustody,
+  migrateEmptyCatalogueFixture,
+} from './testing/catalogue-database';
+import { seedCurrentProjectFixture } from './testing/current-project-fixture';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedLegacyPackageParent } from './testing/legacy-package-parent';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 import { openSqliteStepCatalogueCase } from './testing/step-catalogue-fixture';
 
-const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const dirs: string[] = [];
+const fixtures: { directory: string; custody: CatalogueFixtureCustody }[] = [];
 
-function databasePath(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'wbs-sqlite-source-'));
-  dirs.push(dir);
-  return join(dir, 'source.db');
+function createDatabaseFixture() {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-sqlite-source-'));
+  const custody = { hasUnknownOwner: false };
+  fixtures.push({ directory, custody });
+  return { path: join(directory, 'source.db'), directory, custody };
 }
 
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const { directory, custody } of fixtures.splice(0)) {
+    if (!custody.hasUnknownOwner) rmSync(directory, { recursive: true });
+  }
 });
 
 describe('openSqliteSource', () => {
   it('keeps blockage writes and refreshed owner revisions transactional', async () => {
-    const path = databasePath();
-    runMigrations(path, MIGRATIONS);
-    seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
+    const { path, directory, custody } = createDatabaseFixture();
+    const stamp = { at: 10, by: 'owner' };
+    await seedCurrentProjectFixture(
+      {
+        path,
+        directory,
+        organizationId: 'fixture-legacy-org',
+        projectId: 'fixture-project',
+        stamp,
+        definitions: [
+          {
+            id: 'dev',
+            name: 'Dev',
+            position: 10,
+            code: 'dev',
+            defaultAllowancePercent: 0,
+            defaultEstimateUnit: 'workdays',
+          },
+        ],
+      },
+      custody,
+    );
     activateTestStepBlockages(path);
     const source = openSqliteSource({
       dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
     });
-    const stamp = { at: 10, by: 'owner' };
     const fact = { workItemId: 'blocked-owner', stepId: 'dev', blockedAt: 123 };
     try {
-      await source.stores.users.create(
-        { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
-        stamp,
-      );
-      await source.stores.workPackages.create(
+      const created = await source.stores.workPackages.create(
         workPackageRow({ id: 'blocked-work-package', projectId: 'fixture-project' }),
-        [
-          {
-            id: 'dev',
-            workPackageId: 'blocked-work-package',
-            name: 'Dev',
-            position: 10,
-            code: 'dev',
-            allowancePercent: 0,
-            estimateUnit: 'workdays',
-          },
-        ],
+        [],
         stamp,
       );
+      if (typeof created === 'string')
+        throw new Error('source fixture package refused: ' + created);
       await source.stores.workItems.insert(
         workItemRow({ id: fact.workItemId, workPackageId: 'blocked-work-package' }),
         [],
@@ -135,7 +147,7 @@ describe('openSqliteSource', () => {
     }
   });
   it('opens without applying migrations', async () => {
-    const path = databasePath();
+    const { path } = createDatabaseFixture();
     const source = openSqliteSource({
       dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
       dbPath: path,
@@ -156,8 +168,8 @@ describe('openSqliteSource', () => {
   });
 
   it('uses one process connection for transactional stores and independent history connections', async () => {
-    const path = databasePath();
-    runMigrations(path, MIGRATIONS);
+    const { path, directory, custody } = createDatabaseFixture();
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     activateTestStepBlockages(path);
     let opens = 0;
@@ -181,8 +193,8 @@ describe('openSqliteSource', () => {
   });
 
   it('reports a present schema as healthy', async () => {
-    const path = databasePath();
-    runMigrations(path, MIGRATIONS);
+    const { path, directory, custody } = createDatabaseFixture();
+    migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, custody);
     seedLegacyPackageParent(path, 'fixture-legacy-org', 'fixture-project');
     activateTestStepBlockages(path);
     const source = openSqliteSource({
@@ -194,7 +206,7 @@ describe('openSqliteSource', () => {
   });
 
   it('adds context to unexpected health failures', async () => {
-    const path = databasePath();
+    const { path } = createDatabaseFixture();
     const real = openConnection(path);
     const source = openSqliteSource({
       dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
@@ -217,7 +229,7 @@ describe('openSqliteSource', () => {
   });
 
   it('closes once and surfaces cleanup failure', async () => {
-    const path = databasePath();
+    const { path } = createDatabaseFixture();
     const real = openConnection(path);
     let closes = 0;
     const source = openSqliteSource({
@@ -263,7 +275,7 @@ describe('openSqliteSource', () => {
 it('rejects health immediately while Source writer retirement waits for its owned turn', async () => {
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: databasePath(),
+    dbPath: createDatabaseFixture().path,
   });
   const entered = Promise.withResolvers<undefined>();
   const release = Promise.withResolvers<undefined>();

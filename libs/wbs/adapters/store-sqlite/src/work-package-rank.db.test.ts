@@ -7,9 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
-import { rollbackTo } from './migrate-down';
-import { readRecoveryState } from './testing/recovery-state';
-import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
+import { runMigrations } from './migrate';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix, readRecoveryState } from './testing/recovery-state';
+import { openSpaceDatabase } from './testing/space-database';
 import { WorkPackageRankRepository } from './work-package-rank';
 import {
   removeSavedWorkPackageRanks,
@@ -18,16 +19,19 @@ import {
 } from './work-package-rank-rollback';
 
 const BEFORE_RANK = '20260929100000_add_spaces';
+const RANK_WINDOW = '20261110100000_rename_project_to_work_package';
 const wrote: WriteStamp = { at: 5, by: 'ada' };
 
 let dir: string;
 let path: string;
 
-beforeEach(async () => {
+beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-package-rank-'));
-  // Organizations `org-a` (work packages a1–a4) and `org-b` (b1), authored by ada.
-  path = await openSpaceDatabase(dir);
 });
+
+async function openCurrent() {
+  path = await openSpaceDatabase(dir);
+}
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -56,6 +60,8 @@ function ranks(): unknown[] {
 }
 
 describe('the work package rank', () => {
+  beforeEach(openCurrent);
+
   it('orders unranked work packages by creation, then id', async () => {
     sql("UPDATE work_package SET created_at = 0 WHERE id = 'a4'");
     expect(ids(await store().orderIn('org-a'))).toEqual(['a4', 'a1', 'a2', 'a3']);
@@ -139,15 +145,54 @@ describe('the work package rank', () => {
   });
 });
 
-describe('rolling back the work package rank', () => {
+async function seedRanks() {
+  await store().moveAfter('org-a', 'a2', null, wrote);
+  await store().moveAfter('org-b', 'b1', null, wrote);
+}
+
+describe('the work package rename window', () => {
+  let folder: string;
+
   beforeEach(async () => {
-    await store().moveAfter('org-a', 'a2', null, wrote);
-    await store().moveAfter('org-b', 'b1', null, wrote);
+    path = join(dir, 'store.db');
+    folder = copyRecoveryPrefix(dir, RANK_WINDOW);
+    runMigrations(path, folder);
+    const sqlite = openDatabase(path);
+    try {
+      expect(
+        sqlite.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
+      ).toEqual(readMigrationFolders(folder).map(({ name, hash }) => ({ name, hash })));
+      sqlite.run("INSERT INTO users(id,username,created_at) VALUES('ada','ada',1)");
+      sqlite.run(
+        "INSERT INTO organization(id,name,created_at) VALUES('org-a','A',1),('org-b','B',1)",
+      );
+      for (const id of ['a1', 'a2', 'a3', 'a4', 'b1']) {
+        sqlite.run(
+          "INSERT INTO work_package(id,name,owner_id,created_at,created_by) VALUES(?,?,'ada',1,'ada')",
+          [id, id],
+        );
+        sqlite.run(
+          'INSERT INTO work_package_organization(resource_id,organization_id) VALUES(?,?)',
+          [id, id === 'b1' ? 'org-b' : 'org-a'],
+        );
+      }
+    } finally {
+      sqlite.close();
+    }
+    await seedRanks();
   });
+
+  function expectWindowRefusal() {
+    expect(() => rollbackTo(path, folder, BEFORE_RANK)).toThrow(
+      'rolling back ' +
+        RANK_WINDOW +
+        ' failed: work-package rename rollback requires restoring the verified window snapshot',
+    );
+  }
 
   it('current111 refuses rollback before rank effects while preserving the whole store', () => {
     const before = readRecoveryState(path);
-    expect(() => rollbackTo(path, FOLDER, BEFORE_RANK)).toThrow('verified window snapshot');
+    expectWindowRefusal();
     expect(readRecoveryState(path)).toEqual(before);
     expect(ranks()).toHaveLength(5);
   });
@@ -160,10 +205,17 @@ describe('rolling back the work package rank', () => {
       5,
     );
     const empty = readRecoveryState(path);
-    expect(() => rollbackTo(path, FOLDER, BEFORE_RANK)).toThrow('verified window snapshot');
+    expectWindowRefusal();
     expect(readRecoveryState(path)).toEqual(empty);
     expect(restoreWorkPackageRanks(openDrizzle(path), saved)).toBe(5);
     expect(ranks()).toEqual(before);
+  });
+});
+
+describe('rolling back the work package rank', () => {
+  beforeEach(async () => {
+    await openCurrent();
+    await seedRanks();
   });
 
   it('refuses to remove a save that no longer matches, deleting nothing', async () => {
@@ -220,6 +272,7 @@ describe('rolling back the work package rank', () => {
 });
 
 it('new standalone rank saves emit only work-package-rank-save2 with current owner fields', async () => {
+  await openCurrent();
   await store().moveAfter('org-a', 'a1', null, wrote);
   const { openConnection } = await import('./db');
   const connection = openConnection(path);
@@ -236,6 +289,7 @@ it('new standalone rank saves emit only work-package-rank-save2 with current own
 });
 
 it('removes and restores historical project-rank-save1 through explicit current-row projection', async () => {
+  await openCurrent();
   await store().moveAfter('org-a', 'a1', null, wrote);
   const { openConnection } = await import('./db'),
     connection = openConnection(path);

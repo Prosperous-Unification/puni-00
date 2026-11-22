@@ -4650,6 +4650,38 @@ export const resourceUseRecord = sqliteTable(
     index('resource_use_lifecycle').on(t.workItemId, t.responsiblePersonId, t.agentRun),
   ],
 );
+/** Current cleanup addresses for resource uses whose reported addresses stay immutable. */
+export const resourceUseLocation = sqliteTable(
+  'resource_use_location',
+  {
+    useId: text('use_id')
+      .notNull()
+      .references(() => resourceUseRecord.id),
+    kind: text('kind', { enum: ['claim', 'attempt', 'unassociated'] }).notNull(),
+    workPackageId: text('work_package_id').notNull(),
+    workItemId: text('work_item_id'),
+  },
+  (t) => [
+    check('resource_use_location_kind', sql`${t.kind} IN ('claim','attempt','unassociated')`),
+    check('resource_use_location_package', sql`length(${t.workPackageId}) > 0`),
+    check(
+      'resource_use_location_item',
+      sql`
+      (${t.kind} = 'unassociated' AND ${t.workItemId} IS NULL) OR
+      (${t.kind} IN ('claim','attempt') AND typeof(${t.workItemId}) = 'text' AND length(${t.workItemId}) > 0)
+    `,
+    ),
+    unique().on(t.useId, t.kind, t.workItemId),
+    uniqueIndex('resource_use_location_unassociated')
+      .on(t.useId)
+      .where(sql`${t.kind} = 'unassociated'`),
+    uniqueIndex('resource_use_location_attempt')
+      .on(t.useId)
+      .where(sql`${t.kind} = 'attempt'`),
+    index('resource_use_location_current').on(t.workPackageId, t.workItemId, t.kind, t.useId),
+  ],
+);
+
 /** Append-only reports and exact original responses for retries after subsequent transitions. */
 export const resourceUseEventRecord = sqliteTable('resource_use_event', {
   id: text('id').notNull(),
