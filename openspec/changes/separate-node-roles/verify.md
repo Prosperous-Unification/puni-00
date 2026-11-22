@@ -177,6 +177,27 @@ then `judgeAnsibleRenders` and the other ansible judges on its report: all empty
 committed tree; with "retain SSH recovery" kept and the taint line removed in a copy of
 `infra/ansible`, the two problems named above.
 
+## Slices 1.1 to 1.9: commands (2026-11-22)
+
+Run in the worktree at `feat/platform-node-lane-a` after `bun install --frozen-lockfile`.
+
+| Command                                                                                                                                                                                                         | Result                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `env -u CLAUDECODE bun test` on `node-access`, `access-policy`, `placement`, `contracts`, `ansible`, `check` and `plan` (`tools/tool-fleet/src`)                                                                | 177 pass, 0 fail, 7 files         |
+| `bun test --preload ./tools/test/scratch/preload.ts ./infra/ansible/tests/node-roles.test.ts`, with `PUNI_TEST_ANSIBLE_PLAYBOOK` and `PUNI_TEST_ANSIBLE_INVENTORY` pointing at ansible-core 2.21.3 run by `uvx` | 8 pass, 0 fail                    |
+| `check-ansible.py` in the locked controller image, then the ansible judges of `check.ts` on its report                                                                                                          | every judge empty; 5 host renders |
+| `bunx nx run tool-fleet:typecheck`; `bunx tsc -p infra/ansible/tests/tsconfig.json --noEmit`                                                                                                                    | both succeeded                    |
+| `bunx eslint` on the changed `tools/tool-fleet/src` files                                                                                                                                                       | no problems                       |
+| `bunx nx format:check --files=<changed files>`                                                                                                                                                                  | exit 0                            |
+| `./node_modules/.bin/openspec validate --all --json`                                                                                                                                                            | 355 items, 355 passed, 0 failed   |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                                                                                                     | exit 0, empty stderr              |
+
+Not run: the whole `tool-fleet` test suite (stopped at the coordinator's request to spare
+the laptop; CI runs it), `tool-fleet:check` end to end and `check:faults`, no `check-faults.ts`
+row for the new judges, and anything on a host: the Tailscale join and its second run, a live
+`sshd -T` on the bastion, the console account against a live `sshd`, and every rehearsal case
+of slice 2.7.
+
 ## Owner decisions
 
 Each row is a decision of the owner's, stated as a decision and dated; the assumption that
