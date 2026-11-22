@@ -10197,3 +10197,755 @@ receipts, physical storage/backup/recovery proofs, complete candidate CI or the
 required exact-revision host gate before adoption. Nothing was activated and
 Task5.1, Task5.2 and the full registry objective remain open. The stopped storage
 and producer correction campaigns remain stopped.
+
+## Independent authenticated status client planning — 2026-11-21
+
+The main-based source worktree records the strict client contract, immutable
+registry status enrollment/frame terms, six delta scenarios and open Task5.1c.
+Its three-slice plan supplies a client prerequisite of5.1b; all server, checkpoint,
+producer admission, scheduling/storage, private serving and actual delivery
+requirements remain open. The full goal is active and unchanged.
+
+Fresh throwaway transport evidence: extracted nonroot OpenSSH9.6p1, generated
+fixture-only Ed25519 keys, explicit owned listen172.17.0.1 and permitted actual
+source192.168.1.182. Exact fixed-command frame46bytes exit0; wrong client key and
+host key exit255, wrong command exit77. Owned server parent reaped exit0; no
+package installed, service changed or production host/credential used. An earlier
+fixture correctly refused the real routed source because its key allowed only
+the destination address. These probes establish verifier feasibility only, not
+the production client or installed authority/observer/delivery boundaries.
+
+Baseline `bun test --preload ./tools/test/scratch/preload.ts
+tools/tool-fleet/src/registry-reader.test.ts` passed8/8 with41 assertions under
+ordinary local process access. The initial restricted-sandbox run failed5/8 on
+EPERM pipe writes; no production change was made for that environment restriction.
+Strict OpenSpec validation of the new artifacts passed1/1 with zero issues;
+formatting was corrected after its initial tasks/plan warnings. Implementation,
+R5 mutations, native public-API qualification and source checks remain pending.
+
+Source integration from the previous slice remains merged as PR960, main
+9e8e212d6b1133e60230b12b1fda582690bde294. Its automatic CodeQL44821586407 is
+completed/success; postmerge CI44821587380 was still in progress at this check.
+Neither run was restarted. No full-goal completion or activation is inferred.
+
+## Strict registry status enrollment and SSH command — 2026-11-21
+
+The pure contract accepts an exact trusted JSON enrollment, copies and freezes
+each object, and renders the pinned host line and fixed SSH arguments. The key
+grammar fixes the text prefix and bounds standard base64 at 68 characters without
+padding, which encodes exactly 51 bytes. The decoded wire checks validate both
+length fields and compare the algorithm name without discarding high bits.
+
+| Check                                                                                                   | Observed                                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts`                               | RED exited 1 with the expected missing-module error. GREEN passed 118 tests with 176 assertions.                   |
+| Focused high-bit algorithm regression using `--test-name-pattern 'rejects high-bit SSH algorithm byte'` | RED accepted the mutated key when ASCII decoding discarded the high bit. GREEN rejected it for both enrolled keys. |
+| `bun node_modules/.bin/eslint` on the contract and test                                                 | Exited 0 with no diagnostics.                                                                                      |
+| `bun node_modules/.bin/prettier --check` on the contract, test and this record                          | Exited 0.                                                                                                          |
+| `NX_DAEMON=false bun node_modules/.bin/nx run tool-fleet:typecheck --skip-nx-cache`                     | Owning typecheck passed with cache skipped.                                                                        |
+| `bun node_modules/.bin/openspec validate bound-registry-storage --strict --json`                        | One valid change with zero issues.                                                                                 |
+
+Each of 96 temporary source faults made exactly its selected production-path
+test fail under `bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts
+--test-name-pattern <anchored test name>` with exit 1. The runner restored the
+identical pre-proof-comment source after each fault and verified SHA-256
+`290ee8a7fab3f7ecd90c534dcc6a2c53bc0ea3739339982b4cc8d7db75deccf6`.
+
+| Faults injected independently                                                                                                                          | Tests that failed                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Ignore unknown fields at each enrollment object, admit the wrong schema or protocol, accept a numeric machine ID, expose the ArkType diagnostic        | The selected unknown-field, wrong-version and fixed-diagnostic tests                   |
+| Admit uppercase or short machine IDs or digests, empty or 257-code-point identities, or C1 controls                                                    | The selected machine ID, digest and registry or storage identity tests                 |
+| Allow relative, overlong, empty-segment, percent, dot or dot-dot paths, or detach a path check from the target, identity or pin                        | The selected path tests at the affected boundary                                       |
+| Allow three octets, a nonprivate address, octet 256, leading zeros, root, a malformed principal, or zero, oversized or fractional ports                | The selected address, principal and port tests                                         |
+| Relax the encoded key prefix, alphabet or length, omit a decoded length field or algorithm name, use ASCII decoding, or remove a host/client key check | The selected text algorithm, alphabet, short/extra wire, header and enrolled key tests |
+| Reuse an input object, omit any freeze, or change the pin alias, enrolled host key or trailing newline                                                 | The immutable copy, freeze and fixed pin-line tests                                    |
+| Delete any one of the 31 SSH options, remove a fixed argument group or substitute the executable, target or remote command                             | The exact restricted argv test each time                                               |
+
+These checks cover the pure enrollment and command boundary. Acquisition,
+native SSH qualification, the full project suite and build, and the
+exact-revision host gate remain pending for the wider change.
+
+### Exact own enrollment fields — independent review correction
+
+ArkType's generated object traversal admitted own JSON names inherited from
+`Object.prototype`. The parser now compares each object's own keys with the
+literal field union derived from its schema. This proof supersedes the five
+earlier unknown-field receipts for ArkType's undeclared-key setting.
+
+The focused JSON regression exited 1 before the fix with 16 unexpected
+admissions, one for each combination of enrollment object and `__proto__`,
+`constructor`, `toString` or `hasOwnProperty`. The covering file then passed
+135 tests with 193 assertions.
+
+Seven temporary faults proved the revised boundary, with the valid JSON
+enrollment control passing every time. Removing the root, target, peer or
+identity guard independently failed six, five, five or five selected negatives.
+Allowing inherited names through the lookup failed all 16 JSON negatives.
+Enumerating only string keys failed the symbol negative, and exposing field
+names failed the fixed diagnostic assertion. The source matched SHA-256
+`7cd8bce7acf7b96cd7b7e2f04bc797a1a47e91fe51ee13f74b1c7ee9bcdfca00`
+before and after each temporary fault, before the adjacent proof comments
+were added.
+
+### Independent status client contract accepted — 2026-11-21
+
+The pure enrollment/pin/SSH-argv prerequisite is accepted at
+`d70cacfb54b37aa0134c833278d33133b8b9d54f` in the isolated status-client branch.
+Independent review found16 own JSON fields with prototype-inherited names bypassed
+ArkType undeclared-key rejection. The correction derives exact own-key membership
+from the schema and was independently re-reviewed with no new issue. The saved
+covering suite passed135 tests/193 assertions; seven correction faults observed39
+intended failed assertions with valid controls and exact source restoration.
+Those replace five earlier unknown-field guard receipts;91 unaffected initial
+fault observations retain their original scope. Source/test hashes matched the
+reviewed report and the worktree was clean at acceptance.
+
+Root separately ran the17 JSON boundary/control cases against the committed fix:
+17 passed,118 filtered out, zero failures and17 assertions. This resolves the
+review's unverified separate filtered-invocation receipt without rerunning broader
+checks. Scoped lint/format, uncached owning typecheck, strict OpenSpec and normal
+hooks are recorded in the implementation report. The parser/pin/argv slice is
+complete; Task5.1c remains open for the owned reader and real public-API SSH
+qualification. Task5.1b, full source/host gates, installed monitoring/delivery and
+all full-goal activation/lifecycle obligations remain open. No stopped helper or
+production host/credential was used.
+
+## Owned registry status reader — 2026-11-21
+
+The reader owns one private pin and one active exchange. Local admission checks
+directory and file identity, mode, link count, bounded EOF, the enrolled key
+digest, exact pin bytes, and read/execute access to the fixed SSH binary. The
+actor checks the original deadline at acquisition, cleanup and public receipt.
+A faulted actor refuses further reads and permits pin removal only after known
+eventual settlement. A cleanup error preserves known failure classifications.
+Successful candidate bytes require complete cleanup before receipt.
+
+| Check                                                                                     | Observed                                                                                                                                                |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paired reader tests before either source module existed                                   | Exit 1 with the expected missing-module error in both files.                                                                                            |
+| Reader and accepted contract tests                                                        | 216 tests passed with 566 assertions. The 81 reader tests cover local admission, framing, EOF/exit, caps, deadlines, cancellation, cleanup and overlap. |
+| Scoped ESLint and Prettier, uncached `tool-fleet:typecheck`, and strict change validation | Passed.                                                                                                                                                 |
+| Bun source-only bundle and input manifest                                                 | The only fleet inputs were the actor, process supervisor and accepted contract.                                                                         |
+
+Run from the isolated reader worktree with Bun 1.4.4. The first command produced
+the paired missing-module RED before the reader files were added. The remaining
+commands checked the implemented reader.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts
+/home/df/.bun/bin/bun node_modules/.bin/eslint tools/tool-fleet/src/registry-pressure-source{,-process}{,.test}.ts
+/home/df/.bun/bin/bun node_modules/.bin/prettier --check tools/tool-fleet/src/registry-pressure-source{,-process}{,.test}.ts openspec/changes/bound-registry-storage/verify.md
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bun node_modules/.bin/nx run tool-fleet:typecheck --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bundle_dir=$(mktemp -d /tmp/puni-registry-reader-bundle-XXXXXX) &&
+  /home/df/.bun/bin/bun build tools/tool-fleet/src/registry-pressure-source.ts --target=bun --outfile="$bundle_dir/source.js" --metafile="$bundle_dir/inputs.json" &&
+  /home/df/.bun/bin/bun -e 'const metadata = await Bun.file(process.argv[1]).json(); const inputs = Object.keys(metadata.inputs); const fleet = inputs.filter((path) => path.startsWith("tools/tool-fleet/src/")); console.log(fleet.join("\n")); if (fleet.length !== 3 || fleet.some((path) => /registry-pressure-observer-store|registry-pressure-metrics/.test(path))) throw new Error("source bundle escaped the reader boundary");' "$bundle_dir/inputs.json"
+```
+
+Each fault used its owning test file and an anchored test name. These cases
+locate the original receipts alongside the adjacent production proof comments.
+
+| Fault family                         | Named failing cases                                                                                                                                                                                                                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Directory admission and pin creation | `refuses a directory symlink`, `refuses an actor directory with modeled mismatched ownership`, `exclusive pin creation preserves a file inserted after the emptiness check`                                                                                                                          |
+| File metadata and pinned bytes       | `refuses multilink identity before spawn`, `refuses an oversized identity before spawn`, `refuses a private identity with a different hash`, `close preserves a different pin inode with identical bytes`                                                                                            |
+| Local executable                     | `throws when the fixed SSH executable is missing`, `refuses a nonregular fixed SSH executable`, `refuses a fixed SSH executable with modeled read denied and execute allowed`                                                                                                                        |
+| Fixed command and byte admission     | `receives original binary bytes only after EOF and exit zero`, `requires EOF of stdout independently of the other pipe and exit`, `requires EOF of stderr independently of the other pipe and exit`, `starts both pipe reads before either is drained`                                               |
+| Exit and output limits               | `discards a valid-looking prefix on exit 77`, `discards a valid-looking prefix on exit 255`, `drains concurrent streams at exact stdout and stderr limits`, `terminates and reaps the owned fixture on stdout overflow`, `terminates and reaps the owned fixture on stderr overflow`                 |
+| Deadline and cleanup                 | `preflight consumes the original acquisition interval`, `unsettled preflight at the original deadline latches the actor`, `known stdout overflow survives unresolved original-deadline exit settlement`, `preserves only eligible outcomes after successful candidate and release past the deadline` |
+| Cancellation and exclusion           | `a busy read refuses overlapping read and close, then caller abort reaps the group`, `zero exit alone waits for complete EOF and cancels both held readers at cutoff`, `refuses a second close or read while the first close still owns the pin`                                                     |
+
+The scoped mutation campaign observed 94 selected assertion failures. Each
+fault reverted to the recorded pre-proof source before the next mutation.
+Device/inode, file state, exclusive pin creation, client credential digest
+and SSH executable admission faults failed their respective local checks.
+Changing fixed spawn policy, skipping exit or either EOF, delaying one reader
+behind the other and moving either output cap broke the corresponding fixture.
+Removing group signaling, pipe cancellation, settlement, deadline reservation,
+close admission or the fault latch broke the matching lifecycle test. Explicit
+faults reproduced leak of successful candidate bytes in a cleanup error,
+loss of the original deadline, and loss of a reserved nonzero exit
+classification. The separate execute-allowed/read-denied fault reached the
+intercepted spawn when read admission was removed.
+
+The subprocess fixtures use real owned local Bun children. Metadata, pipe
+setup/settlement faults and SSH access denials use scoped test doubles.
+Root-owned installed credentials, native SSH authentication and real SSH child
+qualification remain owed in Task5.1c. The full project suite, full build and
+exact-revision host gate remain pending for the wider change.
+
+### Independent reader review corrections
+
+The focused reproductions observed new pin opens after terminal preflight
+timeout, further identity reads after abort, loss of a natural exit77 when a
+pipe failed and successful frame publication after a suppressed shared abort
+listener. Preflight now gates every filesystem acquisition step while waiting
+for started work and releasing acquired descriptors. The process records natural
+nonzero exit independently while continuing both bounded drains. The first known
+failure remains available on a cleanup error. An external abort with successful
+cleanup still raises the fixed AbortError. Bun 1.4.4 verified that
+`node:events` `addAbortListener` observes shared abort through an earlier
+`stopImmediatePropagation()` listener. Both phases dispose their own
+subscriptions.
+
+| Review fault family                      | Named failing cases                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No new I/O after the acquisition window  | `terminal preflight timeout settles a pending directory inspection without opening its pin`, `interrupted preflight closes the identity after open by timeout`, `interrupted preflight closes the identity after full read by timeout`, `preflight cutoff after executable stat does not start access admission`                                                           |
+| Observed nonzero exit and outcome order  | `preserves an actual exit77 observed before a subsequent pipe fault`, `keeps an earlier abort primary when a later exit observation precedes pipe cancellation failure`, `keeps the timeout primary when a delayed exit77 observation crosses cutoff`, `retains controlled abort semantics after an independently observed exit77 with successful cleanup`                 |
+| Unsuppressible cancellation and disposal | `reaps an active child despite an earlier shared abort listener stopping propagation`, `interrupted preflight closes the identity after short read by abort before cutoff with late settlement`, `disposes preflight and process abort subscriptions after settling the exchange`, `cancels a received candidate during final subscription disposal before public receipt` |
+
+The 24 changed-guard faults each failed their selected production-path
+assertion. The runner restored the exact source after every executed fault.
+The original 94-fault record remains the basis for the unaffected guards.
+
+The review covering run used the same three-file command and passed 234 tests
+with 664 assertions. Scoped lint, formatting, uncached owning typecheck, strict
+change validation and the source-only bundle check used the command lines above.
+
+### Reader outcome priority review corrections
+
+The public actor now rechecks cancellation for natural success, reserved
+refusal and other command-failure candidates. A cap or timeout already
+selected as primary survives later abort. The supervisor selects the actual
+cap ahead of any cached natural exit and uses that same selected outcome for
+clean completion and cleanup errors. An independently observed natural exit
+remains available after an unrelated pipe fault.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts --test-name-pattern '^(cancels a .* during final subscription disposal|preserves (stdout|stderr) cap after actual exit|preserves primary timeout)'
+```
+
+The focused baseline showed 11 expected failures and two passing controls.
+The correction passed all 13 cases. Those cases vary real Bun fixture exits
+0, 1, 77 and 255. They pair both stream caps after real exits 77 and 255
+with clean or failed pipe cancellation and a late caller abort.
+
+| Fault family                                 | Named failing cases                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Natural outcome cancellation before delivery | `cancels a received candidate during final subscription disposal before public receipt`, `cancels a reserved refusal candidate during final subscription disposal before public receipt`, `cancels a command-failure candidate after exit 255 during final subscription disposal before public receipt` |
+| Established interruption with later abort    | `preserves primary timeout when the caller aborts during pipe cancellation`, `preserves stdout cap after actual exit 77 with clean cancellation`, `preserves stderr cap after actual exit 255 with clean cancellation`                                                                                  |
+| Cap precedence on both cleanup paths         | `preserves stdout cap after actual exit 255 with failed cleanup`, `preserves stderr cap after actual exit 77 with failed cleanup`, and the clean cancellation cases above                                                                                                                               |
+| Outcome retention on non-cap cleanup         | `preserves an actual exit77 observed before a subsequent pipe fault`, `returns an independently observed exit77 after a later cutoff and clean pipe cancellation`, `preserves only eligible outcomes after successful candidate and immediate release failure`                                          |
+
+The 13 selected fault executions failed their expected assertions and
+restored the exact source hashes after each case.
+
+The three-file covering command above passed 246 tests with 759 assertions.
+Scoped ESLint, Prettier, uncached owning typecheck, strict change validation
+and the source-only bundle check passed with the recorded commands.
+
+### Status reader task review gate passed; whole-client qualification open — 2026-11-21
+
+The Task2 scoped review gate passed at
+`3514b34507f72be2166d5238090c87b2905dc004`. The initial review's four findings
+(late preflight acquisition, lost known exit on pipe fault, suppressed abort and
+missing durable commands) and fix1's two new ordering findings are addressed.
+Fix2's saved covering run passed246 tests/759 assertions;13 selected current
+faults failed with exact source restoration. Scoped lint/format, uncached owning
+typecheck, strict OpenSpec, source-only bundle and normal hooks passed. The
+independent scoped reviewer found no new fix-related breakage. These are source
+reader review receipts, not whole-client or installed acceptance.
+
+One pre-existing out-of-scope scheduling observation remains an explicit
+whole-branch review/correction gate: exit-zero completion, then caller abort before
+cutoff during final subscription disposal, followed by a pause past the original
+deadline, returned timeout rather than the earlier cancellation. No late bytes
+were published. This is not accepted as correct; preserve its reproduction and
+resolve the cancellation contract before client source integration/adoption.
+Task3 must still qualify the real public API with native pinned SSH. Task5.1c,
+Task5.1b, installed source/credential/checkpoint/scheduling/storage/destination
+proofs, exact-revision host gate and every full-goal lifecycle obligation stay open.
+
+## Native registry status transport qualification — 2026-11-21
+
+The explicit uncached `tool-fleet:rehearse-registry-pressure-source` target exercised
+`openRegistryPressureSource` with the fixed `/usr/bin/ssh` against a temporary,
+unprivileged OpenSSH server. Bun 1.4.4 ran it as UID1000, with a new mode0700 directory
+directly under the account's mode0750 home and root-owned, mode0755 ancestors.
+The configuration declared one listen address. The kernel listener check
+matched its owned sshd socket at `172.17.0.1` on ephemeral port43543. Its restricted authorized key admitted the
+separately supplied `192.168.1.182` source. Supplying the listen address as the
+permitted source refused the first exchange. The CLI failed visibly with no
+success receipt on missing or duplicate arguments, an unknown argument, an absent
+or wrong-hash executable, loopback and unowned interface addresses.
+
+Use the [fixture profile](../../../tools/tool-fleet/src/registry-pressure-source-tools.json)
+when preparing the executable. In an owner-only staging directory, run
+`apt-get download 'openssh-server=1:9.6p1-3ubuntu13.20'`, compare the archive's
+`sha256sum` with the profile and run `dpkg-deb --extract <verified-archive> <extraction-root>`.
+Supply the extracted absolute `usr/sbin/sshd` path. The operator keeps the
+trusted extraction and checked-in profile immutable during the short run.
+The rehearsal used the existing extraction with no download, package
+installation or system service change. The executable hash was compared
+before running the bounded `-V` probe.
+
+| Qualified input                        | SHA-256 or exact version                                           |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| OpenSSH server deb                     | `5d0d5eb672ddc27601e2da4e8465c5736dc73375a21bc1cd1834fcb08fb155bf` |
+| Extracted `sshd`                       | `95b291d957f87dd200796c4986c97b6f4d970e26ad620ec9174e69c13ec5c137` |
+| Extracted `sshd -V`                    | `OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024`    |
+| Fixed local `/usr/bin/ssh`             | `3b0701113d8982d71c8cc74e5a1949f03c6f71da804cf4f3507315afbf07042c` |
+| Fixed local `/usr/bin/ssh -V`          | `OpenSSH_9.6p1 Ubuntu-3ubuntu13.18, OpenSSL 3.0.13 30 Jan 2024`    |
+| `registry-pressure-source.ts`          | `6b46ffd54d1379109ca53288c2ea182871c369218469ee24b668f2ff0829465c` |
+| `registry-pressure-source-contract.ts` | `4d45a4fa6e81a9c07ef9df8663c3e31fba197514471d59dae4adbd084bcdadac` |
+| `registry-pressure-source-process.ts`  | `62958d876534fc5f1feb3d9c2e2454d0c55462bb911192e835576fecd23fb2bf` |
+| `registry-pressure-source-native.ts`   | `7c2cf4f836a23603cd1c57f039eef076e69a235210e9487eac2e9a7da0cf76ff` |
+| `registry-pressure-source-tools.json`  | `2545bf9592eafa1a13d531d53cea98dc1fad00b70c94ea2879d821467eb822a0` |
+
+```sh
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:test --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The native command exited0 with12 cases. Times are elapsed from each actor read.
+The byte counts describe deterministic fixture output, excluding transport
+diagnostics. Received rows also assert original bytes and size byte-for-byte.
+
+| Case                      | Public reply                                           | Fixture stdout/stderr bytes | Client ms / budget ms | Dispatcher exit / server settlement ms |
+| ------------------------- | ------------------------------------------------------ | --------------------------- | --------------------- | -------------------------------------- |
+| Exact frame               | received (37 bytes, including multibyte text and CRLF) | 37 / 0                      | 187 / 5000            | 0 / 189                                |
+| Wrong client key          | source-command-failed / ssh-exit                       | 0 / 0                       | 126 / 5000            | no dispatch / 127                      |
+| Wrong host key            | source-command-failed / ssh-exit                       | 0 / 0                       | 61 / 5000             | no dispatch / 72                       |
+| Wrong verb                | source-refused / refused                               | 0 / 0                       | 194 / 5000            | 77 / 194                               |
+| Valid prefix then exit1   | source-command-failed / ssh-exit                       | 37 / 0                      | 241 / 5000            | 1 / 242                                |
+| Stdout overflow           | invalid-status / status-too-large                      | 65538 / 0                   | 204 / 5000            | 0 / 205                                |
+| Stderr overflow           | source-command-failed / stderr-too-large               | 0 / 4097                    | 223 / 5000            | 0 / 234                                |
+| Absolute timeout          | source-timeout / deadline                              | 1 / 0                       | 1502 / 2500           | 124 / 5213                             |
+| Abort after partial write | fixed AbortError                                       | 1 / 0                       | 185 / 2500            | 0 / 3189                               |
+| Concurrent read and close | both refused while busy, then fixed AbortError         | 1 / 0                       | 185 / 2500            | 0 / 3183                               |
+| Repeated read 1           | received (37 bytes)                                    | 37 / 0                      | 187 / 5000            | 0 / 188                                |
+| Repeated read 2           | received (37 bytes)                                    | 37 / 0                      | 182 / 5000            | 0 / 193                                |
+
+The pending cases observed the live owned `/usr/bin/ssh` PID and its removal
+before the read returned. Every case checked the local child list after receipt.
+Remote settlement used the fixture dispatcher's exit marker, its process
+disappearance and the owned sshd's empty child list. The five-second server
+timeout sent TERM to the deliberately longer operation, which recorded124.
+The separate configured one-second forced-kill fallback was unexercised.
+The parent daemon was then signaled, awaited with exit0 and checked absent from
+`/proc`. The actor's owned pin was released and all newly generated fixture keys,
+config, markers and directories were removed. No private key or raw remote stderr
+was retained in the evidence.
+
+The admission test file first failed on the missing harness module. After
+implementation the final four-file status-client run passed274 tests with759
+Bun `expect` calls plus the native admission file's Node assertions. The selected
+fault runs observed failing unknown-key, path/address, missing/unreadable,
+symlink/regular-file/size, exact digest/version and home type/owner/mode tests
+with original source restored after each fault. A changed version pin rejected
+the actual native binary. A world-writable authorized key broke the real
+exact-frame case. A two-second fixture timeout broke the remote-timeout
+measurement. Suppressing listener observation broke readiness. Removing
+`from=` caused an incorrect success when the allowed source was set to the
+listen IP, proving the real wrong-source negative detects that guard.
+
+This receipt covers the tested local current-account fixture and the exact
+source hashes above. Whole-client acceptance is open pending independent
+Task3 review and resolution of the exit-zero cancellation/late-receipt gate
+recorded above. Task5.1c, Task5.1b, installed dedicated-account and UID bridge
+qualification, authenticated checkpoint, scheduling/storage, destination
+receipt, exact-revision host gate and the full-goal lifecycle remain open.
+
+### Owning fleet suite on the native implementation commit
+
+On clean `5a9b76586991b5176b3bf515623f65a30cc8eed4`, the complete owning
+fleet target on ext4 passed9573 tests with zero failures,56 existing
+conditional skips and31857 Bun assertions across323 files. Nx exited0 in
+30m55s with the cache skipped.
+
+```sh
+TMPDIR=/tmp/puni-task3-fleet-ext4-vxOQ4i PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:test --skip-nx-cache
+```
+
+The dedicated mode0700 scratch directory started with 3.7 GiB of free space
+on ext4. Its exact path was absent after the command and available space
+returned to 3733970944 bytes. There were no changes to test selection, timeout
+or source while the suite ran. Existing conditions skipped48 cases requiring
+`PUNI_TEST_RESTIC_BINARY`, seven cases requiring `PUNI_AUTH_ELASTIC_LAB` and
+the alternate FD0 bootstrap GID-mismatch case on the current matching UID/GID.
+
+The two preceding ext4 attempts used the same target without custom `TMPDIR`.
+They overlapped from 02:23:24 to 02:28:39 local time and both hit `ENOSPC`.
+The first was on a changing worktree and also saw provenance-sensitive
+failures. Both provenance tests passed on the clean attempts before the
+capacity failure. A separate `TMPDIR=/dev/shm/puni-task3-fleet-nJFaIv`
+attempt started with 9.5 GiB free on tmpfs and encountered FIEMAP
+`EOPNOTSUPP` in the physical allocation fixtures. Its exact owned test
+process was canceled and its scratch directory removed before the serial
+ext4 retry. The successful run passed the corresponding real FIEMAP
+allocation cases. Nx reported a flaky-task history after the earlier
+environment failures.
+
+This owning test receipt applies to the specified implementation commit.
+Independent native review raised four harness findings for a follow-up
+qualification round. Task5.1c and whole-client acceptance remain open.
+
+### Native verifier independent review fixes
+
+The native verifier now compares successful pipefail/tee write counts
+before issuing a receipt. The fixture counts bytes through a private FIFO
+while tee writes the same stream to SSH. The dispatcher waits for the count
+and emits its deliberate nonzero exit only after successful writes. The
+initial verifier issued receipts for both a missing prefix and a 36-byte
+prefix. The corrected verifier refused both mutations on the measured count.
+
+Independent deadlines bound reader completion, both overlap probes, read
+settlement and actor close. Teardown tracks the actual SSH client and each
+observed subprocess of the fixture daemon. It also checks the dispatcher PID
+and the fixture timeout supervisor's process group for surviving work after
+reparenting. The daemon's own exit and the descendant disappearance checks
+remain distinct. A failure records the case and bounded diagnostic from
+the first fault together with later settlement errors. If either shutdown
+bookend cannot establish owned settlement, the verifier reports the private
+fixture path and preserves it until independent settlement can be established.
+
+```sh
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The native command exited0 in13.4s with12 cases, UID1000 and port36501.
+The original public reply categories remained the same as the preceding
+receipt. Counts below are now actual successful fixture write witnesses.
+
+| Case                      | Fixture stdout/stderr bytes | Client ms / original budget ms | Dispatcher exit / settlement ms |
+| ------------------------- | --------------------------- | ------------------------------ | ------------------------------- |
+| Exact frame               | 37 / 0                      | 195 / 5000                     | 0 / 196                         |
+| Wrong client key          | 0 / 0                       | 136 / 5000                     | no dispatch / 136               |
+| Wrong host key            | 0 / 0                       | 74 / 5000                      | no dispatch / 75                |
+| Wrong verb                | 0 / 0                       | 192 / 5000                     | 77 / 193                        |
+| Nonzero after prefix      | 37 / 0                      | 200 / 5000                     | 1 / 200                         |
+| Stdout overflow           | 65538 / 0                   | 196 / 5000                     | 0 / 208                         |
+| Stderr overflow           | 0 / 4097                    | 188 / 5000                     | 0 / 199                         |
+| Absolute timeout          | 1 / 0                       | 1511 / 2500                    | 124 / 5189                      |
+| Mid-read abort            | 1 / 0                       | 199 / 2500                     | 0 / 3195                        |
+| Concurrent read and close | 1 / 0                       | 201 / 2500                     | 0 / 3194                        |
+| Repeated read 1           | 37 / 0                      | 189 / 5000                     | 0 / 189                         |
+| Repeated read 2           | 37 / 0                      | 189 / 5000                     | 0 / 190                         |
+
+All three received replies matched the 37 original bytes. The reader's
+original deadlines were preserved. The pending cases again observed and
+reaped the actual fixed SSH child. The server parent returned0 and was
+reaped, and the per-case and final process checks justified fixture
+removal. No Task 3 fixture directories remained after the runs. The
+forced-kill fallback remained unexercised.
+
+The regression harness ran local copies of the verifier with the same
+profile and imports directed to the original production actor. Each fault
+was applied independently. The tracked files were checked unchanged after
+each runner. Cases launched real SSH where the production path called for it.
+
+| Injected condition                                                 | Observed production-path negative                                                                                                                                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Omit prefix or shorten it to 36 bytes                              | Both exited1 with the case-specific count error and no receipt. The uncorrected verifier issued receipts for each.                                                                               |
+| Hold a completed real read's promise forever                       | Exited1 in5470ms, with both read and read-cleanup watchdog diagnostics and owned fixture removal.                                                                                                |
+| Hold the observed reply to a real in-flight partial read           | Exited1 in3358ms under the unchanged 2500ms reader deadline plus independent teardown. Owned work settled and the fixture was removed.                                                           |
+| Suppress actual actor close completion                             | Exited1 in2004ms with close watchdog diagnostics and owned fixture removal.                                                                                                                      |
+| Change the expected reply and omit the real dispatcher exit marker | Exited1 in6684ms with reply mismatch and settlement failure preserved together. Physical settlement allowed cleanup.                                                                             |
+| Run the dispatcher past both teardown windows                      | Exited1 in10683ms and preserved the owner-only directory while the dispatcher remained live. The fault driver waited for its witnessed PIDs and removed the exact disposable fixture afterwards. |
+| Fail ownership observation and bypass the retention predicate      | The corrected path retained the fixture. Bypassing the predicate erased it and failed the negative expectation.                                                                                  |
+| Remove generated-mode, generated-owner or cleanup-inode equality   | Each selected ordinary test exited1 for its missing rejection and passed after restoring the guard. The replaced directory's original contents were preserved by the corrected path.             |
+
+The focused run passed277 tests with zero failures and760 Bun assertions,
+plus the Node assertions in the admission tests. Owning lint, typecheck and
+build, scoped format and strict change validation passed. The profile,
+production contract, actor and process supervisor did not change. Final
+native verifier SHA-256 is
+`bf7671f7c4a0984bc7c584f45df3524247cbfbeb919e6915cbd4d0a33eed549e`.
+The corresponding admission test SHA-256 is
+`b9c6b55c5229202be01b7cd3a3c0b61c80951e6c8b0d0d87709e50a5e00fe52e`.
+
+The complete owning target above remains verified only on the pre-fix
+implementation commit. A fresh clean unfiltered run remains required
+after the final source wave and the deferred whole-client cancellation
+correction. Task5.1c and adoption gates remain open.
+
+### Rejected fixture directory cleanup
+
+The next review exposed an owned directory leak before key generation.
+With an actual subprocess umask of0777, the native fixture helper correctly
+refused the generated mode000 directory and left it under the disposable
+parent. The regression observes that parent before test teardown.
+
+The helper now records the original admission failure and rechecks the
+identity of a known owned directory before requesting empty-only removal.
+A restrictive mode remains an admission failure after successful cleanup.
+If the initial identity cannot be read, ownership is unproven, the path
+has changed, or the directory is nonempty, the helper preserves the path
+and reports the original failure with bounded cleanup context. The rejected
+directory path uses neither chmod nor recursive deletion.
+
+```sh
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-native.test.ts
+/home/df/.bun/bin/bun test tools/tool-fleet/src/registry-pressure-source-contract.test.ts tools/tool-fleet/src/registry-pressure-source.test.ts tools/tool-fleet/src/registry-pressure-source-process.test.ts tools/tool-fleet/src/registry-pressure-source-native.test.ts
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:lint --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:typecheck --skip-nx-cache
+PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false /home/df/.bun/bin/bunx nx run tool-fleet:build --skip-nx-cache
+/home/df/.bun/bin/bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+```
+
+The admission tests reproduced six baseline failures and passed35 cases
+with19 Bun assertions after the correction. The full four-file covering
+run passed281 tests with778 Bun assertions and zero failures.
+The actual uncached native command exited0 in13.6s with12 cases, UID1000
+and port34965. The nonzero prefix case returned the intended public SSH
+failure after the fixture wrote37 bytes. The cap measurements remained
+65538 stdout bytes and4097 stderr bytes. The timeout read completed at
+1513ms under its original2500ms deadline. The independent dispatcher
+settled at5232ms with exit124. Parent exit0, reaping and fixture removal
+were observed. The separate forced-kill fallback remains unexercised.
+
+| Fault                                                                       | Observed negative                                                                   |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Skip empty-directory removal                                                | Real umask test failed because the rejected directory remained in the parent.       |
+| Substitute recursive removal                                                | Nonempty fixture test failed on the missing directory before asserting diagnostics. |
+| Skip the fresh identity read                                                | The replaced-path test failed because the empty replacement was removed.            |
+| Omit retained-path context for unknown owner or unreadable initial metadata | The corresponding named refusal failed despite preserving the disposable path.      |
+| Omit the initiating refusal after ENOTEMPTY                                 | The diagnostic assertion failed while the physical fixture remained.                |
+
+Each selected fault was applied alone to an isolated verifier copy, then
+restored. Each faulty invocation exited1 and each restored test exited0.
+The tests inspect the rejected parent and known content before their own
+cleanup. Owning lint, typecheck, build, scoped format and OpenSpec checks
+passed. No admitted-path actor, process supervisor, contract, scoped tool
+profile or stopped implementation changed. The inspected source SHA-256
+values are
+`271abb676a43fa57af01d67cd93c177e9f0c60de10d2c39288f21575cfa11a89`
+for the verifier and
+`6e5d46ccc89476ba31e3fb732e9e58131ba8aa38fb3f873db804f03a13983a62`
+for its admission tests. The earlier unfiltered suite receipt continues
+to apply only to its stated commit. Final clean owning tests and whole-client
+cancellation correction remain pending. Task5.1c remains open.
+
+### Final whole-client review correction
+
+The public reader now records caller cancellation across listener handoffs. At
+pre-spawn it compares cancellation with the acquisition cutoff. For a settled
+exit-zero candidate delivered after the deadline it compares cancellation with
+the original receipt deadline. The earlier abort returns the controlled
+AbortError, including during the cleanup reserve after natural completion.
+A primary cap, an acquisition timeout and a cleanup error retain their
+existing precedence.
+
+Native fixture setup selects its exact random pathname before exclusive mkdir.
+A two-second setup timeout keeps ownership of the outstanding acknowledgement
+for a bounded 500 ms wait. Late confirmed creation goes through identity
+verification and empty-only removal. A still-unconfirmed allocation reports
+its exact pathname for reconciliation. A definitive collision preserves the
+existing path. The verifier reports an expired rmdir observation as unconfirmed
+even when the parent is already empty. These are pre-credential fixture checks.
+
+```sh
+export PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false
+bun test tools/tool-fleet/src/registry-pressure-source{,-process,-native}.test.ts -t 'across a stalled handoff|owns a late fixture allocation|reports unconfirmed removal|otherwise exact output|shorter than its admitted length|allocation collision'
+bun test tools/tool-fleet/src/registry-pressure-source{,-contract,-process,-native}.test.ts
+bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+bunx nx run tool-fleet:lint --skip-nx-cache
+bunx nx run tool-fleet:typecheck --skip-nx-cache
+bunx nx run tool-fleet:build --skip-nx-cache
+bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bun node_modules/.bin/openspec validate --all --json
+```
+
+The baseline at `302a2a604ec8dfcaeb9837a4bd9b2d5a10de6a6e` passed seven
+selected tests and failed five. The failures exposed both abort-first handoffs,
+the physically retained late allocation, the false retained-path diagnostic and
+the missing exact-path collision control. Final covering tests passed 297 with
+860 Bun assertions, zero failures and no skips across four files.
+
+| Production fault                                                                                                              | Observed negative                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Discard the read-wide abort time or skip the pre-spawn comparison                                                             | Abort before cutoff became deadline during stalled preflight disposal, with zero spawns. Accepting every abort misclassified the reverse order.                                            |
+| Ignore early abort, accept late abort, apply acquisition cutoff to a completed candidate, or drop the final receipt deadline  | The matching public test lost cancellation, replaced timeout, lost reserve cancellation, or published late bytes.                                                                          |
+| Remove version probe success, empty stdout or bounded-read length equality independently                                      | Each corresponding isolated native admission test failed on its missing rejection. Other version fields stayed exact. The modeled descriptor advertised one extra byte.                    |
+| Allow recursive creation or reclassify immediate EEXIST                                                                       | The collision test accepted a preexisting empty path or lost its original error.                                                                                                           |
+| Remove the setup limit, skip its second acknowledgement, or wait forever                                                      | Late creation was misclassified as late identity. Skipping acknowledgement removed a physically present unconfirmed directory. Unbounded waiting failed the test watchdog at five seconds. |
+| Omit the exact unconfirmed path or label a definitive late rejection unconfirmed                                              | The outer rehearsal's error disagreed with the observed directory and allocation state.                                                                                                    |
+| Extend initial identity time, deny cleanup time after late acknowledgement, or admit a private path despite its setup timeout | The slow-identity test admitted an overdue fixture, the late allocation was retained, or the harness attempted key generation after timeout.                                               |
+| Report all failed removals as retained                                                                                        | A real empty-only removal followed by delayed acknowledgement left an empty parent with a false diagnostic.                                                                                |
+
+All 21 selected mutants failed separately. The same 21 tests passed after
+byte-exact restoration. Restored pre-comment SHA-256 values were actor
+`a34f288dbfa6178253320b41ec704f9f361d7f43c137111509ef9ee59e306219`,
+process `7e3a66c2c9c921a738c145e9347232bcf113fb0159744628e80c04b5343ddc82`
+and verifier `3c039c5ca1b6fb25f436a8df6875f49e9172012b3c13d80da497fa86a2fc1b25`.
+The final two version-probe controls passed again after independent mutation
+and restoration following a test-only lint correction.
+
+The pinned OpenSSH binary matched SHA-256
+`95b291d957f87dd200796c4986c97b6f4d970e26ad620ec9174e69c13ec5c137` and
+version `OpenSSH_9.6p1 Ubuntu-3ubuntu13.20, OpenSSL 3.0.13 30 Jan 2024`.
+The uncached generated-key target qualified all 12 cases on UID 1000 and port 37655. The nonzero prefix and cap witnesses measured 37, 65,538 and 4,097 bytes.
+The 2,500 ms timeout case returned at 1,503 ms. Its dispatcher exited 124 and
+server work settled at 5,220 ms. Three pending reads had independent in-flight
+client observations. The server exited zero, its parent was reaped, and the
+fixture was removed. Owning lint, typecheck and build passed.
+
+Task 3 steps 1–4 have supporting evidence. Its step 5 and Task 5.1c await the
+single scoped re-review and clean unfiltered final owning suite. The earlier
+9,573-pass, 56-skip baseline belongs to `5a9b7658`. Source CI and exact-revision
+host adoption remain separate gates. Task 5.1b and full installation, storage,
+activation and delivery requirements remain open, including the dedicated
+account, run-as bridge, installed permissions, server-wide bounds, forced-kill
+fallback, authenticated checkpoint, scheduling, exporter and destination.
+
+Strict validation of the owning change reported no issues. Across all 347
+OpenSpec artifacts, 326 changes and 21 specs passed. Scoped Prettier and the
+plaintext secrets check passed on the seven changed paths. Migration lint
+received the same paths and found no applicable migration. Nx lint emitted
+the existing Node color-environment notice and exited zero.
+
+### Revised interruption precedence before implementation
+
+Scoped review of `511714072` accepted the three fixture/admission corrections
+and reproduced the remaining cancellation defect. One original signal listener
+observed abort before cutoff and blocked synchronous dispatch for 400 ms. The
+reader then returned timeout with zero spawns. In the independent Bun 1.4.4
+paired probe, the original listener observed elapsed 0.32 ms and 125.25 ms on
+opposite sides of a 100 ms cutoff. The dependent callback ran at 225.74 ms and
+225.48 ms, with an aborted signal, event timestamp zero and an unexpired timeout
+signal in both histories. The API exposes no reliable original transition time.
+
+The revised contract chooses the first interruption observed by the reader,
+checking an already-aborted signal before a newly noticed elapsed cutoff. This
+can suppress a timeout classification when cancellation happened after physical
+cutoff but before the reader observed it. It grants no acquisition beyond cutoff,
+new grace, checkpoint update or reporting-baseline reset. Both blocked-listener
+histories must yield controlled cancellation. Actual timeout/cap decisions
+require a witness such as pipe cancellation before abort. Historical
+`handoff-late` and `delivery-late` mutants and the preflight “after cutoff”
+expectation used physical time alone as precedence; that interpretation is
+superseded. Other former timestamp mutants remain historical source observations.
+This contract revision precedes new implementation and qualification. The former
+511714072 covering and native receipts do not establish this revised behavior.
+
+### Qualified first-observed interruption implementation
+
+Contract revision `9478a94e26446e8bc7e18c0ece1659073f9d6dd5` preceded the
+source changes. The read now carries one interruption decision from admission
+through final publication. It samples the original aborted state before a newly
+noticed acquisition cutoff. Each pipe checks admission before starting a read
+and again before inspecting its chunk. A timed wait records expiry before
+releasing its timer, and an early wake resumes waiting on the same absolute
+deadline. Cleanup and known natural failures retain their separate outcomes.
+
+```sh
+export PATH=/home/df/.bun/bin:$PATH NX_DAEMON=false
+bun test tools/tool-fleet/src/registry-pressure-source{,-process}.test.ts -t 'stalled handoff|cutoff while preflight|preflight cancellation first observed|cutoff cleanup then abort|overflow with cleanup failure|cancelled success during overdue|first eligible cap'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'cutoff prevents a new pipe operation'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'early timer wakeup'
+bun test tools/tool-fleet/src/registry-pressure-source-process.test.ts -t 'abort after the observed cleanup deadline'
+bun test tools/tool-fleet/src/registry-pressure-source{,-contract,-process,-native}.test.ts
+bunx nx run tool-fleet:rehearse-registry-pressure-source --skip-nx-cache --sshd=/tmp/puni-registry-status-sshd-tools.5d5vEr/extracted/usr/sbin/sshd --listen=172.17.0.1 --source=192.168.1.182
+bunx nx run tool-fleet:lint --skip-nx-cache
+bunx nx run tool-fleet:typecheck --skip-nx-cache
+bunx nx run tool-fleet:build --skip-nx-cache
+bun node_modules/.bin/openspec validate bound-registry-storage --strict --json
+bun node_modules/.bin/openspec validate --all --json
+```
+
+The initial selection on the previous implementation failed nine and passed 12. Both blocked-listener histories at each handoff produced timeout where
+controlled cancellation was required. The reserve-abort case, cached
+exit77/cutoff/later-abort case, two held-preflight cases and the overdue
+cancelled-success payload also failed. Separate RED tests exposed a forbidden
+late read, late chunk inspection and a premature timeout on early timer wakeup.
+During correction, a further RED showed abort after observation of a cleanup
+deadline could erase the timeout carried on an overdue success error.
+
+| Selected fault group                                                                                      | Actual production-path consequence                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clock before aborted state, loss of recorded timeout or clearing a cap                                    | Misclassified the blocked pre-spawn tie, replaced timeout on abort from pipe cancellation, or lost the first of two eligible caps.                     |
+| Strict greater-than at cutoff, removed read-start/chunk checks or inactive guard                          | Admitted missing-key I/O at equality, started a read or inspected a chunk after cutoff, or started a further drain during setup-failure cleanup.       |
+| Early timer expiry or deferring the expiry decision                                                       | Lost an in-budget frame or lost the overdue-success timeout when abort occurred during cleanup-wait disposal.                                          |
+| Remove wakeup or wake on an event without aborted state                                                   | Held the overflow child until cutoff, delayed shared abort, or interrupted a nonaborted exchange.                                                      |
+| Skip or misclassify interrupted start                                                                     | Lost controlled pre-aborted admission, reached spawn after cutoff or made the initially expired actor busy for immediate close.                        |
+| Admit a late exit or count exit zero as failure                                                           | Replaced timeout with a late refusal or replaced a fully received frame.                                                                               |
+| Ignore the shared decision after waiting, prefer cached failure to cap or prefer cutoff to cached failure | Lost the blocked-exchange timeout, the stdout cap on failed cleanup or the known exit77 after cutoff followed by abort.                                |
+| Ignore cancellation on overdue success or on a clean interrupted exchange                                 | Attached timeout after an earlier cancellation during release or lost controlled abort before stdout overflow.                                         |
+| Skip preflight stop or force/discard its cleanup payload                                                  | Inspected a descriptor due for cutoff cleanup, mislabeled cancelled overdue I/O, or lost timeout when the stopped descriptor close aborted and failed. |
+| Omit publication cancellation/deadline or check raw aborted state instead of earlier decision             | Misclassified the blocked delivery tie, published a late frame or replaced a cached refusal after an actual cutoff.                                    |
+
+All 28 final faults failed the selected public-path test individually and the
+same 28 restored controls passed. Pre-comment restoration hashes were
+`e22dd2d42a0e65f538a97141c043973ea56bc254c8f05f4f95b309f7f3ac40d9`
+for the actor and
+`f426cad270d6242d3f78cd71ec3ae344e290a08a9230f063aad726e943d28943`
+for supervision. One earlier mutant replacing the process's duplicate
+start-cancellation throw with a timeout passed because the actor independently
+published the recorded cancellation. It supplies no proof. A single shared
+start check replaced both copies, and changing it to timeout failed actual
+pre-aborted public admission. The historical Task 2 `abort-after-preflight-cutoff`
+receipt is superseded along with the clock-first expectations identified above.
+
+The genuine native run on UID 1000, port 46037 qualified all 12 cases with fresh
+generated keys, the separately observed owned addresses and the unchanged
+pinned OpenSSH binary. The prefix plus exit1 produced 37 bytes, overflows produced
+65,538/4,097 bytes, and all three held requests had independently witnessed local
+clients. Timeout returned at 1,507 ms under the original 2,500 ms deadline.
+Dispatcher exit124 and server settlement were observed at 5,213 ms. The daemon
+exited zero, its parent was reaped and the fixture was removed. This covers
+the existing TERM fixture; forced-kill fallback and installed server bounds
+remain open.
+
+Task 3 step 5 and Task 5.1c await the scoped correction review and final
+unfiltered owning suite. Current-source CI and exact-revision adoption remain
+separate gates. This client qualification supplies no checkpoint, pooled-host,
+installation, backup, physical-storage, producer or alert-destination proof.
+
+The final four-file run passed 320 tests with 1,017 Bun assertions, no failures
+and no skips. Owning uncached lint, typecheck and build passed. The eight
+correction paths passed scoped formatting and plaintext secrets checks.
+Migration lint received the same paths and found no applicable migration.
+Strict owning validation passed with zero issues and all 347 OpenSpec artifacts
+passed. The final actor and supervisor SHA-256 values are
+`63b4103ebc9d306c9d50080a109724fe1a7108d98c8af358dd67d5514d2ef800`
+and `16345a7065897c8af41b886700f66addda3ddc68e1d939c78413f5075217149f`.
+
+### Genuine cancellation after a false event and recorded cleanup timeout
+
+The scoped review of `fedea3eac` found that a manually dispatched abort event
+consumed the process listener while the caller signal remained live. A later
+genuine abort delivered the fixed error only after the owned child exited
+naturally. A separate pipe-read failure produced a cleanup error with no
+outcome even after the bounded cleanup wait recorded timeout. Both public
+regressions failed on that revision. Immediate release failure and cancellation
+before cleanup expiry passed as undefined-outcome controls.
+
+The active child now owns a disposable listener on a private signal derived
+from the caller. Decisions still sample the original caller signal. The public
+sequential test observes a live group after the false event, then real SIGKILL,
+group disappearance and prompt fixed AbortError after the genuine transition.
+Failed cleanup now carries its eligible earlier failure or a recorded timeout.
+A successful candidate is discarded. An unresolved wait still faults the actor
+and refuses close until settlement.
+
+Seven guard faults each failed their selected public test and passed after
+identical restoration. Direct parent subscription lost the genuine wakeup.
+Omitting disposal left an active listener. Omitting the recorded timeout lost
+the overdue pipe-fault outcome. Selecting by elapsed time misclassified prior
+cancellation. An unconditional timeout misclassified immediate release failure.
+Giving timeout priority lost an earlier reserved exit. Admitting a received
+candidate exposed bytes on failed cleanup. The former false-event callback
+proof applies to the earlier implementation, since a synthetic parent event
+cannot notify the current private signal. Unchanged native checks retain their
+earlier fault receipts.
+
+The four client files passed 325 tests with 1,073 assertions. The uncached
+native target qualified all 12 generated-key cases on UID 1000, port 44653.
+The absolute timeout returned in 1,504 ms under its original 2,500 ms deadline.
+The independent server bound ended the dispatcher with exit 124 and server
+settlement at 5,191 ms. The daemon exited zero, its parent was reaped and the
+fixture was removed. The complete current-source owning suite, scoped review
+and exact-revision adoption remain pending. Task 3 step 5, 5.1c, 5.1b and the
+original installed/checkpoint/activation and alert goals remain open.

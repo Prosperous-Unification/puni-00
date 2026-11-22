@@ -205,6 +205,17 @@ protected owners`; negatives: dead monitor, rejected notification, full alert
       destination receipts before adopting the source consumer. Producer admission
       and its stopped correction remain unresolved outside this integration.
 
+- [ ] 5.1c Implement the independent bounded authenticated SSH status client
+      specified in design.md's authenticated status client section. Follow
+      `docs/superpowers/plans/2026-11-21-registry-pressure-source.md`: strict
+      immutable enrollment and fixed argv/pin; owned bounded reader with original
+      deadline, outcome-preserving cleanup and local-state failures; genuine
+      pinned non-root SSH qualification through the production API. Run focused
+      RED/GREEN tests, production-path predicate/dependency faults, native uncached
+      validation and owning source checks. This does not complete5.1b: server role,
+      authenticated checkpoint, producer admission, independent scheduling/storage,
+      private serving and destination receipts remain required.
+
 - [ ] 5.2 Run the complete lifecycle rehearsal on disposable enforced storage:
       concurrent publication, successful and partial releases, old protected rollback,
       untagged multi-platform images, safe retirement, uncached pulls, inode/byte

@@ -521,3 +521,60 @@ or destination delivery. Native engine and installed delivery evidence remain di
 
 - **WHEN** the supplied address has more than five decimal port digits, including leading zeroes with a numerically small value
 - **THEN** opted-in rendering refuses before output, while one-to-five-digit forms remain subject to the numeric1..65535 range
+
+### Requirement: Enrolled bounded SSH status acquisition
+
+The status client SHALL use an immutable exact target/peer enrollment, one pinned
+Ed25519 host key, a dedicated hashed identity and fixed SSH command. It SHALL
+retain bounded original output, require EOF and exit0 for receipt, preserve known
+oversized-frame classification and obey one original five-second deadline including
+cleanup. Local state failures SHALL throw. This prerequisite alone SHALL NOT
+advance authenticated observer state or qualify installed monitoring.
+
+#### Scenario: Enrollment is malformed or mutated
+
+- **WHEN** enrollment contains an unknown field, nonprivate address, root principal, malformed key/path or wrong version, or its input is changed after parsing
+- **THEN** malformed input is rejected and later input mutation cannot change the parsed peer or fixed command
+
+#### Scenario: Authentication or command fails
+
+- **WHEN** the enrolled host key or dedicated client key differs, or the source exits unsuccessfully after emitting a complete-looking frame
+- **THEN** no received frame is returned, raw stderr is not exposed, and ambiguous SSH255 remains source-command-failed
+
+#### Scenario: Output exceeds a bound
+
+- **WHEN** the first eligible chunk exceeds65537 stdout bytes or4096 stderr bytes while neither cancellation nor cutoff has been selected
+- **THEN** acquisition stops, local cleanup is required and the fixed oversized-status or command-failure outcome is preserved, including on a subsequent local cleanup error
+
+#### Scenario: Original deadline expires or caller cancels
+
+- **WHEN** the reader first observes both an aborted signal and elapsed cutoff at a preflight continuation, pre-spawn handoff or active pipe observation
+- **THEN** cancellation wins, no new acquisition starts, and successful cleanup yields fixed AbortError without bytes
+- **WHEN** the reader has already selected timeout or an eligible cap, then observes a later abort
+- **THEN** the recorded interruption survives, including on a cleanup error; a natural nonzero exit already known before cutoff remains known
+
+#### Scenario: Final publication of a natural candidate
+
+- **WHEN** both EOFs and exit zero were admitted before cutoff, or a natural nonzero exit is ready, and abort becomes visible at final publication without a prior interruption
+- **THEN** successful cleanup yields fixed AbortError even when the deadline is also newly observed; a late success without abort instead gives typed timeout, never frame bytes
+
+#### Scenario: Local work fails to settle
+
+- **WHEN** descriptor, process or pipe release fails or remains unresolved at the original deadline
+- **THEN** the actor faults, throws the cleanup error with its eligible cap, known natural failure or timeout, and refuses overlapping reads and unresolved close
+- **AND** a cancelled success candidate with no known failure carries undefined, an otherwise successful candidate with overdue cleanup carries timeout, and a cleanup error carries no received bytes
+
+#### Scenario: Registry reporting baseline
+
+- **WHEN** repeated cancellations and timeouts span the original missing-report deadline without an accepted authenticated report
+- **THEN** neither outcome advances a checkpoint or resets the five-minute baseline; downstream integration must demonstrate the alert remains due at the first evaluation on or after that original deadline
+
+#### Scenario: Trusted local state is missing or unreadable
+
+- **WHEN** the SSH executable, private identity, pin or existing private directory is missing, unreadable, malformed or differs from enrollment
+- **THEN** the client throws a local failure without creating substitute state or accepting source evidence
+
+#### Scenario: Native verifier lacks its qualified tool or addresses
+
+- **WHEN** the real SSH verifier is invoked without its exact pinned executable, safe private fixture directory or separately declared owned listen/permitted-source addresses
+- **THEN** it fails visibly rather than skipping checks, weakening SSH admission or using a localhost-only substitute
