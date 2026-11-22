@@ -109,8 +109,16 @@ Design only, first written 2026-11-15 and rewritten 2026-11-22 for the platform 
    a forced date commit per cluster, orphans matched by `spec.target.name`, bound CIDRs at
    m1plat1's pod subnet, the object-store key's prefix scoping marked unverified, the audit
    claim counted in the plan's 10 GiB, enrolled-node rows after A13, the spec synced, the
-   chart key `rbac.serviceAccountTokenCreate`, and `postgres`'s tenant label. This revision has
-   not been reviewed.
+   chart key `rbac.serviceAccountTokenCreate`, and `postgres`'s tenant label.
+
+9. **Final check at 8f7b5cb48** (Fable, high effort): no S1, two S2s, both applied. The cold
+   rebuild comes back under a new node name (`restore.yml` refuses the fenced original's name),
+   so D14 now deletes the fenced node's claims and volumes before `restore`, and after the
+   snapshot restore commits the replacement's `spec.podCIDR` and runs `apply` under a
+   break-glass root before `steady`; the planner refuses a recorded subnet that differs from
+   the live one. The file audit device is watched from A7: `tool-fleet:health` reads the
+   sidecar's gauge until the `alerts` unit runs, and the plan's tasks add that reading to every
+   receipt from A7 to A14. This revision has not been reviewed.
 
 Still unverified and owed by P1: ESO 2.15 against OpenBao 2.7.3 (task 3.11), the `bao` client's
 server name override through the Tailscale operator's exposure (task 3.13), Auth0's `amr`
@@ -123,6 +131,22 @@ change forces a sync, `snapshot restore -force` bypasses the key check, a sealed
 not Healthy, and resource sync waves wait for health.
 
 ## Checks run on this change
+
+Final-check fold-in of 2026-11-22, on 8f7b5cb48 plus the working tree:
+
+| Command                                                                                     | Result               |
+| ------------------------------------------------------------------------------------------- | -------------------- |
+| `./node_modules/.bin/openspec validate openbao-secret-store --strict`                       | valid                |
+| `./node_modules/.bin/openspec validate separate-node-roles --strict`                        | valid                |
+| `./node_modules/.bin/openspec validate --all --json`                                        | 355 of 355 passed    |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/adr-index.test.ts`                       | 1 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`        | 15 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/current-documents.test.ts`               | 18 pass, 0 fail      |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/retired-roots.test.ts`                   | 3 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-devsync/src/check-documents-target.test.ts`          | 6 pass, 0 fail       |
+| `env -u CLAUDECODE bun test tools/tool-rename-work-package`                                 | 37 pass, 0 fail      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` | exit 0, empty stderr |
+| `nx format:check --files=<the five changed files>`                                          | exit 0               |
 
 Round-2 fold-in of 2026-11-22, on bd5fbdda1 plus the working tree (`origin/main` not merged):
 

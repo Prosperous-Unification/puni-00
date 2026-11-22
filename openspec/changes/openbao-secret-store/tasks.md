@@ -80,6 +80,7 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       rebuild with the live-mode read, wipe-and-retry of a failed first boot, orphaned Secret
       removal, SIGHUP reload, CI JWT key rotation) and link it from
       `docs/infra/platform.md#secrets`. `tool-fleet:health` lists orphaned synced Secrets. Test: a Secret with ESO's managed label that no ExternalSecret names as `spec.target.name` is listed, and one named by an ExternalSecret of another name is not (fault: match the Secret's name against ExternalSecret names instead of their `spec.target.name`).
+- [ ] 1.9 `tool-fleet:health` reads the sidecar's `openbao_audit_file_stalled` gauge through the API server's pod proxy, before the `alerts` unit runs. Tests: a gauge at 1 is reported stalled (fault: read the gauge's `# HELP` line instead of its sample); an absent gauge is reported unknown, not healthy (fault: default an absent gauge to 0).
 
 ## 2. Store configuration
 
@@ -112,7 +113,7 @@ the named fault, watch the named test fail, then add the adjacent `Proof:` comme
       (design D5, D6), audience and bound CIDRs at the cluster's recorded node pod subnet, the per-namespace token Roles of `secret-sync`,
       and the database grants. Tests: the planner refuses a role with two namespaces (fault:
       trust the role name for the namespace); one without the bound account name (fault: check
-      namespaces only); one without audience or bound CIDRs (fault: check bound CIDRs only); one bound to the cluster's whole pod CIDR (fault: accept any range inside the pod CIDR); a
+      namespaces only); one without audience or bound CIDRs (fault: check bound CIDRs only); one bound to the cluster's whole pod CIDR (fault: accept any range inside the pod CIDR); a recorded subnet that differs from the live server's `spec.podCIDR` (fault: compare with the recorded subnet of the cluster's first node); a
       policy path the labels do not give (fault: read the tenant label only); a wildcard above a
       prefix (fault: match a trailing `*` only); a grant to a path not ending in
       `database-owner` (fault: check the tenant only); a grant to an environment the database
@@ -161,13 +162,13 @@ and the taint, with values made for the rehearsal. The plan's receipt 2.7/A7 is 
 - [ ] 3.7 The drill restores with the cluster seal key and `-force` into its own instance on `127.0.0.1`, logs in as `snapshot-drill` with its own token reviewed through the local token, reads the canary, and a second instance stays sealed with a wrong key; the same drill token is refused on the live store's listener.
 - [ ] 3.8 First operator OIDC login with MFA, an Auth0 token without `amr` `mfa` refused,
       `sys/rotate/recovery/init`; then, with Auth0 unreachable, by `kubectl exec` with `BAO_ADDR=unix:///openbao/run/break-glass.sock`: `bao write -f sys/generate-root/attempt`, `bao write sys/generate-root/update key=… nonce=…` per share and `bao write sys/decode-token encoded_token=… otp=…`, the decoded token used once and revoked; the same attempt on the Service refused.
-- [ ] 3.9 Cold rebuild: etcd restored to a fresh lab server; the live mode read and, when it is not `steady`, the StatefulSet scaled to zero and the unmarked claim deleted; the `steady`
+- [ ] 3.9 Cold rebuild onto a replacement lab server under a new node name: etcd restored; the store's pod Pending on the fenced node's claims; the live mode read, the StatefulSet scaled to zero and the stale claims and volumes deleted; the `steady`
       store refusing its empty claim; `restore` committed, `openbao` not Healthy as expected,
       `bao operator init` and `snapshot restore -force` by `kubectl exec`; init root token
-      rejected (403); the marker written; `steady` again; then orders 4 to 7 Synced and Healthy
+      rejected (403); the marker written; an OIDC login refused by the old subnet binding; the new `spec.podCIDR` committed and `apply` run under a break-glass root token through the socket; only then `steady`; then orders 4 to 7 Synced and Healthy
       with no manual Secret; one synced Secret deleted and one value changed, both written again
       with a fresh `refreshTime`; a root token from the escrowed shares through the socket;
-      Auth0 unreachable throughout. Once more from an etcd snapshot taken in `first-init`.
+      Auth0 unreachable throughout, then one OIDC login through the proxy admitted. Once more from an etcd snapshot taken in `first-init`.
 - [ ] 3.10 Certificate renewal: the renewed leaf served through `tls_auto_reload` without a
       restart; SIGHUP as the fallback, proved.
 - [ ] 3.11 ESO v2.15.0 against OpenBao v2.7.3 syncs, refreshes and reports errors.
@@ -196,7 +197,7 @@ and the taint, with values made for the rehearsal. The plan's receipt 2.7/A7 is 
       `secret-sync` and `issuers` (the plan's commands). Repeat 3.1, 3.4 and 3.6 to 3.8 live;
       the layered probe of design D8; the attended escrow restore on a second machine; the
       first snapshot. The enrolled-node rows of the probe wait for 4.6.
-      Receipt: the plan's A7 receipt and these, no value.
+      Receipt: the plan's A7 receipt and these, `tool-fleet:health`'s audit-file reading included, no value. Every plan step after A7 and before A14 carries the same reading in its receipt.
 - [ ] 4.3 P3: each consumer of design D12 at its plan step, one receipt per consumer: its
       ExternalSecret Ready and its reader refused a path of another environment.
 - [ ] 4.4 The CI cluster's JWT mount, before the CI change's CI-A3: the pinned key read from that cluster; runbook entry and alert for its service-account key rotation. Precondition owed by the CI change, which has no task for it yet: its CoreDNS hosts entry for `openbao.puni.internal` and the CA ConfigMap of its SecretStores (design D8).

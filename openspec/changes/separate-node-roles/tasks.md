@@ -14,7 +14,9 @@ input directory. "Sync" of a platform unit means
 `fleet_ansible --limit m1plat1 --extra-vars puni_sync_units=<units> playbooks/argocd-sync.yml`
 (design decision 3). Every step that syncs a unit which exposes a Service on the tailnet
 includes one more action: the owner signs the device the Tailscale operator made for it,
-and the step reads back that the name answers (design decision 12).
+and the step reads back that the name answers (design decision 12). From A7 until A14 every
+step's receipt also includes `tool-fleet:health`'s reading of the store's audit file
+(pull request #935, design D11), because the alert that watches it first syncs in A14.
 
 ## 0. Decisions
 

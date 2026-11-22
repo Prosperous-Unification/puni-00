@@ -42,7 +42,7 @@ exist under `infra/argocd`.
 ### Requirement: Only a namespace's reader can read its paths
 
 The store SHALL admit, through Kubernetes auth, only the `secret-reader` service account of a
-namespace, with audience `openbao` and from m1plat1's pod subnet, and only to that namespace's prefix:
+namespace, with audience `openbao` and from the platform server's pod subnet, and only to that namespace's prefix:
 `kv/platform/<namespace>/` for a platform namespace and
 `kv/tenants/<tenant>/<environment>/<namespace>/` for a tenant's, computed from the namespace's
 labels. Every role SHALL carry `token_bound_cidrs`.
@@ -266,8 +266,17 @@ snapshot before `secret-sync` or any consumer is synced, without operator OIDC l
 
 #### Scenario: Cold rebuild with an empty server
 
-- **WHEN** an empty server is rebuilt from the etcd snapshot, the bootstrap set and the latest store snapshot
-- **THEN** the store restores, synced Secrets appear, and the units of orders 4 to 7 reach Synced and Healthy without manual Secret creation
+- **WHEN** an empty server under a new node name is rebuilt from the etcd snapshot, the
+  bootstrap set and the latest store snapshot
+- **THEN** the fenced node's claims are replaced, the store restores, its roles are rebound to
+  the new server's pod subnet before `steady` is committed, synced Secrets appear, and the units
+  of orders 4 to 7 reach Synced and Healthy without manual Secret creation
+
+#### Scenario: Roles still bound to the old subnet
+
+- **WHEN** after a rebuild onto a renamed node `tool-fleet secret-store plan` runs while the
+  declaration still records the fenced node's pod subnet
+- **THEN** it refuses, naming the recorded subnet and the live server's `spec.podCIDR`
 
 #### Scenario: Cold rebuild while Auth0 is unreachable
 
@@ -387,6 +396,13 @@ the store SHALL write a second file audit device on a retained claim.
 
 - **WHEN** the file audit device's claim is full and stdout still records every request
 - **THEN** `OpenBaoAuditFileStalled` fires
+
+#### Scenario: The audit file stalls before the alerts unit runs
+
+- **WHEN** before the plan's A14 the sidecar's `openbao_audit_file_stalled` gauge is 1, or is
+  absent
+- **THEN** `tool-fleet:health` reports the store audit file as stalled, or as unknown, and
+  never as healthy
 
 #### Scenario: The drift job stops
 

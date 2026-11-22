@@ -176,7 +176,7 @@ token that ESO requests (task 1.6).
 **One Kubernetes auth role per reading namespace**, as the plan's decision 5 requires. A role
 binds `bound_service_account_names=secret-reader`,
 `bound_service_account_namespaces=<that namespace>` and `audience=openbao`, carries
-`token_bound_cidrs` set to m1plat1's pod subnet (D7), and carries one policy that reads that
+`token_bound_cidrs` set to the platform server's pod subnet (D7), and carries one policy that reads that
 namespace's prefix (D6) and nothing else. Both are rendered by `tool-fleet secret-store` (D8a)
 from the store declaration and the `namespaces` unit's labels, never written by hand. The
 planner refuses a role that binds more than one namespace or another account, a role without
@@ -242,18 +242,20 @@ mounts, auth methods, roles and policies. The adapter itself is the plan's follo
 
 | Caller                                    | Method                         | Binding                                                                                                                                                                                                              |
 | ----------------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Platform-cluster `secret-reader` accounts | Kubernetes auth (TokenReview)  | one role per namespace (D5), audience `openbao`, bound to m1plat1's pod subnet                                                                                                                                       |
+| Platform-cluster `secret-reader` accounts | Kubernetes auth (TokenReview)  | one role per namespace (D5), audience `openbao`, bound to the platform server's pod subnet                                                                                                                           |
 | CI-cluster `secret-reader` accounts       | one JWT mount for that cluster | pinned `jwt_validation_pubkeys`, `bound_audiences=openbao`, `bound_claims` on the service-account name and namespace, 10-minute tokens, bound to the CI server's private address, one role per CI namespace on `ci/` |
-| Snapshot, drill and drift Jobs            | Kubernetes auth                | one account and role each in `puni-secrets`; snapshot and drift bound to m1plat1's pod subnet, the drill to `127.0.0.1/32` (D11); each policy also reads the canary                                                  |
-| Operators                                 | OIDC through Auth0             | one role bound by subject and audience and requiring MFA; bound to m1plat1's pod subnet, where a ProxyClass that selects `platform-services` puts the Tailscale proxy; no userpass                                   |
+| Snapshot, drill and drift Jobs            | Kubernetes auth                | one account and role each in `puni-secrets`; snapshot and drift bound to the platform server's pod subnet, the drill to `127.0.0.1/32` (D11); each policy also reads the canary                                      |
+| Operators                                 | OIDC through Auth0             | one role bound by subject and audience and requiring MFA; bound to the platform server's pod subnet, where a ProxyClass that selects `platform-services` puts the Tailscale proxy; no userpass                       |
 | GitHub Actions                            | none                           | no public route (D8)                                                                                                                                                                                                 |
 
 Every role carries `token_bound_cidrs`, so a token works only from where its caller is. The
-bound subnet is m1plat1's own pod subnet (the node's `spec.podCIDR`), not the cluster's pod
-CIDR: every caller of the platform roles runs on m1plat1 (D2), and a pod on a later agent node,
+bound subnet is the platform server's own pod subnet (the node's `spec.podCIDR`, m1plat1's
+today), not the cluster's pod CIDR: every caller of the platform roles runs on m1plat1 (D2), and a pod on a later agent node,
 such as a staging pod on the non-production node, gets an address outside it. The declaration
-records each cluster's subnet, read from the node at A7 and at each rehearsal, and the planner
-refuses a role bound to anything wider. Through the NodePort, traffic keeps the CI server's
+records each cluster's server subnet, read from the node at A7, at each rehearsal and after a
+cold rebuild onto a renamed node (D14), and the planner refuses a role bound to anything wider
+or to any subnet but the recorded one; it also reads the live server's `spec.podCIDR` and refuses
+when the recorded subnet differs, naming both. Through the NodePort, traffic keeps the CI server's
 address (`externalTrafficPolicy: Local`), which is outside that subnet, so the CI path can use
 the JWT role alone; in the cluster, traffic comes from pod addresses, so the JWT role is
 useless there. The planner refuses a role
@@ -459,7 +461,13 @@ records. For the same reason `vault_audit_log_request_failure` counts only reque
 device logged; a failing file device alone is a log line, not a metric. So the sidecar also
 checks that the file grows while the store serves requests, and exposes
 `openbao_audit_file_stalled` (1 when the file has not grown for 5 minutes while
-`vault_core_handle_request_count` rose); `OpenBaoAuditFileStalled` reads it. The second device is
+`vault_core_handle_request_count` rose); `OpenBaoAuditFileStalled` reads it. That alert exists
+only once the `alerts` unit runs at the plan's A14, yet the file device runs from A7. So until
+then `tool-fleet:health` reads the gauge itself, as it reports `secret-sync` before A14: through
+the API server's pod proxy to the sidecar's metrics port in `puni-secrets`, reporting the store
+audit file as stalled at 1, as unknown when the gauge is absent or unreadable, and as healthy
+only at 0. Its reading is part of the receipt of A7 and of every plan step after it and before
+A14. The second device is
 removed in the revision that proves the collector ships the records (plan A14).
 
 The claim requests 2 GiB and counts inside the 10 GiB the plan's decision 2 budgets for the
@@ -596,14 +604,23 @@ fire once the `alerts` unit runs (plan A14); before that, `tool-fleet:health` li
 **Loss of m1plat1.** The store, the control plane and every platform service go together.
 Recovery is the plan's cold rebuild:
 
+The replacement comes back under a new node name: `restore.yml` refuses a name the fenced
+original used (`infra/ansible/playbooks/restore.yml`, its node-name checks), so it also gets a
+new hostname and a new pod subnet. Two things follow: the restored Raft and audit claims point
+at volumes on the fenced node, so the store's pod would stay Pending; and every role bound to
+the old server's pod subnet (D7) refuses ESO, the Jobs and the OIDC login through the proxy
+until the binding is rewritten. The steps:
+
 1. The replacement server is built, etcd is restored from its snapshot with `restore.yml`, and
    the bootstrap playbook applies the bootstrap set.
-2. The operator reads the restored StatefulSet's mode (D8a). In `steady` the server finds no
-   marker and does not start; in another mode the StatefulSet is scaled to zero and the
-   unmarked claim, which a `first-init` pod may already have self-initialised, is deleted.
-3. The operator commits `restore` and syncs `openbao`. The store listens behind a closed
-   NetworkPolicy, and with no marker an `openbao` sync never reaches Healthy, which the runbook
-   expects; `secret-sync` is therefore refused, as it should be.
+2. The operator reads the restored StatefulSet's mode (D8a) and scales it to zero whatever the
+   mode is. Then the claims of `puni-secrets` (Raft and audit) and their volumes, which name the
+   fenced node, are deleted; they hold nothing reachable, and a claim on the replacement that a
+   `first-init` pod may already have self-initialised has no marker and is deleted too.
+3. The operator commits `restore` and syncs `openbao`. New claims bind on the replacement. The
+   store listens behind a closed NetworkPolicy, and with no marker an `openbao` sync never
+   reaches Healthy, which the runbook expects; `secret-sync` is therefore refused, as it should
+   be.
 4. Through `kubectl exec`, `bao operator init` (with a static seal it returns a root token and
    recovery shares), then `bao operator raft snapshot restore -force` of the latest snapshot
    with that token. `-force` is needed because the snapshot belongs to a store with other keys
@@ -612,10 +629,16 @@ Recovery is the plan's cold rebuild:
    token and shares stop working; they are discarded, never escrowed. From then on the
    escrowed shares authorise a root token through the break-glass socket (D3), Auth0 or not.
    The operator reads `Initialized: true` and the canary, and writes the marker.
-6. `steady` is committed again and `openbao` synced; only then is `secret-sync` or any
-   consumer synced. The runbook then deletes one synced Secret and changes one value in the
-   store, and requires the first to be recreated and the second updated, each with a fresh
-   `refreshTime`, so ESO is proved to write again and not only to have kept old copies.
+6. The operator reads the replacement's `spec.podCIDR`, commits it as the cluster's server
+   subnet in the declaration, and runs `tool-fleet secret-store apply` under a break-glass root
+   token from step 5, through `kubectl exec` and the socket: the OIDC role is still bound to the
+   old subnet and refuses the proxy. `apply` rewrites `token_bound_cidrs` on every role, and the
+   root token is revoked.
+7. Only then is `steady` committed and `openbao` synced, and only then `secret-sync` or any
+   consumer. The runbook then deletes one synced Secret and changes one value in the store, and
+   requires the first to be recreated and the second updated, each with a fresh
+   `refreshTime`, so ESO is proved to write again and not only to have kept old copies; and the
+   operator logs in once through OIDC to prove the new binding.
 
 Up to 6 h of store writes can be lost: escrowed values are written again, and a generated value
 (a Harbor robot, a database password) is rotated, which Harbor's runbook already does. The
@@ -664,8 +687,8 @@ initialisation is per cluster.
   (the node's kubeconfig, Rancher's administrator, a synced unit, `kubectl exec` into the store
   pod, which also reaches the break-glass socket), yields the seal key and the data.
 - Auth0 is a second trust root: control of the tenant or the owner's account logs in as the
-  store's administrator. Bound by subject, audience and MFA, and by m1plat1's pod
-  subnet, which only the tailnet proxy and the platform's own pods use.
+  store's administrator. Bound by subject, audience and MFA, and by the platform server's
+  pod subnet, which only the tailnet proxy and the platform's own pods use.
 - m1plat1 is a single point for secret changes and holds the only Raft copy between snapshots;
   up to 6 h of writes can be lost (D14).
 - Its outage is a correlated outage of the store, Harbor, Argo CD and the control plane:
