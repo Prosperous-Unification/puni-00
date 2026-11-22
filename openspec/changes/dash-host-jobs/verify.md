@@ -5022,18 +5022,21 @@ hourly `keinos/sqlite3` snapshot containers of h1claw's backup (claire PR #144, 
 `timeNano`, and refuses an event whose `Action` is neither. A `docker inspect` that exits
 non-zero with `No such container` on stderr no longer yields `unverified` directly.
 `judgeRemoved` waits until the stream has stopped and the replay was read, then records
-`lifetime-bounded` for a container labelled `puni.job` with this job's id, or with a named
-`puni.host-service` and no `puni.job`. The verdict carries `{ label, name, lifetimeMs,
-sampleIntervalMs }` and applies when both event times exist and the lifetime is at most the
-run's sampling interval (`sampleIntervalMs`, 10 000 ms in `commands.ts`, now passed to
-`ContainerWatch.start`). Missing either time, or a longer life, it stays `unverified` with the
-reason saying which. An inspect failing any other way is unchanged. `ContainerVerdict`
-(`ops/run-records.ts`) gains the member and its shape refuses it without the lifetime;
-`isAttributed` counts it. For each, `ops job run` prints a line of this shape: `ops job: e1b18304…
-attributed d96dd0358617 host-service=sqlite3-backup from its create event (ended before
-inspection, lifetime 1.2 s)`. `ops job audit` lists such a host service as `<name> (ended before inspection) ×n` in its host-services
-note. A lifetime-bounded job container does not clear an earlier `attribution_incomplete`:
-the clearing rule still asks for a `bounded` one.
+`lifetime-bounded` for a container with a named `puni.host-service` and no `puni.job`. The
+verdict carries `{ name, lifetimeMs, sampleIntervalMs }` and applies when both event times
+exist, the die is not earlier than the create, and the lifetime is at most the run's sampling
+interval (`sampleIntervalMs`, 10 000 ms in `commands.ts`, now passed to `ContainerWatch.start`).
+Missing either time, a die before its create, or a longer life, it stays `unverified` with the
+reason saying which. The job's own `puni.job` container removed before its bound was read keeps
+the existing `unverified` reason. An inspect failing any other way is unchanged.
+`ContainerVerdict` (`ops/run-records.ts`) gains the member and its shape refuses it without the
+lifetime; `isAttributed` counts it. For each, `ops job run` prints a line of this shape:
+`ops job: e1b18304… attributed d96dd0358617 host-service=sqlite3-backup from its create event
+(ended before inspection, lifetime 1.2 s)`. `ops job audit` lists such a host service as
+`sqlite3-backup (ended before inspection) ×2` in its host-services note.
+
+The first table is head 65f9a44e3, before the review of #981; the review fixes below have their
+own.
 
 | Command                                                                                                                        | Result                                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -5073,13 +5076,55 @@ long-lived labelled container that was never bounded.
 
 - **S28-A1** A-ATTR-ENDED-1, attribution by lifetime within one sampling interval with the
   bounds unknown, is assumed and awaits Dany's confirmation; no ADR, the amendment is under
-  J16 in design.md. The same rule applies to the job's own `puni.job` containers, as the
-  coordinator's brief asked; such a container's `--memory` and `--cpus` are then unread too.
+  J16 in design.md. It covers named `puni.host-service` containers only. The job's own
+  `puni.job` containers are not covered: the declared bound is what the envelope trusts
+  (task 6.22, #929), so one removed before its bound was read stays `unverified`. That was the
+  most restrictive of the review's options, chosen by the coordinator.
 - **S28-A2** The fix reaches the gate hosts only through the launcher tree: the hourly launcher
   refresh pulls `main` into `~/puni-00-gate-launcher`, from which Dash runs. A calibration
   series already running keeps the Dash it started with (h2puni's warm runs on launcher
   b17861f83), so the series that excluded e1b18304 cannot pick it up; a new series after the
   refresh is the host proof.
-- **S28-A3** The threshold is the sampling interval in force for the run, not a separate
-  setting: the stated reason is that no sample could have seen a container that lived less
-  than one interval. It is a choice, not a measurement of the container's use.
+- **S28-A3** The threshold is a tolerance, not a proof. Dash accepts, without reading its
+  bounds, a labelled host-service container that competed with the measured job for at most
+  one sampling interval; its memory and CPU during that interval are unknown and unbounded by
+  anything Dash saw. The job's scope samples never include a host service's container, so its
+  contention can skew at most one CPU sample of the job and adds nothing to the scope's memory
+  counters.
+- **S28-A4** The replay is the daemon's in-memory event buffer. The reviewer of #981 generated
+  320 events and saw 256 replayed. A die event the buffer dropped leaves its container
+  `unverified`, as does a die after the replay's `--until` whose inspect was raced. Both are
+  safe.
+
+### Review fixes (Fable review of #981, FIX-THEN-MERGE)
+
+- **S2-2** `lifetime-bounded` is restricted to `puni.host-service`. `LifetimeBound` loses its
+  `label`, and the `job=` reason is gone. The job-container test now expects the old
+  `unverified` reason.
+- **S2-1** The rationale "no sample could have seen it" was false: a sample is an instant, and
+  the scope samples never include a host service's container. The JSDoc, design.md, the job
+  catalogue README and S28-A3 now state the tolerance instead.
+- **S3-1** A die earlier than its create was clamped to lifetime 0. It is now `unverified`, the
+  reason naming the backwards clock.
+- **S3-2** The `closed` JSDoc no longer claims every die event is in; it names the buffer bound,
+  and so does the J16 amendment.
+- **S3-3** `job-run.test.ts` uses `isAttributed` and accepts `host-service` or
+  `lifetime-bounded` for the one-second host-service container.
+- **S3-4** The window edge is covered by S28-A4 and the `closed` JSDoc.
+
+| Command (review fixes)                                                                                                        | Result                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `containers.test.ts`, `run-records.test.ts`, `audit.test.ts`, `propose.test.ts` (project preloads)                            | 79 pass, 0 fail                                                                                         |
+| `job-run.test.ts -t container` inside `unshare` with `DASH_OPS_TEST_NAMESPACE=1`, real Docker                                 | 5 pass, 0 fail                                                                                          |
+| `bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                            | exit 0                                                                                                  |
+| `bunx eslint` on the changed TypeScript files                                                                                 | exit 0                                                                                                  |
+| `bunx openspec validate --all --json`                                                                                         | exit 0; 352 items, 352 passed, 0 failed                                                                 |
+| tool-devsync `adr-index`, `check-documents-target`, `current-documents`, `repo-namespacing-handoff`, `namespace-layout` tests | 63 pass, 0 fail                                                                                         |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD` after `git add -A`                | exit 0                                                                                                  |
+| `bunx nx run twilight-dash:test --skip-nx-cache`                                                                              | not rerun for the review fixes (55 min); the changed files and their callers' container tests are above |
+
+| Injected fault (review fixes)                      | Observed                                                                                                                                                                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the job's own removed container judged by lifetime | `a container labelled with this job removed before inspection stays unverified` failed: verdict `lifetime-bounded`                                                                                                |
+| the die-before-create check removed                | `a removed host-service container whose die precedes its create stays unverified` failed: verdict `lifetime-bounded`, lifetime -5.0 s                                                                             |
+| the earlier negatives rerun on the fixed code      | each still fails its test: the `No such container` branch 7, die times 5, the wait 1, the missing-die check 1, the lifetime comparison 1, the `Action` check 1, `isAttributed` 1, the shape 1, the audit branch 1 |

@@ -546,9 +546,9 @@ docker run --rm --label puni.host-service=goaccess-reports --memory 512m --cpus 
 The run record then keeps it as verdict `host-service`, and `ops job audit` lists it beside the
 run with its declared bounds. A label without both `--memory` and `--cpus` still leaves the
 run incomplete, and a container that also carries `puni.job` is judged as that job's. A
-labelled container removed before Dash read its bounds, such as a one-second `--rm` snapshot,
-is attributed from its create and die events when it lived within one sampling interval
-(A-ATTR-ENDED-1, task 6.28). Two
+host-service container removed before Dash read its bounds, such as a one-second `--rm`
+snapshot, is attributed from its create and die events when it lived within one sampling
+interval (A-ATTR-ENDED-1, task 6.28). Its memory and CPU over that interval are then unknown. Two
 scripts need it today: h2puni's hourly `~/monitoring/bin/goaccess-reports.sh` (cron at :07,
 `allinurl/goaccess`) and h4claw's daily `puni-registry-backup.timer`, whose
 `/root/.puni/registry/backup-registry.ts` runs `keinos/sqlite3` snapshots (h2puni has a

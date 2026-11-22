@@ -503,15 +503,16 @@
       the prune deleted, its status ignored, the smoke's status dropped, the prune moved above
       the smoke, the smoke unguarded (verify.md, 2026-11-21). The host proof is the next
       calibration series on h2puni (S27-A3).
-- [x] 6.28 a labelled container removed before its bounds were read is attributed from its create
-      and die events (A-ATTR-ENDED-1): h2puni's gate calibration e1b18304 (2026-11-22) recorded
+- [x] 6.28 a host-service container removed before its bounds were read is attributed from its
+      create and die events (A-ATTR-ENDED-1): h2puni's gate calibration e1b18304 (2026-11-22) recorded
       two `unverified` verdicts, `No such container`, for the hourly one-second
       `keinos/sqlite3` backup snapshots, already labelled and bounded, and was excluded. The
-      watch now reads `die` events too; a container `docker inspect` no longer finds, labelled
-      `puni.job` for this job or with a named `puni.host-service`, whose create and die events
-      date a lifetime within one sampling interval is verdict `lifetime-bounded`, leaves the
+      watch now reads `die` events too; a container `docker inspect` no longer finds, without
+      `puni.job` and with a named `puni.host-service`, whose create and die events date a
+      lifetime within one sampling interval is verdict `lifetime-bounded`, leaves the
       attribution complete, prints an `attributed` line and is listed by `ops job audit`.
-      Without either event time or after a longer life it stays `unverified`. Tests:
+      Without either event time, with a die before its create, or after a longer life it stays
+      `unverified`; the job's own removed containers stay `unverified` as before. Tests:
       `containers.test.ts` (stub and real Docker), `run-records.test.ts`, `audit.test.ts`,
       `propose.test.ts`; negatives: each new check removed in turn (verify.md, 2026-11-22). The
       host proof is the next calibration series on h2puni after the launcher refresh (S28-A2).

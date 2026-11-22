@@ -922,8 +922,9 @@ was read: Error response from daemon: No such container`, and the calibration wa
 The check was sound; the proof that it would not fire was not. The measurement came from one
 host and one start shape, and a different caller's timing on another host reversed it. A race
 argued away by measurement is a claim about the measured cases only. The watch now models the
-loss as an outcome instead: it reads die events too, and a labelled container whose create and
-die events date a lifetime within one sampling interval is `lifetime-bounded` (A-ATTR-ENDED-1).
+loss as an outcome instead: it reads die events too, and a host-service container whose create
+and die events date a lifetime within one sampling interval is `lifetime-bounded`
+(A-ATTR-ENDED-1), a stated tolerance whose bounds stay unread.
 `containers.test.ts` makes the race certain with a real daemon by removing the container before
 the watch starts. With the `No such container` branch removed it printed the exact h2puni
 reason above; restored, it passed.

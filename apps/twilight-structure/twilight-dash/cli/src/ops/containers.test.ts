@@ -240,7 +240,6 @@ describe('the container watch against a stub docker (review F2f, F8, F11)', () =
           reason:
             'host-service=sqlite3-backup from its create event (ended before inspection, lifetime 1.2 s)',
           lifetimeBound: {
-            label: 'puni.host-service',
             name: 'sqlite3-backup',
             lifetimeMs: 1200,
             sampleIntervalMs: 10_000,
@@ -264,16 +263,31 @@ describe('the container watch against a stub docker (review F2f, F8, F11)', () =
       ]);
     });
 
-    test('a container labelled with this job removed before inspection is attributed to it', async () => {
+    test('a container labelled with this job removed before inspection stays unverified', async () => {
       const docker = stubDocker({
         replay: lived(container(1), { 'puni.job': 'job-one' }, 300),
         inspectError: noSuch(container(1)),
       });
-      expect(await watch(docker).finish(1800000001000)).toMatchObject([
+      expect(await watch(docker).finish(1800000001000)).toEqual([
         {
-          verdict: 'lifetime-bounded',
-          reason: 'job=job-one from its create event (ended before inspection, lifetime 0.3 s)',
-          lifetimeBound: { label: 'puni.job', name: 'job-one', lifetimeMs: 300 },
+          id: container(1),
+          verdict: 'unverified',
+          reason: `container ended or was unreadable before its bound was read: Error response from daemon: No such container: ${container(1)}`,
+        },
+      ]);
+    });
+
+    test('a removed host-service container whose die precedes its create stays unverified', async () => {
+      const docker = stubDocker({
+        replay: lived(container(1), backup, -5000),
+        inspectError: noSuch(container(1)),
+      });
+      expect(await watch(docker).finish(1800000001000)).toEqual([
+        {
+          id: container(1),
+          verdict: 'unverified',
+          reason:
+            "container from busybox labelled puni.host-service=sqlite3-backup was removed before its bound was read, and its die event is 5.0 s before its create event: the daemon's clock went backwards, so no lifetime is dated",
         },
       ]);
     });
@@ -401,7 +415,7 @@ describe('the container watch against a stub docker (review F2f, F8, F11)', () =
       expect(mine).toMatchObject([
         {
           verdict: 'lifetime-bounded',
-          lifetimeBound: { label: 'puni.host-service', name: 'dash-test-ended' },
+          lifetimeBound: { name: 'dash-test-ended' },
         },
       ]);
     },

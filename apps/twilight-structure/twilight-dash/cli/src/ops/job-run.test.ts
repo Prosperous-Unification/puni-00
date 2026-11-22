@@ -47,7 +47,7 @@ import {
   refusingSystemdRun,
 } from './ops.test.fixture';
 import { OpsRefusal } from './refusal';
-import { HostJobRunRecords } from './run-records';
+import { HostJobRunRecords, isAttributed } from './run-records';
 import { linuxScopeTelemetry, type ScopeTelemetry } from './scope';
 
 /**
@@ -1955,9 +1955,7 @@ if (insideOpsNamespace(import.meta.path)) {
         expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded']);
         // Other agents on the host may start unlabelled containers in the same window.
         expect(record.attributionIncomplete).toBe(
-          record.containers.some(
-            (verdict) => verdict.verdict !== 'bounded' && verdict.verdict !== 'host-service',
-          ),
+          record.containers.some((verdict) => !isAttributed(verdict)),
         );
         expect(job.compute.state).toBe('released');
       },
@@ -1975,12 +1973,23 @@ if (insideOpsNamespace(import.meta.path)) {
         );
         expect(code).toBe(0);
         const mine = record.containers.filter((verdict) => verdict.verdict !== 'unlabelled');
-        expect(mine.map((verdict) => verdict.verdict)).toEqual(['bounded', 'host-service']);
-        expect(mine[1]).toMatchObject({
-          hostService: { name: 'dash-test-service', memoryBytes: 64 * 1024 ** 2, cpuCores: 0.5 },
-        });
+        expect(mine.map((verdict) => verdict.verdict)).toHaveLength(2);
+        expect(mine[0]?.verdict).toBe('bounded');
+        // The one-second host service may lose the inspect race on a loaded host (A-ATTR-ENDED-1).
+        const service = mine[1];
+        if (service.verdict === 'host-service')
+          expect(service.hostService).toEqual({
+            name: 'dash-test-service',
+            memoryBytes: 64 * 1024 ** 2,
+            cpuCores: 0.5,
+          });
+        else
+          expect(service).toMatchObject({
+            verdict: 'lifetime-bounded',
+            lifetimeBound: { name: 'dash-test-service' },
+          });
         expect(record.attributionIncomplete).toBe(
-          record.containers.some((verdict) => verdict.verdict === 'unlabelled'),
+          record.containers.some((verdict) => !isAttributed(verdict)),
         );
       },
       90000,

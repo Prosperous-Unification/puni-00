@@ -103,7 +103,6 @@ describe('run record container verdicts (task 6.22, A-ATTR-HOSTSVC-1)', () => {
       reason:
         'host-service=sqlite3-backup from its create event (ended before inspection, lifetime 1.2 s)',
       lifetimeBound: {
-        label: 'puni.host-service',
         name: 'sqlite3-backup',
         lifetimeMs: 1200,
         sampleIntervalMs: 10_000,

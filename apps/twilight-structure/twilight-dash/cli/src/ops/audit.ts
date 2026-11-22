@@ -126,10 +126,7 @@ function hostServicesOf(record: RunRecord): string | null {
     if (container.verdict === 'host-service') {
       const service: HostServiceBound = container.hostService;
       described = `${service.name} (${figure(service.memoryBytes / MIB)} MiB, ${figure(service.cpuCores)} ${service.cpuCores > 1 ? 'cpus' : 'cpu'})`;
-    } else if (
-      container.verdict === 'lifetime-bounded' &&
-      container.lifetimeBound.label === 'puni.host-service'
-    )
+    } else if (container.verdict === 'lifetime-bounded')
       // Proof: dropping this branch made `a host service that ended before inspection is listed
       // as such (A-ATTR-ENDED-1)` (audit.test.ts) find no note (2026-11-22).
       described = `${container.lifetimeBound.name} (ended before inspection)`;

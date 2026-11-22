@@ -257,7 +257,6 @@ describe('ops job propose (task 4.1, J9)', () => {
             verdict: 'lifetime-bounded',
             reason: 'host-service=sqlite3-backup from its create event',
             lifetimeBound: {
-              label: 'puni.host-service',
               name: 'sqlite3-backup',
               lifetimeMs: 1200,
               sampleIntervalMs: 10_000,

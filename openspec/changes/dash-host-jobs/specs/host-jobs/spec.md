@@ -474,17 +474,19 @@ job's envelope. A run that saw only host-service containers SHALL NOT clear an e
   `puni.host-service=goaccess-reports` starts with memory above the type's declared bound
 - **THEN** it is recorded `unbounded` by the job-container rules
 
-### Requirement: A labelled container removed before its bounds were read is lifetime-bounded
+### Requirement: A host-service container removed before its bounds were read is lifetime-bounded
 
-During a host job's container watch, a container that `docker inspect` answers `No such
-container` for SHALL be judged from its create and die events once the stream and the replay
-have ended. A container labelled `puni.job` with the running job's id, or without `puni.job`
-and labelled `puni.host-service` with a non-empty name, whose create and die events both carry
-a time and date a lifetime of at most one sampling interval, SHALL be recorded as verdict
-`lifetime-bounded` with the label, the name, the lifetime and the interval. It SHALL NOT make
+During a host job's container watch, a container without `puni.job` and labelled
+`puni.host-service` with a non-empty name that `docker inspect` answers `No such container` for
+SHALL be judged from its create and die events once the stream and the replay have ended. When
+both events carry a time and the die is not earlier than the create, and they date a lifetime of
+at most one sampling interval, it SHALL be recorded as verdict `lifetime-bounded` with the name,
+the lifetime and the interval. It SHALL NOT make
 the run's attribution incomplete, `ops job run` SHALL print one `attributed` line for it, and
 `ops job audit` SHALL list a host service so recorded as `ended before inspection`. Without
-either event time, or after a longer lifetime, it SHALL be recorded `unverified`. An inspect
+either event time, with a die earlier than its create, or after a longer lifetime, it SHALL be
+recorded `unverified`. A container labelled `puni.job` with the running job's id that is removed
+before its bound was read SHALL be recorded `unverified` whatever its lifetime. An inspect
 failure other than `No such container` SHALL stay `unverified`, and an unlabelled container
 SHALL stay `unlabelled`.
 
@@ -493,14 +495,13 @@ SHALL stay `unlabelled`.
 - **WHEN** a gate is running and a backup starts
   `docker run --rm --label puni.host-service=sqlite3-backup --memory 256m --cpus 1` and the
   container is removed 1.2 s after its create event, before `docker inspect` reads it
-- **THEN** the run record holds a `lifetime-bounded` verdict naming `puni.host-service`,
-  sqlite3-backup and 1200 ms, `ops job run` prints `attributed` followed by the container id and
+- **THEN** the run record holds a `lifetime-bounded` verdict naming sqlite3-backup and 1200 ms, `ops job run` prints `attributed` followed by the container id and
   `host-service=sqlite3-backup from its create event (ended before inspection, lifetime 1.2 s)`,
   and the run's attribution is complete
 
 #### Scenario: No die event
 
-- **WHEN** a labelled container is removed before inspection and neither the stream nor the
+- **WHEN** a host-service container is removed before inspection and neither the stream nor the
   replay delivered its die event
 - **THEN** it is recorded `unverified`, the reason saying no die event dates its lifetime, and
   the run's attribution is incomplete

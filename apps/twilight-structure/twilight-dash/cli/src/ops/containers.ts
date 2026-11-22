@@ -8,7 +8,7 @@ import {
   JOB_LABEL,
 } from '../resources/container-evidence';
 import { causeText, OpsRefusal } from './refusal';
-import type { ContainerSample, ContainerVerdict, LifetimeBound } from './run-records';
+import type { ContainerSample, ContainerVerdict } from './run-records';
 
 export { dockerContainerEvidence, JOB_LABEL };
 
@@ -172,7 +172,12 @@ export class ContainerWatch {
   private readonly createdAt = new Map<string, number>();
   /** Each container's first die time, epoch nanoseconds, from the stream or the replay. */
   private readonly diedAt = new Map<string, number>();
-  /** Settles once the stream has stopped and the replay was read: every die event is in. */
+  /**
+   * Settles once the stream has stopped and the replay was read: every die event the stream
+   * delivered or the daemon's in-memory event buffer still held for the window (256 events on the
+   * laptop's Docker 29) is in. A die the buffer dropped, or one after the replay's `--until`,
+   * leaves its removed container `unverified`, never attributed.
+   */
   private readonly closed = Promise.withResolvers<undefined>();
   private buffered = '';
 
@@ -310,7 +315,16 @@ export class ContainerWatch {
       };
     }
     const limits = await this.readLimits(event);
-    if (limits === 'removed') return this.judgeRemoved(event, JOB_LABEL, owner);
+    // The job's own container is held to its declared bound (J16): one removed before the bound
+    // was read stays unverified, whatever its lifetime (A-ATTR-ENDED-1 covers host services only).
+    // Proof: judging it by lifetime made `a container labelled with this job removed before
+    // inspection stays unverified` (containers.test.ts) find verdict lifetime-bounded (2026-11-22).
+    if ('removed' in limits)
+      return {
+        id: event.id,
+        verdict: 'unverified',
+        reason: `container ended or was unreadable before its bound was read: ${limits.removed}`,
+      };
     if ('verdict' in limits) return limits;
     const { memory, nanoCpus } = limits;
     const limit = this.bound.memoryGib * GIB;
@@ -361,7 +375,7 @@ export class ContainerWatch {
         reason: `container from ${event.image} is labelled ${HOST_SERVICE_LABEL} with no name; a host service is attributed only by name`,
       };
     const limits = await this.readLimits(event);
-    if (limits === 'removed') return this.judgeRemoved(event, HOST_SERVICE_LABEL, service);
+    if ('removed' in limits) return this.judgeRemoved(event, service);
     if ('verdict' in limits) return limits;
     const missing = [
       ...(limits.memory > 0 ? [] : ['--memory']),
@@ -386,23 +400,22 @@ export class ContainerWatch {
   }
 
   /**
-   * A labelled container `docker inspect` no longer finds (A-ATTR-ENDED-1): its labels came with
-   * its create event, its bounds went with it. Waits for the stream to stop and the replay to be
-   * read, then attributes it `lifetime-bounded` when its own create and die events date a
-   * lifetime of at most one sampling interval: no sample could have seen it, so its bounds could
-   * not have mattered to one. Without both events, or after a longer life, it stays `unverified`.
+   * A named host-service container `docker inspect` no longer finds (A-ATTR-ENDED-1): its labels
+   * came with its create event, its bounds went with it. Waits for the stream to stop and the
+   * replay to be read, then records it `lifetime-bounded` when its own create and die events date
+   * a lifetime of at most one sampling interval. That is a tolerance, not a proof: Dash accepts,
+   * without reading its bounds, a labelled host-service container that competed with the measured
+   * job for at most one sampling interval; its memory and CPU during that interval are unknown
+   * and unbounded by anything Dash saw. Without both events, with a die before its create, or
+   * after a longer life, it stays `unverified`.
    */
-  private async judgeRemoved(
-    event: ContainerEvent,
-    label: LifetimeBound['label'],
-    name: string,
-  ): Promise<ContainerVerdict> {
+  private async judgeRemoved(event: ContainerEvent, name: string): Promise<ContainerVerdict> {
     // Proof: without this wait `a die event only the closing replay delivers still dates the
     // lifetime` (containers.test.ts) found verdict unverified, no die event (2026-11-22).
     await this.closed.promise;
     const created = this.createdAt.get(event.id);
     const died = this.diedAt.get(event.id);
-    const removed = `container from ${event.image} labelled ${label}=${name} was removed before its bound was read`;
+    const removed = `container from ${event.image} labelled ${HOST_SERVICE_LABEL}=${name} was removed before its bound was read`;
     // Proof: attributing a removed container without its die event made `a removed labelled
     // container without its die event stays unverified` (containers.test.ts) find verdict
     // lifetime-bounded (2026-11-22).
@@ -412,7 +425,16 @@ export class ContainerWatch {
         verdict: 'unverified',
         reason: `${removed}, and no ${created === undefined ? 'create' : 'die'} event dates its lifetime`,
       };
-    const lifetimeMs = Math.max(0, (died - created) / 1e6);
+    // Proof: without it `a removed host-service container whose die precedes its create stays
+    // unverified` (containers.test.ts) found verdict lifetime-bounded, lifetime -5.0 s; the
+    // review of #981 saw the earlier `Math.max(0, …)` form print lifetime 0.0 s (2026-11-22).
+    if (died < created)
+      return {
+        id: event.id,
+        verdict: 'unverified',
+        reason: `${removed}, and its die event is ${((created - died) / 1e9).toFixed(1)} s before its create event: the daemon's clock went backwards, so no lifetime is dated`,
+      };
+    const lifetimeMs = (died - created) / 1e6;
     const seconds = `${(lifetimeMs / 1000).toFixed(1)} s`;
     // Proof: dropping this comparison made `a removed labelled container that lived longer than
     // one sampling interval stays unverified` (containers.test.ts) find verdict lifetime-bounded
@@ -426,19 +448,19 @@ export class ContainerWatch {
     return {
       id: event.id,
       verdict: 'lifetime-bounded',
-      reason: `${label === JOB_LABEL ? 'job' : 'host-service'}=${name} from its create event (ended before inspection, lifetime ${seconds})`,
-      lifetimeBound: { label, name, lifetimeMs, sampleIntervalMs: this.sampleIntervalMs },
+      reason: `host-service=${name} from its create event (ended before inspection, lifetime ${seconds})`,
+      lifetimeBound: { name, lifetimeMs, sampleIntervalMs: this.sampleIntervalMs },
     };
   }
 
   /**
    * The container's `--memory` (bytes) and `--cpus` (nano-CPUs) limits, zero when not given;
-   * `removed` when the daemon answers it has no such container; or an `unverified` verdict when
-   * it could not be read otherwise.
+   * `removed` with the daemon's diagnostic when it answers it has no such container; or an
+   * `unverified` verdict when it could not be read otherwise.
    */
   private async readLimits(
     event: ContainerEvent,
-  ): Promise<{ memory: number; nanoCpus: number } | 'removed' | ContainerVerdict> {
+  ): Promise<{ memory: number; nanoCpus: number } | { removed: string } | ContainerVerdict> {
     const inspected = await execute(
       spawnClient(
         [
@@ -463,7 +485,7 @@ export class ContainerWatch {
       inspected.exitCode !== 0 &&
       inspected.stderr.includes('No such container')
     )
-      return 'removed';
+      return { removed: firstLine(inspected.stderr) };
     if (inspected.exitCode !== 0 || inspected.timedOut)
       return {
         id: event.id,

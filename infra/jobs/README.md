@@ -33,11 +33,13 @@ Every container created during a job with a `containers` bound is judged by the 
 watch (J16). It counts as attributed in three cases. The first is the job's own: labelled
 `puni.job=$DASH_JOB_ID`, under `--memory` and `--cpus` within the bound. The second is a
 declared host service: no `puni.job`, a named `puni.host-service` label, and both
-`--memory` and `--cpus`. The third is a labelled container of either kind that was removed
-before its bounds could be read, but whose create and die events date a lifetime within one
-sampling interval (10 s). Such a container's bounds were never read; one that lived less than
-one interval could not have mattered to any sample (`lifetime-bounded`, A-ATTR-ENDED-1). Any other container leaves the run attribution-incomplete, and
-`ops job propose` leaves it out. The rules and their rejected alternatives are under J16 in
+`--memory` and `--cpus`. The third is such a host-service container that was removed before its
+bounds could be read, but whose create and die events date a lifetime within one sampling
+interval (10 s) (`lifetime-bounded`, A-ATTR-ENDED-1). That third case is a tolerance. Dash
+accepts the container without reading its bounds, and its memory and CPU during that interval
+are unknown. A job's own container removed before its bound was read is never attributed. Any
+other container leaves the run attribution-incomplete, and `ops job propose` leaves it out. The
+rules and their rejected alternatives are under J16 in
 [the design](../../openspec/changes/dash-host-jobs/design.md).
 
 ### Argument profile

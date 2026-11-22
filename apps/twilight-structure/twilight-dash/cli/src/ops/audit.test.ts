@@ -223,7 +223,6 @@ describe('ops job audit (task 4.2, J9, J16)', () => {
         verdict: 'lifetime-bounded' as const,
         reason: 'host-service=sqlite3-backup from its create event',
         lifetimeBound: {
-          label: 'puni.host-service' as const,
           name: 'sqlite3-backup',
           lifetimeMs: 1200,
           sampleIntervalMs: 10_000,
