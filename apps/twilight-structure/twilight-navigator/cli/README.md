@@ -40,7 +40,7 @@ until it is published.
 
 ## `twin plan-reference`
 
-From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9 or 10)
+From the repository root, with a WBS plan export (`GET /api/projects/:id/export`, version 7, 8, 9, 10 or 11)
 and the requirements the plan answers (for example the change's delta spec):
 
 ```sh
@@ -60,17 +60,21 @@ work items with ancestry, per-step estimates and dependencies) and
 replacing a file, and prints the plan reference digest. The record's `createdAt` is the
 export's `exportedAt`, so the same inputs give the same bytes.
 
-Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9 and 10 write task
+Version 7 keeps task schema 1 with `estimateDays` in workdays. Versions 8, 9, 10 and 11 write task
 schema 2: each `estimates` entry names its `stepCode`, native `unit` (`minutes` or `workdays`),
 and unchanged optimistic, realistic and pessimistic values. Version 9 requires strict root
 `stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and
 safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid.
 Facts stay in the original export; Navigator emits no blockage commands or eligibility
 calculation. Version 10 adds the plan's resources, their capacities and demands
-(`wbs-resources`); Navigator reads them strictly and they change no task. Future versions
-(version 11 is refused before output) and undeclared keys are refused. The reference records the
-original wire version and hashes the raw export bytes, so a blockedAt-only change changes the
-export and reference digests while preserving tasks and their digest.
+(`wbs-resources`); Navigator reads them strictly and they change no task. Version 11 adds the
+budget factor, measure definitions, facts, estimates and budgets; Navigator reads them strictly
+and derives the same tasks as the equivalent version-10 export
+([measures and budgets](../../../../docs/wbs/measures-and-budgets.md#export-import-and-saved-plans)).
+Unsupported versions, including connected version 12, and undeclared keys are refused.
+The reference records the original wire version and hashes the raw export bytes, so a
+blockedAt-only change changes the export and reference digests while preserving tasks and
+their digest.
 
 The plan reference is prepared, not applied: nothing is sent to WBS or Dash.
 
