@@ -42,8 +42,3 @@ When scoped chat has a saved brief and no further question, Build SHALL show the
 - **WHEN** the confirmation appears with normal motion preferences
 - **THEN** the green checkmark settles into place with a brief burst of sparkles
 - **AND** reduced-motion visitors see the same confirmation and checkmark immediately without animation
-
-#### Scenario: Start another chat after sending a request
-
-- **WHEN** the visitor selects Chat more on the confirmation
-- **THEN** the site opens the Home request prompt so they can start a fresh chat and send a separate request

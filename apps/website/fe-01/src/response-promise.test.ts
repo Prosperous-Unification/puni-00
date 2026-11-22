@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'bun:test';
 
+import { approvedResponsePromise, findResponseTimePromise } from '../browser/response-time';
+
 // Only the approved chat receipt carries a timed promise. A response time is `in` or `within`, a count (digits,
 // a, an, the or a number word) and hour(s), day(s), business or working day(s) or week(s); `in` or
 // `within` and digits joined to `h`; digits joined to `hour`; "same day"; or "next business day". The block from `COUNT` to `responseTimePattern` is
@@ -35,7 +37,7 @@ test('only the approved chat receipt promises a response time', () => {
     copyFiles
       .filter(({ name, text }) =>
         responseTimePattern.test(
-          name === 'request-editor.tsx' ? text.replace(chatReceiptPromise, '') : text,
+          name === 'conversation-harness.tsx' ? text.replace(chatReceiptPromise, '') : text,
         ),
       )
       .map(({ name }) => name),
@@ -43,8 +45,8 @@ test('only the approved chat receipt promises a response time', () => {
 });
 
 test('the chat receipt promises email contact within four hours', () => {
-  const editor = copyFiles.find((file) => file.name === 'request-editor.tsx');
-  expect(editor?.text).toContain(`<p>${chatReceiptPromise}</p>`);
+  const harness = copyFiles.find((file) => file.name === 'conversation-harness.tsx');
+  expect(harness?.text).toContain(`<p>${chatReceiptPromise}</p>`);
 });
 
 describe('response time forms', () => {
@@ -92,4 +94,17 @@ describe('response time forms', () => {
 test('the manual receipt says a person replies by email', () => {
   const main = copyFiles.find((file) => file.name === 'main.tsx');
   expect(main?.text).toContain('A person will review your brief and reply by email.');
+});
+
+test('the W11 screens check allows only the approved chat receipt sentence', () => {
+  expect(approvedResponsePromise).toBe(chatReceiptPromise);
+  expect(findResponseTimePromise(`Your request is recorded.\n${chatReceiptPromise}`)).toBeNull();
+  // Proof: dropping the allow-list replacement failed the approved line above; dropping `hours`
+  // from the pattern, which also passed the approved line, let "within 2 hours" through below.
+  expect(findResponseTimePromise('PUNI will contact you by email within 2 hours.')).toBe(
+    'within 2 hours',
+  );
+  expect(findResponseTimePromise(`${chatReceiptPromise} We reply within 2 days.`)).toBe(
+    'within 2 days',
+  );
 });

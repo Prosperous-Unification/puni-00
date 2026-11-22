@@ -981,6 +981,11 @@ textarea {
   /* Briefs are written as lines and bullets; the operator reads them as written. */
   white-space: pre-line;
 }
+.submission-follow-ups {
+  margin: 0;
+  padding-left: var(--space-4);
+  white-space: pre-line;
+}
 .submission-head {
   display: flex;
   justify-content: space-between;
@@ -1591,6 +1596,21 @@ body:has(.night-shell) {
 }
 .receipt-next {
   margin-top: var(--space-3);
+}
+/* The recorded-request confirmation, as a reply in the conversation thread. */
+.submission-receipt {
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid rgb(160 242 192 / 0.22);
+  border-radius: 20px 20px 20px 6px;
+  background:
+    radial-gradient(ellipse at 0% 0%, rgb(96 227 156 / 0.13), transparent 70%),
+    rgb(255 255 255 / 0.04);
+}
+.submission-receipt .receipt-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .receipt-emblem {
   position: relative;

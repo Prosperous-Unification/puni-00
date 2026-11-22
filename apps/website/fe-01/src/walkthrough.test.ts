@@ -44,6 +44,7 @@ test('every scenario row names at least one capture or test', () => {
     'Home request, AI live',
     'Early conversion',
     'Eighth-turn cap',
+    'After submission',
     'AI disabled',
     'AI paused',
     'Bot check refused',

@@ -4,7 +4,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'reac
 import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
 import { ApiFailure, requestJson } from './api';
 import { describeFailure } from './app-flow';
-import { parseDraft, parseScoping, startOverUrl } from './build-contract';
+import { parseDraft, parseScoping } from './build-contract';
 import { siteOrigin } from './chrome';
 
 interface EditableDraft {
@@ -525,25 +525,6 @@ export function RequestEditor({
     }
   }
 
-  if (receipt !== null && route !== 'manual')
-    return (
-      <section className="proposal-card proposal-receipt receipt-success" role="status">
-        <div className="receipt-emblem" aria-hidden="true">
-          <span className="receipt-check">✓</span>
-          <span className="receipt-sparkles">
-            <span />
-            <span />
-            <span />
-            <span />
-          </span>
-        </div>
-        <h2>Your request is recorded.</h2>
-        <p>PUNI will contact you by email within 4 hours.</p>
-        <a className="glass-button quiet receipt-next" href={startOverUrl(siteOrigin)}>
-          Chat more
-        </a>
-      </section>
-    );
   if (receipt !== null)
     return (
       <section className="proposal-card proposal-receipt" role="status">

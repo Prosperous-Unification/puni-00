@@ -122,6 +122,10 @@ export function LiveHarness({
   const isSending = useRef(false);
   const isMountedStart = useRef(false);
   const [receipt, setReceipt] = useState<string | null>(null);
+  // Set when this page submitted, until the reread conversation carries the server's mark.
+  const [localSubmission, setLocalSubmission] = useState<Conversation['submission']>(null);
+  const submission = conversation.submission ?? localSubmission;
+  const isSubmitted = submission !== null;
   const reading = useRef<AbortController | null>(null);
   const stopping = useRef<string | null>(null);
   const thread = useRef<HTMLDivElement>(null);
@@ -130,7 +134,9 @@ export function LiveHarness({
   const stopped = live === null ? selectStoppedAttempt(conversation) : null;
   const isBusy = live?.phase === 'submitted' || live?.phase === 'streaming';
   const isLimited = live?.phase === 'limited';
+  // Proof: dropping the submission condition hid the composer after submit in conversation-harness.test.tsx.
   const isFinal =
+    !isSubmitted &&
     live === null &&
     stopped === null &&
     conversation.scoping.version === 1 &&
@@ -259,7 +265,14 @@ export function LiveHarness({
   useLayoutEffect(() => {
     const viewport = thread.current;
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
-  }, [conversation.turns.length, live?.text, live?.phase, receipt, stopped?.idempotencyKey]);
+  }, [
+    conversation.turns.length,
+    live?.text,
+    live?.phase,
+    receipt,
+    submission?.turnsBefore,
+    stopped?.idempotencyKey,
+  ]);
 
   async function refresh(): Promise<Conversation | null> {
     try {
@@ -526,15 +539,24 @@ export function LiveHarness({
                 : 'Your Home request is ready below. Press Send when you want to start the conversation.'}
             </p>
           )}
+          {/* The confirmation sits where the request was recorded; later turns are follow-ups.
+              Proof: dropping the per-turn placement lost it in the reload and exhausted-after-submit tests. */}
           {conversation.turns.map((turn, index) => {
             const label = turn.role === 'assistant' ? labelReply(index) : null;
             return (
-              <div key={index} className={`build-message ${turn.role}`}>
-                {label && <span className="message-label">{label}</span>}
-                <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
-              </div>
+              <React.Fragment key={index}>
+                {submission?.turnsBefore === index && <SubmissionReceipt />}
+                <div className={`build-message ${turn.role}`}>
+                  {label && <span className="message-label">{label}</span>}
+                  <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
+                </div>
+              </React.Fragment>
             );
           })}
+          {/* Proof: dropping this trailing placement lost the fresh confirmation in the recorded-request test. */}
+          {submission !== null && submission.turnsBefore >= conversation.turns.length && (
+            <SubmissionReceipt />
+          )}
           {conversation.latestOperation?.truncated && live === null && (
             <p className="harness-aside">This reply reached its length limit.</p>
           )}
@@ -571,7 +593,9 @@ export function LiveHarness({
           )}
           {isLimited && !emailOnly && (
             <p className="harness-status" role="status">
-              PUNI chat is busy right now. You can still send your request.
+              {isSubmitted
+                ? 'PUNI chat is busy right now. You can retry once it frees up.'
+                : 'PUNI chat is busy right now. You can still send your request.'}
             </p>
           )}
           {retryable !== null && !emailOnly && (
@@ -621,7 +645,9 @@ export function LiveHarness({
                 ))}
               </div>
             )}
-          {conversation.scoping.version === 1 && (
+          {/* One submission per draft: after it, follow-ups are ordinary conversation turns.
+              Proof: dropping !isSubmitted kept the email form in the recorded-request and reload tests. */}
+          {conversation.scoping.version === 1 && !isSubmitted && (
             <div className="request-entry" data-email-only={emailOnly || undefined}>
               {/* Once the contact form is open this would repeat it; focus moves to its email. */}
               {!isReviewOpen && !isFinal && (
@@ -662,8 +688,13 @@ export function LiveHarness({
                   await refresh();
                 }}
                 onSubmitted={() => {
-                  setReceipt('saved');
+                  setLocalSubmission({ turnsBefore: conversation.turns.length });
+                  // The unmounted editor no longer reports focus; the composer opens again.
+                  // Proof: keeping the editor's focus hid the composer after submit in conversation-harness.test.tsx.
+                  setReview(null);
+                  updateReviewFocus(false);
                   onHandedOff();
+                  void refresh();
                 }}
               />
             </div>
@@ -722,7 +753,7 @@ export function LiveHarness({
               </a>
             </p>
           ) : mode.kind === 'closed' ? (
-            <p className="harness-closed">{describeExhaustion(mode.reason)}</p>
+            <p className="harness-closed">{describeExhaustion(mode.reason, isSubmitted)}</p>
           ) : mode.kind === 'answering' ? (
             <p className="harness-closed">
               PUNI is still answering your last message.
@@ -803,6 +834,28 @@ export function LiveHarness({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The in-thread reply confirming the request was saved. The chat stays open below it, so it
+ * offers no next action of its own.
+ */
+function SubmissionReceipt() {
+  return (
+    <div className="build-message assistant submission-receipt" role="status">
+      <div className="receipt-emblem" aria-hidden="true">
+        <span className="receipt-check">✓</span>
+        <span className="receipt-sparkles">
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
+      </div>
+      <p className="receipt-title">Your request is recorded.</p>
+      <p>PUNI will contact you by email within 4 hours.</p>
     </div>
   );
 }

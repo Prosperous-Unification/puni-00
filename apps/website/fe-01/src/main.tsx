@@ -28,6 +28,7 @@ import { FunnelPanel } from './funnel-panel';
 import { GuardrailsPanel } from './guardrails-panel';
 import { ArrivalChoice, PrivacyChoices } from './privacy-choices';
 import { clearRequestEditor, RequestEditor } from './request-editor';
+import { SubmissionFollowUps } from './submission-follow-ups';
 import {
   bindTestingReset,
   consumeChatReset,
@@ -42,6 +43,7 @@ interface Submission {
   email: string;
   status: string;
   createdAt: string;
+  followUps: string[];
 }
 interface PendingProposal {
   version?: 1;
@@ -662,6 +664,7 @@ function OperatorPage() {
                   <p>{submission.description}</p>
                   <p className="small">Submitted brief</p>
                   <p className="submission-brief">{submission.brief}</p>
+                  <SubmissionFollowUps followUps={submission.followUps} />
                   <div className="status-actions">
                     {(['reviewing', 'contacted', 'closed'] as const).map((status) => (
                       <button

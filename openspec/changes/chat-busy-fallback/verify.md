@@ -8,6 +8,6 @@
 
 `bun /tmp/puni-4291-celebration.mjs` failed on the pre-change receipt because the badge was missing. On the updated preview it verified the animated badge and sparkles, the static reduced-motion state, and the lack of horizontal overflow at 390 px.
 
-`bun /tmp/puni-4291-chat-more.mjs` checks the approved four-hour wording and Chat more link on the local preview. The link test failed against the previous build, which had no next action. `bun /tmp/puni-chat-more-roundtrip.mjs` sent three local sample requests and verified three distinct drafts and addresses in an isolated SQLite database. After each submission, Chat more returned to an empty Home prompt.
+The Chat more link and its round trip were removed by `chat-after-submission`, which keeps the chat open after submission.
 
 Repository-wide gates and deployed-environment checks were outside this local preview.

@@ -275,7 +275,8 @@ export function BuildPage() {
         <h1 ref={heading} tabIndex={-1} className="visually-hidden">
           {load.kind === 'ready' ? 'Shape the work together.' : 'Build'}
         </h1>
-        {load.kind === 'ready' && !isHandedOff && (
+        {/* Proof: ignoring the loaded submission showed Start over on the reloaded submitted chat in start-over.test.tsx. */}
+        {load.kind === 'ready' && !isHandedOff && load.conversation.submission === null && (
           <div className="harness-bar">
             <StartOver csrfToken={load.conversation.csrfToken} />
           </div>
