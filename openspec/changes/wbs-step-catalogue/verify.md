@@ -2522,3 +2522,13 @@ assertions through the focused Nx target. The current suite passed three
 tests with 12 assertions. It exercises the same calendar-range refusal on
 both current edit paths, refusal of a definition name on the package values
 route, and undo of the package allowance after a separate catalogue rename.
+
+The predecessor's `connected-command-admission.controller.db.test.ts` (blob
+`df9ff57d555d30146b58186808291879c5178026`) passed six selected cases for
+package-local removal, its graph-read failures and remote cycle rollback,
+appended-step interleaving, and equal labels on separate package steps. The
+current suite passed all 131 cases. Its mounted unbind test fails closed when
+the external dependency read is unavailable and reports the exact protected
+node after restoring the read. Current estimate clearing and dependency reach
+still exercise real cycle rollback, and the catalogue fixture tests scope
+against distinct bindings alongside shared Dev and QA definitions.
