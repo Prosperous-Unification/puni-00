@@ -1400,3 +1400,15 @@ test('an exhausted chat after submission closes the composer without asking for 
   expect(markup).not.toContain('type="email"');
   expect(markup).toContain('Your request is recorded.');
 });
+
+test('a paused submitted chat shows the confirmation instead of a second request form', () => {
+  const markup = renderToStaticMarkup(
+    <PausedHarness
+      conversation={{ ...finishedScoped(), provider: 'paused', submission: { turnsBefore: 6 } }}
+      onHandedOff={() => undefined}
+    />,
+  );
+  expect(markup).toContain('Your request is recorded.');
+  expect(markup).not.toContain('type="email"');
+  expect(markup).not.toContain('Send my request');
+});

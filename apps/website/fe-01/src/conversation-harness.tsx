@@ -842,7 +842,7 @@ export function LiveHarness({
  * The in-thread reply confirming the request was saved. The chat stays open below it, so it
  * offers no next action of its own.
  */
-function SubmissionReceipt() {
+export function SubmissionReceipt() {
   return (
     <div className="build-message assistant submission-receipt" role="status">
       <div className="receipt-emblem" aria-hidden="true">
@@ -1103,7 +1103,10 @@ export function PausedHarness({
               Shape your brief <span aria-hidden="true">→</span>
             </a>
           </div>
-          {conversation.scoping.version === 1 ? (
+          {/* Proof: offering the editor again let the paused submitted-chat test submit a second time. */}
+          {conversation.submission !== null ? (
+            <SubmissionReceipt />
+          ) : conversation.scoping.version === 1 ? (
             <RequestEditor
               draft={conversation}
               route="manual"

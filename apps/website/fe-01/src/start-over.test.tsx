@@ -177,6 +177,7 @@ test('a reloaded submitted chat offers no Start over', async () => {
     });
     expect(container.textContent).toContain('Booking app');
     expect(container.textContent).not.toContain('Start over');
+    expect(container.textContent).toContain('Your request is recorded.');
   } finally {
     act(() => {
       root.unmount();
