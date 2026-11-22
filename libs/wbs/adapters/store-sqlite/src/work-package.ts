@@ -226,15 +226,16 @@ export class WorkPackageRepository implements WorkPackageStore {
   }
 
   async findById(id: string): Promise<WorkPackage | null> {
-    const rows = await this.db
+    const found = this.db
       .select(WITH_SOLUTION)
       .from(workPackage)
       .leftJoin(workPackageAbbreviation, eq(workPackageAbbreviation.workPackageId, workPackage.id))
       .leftJoin(workPackageOrganization, eq(workPackageOrganization.resourceId, workPackage.id))
       .leftJoin(workPackageSolution, eq(workPackageSolution.workPackageId, workPackage.id))
       .where(eq(workPackage.id, id))
-      .limit(1);
-    const found = rows.at(0);
+      .limit(1)
+      .get();
+    await Promise.resolve();
     return found === undefined
       ? null
       : fromJoined(found, projectPackageSettings(found.settingsProjection, found.workPackage.id));
@@ -254,7 +255,7 @@ export class WorkPackageRepository implements WorkPackageStore {
    */
   // Proof: removing the organization predicate made mounted `foreign organization cannot edit code` receive 403 instead of 404 (2026-10-22).
   async findInOrganization(id: string, organizationId: string): Promise<WorkPackage | null> {
-    const rows = await this.db
+    const found = this.db
       .select({
         ...WITH_SOLUTION,
         parentId: project.id,
@@ -271,8 +272,9 @@ export class WorkPackageRepository implements WorkPackageStore {
       .leftJoin(project, eq(project.id, workPackage.projectId))
       .leftJoin(workPackageSolution, eq(workPackageSolution.workPackageId, workPackage.id))
       .where(eq(workPackage.id, id))
-      .limit(1);
-    const found = rows.at(0);
+      .limit(1)
+      .get();
+    await Promise.resolve();
     if (found === undefined) return null;
     const actualOrganizationId = readPackageOrganization(id, found.organization?.organizationId);
     if (actualOrganizationId !== organizationId) return null;

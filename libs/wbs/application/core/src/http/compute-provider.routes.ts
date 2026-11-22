@@ -18,6 +18,7 @@ import type { CapacityReports, ComputeProviderAdministration } from '../ports/co
 import type { OrganizationAccess } from '../ports/organization-access';
 import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
 import { retainSecurityPrincipal } from '../ports/security-principal';
+import type { WorkPackageResources } from '../ports/work-package-report-store';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { sessionOrganizationOf } from './machine-credential.routes';
 import { organizationRefusal } from './organization-refusal';
@@ -293,16 +294,6 @@ function reportRefusal(refusal: CapacityReportRefusal): HttpReply<typeof putCapa
 /** The work package resources read's body, as the work-item service answers it. */
 type ResourcesRead = Extract<HttpReply<typeof readWorkPackageResources>, { ok: true }>['body'];
 
-/** The resources read before {@link withProviderReadings} adds the provider columns. */
-export interface PlannedResources {
-  resources: readonly Omit<
-    ResourcesRead['resources'][number],
-    'providerId' | 'provider' | 'report' | 'measurement'
-  >[];
-  capacities: ResourcesRead['capacities'];
-  demands: ResourcesRead['demands'];
-}
-
 /**
  * Adds each resource's provider reference, latest report and declared-versus-
  * measured comparison to the work package resources read (`compute-providers` P3,
@@ -316,7 +307,7 @@ export interface PlannedResources {
  * on a dangling reference or a malformed instance.
  */
 export async function withProviderReadings(
-  planned: PlannedResources,
+  planned: WorkPackageResources,
   reports: Pick<CapacityReports, 'readingsOf'>,
   now: number,
 ): Promise<ResourcesRead> {
@@ -326,6 +317,7 @@ export async function withProviderReadings(
     resources: planned.resources.map((each) => {
       const reading = readings.get(each.id);
       if (reading === undefined) throw new Error(`resource ${each.id} has no provider reading`);
+      // Proof: omitting directory totals in either branch failed the mounted measured-report case.
       if (reading.provider === null) return { ...each, providerId: null };
       const { id, kind, name } = reading.provider;
       return {

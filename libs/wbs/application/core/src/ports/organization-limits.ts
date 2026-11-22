@@ -1,4 +1,5 @@
 import type {
+  DirectoryCapacityLimit,
   OrganizationLimitsReading,
   OrganizationLimitsSource,
   OrganizationLimitUsage,
@@ -112,7 +113,7 @@ export interface CapReading {
 }
 
 /**
- * What a writing transaction reads to decide an organization limit
+ * What an admitted write or read observation uses to decide an organization limit
  * (`wbs-organization-limits` L10). It opens no transaction and takes no write
  * turn of its own: the caller holds the batch's turn and its open
  * transaction, so the count it answers is the one the write commits against,
@@ -139,12 +140,18 @@ export interface OrganizationLimitGauge {
    * `current`, the units of `resourceId` its work packages other than
    * `exceptWorkPackageId` state, summed (L2): what a capacity write to
    * `exceptWorkPackageId` adds its own units to, so the work package's own statement
-   * never counts against itself. 0 when no other work package states it, and 0 for
-   * a resource the organization does not own (L16).
+   * never counts against itself. When a directory capacity is stated (including 0),
+   * the work package is checked alone. A resource the organization does not own contributes 0.
    */
   readCapacityCap(
     organizationId: string,
     resourceId: string,
     exceptWorkPackageId: string,
   ): Promise<CapReading>;
+
+  /** Reads the current owned directory statement and the raw sum of all owned project statements. */
+  readDirectoryCapacityLimit(
+    organizationId: string,
+    resourceId: string,
+  ): Promise<DirectoryCapacityLimit>;
 }

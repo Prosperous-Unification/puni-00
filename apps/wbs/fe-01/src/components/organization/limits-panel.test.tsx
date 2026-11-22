@@ -92,6 +92,49 @@ describe('organization limits panel', () => {
     ).toEqual(['Refresh organization limits']);
   });
 
+  it('labels directory and work package usage while keeping an older row readable', async () => {
+    stubServer({
+      'GET /api/organization/active': [role('admin')],
+      'GET /api/organization/limits': [
+        () =>
+          answer(
+            200,
+            limitsOf({
+              usage: {
+                agentPersons: 7,
+                concurrentClaims: 12,
+                capacityUnits: [
+                  {
+                    resourceId: 'a',
+                    name: 'RAM',
+                    unitLabel: 'GB',
+                    units: 0,
+                    countedFrom: 'directory',
+                  },
+                  {
+                    resourceId: 'b',
+                    name: 'Disk',
+                    unitLabel: 'GB',
+                    units: 16,
+                    countedFrom: 'projects',
+                  },
+                  { resourceId: 'c', name: 'Legacy', unitLabel: '', units: 4 },
+                ],
+              },
+            }),
+          ),
+      ],
+    });
+    mountSlot();
+    await within(await region()).findByText('0 of 64 GB');
+    expect(within(rowOf('RAM')).getByText('Directory capacity')).toBeDefined();
+    expect(within(rowOf('Disk')).getByText('Work package capacities')).toBeDefined();
+    expect(within(rowOf('Legacy')).getByText('4 of 64')).toBeDefined();
+    expect(
+      within(rowOf('Legacy')).queryByText(/directory capacity|work package capacities/i),
+    ).toBeNull();
+  });
+
   it('says deployment default when the organization has no row', async () => {
     stubServer({
       'GET /api/organization/active': [role('super_admin')],
@@ -142,7 +185,7 @@ describe('organization limits panel', () => {
     expect(rowOf('worktrees').getAttribute('data-standing')).toBe('under');
   });
 
-  it('says so when no work package states a capacity', async () => {
+  it('says so when there are no capacity statements', async () => {
     stubServer({
       'GET /api/organization/active': [role('admin')],
       'GET /api/organization/limits': [
@@ -156,7 +199,7 @@ describe('organization limits panel', () => {
     mountSlot();
     const panel = await region();
     expect(
-      await within(panel).findByText('No work package states a capacity of any resource yet.'),
+      await within(panel).findByText('No capacity has been stated for any resource yet.'),
     ).toBeDefined();
     expect(within(panel).queryByRole('list', { name: 'Capacity by resource' })).toBeNull();
   });

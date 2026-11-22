@@ -1317,7 +1317,9 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
       'shared-test-evidence:test:unit:level',
       'shared-test-levels:test:unit:level',
       'shared-validation:test:unit:level',
+      'tool-smoke:test:unit:level',
       'wbs-core:test:unit',
+      'wbs-runtime-portable:test:unit:level',
       'wbs-store-memory:test:conformance:level',
       'wbs-store-memory:test:unit:level',
       'wbs-store-sqlite:test:api',
@@ -1333,7 +1335,11 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
       try {
         const projectRoot = join(scratchRoot, target.root);
         const report = join(scratchRoot, target.report);
-        const sentinel = join(projectRoot, 'unrelated.test.ts');
+        const wholeProject = target.testRoots.includes('.');
+        const sentinel = join(
+          projectRoot,
+          wholeProject ? 'unrelated.db.test.ts' : 'unrelated.test.ts',
+        );
         const marker = join(projectRoot, 'unrelated-ran');
         mkdirSync(join(projectRoot, 'src/testing'), { recursive: true });
         mkdirSync(join(scratchRoot, 'tmp/junit'), { recursive: true });
@@ -1347,8 +1353,16 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
             report,
             '<testsuites><testsuite><testcase name="stale" file="old"/></testsuite></testsuites>',
           );
-          if (failure === 'selector-error') rmSync(join(projectRoot, 'src'), { recursive: true });
-          const invocation = Bun.spawnSync(['sh', '-c', command], {
+          let runner = command;
+          if (failure === 'selector-error') {
+            if (wholeProject) {
+              runner = command.replace('find . ', 'find missing-test-directory ');
+              expect(runner).not.toBe(command);
+            } else {
+              rmSync(join(projectRoot, 'src'), { recursive: true });
+            }
+          }
+          const invocation = Bun.spawnSync(['sh', '-c', runner], {
             cwd: projectRoot,
             stdout: 'pipe',
             stderr: 'pipe',
@@ -1386,6 +1400,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
       try {
         const projectRoot = join(scratchRoot, target.root);
         const report = join(scratchRoot, target.report);
+        const wholeProject = target.testRoots.includes('.');
         const selected =
           target.level === 'conformance'
             ? [
@@ -1393,9 +1408,11 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
                   ? 'src/testing/source-conformance.test.ts'
                   : 'src/testing/source-conformance.db.test.ts',
               ]
-            : ['first', 'second'].map(
-                (name) => `src/${name}.${target.level === 'api' ? 'db.' : ''}test.ts`,
-              );
+            : wholeProject
+              ? ['src/first.test.ts', 'outside/second.test.ts']
+              : ['first', 'second'].map(
+                  (name) => `src/${name}.${target.level === 'api' ? 'db.' : ''}test.ts`,
+                );
         mkdirSync(dirname(report), { recursive: true });
         writeFileSync(
           report,
@@ -1407,7 +1424,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
             join(projectRoot, file),
             `import { test, expect } from 'bun:test'; test('${file}', () => expect(true).toBe(true));\n`,
           );
-          const decoy = join(projectRoot, 'nested', file);
+          const decoy = join(projectRoot, wholeProject ? 'coverage' : 'nested', file);
           mkdirSync(dirname(decoy), { recursive: true });
           writeFileSync(
             decoy,
@@ -2025,5 +2042,166 @@ it('the devsync JUnit surface refuses repeated and conflicting outcome elements'
         `<testsuites><testsuite><testcase name="duplicate" file="src/a.test.ts">${outcomes}</testcase></testsuite></testsuites>`,
       ),
     ).toThrow('duplicate outcome');
+  }
+});
+
+describe('whole-project Unit owners', () => {
+  const owners = [
+    {
+      project: 'tool-smoke',
+      root: 'tools/tool-smoke',
+      representative: 'src/ws-ping.test.ts',
+      registration: 'TEST-AXES-197',
+      collection: 'TEST-AXES-198',
+      legacy: ['test'],
+      reportDepth: '../..',
+    },
+    {
+      project: 'wbs-runtime-portable',
+      root: 'libs/wbs/adapters/runtime-portable',
+      representative: 'src/scheduler.test.ts',
+      registration: 'TEST-AXES-199',
+      collection: 'TEST-AXES-200',
+      legacy: ['test', 'test:unit'],
+      reportDepth: '../../../..',
+    },
+  ] as const;
+  for (const {
+    project,
+    root,
+    representative,
+    registration,
+    collection,
+    legacy,
+    reportDepth,
+  } of owners) {
+    it(`[${registration}] adopts the complete ${project} Unit inventory`, async () => {
+      const label = `${project}:test:unit:level`;
+      const target = levelTargetNamed(label);
+      const report = `tmp/junit/${project}.unit.xml`;
+      expect(target).toEqual({
+        project,
+        root,
+        report,
+        target: 'test:unit:level',
+        level: 'unit',
+        testRoots: ['.'],
+      });
+      const manifest = await readManifest(root);
+      const unit = manifest.targets[target.target];
+      const command = unit?.options?.command;
+      if (command === undefined) throw new Error(`${label} has no command`);
+      expect(unit).toMatchObject({
+        cache: false,
+        inputs: ['default', '^production'],
+        executor: 'nx:run-commands',
+        options: { cwd: root, env: { CLAUDECODE: '0', AGENT: '0' }, forwardAllArgs: false },
+      });
+      const parsed = parseLevelCommand(command);
+      expect(parsed.flags).toEqual([
+        '--reporter=junit',
+        `--reporter-outfile=${reportDepth}/${report}`,
+        '--timeout=10000',
+      ]);
+      const census = await testFilesInProject(root);
+      expect(census).toContain(`${root}/${representative}`);
+      expect(assertBunLevelCollection(target, command, [])).toEqual(census);
+      const coverage = project === 'wbs-runtime-portable';
+      const expectedLegacy = {
+        executor: 'nx:run-commands',
+        options: {
+          cwd: root,
+          command: coverage
+            ? 'bun test --coverage --coverage-reporter=lcov --timeout=10000'
+            : 'bun test --timeout=10000',
+        },
+        ...(coverage ? { outputs: ['{projectRoot}/coverage'] } : {}),
+      };
+      for (const name of legacy) {
+        expect(manifest.targets[name]).toEqual(expectedLegacy);
+        expect(UNDECLARED_TEST_TARGETS[`${project}:${name}`]).toContain('without a JUnit report');
+      }
+      await verifyTargetInventory(root, manifest);
+    });
+
+    for (const [fault, diagnostic] of [
+      ['missing', `level targets do not collect ${root}/outside/root-only.test.ts`],
+      [
+        'surplus',
+        `level targets collect ${root}/node_modules/decoy.test.ts outside the project census`,
+      ],
+      ['report', `${project}:test:unit:level report differs`],
+    ] as const) {
+      it(`[${collection}] refuses ${fault} in the ${project} whole-project collection`, async () => {
+        const manifest = await readManifest(root);
+        const target = 'test:unit:level';
+        const entry = manifest.targets[target];
+        const command = entry?.options?.command;
+        if (entry === undefined || command === undefined)
+          throw new Error(`${project} Unit command is absent`);
+        const fixture = mkdtempSync(join(tmpdir(), 'whole-unit-census-'));
+        try {
+          for (const file of [
+            'src/selected.test.ts',
+            'outside/root-only.test.ts',
+            'node_modules/decoy.test.ts',
+            '.hidden/decoy.test.ts',
+            '.hidden.test.ts',
+            'coverage/decoy.test.ts',
+            'dist/decoy.test.ts',
+            'test-results/decoy.test.ts',
+          ]) {
+            const path = join(fixture, root, file);
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, 'export {};\n');
+          }
+          const changed = {
+            missing: command.replace(
+              " -name '*.test.ts'",
+              " ! -name 'root-only.test.ts' -name '*.test.ts'",
+            ),
+            surplus: command.replace(' -type d -name node_modules -prune -o', ''),
+            report: command.replaceAll(
+              `${project}.unit.xml`,
+              project === 'tool-smoke' ? 'wbs-runtime-portable.unit.xml' : 'tool-smoke.unit.xml',
+            ),
+          }[fault];
+          expect(changed).not.toBe(command);
+          const audit = (proposed: string) => {
+            const path = join(fixture, 'project.json');
+            writeFileSync(
+              path,
+              JSON.stringify({
+                ...manifest,
+                targets: {
+                  ...manifest.targets,
+                  [target]: { ...entry, options: { ...entry.options, command: proposed } },
+                },
+              }),
+            );
+            const run = Bun.spawnSync(
+              [
+                'bun',
+                '--eval',
+                `import { WORKSPACE, verifyBunProjectCollection } from ${JSON.stringify(new URL('./test-levels.ts', import.meta.url).href)};
+WORKSPACE.pathname = ${JSON.stringify(`${fixture}/`)};
+await verifyBunProjectCollection(${JSON.stringify(root)}, await Bun.file(${JSON.stringify(path)}).json());`,
+              ],
+              { cwd: WORKSPACE.pathname, stdout: 'pipe', stderr: 'pipe' },
+            );
+            return { code: run.exitCode, stderr: run.stderr.toString() };
+          };
+          const normal = audit(command);
+          expect(normal.code, normal.stderr).toBe(0);
+          const refused = audit(changed);
+          expect(refused.code, refused.stderr).toBe(1);
+          expect(refused.stderr).toContain(diagnostic);
+          const restored = audit(command);
+          expect(restored.code, restored.stderr).toBe(0);
+        } finally {
+          rmSync(fixture, { recursive: true, force: true });
+        }
+      });
+    }
   }
 });

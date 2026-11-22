@@ -5740,3 +5740,77 @@ specs, tests and scenario allocation, restored 263+88 passing tests, the 35-warn
 strict baseline and the full-range whitespace check. This closes only Task 4.1c.3.
 Parent 4.1, T2, source reconciliation, certification and WBS080.39 remain open;
 coordinator release/CI/host acceptance and external WBS synchronization remain separate.
+
+## Smoke and Runtime Portable public-base Unit verification
+
+Independent source review uses public base
+`9739ffc29cf11a559ad7c1b29e1ffe133b434ae4`. Both exact registry lookups
+refused, native Nx omitted both target keys and both owner
+registration tests failed before adoption. After adding the targets
+and before changing the verifier, both missing-outside-src faults
+and both dependency-directory surplus faults admitted their invalid
+collections. The crossed-report faults already refused.
+
+The public verifier now compares full canonical project coverage
+for whole-root Bun owners. The twelve focused checks passed 166
+assertions. Both sanctioned commands selected literal root operands
+and passed the inert stale, empty, failed-find and report controls.
+Original owner sources and runner definitions, including the Runtime
+Portable LCOV aliases, retain their original bytes. The public
+source census records 46 Smoke and 35 Runtime Portable cases in
+nine files.
+
+Native Nx covered every checked owning and expected shared input on
+all five routes. Smoke's original and new targets each hashed 3,149
+paths. Runtime Portable's original test and new target each hashed
+810 paths, and the existing `test:unit` alias hashed 1,170 with
+cache unspecified. Removing upstream production inputs from each
+disposable graph target lost the Smoke deploy contract or all six
+selected Runtime Portable dependencies. Restoration recovered both
+exact file sets. The production CI selector included the sampled
+inputs and excluded the unrelated Website portability fixture.
+
+The journal retains the exact 222-event public predecessor prefix
+and the four existing TEST-AXES-197–200 allocations and headings.
+Scoped scenario validation passed. Full stock B3 on the untouched
+base and the initial ten-path candidate refused an existing
+cross-project-dependencies overlay without an operation. The
+eleven-path candidate added the exact operation heading and moved
+past that refusal, then encountered a missing step-progress-board
+rename predecessor.
+
+The thirteen-path candidate reconciles the two already synchronized
+Board overlays. The scoped production selector retained ten ordered
+canonical requirements, 29 scenarios and every effective fragment
+digest. Both original task files remain unchanged. Full stock B3
+passed the Board predecessor boundary and remains unevaluated on
+the competing live-plan-snapshot operation for “Working plans
+expose committed typed dependency mutations”. All of those full
+stock checks used the same public predecessor and external rule
+policy and returned exit one, `allowed: false` and `certifies: false`.
+Whole-tree reconciliation and integration order remain open.
+
+The public thirteen-path runtime candidate passed the complete Smoke
+legacy and isolated suites with 46 cases and 77 assertions each.
+The complete Runtime Portable legacy and isolated suites each
+passed 35 cases and 98 assertions. Each owner matched the legacy
+roster and wrote a separate fresh isolated JUnit. Runtime Portable
+also wrote fresh legacy LCOV and kept it unchanged through the
+isolated run. Both original and fresh reports remain separately
+attributable to their source.
+
+The original public full shared regression ran 116 cases with
+114 passing and two failing. Its recorded native and observer
+status remains one. Separate offline inspection confirmed physical
+cgroup absence, empty test TMPDIR, bounded complete captures and
+the allowed metadata-only Vitest listing and Bun cache residue.
+The failed outside-root and exact-level matrix cases each reported
+the same nine files under mismatched relative path spellings.
+The successor changes only the shared census construction for the
+whole project root. Existing src paths and literal Bun operands
+retain their existing form. The successor shared regression passed
+all 116 cases with zero failures and 476 assertions in one file.
+The first named verifier exited zero with the declared-collection
+and Nx success markers. It reached a sampled peak of 128 tasks
+and three task-limit events in both counters. The stock JUnit
+observations still require their committed candidate run.

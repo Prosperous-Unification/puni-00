@@ -194,7 +194,9 @@ async function seedSevenOfEight(): Promise<void> {
 const SEVEN_OF_EIGHT = {
   agentPersons: 7,
   concurrentClaims: 12,
-  capacityUnits: [{ resourceId: 'ram', name: 'h2puni ram', unitLabel: 'GB', units: 48 }],
+  capacityUnits: [
+    { resourceId: 'ram', name: 'h2puni ram', unitLabel: 'GB', units: 48, countedFrom: 'projects' },
+  ],
 };
 
 /** `organization-limits` "An admin reads caps with usage beside each", over real SQLite. */
@@ -222,7 +224,81 @@ describe(PATH, () => {
         usage: {
           agentPersons: 30,
           concurrentClaims: 5,
-          capacityUnits: [{ resourceId: 'b-ram', name: 'b ram', unitLabel: 'GB', units: 64 }],
+          capacityUnits: [
+            {
+              resourceId: 'b-ram',
+              name: 'b ram',
+              unitLabel: 'GB',
+              units: 64,
+              countedFrom: 'projects',
+            },
+          ],
+        },
+      },
+    });
+  });
+
+  it('reports either scope with provenance, including a directory-only resource and stated zero', async () => {
+    h.activate();
+    h.grantPermissions('org-a', 'adam', ['organization.read']);
+    await seedSevenOfEight();
+    resourceIn('org-a', 'directory-only', 'Directory only', 'GB');
+    resourceIn('org-a', 'projects-only', 'Projects only', 'GB');
+    resourceIn('org-a', 'unstated', 'Unstated', 'GB');
+    resourceIn('org-a', 'zero', 'Zero', 'GB');
+    resourceIn('org-b', 'b-directory-only', 'Foreign directory only', 'GB');
+    state('pa1', 'projects-only', 12);
+    state('pa2', 'projects-only', 4);
+    state('pa1', 'zero', 32);
+    for (const [resourceId, units] of [
+      ['ram', 16],
+      ['directory-only', 24],
+      ['zero', 0],
+      ['b-directory-only', 78],
+    ] as const) {
+      run('INSERT INTO resource_directory_capacity (resource_id, units) VALUES (?, ?)', [
+        resourceId,
+        units,
+      ]);
+    }
+    expect(await h.call('adam', 'GET', PATH)).toEqual({
+      status: 200,
+      body: {
+        source: 'default',
+        limits: TEST_ORGANIZATION_DEFAULT_LIMITS,
+        usage: {
+          agentPersons: 7,
+          concurrentClaims: 12,
+          capacityUnits: [
+            {
+              resourceId: 'directory-only',
+              name: 'Directory only',
+              unitLabel: 'GB',
+              units: 24,
+              countedFrom: 'directory',
+            },
+            {
+              resourceId: 'projects-only',
+              name: 'Projects only',
+              unitLabel: 'GB',
+              units: 16,
+              countedFrom: 'projects',
+            },
+            {
+              resourceId: 'ram',
+              name: 'h2puni ram',
+              unitLabel: 'GB',
+              units: 16,
+              countedFrom: 'directory',
+            },
+            {
+              resourceId: 'zero',
+              name: 'Zero',
+              unitLabel: 'GB',
+              units: 0,
+              countedFrom: 'directory',
+            },
+          ],
         },
       },
     });

@@ -97,6 +97,7 @@ import {
   type Schedule,
   ScheduleCycleError,
   type Scheduled,
+  scheduleResourceIdsOf,
   type ScopedDependencyEndpoint,
   type SettableStatus,
   type Sibling,
@@ -128,7 +129,12 @@ import type { AccessDecisions } from '../../ports/access-decisions';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { BudgetKey, BudgetStore, StoredBudget } from '../../ports/budget-store';
 import type { CapacityStore } from '../../ports/capacity-store';
-import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type {
+  CapacityPreviewStore,
+  LivePlanStore,
+  ResourceOccupancyStore,
+  StartableRead,
+} from '../../ports/chain-snapshot-store';
 import {
   type ClaimIdentity,
   type ClaimLease,
@@ -231,6 +237,12 @@ import type {
   WorkItemStore,
 } from '../../ports/work-item-store';
 import type { Broadcaster } from '../../ports/work-package-event';
+import type {
+  ExecutionStatusStores,
+  WorkPackageReportSnapshot,
+  WorkPackageReportStores,
+  WorkPackageResourceRead,
+} from '../../ports/work-package-report-store';
 import type { WorkPackage, WorkPackageStore } from '../../ports/work-package-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import { authorize, authorizePackage } from '../../service/authorize';
@@ -280,6 +292,7 @@ import type { FirstChildWrite } from '../../step-catalogue/first-child';
 import { prepareFirstChildRelationships } from '../../step-catalogue/first-child-relationships';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
+import { type CapacityPreview, previewCapacity } from './capacity-preview';
 import {
   CLAIM_HISTORY_COMMANDS,
   CLAIM_HISTORY_KINDS,
@@ -302,9 +315,17 @@ import {
 import { remapCopiedDependency, selectCopiedDependencies } from './copy-typed-dependencies';
 import { withMeasureEstimates } from './measure-estimate-read';
 import { findPersonWork, type PersonWork } from './person-work';
-import { findStartableWork, type StartableWork } from './startable';
+import type { ResourceOccupancyRead } from './resource-occupancy';
+import { readHolderNames, sharedHolders } from './shared-holders';
+import { findStartableWork, startableWithHolders, type StartableWork } from './startable';
 import { namedDemandFields, readUntilNamed, withDemands } from './tree-demands';
 import { findWorkPackageClaims, type WorkPackageClaims } from './work-package-claims';
+import {
+  admitsWorkPackageRead,
+  readDirectoryOccupancy,
+  readWorkPackageResources,
+  startableResourceIds,
+} from './work-package-resources';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -403,6 +424,8 @@ function canonicalScheduleParts(
   demands: readonly Demand[],
   /** The work package's stated resource capacities. */
   resourceCapacities: readonly ResourceCapacity[],
+  /** The directory's statements read with the plan facts. */
+  directoryCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
   return prepareScheduleParts(
     workPackage,
@@ -415,6 +438,7 @@ function canonicalScheduleParts(
     poolSizes,
     demands,
     resourceCapacities,
+    directoryCapacities,
     // Proof: forcing uniform interpretation lost actual SQLite own slices and the empty
     // boundary in live scheduleInput (current-writer13-fault-live-uniform-v5).
     {
@@ -959,6 +983,9 @@ export interface WorkItemServiceOptions {
   dependencyContext: ServiceDependencyContext;
   externalDependencyAuthoring: ExternalDependencyAuthoringSource;
   livePlans?: LivePlanStore;
+  resourceOccupancy?: ResourceOccupancyStore;
+  capacityPreview?: CapacityPreviewStore;
+  workPackageReportSnapshot?: WorkPackageReportSnapshot;
   workItems: WorkItemStore;
   /** Required scope-bound evidence; create refuses retained facts before any writes. */
   stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
@@ -2031,10 +2058,31 @@ export class WorkItemService {
       if (observed.kind === 'unknown_team') return { kind: 'unknown_team' };
       return findStartableWork(observed.reads);
     }
-    if (!(await this.admits(workPackageId, access))) return null;
-    const { directory } = this.opts;
-    const rows = await this.opts.workItems.listTreeByWorkPackage(workPackageId);
-    const claims = await this.claiming().claims.listStampedByWorkPackage(workPackageId);
+    if (this.opts.workPackageReportSnapshot !== undefined)
+      return this.opts.workPackageReportSnapshot(access, (stores) =>
+        this.startableFrom(stores, workPackageId, access, teamId),
+      );
+    return this.startableFrom(
+      { ...this.opts, claims: this.claiming().claims },
+      workPackageId,
+      access,
+      teamId,
+      'package-only',
+    );
+  }
+
+  /** Derives startability from one snapshot, or from legacy package-only readers. */
+  private async startableFrom(
+    stores: Omit<WorkPackageReportStores, 'access'>,
+    workPackageId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+    scope?: 'package-only',
+  ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (!(await admitsWorkPackageRead(stores.workPackages, workPackageId, access))) return null;
+    const { directory } = stores;
+    const rows = await stores.workItems.listTreeByWorkPackage(workPackageId);
+    const claims = await stores.claims.listStampedByWorkPackage(workPackageId);
     const { assignments, people: assigned } =
       await directory.assignmentsInWorkPackage(workPackageId);
     const unassigned = claims
@@ -2068,13 +2116,23 @@ export class WorkItemService {
       eligibilityByNode,
       predecessorIdsByLeaf,
       leafSteps,
-    } = await this.statusReadsOf(workPackageId, rows);
-    const capacities = await this.resourceCapacitiesOf(workPackageId);
-    const demands = await this.opts.demands.listByWorkPackage(workPackageId);
-    // The claim's own organization read, over every resource a leaf demands:
-    // a leaf the read lists as fitting is one a claim admits.
-    const { directoryCapacities, organizationOccupied } = await this.organizationOccupancyFor(
-      demands.map(({ resourceId }) => resourceId),
+    } = await this.statusReadsOf(workPackageId, rows, stores);
+    const capacities = await stores.resourceCapacity.listFor(workPackageId);
+    const demands = await stores.demands.listByWorkPackage(workPackageId);
+    const directoryReads =
+      scope === 'package-only'
+        ? {
+            directory,
+            claims: {
+              organizationUnitsOf: () =>
+                Promise.reject(new Error('shared startable observation is unavailable')),
+            },
+          }
+        : stores;
+    const { directoryCapacities, organizationOccupied } = await readDirectoryOccupancy(
+      directoryReads,
+      // Proof: omitting capacities made stated-only staging work-package-scoped on Memory.
+      startableResourceIds(rows, capacities, demands),
     );
     // Names a shortfall may need: any resource a capacity or a directory
     // capacity makes binding.
@@ -2103,10 +2161,40 @@ export class WorkItemService {
       teamId,
       capacities,
       demands,
-      occupancy: await this.claiming().claims.occupancyOf(workPackageId),
+      occupancy: await stores.claims.occupancyOf(workPackageId),
       directoryCapacities,
       organizationOccupied,
       resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
+    });
+  }
+
+  /** Holder-bearing read for an authenticated actor. Budget and command reads keep the plain observation. */
+  async readStartableWithin(
+    workPackageId: string,
+    actorId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableRead> {
+    if (this.opts.livePlans !== undefined)
+      return this.opts.livePlans.readStartableWithin(workPackageId, actorId, access, teamId);
+    if (this.opts.workPackageReportSnapshot === undefined)
+      throw new Error('startable observation is unavailable');
+    return this.opts.workPackageReportSnapshot(access, async (stores) => {
+      const work = await this.startableFrom(stores, workPackageId, access, teamId);
+      if (work === null) return { kind: 'not_found' };
+      if ('kind' in work) return work;
+      // Proof: fallback-enrichment-absent lost both holder fields in the two store twins.
+      return {
+        kind: 'ready',
+        value: await startableWithHolders(work, {
+          claims: stores.claims,
+          workPackages: stores.access,
+          holderNames: (ids) => readHolderNames(stores.directory, access, ids),
+          askingWorkPackageId: workPackageId,
+          actorId,
+          access,
+        }),
+      };
     });
   }
 
@@ -2626,6 +2714,18 @@ export class WorkItemService {
     };
   }
 
+  /** Read the directory statements needed by the schedule on the current store binding. */
+  private async readScheduleDirectoryCapacities(
+    rows: readonly LabelledWorkItem[],
+    resourceCapacities: readonly ResourceCapacity[],
+    demands: readonly Demand[],
+  ): Promise<ResourceCapacity[]> {
+    const ids = scheduleResourceIdsOf(rows, resourceCapacities, demands);
+    // Proof: an unconditional query made the resource-schedule test record
+    // an empty storage call for a project with neither statements nor demands.
+    return ids.length === 0 ? [] : await this.opts.directory.directoryCapacitiesOf(ids);
+  }
+
   /** Rebuild the canonical input a durable solver queue entry names. */
   async scheduleInput(workPackageId: string): Promise<ScheduleInput | null> {
     const workPackage = await this.opts.workPackages.findById(workPackageId);
@@ -2639,6 +2739,13 @@ export class WorkItemService {
     const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     const steps = await this.opts.workPackages.stepsOf(workPackageId);
     const poolSizes = await this.opts.capacity.slotsFor(workPackageId);
+    const demands = await this.opts.demands.listByWorkPackage(workPackageId);
+    const resourceCapacities = await this.opts.resourceCapacity.listFor(workPackageId);
+    const directoryCapacities = await this.readScheduleDirectoryCapacities(
+      rows,
+      resourceCapacities,
+      demands,
+    );
     return canonicalScheduleParts(
       workPackage,
       rows,
@@ -2648,8 +2755,10 @@ export class WorkItemService {
       assignments,
       steps,
       poolSizes,
-      await this.opts.demands.listByWorkPackage(workPackageId),
-      await this.opts.resourceCapacity.listFor(workPackageId),
+      demands,
+      resourceCapacities,
+      // Proof: omitting the statements made the live queue input test read 32 instead of 16.
+      directoryCapacities,
     ).input;
   }
 
@@ -2863,6 +2972,11 @@ export class WorkItemService {
     // overlapping blocks; watched 2026-10-20.
     const demands = await this.opts.demands.listByWorkPackage(workPackageId);
     const resourceCapacities = await this.opts.resourceCapacity.listFor(workPackageId);
+    const directoryCapacities = await this.readScheduleDirectoryCapacities(
+      rows,
+      resourceCapacities,
+      demands,
+    );
     const priorityBands = await this.opts.priorityBands.listFor(workPackageId);
     const canonical = canonicalScheduleParts(
       workPackage,
@@ -2877,6 +2991,8 @@ export class WorkItemService {
       slotsOf,
       demands,
       resourceCapacities,
+      // Proof: omitting the statements here made the isolated 16-unit leaves overlap.
+      directoryCapacities,
     );
     let scheduling: TreeSchedule;
     try {
@@ -2917,6 +3033,9 @@ export class WorkItemService {
         slotsOf,
         demands,
         resourceCapacities,
+        // Proof: dropping only this transfer made the mounted isolated
+        // projector's final preparation receive no directory statement.
+        directoryCapacities,
         priorityBands,
         // An isolated input carries no bookings elsewhere, so no slice names a holder.
         elsewhereHolders: [],
@@ -4168,50 +4287,15 @@ export class WorkItemService {
     return resourceCapacity.listFor(workPackageId);
   }
 
-  /**
-   * The work package's resource read (`wbs-resources`): the resources the caller's
-   * directory holds, the work package's stated capacities and every demand on its
-   * work items. Refused as the tree read refuses: null for a work package the
-   * caller cannot read, alike foreign and absent.
-   *
-   * Proof: with the scoped branch reading the root catalog, `creates the same
-   * name in two organizations, each finding only its own`
-   * (resource-organization.controller.db.test.ts) listed both organizations'
-   * roots under their opaque names; watched 2026-10-20.
-   */
-  async resourcesWithin(
-    workPackageId: string,
-    access: ResourceAccess,
-  ): Promise<{
-    resources: (Resource & { directoryCapacity: number | null })[];
-    capacities: ResourceCapacity[];
-    demands: Demand[];
-  } | null> {
-    if (!(await this.admits(workPackageId, access))) return null;
-    const { resourceCapacity } = this.opts;
-    const listed =
-      access.kind === 'scoped'
-        ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
-        : await this.opts.directory.listResources();
-    // Each resource's directory capacity beside it (`wbs-shared-occupancy`
-    // S6), null when unstated; never its holders.
-    // Proof: with null answered for every resource, `states a directory
-    // capacity on either route and reads it from both work packages`
-    // (directory-capacity.controller.db.test.ts) read null; watched 2026-10-25.
-    const stated = new Map(
-      (await this.opts.directory.directoryCapacitiesOf(listed.map(({ id }) => id))).map(
-        ({ resourceId, units }) => [resourceId, units] as const,
-      ),
+  /** Captures the admitted work package resource report before provider enrichment. */
+  resourcesWithin(workPackageId: string, access: ResourceAccess): Promise<WorkPackageResourceRead> {
+    if (this.opts.livePlans !== undefined)
+      return this.opts.livePlans.readWorkPackageResources(workPackageId, access);
+    if (this.opts.workPackageReportSnapshot === undefined)
+      throw new Error('work package resource observation is unavailable');
+    return this.opts.workPackageReportSnapshot(access, (stores) =>
+      readWorkPackageResources(stores, workPackageId, access),
     );
-    const resources = listed.map((resource) => ({
-      ...resource,
-      directoryCapacity: stated.get(resource.id) ?? null,
-    }));
-    return {
-      resources,
-      capacities: await resourceCapacity.listFor(workPackageId),
-      demands: await this.opts.demands.listByWorkPackage(workPackageId),
-    };
   }
 
   /**
@@ -4221,11 +4305,7 @@ export class WorkItemService {
    * the resource with the units its leaves hold, the free units after (null
    * when it would be unstated), and the refusal the write would meet.
    *
-   * Every work package of the caller's organization is readable to its members
-   * today, so none is hidden; `hiddenWorkPackages` folds the work packages
-   * `mayReadWorkPackageWithin` denies once permission visibility task3.1 is wired.
-   * The cap check the write will meet is task 7.1's; until it lands the
-   * refusal is always null for a resource the organization owns.
+   * Unreadable work packages, including those with zero holdings, contribute only aggregate counts and units.
    *
    * Requires the actual principal's current organization.manage_directory
    * permission before looking up the resource;
@@ -4241,79 +4321,51 @@ export class WorkItemService {
     resourceId: string,
     units: number | null,
     access: Extract<ResourceAccess, { kind: 'scoped' }>,
-  ): Promise<
-    | {
-        ok: true;
-        value: {
-          resourceId: string;
-          before: number | null;
-          after: number | null;
-          workPackages: { workPackageId: string; name: string; units: number }[];
-          hiddenWorkPackages: { count: number; units: number };
-          free: number | null;
-          refusal: null;
-        };
-      }
-    | { ok: false; reason: 'forbidden' | 'not_found'; readonly permission?: Permission }
-  > {
-    const scope = access.scope;
+  ): Promise<CapacityPreview> {
+    const actorId = access.principal.id;
+    if (this.opts.livePlans !== undefined)
+      return this.opts.livePlans.previewDirectoryCapacityWithin(resourceId, units, actorId, access);
+    if (this.opts.capacityPreview !== undefined)
+      return this.opts.capacityPreview.previewDirectoryCapacityWithin(
+        resourceId,
+        units,
+        actorId,
+        access,
+      );
+    // Proof: dropping permission failed the registered directory-capacity preview refusal, 2026-11-09.
     const decision = await authorize(
       this.opts.accessDecisions,
       access.principal,
-      { kind: 'organization', organizationId: scope.organizationId },
+      { kind: 'organization', organizationId: access.scope.organizationId },
       'organization.manage_directory',
     );
-    // Proof: dropping permission failed the registered directory-capacity preview refusal, 2026-11-09.
     if (!decision.ok) return decision;
-    const { directory } = this.opts;
-    const owned = (await directory.listInOrganization('resources', scope.organizationId)).some(
-      ({ id }) => id === resourceId,
+    const { claims } = this.claiming();
+    return previewCapacity(
+      () => ({
+        limits: this.opts.organizationLimits,
+        directory: this.opts.directory,
+        workPackages: {
+          findInOrganization: (...args) => this.opts.workPackages.findInOrganization(...args),
+          mayReadWorkPackageWithin: (...args) => claims.mayReadWorkPackageWithin(...args),
+        },
+        claims,
+      }),
+      resourceId,
+      units,
+      actorId,
+      access,
     );
-    if (!owned) return { ok: false, reason: 'not_found' };
-    const before =
-      (await directory.directoryCapacitiesOf([resourceId])).find(
-        (each) => each.resourceId === resourceId,
-      )?.units ?? null;
-    const rows = await this.claiming().claims.organizationOccupancyOf([resourceId]);
-    const usage = await directory.usageOfResource(resourceId);
-    const workPackageIds = [
-      ...new Set([
-        ...rows.map(({ workPackageId }) => workPackageId),
-        ...usage.capacities.map(({ workPackageId }) => workPackageId),
-        ...usage.rows.workPackages.map(({ id }) => id),
-      ]),
-    ].sort();
-    const workPackages: { workPackageId: string; name: string; units: number }[] = [];
-    for (const workPackageId of workPackageIds) {
-      const workPackage = await this.opts.workPackages.findInOrganization(
-        workPackageId,
-        scope.organizationId,
-      );
-      // A work package of another organization naming the resource is corrupt
-      // trusted state: a plan can name only its organization's resources.
-      if (workPackage === null)
-        throw new Error(
-          `work package ${workPackageId} names resource ${resourceId} outside its organization`,
-        );
-      const held =
-        occupancyByResource(rows.filter((row) => row.workPackageId === workPackageId)).find(
-          (each) => each.resourceId === resourceId,
-        )?.occupied ?? 0;
-      workPackages.push({ workPackageId, name: workPackage.name, units: held });
-    }
-    const occupied = workPackages.reduce((sum, each) => sum + each.units, 0);
-    return {
-      ok: true,
-      value: {
-        resourceId,
-        before,
-        after: units,
-        workPackages,
-        hiddenWorkPackages: { count: 0, units: 0 },
-        free: units === null ? null : units - occupied,
-        refusal: null,
-      },
-    };
+  }
+
+  /** Reads this resource's inventory through a single observation of admitted state. */
+  readResourceOccupancyWithin(
+    resourceId: string,
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  ): Promise<ResourceOccupancyRead> {
+    const observation = this.opts.livePlans ?? this.opts.resourceOccupancy;
+    if (observation === undefined) throw new Error('resource occupancy observation is unavailable');
+    return observation.readResourceOccupancyWithin(resourceId, access.principal.id, access);
   }
 
   /** Whether the current actor holds the additional scoped grant for claiming for another account. */
@@ -4505,7 +4557,7 @@ export class WorkItemService {
       organizationOccupied,
     });
     if (decided.kind === 'refused')
-      return this.refusedWithHolders(decided.refusal, id, workPackageId, access, nameOf);
+      return this.refusedWithHolders(decided.refusal, id, workPackageId, actorId, access, nameOf);
     // The run the decision wrote and compared: the caller's opted-in run for
     // its own person (M15), else the command's.
     const run = claimRunOf(caller, input.personId, input.runId);
@@ -5054,10 +5106,9 @@ export class WorkItemService {
   }
 
   /**
-   * A claim's refusal as the service answers it, holders named. A
-   * `resources_exhausted` the organization bound is given its holders here,
-   * read only now (`organizationOccupancyOf`), each with its work package; then
-   * every holder's name is read. A claim that fits reads neither.
+   * A claim's refusal as the service answers it, holders named.
+   * A shared shortage projects its actual binding scope, naming only readable
+   * holders and folding the rest to units. A claim that fits reads neither.
    *
    * Proof: with the organization holders left unread, `refuses B’s 16 GB while
    * A holds the directory’s 16, naming the organization`
@@ -5067,43 +5118,41 @@ export class WorkItemService {
     refusal: ClaimRefusal,
     workItemId: string,
     workPackageId: string,
+    actorId: string,
     access: ResourceAccess,
     nameOf: ReadonlyMap<string, string>,
   ): Promise<ClaimRefusalOutcome> {
     if (refusal.reason !== 'resources_exhausted') return refusalOf(refusal, nameOf);
-    const bound = refusal.resources
-      .filter((each) => each.scope === 'organization')
-      .map(({ resourceId }) => resourceId);
-    const rows =
-      bound.length === 0 ? [] : await this.claiming().claims.organizationOccupancyOf(bound);
-    const workPackageOf = new Map(rows.map((row) => [row.workItemId, row.workPackageId]));
-    const holdersOf = new Map(
-      occupancyByResource(rows.filter((row) => row.workItemId !== workItemId)).map((each) => [
-        each.resourceId,
-        each.holders.map((holder) => {
-          const held = workPackageOf.get(holder.workItemId);
-          if (held === undefined)
-            throw new Error(`holder ${holder.workItemId} has no work package in its own read`);
-          // Named only for another work package's holder (`OccupancyHolder.workPackageId`).
-          // Proof: with the asking work package's id kept too, `names a holder's
-          // work package only when it is another work package` (shared-occupancy.db.test.ts)
-          // failed on both stores; watched 2026-10-25.
-          return held === workPackageId ? holder : { ...holder, workPackageId: held };
-        }),
-      ]),
+    const shortages = refusal.resources.flatMap(({ resourceId, scope }) =>
+      scope === undefined ? [] : [{ resourceId, scope }],
+    );
+    const holderProjection = await sharedHolders(
+      {
+        claims: this.claiming().claims,
+        workPackages: this.claiming().claims,
+        askingWorkPackageId: workPackageId,
+        actorId,
+        access,
+      },
+      shortages,
     );
     const resources = refusal.resources.map((short): ResourceShortage =>
-      short.scope === 'organization'
-        ? { ...short, holders: holdersOf.get(short.resourceId) ?? [] }
-        : short,
+      short.scope === undefined
+        ? short
+        : {
+            ...short,
+            ...holderProjection({ resourceId: short.resourceId, scope: short.scope }, workItemId),
+          },
     );
     const first = resources.at(0);
     if (first === undefined) throw new Error('a resources_exhausted names no resource');
     const enriched: ResourcesExhausted = { ...refusal, ...first, resources };
-    const names = await this.personNamesWithin(
-      access,
-      resources.flatMap((short) => short.holders.map(({ personId }) => personId)),
-    );
+    const ids = [
+      ...new Set(resources.flatMap((short) => short.holders.map(({ personId }) => personId))),
+    ].filter((id) => !nameOf.has(id));
+    // Proof: adding a denied-only person to this lookup failed the mounted name-read assertion
+    // after both redacted wire bodies and the unchanged claim and journal counts passed.
+    const names = await readHolderNames(this.opts.directory, access, ids);
     return refusalOf(enriched, new Map([...nameOf, ...names]));
   }
 
@@ -5189,20 +5238,24 @@ export class WorkItemService {
    * rolled up over worked steps and running attempts, then
    * {@link workItemStatusesOf} over the work package's own dependency edges.
    */
-  private async statusReadsOf(workPackageId: string, rows: readonly TreeWorkItem[]) {
-    const workPackage = await this.opts.workPackages.findById(workPackageId);
+  private async statusReadsOf(
+    workPackageId: string,
+    rows: readonly TreeWorkItem[],
+    stores: ExecutionStatusStores = this.opts,
+  ) {
+    const workPackage = await stores.workPackages.findById(workPackageId);
     if (workPackage === null) throw new Error(`execution work package ${workPackageId} is missing`);
-    const steps = await this.opts.workPackages.stepsOf(workPackageId);
+    const steps = await stores.workPackages.stepsOf(workPackageId);
     const leafSteps = captureLeafStepOrders(rows, rows);
     const byLeaf = indexCapturedLeafSteps(rows, steps, leafSteps);
-    const stated = await this.opts.progress.listByWorkPackage(workPackageId);
-    const attempted = await this.opts.attempts.listByWorkPackage(workPackageId);
-    const estimates = await this.opts.estimates.listByWorkPackage(workPackageId);
-    const actuals = await this.opts.actuals.listByWorkPackage(workPackageId);
-    const blockages = await this.opts.blockages.listByWorkPackage(workPackageId);
+    const stated = await stores.progress.listByWorkPackage(workPackageId);
+    const attempted = await stores.attempts.listByWorkPackage(workPackageId);
+    const estimates = await stores.estimates.listByWorkPackage(workPackageId);
+    const actuals = await stores.actuals.listByWorkPackage(workPackageId);
+    const blockages = await stores.blockages.listByWorkPackage(workPackageId);
     const dependencies = {
-      edges: await this.opts.dependencies.listByWorkPackage(workPackageId),
-      typed: await this.opts.typedDependencies.listByWorkPackage(workPackageId),
+      edges: await stores.dependencies.listByWorkPackage(workPackageId),
+      typed: await stores.typedDependencies.listByWorkPackage(workPackageId),
     };
     const authored = resolveConnectedDependencyGraph({
       workPackages: [
@@ -6830,41 +6883,54 @@ export class WorkItemService {
       arrangement = allocation.arrangement;
     } else {
       rows = await this.opts.workItems.listTreeByWorkPackage(workPackageId);
-      const stored = await this.opts.estimates.listByWorkPackage(workPackageId);
-      const edges = await this.opts.dependencies.listByWorkPackage(workPackageId);
-      const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-      const steps = await this.opts.workPackages.stepsOf(workPackageId);
-      const slotsOf = await this.opts.capacity.slotsFor(workPackageId);
-      const canonical = canonicalScheduleParts(
-        workPackage,
-        rows,
-        stored,
-        edges,
-        await this.opts.typedDependencies.listByWorkPackage(workPackageId),
-        assigned,
-        steps,
-        slotsOf,
-        await this.opts.demands.listByWorkPackage(workPackageId),
-        await this.opts.resourceCapacity.listFor(workPackageId),
-      );
-
       const shared = captured?.kind === 'shared' ? captured.chain : undefined;
       if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
       if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
-      const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
+      let input: ScheduleInput;
       let selected;
       try {
-        const read =
-          shared?.kind === 'scheduled'
-            ? shared.scheduled
-            : await this.opts.scheduler.read({
-                workPackageId: workPackage.id,
-                input: canonical.input,
-                engine: workPackage.scheduleEngine,
-                objective: workPackage.scheduleObjective,
-                enabled: workPackage.optimizationEnabled,
-                mode: this.opts.schedulerMode ?? 'live',
-              });
+        let read: ScheduleRead;
+        // Proof: querying live directory capacity after capture made the mounted
+        // shared arrangement return 500 and masked the captured cycle refusal.
+        if (shared?.kind === 'scheduled') {
+          input = shared.input;
+          read = shared.scheduled;
+        } else {
+          const stored = await this.opts.estimates.listByWorkPackage(workPackageId);
+          const edges = await this.opts.dependencies.listByWorkPackage(workPackageId);
+          const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+          const steps = await this.opts.workPackages.stepsOf(workPackageId);
+          const slotsOf = await this.opts.capacity.slotsFor(workPackageId);
+          const demands = await this.opts.demands.listByWorkPackage(workPackageId);
+          const resourceCapacities = await this.opts.resourceCapacity.listFor(workPackageId);
+          const directoryCapacities = await this.readScheduleDirectoryCapacities(
+            rows,
+            resourceCapacities,
+            demands,
+          );
+          input = canonicalScheduleParts(
+            workPackage,
+            rows,
+            stored,
+            edges,
+            await this.opts.typedDependencies.listByWorkPackage(workPackageId),
+            assigned,
+            steps,
+            slotsOf,
+            demands,
+            resourceCapacities,
+            // Proof: dropping this argument gave the isolated arrange scheduler 32 instead of 16.
+            directoryCapacities,
+          ).input;
+          read = await this.opts.scheduler.read({
+            workPackageId: workPackage.id,
+            input,
+            engine: workPackage.scheduleEngine,
+            objective: workPackage.scheduleObjective,
+            enabled: workPackage.optimizationEnabled,
+            mode: this.opts.schedulerMode ?? 'live',
+          });
+        }
         if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
         selected = selectedSchedule(workPackage, read.fast, read.optimization);
       } catch (err) {
@@ -11567,6 +11633,7 @@ interface TreeReads {
   /** The demands and resource capacities both engines level (`wbs-resources` R5). */
   demands: readonly Demand[];
   resourceCapacities: readonly ResourceCapacity[];
+  directoryCapacities: readonly ResourceCapacity[];
   priorityBands: PriorityBand[];
   /** The shared chain's holder labels; empty for an isolated read. */
   elsewhereHolders: readonly ElsewhereHolderLabel[];
@@ -11632,6 +11699,9 @@ export function workPackageCapturedTree(
       // not a second, empty answer. Not a check: `[]` here schedules the same.
       demands: reads.demands,
       resourceCapacities: reads.resourceCapacities,
+      // Proof: dropping only this transfer made the mounted shared
+      // projector's final preparation receive no directory statement.
+      directoryCapacities: reads.directoryCapacities,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
     },
@@ -11672,6 +11742,9 @@ export function presentConnectedTree(projection: ConnectedTreeProjection): PlanT
         slotsOf: reads.capacity,
         demands: reads.demands,
         resourceCapacities: reads.resourceCapacities,
+        // Proof: dropping only this transfer failed the connected tree and
+        // treeWithin assertions for the target's captured capacity.
+        directoryCapacities: reads.directoryCapacities,
         priorityBands: [...reads.priorityBands],
         elsewhereHolders: [],
       },
@@ -11940,6 +12013,7 @@ function workPackageTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree |
     slotsOf,
     demands,
     resourceCapacities,
+    directoryCapacities,
     priorityBands,
   } = reads;
   const numbers = deriveNumbers(rows);
@@ -12065,6 +12139,7 @@ function workPackageTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree |
     slotsOf,
     demands,
     resourceCapacities,
+    directoryCapacities,
   );
   const { assigneesOf, hasChildren, rule } = canonical;
   // Proof: passing canonical.input.rows dropped held leaf resources and

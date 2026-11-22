@@ -1,0 +1,7 @@
+# Bound the WBS frontend owner lint target
+
+The full `wbs-fe-01:lint` command checks the correct owner but its ESLint process retains multiple TypeScript project contexts. Three unchanged local invocations exhausted V8. The final 3,200 MiB old-space / 16 MiB semi-space attempt reached the 4 GiB cgroup limit. The measured cause is V8 exhaustion. The allocation cost of individual TypeScript projects remains unmeasured.
+
+Keep the existing target, 24 literal input operands, flat ESLint configuration, project service and complete Nx graph. Run groups of files in serial, fresh ESLint processes so each exit releases its checker state. Use the installed ESLint selector to discover the files. Require successful settlement and complete coverage before declaring a pass. Preserve diagnostics and warning, missing-input and ignore behavior. Leave the editing target `lint:fast` and unrelated project policy alone.
+
+A complete local run is acceptable only under the recorded hard limits and with independent file coverage and type-policy parity evidence. Product source, rule severity, existing frontend TypeScript configurations, ignores, cache policy, publication and deployment are outside this change. A tooling-only TypeScript project gives the new declaration its normal ESLint project context. The full lint evidence for the frozen Shared Occupancy candidate remains blocked until a complete equivalent owner run passes against a verified composition.

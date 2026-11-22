@@ -113,6 +113,12 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** The public graph may borrow the source's detached occupancy observation. */
+  readonly resourceOccupancy?: Source['resourceOccupancy'];
+  /** The public graph may borrow the source's detached capacity preview. */
+  readonly capacityPreview?: Source['capacityPreview'];
+  /** Committed report observations are installed on the public graph only. */
+  readonly workPackageReportSnapshot?: Source['workPackageReportSnapshot'];
   /** Live connected target admission; borrowed graphs never receive this capability. */
   readonly admitConnectedOptimization?: ConnectedOptimizationAdmission;
   /** A borrowed command graph reads the transaction-captured cache without live admission. */
@@ -198,6 +204,13 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
     workItems: installWorkItem({
       accessDecisions: stores.accessDecisions,
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
+      ...(shared.resourceOccupancy === undefined
+        ? {}
+        : { resourceOccupancy: shared.resourceOccupancy }),
+      ...(shared.capacityPreview === undefined ? {} : { capacityPreview: shared.capacityPreview }),
+      ...(shared.workPackageReportSnapshot === undefined
+        ? {}
+        : { workPackageReportSnapshot: shared.workPackageReportSnapshot }),
       clock,
       workItems: stores.workItems,
       stepParallels: stores.stepParallels,
@@ -366,6 +379,15 @@ export function composeServices(
   };
   const rawPublicServices = servicesOver(source.stores, {
     dependencyContext: createLocalDependencyContext(source.stores),
+    // Proof: dropping the source observation failed the real public memory composition read.
+    ...(source.resourceOccupancy === undefined
+      ? {}
+      : { resourceOccupancy: source.resourceOccupancy }),
+    ...(source.capacityPreview === undefined ? {} : { capacityPreview: source.capacityPreview }),
+    // Proof: omitting this binding refused the real public Memory report.
+    ...(source.workPackageReportSnapshot === undefined
+      ? {}
+      : { workPackageReportSnapshot: source.workPackageReportSnapshot }),
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
@@ -401,6 +423,7 @@ export function composeServices(
     // work-package-null command attempt a nested UoW (typed 500 instead of 200)
     // before its one durable fan-out could commit.
     servicesOver(scope.stores, {
+      // Proof: forwarding the committed report observer here attempted to open it from a scoped command.
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,

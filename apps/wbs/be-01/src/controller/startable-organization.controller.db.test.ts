@@ -15,7 +15,7 @@ let dev: string;
 let qa: string;
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -226,6 +226,8 @@ describe('the startable read', () => {
         capacity: 8,
         occupied: 4,
         free: 4,
+        occupancyScope: 'project',
+        directory: null,
       },
     ]);
     expect(body.occupancyScope).toBe('work_package');

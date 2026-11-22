@@ -630,7 +630,7 @@ jobs:
             printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$start_cloud"
             free -m
             df -h /
           }
@@ -735,10 +735,10 @@ jobs:
           # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
           # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
           # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
-          # every 120 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
+          # every 45 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
           # three samples, `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
-          # KiB it shows the disk trend before a loss), the last 15 other nx-gate.log lines (the running
-          # test's file and name), the largest processes, the task count and the last kernel lines. A
+          # KiB it shows the disk trend before a loss), the network state, the largest and the newest
+          # processes, the task count, the last kernel lines and the other nx-gate.log lines. A
           # lost runner leaves its last PATCH there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
           # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
           # recorder patch failed: …`, and neither changes the gate status. The log tail loses its ANSI
@@ -757,11 +757,34 @@ jobs:
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
           # cloud field failed the living-comment test.
+          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): three AWS leaves went dark about 20 minutes into
+          # the phase, each in a different test file, with healthy last ticks, so the trigger is the host's
+          # and time-based. The tick is 45 s; the log section holds every other line since the previous
+          # tick (whole lines from a stored byte offset, the last 200 that fit 40960 bytes), so its last
+          # line is the last test finished, and a tick with none repeats the last earlier line. The offset
+          # advances when the report is built, so a failed PATCH loses that window from later ticks; a NUL
+          # byte in the log, which bash strings cannot hold, makes the offset undercount and repeat lines.
+          # The final report's log section is incremental too. The network section shows addresses,
+          # links, routes, socket totals, the resolver, firewall rule counts and per-interface counters
+          # beside the previous tick's, so a dead link shows; the journal section keeps the last 3
+          # minutes of network, time, runner, provisioner, login and OOM lines, which may name the
+          # trigger before the link dies; the recent-processes section names what started in the last
+          # 60 s, arguments cut at 120 characters. Each probe prints `unavailable` on failure and no
+          # section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts recorder tests): a
+          # 120 s tick posted 3 ticks where 45 s posts at least 4; dropping the offset update reposted the
+          # log from byte 0; dropping the 200-line cap posted 258 lines; dropping the byte condition from
+          # the whole-line trim lost the last wide line past the body cap; dropping the probes' fallback, the previous tick's counters, the journal
+          # filter, the 60 s age filter or the own-tree exclusion failed the network, journal and process
+          # assertions.
           recorder_issue=963
-          recorder_interval=120
+          recorder_interval=45
           recorder_body_limit=61440
           recorder_comment="$(mktemp)"
           recorder_error="$(mktemp)"
+          recorder_offset="$(mktemp)"
+          recorder_counters="$(mktemp)"
+          recorder_net_dev=/proc/net/dev
+          printf '0\n' > "$recorder_offset"
           recorder_pid=
           recorder_section() {
             local text
@@ -777,12 +800,112 @@ jobs:
           # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
           {
             recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
-            recorder_log_tail() {
-              awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' |
-                tail -15 | tail -c 40960
+            recorder_log_filter() { awk '!/^runtime (headroom sample|recorder) /' | sed 's/\x1b\[[0-9;]*[A-Za-z]//g'; }
+            # Whole lines since the stored offset; a partial last line waits for the next tick. head -c
+            # stops at the size read first, so a growing log cannot break the pipe under pipefail.
+            recorder_log_since() {
+              local from size chunk whole lines count
+              from="$(cat "$recorder_offset")"
+              size="$(stat -c %s nx-gate.log)"
+              chunk="$(head -c "$size" nx-gate.log | tail -c "+$((from + 1))"; printf x)"
+              chunk="${chunk%x}"
+              whole=
+              if [[ "$chunk" == *$'\n'* ]]; then whole="${chunk%$'\n'*}"$'\n'; fi
+              local LC_ALL=C
+              printf '%s\n' "$((from + ${#whole}))" > "$recorder_offset"
+              lines="$(printf '%s' "$whole" | recorder_log_filter)"
+              count=0
+              if [ -n "$lines" ]; then count="$(printf '%s\n' "$lines" | wc -l)"; fi
+              if [ "$count" -eq 0 ]; then
+                printf 'bytes=%s..%s newLines=0 shown=0\n' "$from" "$((from + ${#whole}))"
+                printf 'no new lines since the previous tick; the last earlier line:\n'
+                head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
+              else
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted. The local
+                # LC_ALL above sets bash's own locale but is not exported, and gawk's length() counts
+                # characters under a UTF-8 locale, so awk gets C explicitly and counts bytes.
+                printf '%s\n' "$lines" | LC_ALL=C awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                  NR > count - 200 { kept[++n] = $0 }
+                  END {
+                    first = n + 1
+                    for (i = n; i >= 1 && size + length(kept[i]) + 1 <= 40960; i--) { size += length(kept[i]) + 1; first = i }
+                    printf "bytes=%s newLines=%s shown=%s\n", range, count, n - first + 1
+                    for (i = first; i <= n; i++) print kept[i]
+                  }'
+              fi
             }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
+            # Started in the last 60 s, newest first, at most 30, arguments cut at 120 characters, leaving
+            # out the recorder's and the sampler's own process trees; awk reads all of ps, so the pipe
+            # never breaks early. The args column starts where the header's last COMMAND does.
+            recorder_recent() {
+              ps -eo pid,ppid,etimes,comm,args --sort=etimes |
+                awk -v own="${recorder_self:-} $sampler_pid" 'BEGIN { split(own, ids, " "); for (i in ids) mine[ids[i]] = 1 }
+                  NR == 1 { width = length($0) - length("COMMAND") + 120; print; next }
+                  { id[NR] = $1; parent[$1] = $2; age[NR] = $3; line[NR] = $0 }
+                  END {
+                    for (row = 2; row <= NR; row++) {
+                      ours = 0
+                      for (hop = id[row]; hop != "" && hop != 0 && ++depth < 64; hop = parent[hop]) if (hop in mine) ours = 1
+                      depth = 0
+                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, width)
+                    }
+                  }'
+            }
+            # One labelled probe: its output, or `unavailable` when it fails.
+            recorder_probe() {
+              local text
+              printf '$ %s\n' "$1"
+              shift
+              if text="$("$@" 2> /dev/null)"; then printf '%s\n' "$text"; else printf 'unavailable\n'; fi
+            }
+            recorder_resolver() {
+              local text
+              if text="$(resolvectl status 2> /dev/null)"; then head -20 <<< "$text"; else cat /etc/resolv.conf; fi
+            }
+            recorder_rule_count() {
+              local text
+              text="$(sudo -n "$@" 2> /dev/null)" && wc -l <<< "$text"
+            }
+            # Byte, packet, error and drop counters of every interface but lo, beside the previous tick's.
+            recorder_link_counters() {
+              local default now
+              default="$(ip route show default 2> /dev/null |
+                awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); break } }')" || default=
+              now="$(awk -v primary="$default" 'NR > 2 {
+                sub(/^ +/, ""); name = $0; sub(/:.*/, "", name); fields = $0; sub(/^[^:]*: */, "", fields)
+                if (name == "lo") next
+                split(fields, f, / +/); found = 1
+                printf "%s%s rxBytes=%s rxPackets=%s rxErrs=%s rxDrop=%s txBytes=%s txPackets=%s txErrs=%s txDrop=%s\n",
+                  name, (name == primary ? " (default)" : ""), f[1], f[2], f[3], f[4], f[9], f[10], f[11], f[12]
+              } END { exit !found }' "$recorder_net_dev")" || return 1
+              printf 'defaultInterface=%s\n%s\n' "${default:-unavailable}" "$now"
+              if [ -s "$recorder_counters" ]; then
+                printf 'previous tick:\n'
+                cat "$recorder_counters"
+              fi
+              printf '%s\n' "$now" > "$recorder_counters"
+            }
+            recorder_network() {
+              recorder_probe 'ip -br addr' ip -br addr
+              recorder_probe 'ip -br link' ip -br link
+              recorder_probe 'ip route' ip route
+              recorder_probe 'ss -s' ss -s
+              recorder_probe 'resolvectl status (20 lines), else /etc/resolv.conf' recorder_resolver
+              recorder_probe 'sudo -n iptables -S, rule lines' recorder_rule_count iptables -S
+              recorder_probe 'sudo -n nft list ruleset, lines' recorder_rule_count nft list ruleset
+              recorder_probe "$recorder_net_dev counters" recorder_link_counters
+            }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            # The host's network, time, runner, provisioner, login and OOM lines of the last 3 minutes,
+            # the last 40. The match skips the time and host fields, since a host may be named runner….
+            recorder_journal() {
+              local text
+              text="$(sudo -n journalctl --since -3min --no-pager -o short-iso)" || return 1
+              awk '{ entry = $0; sub(/^[^ ]+ [^ ]+ /, "", entry) }
+                tolower(entry) ~ /networkd|networkmanager|dhcp|dhclient|timesyncd|chrony|provjobd|runner|sshd|cloud-init|(^|[^a-z])ena([^a-z]|$)|link|carrier|oom|out of memory|systemd-logind/ { kept[++n] = $0 }
+                END { if (n == 0) print "no matching lines"; for (i = (n > 40 ? n - 39 : 1); i <= n; i++) print kept[i] }' <<< "$text"
+            }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
             # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
             # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
@@ -800,18 +923,21 @@ jobs:
             }
           }
           recorder_report() {
-            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
+            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-2)\n\n'
             printf 'run=%s job=%s attempt=%s head=%s partition=%s %s\n' "${GITHUB_RUN_ID:-absent}" \
               "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition" \
               "$(host_cloud)"
             printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
             recorder_section 'headroom samples, last 3' recorder_samples
             recorder_section 'disk' recorder_disk
+            recorder_section 'network' recorder_network
             recorder_section 'processes by RSS' recorder_processes
+            recorder_section 'processes started in the last 60 s' recorder_recent
             recorder_section 'task count' pgrep -c .
             recorder_section 'kernel, last 3 minutes' recorder_kernel
+            recorder_section 'journal, last 3 minutes' recorder_journal
             if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
-            recorder_section 'nx-gate.log tail without samples' recorder_log_tail
+            recorder_section 'nx-gate.log lines since the previous tick' recorder_log_since
           }
           # The HTTP status gh printed on stderr, or its exit status.
           recorder_failure() {
@@ -825,7 +951,8 @@ jobs:
             local body comment status=0
             comment="$(cat "$recorder_comment")"
             if [ "$comment" = unavailable ]; then return 1; fi
-            body="$(recorder_report "$1" |
+            # The final report runs in the step shell: its own subshell is then the tree to leave out.
+            body="$(recorder_self="${recorder_self:-$BASHPID}"; recorder_report "$1" |
               sed -E -e '/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|wbs_mk_[A-Za-z0-9]+|Bearer [A-Za-z0-9._-]{20,}/s/.*/[line redacted: a secret shape]/' \
                 -e 's/@/@\xe2\x80\x8b/g')"
             local LC_ALL=C
@@ -867,7 +994,27 @@ jobs:
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
             refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
           fi
+          start_cloud="$(host_cloud)"
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # A-CI-LEAF-AWS-1 (R5-32): GitHub serves ubuntu-24.04 from Azure and AWS hosts. On 2026-11-22
+          # the tool-fleet leaf finished on 7 of 7 Azure hosts. On AWS it died on 5 of 6 hosts, 1095 to
+          # 1339 s into its phase and in different test files, and finished once in 28 minutes, so the
+          # fault is the host's, not a test's. On the start record's `cloud=aws` that leaf refuses
+          # before the sampler, the recorder or any gate work: the refusal line goes to nx-gate.log and
+          # stderr, `aws_refused=true` to the step outputs, a line to the job summary and
+          # aws-refused.txt to the marker artifact; exit 78 fails the job in seconds.
+          # The `requeue tool-fleet leaf` job reruns the attempt only when that marker exists. Every
+          # other partition, and the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`, runs
+          # unchanged: an unreadable DMI file proves nothing about the host, so it must not refuse.
+          # Proof (2026-11-22, pr-merge-base.test.ts `refuses an AWS-hosted runner for the tool-fleet
+          # leaf alone`): see the test's Proof comment for the faults injected and observed.
+          if [ "$partition" = heavy-tool-fleet ] && [ "${start_cloud%% *}" = cloud=aws ]; then
+            aws_refusal='A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf died about 20 minutes into its phase on 5 of 6 AWS hosts on 2026-11-22, R5-32); requeue'
+            printf '%s\n' "$aws_refusal" | tee -a nx-gate.log aws-refused.txt >&2
+            printf 'aws_refused=true\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$aws_refusal" >> "$GITHUB_STEP_SUMMARY"
+            exit 78
+          fi
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -887,6 +1034,7 @@ jobs:
             (
               nap=
               stop=
+              recorder_self=$BASHPID
               trap 'stop=1; [ -z "$nap" ] || kill "$nap" 2> /dev/null' TERM
               tick=0
               while [ -z "$stop" ]; do
@@ -959,7 +1107,7 @@ jobs:
     # Keep pinned Python 3.14.4 on its supported Ubuntu 24.04 image.
     # Proof: workspace job 124617218173 failed setup-python on 26.04;
     # job 124582747681 installed 3.14.4 and passed on 24.04.
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.project == 'tool-fleet' && 'ubuntu-26.04' || 'ubuntu-24.04' }}
     # A-CI-WORKSPACE-MEMORY-3: one job per HEAVY_TEST_PROJECTS entry. #958 ran all four in one
     # job at --parallel=1, and main 982f36697 still lost that runner (job 136597156506, R5-32), so
     # a single suite can starve or terminate a 16 GB runner by itself. As separate leaves, a lost
@@ -1003,7 +1151,7 @@ jobs:
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: '3.14.4'
+          python-version: ${{ matrix.project == 'tool-fleet' && '3.14.10' || '3.14.4' }}
           cache: pip
           cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock
 
@@ -1275,7 +1423,7 @@ jobs:
             printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$start_cloud"
             free -m
             df -h /
           }
@@ -1380,10 +1528,10 @@ jobs:
           # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
           # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
           # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
-          # every 120 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
+          # every 45 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
           # three samples, `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
-          # KiB it shows the disk trend before a loss), the last 15 other nx-gate.log lines (the running
-          # test's file and name), the largest processes, the task count and the last kernel lines. A
+          # KiB it shows the disk trend before a loss), the network state, the largest and the newest
+          # processes, the task count, the last kernel lines and the other nx-gate.log lines. A
           # lost runner leaves its last PATCH there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
           # writes `runtime recorder unavailable: …` once and stops it, a failed PATCH writes `runtime
           # recorder patch failed: …`, and neither changes the gate status. The log tail loses its ANSI
@@ -1402,11 +1550,34 @@ jobs:
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
           # cloud field failed the living-comment test.
+          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): three AWS leaves went dark about 20 minutes into
+          # the phase, each in a different test file, with healthy last ticks, so the trigger is the host's
+          # and time-based. The tick is 45 s; the log section holds every other line since the previous
+          # tick (whole lines from a stored byte offset, the last 200 that fit 40960 bytes), so its last
+          # line is the last test finished, and a tick with none repeats the last earlier line. The offset
+          # advances when the report is built, so a failed PATCH loses that window from later ticks; a NUL
+          # byte in the log, which bash strings cannot hold, makes the offset undercount and repeat lines.
+          # The final report's log section is incremental too. The network section shows addresses,
+          # links, routes, socket totals, the resolver, firewall rule counts and per-interface counters
+          # beside the previous tick's, so a dead link shows; the journal section keeps the last 3
+          # minutes of network, time, runner, provisioner, login and OOM lines, which may name the
+          # trigger before the link dies; the recent-processes section names what started in the last
+          # 60 s, arguments cut at 120 characters. Each probe prints `unavailable` on failure and no
+          # section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts recorder tests): a
+          # 120 s tick posted 3 ticks where 45 s posts at least 4; dropping the offset update reposted the
+          # log from byte 0; dropping the 200-line cap posted 258 lines; dropping the byte condition from
+          # the whole-line trim lost the last wide line past the body cap; dropping the probes' fallback, the previous tick's counters, the journal
+          # filter, the 60 s age filter or the own-tree exclusion failed the network, journal and process
+          # assertions.
           recorder_issue=963
-          recorder_interval=120
+          recorder_interval=45
           recorder_body_limit=61440
           recorder_comment="$(mktemp)"
           recorder_error="$(mktemp)"
+          recorder_offset="$(mktemp)"
+          recorder_counters="$(mktemp)"
+          recorder_net_dev=/proc/net/dev
+          printf '0\n' > "$recorder_offset"
           recorder_pid=
           recorder_section() {
             local text
@@ -1422,12 +1593,112 @@ jobs:
           # shellcheck disable=SC2317 # each runs through recorder_section's "$@"
           {
             recorder_samples() { awk '/^runtime headroom sample /' nx-gate.log | tail -3; }
-            recorder_log_tail() {
-              awk '!/^runtime (headroom sample|recorder) /' nx-gate.log | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' |
-                tail -15 | tail -c 40960
+            recorder_log_filter() { awk '!/^runtime (headroom sample|recorder) /' | sed 's/\x1b\[[0-9;]*[A-Za-z]//g'; }
+            # Whole lines since the stored offset; a partial last line waits for the next tick. head -c
+            # stops at the size read first, so a growing log cannot break the pipe under pipefail.
+            recorder_log_since() {
+              local from size chunk whole lines count
+              from="$(cat "$recorder_offset")"
+              size="$(stat -c %s nx-gate.log)"
+              chunk="$(head -c "$size" nx-gate.log | tail -c "+$((from + 1))"; printf x)"
+              chunk="${chunk%x}"
+              whole=
+              if [[ "$chunk" == *$'\n'* ]]; then whole="${chunk%$'\n'*}"$'\n'; fi
+              local LC_ALL=C
+              printf '%s\n' "$((from + ${#whole}))" > "$recorder_offset"
+              lines="$(printf '%s' "$whole" | recorder_log_filter)"
+              count=0
+              if [ -n "$lines" ]; then count="$(printf '%s\n' "$lines" | wc -l)"; fi
+              if [ "$count" -eq 0 ]; then
+                printf 'bytes=%s..%s newLines=0 shown=0\n' "$from" "$((from + ${#whole}))"
+                printf 'no new lines since the previous tick; the last earlier line:\n'
+                head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
+              else
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted. The local
+                # LC_ALL above sets bash's own locale but is not exported, and gawk's length() counts
+                # characters under a UTF-8 locale, so awk gets C explicitly and counts bytes.
+                printf '%s\n' "$lines" | LC_ALL=C awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                  NR > count - 200 { kept[++n] = $0 }
+                  END {
+                    first = n + 1
+                    for (i = n; i >= 1 && size + length(kept[i]) + 1 <= 40960; i--) { size += length(kept[i]) + 1; first = i }
+                    printf "bytes=%s newLines=%s shown=%s\n", range, count, n - first + 1
+                    for (i = first; i <= n; i++) print kept[i]
+                  }'
+              fi
             }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
+            # Started in the last 60 s, newest first, at most 30, arguments cut at 120 characters, leaving
+            # out the recorder's and the sampler's own process trees; awk reads all of ps, so the pipe
+            # never breaks early. The args column starts where the header's last COMMAND does.
+            recorder_recent() {
+              ps -eo pid,ppid,etimes,comm,args --sort=etimes |
+                awk -v own="${recorder_self:-} $sampler_pid" 'BEGIN { split(own, ids, " "); for (i in ids) mine[ids[i]] = 1 }
+                  NR == 1 { width = length($0) - length("COMMAND") + 120; print; next }
+                  { id[NR] = $1; parent[$1] = $2; age[NR] = $3; line[NR] = $0 }
+                  END {
+                    for (row = 2; row <= NR; row++) {
+                      ours = 0
+                      for (hop = id[row]; hop != "" && hop != 0 && ++depth < 64; hop = parent[hop]) if (hop in mine) ours = 1
+                      depth = 0
+                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, width)
+                    }
+                  }'
+            }
+            # One labelled probe: its output, or `unavailable` when it fails.
+            recorder_probe() {
+              local text
+              printf '$ %s\n' "$1"
+              shift
+              if text="$("$@" 2> /dev/null)"; then printf '%s\n' "$text"; else printf 'unavailable\n'; fi
+            }
+            recorder_resolver() {
+              local text
+              if text="$(resolvectl status 2> /dev/null)"; then head -20 <<< "$text"; else cat /etc/resolv.conf; fi
+            }
+            recorder_rule_count() {
+              local text
+              text="$(sudo -n "$@" 2> /dev/null)" && wc -l <<< "$text"
+            }
+            # Byte, packet, error and drop counters of every interface but lo, beside the previous tick's.
+            recorder_link_counters() {
+              local default now
+              default="$(ip route show default 2> /dev/null |
+                awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); break } }')" || default=
+              now="$(awk -v primary="$default" 'NR > 2 {
+                sub(/^ +/, ""); name = $0; sub(/:.*/, "", name); fields = $0; sub(/^[^:]*: */, "", fields)
+                if (name == "lo") next
+                split(fields, f, / +/); found = 1
+                printf "%s%s rxBytes=%s rxPackets=%s rxErrs=%s rxDrop=%s txBytes=%s txPackets=%s txErrs=%s txDrop=%s\n",
+                  name, (name == primary ? " (default)" : ""), f[1], f[2], f[3], f[4], f[9], f[10], f[11], f[12]
+              } END { exit !found }' "$recorder_net_dev")" || return 1
+              printf 'defaultInterface=%s\n%s\n' "${default:-unavailable}" "$now"
+              if [ -s "$recorder_counters" ]; then
+                printf 'previous tick:\n'
+                cat "$recorder_counters"
+              fi
+              printf '%s\n' "$now" > "$recorder_counters"
+            }
+            recorder_network() {
+              recorder_probe 'ip -br addr' ip -br addr
+              recorder_probe 'ip -br link' ip -br link
+              recorder_probe 'ip route' ip route
+              recorder_probe 'ss -s' ss -s
+              recorder_probe 'resolvectl status (20 lines), else /etc/resolv.conf' recorder_resolver
+              recorder_probe 'sudo -n iptables -S, rule lines' recorder_rule_count iptables -S
+              recorder_probe 'sudo -n nft list ruleset, lines' recorder_rule_count nft list ruleset
+              recorder_probe "$recorder_net_dev counters" recorder_link_counters
+            }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            # The host's network, time, runner, provisioner, login and OOM lines of the last 3 minutes,
+            # the last 40. The match skips the time and host fields, since a host may be named runner….
+            recorder_journal() {
+              local text
+              text="$(sudo -n journalctl --since -3min --no-pager -o short-iso)" || return 1
+              awk '{ entry = $0; sub(/^[^ ]+ [^ ]+ /, "", entry) }
+                tolower(entry) ~ /networkd|networkmanager|dhcp|dhclient|timesyncd|chrony|provjobd|runner|sshd|cloud-init|(^|[^a-z])ena([^a-z]|$)|link|carrier|oom|out of memory|systemd-logind/ { kept[++n] = $0 }
+                END { if (n == 0) print "no matching lines"; for (i = (n > 40 ? n - 39 : 1); i <= n; i++) print kept[i] }' <<< "$text"
+            }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
             # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
             # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
@@ -1445,18 +1716,21 @@ jobs:
             }
           }
           recorder_report() {
-            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
+            printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-2)\n\n'
             printf 'run=%s job=%s attempt=%s head=%s partition=%s %s\n' "${GITHUB_RUN_ID:-absent}" \
               "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition" \
               "$(host_cloud)"
             printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
             recorder_section 'headroom samples, last 3' recorder_samples
             recorder_section 'disk' recorder_disk
+            recorder_section 'network' recorder_network
             recorder_section 'processes by RSS' recorder_processes
+            recorder_section 'processes started in the last 60 s' recorder_recent
             recorder_section 'task count' pgrep -c .
             recorder_section 'kernel, last 3 minutes' recorder_kernel
+            recorder_section 'journal, last 3 minutes' recorder_journal
             if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
-            recorder_section 'nx-gate.log tail without samples' recorder_log_tail
+            recorder_section 'nx-gate.log lines since the previous tick' recorder_log_since
           }
           # The HTTP status gh printed on stderr, or its exit status.
           recorder_failure() {
@@ -1470,7 +1744,8 @@ jobs:
             local body comment status=0
             comment="$(cat "$recorder_comment")"
             if [ "$comment" = unavailable ]; then return 1; fi
-            body="$(recorder_report "$1" |
+            # The final report runs in the step shell: its own subshell is then the tree to leave out.
+            body="$(recorder_self="${recorder_self:-$BASHPID}"; recorder_report "$1" |
               sed -E -e '/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_|wbs_mk_[A-Za-z0-9]+|Bearer [A-Za-z0-9._-]{20,}/s/.*/[line redacted: a secret shape]/' \
                 -e 's/@/@\xe2\x80\x8b/g')"
             local LC_ALL=C
@@ -1512,7 +1787,27 @@ jobs:
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
             refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
           fi
+          start_cloud="$(host_cloud)"
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # A-CI-LEAF-AWS-1 (R5-32): GitHub serves ubuntu-24.04 from Azure and AWS hosts. On 2026-11-22
+          # the tool-fleet leaf finished on 7 of 7 Azure hosts. On AWS it died on 5 of 6 hosts, 1095 to
+          # 1339 s into its phase and in different test files, and finished once in 28 minutes, so the
+          # fault is the host's, not a test's. On the start record's `cloud=aws` that leaf refuses
+          # before the sampler, the recorder or any gate work: the refusal line goes to nx-gate.log and
+          # stderr, `aws_refused=true` to the step outputs, a line to the job summary and
+          # aws-refused.txt to the marker artifact; exit 78 fails the job in seconds.
+          # The `requeue tool-fleet leaf` job reruns the attempt only when that marker exists. Every
+          # other partition, and the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`, runs
+          # unchanged: an unreadable DMI file proves nothing about the host, so it must not refuse.
+          # Proof (2026-11-22, pr-merge-base.test.ts `refuses an AWS-hosted runner for the tool-fleet
+          # leaf alone`): see the test's Proof comment for the faults injected and observed.
+          if [ "$partition" = heavy-tool-fleet ] && [ "${start_cloud%% *}" = cloud=aws ]; then
+            aws_refusal='A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf died about 20 minutes into its phase on 5 of 6 AWS hosts on 2026-11-22, R5-32); requeue'
+            printf '%s\n' "$aws_refusal" | tee -a nx-gate.log aws-refused.txt >&2
+            printf 'aws_refused=true\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$aws_refusal" >> "$GITHUB_STEP_SUMMARY"
+            exit 78
+          fi
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -1532,6 +1827,7 @@ jobs:
             (
               nap=
               stop=
+              recorder_self=$BASHPID
               trap 'stop=1; [ -z "$nap" ] || kill "$nap" 2> /dev/null' TERM
               tick=0
               while [ -z "$stop" ]; do
@@ -1596,6 +1892,17 @@ jobs:
           name: nx-gate-log-heavy-${{ matrix.project }}-${{ github.run_attempt }}
           path: nx-gate.log
           if-no-files-found: error
+
+      # A-CI-LEAF-AWS-1: the marker the `requeue tool-fleet leaf` job looks for, named for this
+      # attempt, so an ordinary failure (no marker) is never rerun automatically.
+      - name: Upload AWS refusal marker
+        if: ${{ always() && steps.nx_gate.outputs.aws_refused == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}
+          path: aws-refused.txt
+          if-no-files-found: error
+          retention-days: 7
 
   gate_backend:
     name: gate backend
@@ -2728,6 +3035,68 @@ jobs:
               exit 1
               ;;
           esac
+
+  # A-CI-LEAF-AWS-1 (R5-32): when the tool-fleet leaf refused an AWS-hosted runner, ask for
+  # another attempt of the failed jobs, hoping for an Azure host. `gate` still fails this attempt,
+  # so main is red only until an attempt draws Azure. The bound (A-CI-LEAF-AWS-3) is attempts 1
+  # to 6 (five reruns); with about two thirds of runners on AWS, P(Azure within six attempts) is
+  # about 1 - 0.67^6, roughly 91%. The marker artifact of this attempt is the only trigger, so an
+  # ordinary failure is never rerun automatically. Only gate_heavy uploads that marker. A run
+  # cannot rerun itself while one of its own jobs still runs, so this job dispatches
+  # ci-requeue.yml, which waits for the run to complete, checks the marker again and, 10 minutes
+  # after completion, runs `gh run rerun --failed` only on a failed conclusion; the rerun reruns
+  # this job with the failed leaf, which continues the chain. It needs `gate` as well, so it
+  # fires at the end of the run and the waiter's wait is short; `gate` does not need it. A fork
+  # PR's token cannot dispatch, so a fork's refused attempt is logged and left for a maintainer.
+  # continue-on-error: a failure here is visible on the job and never changes the run's
+  # verdict, which `gate` decides.
+  requeue_tool_fleet_leaf:
+    name: requeue tool-fleet leaf
+    needs: [gate_heavy, gate]
+    if: ${{ always() && needs.gate_heavy.result == 'failure' && github.run_attempt < 6 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch the requeue after an AWS refusal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          # The run's own head_sha: a pull_request run records the PR head, not the merge commit.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          marker="aws-refused-heavy-tool-fleet-attempt-$RUN_ATTEMPT"
+          # Proof: see gate-workflow.test.ts `requeue tool-fleet leaf` for each injected fault.
+          if [ "$EVENT_NAME" = pull_request ] && [ "$HEAD_REPOSITORY" != "$REPOSITORY" ]; then
+            printf 'A-CI-LEAF-AWS-1: fork pull request from %s; its token cannot requeue, rerun by hand\n' \
+              "$HEAD_REPOSITORY"
+            exit 0
+          fi
+          markers="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/artifacts?name=$marker" --jq '.total_count')"
+          case "$markers" in
+            0)
+              printf 'A-CI-LEAF-AWS-1: no %s artifact; this failure is not an AWS refusal, no requeue\n' "$marker"
+              exit 0
+              ;;
+            1) ;;
+            *)
+              printf 'A-CI-LEAF-AWS-1: unexpected %s artifact count: %s\n' "$marker" "$markers" >&2
+              exit 1
+              ;;
+          esac
+          # No --ref: the dispatch runs ci-requeue.yml from the default branch, so the first dispatch
+          # fails until that file is on main (continue-on-error keeps it out of the verdict).
+          gh workflow run ci-requeue.yml --repo "$REPOSITORY" \
+            -f "run_id=$RUN_ID" -f "attempt=$RUN_ATTEMPT" -f "head_sha=$HEAD_SHA"
+          printf 'A-CI-LEAF-AWS-1: requeue of attempt %s dispatched after an AWS refusal\n' "$RUN_ATTEMPT"
 
   # Whether a pull request can reach the browser stack at all — the shards' half of
   # the switch `Gate mode` makes for the Nx gate, with the same refusal arm and the

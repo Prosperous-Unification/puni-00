@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm';
 import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
-import { workItem } from './schema';
+import { organization, person, personOrganization, workItem } from './schema';
 import type { SqliteSource } from './source';
 import { openSqliteStepCatalogueCase } from './testing/step-catalogue-fixture';
 
@@ -79,6 +79,27 @@ afterEach(async () => {
 });
 
 describe('DirectoryRepository', () => {
+  it('reads only requested local person aliases and omits foreign ids', async () => {
+    await db.insert(organization).values([
+      { id: 'name-owner', name: 'Name Owner', createdAt: 1 },
+      { id: 'other-owner', name: 'Other Owner', createdAt: 1 },
+    ]);
+    await db.insert(person).values([
+      { id: 'name-own', name: 'root own' },
+      { id: 'name-foreign', name: 'root foreign' },
+      { id: 'name-unrequested', name: 'root unrequested' },
+    ]);
+    await db.insert(personOrganization).values([
+      { resourceId: 'name-own', organizationId: 'name-owner', name: 'local own' },
+      { resourceId: 'name-foreign', organizationId: 'other-owner', name: 'local foreign' },
+      { resourceId: 'name-unrequested', organizationId: 'name-owner', name: 'local unrequested' },
+    ]);
+    expect(
+      await repo.personNamesInOrganization('name-owner', ['name-own', 'name-foreign', 'name-own']),
+    ).toEqual([{ id: 'name-own', name: 'local own' }]);
+    expect(await repo.personNamesInOrganization('name-owner', [])).toEqual([]);
+  });
+
   it('adds a team, and adding the same name again gives back the same row', async () => {
     // The picker types a name when the list does not have it, so this is the
     // ordinary path rather than a race nobody hits.

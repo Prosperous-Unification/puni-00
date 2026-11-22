@@ -72,7 +72,7 @@ export function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
   /**
    * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
-   * demands on resources the work package states a capacity for, clamped to it.
+   * demands clamped to the effective resource pools.
    * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
    * team pools are; a leaf absent from the map demands nothing.
    */

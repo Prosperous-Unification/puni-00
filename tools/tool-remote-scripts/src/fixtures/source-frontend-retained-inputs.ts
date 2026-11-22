@@ -42,16 +42,26 @@ const DEPENDENCY_PATHS = [
  * f0fab672c7e15fe63c38dba8fd9c42cbab2047b5. The project is reconstructed from
  * b73a40f9d306a64518f153d4152affc868e7dbc6 by changing exactly three reviewed
  * Playwright references to cross-work-package; its full existing pin authenticates
- * that reconstruction. These are selection inputs, not historical HTTP captures
+ * that reconstruction. The serial-lint variant uses exact retained main Vite
+ * and project bytes from 9d57780286fff21d6a29521bebce4ff68aae5f1f. These are selection inputs, not historical HTTP captures
  * or qualification of the current live source or Vite producer. Installed package
  * inputs remain live and must satisfy the unchanged materializer's fixed pins.
  */
-export async function prepareRetainedSourceFrontendProfile(destination: string): Promise<void> {
+export async function prepareRetainedSourceFrontendProfile(
+  destination: string,
+  configuration: 'renamed' | 'serial-lint' = 'renamed',
+): Promise<void> {
   const capsule = await scratchAsync('source-frontend-retained-');
   try {
     for (const path of [...SOURCE_PATHS, ...DEPENDENCY_PATHS]) {
+      const retained =
+        configuration === 'serial-lint' && path === 'apps/wbs/fe-01/vite.config.ts'
+          ? 'apps/wbs/fe-01/vite.serial-lint.config.ts'
+          : configuration === 'serial-lint' && path === 'apps/wbs/fe-01/project.json'
+            ? 'apps/wbs/fe-01/project.serial-lint.json'
+            : path;
       const selected = SOURCE_PATHS.includes(path)
-        ? join(import.meta.dir, 'source-frontend-retained-inputs', `${path}.txt`)
+        ? join(import.meta.dir, 'source-frontend-retained-inputs', retained + '.txt')
         : join(ROOT, path);
       const target = join(capsule, path);
       await mkdir(dirname(target), { recursive: true });

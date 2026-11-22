@@ -192,10 +192,13 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
   workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet 90 min, tool-devsync
   and wbs-store-sqlite 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
   scope with `MemoryMax=12G`, `TasksMax=4096` and `AllowedCPUs=0-2`, A-CI-LEAF-MEMORYMAX-1 and -2;
-  the tool-fleet leaf also keeps one living comment on issue #963 every 120 s, A-CI-LEAF-RECORDER-1),
+  the tool-fleet leaf also keeps one living comment on issue #963 every 45 s, A-CI-LEAF-RECORDER-2,
+  and refuses an AWS-hosted runner with exit 78 and a marker artifact, A-CI-LEAF-AWS-1),
   `gate_backend`, `gate_remote`,
   `gate_remote_model` and `gate_frontend` (90 min caps), `gate_checks` (secrets scan, migration
-  lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `pixels` shards 1–4.
+  lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `requeue_tool_fleet_leaf`
+  (dispatches `ci-requeue.yml` to rerun a refused attempt's failed jobs 10 minutes after the run completes, up to attempt 6), `pixels`
+  shards 1–4.
   `infra-check.yml` on infra paths; `twilight-burokrat-release.yml` on `twilight-burokrat-v*`
   tags; `trusted-wiki.yml` paused.
 - **Merge:** merge commits to `main`. Ruleset 25730010 (since 2026-10-23) requires a pull request

@@ -5,11 +5,13 @@ import type {
   ChainSnapshot,
   ChainSnapshotStore,
   ConnectedPlanCapture,
+  DirectoryCatalog,
   LivePlanAggregate,
   LivePlanRead,
   LivePlanStore,
   OptimizedScheduleAdapter,
   OrganizationPrincipal,
+  RefusedOrganizationAccess,
   ResolvedPlanInputReads,
   ResourceAccess,
   Scheduler,
@@ -19,8 +21,14 @@ import type {
   WorkPackage,
 } from '@wbs/core';
 import { deriveConnectedPlan, deriveConnectedReadiness, readChain } from '@wbs/core';
-import { authorizePackage } from '@wbs/core/service/authorize';
+import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
+import { readHolderNames } from '@wbs/core/module/work-item/shared-holders';
+import { findStartableWork, startableWithHolders } from '@wbs/core/module/work-item/startable';
+import { readWorkPackageResources } from '@wbs/core/module/work-item/work-package-resources';
+import { authorize, authorizePackage, authorizePackageAt } from '@wbs/core/service/authorize';
 import { selectInfluencers } from '@wbs/core/service/shared-people';
+import type { OrganizationLimitValues } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 
 import { AccessDecisionRepository } from './access-decisions';
@@ -28,6 +36,7 @@ import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
 import type { CapturedOptimizationReaderOptions } from './captured-optimization-reader';
 import { capturedSchedulerIn, type ConnectedCaptureOptions } from './captured-scheduler';
+import { ClaimRepository } from './claim';
 import { captureConnectedPlanIn, discoverConnectedTopologyIn } from './connected-plan-capture';
 import {
   type Connection,
@@ -46,7 +55,12 @@ import {
   SqliteOrganizationAccess,
 } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
-import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
+import { OrganizationLimitGaugeRepository } from './organization-limits';
+import {
+  createReadSnapshotLifetime,
+  type ReadSnapshotLifetime,
+  readWhileOpen,
+} from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
@@ -339,14 +353,50 @@ function requireOwnership(owner: { organizationId: string } | undefined): string
   return owner.organizationId;
 }
 
+/** Rechecks membership and directory grants on the admitted observation. */
+async function currentDirectoryRead(
+  db: Drizzle,
+  lifetime: ReadSnapshotLifetime,
+  actorId: string,
+  access: Extract<ResourceAccess, { kind: 'scoped' }>,
+): Promise<
+  | { readonly ok: true }
+  | RefusedOrganizationAccess
+  | {
+      readonly ok: false;
+      readonly reason: 'forbidden';
+      readonly permission: 'organization.manage_directory';
+    }
+> {
+  lifetime.assertOpen();
+  if (readOrganizationActivation(db) !== 'activated')
+    return { ok: false, refusal: 'no_active_organization' };
+  const { organizationId, userId } = access.scope;
+  if (actorId !== userId || actorId !== access.principal.id)
+    throw new Error('organization read actor differs from its admitted scope');
+  if (readMembershipIn(db, organizationId, actorId) === null)
+    return { ok: false, refusal: 'not_a_member' };
+  const decision = await readWhileOpen(lifetime)(() =>
+    authorize(
+      new AccessDecisionRepository(db),
+      access.principal,
+      { kind: 'organization', organizationId },
+      'organization.manage_directory',
+    ),
+  );
+  return decision.ok
+    ? { ok: true }
+    : { ok: false, reason: 'forbidden', permission: 'organization.manage_directory' };
+}
+
 /** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
 export function createLivePlanStore(
-  options: LiveCaptureOptions &
-    (
+  options: LiveCaptureOptions & { readonly organizationDefaultLimits?: OrganizationLimitValues } & (
       | { readonly kind: 'owned'; readonly openConnection: () => Connection }
       | { readonly kind: 'borrowed'; readonly db: Drizzle; readonly lifetime: ReadSnapshotLifetime }
     ),
 ): LivePlanStore {
+  const defaults = options.organizationDefaultLimits;
   // Proof: omitted acquisition check returned a new reader for the expired-scope factory test.
   if (options.kind === 'borrowed') options.lifetime.assertOpen();
   async function observe<T>(
@@ -374,6 +424,8 @@ export function createLivePlanStore(
       // mix old FS completion with new claim/occupancy and admit later SS attempts;
       // both returned HTTP 200 before first-response equality failed (2026-10-23).
       // Proof: no-op observation transaction mixed target dates and foreign facts through HTTP200 (puni-task84-fault-lifetime.log).
+      // Proof: preview-without-transaction mixed old holdings with new demand in the mounted preview.
+      // Proof: dropping this transaction lost a claim's stamp after a mid-read release.
       transaction.begin();
       try {
         const captured = await read(connection.db, lifetime);
@@ -397,6 +449,150 @@ export function createLivePlanStore(
     }
   }
   return {
+    readWorkPackageResources: (workPackageId, access) =>
+      // Proof: omitting the owned transaction mixed the old capacity with released units in the mounted catalog.
+      observe(async (db, lifetime) => {
+        // Proof: bypassing parity admitted a legacy resource read after activation.
+        const activation = readOrganizationActivation(db);
+        if ((access.kind === 'legacy') !== (activation === 'pre_activation'))
+          return { kind: 'access_refused', refusal: 'no_active_organization' };
+        if (access.kind === 'scoped') {
+          const { organizationId, userId } = access.scope;
+          // Proof: ignoring a removed viewer answered 200 in the mounted catalog route.
+          if (readMembershipIn(db, organizationId, userId) === null)
+            return { kind: 'access_refused', refusal: 'not_a_member' };
+          const read = readWhileOpen(lifetime);
+          const decisions = new AccessDecisionRepository(db);
+          const target = await read(() => decisions.packageTargetOf(workPackageId, organizationId));
+          if (
+            target === null ||
+            !(
+              await read(() =>
+                authorizePackageAt(decisions, access, target, userId, 'package.read'),
+              )
+            ).ok
+          )
+            return { kind: 'not_found' };
+        }
+        const captured = await readWorkPackageResources(
+          {
+            workPackages: new WorkPackageRepository(db, OPEN),
+            directory: new DirectoryRepository(db, OPEN),
+            claims: new ClaimRepository(db, OPEN),
+            resourceCapacity: new ResourceCapacityRepository(db, OPEN),
+            demands: new DemandRepository(db, OPEN),
+          },
+          workPackageId,
+          access,
+          // Proof: omitting this fence let an expired borrowed catalog dispatch its aggregate.
+          readWhileOpen(lifetime),
+        );
+        lifetime.assertOpen();
+        return captured;
+      }),
+    readStartableWithin: (workPackageId, actorId, access, teamId) =>
+      observe(async (db, lifetime) => {
+        const captured = await readExecutionIn(db, workPackageId, access, teamId, lifetime);
+        if (captured.kind !== 'ready') return captured;
+        const read = readWhileOpen(lifetime);
+        const claims = new ClaimRepository(db, OPEN);
+        const value = await startableWithHolders(findStartableWork(captured.reads), {
+          // Proof: a suspended borrowed holder query otherwise dispatched visibility SQL after rollback.
+          claims: {
+            organizationOccupancyOf: (ids) => read(() => claims.organizationOccupancyOf(ids)),
+          },
+          workPackages: {
+            mayReadWorkPackageWithin: (origin, viewerId, viewerAccess) =>
+              read(() => claims.mayReadWorkPackageWithin(origin, viewerId, viewerAccess)),
+          },
+          // Proof: an extra catalog read for decoration made the mounted reopened grant read twice.
+          holderNames: (ids) =>
+            access.kind === 'scoped'
+              ? Promise.resolve(captured.reads.personNames)
+              : read(() => readHolderNames(new DirectoryRepository(db, OPEN), access, ids)),
+          askingWorkPackageId: workPackageId,
+          actorId,
+          access,
+        });
+        lifetime.assertOpen();
+        // Proof: live-enrichment-absent lost hidden units in the mounted two-resource read.
+        return { kind: 'ready', value };
+      }),
+    previewDirectoryCapacityWithin: (resourceId, units, actorId, access) =>
+      observe(async (db, lifetime) => {
+        const admitted = await currentDirectoryRead(db, lifetime, actorId, access);
+        if (!admitted.ok) return admitted;
+        const claims = new ClaimRepository(db, OPEN);
+        const preview = await previewCapacity(
+          () => ({
+            limits:
+              defaults === undefined
+                ? undefined
+                : new OrganizationLimitGaugeRepository(db, defaults),
+            claims,
+            workPackages: {
+              findInOrganization: (id, organizationId) =>
+                new WorkPackageRepository(db, OPEN).findInOrganization(id, organizationId),
+              mayReadWorkPackageWithin: (origin, actor, viewer) =>
+                claims.mayReadWorkPackageWithin(origin, actor, viewer),
+            },
+            directory: new DirectoryRepository(db, OPEN),
+          }),
+          resourceId,
+          units,
+          actorId,
+          access,
+          // Proof: checking only entry and exit allowed further SQL after catalog or gauge expiry.
+          readWhileOpen(lifetime),
+        );
+        lifetime.assertOpen();
+        return preview;
+      }),
+    readResourceOccupancyWithin: (resourceId, actorId, access) =>
+      observe(async (db, lifetime) => {
+        const admitted = await currentDirectoryRead(db, lifetime, actorId, access);
+        if (!admitted.ok) return admitted;
+        const read = readWhileOpen(lifetime);
+        const occupancy = await readResourceOccupancy(
+          () => {
+            const claims = new ClaimRepository(db, OPEN);
+            const workPackages = new WorkPackageRepository(db, OPEN);
+            const directory = new DirectoryRepository(db, OPEN);
+            // Proof: the unfenced catalog continuation dispatched capacity and holder SQL after commit.
+            return {
+              claims: {
+                organizationOccupancyOf: (ids: readonly string[]) =>
+                  read(() => claims.organizationOccupancyOf(ids)),
+                listStampedByIds: (workPackageId: string, ids: readonly string[]) =>
+                  read(() => claims.listStampedByIds(workPackageId, ids)),
+              },
+              workPackages: {
+                findInOrganization: (workPackageId: string, organizationId: string) =>
+                  read(() => workPackages.findInOrganization(workPackageId, organizationId)),
+                mayReadWorkPackageWithin: (origin, actor, viewer) =>
+                  read(() => claims.mayReadWorkPackageWithin(origin, actor, viewer)),
+              },
+              directory: {
+                listInOrganization: <Catalog extends DirectoryCatalog>(
+                  catalog: Catalog,
+                  organizationId: string,
+                ) => read(() => directory.listInOrganization(catalog, organizationId)),
+                directoryCapacitiesOf: (ids: readonly string[]) =>
+                  read(() => directory.directoryCapacitiesOf(ids)),
+                personNamesInOrganization: (organizationId: string, ids: readonly string[]) =>
+                  read(() => directory.personNamesInOrganization(organizationId, ids)),
+                namesOf: (catalog: 'people' | 'teams', ids: readonly string[]) =>
+                  read(() => directory.namesOf(catalog, ids)),
+              },
+            };
+          },
+          resourceId,
+          actorId,
+          access,
+        );
+        lifetime.assertOpen();
+        return occupancy;
+      }),
     readExecution: (workPackageId, access, teamId) =>
       observe((db, lifetime) => readExecutionIn(db, workPackageId, access, teamId, lifetime)),
     read: (workPackageId, access) =>

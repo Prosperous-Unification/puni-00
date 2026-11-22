@@ -1262,6 +1262,12 @@ function batchLimitSentence(refusal: BatchRefusal, resourceName?: string): strin
     case 'claim_limit':
       return claimLimitSentence(refusal);
     case 'capacity_limit':
+      if (refusal.kind === 'setDirectoryCapacity') {
+        const resource = resourceName ?? refusal.resourceId;
+        return refusal.asked === 0 && refusal.declared > refusal.cap
+          ? `Clearing the directory capacity of ${resource} would expose ${String(refusal.declared)} project units against the organization limit of ${String(refusal.cap)}. Nothing was changed.`
+          : `The directory capacity of ${resource} would be ${String(refusal.asked)} units against the organization limit of ${String(refusal.cap)}. Nothing was changed.`;
+      }
       return capacityLimitSentence(refusal, resourceName);
     default:
       return null;

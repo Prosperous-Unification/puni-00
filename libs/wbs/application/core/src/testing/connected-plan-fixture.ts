@@ -81,6 +81,7 @@ export const connectedReads = (
   capacity: new Map(),
   demands: [],
   resourceCapacities: [],
+  directoryCapacities: [],
   resources: [],
   priorityBands: [],
   people: [],

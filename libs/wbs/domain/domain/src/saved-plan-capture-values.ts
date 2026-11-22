@@ -126,6 +126,8 @@ export interface PlanInputReads {
    */
   readonly demands: readonly Demand[];
   readonly resourceCapacities: readonly ResourceCapacity[];
+  /** Raw directory capacity statements for the project's schedule on the same snapshot. */
+  readonly directoryCapacities: readonly ResourceCapacity[];
   /**
    * The resources the caller's directory holds, under its own names, read on
    * the snapshot so a shared plan read can label the resource a bar waited for.

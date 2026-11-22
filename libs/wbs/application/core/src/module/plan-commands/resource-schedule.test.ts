@@ -1,6 +1,6 @@
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { LEGACY_EDIT_ADMISSION } from '../../ports/edit-admission';
@@ -27,7 +27,13 @@ const F = 'account-f';
 const TWO_DAYS = { optimistic: 2, realistic: 2, pessimistic: 2 };
 
 async function seeded() {
-  const fixture = openMemorySourceFixture();
+  const fixture = openMemorySourceFixture({
+    organizationDefaultLimits: {
+      maxAgentPersons: 50,
+      maxConcurrentClaims: 200,
+      maxCapacityUnitsPerResource: 64,
+    },
+  });
   const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
@@ -129,10 +135,213 @@ async function seeded() {
     if (read === null) throw new Error('the schedule input was unavailable');
     return read;
   };
-  return { source, runner, workPackageId, steps, staging, tree, input };
+  return { source, fixture, runner, graph, workPackageId, steps, staging, tree, input, options };
 }
 
 describe('the live plan read levels resource demands', () => {
+  it('batches stated pools and actual leaf demands without consulting occupancy', async () => {
+    const { source, fixture, workPackageId, options } = await seeded();
+    const { directory, claims } = source.stores;
+    const query = mock((ids: readonly string[]) => directory.directoryCapacitiesOf(ids));
+    const rejectOccupancy = mock(() =>
+      Promise.reject(new Error('schedule tried to read occupancy')),
+    );
+    const rejectClaims = mock(() => Promise.reject(new Error('schedule tried to read claims')));
+    const stores = {
+      ...source.stores,
+      directory: { ...directory, directoryCapacitiesOf: query },
+      claims: { ...claims, organizationUnitsOf: rejectOccupancy, listByWorkPackage: rejectClaims },
+    };
+    const graph = servicesOver(stores, {
+      ...options,
+      dependencyContext: createLocalDependencyContext(stores),
+    });
+    const input = async () => {
+      const prepared = await graph.workItems.scheduleInput(workPackageId);
+      if (prepared === null) throw new Error('Schedule preparation is absent');
+      return prepared;
+    };
+    const tree = async () => {
+      const read = await graph.workItems.tree(workPackageId);
+      if (read === null || 'kind' in read) throw new Error('The plan is unavailable');
+      return read;
+    };
+    try {
+      expect((await input()).resourceCapacities).toBeUndefined();
+      await tree();
+      expect(query).not.toHaveBeenCalled();
+      const stamp = { at: 1, by: F };
+      for (const resourceId of ['leaf-only', 'parent-only', 'stated', 'unused']) {
+        expect(
+          await source.stores.directory.addResource(
+            { id: resourceId, name: resourceId, kind: 'divisible', unitLabel: 'units' },
+            stamp,
+          ),
+        ).toHaveProperty('ok', true);
+        fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
+        expect(
+          await source.stores.directory.setDirectoryCapacity(resourceId, 16, {
+            stamp,
+            actor: F,
+            auditId: resourceId,
+          }),
+        ).toHaveProperty('ok', true);
+      }
+      expect(
+        await source.stores.resourceCapacity.set(workPackageId, 'stated', 32, stamp),
+      ).toHaveProperty('ok', true);
+      expect(await source.stores.demands.set('080', 'parent-only', 16, stamp)).toBe('written');
+      expect(await source.stores.demands.set('080.25', 'leaf-only', 16, stamp)).toBe('written');
+      const before = await tree();
+      expect(query.mock.calls).toEqual([[['stated', 'leaf-only']]]);
+      query.mockClear();
+      const live = await input();
+      expect(live.resourceCapacities).toEqual(
+        new Map([
+          ['stated', 16],
+          ['leaf-only', 16],
+        ]),
+      );
+      expect(query.mock.calls).toEqual([[['stated', 'leaf-only']]]);
+      expect(
+        live.slices
+          .filter(({ demands }) => demands !== undefined)
+          .map(({ workItemId }) => workItemId),
+      ).toEqual(['080.25', '080.25']);
+      expect((await tree()).slices).toEqual(before.slices);
+      expect(
+        await source.stores.workItems.patch('080.25', { hold: 'on_hold' }, stamp),
+      ).toHaveProperty('ok', true);
+      const held = await input();
+      expect(held.resourceCapacities).toEqual(live.resourceCapacities);
+      expect(held.slices.some(({ workItemId }) => workItemId === '080.25')).toBe(false);
+      expect(rejectOccupancy).not.toHaveBeenCalled();
+      expect(rejectClaims).not.toHaveBeenCalled();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('schedules a staged directory write inside its own turn and rolls it back', async () => {
+    const { source, fixture, workPackageId, input, options } = await seeded();
+    const resourceId = 'staged-ram';
+    const stamp = { at: 1, by: F };
+    try {
+      expect(
+        await source.stores.directory.addResource(
+          { id: resourceId, name: 'RAM', kind: 'divisible', unitLabel: 'GB' },
+          stamp,
+        ),
+      ).toHaveProperty('ok', true);
+      fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
+      expect(
+        await source.stores.resourceCapacity.set(workPackageId, resourceId, 32, stamp),
+      ).toHaveProperty('ok', true);
+      const initial = canonicalScheduleInput(await input());
+      const frozen = await source.history.savedPlanCapture.readPlanInput(workPackageId);
+      if (frozen === null) throw new Error('Missing initial capture');
+      expect(
+        await source.uow.run(async ({ stores }) => {
+          const scoped = servicesOver(stores, {
+            ...options,
+            dependencyContext: createLocalDependencyContext(stores),
+          });
+
+          const written = await stores.directory.setDirectoryCapacity(resourceId, 16, {
+            stamp,
+            actor: F,
+            auditId: 'staged-ram-directory',
+          });
+          expect(written).toMatchObject({ ok: true });
+          const staged = await scoped.workItems.scheduleInput(workPackageId);
+          expect(staged?.resourceCapacities).toEqual(new Map([[resourceId, 16]]));
+          return { commit: false, value: 'rolled back' };
+        }),
+      ).toBe('rolled back');
+      expect(canonicalScheduleInput(await input())).toBe(initial);
+      expect(frozen.directoryCapacities).toEqual([]);
+      expect(
+        (await source.history.savedPlanCapture.readPlanInput(workPackageId))?.directoryCapacities,
+      ).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('levels two independent 16-unit leaves only when directory capacity clamps 32 to 16', async () => {
+    const { source, fixture, graph, workPackageId, tree, input } = await seeded();
+    try {
+      const resourceId = 'host-ram';
+      const stamp = { at: 1, by: F };
+      expect(
+        await source.stores.directory.addResource(
+          { id: resourceId, name: 'host ram', kind: 'divisible', unitLabel: 'GB' },
+          stamp,
+        ),
+      ).toHaveProperty('ok', true);
+      fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
+      expect(
+        await source.stores.resourceCapacity.set(workPackageId, resourceId, 32, stamp),
+      ).toHaveProperty('ok', true);
+      for (const leaf of ['080.25', '090'])
+        expect(await source.stores.demands.set(leaf, resourceId, 16, stamp)).toBe('written');
+      const overlap = (read: PlanTree) =>
+        read.slices.some((left) =>
+          read.slices.some(
+            (right) =>
+              left.workItemId !== right.workItemId &&
+              left.earliestStart < right.earliestFinish &&
+              right.earliestStart < left.earliestFinish,
+          ),
+        );
+      const slack = await input();
+      const slackTree = await tree();
+      expect(slack.resourceCapacities).toEqual(new Map([[resourceId, 32]]));
+      expect(overlap(slackTree)).toBe(true);
+      const state = async (units: number) => {
+        expect(
+          await source.stores.directory.setDirectoryCapacity(resourceId, units, {
+            stamp,
+            actor: F,
+            auditId: 'ram-' + String(units),
+          }),
+        ).toHaveProperty('ok', true);
+      };
+      await state(64);
+      expect(canonicalScheduleInput(await input())).toBe(canonicalScheduleInput(slack));
+      expect((await tree()).slices).toEqual(slackTree.slices);
+      await state(16);
+      const clamped = await input();
+      expect(clamped.resourceCapacities).toEqual(new Map([[resourceId, 16]]));
+      expect(canonicalScheduleInput(clamped)).not.toBe(canonicalScheduleInput(slack));
+      expect(overlap(await tree())).toBe(false);
+      const read = spyOn(fastScheduler, 'read');
+      try {
+        expect(await graph.workItems.arrangeBySchedule(workPackageId, F)).toMatchObject({
+          ok: true,
+        });
+        expect(read.mock.calls.at(-1)?.[0].input.resourceCapacities).toEqual(
+          new Map([[resourceId, 16]]),
+        );
+      } finally {
+        read.mockRestore();
+      }
+      expect(await source.stores.demands.set('090', resourceId, 24, stamp)).toBe('written');
+      const charged = (await input()).slices.filter(({ workItemId }) => workItemId === '090');
+      expect(charged.map(({ demands }) => demands)).toEqual([
+        [{ resourceId, units: 16 }],
+        [{ resourceId, units: 16 }],
+      ]);
+      await state(0);
+      const zero = await input();
+      expect(zero.resourceCapacities).toEqual(new Map([[resourceId, 0]]));
+      expect(zero.slices.every(({ demands }) => demands === undefined)).toBe(true);
+      expect(overlap(await tree())).toBe(true);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('serialises two leaves on the one staging environment and names it', async () => {
     const { source, runner, workPackageId, staging, tree, input } = await seeded();
     try {
@@ -228,9 +437,16 @@ describe('the live plan read levels resource demands', () => {
       expect(canonicalScheduleInput(await input())).toBe(key);
       const after = await tree();
       expect(after.slices).toEqual(before.slices);
-      expect(after.workItems.map(({ id, dates }) => ({ id, dates }))).toEqual(
-        before.workItems.map(({ id, dates }) => ({ id, dates })),
-      );
+      const datesOf = (read: PlanTree) => read.workItems.map(({ id, dates }) => ({ id, dates }));
+      expect(datesOf(after)).toEqual(datesOf(before));
+      expect(
+        await runner.run(workPackageId, F, [
+          { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire-worker' },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(await source.stores.claims.listByWorkPackage(workPackageId)).toEqual([]);
+      expect(canonicalScheduleInput(await input())).toBe(key);
+      expect(datesOf(await tree())).toEqual(datesOf(before));
     } finally {
       await source.close();
     }

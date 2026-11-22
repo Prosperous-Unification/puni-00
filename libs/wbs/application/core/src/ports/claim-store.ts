@@ -14,6 +14,7 @@ import type {
 import type { DirectoryStore } from './directory-store';
 import type { ResourceAccess } from './organization-access';
 import type { ProgressKey } from './progress-store';
+import type { WorkPackageReadAccess } from './work-package-report-store';
 import type { WriteStamp } from './write-stamp';
 
 export type { Claim, OccupancyRow, OrganizationOccupancyRow, ResourceUnits } from '@wbs/domain';
@@ -124,7 +125,7 @@ export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated' | 'unkno
  * It also answers the two identity reads the claim rules need
  * ({@link ClaimIdentity}), so the claim and its rules read one admitted scope.
  */
-export interface ClaimStore extends ClaimIdentity {
+export interface ClaimStore extends ClaimIdentity, WorkPackageReadAccess {
   /** Every claim on a work item of the work package, ordered by work item then step. */
   listByWorkPackage(workPackageId: string): Promise<Claim[]>;
   /**
@@ -135,6 +136,8 @@ export interface ClaimStore extends ClaimIdentity {
    * through {@link add}, which stamps it.
    */
   listStampedByWorkPackage(workPackageId: string): Promise<StampedClaim[]>;
+  /** Reads stamps for the named claims in their verified work package, in the caller's observation. */
+  listStampedByIds(workPackageId: string, ids: readonly string[]): Promise<StampedClaim[]>;
   /**
    * The work package's rows, current leaf step inventories, stamped claims and holder names in one
    * observation no write lands inside (`wbs-claim-display` C1, C2), so every

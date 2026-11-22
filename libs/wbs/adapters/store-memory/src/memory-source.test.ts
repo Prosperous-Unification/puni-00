@@ -1258,6 +1258,52 @@ it('captures demands and resource capacities detached from later memory writes',
   }
 });
 
+it('captures distinct directory and work-package capacities detached across a competing memory write', async () => {
+  let changed = false;
+  const fixture = openMemorySourceWithCaptureReadSeam({
+    async afterFirstRead() {
+      if (changed) return;
+      changed = true;
+      await state(24);
+    },
+  });
+  const source = await seededSource(fixture);
+  const resourceId = 'ram';
+  const state = async (units: number) => {
+    expect(
+      await source.stores.directory.setDirectoryCapacity(resourceId, units, {
+        stamp,
+        actor: stamp.by,
+        auditId: 'ram-' + String(units),
+      }),
+    ).toHaveProperty('ok', true);
+  };
+  try {
+    expect(
+      await source.stores.directory.addResource(
+        { id: resourceId, name: 'RAM', kind: 'divisible', unitLabel: 'GB' },
+        stamp,
+      ),
+    ).toHaveProperty('ok', true);
+    fixture.ownResourceInOrganization(resourceId, 'fixture-legacy-org');
+    expect(await source.stores.resourceCapacity.set('p1', resourceId, 32, stamp)).toHaveProperty(
+      'ok',
+      true,
+    );
+    await state(16);
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(changed).toBe(true);
+    expect(captured?.resourceCapacities).toEqual([{ resourceId, units: 32 }]);
+    expect(captured?.directoryCapacities).toEqual([{ resourceId, units: 16 }]);
+    expect(
+      (await source.history.savedPlanCapture.readPlanInput('p1'))?.directoryCapacities,
+    ).toEqual([{ resourceId, units: 24 }]);
+    expect(captured?.directoryCapacities).toEqual([{ resourceId, units: 16 }]);
+  } finally {
+    await source.close();
+  }
+});
+
 it('captures sparse parallel facts from the memory epoch before concurrent clear', async () => {
   const fact = { workItemId: 'wi-parallel', stepId: 'st-1', maxParallel: 1 };
   const fixture = openMemorySourceWithCaptureReadSeam({
@@ -1634,6 +1680,9 @@ describe('the memory claims renewal', () => {
       {} as Parameters<typeof inMemoryClaims>[5],
       () => {
         throw new Error('renewal fixture cannot observe work packages');
+      },
+      () => {
+        throw new Error('renewal fixture cannot classify work-package visibility');
       },
     );
     const refusal = await claims

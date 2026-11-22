@@ -1,7 +1,16 @@
-## RENAMED Requirements
+## Historical interaction provenance
 
-- FROM: `### Requirement: Board interactions are read-only and accessible`
-- TO: `### Requirement: Board interactions are accessible`
+The [original rename pair](https://github.com/Prosperous-Unification/puni-00/blob/3eb75e5dc77be331151a132825a5bdb7f4bc3ceb/openspec/changes/writable-step-progress-board/specs/step-progress-board/spec.md#L1) from
+`3eb75e5dc77be331151a132825a5bdb7f4bc3ceb` changed the earlier
+[read-only interaction requirement](https://github.com/Prosperous-Unification/puni-00/blob/1b94e080b7b52c8babef77a8ff25d3acb9bb9d18/openspec/changes/read-only-step-board/specs/step-progress-board/spec.md#L146)
+to “Board interactions are accessible”. The rename is already reflected
+in the [canonical destination](https://github.com/Prosperous-Unification/puni-00/blob/3eb75e5dc77be331151a132825a5bdb7f4bc3ceb/openspec/specs/step-progress-board/spec.md#L152).
+
+- Writable delta Git blob `64723bde2e05b4efc5e905ccba2e4884301ee776`
+- Exact FROM and TO lines SHA-256 `2f3abdd54d3287fc5dce48716d504f7c9ce3fd63c04a794bd57a46737eed6cad`
+- Historical rename section SHA-256 `f612a8396fc8e87acd9520152c0c498a86b1233c355abb5bbf7a2abc0fee5330`
+- Canonical spec Git blob `cb9c06439a13dee663d16c0d5e14bbcbed401392`
+- Accepted destination fragment SHA-256 `924f9480006c1b80edef3ac6d258db5c7db239e405d190f13fca0eb0b3e351c2`
 
 ## MODIFIED Requirements
 

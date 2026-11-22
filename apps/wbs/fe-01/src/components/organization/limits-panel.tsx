@@ -1,5 +1,5 @@
 import { Button } from '@ui/saas-01';
-import { type ClientReply, readOrganizationLimits } from '@wbs/contracts';
+import { type ClientReply, readOrganizationLimitsCompat } from '@wbs/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { failureMessage, unreachable } from '@/lib/http';
@@ -15,14 +15,17 @@ import {
   STATUS_CLASS,
 } from './organization-section';
 
-const LIMIT_SHAPES = [readOrganizationLimits] as const;
+const LIMIT_SHAPES = [readOrganizationLimitsCompat] as const;
 
 /** The read's answer: the three caps, their source, and the usage beside each. */
 export type OrganizationLimitsRead = Extract<
-  ClientReply<typeof readOrganizationLimits>,
+  ClientReply<typeof readOrganizationLimitsCompat>,
   { kind: 'success' }
 >['body'];
-type Refusal = Extract<ClientReply<typeof readOrganizationLimits>, { kind: 'refusal' }>['body'];
+type Refusal = Extract<
+  ClientReply<typeof readOrganizationLimitsCompat>,
+  { kind: 'refusal' }
+>['body'];
 
 /**
  * The panel's state. `absent` is the read's `forbidden`: a role that lost
@@ -266,13 +269,20 @@ export function LimitsReady({ limits }: { limits: OrganizationLimitsRead }): Rea
           Capacity units per resource (cap {capacityCap})
         </h3>
         {limits.usage.capacityUnits.length === 0 ? (
-          <p className={STATUS_CLASS}>No work package states a capacity of any resource yet.</p>
+          <p className={STATUS_CLASS}>No capacity has been stated for any resource yet.</p>
         ) : (
           <ul className={`${LIST_CLASS} divide-border divide-y`} aria-label="Capacity by resource">
             {limits.usage.capacityUnits.map((resource) => (
               <LimitRow
                 key={resource.resourceId}
                 label={resource.name}
+                basis={
+                  resource.countedFrom === 'directory'
+                    ? 'Directory capacity'
+                    : resource.countedFrom === 'projects'
+                      ? 'Work package capacities'
+                      : undefined
+                }
                 used={resource.units}
                 cap={capacityCap}
                 // A resource may carry an empty label; it then reads as a bare count.
@@ -301,8 +311,10 @@ function LimitRow({
   used,
   cap,
   unit,
+  basis,
 }: {
   label: string;
+  basis?: string;
   used: number;
   cap: number;
   /** The resource's unit label; absent for a count of persons or claims. */
@@ -315,7 +327,10 @@ function LimitRow({
       className="flex flex-wrap items-baseline justify-between gap-2 py-2"
       data-standing={standing}
     >
-      <span className="text-sm">{label}</span>
+      <span className="flex flex-col text-sm">
+        <span>{label}</span>
+        {basis !== undefined && <span className="text-muted-foreground text-xs">{basis}</span>}
+      </span>
       <span className="flex items-baseline gap-2 text-sm tabular-nums">
         <span className={standing === 'over' ? 'text-destructive font-medium' : undefined}>
           {amount}

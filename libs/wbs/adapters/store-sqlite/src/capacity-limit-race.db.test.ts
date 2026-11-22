@@ -16,12 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -57,7 +56,10 @@ let source: SqliteSource;
 function openFresh(prefix: string): void {
   directory = mkdtempSync(join(tmpdir(), prefix));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -141,6 +143,8 @@ async function seeded(cap: number, counting: { source: CountSource }) {
     return {
       readAgentPersonCap: (organizationId) => gauge.readAgentPersonCap(organizationId),
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
+      readDirectoryCapacityLimit: (organizationId, resourceId) =>
+        gauge.readDirectoryCapacityLimit(organizationId, resourceId),
       readCapacityCap: async (organizationId, resourceId, exceptWorkPackageId) => {
         const reading = await gauge.readCapacityCap(
           organizationId,

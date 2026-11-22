@@ -210,6 +210,13 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     path: '/api/organization/compute-providers',
     kind: 'mutation',
   },
+  // Proof: omitting this entry failed mounted inventory parity on the occupancy operation.
+  {
+    operationId: 'getApiOrganizationResourcesByResourceIdOccupancy',
+    method: 'GET',
+    path: '/api/organization/resources/:resourceId/occupancy',
+    kind: 'read',
+  },
   {
     operationId: 'postApiOrganizationResourcesByResourceIdDirectory-capacityPreview',
     method: 'POST',

@@ -158,6 +158,7 @@ describe('shared live and captured preparation', () => {
           capture.capacity,
           capture.demands,
           capture.resourceCapacities,
+          capture.directoryCapacities,
           {
             kind: 'leaf',
             byLeaf: new Map(capture.leafSteps.map((leaf) => [leaf.workItemId, leaf.stepIds])),

@@ -1,6 +1,39 @@
 import { describe, expect, it } from 'bun:test';
 
-import { isResourceKind, refuseDemand } from './resource';
+import { effectivePoolSizesOf, isResourceKind, refuseDemand } from './resource';
+
+describe('effectivePoolSizesOf', () => {
+  it('keeps all project statements and adds only demanded directory pools', () => {
+    const project = [
+      { resourceId: 'zero', units: 32 },
+      { resourceId: 'private', units: 9 },
+      { resourceId: 'room', units: 32 },
+      { resourceId: 'higher', units: 2 },
+      { resourceId: 'unused-project', units: 13 },
+    ];
+    const directory = [
+      { resourceId: 'unused-directory', units: 3 },
+      { resourceId: 'shared', units: 4 },
+      { resourceId: 'higher', units: 6 },
+      { resourceId: 'room', units: 16 },
+      { resourceId: 'zero', units: 0 },
+      { resourceId: 'directory-zero', units: 0 },
+    ];
+    const demanded = new Set(['none', 'shared', 'directory-zero']);
+    expect(effectivePoolSizesOf(project, directory, demanded)).toEqual(
+      new Map([
+        ['zero', 0],
+        ['private', 9],
+        ['room', 16],
+        ['higher', 2],
+        ['unused-project', 13],
+        ['shared', 4],
+        ['directory-zero', 0],
+      ]),
+    );
+    expect(effectivePoolSizesOf([], [], demanded)).toEqual(new Map());
+  });
+});
 
 describe('refuseDemand', () => {
   // Proof: with the kind test removed from refuseDemand, the exclusive case

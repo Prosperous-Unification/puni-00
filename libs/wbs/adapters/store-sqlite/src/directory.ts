@@ -592,17 +592,21 @@ export class DirectoryRepository implements DirectoryStore {
    * read off the root; ordered by the local name, as every catalog here is.
    */
   private async listResourcesIn(organizationId: string): Promise<Resource[]> {
-    return this.db
-      .select({
-        id: resourceOrganization.resourceId,
-        name: resourceOrganization.name,
-        kind: resource.kind,
-        unitLabel: resource.unitLabel,
-      })
-      .from(resourceOrganization)
-      .innerJoin(resource, eq(resource.id, resourceOrganization.resourceId))
-      .where(eq(resourceOrganization.organizationId, organizationId))
-      .orderBy(asc(resourceOrganization.name));
+    // Proof: returning the lazy query ran its SQL after queued borrowed snapshot expiry.
+    return await Promise.resolve(
+      this.db
+        .select({
+          id: resourceOrganization.resourceId,
+          name: resourceOrganization.name,
+          kind: resource.kind,
+          unitLabel: resource.unitLabel,
+        })
+        .from(resourceOrganization)
+        .innerJoin(resource, eq(resource.id, resourceOrganization.resourceId))
+        .where(eq(resourceOrganization.organizationId, organizationId))
+        .orderBy(asc(resourceOrganization.name))
+        .all(),
+    );
   }
 
   // One query per side table rather than one generic over them: the six side
@@ -1109,9 +1113,9 @@ export class DirectoryRepository implements DirectoryStore {
 
   /** The stated directory capacities of `resourceIds`, on this repository's connection. */
   async directoryCapacitiesOf(resourceIds: readonly string[]): Promise<ResourceCapacity[]> {
-    await Promise.resolve();
     if (resourceIds.length === 0) return [];
-    return this.db
+    // Proof: yielding before SQL let the capacity dispatch cross the borrowed commit.
+    const rows = this.db
       .select({
         resourceId: resourceDirectoryCapacity.resourceId,
         units: resourceDirectoryCapacity.units,
@@ -1120,6 +1124,7 @@ export class DirectoryRepository implements DirectoryStore {
       .where(inArray(resourceDirectoryCapacity.resourceId, [...resourceIds]))
       .orderBy(asc(resourceDirectoryCapacity.resourceId))
       .all();
+    return await Promise.resolve(rows);
   }
 
   /**
@@ -1210,8 +1215,7 @@ export class DirectoryRepository implements DirectoryStore {
    * {@link DirectoryRepository.removeResource} decides.
    */
   async usageOfResource(resourceId: string): Promise<ResourceUsageRows> {
-    await Promise.resolve();
-    return this.resourceUsageIn(this.db, resourceId);
+    return await Promise.resolve(this.resourceUsageIn(this.db, resourceId));
   }
 
   /**
@@ -2602,14 +2606,40 @@ export class DirectoryRepository implements DirectoryStore {
   ): ReturnType<DirectoryStore['namesOf']> {
     const table = catalog === 'people' ? person : serviceTeam;
     const named: { id: string; name: string }[] = [];
+    // Proof: a lazy name query issued SQL after its borrowed unit settled.
     for (const id of new Set(ids)) {
-      const found = await this.db
+      const found = this.db
         .select({ id: table.id, name: table.name })
         .from(table)
-        .where(eq(table.id, id));
+        .where(eq(table.id, id))
+        .all();
       named.push(...found);
     }
-    return named;
+    return await Promise.resolve(named);
+  }
+
+  /** Uses the organization side table so root aliases and foreign names stay outside the read. */
+  async personNamesInOrganization(
+    organizationId: string,
+    ids: readonly string[],
+  ): ReturnType<DirectoryStore['personNamesInOrganization']> {
+    const named: { id: string; name: string }[] = [];
+    // Proof: a lazy name query issued SQL after its borrowed unit settled.
+    for (const id of new Set(ids)) {
+      const person = this.db
+        .select({ id: personOrganization.resourceId, name: personOrganization.name })
+        .from(personOrganization)
+        // Proof: removing the owner predicate returned the local foreign alias for a requested foreign id.
+        .where(
+          and(
+            eq(personOrganization.organizationId, organizationId),
+            eq(personOrganization.resourceId, id),
+          ),
+        )
+        .all();
+      named.push(...person);
+    }
+    return await Promise.resolve(named);
   }
 
   /**

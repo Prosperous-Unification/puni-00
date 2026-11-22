@@ -23,7 +23,7 @@ import type {
   TransactionalStores,
   UnitOfWork,
 } from '@wbs/core';
-import type { CapturedScheduler, LivePlanExportRead, ResourceAccess, WorkPackage } from '@wbs/core';
+import type { CapturedScheduler, LivePlanExportRead, ResourceAccess } from '@wbs/core';
 import { guardSpaceStore, guardTreeReads } from '@wbs/core';
 import { retainPackageUnitWrites } from '@wbs/core';
 import { guardClaimObservation } from '@wbs/core';
@@ -47,7 +47,9 @@ import {
   type OrganizationAuditRecord,
   retainWorkPackageCreation,
 } from '@wbs/core';
-import { accessSubjectOf, capOf } from '@wbs/core/ports/access-decisions';
+import { previewCapacity } from '@wbs/core/module/work-item/capacity-preview';
+import { readResourceOccupancy } from '@wbs/core/module/work-item/resource-occupancy';
+import type { ResourceOccupancyStore } from '@wbs/core/ports/chain-snapshot-store';
 import type { PlanExportReader } from '@wbs/core/ports/plan-export-reader';
 import {
   type LegacySavedPlanTouch,
@@ -55,17 +57,15 @@ import {
   type SavedPlanTouchMutation,
   type SavedPlanTouchOutcome,
 } from '@wbs/core/ports/saved-plan-store';
+import type { WorkPackageReportSnapshot } from '@wbs/core/ports/work-package-report-store';
 import { readSharedPeople } from '@wbs/core/service/shared-people';
 import type { OrganizationLimitValues } from '@wbs/domain';
 import {
   type AccessObjectKind,
-  BUILT_IN_ROLES,
   captureLeafStepOrders,
-  effectiveRoleOn,
-  reachingGrantsOf,
   type ResolvedPlanInputReads,
-  type StoredGrantRow,
 } from '@wbs/domain';
+import { scheduleResourceIdsOf } from '@wbs/domain';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { endMemoryLeases } from './claim-fixture';
@@ -87,6 +87,11 @@ import {
 import { readMemoryOrganizationActivation } from './package-creation-fixture';
 import type { MemoryStepDefinition } from './step-catalogue';
 import { type MemoryStepAlias, readMemoryStepIdentityIn } from './step-identity';
+import {
+  mayReadMemoryWorkPackage,
+  memoryDirectoryRead,
+  memoryExportReadable,
+} from './work-package-visibility';
 
 export { MemoryState } from './memory-stores';
 
@@ -1155,6 +1160,94 @@ function openMemorySourceWithSeams(
       },
     },
   };
+  const committedSnapshot = async () => {
+    assertSourceOpen();
+    return coordinator.run(() => {
+      assertSourceOpen();
+      return Promise.resolve(committed.clone());
+    });
+  };
+  const workPackageReportSnapshot: WorkPackageReportSnapshot = async (access, read) => {
+    const epoch = await committedSnapshot();
+    const snapshot = bindStores(epoch);
+    const observe = {
+      ...snapshot,
+      access: snapshot.claims,
+      workPackages: {
+        ...snapshot.workPackages,
+        async findInOrganization(id: string, organizationId: string) {
+          if (access.kind !== 'scoped' || access.scope.organizationId !== organizationId)
+            return null;
+          if (epoch.tables.organizationLimits.workPackageOrganization.get(id) !== organizationId)
+            return null;
+          if (!mayReadMemoryWorkPackage(epoch, { id, organizationId }, access.scope.userId, access))
+            return null;
+          return snapshot.workPackages.findInOrganization(id, organizationId);
+        },
+      },
+    };
+    const projection = await read(observe);
+    assertSourceOpen();
+    return projection;
+  };
+  const resourceOccupancy: ResourceOccupancyStore = {
+    async readResourceOccupancyWithin(resourceId, actorId, access) {
+      assertSourceOpen();
+      const retained = structuredClone(access);
+      const actual = memoryDirectoryRead(committed, actorId, retained);
+      if (!actual.ok) return actual;
+      const epoch = await committedSnapshot();
+      const admitted = memoryDirectoryRead(epoch, actorId, retained);
+      if (!admitted.ok) return admitted;
+      const snapshot = bindStores(epoch);
+      const read = await readResourceOccupancy(
+        () => ({
+          ...snapshot,
+          workPackages: {
+            findInOrganization: (...args) => snapshot.workPackages.findInOrganization(...args),
+            mayReadWorkPackageWithin: (...args) =>
+              snapshot.claims.mayReadWorkPackageWithin(...args),
+          },
+        }),
+        resourceId,
+        actorId,
+        retained,
+      );
+      assertSourceOpen();
+      return read;
+    },
+  };
+  const capacityPreview: NonNullable<Source['capacityPreview']> = {
+    async previewDirectoryCapacityWithin(resourceId, units, actorId, access) {
+      assertSourceOpen();
+      const retained = structuredClone(access);
+      // A refusal must not wait on a write turn. An admission is rechecked against the cloned epoch.
+      const actual = memoryDirectoryRead(committed, actorId, retained);
+      if (!actual.ok) return actual;
+      const epoch = await committedSnapshot();
+      const admitted = memoryDirectoryRead(epoch, actorId, retained);
+      if (!admitted.ok) return admitted;
+      const snapshot = bindStores(epoch, lateWrite, limits);
+      const read = await previewCapacity(
+        () => ({
+          claims: snapshot.claims,
+          workPackages: {
+            findInOrganization: (...args) => snapshot.workPackages.findInOrganization(...args),
+            mayReadWorkPackageWithin: (...args) =>
+              snapshot.claims.mayReadWorkPackageWithin(...args),
+          },
+          directory: snapshot.directory,
+          limits: snapshot.organizationLimits,
+        }),
+        resourceId,
+        units,
+        actorId,
+        retained,
+      );
+      assertSourceOpen();
+      return read;
+    },
+  };
   const activeCommandHistory = (): SavedPlanStore => {
     if (commandHistoryState === null) throw new Error('command history stage is not active');
     return memorySavedPlans(
@@ -1698,6 +1791,9 @@ function openMemorySourceWithSeams(
       },
       stores,
       history,
+      resourceOccupancy,
+      capacityPreview,
+      workPackageReportSnapshot,
       uow,
       health: () => Promise.resolve({ ok: true }),
       close: () => {
@@ -1706,73 +1802,6 @@ function openMemorySourceWithSeams(
       },
     },
   };
-}
-
-/** Evaluates only the finite built-in role/grant state actually represented by this Source. */
-function memoryExportReadable(
-  epoch: MemoryState,
-  access: Extract<ResourceAccess, { kind: 'scoped' }>,
-  target: WorkPackage,
-): boolean {
-  const subject = accessSubjectOf(access.principal),
-    rows: StoredGrantRow[] = [];
-  for (const grant of epoch.tables.workPackages.creation.grants.values()) {
-    if (grant.organizationId !== access.scope.organizationId) continue;
-    const scopeId =
-      grant.scope.kind === 'organization'
-        ? grant.organizationId
-        : grant.scope.kind === 'work_package'
-          ? grant.scope.workPackageId
-          : grant.scope.projectId;
-    if (
-      (grant.scope.kind === 'project' && scopeId !== target.projectId) ||
-      (grant.scope.kind === 'work_package' && scopeId !== target.id)
-    )
-      continue;
-    let subjectId: string;
-    if (subject.kind === 'credential') {
-      if (
-        grant.subject.kind !== 'machine_credential' ||
-        grant.subject.credentialId !== subject.credentialId
-      )
-        continue;
-      subjectId = grant.subject.credentialId;
-    } else {
-      if (grant.subject.kind === 'group')
-        throw new Error('memory export does not represent selected access-group membership');
-      if (grant.subject.kind === 'user') {
-        if (grant.subject.userId !== subject.accountId) continue;
-        subjectId = grant.subject.userId;
-      } else if (grant.subject.kind === 'organization_members') subjectId = grant.organizationId;
-      else continue;
-    }
-    const kind = epoch.tables.workPackages.creation.roles.get(grant.roleId);
-    const definition = BUILT_IN_ROLES.find((role) => role.id === grant.roleId);
-    if (definition === undefined)
-      throw new Error('memory export does not represent selected custom role permissions');
-    if (kind === undefined) throw new Error('memory export selected role is absent');
-    if (kind !== definition.objectKind)
-      throw new Error('memory export selected built-in kind is inconsistent');
-    for (const permission of definition.permissions)
-      rows.push({
-        grantId: grant.id,
-        scopeKind: grant.scope.kind,
-        scopeId,
-        subjectKind: grant.subject.kind,
-        subjectId,
-        roleId: grant.roleId,
-        objectKind: kind,
-        reachesRestricted: definition.reachesRestricted,
-        permission,
-      });
-  }
-  return (
-    effectiveRoleOn(
-      reachingGrantsOf(rows),
-      { kind: 'work_package', restricted: target.restricted },
-      capOf(subject),
-    ) !== null
-  );
 }
 
 /** Reads one coordinator-detached committed epoch; later writes cannot supply authority, parent or document facts. */
@@ -2164,6 +2193,11 @@ async function capturePlanInput(
   // Proof: the ordinary-row handoff failed the actual current Memory capture on absent metadata;
   // retaining the mutable committed graph failed its rival type-edit snapshot control (2026-11-20).
   const resolvedRows = await stores.workItems.listTreeByWorkPackage(workPackageId);
+  const resourceIds = scheduleResourceIdsOf(workItems, resourceCapacities, demands);
+  // Proof: omitting the read made the competing-write memory capture test
+  // lose the earlier 16-unit directory statement while retaining raw 32.
+  const directoryCapacities =
+    resourceIds.length === 0 ? [] : await stores.directory.directoryCapacitiesOf(resourceIds);
   return structuredClone({
     workPackage: { ...workPackage, timezone },
     steps,
@@ -2187,6 +2221,7 @@ async function capturePlanInput(
     // capture none; watched 2026-10-20.
     demands,
     resourceCapacities,
+    directoryCapacities,
     resources: resourceCatalog,
     priorityBands,
     people,

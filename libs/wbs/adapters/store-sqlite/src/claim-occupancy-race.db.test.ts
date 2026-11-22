@@ -121,8 +121,10 @@ async function seeded(hold: Hold) {
     listStampedByWorkPackage: (id) => claims.listStampedByWorkPackage(id),
     findById: (id, claimId) => claims.findById(id, claimId),
     observeWorkPackage: (id, access) => claims.observeWorkPackage(id, access),
+    mayReadWorkPackageWithin: (...args) => claims.mayReadWorkPackageWithin(...args),
     occupancyOf: (id) => claims.occupancyOf(id),
     organizationOccupancyOf: (ids) => claims.organizationOccupancyOf(ids),
+    listStampedByIds: (projectId, ids) => claims.listStampedByIds(projectId, ids),
     organizationUnitsOf: (ids) => claims.organizationUnitsOf(ids),
     add: (written, stated, stamp, occupancy, leases) =>
       claims.add(written, stated, stamp, occupancy, leases),

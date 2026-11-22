@@ -754,9 +754,18 @@ export function createWorkingPlan(scope: Scope, workPackageId: string): WorkingP
     attempts,
     blockages,
     claims: {
+      // Occupancy can name other packages. The held writer still owns the grant read.
+      mayReadWorkPackageWithin: (...args) => {
+        assertOpen();
+        return scope.stores.claims.mayReadWorkPackageWithin(...args);
+      },
       listByWorkPackage: (requestedWorkPackageId) => {
         assertWorkPackage(requestedWorkPackageId);
         return scope.stores.claims.listByWorkPackage(requestedWorkPackageId);
+      },
+      listStampedByIds: (requestedWorkPackageId, ids) => {
+        assertWorkPackage(requestedWorkPackageId);
+        return scope.stores.claims.listStampedByIds(requestedWorkPackageId, ids);
       },
       listStampedByWorkPackage: (requestedWorkPackageId) => {
         assertWorkPackage(requestedWorkPackageId);

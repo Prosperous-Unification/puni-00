@@ -83,6 +83,18 @@ const CONFIGURATIONS = [
       sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
     },
   },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8218,
+      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+    },
+    // Proof: removing the epoch gate made the four serial-lint selector negatives admitted older complete package/lock epochs.
+    onlyEpoch: 'registry-s3-20261108',
+  },
 ];
 
 const PAIRS = [
@@ -184,7 +196,7 @@ function readFrontendInput(
   return namespace.get(resolved.join('/'));
 }
 
-/** Selects fourteen fixed size/hash inputs, one of two complete Vite/project pairs and one of five exact coupled package/lock epochs from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
+/** Selects fourteen fixed size/hash inputs, one of eleven exact Vite, project, package and lock combinations from the original already decoded canonical manifest. Private lookup follows declared relative links in its source/dependencies/git namespace, including real ancestors before '..', with the same forty-link ceiling. No live filesystem, response, version fallback or caller digest supplies expectations; this literal grants no readiness or startup authority. */
 export function selectSourceFrontendProfile(
   manifest: SourceStartupManifest,
 ): SourceFrontendProfile {
@@ -213,17 +225,19 @@ export function selectSourceFrontendProfile(
     );
   };
   if (
-    !CONFIGURATIONS.some(
-      (configuration) =>
-        matches('apps/wbs/fe-01/vite.config.ts', configuration['apps/wbs/fe-01/vite.config.ts']) &&
-        matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
-    )
-  )
-    refuse();
-  if (
     !PAIRS.some(
       (pair) =>
-        matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+        matches('package.json', pair['package.json']) &&
+        matches('bun.lock', pair['bun.lock']) &&
+        CONFIGURATIONS.some(
+          (configuration) =>
+            (!('onlyEpoch' in configuration) || configuration.onlyEpoch === pair.epoch) &&
+            matches(
+              'apps/wbs/fe-01/vite.config.ts',
+              configuration['apps/wbs/fe-01/vite.config.ts'],
+            ) &&
+            matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+        ),
     )
   )
     refuse();

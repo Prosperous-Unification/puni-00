@@ -188,7 +188,6 @@ export class AccessDecisionRepository implements AccessDecisions {
     principal: ScopedPrincipal,
     target: AccessTarget,
   ): Promise<EffectiveRole | null> {
-    await Promise.resolve();
     const subject = accessSubjectOf(principal);
     const organizationId = organizationOf(target);
     const [scopeTable, scopeJoin] =
@@ -219,10 +218,12 @@ export class AccessDecisionRepository implements AccessDecisions {
     /* Proof: effective-all-grant-validation: filtering raw rows by package.read/write hid corrupt permissions.
      * rejects selected unknown-permission beside sufficient grant at organization-effective
      * failed under the fault and passed after restoration (task2.4b catalogue receipts). */
-    return effectiveRoleOn(
-      reachingGrantsOf(records.map(readGrantRoleRow)),
-      grantTargetOf(target),
-      capOf(subject),
+    return await Promise.resolve(
+      effectiveRoleOn(
+        reachingGrantsOf(records.map(readGrantRoleRow)),
+        grantTargetOf(target),
+        capOf(subject),
+      ),
     );
   }
 
@@ -402,8 +403,11 @@ export class AccessDecisionRepository implements AccessDecisions {
     packageId: string,
     organizationId: string | null,
   ): Promise<Extract<AccessTarget, { kind: 'work_package' }> | null> {
-    await Promise.resolve();
-    return readSettingTargetIn(this.db, { level: 'work_package', id: packageId }, organizationId);
+    // Prepare the SQLite read before the first yield so a borrowed observation
+    // cannot expire between admission and dispatch.
+    return await Promise.resolve(
+      readSettingTargetIn(this.db, { level: 'work_package', id: packageId }, organizationId),
+    );
   }
 }
 

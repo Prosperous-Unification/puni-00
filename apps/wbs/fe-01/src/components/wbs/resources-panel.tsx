@@ -20,6 +20,7 @@ import {
 } from '@/components/organization/organization-role';
 import { providerKindName, readReport, unitsWords } from '@/lib/compute-provider-words';
 import { failureMessage, unreachable } from '@/lib/http';
+import type { ResourceScope } from '@/lib/organization-context';
 import { useResourceClient, useResourceScope } from '@/runtime/organization-resources';
 
 import { type BatchRefusal, batchRefusalSentence } from './plan-refusal';
@@ -80,7 +81,7 @@ type Occupancy =
  * - a {@link ResourceStanding}: `admin` (admin, super-admin, and every caller
  *   without organizations, which sends no role read) gets every write, the
  *   provider picker (whose list only an admin may read) and Remove
- *   (`wbs-resources` R8a); `writer` (member) states capacity, adopts, adds and
+ *   (`wbs-resources` R8a); `writer` (member) states work package capacity, adds and
  *   edits but neither removes nor reads the provider list, which is therefore
  *   never requested; `reader` (viewer) nothing to change.
  * - `lost`: the organization's access ended or the active organization is no
@@ -123,30 +124,83 @@ interface Notice {
 type CapacityAnswer = 'sent' | 'kept';
 
 type View =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'failure'; message: string }
-  | {
-      kind: 'ready';
-      resources: readonly WorkPackageResource[];
-      declared: ReadonlyMap<string, number>;
-      providers: ProviderChoice;
-      occupancy: Occupancy;
-      standing: Standing;
-    };
+  { kind: 'idle' } | { kind: 'loading' } | { kind: 'failure'; message: string } | ReadyView;
+
+interface ReadyView {
+  readonly kind: 'ready';
+  readonly resources: readonly WorkPackageResource[];
+  readonly declared: ReadonlyMap<string, number>;
+  readonly providers: ProviderChoice;
+  readonly occupancy: Occupancy;
+  readonly standing: Standing;
+  /** The generation whose role and resource reads both finished, or null while revalidating. */
+  readonly version: number | null;
+  readonly scope: ResourceScope;
+  readonly workPackageId: string;
+}
+
+/** Absence from an older resource response leaves the write target ambiguous. */
+type CapacityTarget =
+  | { readonly kind: 'directory'; readonly units: number }
+  | { readonly kind: 'work_package'; readonly units: number | null };
+
+function capacityTarget(
+  resource: WorkPackageResource,
+  workPackageUnits: number | null,
+): CapacityTarget | null {
+  const units = resource.directoryCapacity;
+  // Proof: the old target selection offered adoption without a discriminator.
+  // A truthiness check hid adoption on a stated directory zero.
+  if (units === undefined) return null;
+  return units === null
+    ? { kind: 'work_package', units: workPackageUnits }
+    : { kind: 'directory', units };
+}
+
+function capacityName(kind: CapacityTarget['kind']): string {
+  return kind === 'directory' ? 'directory capacity' : 'work package capacity';
+}
 
 /**
- * An adoption that landed. Held while the work package's declared number is still
- * the adopted one: a reread that finds another number (someone else stated
- * it since) drops it, so Undo never writes the old number over theirs.
+ * A successful adoption tied to the runtime and the same target's previous value.
+ * A reread drops it when that target changes or the caller loses entitlement.
  */
 interface Adoption {
   readonly resourceId: string;
   readonly name: string;
   readonly units: number;
   readonly unitLabel: string;
-  /** What this work package stated before, null when it was unstated. */
-  readonly previous: number | null;
+  readonly previous: CapacityTarget;
+  readonly scope: ResourceScope;
+  readonly workPackageId: string;
+}
+
+/** A live role read must identify an admin in the currently owned organization. */
+function mayAdopt(view: View, scope: ResourceScope, workPackageId: string): view is ReadyView {
+  // Proof: member access exposed Adopt. An expired scope check bypass kept Undo visible.
+  // Retaining a ready generation during a deferred role read exposed stale Undo.
+  return (
+    view.kind === 'ready' &&
+    view.version !== null &&
+    view.scope === scope &&
+    view.workPackageId === workPackageId &&
+    scope.organization.kind === 'active' &&
+    scope.isCurrent() &&
+    view.standing.kind === 'admin'
+  );
+}
+
+/** Checks the exact resource and target value that the adoption wrote. */
+function adoptedResource(view: ReadyView, adoption: Adoption): WorkPackageResource | undefined {
+  if (view.scope !== adoption.scope || view.workPackageId !== adoption.workPackageId)
+    return undefined;
+  const resource = view.resources.find(({ id }) => id === adoption.resourceId);
+  if (resource === undefined) return undefined;
+  const target = capacityTarget(resource, view.declared.get(resource.id) ?? null);
+  // Proof: comparing the work package number hid directory Undo after an unrelated work package edit.
+  return target?.kind === adoption.previous.kind && target.units === adoption.units
+    ? resource
+    : undefined;
 }
 
 export interface ResourcesPanelProps extends SettingsSectionReport {
@@ -163,17 +217,12 @@ export interface ResourcesPanelProps extends SettingsSectionReport {
  * fulfils it, and that instance's latest capacity report read on this
  * section's own clock, so a report goes stale here without a reread.
  *
- * **Declared wins** (P7). A report is shown, never planned with; the only way a
- * measurement reaches the plan is **Adopt**, an admin's explicit
- * `setResourceCapacity` with the measured units, offered on a fresh
- * measurement that differs from the declared number. `setResourceCapacity` is
- * not journalled, so the plan's Undo cannot take it back: this section's own
- * Undo writes the previous statement back, or clears it to unstated.
+ * An organization admin may adopt a fresh measurement as the directory capacity
+ * when stated, or as this work package's capacity when the directory is explicitly
+ * unstated. This section's Undo sends the same command with that target's
+ * previous value. Both commands are outside the plan journal.
  *
- * Rights are read off the viewer's role ({@link Standing}): the providers list
- * is requested only for an admin, and a `forbidden` there (an admin demoted
- * since) reads as a member's, who sees each reference unnamed and is offered
- * neither the picker nor Adopt.
+ * The organization's role read controls adoption independently of the providers list.
  *
  * Read only while shown, and again each time its tab comes to the front: the
  * section stays mounted and `hidden` like every other, and a plan nobody
@@ -327,9 +376,6 @@ export function ResourcesPanel({
       const declared = new Map(
         listed.body.capacities.map((entry) => [entry.resourceId, entry.units]),
       );
-      setAdoption((current) =>
-        current !== null && declared.get(current.resourceId) !== current.units ? null : current,
-      );
       if (startable.kind === 'failure' && startable.failure.code === 'cancelled') return;
       // Proof: 2026-10-25, reading a failed startable read as `read` with no
       // entries failed `says the holdings are missing when the startable read
@@ -353,21 +399,35 @@ export function ResourcesPanel({
               }
             : { kind: 'unavailable' };
       setNow(Date.now());
-      setView({
+      const ready: ReadyView = {
         kind: 'ready',
         resources: listed.body.resources,
         declared,
         providers,
         occupancy,
         standing,
-      });
+        version,
+        scope,
+        workPackageId,
+      };
+      setAdoption((current) =>
+        current !== null &&
+        mayAdopt(ready, scope, workPackageId) &&
+        adoptedResource(ready, current) !== undefined
+          ? current
+          : null,
+      );
+      setView(ready);
+      return ready;
     },
-    [client, workPackageId, captured],
+    [client, workPackageId, captured, scope],
   );
 
   const refresh = useCallback(async () => {
     const version = ++generation.current;
-    setView((current) => (current.kind === 'ready' ? current : { kind: 'loading' }));
+    setView((current) =>
+      current.kind === 'ready' ? { ...current, version: null } : { kind: 'loading' },
+    );
     await read(version);
   }, [read]);
 
@@ -378,7 +438,14 @@ export function ResourcesPanel({
   }, []);
 
   useEffect(() => {
-    if (!shown) return;
+    if (!shown) {
+      setView((current) =>
+        current.kind === 'ready' && current.version !== null
+          ? { ...current, version: null }
+          : current,
+      );
+      return;
+    }
     setNotice(null);
     observe(refresh(), 'read');
     // Proof: 2026-10-23, without this interval `goes stale on its own clock
@@ -395,9 +462,9 @@ export function ResourcesPanel({
   if (fault !== null) throw fault;
 
   /**
-   * Sends one batch, rereads on success, and says a refusal in place. A
-   * `forbidden` refusal also rereads, so a role changed since the section read
-   * it takes back (or offers) what it now may send.
+   * Sends one batch, rereads on success, and says a refusal in place.
+   * A modeled `in_use` refusal retains a completed observation or replaces
+   * a superseded read while the caller offers the removal confirmation.
    */
   async function write(
     send: () => Promise<
@@ -410,6 +477,7 @@ export function ResourcesPanel({
       resourceId: string | null;
       /** Says a refusal this caller models itself; false leaves it to the generic sentence. */
       onRefusal?: (refusal: BatchRefusal) => boolean;
+      onRead?: (view: ReadyView | undefined) => void;
     },
   ): Promise<WriteAnswer> {
     // Proof: 2026-10-23, removing this admission sent two `setResourceCapacity`
@@ -418,22 +486,36 @@ export function ResourcesPanel({
     isPending.current = true;
     setBusy(true);
     setNotice(null);
-    const version = ++generation.current;
+    const retainedObservation = view.kind === 'ready' && view.version === generation.current;
+    let version = retainedObservation ? generation.current : ++generation.current;
+    const revalidate = view.kind === 'ready' && view.standing.kind === 'admin' && captured !== null;
+    const readCurrent = async () => {
+      if (version !== generation.current) return undefined;
+      version = ++generation.current;
+      setView((current) => (current.kind === 'ready' ? { ...current, version: null } : current));
+      return await read(version);
+    };
     try {
       const reply = await send();
       switch (reply.kind) {
-        case 'success':
+        case 'success': {
           if (after.replans) await onChanged();
-          if (version === generation.current) await read(version);
+          const observed = await readCurrent();
+          if (version === generation.current) after.onRead?.(observed);
           return 'landed';
+        }
         case 'failure':
-          if (version === generation.current && reply.failure.code !== 'cancelled')
+          if (version === generation.current && reply.failure.code !== 'cancelled') {
             setNotice({ text: failureMessage(reply.failure), resourceId: after.resourceId });
+            if (revalidate) await readCurrent();
+          }
           return 'refused';
-        case 'refusal':
+        case 'refusal': {
+          if (version !== generation.current) return 'refused';
+          const handled = after.onRefusal?.(reply.body) === true;
           // Proof: 2026-10-23, treating a refused adopt as landed failed `says a
           // refused adopt in place and offers no undo`: the undo line appeared.
-          if (version === generation.current && after.onRefusal?.(reply.body) !== true)
+          if (!handled)
             setNotice({
               text: batchRefusalSentence(reply.body, after.resourceName),
               resourceId: after.resourceId,
@@ -441,9 +523,17 @@ export function ResourcesPanel({
           // Proof: 2026-10-25, without this reread `rereads the role after a
           // forbidden capacity and takes the box away` kept the box, and `says
           // a refused removal in place…` kept `Remove h2puni ram`.
-          if (version === generation.current && reply.body.error === 'forbidden')
-            observe(refresh(), 'read');
+          if (revalidate && (!handled || reply.body.error === 'forbidden')) await readCurrent();
+          else if (reply.body.error === 'forbidden') observe(refresh(), 'read');
+          // Proof: with the superseded read left unreplaced, `recovers adoption after keeping
+          // an in-use resource during a refresh` could not find Adopt after releasing the read.
+          else if (revalidate && reply.body.error === 'in_use' && !retainedObservation)
+            observe(
+              readCurrent().then(() => undefined),
+              'read',
+            );
           return 'refused';
+        }
         default:
           return unreachable(reply);
       }
@@ -453,35 +543,90 @@ export function ResourcesPanel({
     }
   }
 
-  function setCapacity(resource: WorkPackageResource, units: number | null) {
-    return write(
-      () =>
-        client.postApiWorkPackagesByIdCommands({
-          params: { id: workPackageId },
-          body: { commands: [{ kind: 'setResourceCapacity', resourceId: resource.id, units }] },
-        }),
-      { replans: true, resourceName: resource.name, resourceId: resource.id },
-    );
+  function setCapacity(
+    resource: WorkPackageResource,
+    target: CapacityTarget,
+    onRead?: (view: ReadyView | undefined) => void,
+  ) {
+    const { units } = target;
+    const after = {
+      replans: true,
+      resourceName: resource.name,
+      resourceId: resource.id,
+      ...(onRead === undefined ? {} : { onRead }),
+    };
+    return target.kind === 'directory'
+      ? write(
+          () =>
+            client.postApiDirectoryCommands({
+              body: {
+                commands: [{ kind: 'setDirectoryCapacity', resourceId: resource.id, units }],
+              },
+            }),
+          after,
+        )
+      : write(
+          () =>
+            client.postApiWorkPackagesByIdCommands({
+              params: { id: workPackageId },
+              body: { commands: [{ kind: 'setResourceCapacity', resourceId: resource.id, units }] },
+            }),
+          after,
+        );
   }
 
-  async function adopt(resource: WorkPackageResource, units: number, previous: number | null) {
+  function currentAdoptionView(): ReadyView | null {
+    // Proof: bypassing both pending checks sent two directory writes from one double click.
+    return shown &&
+      mayAdopt(view, scope, workPackageId) &&
+      view.version === generation.current &&
+      !isPending.current
+      ? view
+      : null;
+  }
+
+  async function adopt(resourceId: string, clickedAt: number): Promise<void> {
+    const current = currentAdoptionView();
+    if (current === null) return;
+    const resource = current.resources.find(({ id }) => id === resourceId);
+    if (resource === undefined) return;
+    const previous = capacityTarget(resource, current.declared.get(resource.id) ?? null);
+    if (previous === null || resource.providerId === null) return;
+    const reading = readReport(resource.report, resource.unitLabel, clickedAt, resource.hostJobs);
+    if (reading.state !== 'measured' || reading.capacityUnits === previous.units) return;
+    const units = reading.capacityUnits;
+    // Proof: saving the work package number as the previous value sent 9 instead of 32 on directory Undo.
+    const record: Adoption = {
+      resourceId: resource.id,
+      name: resource.name,
+      unitLabel: resource.unitLabel,
+      units,
+      previous,
+      scope,
+      workPackageId,
+    };
     setAdoption(null);
-    if ((await setCapacity(resource, units)) === 'landed')
-      setAdoption({
-        resourceId: resource.id,
-        name: resource.name,
-        units,
-        unitLabel: resource.unitLabel,
-        previous,
-      });
+    // Proof: using the work package target sent the wrong command. Injecting a work package
+    // fallback after a directory refusal added a second typed write beside its refusal.
+    await setCapacity(resource, { kind: previous.kind, units }, (observed) => {
+      if (
+        observed !== undefined &&
+        mayAdopt(observed, scope, workPackageId) &&
+        adoptedResource(observed, record) !== undefined
+      )
+        setAdoption(record);
+    });
   }
 
-  async function undo(adopted: Adoption, resource: WorkPackageResource) {
+  async function undo(adopted: Adoption): Promise<void> {
+    const current = currentAdoptionView();
+    if (current === null || adoption !== adopted) return;
+    const resource = adoptedResource(current, adopted);
+    if (resource === undefined) return;
     if ((await setCapacity(resource, adopted.previous)) === 'landed') setAdoption(null);
   }
 
   function setProvider(resource: WorkPackageResource, providerId: string | null) {
-    setAdoption(null);
     observe(
       write(
         () =>
@@ -502,7 +647,6 @@ export function ResourcesPanel({
     resourceId: string | null,
     onRefusal?: (refusal: BatchRefusal) => boolean,
   ): Promise<boolean> {
-    setAdoption(null);
     const answer = await write(
       () => client.postApiDirectoryCommands({ body: { commands: [command] } }),
       {
@@ -666,11 +810,13 @@ export function ResourcesPanel({
       });
       return 'kept';
     }
-    setAdoption(null);
     // Proof: 2026-10-25, answering `sent` for a skipped write failed `keeps a
     // typed capacity that another write kept from being sent`: the box was
     // wiped with nothing sent and nothing said.
-    return (await setCapacity(resource, trimmed === '' ? null : Number(trimmed))) === 'skipped'
+    return (await setCapacity(resource, {
+      kind: 'work_package',
+      units: trimmed === '' ? null : Number(trimmed),
+    })) === 'skipped'
       ? 'kept'
       : 'sent';
   }
@@ -678,13 +824,14 @@ export function ResourcesPanel({
   const mayWrite =
     view.kind === 'ready' && (view.standing.kind === 'admin' || view.standing.kind === 'writer');
 
+  const mayAdoptMeasurement = shown && mayAdopt(view, scope, workPackageId);
   return (
     // No heading of its own: the tab names the section, as every other (F-122).
     <div ref={section} className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-sm">
         What this work package declares of each resource, beside what its compute provider last
-        measured. The plan uses only the declared number
-        {mayWrite ? '; adopting a measurement states it.' : '.'}
+        measured.
+        {mayAdoptMeasurement && ' Adopt a fresh measurement to state the indicated capacity.'}
         {view.kind === 'ready' && view.providers.kind === 'named' && (
           <>
             {' '}
@@ -781,34 +928,23 @@ export function ResourcesPanel({
                 now={now}
                 busy={busy}
                 adoption={
-                  // Proof: 2026-10-23, with both this comparison and the drop in
-                  // `read` removed, `offers no undo once another writer stated a
-                  // different number` showed Undo over the other writer's 20 GB.
+                  mayAdoptMeasurement &&
                   adoption?.resourceId === resource.id &&
-                  view.declared.get(resource.id) === adoption.units
+                  adoptedResource(view, adoption) !== undefined
                     ? adoption
                     : null
                 }
-                // Proof: 2026-10-25, keyed on the providers list again, Adopt
-                // failed `offers a member Adopt…` and `renders a failed
-                // instances read with retry…`.
                 onAdopt={
-                  mayWrite
-                    ? (units) => {
-                        observe(
-                          adopt(resource, units, view.declared.get(resource.id) ?? null),
-                          'adopt',
-                        );
+                  mayAdoptMeasurement
+                    ? (clickedAt) => {
+                        observe(adopt(resource.id, clickedAt), 'adopt');
                       }
                     : undefined
                 }
-                // Proof: 2026-10-25, passing Undo regardless of mayWrite failed
-                // `withdraws Undo after the post-adoption read observes viewer`:
-                // the viewer still found the Undo button.
                 onUndo={
-                  mayWrite
+                  mayAdoptMeasurement
                     ? (adopted) => {
-                        observe(undo(adopted, resource), 'undo');
+                        observe(undo(adopted), 'undo');
                       }
                     : undefined
                 }
@@ -1235,8 +1371,8 @@ export function ResourceRow({
   now: number;
   busy: boolean;
   adoption: Adoption | null;
-  /** Adopts a measurement as the declared capacity; absent offers no Adopt. */
-  onAdopt?: (units: number) => void;
+  /** Adopts the measurement if still fresh at the click; absent offers no Adopt. */
+  onAdopt?: (clickedAt: number) => void;
   /** Restores the previous capacity; absent offers no Undo. */
   onUndo?: (adoption: Adoption) => void;
   onProvider: (providerId: string | null) => void;
@@ -1258,6 +1394,7 @@ export function ResourceRow({
   notice?: string | null;
 }): React.JSX.Element {
   const isAdmin = providers.kind === 'named';
+  const target = capacityTarget(resource, declared);
   const [editing, setEditing] = useState<{ name: string; unitLabel: string } | null>(null);
   // Proof: 2026-10-25, omitting this reset failed `withdraws the edit form
   // after forbidden rename observes viewer`: the viewer retained the edit form.
@@ -1535,7 +1672,8 @@ export function ResourceRow({
           </span>
           {onAdopt !== undefined &&
             reading.state === 'measured' &&
-            reading.capacityUnits !== declared &&
+            target !== null &&
+            reading.capacityUnits !== target.units &&
             adoption === null && (
               <Button
                 type="button"
@@ -1543,12 +1681,15 @@ export function ResourceRow({
                 size="sm"
                 className="mt-1 self-start"
                 disabled={busy}
-                aria-label={`Adopt ${unitsWords(reading.capacityUnits, resource.unitLabel)} as the declared capacity of ${resource.name}`}
+                aria-label={`Adopt ${unitsWords(reading.capacityUnits, resource.unitLabel)} as ${capacityName(target.kind)} of ${resource.name}`}
                 onClick={() => {
-                  onAdopt(reading.capacityUnits);
+                  // Proof: using the render clock sent a directory write from a still-visible Adopt
+                  // after its report expired, failing the View test for expiry before the next render.
+                  onAdopt(Date.now());
                 }}
               >
-                Adopt {unitsWords(reading.capacityUnits, resource.unitLabel)}
+                Adopt {unitsWords(reading.capacityUnits, resource.unitLabel)} as{' '}
+                {capacityName(target.kind)}
               </Button>
             )}
         </div>
@@ -1556,10 +1697,11 @@ export function ResourceRow({
       {adoption !== null && (
         <div role="status" className="flex flex-wrap items-center gap-2 text-sm">
           <span>
-            Declared {unitsWords(adoption.units, adoption.unitLabel)} from the measurement (was{' '}
-            {adoption.previous === null
+            {adoption.previous.kind === 'directory' ? 'Directory capacity set to' : 'Declared'}{' '}
+            {unitsWords(adoption.units, adoption.unitLabel)} from the measurement (was{' '}
+            {adoption.previous.units === null
               ? 'unstated'
-              : unitsWords(adoption.previous, adoption.unitLabel)}
+              : unitsWords(adoption.previous.units, adoption.unitLabel)}
             ).
           </span>
           {/* Proof: 2026-10-25, rendering Undo without its callback failed
@@ -1571,7 +1713,7 @@ export function ResourceRow({
               variant="outline"
               size="sm"
               disabled={busy}
-              aria-label={`Undo adopting the measurement of ${adoption.name}`}
+              aria-label={`Undo adopting ${capacityName(adoption.previous.kind)} of ${adoption.name}`}
               onClick={() => {
                 onUndo(adoption);
               }}

@@ -27,6 +27,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'organizationLimits.readAgentPersonCap:organization-scope',
   'organizationLimits.readConcurrentClaimCap:bound-triples',
   'organizationLimits.readCapacityCap:per-resource-except-work-package',
+  'organizationLimits.readDirectoryCapacityLimit:owned-raw-statements',
   'users.create:unique-name',
   'users.find:identity',
   'users.resolveOidcIdentity:issuer-subject',

@@ -103,6 +103,18 @@ const CONFIGURATIONS = [
       sha256: 'a7525fa8215a2f49d9f5242a5e08bdeedd7b83d4cd9c3a2e61fa85a4a30aa762',
     },
   },
+  {
+    'apps/wbs/fe-01/vite.config.ts': {
+      bytes: 19302,
+      sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+    },
+    'apps/wbs/fe-01/project.json': {
+      bytes: 8218,
+      sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+    },
+    // Proof: removing the epoch gate made both fixed-root producer negatives reached Git.
+    onlyEpoch: 'registry-s3-20261108',
+  },
 ];
 
 const PAIRS = [
@@ -208,16 +220,21 @@ async function inspectPins(
   };
   const pair = PAIRS.find(
     (pair) =>
-      matches('package.json', pair['package.json']) && matches('bun.lock', pair['bun.lock']),
+      matches('package.json', pair['package.json']) &&
+      matches('bun.lock', pair['bun.lock']) &&
+      CONFIGURATIONS.some(
+        (configuration) =>
+          (!('onlyEpoch' in configuration) || configuration.onlyEpoch === pair.epoch) &&
+          matches(
+            'apps/wbs/fe-01/vite.config.ts',
+            configuration['apps/wbs/fe-01/vite.config.ts'],
+          ) &&
+          matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
+      ),
   );
   if (
     pair === undefined ||
-    !Object.entries(PINS).every(([path, expected]) => matches(path, expected)) ||
-    !CONFIGURATIONS.some(
-      (configuration) =>
-        matches('apps/wbs/fe-01/vite.config.ts', configuration['apps/wbs/fe-01/vite.config.ts']) &&
-        matches('apps/wbs/fe-01/project.json', configuration['apps/wbs/fe-01/project.json']),
-    )
+    !Object.entries(PINS).every(([path, expected]) => matches(path, expected))
   )
     throw new Error('unsupported source frontend producer inputs');
   return { epoch: pair.epoch, selectedInputs };

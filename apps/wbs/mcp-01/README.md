@@ -21,7 +21,7 @@ created by its ref. The directory has no work package, so its edits alone have
 `postApiDirectoryCommands`. Step edits may address a node with `stepNodeId` from
 a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
 
-99 tools in all:
+100 tools in all:
 
 - the five engagement-project tools (create, list, detail, rename and delete); creation accepts an optional first work package, written atomically with the project and creator grants;
 - the separate engagement-project settings read and write;
@@ -57,6 +57,9 @@ a work-item read instead of the `workItemId`/`workItemRef` and `stepId` pair.
   (`postApiOrganizationResourcesByResourceIdDirectory-capacityPreview`: what stating, lowering or
   clearing a resource's directory capacity would leave, writing nothing; an organization admin or
   super-admin only, set with the `setDirectoryCapacity` directory command);
+- the organization resource occupancy read (`getApiOrganizationResourcesByResourceIdOccupancy`).
+  An admin or super-admin acting as themselves can see held and free units, each readable project's
+  holding claims, and whether the project is restricted for release;
 - the four conditional runtime tools for coherent state, authority acquisition, exact claim/write
   and accepted-receipt lookup;
 - the measure definition read (`getApiMeasures`: the organization's measure definitions, the five

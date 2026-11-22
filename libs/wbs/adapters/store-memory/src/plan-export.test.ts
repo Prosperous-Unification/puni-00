@@ -398,3 +398,33 @@ test('matches actual parent grants while excluding a sibling and credential acco
   );
   expect((await reader.readExport('package', credential)).kind).toBe('local');
 });
+
+test('conceals a restricted holder in the staged claim store until a direct grant exists', async () => {
+  const fixture = await seed(openMemorySourceFixture());
+  const { source } = fixture;
+  try {
+    await source.stores.workPackages.update(
+      'package',
+      { restricted: true },
+      { by: 'creator', at: 2 },
+    );
+    fixture.removePackageExportGrant('grant');
+    fixture.seedPackageExportGrant(
+      grant({
+        scope: { kind: 'organization' },
+        roleId: 'org-viewer',
+      }),
+    );
+    const origin = { id: 'package', organizationId: 'org' };
+    const visible = () =>
+      source.uow.run(async ({ stores }) => ({
+        commit: false,
+        value: await stores.claims.mayReadWorkPackageWithin(origin, 'creator', scoped()),
+      }));
+    expect(await visible()).toBe(false);
+    fixture.seedPackageExportGrant(grant({ id: 'direct' }));
+    expect(await visible()).toBe(true);
+  } finally {
+    await source.close();
+  }
+});

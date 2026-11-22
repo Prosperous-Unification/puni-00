@@ -18,7 +18,8 @@
         "default",
         "^production",
         "{workspaceRoot}/lefthook.yml",
-        "{workspaceRoot}/.github/workflows/ci.yml"
+        "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.github/workflows/ci-requeue.yml"
       ],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts --timeout=10000",

@@ -1,7 +1,7 @@
 import { noopLogger } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import type { openMemorySource } from '@wbs/store-memory';
-import { openMemorySourceFixture } from '@wbs/store-memory/source';
+import { type MemorySourceFixture, openMemorySourceFixture } from '@wbs/store-memory/source';
 import { workPackageRow } from '@wbs/store-memory/work-package-fixture';
 import { describe, expect, test } from 'bun:test';
 
@@ -18,14 +18,17 @@ import { NO_PROVEN_CONNECTIONS } from './module/authentication/account.resource'
 import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
+import { previewCapacity } from './module/work-item/capacity-preview';
 import { clockOf } from './ports/clock';
+import { withDependencyContext } from './ports/dependency-context';
 import { LEGACY_EDIT_ADMISSION } from './ports/edit-admission';
 import { NO_MACHINE_CREDENTIALS } from './ports/machine-credentials';
-import { LEGACY_ACCESS } from './ports/organization-access';
+import { LEGACY_ACCESS, type ResourceAccess } from './ports/organization-access';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
 import type { Broadcaster } from './ports/work-package-event';
 import { createLocalDependencyContext } from './service/dependency-context';
+import { bindFixtureSteps } from './testing/bound-package-fixture';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { expectCreated } from './testing/expect-created';
 import { seedLegacyPackageParent } from './testing/legacy-package-source-fixture';
@@ -76,13 +79,20 @@ function accountlessSource(source: ReturnType<typeof openMemorySource>): Account
   return {
     stores: withoutAccounts(source.stores),
     history: source.history,
+    ...(source.resourceOccupancy === undefined
+      ? {}
+      : { resourceOccupancy: source.resourceOccupancy }),
+    ...(source.capacityPreview === undefined ? {} : { capacityPreview: source.capacityPreview }),
+    ...(source.workPackageReportSnapshot === undefined
+      ? {}
+      : { workPackageReportSnapshot: source.workPackageReportSnapshot }),
     uow,
     health: () => source.health(),
     close: () => source.close(),
   };
 }
 
-async function fixture() {
+async function fixture(provided?: ReturnType<typeof openMemorySource>) {
   const instant = 1_000;
   let nextId = 0;
   let tick = (): void => {
@@ -109,17 +119,20 @@ async function fixture() {
     },
     scheduler: fastScheduler,
   };
-  const parentFixture = openMemorySourceFixture();
-  const accountSource = parentFixture.source;
-  await accountSource.stores.users.create(
-    { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
-    { at: 1, by: 'owner' },
-  );
-  seedLegacyPackageParent(parentFixture, {
-    organizationId: 'fixture-legacy-org',
-    projectId: 'fixture-project',
-    creator: 'owner',
-  });
+  let accountSource = provided;
+  if (accountSource === undefined) {
+    const parentFixture = openMemorySourceFixture();
+    accountSource = parentFixture.source;
+    await accountSource.stores.users.create(
+      { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
+      { at: 1, by: 'owner' },
+    );
+    seedLegacyPackageParent(parentFixture, {
+      organizationId: 'fixture-legacy-org',
+      projectId: 'fixture-project',
+      creator: 'owner',
+    });
+  }
   const source = accountlessSource(accountSource);
   const graph = composeServices({ source, runtime, shared: fixtureShared });
   return {
@@ -135,6 +148,459 @@ async function fixture() {
     },
   };
 }
+
+async function seedReportScope(
+  memory: MemorySourceFixture,
+  organizationId: string,
+  actorId: string,
+  roleId: 'org-admin' | 'org-viewer',
+): Promise<Extract<ResourceAccess, { kind: 'scoped' }>> {
+  const stamp = { at: 1, by: actorId };
+  await memory.source.stores.users.create(
+    { id: actorId, username: actorId, passwordHash: null, createdAt: 1 },
+    stamp,
+  );
+  memory.addOrganization(organizationId, { legacy: false });
+  memory.seedPackageParent({
+    id: 'report-parent',
+    organizationId,
+    name: 'Reports',
+    createdBy: actorId,
+    revision: 0,
+    createdAt: 1,
+    updatedAt: null,
+    spaceId: null,
+    spacePosition: null,
+  });
+  memory.setPackageCreationMembers(organizationId, [actorId]);
+  memory.seedPackageExportGrant({
+    id: 'report-scope',
+    organizationId,
+    scope: { kind: 'organization' },
+    subject: { kind: 'user', userId: actorId },
+    roleId,
+    origin: 'route',
+    createdAt: 1,
+    createdBy: actorId,
+  });
+  await memory.activateOrganizationIsolation();
+  return {
+    kind: 'scoped',
+    scope: { organizationId, userId: actorId, cap: null },
+    principal: { id: actorId },
+  };
+}
+
+async function seedReportPackage(
+  memory: MemorySourceFixture,
+  organizationId: string,
+  actorId: string,
+  id: string,
+) {
+  const workPackage = await memory.source.stores.workPackages.createInOrganization(
+    workPackageRow({ id, projectId: 'report-parent' }),
+    [],
+    { at: 1, by: actorId },
+    organizationId,
+    { id: id + '-grant', auditId: id + '-audit' },
+  );
+  if (typeof workPackage === 'string')
+    throw new Error('Report fixture birth refused: ' + workPackage);
+  return workPackage;
+}
+
+test('the composed memory graph reads owned resource occupancy through its public source', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const given = await fixture(source);
+  const organizationId = 'occupancy-organization';
+  const resourceId = 'owned-resource';
+  const actorId = 'occupancy-admin';
+  const access = await seedReportScope(memory, organizationId, actorId, 'org-admin');
+  try {
+    expect(
+      await source.stores.directory.addResource(
+        { id: resourceId, name: 'Host RAM', kind: 'divisible', unitLabel: 'GB' },
+        { at: 1, by: actorId },
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(resourceId, organizationId);
+    expect(await given.graph.workItems.readResourceOccupancyWithin(resourceId, access)).toEqual({
+      ok: true,
+      value: { resourceId, directoryCapacity: null, occupied: 0, free: null, workPackages: [] },
+    });
+    const direct = servicesOver(source.stores, {
+      admission: LEGACY_EDIT_ADMISSION,
+      broadcast: recordingBroadcaster(),
+      clock: given.clock,
+      dependencyContext: createLocalDependencyContext(source.stores),
+      scheduler: fastScheduler,
+    });
+    expect(() => direct.workItems.readResourceOccupancyWithin(resourceId, access)).toThrow(
+      'observation is unavailable',
+    );
+  } finally {
+    await source.close();
+  }
+});
+
+test('denies a memory preview without waiting for the committed coordinator', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const { graph } = await fixture(source);
+  const actorId = 'preview-member';
+  const access = await seedReportScope(memory, 'preview-organization', actorId, 'org-viewer');
+  const entered = signal();
+  const release = signal();
+  const writer = source.uow.run(async () => {
+    entered.resolve();
+    await release.promise;
+    return { commit: false, value: null };
+  });
+  await entered.promise;
+  const preview = graph.workItems.previewDirectoryCapacityWithin('ram', 65, access);
+  try {
+    const nextTurn = new Promise((resolve) => setImmediate(resolve, 'waiting for the write turn'));
+    expect(await Promise.race([preview, nextTurn])).toEqual({
+      ok: false,
+      reason: 'forbidden',
+      permission: 'organization.manage_directory',
+    });
+  } finally {
+    release.resolve();
+    await writer;
+    await preview;
+    await source.close();
+  }
+});
+
+test('memory public and staged preview use the same capacity decision in their own epochs', async () => {
+  const limits = { maxAgentPersons: 50, maxConcurrentClaims: 200, maxCapacityUnitsPerResource: 64 };
+  const memory = openMemorySourceFixture({ organizationDefaultLimits: limits });
+  const { source } = memory;
+  const { graph, clock } = await fixture(source);
+  const actorId = 'preview-admin';
+  const organizationId = 'preview-organization';
+  const resourceId = 'preview-ram';
+  const access = await seedReportScope(memory, organizationId, actorId, 'org-admin');
+  try {
+    const workPackage = await seedReportPackage(memory, organizationId, actorId, 'preview-package');
+    const stamp = { at: 1, by: actorId };
+    expect(
+      await source.stores.directory.addResource(
+        { id: resourceId, name: 'RAM', unitLabel: 'GB', kind: 'divisible' },
+        stamp,
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(resourceId, organizationId);
+    expect(
+      await graph.workItems.previewDirectoryCapacityWithin(resourceId, 65, access),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        before: null,
+        refusal: {
+          error: 'capacity_limit',
+          resourceId,
+          cap: 64,
+          declared: 0,
+          asked: 65,
+        },
+      },
+    });
+    await source.uow.run(async ({ stores }) => {
+      const staged = servicesOver(stores, {
+        admission: LEGACY_EDIT_ADMISSION,
+        broadcast: recordingBroadcaster(),
+        clock,
+        dependencyContext: createLocalDependencyContext(stores),
+        scheduler: fastScheduler,
+      });
+      await staged.workItems.previewDirectoryCapacityWithin(resourceId, null, access).then(
+        () => {
+          throw new Error('staged Memory preview answered without access decisions');
+        },
+        (cause: unknown) => {
+          expect(cause).toBeInstanceOf(Error);
+          expect(String(cause)).toContain('the catalog carries no access decisions');
+        },
+      );
+
+      expect(
+        await stores.directory.setDirectoryCapacity(resourceId, 0, {
+          stamp,
+          actor: actorId,
+          auditId: 'staged-preview-capacity',
+        }),
+      ).toMatchObject({ ok: true });
+      expect(
+        await stores.resourceCapacity.set(workPackage.id, resourceId, 65, stamp),
+      ).toMatchObject({
+        ok: true,
+      });
+      expect(
+        await previewCapacity(
+          () => ({
+            directory: stores.directory,
+            limits: stores.organizationLimits,
+            claims: stores.claims,
+            workPackages: {
+              findInOrganization: (...args) => stores.workPackages.findInOrganization(...args),
+              mayReadWorkPackageWithin: (...args) =>
+                stores.claims.mayReadWorkPackageWithin(...args),
+            },
+          }),
+          resourceId,
+          null,
+          actorId,
+          access,
+        ),
+      ).toMatchObject({
+        ok: true,
+        value: {
+          before: 0,
+          refusal: {
+            error: 'capacity_limit',
+            resourceId,
+            cap: 64,
+            declared: 65,
+            asked: 0,
+          },
+        },
+      });
+      return { commit: false, value: null };
+    });
+    expect(
+      await graph.workItems.previewDirectoryCapacityWithin(resourceId, null, access),
+    ).toMatchObject({ ok: true, value: { before: null, refusal: null, workPackages: [] } });
+  } finally {
+    await source.close();
+  }
+});
+
+test('memory public work package reports hold one committed epoch across a rival release', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  const capture = source.workPackageReportSnapshot;
+  if (capture === undefined) throw new Error('memory source lacks work package reporting');
+  const actorId = 'report-reader';
+  const organizationId = 'report-organization';
+  const ram = 'report-ram';
+  const stamp = { at: 1, by: actorId };
+  const reportScope = await seedReportScope(memory, organizationId, actorId, 'org-viewer');
+  let afterCapacity: (() => Promise<void>) | undefined;
+  const { graph } = await fixture({
+    ...source,
+    workPackageReportSnapshot: (access, read) =>
+      capture(access, async (stores) =>
+        read({
+          ...stores,
+          directory: {
+            ...stores.directory,
+            async directoryCapacitiesOf(ids) {
+              const found = await stores.directory.directoryCapacitiesOf(ids);
+              const release = afterCapacity;
+              afterCapacity = undefined;
+              await release?.();
+              return found;
+            },
+          },
+        }),
+      ),
+  });
+  try {
+    await bindFixtureSteps(
+      source,
+      organizationId,
+      [
+        {
+          definition: {
+            id: 'report-dev',
+            name: 'Dev',
+            code: 'dev',
+            position: 10,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent: 0,
+          },
+          binding: {
+            bindingId: 'report-dev-binding',
+            scopeKind: 'project',
+            scopeId: 'report-parent',
+            workItemTypeId: null,
+            position: 10,
+          },
+        },
+      ],
+      stamp,
+    );
+    const first = await seedReportPackage(memory, organizationId, actorId, 'earlier-holder');
+    const second = await seedReportPackage(memory, organizationId, actorId, 'viewer-plan');
+    for (const workPackage of [first, second]) {
+      expect(
+        await graph.workItems.create(workPackage.id, actorId, {
+          name: 'Leaf',
+          parentId: null,
+          afterId: null,
+        }),
+      ).toMatchObject({ ok: true });
+    }
+    const holder = (await source.stores.workItems.listByWorkPackage(first.id)).at(0);
+    const viewer = (await source.stores.workItems.listByWorkPackage(second.id)).at(0);
+    const step = (await source.stores.workPackages.stepsOf(first.id)).at(0);
+    if (holder === undefined || viewer === undefined || step === undefined)
+      throw new Error('memory report fixture lacks a leaf or step');
+    expect(
+      await source.stores.directory.addResource(
+        { id: ram, name: 'Host RAM', kind: 'divisible', unitLabel: 'GB' },
+        stamp,
+      ),
+    ).toMatchObject({ ok: true });
+    memory.ownResourceInOrganization(ram, organizationId);
+    const setCapacity = (units: number) =>
+      source.stores.directory.setDirectoryCapacity(ram, units, {
+        stamp,
+        actor: actorId,
+        auditId: `capacity-${String(units)}`,
+      });
+    const claim = {
+      id: 'earlier-claim',
+      workItemId: holder.id,
+      stepId: step.id,
+      personId: 'holder',
+      accountId: actorId,
+      runId: null,
+      parentClaimId: null,
+    };
+    const hold = () =>
+      source.stores.claims.add([claim], [], stamp, [
+        { claimId: claim.id, resourceId: ram, units: 8 },
+      ]);
+    expect(await setCapacity(16)).toMatchObject({ ok: true });
+    expect(await hold()).toBe('written');
+    expect(await source.stores.resourceCapacity.set(second.id, ram, 12, stamp)).toMatchObject({
+      ok: true,
+    });
+    const later = async () => {
+      await source.stores.claims.remove([claim], [], stamp);
+      expect(await setCapacity(4)).toMatchObject({ ok: true });
+      expect(await source.stores.demands.set(viewer.id, ram, 2, stamp)).toBe('written');
+    };
+    afterCapacity = later;
+    expect(await graph.workItems.resourcesWithin(second.id, reportScope)).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [{ directoryCapacity: 16, directory: { capacity: 16, occupied: 8, free: 8 } }],
+        demands: [],
+      },
+    });
+    expect(await graph.workItems.resourcesWithin(second.id, reportScope)).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [{ directoryCapacity: 4, directory: { capacity: 4, occupied: 0, free: 4 } }],
+        demands: [{ workItemId: viewer.id, resourceId: ram, units: 2 }],
+      },
+    });
+
+    expect(await setCapacity(16)).toMatchObject({ ok: true });
+    expect(await hold()).toBe('written');
+    afterCapacity = later;
+    const before = await graph.workItems.readStartableWithin(second.id, actorId, reportScope, null);
+    expect(before).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [
+          {
+            resourceId: ram,
+            capacity: 12,
+            occupied: 0,
+            free: 8,
+            directory: { capacity: 16, occupied: 8, free: 8 },
+          },
+        ],
+      },
+    });
+    expect(
+      await graph.workItems.readStartableWithin(second.id, actorId, reportScope, null),
+    ).toMatchObject({
+      kind: 'ready',
+      value: {
+        resources: [
+          {
+            resourceId: ram,
+            capacity: 12,
+            occupied: 0,
+            free: 4,
+            directory: { capacity: 4, occupied: 0, free: 4 },
+          },
+        ],
+      },
+    });
+  } finally {
+    await source.close();
+  }
+});
+
+test('scoped memory command graphs cannot use the committed reporting reader', async () => {
+  const memory = openMemorySourceFixture();
+  const { source } = memory;
+  await source.stores.users.create(
+    { id: 'owner', username: 'owner', passwordHash: null, createdAt: 1 },
+    { at: 1, by: 'owner' },
+  );
+  seedLegacyPackageParent(memory, {
+    organizationId: 'fixture-legacy-org',
+    projectId: 'fixture-project',
+    creator: 'owner',
+  });
+  const capture = source.workPackageReportSnapshot;
+  if (capture === undefined) throw new Error('memory source lacks work package reporting');
+  let writing = false;
+  const given = await fixture({
+    ...source,
+    workPackageReportSnapshot: (access, read) => {
+      if (writing) throw new Error('command graph opened a committed report');
+      return capture(access, read);
+    },
+  });
+  try {
+    const { workPackage } = expectCreated(
+      await given.graph.workPackages.create('Reports', 'fixture-project', 'owner'),
+    );
+    expect(await given.graph.workItems.resourcesWithin(workPackage.id, LEGACY_ACCESS)).toEqual({
+      kind: 'ready',
+      value: { resources: [], capacities: [], demands: [] },
+    });
+    await given.source.uow.run(async (scope) => {
+      writing = true;
+      const context = createLocalDependencyContext(scope.stores);
+      await withDependencyContext(context, workPackage.id, 'owner', async (dependencies) => {
+        const graph = given.graph.batch(
+          scope,
+          recordingBroadcaster(),
+          LEGACY_EDIT_ADMISSION,
+          dependencies,
+        );
+        expect(() => graph.workItems.resourcesWithin(workPackage.id, LEGACY_ACCESS)).toThrow(
+          'work package resource observation is unavailable',
+        );
+        await graph.workItems
+          .readStartableWithin(workPackage.id, 'owner', LEGACY_ACCESS, null)
+          .then(
+            () => {
+              throw new Error('command graph answered an unbound startable read');
+            },
+            (failure: unknown) => {
+              expect(failure).toBeInstanceOf(Error);
+              expect(String(failure)).toContain('startable observation is unavailable');
+            },
+          );
+      });
+      return { commit: false, value: undefined };
+    });
+  } finally {
+    await source.close();
+  }
+});
 
 test('stored outcome and downstream recipient retain their sequences while reaction precedes held outcome transport', async () => {
   const given = await fixture();

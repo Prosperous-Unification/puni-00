@@ -301,8 +301,10 @@ scope's `scopeCpuUsec`, so the real slowdown can be read from them.
 The suite does not explain the 67m03s losses. `tool-fleet:test` took 2027 s (33.8 minutes) in CI,
 in the surviving workspace shard of run 44797660117, and 1873 s on a laptop inside a 12G
 scope. The leaf is lost about 20 minutes after its work should have ended.
-A-CI-LEAF-RECORDER-1 changes no budget. Every 120 s the `tool-fleet` leaf PATCHes a comment on
-issue #963 with `phaseElapsedSeconds` and the log tail, so even a lost run keeps a timing trail
+A-CI-LEAF-RECORDER-1 changes no budget, and neither does A-CI-LEAF-RECORDER-2: the recorder runs
+outside the scope and the phase budget. Every 45 s (120 s before RECORDER-2) the `tool-fleet` leaf
+PATCHes a comment on issue #963 with `phaseElapsedSeconds` and the log lines since the previous
+tick, so even a lost run keeps a timing trail
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
 
 ## Disk fields, 2026-11-22
@@ -313,3 +315,24 @@ The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, inside
 90-minute job limit, while healthy leaves on Azure finished in 39m27s (job 137055572828) and 31.6
 minutes (run 44973329598). No budget explains the losses
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+## AWS refusal and requeue, 2026-11-22
+
+A-CI-LEAF-AWS-1 changes no budget. On an AWS host the `tool-fleet` leaf now refuses right after
+its start record. It spends about 75 s of runner time on checkout, provisioning and install,
+against the 67 or 68 minutes a lost leaf held. On 2026-11-22 the leaf was lost on 5 of 6 AWS
+hosts, 1095 to 1339 s into its phase, and finished once in 28 minutes; it finished on 7 of 7 Azure
+hosts in 25 to 40 minutes. The `requeue tool-fleet leaf` job runs after `gate`, at the end of the
+run, for well under a minute. The `ci-requeue` workflow waits for the run to complete, polling
+once a minute within a 150-minute bound, waits 10 more minutes (A-CI-LEAF-AWS-3), reads the run
+again and reruns the failed jobs. Its job timeout is 175 minutes.
+
+Red main in wall-clock time is not shorter. The first rerun starts about 10 minutes after the run
+completes, about 98 minutes in; each further refused attempt adds about 2 minutes plus the
+10-minute delay; the Azure leaf then takes 25 to 40 minutes. So one refusal costs about 2 hours 15
+minutes of red main, and five about 3 hours. The first live exercise, main run 45012388967, drew
+AWS on attempts 1 to 4, the last three inside 11:38 to 11:41Z, and ended red at the old bound of
+four. With about two thirds of draws on AWS, the bound of six gives about 2.76 expected attempts
+and about 9% of runs end red, against 20% at four. A full chain costs under 10 minutes of working
+runner time, plus about 10 idle minutes per waiter
+([R5-32](checks-that-cannot-fail.md#amendment-2026-11-22-fourth-a-longer-requeue-bound-and-a-10-minute-delay)).

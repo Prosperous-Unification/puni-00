@@ -872,6 +872,203 @@ describe('the chain snapshot', () => {
   });
 });
 
+describe('borrowed directory capacity preview', () => {
+  const defaults = {
+    maxAgentPersons: 50,
+    maxConcurrentClaims: 200,
+    maxCapacityUnitsPerResource: 64,
+  };
+  const admin = {
+    kind: 'scoped',
+    scope: { organizationId: 'org-a', userId: 'ada', cap: null },
+    principal: { id: 'ada' },
+  } as const;
+
+  beforeEach(() => {
+    write(
+      "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = 'ada'",
+    );
+    write(
+      "INSERT INTO access_grant (id, organization_id, scope_kind, scope_id, subject_kind, subject_id, role_id, origin, created_at) VALUES ('preview-admin', 'org-a', 'organization', 'org-a', 'user', 'ada', 'org-admin', 'route', 1)",
+    );
+    write(
+      "INSERT INTO resource (id, name, kind, unit_label) VALUES ('preview-ram', 'Preview RAM', 'divisible', 'GB')",
+    );
+    write(
+      "INSERT INTO resource_organization (resource_id, organization_id, name) VALUES ('preview-ram', 'org-a', 'Preview RAM')",
+    );
+    write(
+      "INSERT INTO resource_directory_capacity (resource_id, units) VALUES ('preview-ram', 16)",
+    );
+    write(
+      "INSERT INTO work_package_resource_capacity (work_package_id, resource_id, units) VALUES ('a1', 'preview-ram', 48)",
+    );
+  });
+
+  it.each(['catalog', 'gauge'] as const)(
+    'stops SQL dispatch after the borrowed %s read expires',
+    async (expiry) => {
+      const lifetime = createReadSnapshotLifetime();
+      let expired = false;
+      const late: string[] = [];
+      const connection = openConnection(path, {
+        logQuery(query) {
+          if (expired) late.push(query);
+          if (
+            (expiry === 'catalog' && query.includes('from "resource_organization"')) ||
+            (expiry === 'gauge' && query.includes('sum("work_package_resource_capacity"."units")'))
+          ) {
+            lifetime.expire();
+            expired = true;
+          }
+        },
+      });
+      const store = createLivePlanStore({
+        kind: 'borrowed',
+        db: connection.db,
+        lifetime,
+        organizationDefaultLimits: defaults,
+        schedulerOf: () => fast,
+      });
+      try {
+        const failure = await failureOf(
+          store.previewDirectoryCapacityWithin('preview-ram', null, 'ada', admin),
+        );
+        expect(failure.message).toContain('read snapshot is closed');
+        expect(expired).toBe(true);
+        expect(late).toEqual([]);
+      } finally {
+        connection.close();
+      }
+    },
+  );
+
+  it('starts grant SQL before yielding and keeps the expired borrow away from the resource catalog', async () => {
+    const lifetime = createReadSnapshotLifetime();
+    let memberRead = false;
+    let expired = false;
+    let queued = false;
+    const grantQueries: boolean[] = [];
+    const catalogQueries: boolean[] = [];
+    const connection = openConnection(path, {
+      logQuery(query) {
+        if (query.includes('from "organization_membership"')) memberRead = true;
+        if (query.includes('CROSS JOIN access_grant')) grantQueries.push(expired);
+        if (query.includes('from "resource_organization"')) catalogQueries.push(expired);
+      },
+    });
+    const fenced = {
+      assertOpen() {
+        lifetime.assertOpen();
+        if (memberRead && !queued) {
+          queued = true;
+          queueMicrotask(() => {
+            expired = true;
+            lifetime.expire();
+          });
+        }
+      },
+    };
+    try {
+      const store = createLivePlanStore({
+        kind: 'borrowed',
+        db: connection.db,
+        lifetime: fenced,
+        organizationDefaultLimits: defaults,
+        schedulerOf: () => fast,
+      });
+      const failure = await failureOf(
+        store.previewDirectoryCapacityWithin('preview-ram', null, 'ada', admin),
+      );
+      expect(failure.message).toContain('read snapshot is closed');
+      expect(queued).toBe(true);
+      expect(grantQueries).toEqual([false]);
+      expect(catalogQueries).toEqual([]);
+    } finally {
+      connection.close();
+    }
+  });
+
+  it('predicts a clear using the borrowed cap and directory value, with rollback isolated', async () => {
+    const lifetime = createReadSnapshotLifetime();
+    const connection = openConnection(path);
+    const store = createLivePlanStore({
+      kind: 'borrowed',
+      db: connection.db,
+      lifetime,
+      organizationDefaultLimits: defaults,
+      schedulerOf: () => fast,
+    });
+    const publicStore = createLivePlanStore({
+      kind: 'owned',
+      openConnection: () => openReadOnlyConnection(path),
+      organizationDefaultLimits: defaults,
+      schedulerOf: () => fast,
+    });
+    try {
+      connection.db.run(sql`BEGIN IMMEDIATE`);
+      try {
+        connection.db.run(sql`INSERT INTO organization_limits
+          (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at)
+          VALUES ('org-a', 50, 200, 32, 1)`);
+        connection.db.run(
+          sql`UPDATE resource_directory_capacity SET units = 0 WHERE resource_id = 'preview-ram'`,
+        );
+        expect(
+          await store.previewDirectoryCapacityWithin('preview-ram', null, 'ada', admin),
+        ).toMatchObject({
+          ok: true,
+          value: {
+            before: 0,
+            after: null,
+            workPackages: [{ workPackageId: 'a1', units: 0 }],
+            refusal: {
+              error: 'capacity_limit',
+              resourceId: 'preview-ram',
+              cap: 32,
+              declared: 48,
+              asked: 0,
+            },
+          },
+        });
+      } finally {
+        lifetime.expire();
+        connection.db.run(sql`ROLLBACK`);
+      }
+      expect(
+        await publicStore.previewDirectoryCapacityWithin('preview-ram', null, 'ada', admin),
+      ).toMatchObject({ ok: true, value: { before: 16, refusal: null } });
+      expect(
+        await publicStore.previewDirectoryCapacityWithin('preview-ram', 65, 'ada', admin),
+      ).toMatchObject({
+        ok: true,
+        value: { refusal: { error: 'capacity_limit', cap: 64, declared: 0, asked: 65 } },
+      });
+    } finally {
+      connection.close();
+    }
+  });
+
+  it('fails closed on missing gauge composition or unreadable configured caps', async () => {
+    const common = {
+      kind: 'owned',
+      openConnection: () => openReadOnlyConnection(path),
+      schedulerOf: () => fast,
+    } as const;
+    const unconfigured = createLivePlanStore(common);
+    const missing = await failureOf(
+      unconfigured.previewDirectoryCapacityWithin('preview-ram', 15, 'ada', admin),
+    );
+    expect(missing.message).toContain('admitted without organization limits');
+    write('DROP TABLE organization_limits');
+    const configured = createLivePlanStore({ ...common, organizationDefaultLimits: defaults });
+    const unreadable = await failureOf(
+      configured.previewDirectoryCapacityWithin('preview-ram', 15, 'ada', admin),
+    );
+    expect(unreadable.message).toContain('organization_limits');
+  });
+});
+
 describe('detached live snapshot guards', () => {
   function livePlans() {
     return createLivePlanStore({

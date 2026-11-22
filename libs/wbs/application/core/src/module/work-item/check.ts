@@ -23,6 +23,18 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       livePlans: DiBag.createProvider(() => requirements.livePlans, {
         factoryReturnKind: 'sync-value',
       }),
+      resourceOccupancy: DiBag.createProvider(() => requirements.resourceOccupancy, {
+        factoryReturnKind: 'sync-value',
+      }),
+      capacityPreview: DiBag.createProvider(() => requirements.capacityPreview, {
+        factoryReturnKind: 'sync-value',
+      }),
+      workPackageReportSnapshot: DiBag.createProvider(
+        () => requirements.workPackageReportSnapshot,
+        {
+          factoryReturnKind: 'sync-value',
+        },
+      ),
       workItemStore: DiBag.createProvider(() => requirements.workItems, {
         factoryReturnKind: 'sync-value',
       }),

@@ -1,0 +1,178 @@
+{
+  "name": "wbs-fe-01",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/wbs/fe-01/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:browser", "ring:adapter", "product:wbs"],
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "bunx vite",
+        "cwd": "apps/wbs/fe-01"
+      },
+      "cache": false
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx vite build",
+        "cwd": "apps/wbs/fe-01"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/wbs/fe-01"]
+    },
+    "test": {
+      "dependsOn": ["test:unit"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",
+        "cwd": "apps/wbs/fe-01"
+      }
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000",
+        "cwd": "apps/wbs/fe-01"
+      }
+    },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.unit.xml ../../../tmp/junit/wbs-fe-01.unit.root.xml && TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.xml && TZ=UTC bunx vitest run --config vitest.unit-root.config.ts --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.unit.root.xml",
+        "cwd": "apps/wbs/fe-01",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "forwardAllArgs": false
+      }
+    },
+    "test:view:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "mkdir -p ../../../tmp/junit && rm -f ../../../tmp/junit/wbs-fe-01.view.utc.xml ../../../tmp/junit/wbs-fe-01.view.auckland.xml && TZ=UTC bunx vitest run --config vitest.view.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.utc.xml && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 --reporter=junit --outputFile=../../../tmp/junit/wbs-fe-01.view.auckland.xml",
+        "cwd": "apps/wbs/fe-01",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "forwardAllArgs": false
+      }
+    },
+    "test:performance:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/performance-level.ts",
+        "forwardAllArgs": false
+      }
+    },
+    "test:browser:ordinary:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts ordinary",
+        "forwardAllArgs": false
+      }
+    },
+    "test:browser:packaged:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-devsync/src/browser-level.ts packaged",
+        "forwardAllArgs": false
+      }
+    },
+    "test:browser:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "commands": [
+          "bunx nx run wbs-fe-01:test:browser:ordinary:level",
+          "bunx nx run wbs-fe-01:test:browser:packaged:level",
+          "bunx nx run wbs-core:test:browser:portable:level"
+        ],
+        "parallel": false,
+        "forwardAllArgs": false
+      }
+    },
+    "e2e": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bun run tools/dev/setup.ts",
+          "bunx playwright test --config apps/wbs/fe-01/playwright.config.ts"
+        ],
+        "parallel": false
+      },
+      "cache": false
+    },
+    "e2e-organization": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx playwright test --config=apps/wbs/fe-01/playwright.organization.config.ts",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+      },
+      "cache": false
+    },
+    "e2e-packaged": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "bunx nx run wbs-fe-01:build",
+          "bunx playwright test --config apps/wbs/fe-01/playwright.packaged.config.ts"
+        ],
+        "parallel": false
+      },
+      "cache": false
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "inputs": ["...", "{workspaceRoot}/eslint-suppressions.json"],
+      "options": {
+        "command": "node apps/wbs/fe-01/tools/owner-lint.mjs apps/wbs/fe-01/src apps/wbs/fe-01/e2e apps/wbs/fe-01/e2e-packaged apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/playwright.cross-project.config.ts apps/wbs/fe-01/playwright.organization.config.ts apps/wbs/fe-01/playwright.packaged.config.ts apps/wbs/fe-01/playwright.performance.config.ts apps/wbs/fe-01/playwright.ordinary-servers.ts apps/wbs/fe-01/ordinary-servers-cli.ts apps/wbs/fe-01/vite.config.ts apps/wbs/fe-01/vite.benchmark.config.ts apps/wbs/fe-01/vitest.config.ts apps/wbs/fe-01/vitest.node.config.ts apps/wbs/fe-01/vitest.zoned.config.ts apps/wbs/fe-01/vitest.view.config.ts apps/wbs/fe-01/vitest.unit-root.config.ts apps/wbs/fe-01/vitest.node-suites.ts apps/wbs/fe-01/vitest.view-level.test.ts apps/wbs/fe-01/vite-config.test.ts apps/wbs/fe-01/browser-packages.test.ts apps/wbs/fe-01/vitest.setup.ts apps/wbs/fe-01/playwright-config.test.ts apps/wbs/fe-01/vitest-budget.test.ts --"
+      }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/wbs/fe-01/src apps/wbs/fe-01/e2e apps/wbs/fe-01/e2e-packaged apps/wbs/fe-01/playwright.config.ts apps/wbs/fe-01/playwright.cross-project.config.ts apps/wbs/fe-01/playwright.organization.config.ts apps/wbs/fe-01/playwright.packaged.config.ts apps/wbs/fe-01/playwright.performance.config.ts apps/wbs/fe-01/playwright.ordinary-servers.ts apps/wbs/fe-01/ordinary-servers-cli.ts apps/wbs/fe-01/vite.config.ts apps/wbs/fe-01/vite.benchmark.config.ts apps/wbs/fe-01/vitest.config.ts apps/wbs/fe-01/vitest.node.config.ts apps/wbs/fe-01/vitest.zoned.config.ts apps/wbs/fe-01/vitest.view.config.ts apps/wbs/fe-01/vitest.unit-root.config.ts apps/wbs/fe-01/vitest.node-suites.ts apps/wbs/fe-01/vitest.view-level.test.ts apps/wbs/fe-01/vite-config.test.ts apps/wbs/fe-01/browser-packages.test.ts apps/wbs/fe-01/vitest.setup.ts apps/wbs/fe-01/playwright-config.test.ts apps/wbs/fe-01/vitest-budget.test.ts --cache --cache-location .nx/eslintcache-wbs-fe-01"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["typecheck:module"],
+      "options": {
+        "command": "bunx tsc --build --force apps/wbs/fe-01/tsconfig.json"
+      }
+    },
+    "typecheck:module": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "status=0; for module in apps/wbs/fe-01/src/modules/*/; do echo \"typecheck:module $module\"; bunx tsc -p \"$module\"tsconfig.json --noEmit || status=1; done; exit $status"
+      }
+    },
+    "serve-local-solver": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "bunx vite",
+        "cwd": "apps/wbs/fe-01"
+      },
+      "cache": false
+    },
+    "e2e-cross-project": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/apps/wbs/be-01/src/**/*",
+        "{workspaceRoot}/apps/wbs/gw-01/src/**/*"
+      ],
+      "options": {
+        "command": "bunx playwright test --config apps/wbs/fe-01/playwright.cross-project.config.ts",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" }
+      }
+    }
+  },
+  "implicitDependencies": ["wbs-be-01", "wbs-gw-01"]
+}

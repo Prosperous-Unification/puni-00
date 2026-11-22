@@ -12,8 +12,13 @@ import {
   startOidcLogin,
   validateSchema,
 } from '@wbs/contracts';
+import { servicesOver } from '@wbs/core/compose';
+import { LEGACY_EDIT_ADMISSION } from '@wbs/core/ports/edit-admission';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { seedLegacyPackageParent } from '@wbs/core/testing/legacy-package-source-fixture';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { bindStores, MemoryState } from '@wbs/store-memory/memory-stores';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { openTestSource, ownTestSource } from '@wbs/store-memory/testing/owned-source-fixture';
@@ -274,6 +279,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationWorkPackage-rank',
   'getApiOrganizationProvisioningTokens',
   'getApiOrganizationResourceAuthoritiesByAuthorityId',
+  'getApiOrganizationResourcesByResourceIdOccupancy',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
@@ -560,6 +566,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationWorkPackage-rank',
   'getApiOrganizationProvisioningTokens',
   'getApiOrganizationResourceAuthoritiesByAuthorityId',
+  'getApiOrganizationResourcesByResourceIdOccupancy',
   'getApiOrganizationSession-policy',
   'getApiOrganizationSso-connections',
   'getApiOrganizationTrusted-issuers',
@@ -622,6 +629,8 @@ async function reachabilityOptions(
   const fixture = openMemorySourceFixture();
   const source = ownTestSource(fixture.source);
   const users = source.stores.users;
+  const { stores, workPackageReportSnapshot } = source;
+  if (workPackageReportSnapshot === undefined) throw new Error('memory report observer missing');
   await users.create(
     {
       id: 'route-owner',
@@ -653,6 +662,15 @@ async function reachabilityOptions(
       username: 'route-owner',
       scopes: ['read', 'write', 'editor'],
     },
+  });
+  const { workItems } = servicesOver(stores, {
+    dependencyContext: createLocalDependencyContext(stores),
+    admission: LEGACY_EDIT_ADMISSION,
+    clock: testClock,
+    broadcast: recordingBroadcaster(),
+    scheduler: fastScheduler,
+    // Proof: removing this binding made both mounted reachability modes return startable HTTP 500.
+    workPackageReportSnapshot,
   });
   const oidc = mode === 'oidc' ? reachabilityOidcOptions() : undefined;
   const appOptions = options(workPackages);
@@ -687,6 +705,7 @@ async function reachabilityOptions(
         read: () => Promise.resolve({ ok: false, refusal: 'organization_required' }),
         rollUps: () => Promise.resolve({ ok: false, refusal: 'organization_required' }),
       },
+      workItems,
       savedPlans,
       internalAuthSecret: INTERNAL_SECRET,
       oidc,

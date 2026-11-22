@@ -148,6 +148,17 @@ marks of "The canvas holds every mark" are drawn in.
 Every bar with a non-zero drawn span SHALL have a non-zero width. A slice
 **estimated** at zero days keeps its drawn span of zero and its tick.
 
+On a dated project, estimated bars, assumed bars and marks controlled by
+Detail SHALL use the same calendar scale and retain their engine workday
+`data-start` and `data-finish` values. Detail SHALL leave an assumed leaf bar
+visible in both states and SHALL NOT change the first calendar day, the
+canvas bounds, any estimated bar's position, or the scheduling facts.
+
+These three dated unestimated-slice cases apply to a non-done leaf whose
+placed slices are drawn separately. A done leaf keeps its one solid done
+bar in place of its slices, with no `data-assumed`, as specified by
+“A done work item draws one done bar over its fact span.”
+
 #### Scenario: user space is the calendar
 
 - **WHEN** the plan starts Monday 2026-08-10 and a slice runs 3.5 → 6
@@ -168,11 +179,11 @@ Every bar with a non-zero drawn span SHALL have a non-zero width. A slice
 
 #### Scenario: the data attributes outlive the drawn width
 
-- **WHEN** an unestimated slice sits at workday 3 with a duration of 0 on that
-  plan and Detail is pressed
-- **THEN** its assumed bar has `x` 3 and `width` 2 — the two workdays it is drawn
-  across, Thursday and Friday, and not zero — while `data-start` and
-  `data-finish` both read "3"; before Detail is pressed that bar is absent
+- **GIVEN** a plan starting Monday 2026-08-10 with an unestimated slice at
+  workday 3 and a zero engine duration
+- **WHEN** the chart is read with Detail explicitly off and then on
+- **THEN** its assumed bar is visible in both states at `x` 3 and `width` 2,
+  spanning Thursday and Friday, with `data-start` and `data-finish` both "3"
 
 #### Scenario: a workday number is not a coordinate
 
@@ -184,94 +195,26 @@ Every bar with a non-zero drawn span SHALL have a non-zero width. A slice
 - **WHEN** the plan has no start date and a slice starts at workday 5
 - **THEN** its bar's `x` is 5, and no coordinate on the chart came from a scale
 
-### Requirement: Leaves draw bars for the work somebody costed, and the rest is behind the switch
-
-A leaf's row SHALL hold one bar per **estimated** slice, in role order, whatever
-the switch says. A bar on the critical path SHALL be tinted so, and a bar off it
-SHALL not.
-
-With the switch off, a parent's row SHALL draw no mark of its own — no bar, no
-bracket, no tick, and no hover surface — and a slice nobody has estimated SHALL
-draw no mark of its own: no bar, no tick, no on-bar label and no hover surface.
-A leaf with some roles estimated draws those roles' bars alone; a leaf with none
-draws an empty track.
-
-With the switch on, a parent's row SHALL draw the translucent ghost of a bar
-across its projection, or a tick where that projection has no days; and an
-unestimated slice SHALL draw a bar two workdays wide,
-translucent and dashed, carrying the `?` that says its width is nobody's
-estimate, findable as `data-assumed`.
-
-In **both** states the row SHALL stay on the chart at its own index and the row
-height every other row has, so the chart's row `N` stands beside the plan's row
-`N`, and the label rail SHALL go on naming it. The engine's numbers, the date
-columns, the axis and the canvas SHALL be identical in the two states — the
-switch decides what is painted and nothing about where anything is.
-
-A not-before caret SHALL be drawn only on a row that draws at least one mark of
-its own: with the switch off, only where a costed bar stands; with it on, on
-every row holding a start date, because every such row now draws something for
-the caret to stand over.
-
-#### Scenario: a two-role leaf
-
-- **WHEN** a leaf holds Dev 0→3 and QA 3→5, both estimated
-- **THEN** its row holds two bars, Dev's before QA's, at those coordinates,
-  whichever way the switch is set
-
-#### Scenario: a leaf half estimated, at rest and asked for
-
-- **WHEN** a leaf holds an estimated Dev slice and an unestimated QA slice
-- **THEN** its row holds the Dev bar alone and no mark carries `data-assumed`;
-  and once the switch is pressed the QA slice's assumed bar is drawn beside it,
-  carrying `data-assumed`, with the Dev bar unmoved
-
-#### Scenario: a parent over staggered children
-
-- **WHEN** a parent's children run 0→3 and 2→6
-- **THEN** the parent's row holds no `data-gantt-bracket` mark, its children's
-  bars are drawn where they were, and every row keeps its index; and once the
-  switch is pressed the bracket is drawn across the projection, with every row
-  still at its own index
-
-#### Scenario: a parent whose projection has no days
-
-- **WHEN** every child of a parent is unestimated
-- **THEN** the parent's row holds no mark at all, and the rows below it are not
-  shifted; and once the switch is pressed the row holds the zero-span tick
-
-#### Scenario: a start date held on a row that draws nothing
-
-- **WHEN** a parent and an unestimated leaf each carry a start-no-earlier-than
-  date, beside a leaf that carries one and draws a bar
-- **THEN** only the drawn leaf's row holds a not-before caret, and both empty
-  rows stay on the chart at their own index; and once the switch is pressed all
-  three rows hold a caret
-
-#### Scenario: the critical path is visible
-
-- **WHEN** one leaf has float 0 and another float 2
-- **THEN** the first row's bar carries the critical tint and the second's does
-  not
-
-When a project start date is set, every estimated bar and Detail mark SHALL use
-the same calendar scale and SHALL retain its workday `data-start` and
-`data-finish` values. Detail changes which marks are painted, not the calendar
-positions or the scheduling facts beneath them.
-
 #### Scenario: an unestimated slice
 
-- **WHEN** a leaf's slice is unestimated and the engine placed it at workday 3
-  with a duration of 0 on a dated plan
-- **THEN** it has no drawn bar while Detail is off; after Detail is pressed,
-  its assumed bar starts at the corresponding calendar day, spans two workdays,
-  carries `data-assumed` and a `?`, and retains the engine's workday facts
+- **GIVEN** a dated plan with an unestimated leaf slice placed at workday 3
+  with zero engine duration
+- **WHEN** the chart is read with Detail explicitly off and then on
+- **THEN** its bar starts at that workday's calendar position and spans two
+  workdays in both states, with a dashed outline, translucent fill and
+  `data-assumed`, while its engine workday facts stay at 3
+- **AND** it follows the number-first label including its width fallback and,
+  when stacked, the single lane-stack label and its existing spill rule
 
 #### Scenario: the horizon holds the assumed span
 
-- **WHEN** the last thing on a dated chart is an unestimated slice at workday 3
-- **THEN** the calendar horizon reaches the assumed span even while Detail is
-  off, and pressing Detail draws the bar inside the unchanged canvas
+- **GIVEN** an unestimated slice at workday 3 is the last scheduled slice on
+  a dated chart
+- **WHEN** the chart is read with Detail explicitly off and then on
+- **THEN** its two-workday placeholder is already visible and contained by
+  the calendar horizon and canvas in both states
+- **AND** the first calendar day, the horizon, the canvas bounds, the
+  positions of any estimated bars, and the engine workday facts are identical
 
 ### Requirement: Calendar labels agree with the date columns
 

@@ -155,6 +155,7 @@ import {
   type MemoryWorkPackageTables,
   memoryWorkPackageTables,
 } from './work-package-fixture';
+import { mayReadMemoryWorkPackage } from './work-package-visibility';
 
 interface MemoryTables {
   readonly settings: MemorySettingTables;
@@ -1575,6 +1576,7 @@ export function bindStores(
           workPackageId,
           claims,
         ),
+      (...args) => Promise.resolve(mayReadMemoryWorkPackage(state, ...args)),
     ),
     dependencies,
     typedDependencies,

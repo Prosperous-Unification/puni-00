@@ -41,7 +41,7 @@ export interface ExecutionReads {
   readonly demands: readonly Demand[];
   /** The work package's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
   readonly occupancy: readonly OccupancyRow[];
-  /** Directory capacities for demanded resources in this read. */
+  /** Directory capacities for project-stated or leaf-demanded resources. */
   readonly directoryCapacities: readonly ResourceCapacity[];
   /** Organization-wide held units for those directory capacities. */
   readonly organizationOccupied: readonly ResourceUnits[];

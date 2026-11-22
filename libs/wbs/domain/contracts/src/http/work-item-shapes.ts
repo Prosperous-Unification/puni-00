@@ -128,8 +128,11 @@ const claimHolder = type({
   name: 'string',
   runId: 'string | null',
 });
+/** Held units from unreadable origins, without identifying fields. */
+export const hiddenHolderUnits = type({ units: 'number.integer >= 0' });
+
 /** Who holds units of an exhausted resource: one claimant and run on one leaf. */
-const occupancyHolder = type({
+export const occupancyHolder = type({
   personId: 'string',
   name: 'string',
   runId: 'string | null',
@@ -143,6 +146,7 @@ const resourceShortage = {
   asked: 'number',
   free: 'number',
   holders: occupancyHolder.array(),
+  'hiddenHolders?': hiddenHolderUnits,
   // `wbs-shared-occupancy` S3: only where the resource states a directory capacity.
   'scope?': "'work_package' | 'organization'",
 } as const;

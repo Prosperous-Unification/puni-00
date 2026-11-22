@@ -6,6 +6,42 @@ Import and copy WBS plans while preserving typed and legacy dependency meanings.
 
 ## Requirements
 
+### Requirement: Plan document v6 carries readiness and hold
+
+Plan document version 6 introduced the nullable `readiness` and `hold` fields on authored
+work items. The current ordinary writer SHALL emit version 11 and the connected writer version 12.
+Both SHALL preserve each authored status fact, with `null` for an unsaid fact. Ordinary import
+SHALL retain support for versions 1 through 10 alongside current version 11; versions 1 through 5
+SHALL import both fields as `null`. On an admitted version carrying these fields, import SHALL
+refuse a missing field, value outside its vocabulary, or readiness or hold on a parent with
+`invalid_body` before any project is written. Import SHALL accept an otherwise valid hold on a
+done leaf, since setting step progress can retain that hold and the row status reads `done`.
+Spreadsheet export SHALL carry each row’s status word.
+
+#### Scenario: a round trip keeps a hold
+
+- **GIVEN** a plan with one leaf `ready` and `on_hold`
+- **WHEN** it is exported and imported into a new project
+- **THEN** the imported leaf holds readiness `ready` and hold `on_hold`
+
+#### Scenario: an older document imports with nothing said
+
+- **GIVEN** a version 5 plan document
+- **WHEN** it is imported
+- **THEN** every work item has readiness and hold `null`
+
+#### Scenario: an unknown hold is refused
+
+- **GIVEN** a version 6 document with `hold: 'paused'`
+- **WHEN** it is imported
+- **THEN** it is refused `invalid_body` and no project is created
+
+#### Scenario: a leaf held and then marked done round-trips
+
+- **GIVEN** a leaf holding `on_hold` whose every step is then marked done
+- **WHEN** the plan is exported and the file imported again
+- **THEN** the import is accepted and the leaf reads `done`
+
 ### Requirement: Plan transfer preserves typed and legacy dependencies
 
 New-version export SHALL distinguish typed endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain work-package reach semantics; malformed new-format endpoint, scope, step, type or duplicate relationship SHALL be refused, including a node endpoint on a parent or a descendant-step endpoint on a leaf. Copying a work package or duplicating a subtree SHALL remap internal relationship endpoints, step node IDs and stable IDs according to the copy, preserving external prerequisites of copied successors only under the existing duplication policy and never creating dangling endpoints. Internal endpoints SHALL remain within the destination work package; external endpoints SHALL remain explicitly distinguished and SHALL pass current same-organization ownership, endpoint, authorization and graph admission before any write. Inactive external dependency authoring SHALL refuse external declarations atomically.

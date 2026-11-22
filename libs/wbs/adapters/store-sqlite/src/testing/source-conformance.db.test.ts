@@ -10,6 +10,8 @@ import {
   assertSettingSettlement,
   brokenSource,
   type Capabilities,
+  CAPTURE_ORGANIZATION,
+  CAPTURE_RESOURCE,
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
@@ -629,6 +631,15 @@ async function openSqliteSavedPlanCase(
   };
 }
 
+function seedCapture(source: SqliteSource, stores = source.stores): Promise<void> {
+  return seedSavedPlanCapture(stores, DETERMINISTIC_SEED, () => {
+    source.db.run(sql`INSERT INTO organization (id, name, created_at)
+      VALUES (${CAPTURE_ORGANIZATION}, ${CAPTURE_ORGANIZATION}, 1)`);
+    source.db.run(sql`INSERT INTO resource_organization (resource_id, organization_id, name)
+      VALUES (${CAPTURE_RESOURCE}, ${CAPTURE_ORGANIZATION}, 'Capture RAM')`);
+  });
+}
+
 async function openSqliteSavedPlanCaptureCase(
   caseId: CaseId,
 ): Promise<CaseFixture<SavedPlanCaptureStore>> {
@@ -659,7 +670,7 @@ async function openSqliteSavedPlanCaptureCase(
           })
       : openSqliteSource;
   const { source, directory } = await seedSqliteSource(openSource, async (seeded) => {
-    await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+    await seedCapture(seeded);
   });
   return {
     fixtureId: `sqlite:${caseId}`,
@@ -1258,6 +1269,7 @@ function emptyMissingCapture(): ResolvedPlanInputReads {
     capacity: new Map(),
     demands: [],
     resourceCapacities: [],
+    directoryCapacities: [],
     resources: [],
     priorityBands: [],
     people: [],
@@ -5148,7 +5160,7 @@ async function proveFault(
               : fault.caseId.startsWith('subtrees.')
                 ? seedSubtreeRecords
                 : fault.caseId.startsWith('savedPlanCapture.')
-                  ? async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED)
+                  ? async (seeded) => seedCapture(seeded)
                   : undefined,
       );
       observeDirectory(directory);
@@ -5365,7 +5377,7 @@ async function proveCoherentCaptureFault(
             ),
           run,
         ),
-        async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+        async (seeded) => seedCapture(seeded),
       );
       observeDirectory(directory);
       let wasOpened = false;
@@ -5754,6 +5766,8 @@ describe('SQLite existing source conformance', () => {
     'organizationLimits.readAgentPersonCap:organization-scope',
     'organizationLimits.readConcurrentClaimCap:bound-triples',
     'organizationLimits.readCapacityCap:per-resource-except-work-package',
+    'organizationLimits.readDirectoryCapacityLimit:owned-raw-statements',
+    'claims.listStampedByWorkPackage:write-instant',
     'claims.occupancy:organization-scope',
     'directory.setDirectoryCapacity:state-clear-remove',
     'directory.patchPerson:account-binding',
@@ -7355,7 +7369,7 @@ describe('SQLite existing source conformance', () => {
                 ? Promise.reject(new Error('injected capture capacity setup failure'))
                 : set(workPackageId, teamId, size, stamp);
           });
-          await seedSavedPlanCapture({ ...source.stores, capacity }, DETERMINISTIC_SEED);
+          await seedCapture(source, { ...source.stores, capacity });
         },
       );
     } catch (cause) {
@@ -7603,7 +7617,7 @@ describe('SQLite existing source conformance', () => {
             return (tag, stamp) =>
               tag.id === 'capture-tag-only' ? Promise.resolve(tag) : addTag(tag, stamp);
           });
-          await seedSavedPlanCapture({ ...source.stores, directory }, DETERMINISTIC_SEED);
+          await seedCapture(source, { ...source.stores, directory });
         },
       );
     } catch (cause) {
@@ -7762,7 +7776,7 @@ describe('SQLite existing source conformance', () => {
             throw new Error('injected SQLite capture failure after independent writer');
           },
         }),
-      async (source) => seedSavedPlanCapture(source.stores, DETERMINISTIC_SEED),
+      async (source) => seedCapture(source),
     );
     const directory = seeded.directory;
     const source: SqliteSource = {
@@ -7805,7 +7819,7 @@ describe('SQLite existing source conformance', () => {
 
   it('Task 6.4 rejects capture on the shared SQLite writer connection', async () => {
     const { source, directory } = await seedSqliteSource(openSqliteSource, async (seeded) => {
-      await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+      await seedCapture(seeded);
     });
     let borrowedCloseCalls = 0;
     let reached = false;

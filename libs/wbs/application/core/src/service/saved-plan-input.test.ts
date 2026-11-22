@@ -123,6 +123,7 @@ const reads = {
   capacity: new Map([['team-2', 3]]),
   demands: [],
   resourceCapacities: [],
+  directoryCapacities: [],
   resources: [],
   priorityBands: [{ startsAt: 1, label: 'Critical', defaultValue: 10 }],
   people: [

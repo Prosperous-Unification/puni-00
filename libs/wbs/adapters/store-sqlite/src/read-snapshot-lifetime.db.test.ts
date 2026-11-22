@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import type {
   AccessTarget,
   ChainSnapshot,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   LivePlanStore,
   OptimizedScheduleAdapter,
   Scope,
@@ -17,7 +19,9 @@ import { sql } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
 import { readChainSnapshotIn } from './chain-snapshot';
+import { ClaimRepository } from './claim';
 import { openConnection, openDatabase } from './db';
+import { DirectoryRepository } from './directory';
 import { OPEN, WriteCoordinator } from './gate';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import * as settings from './settings';
@@ -33,7 +37,7 @@ let path: string;
 const access = {
   principal: { id: 'ada' },
   kind: 'scoped',
-  scope: { cap: null, organizationId: 'org-a', userId: 'ada', role: 'member' },
+  scope: { cap: null, organizationId: 'org-a', userId: 'ada' },
 } as const;
 beforeEach(async () => {
   folder = mkdtempSync(join(tmpdir(), 'capture-lifetime-'));
@@ -430,6 +434,386 @@ test('legacy early reads expire while the reusable public owner keeps opening ob
     expect(await publicPlans.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
     expect(await publicPlans.readWorkPackage('a1')).toEqual({ kind: 'isolated' });
   } finally {
+    await source.close();
+  }
+});
+
+test('work package resources require agreement with the current activation mode', async () => {
+  const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
+  const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
+  const plans = source.stores.livePlans;
+  if (plans === undefined) throw new Error('missing public plans');
+  const legacy = { kind: 'legacy' } as const;
+  const refused = { kind: 'access_refused', refusal: 'no_active_organization' } as const;
+  try {
+    expect(await plans.readWorkPackageResources('a1', legacy)).toEqual(refused);
+    expect(await plans.readWorkPackageResources('a1', access)).toMatchObject({ kind: 'ready' });
+    sqlite.db.run(sql`DROP TRIGGER organization_activation_no_revert`);
+    sqlite.db.run(
+      sql`UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL`,
+    );
+    expect(await plans.readWorkPackageResources('a1', access)).toEqual(refused);
+    expect(await plans.readWorkPackageResources('a1', legacy)).toMatchObject({ kind: 'ready' });
+  } finally {
+    await source.close();
+  }
+});
+
+test.each(['execution', 'resources'] as const)(
+  'borrowed %s never dispatches an aggregate after its in-flight capacity read expires',
+  async (surface) => {
+    const sqlite = openSqliteSource({
+      dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+      dbPath: path,
+    });
+    sqlite.db.run(
+      sql`INSERT INTO resource (id,name,kind,unit_label) VALUES ('ram','RAM','divisible','GB')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('ram','org-a','RAM')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO resource_directory_capacity (resource_id,units) VALUES ('ram',16)`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO work_package_resource_capacity (work_package_id,resource_id,units) VALUES ('a1','ram',12)`,
+    );
+    const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
+    await source.uow.run(async (scope) => {
+      sqlite.db.run(
+        sql`UPDATE resource_directory_capacity SET units = 18 WHERE resource_id = 'ram'`,
+      );
+      const plans = plansOf(scope);
+      if (surface === 'execution')
+        expect(await plans.readExecution('a1', access, null)).toMatchObject({
+          kind: 'ready',
+          reads: { directoryCapacities: [{ resourceId: 'ram', units: 18 }] },
+        });
+      else
+        expect(await plans.readWorkPackageResources('a1', access)).toMatchObject({
+          kind: 'ready',
+          value: { resources: [{ id: 'ram', directoryCapacity: 18 }] },
+        });
+      return { commit: false, value: undefined };
+    });
+    const entered = hold();
+    const resume = hold();
+    const descriptor = Object.getOwnPropertyDescriptor(
+      DirectoryRepository.prototype,
+      'directoryCapacitiesOf',
+    );
+    if (typeof descriptor?.value !== 'function') throw new Error('missing capacity read');
+    const original = descriptor.value as DirectoryRepository['directoryCapacitiesOf'];
+    const capacity = spyOn(
+      DirectoryRepository.prototype,
+      'directoryCapacitiesOf',
+    ).mockImplementation(async function (this: DirectoryRepository, ids) {
+      const captured = await original.call(this, ids);
+      expect(captured).toEqual([{ resourceId: 'ram', units: 16 }]);
+      entered.release();
+      await resume.promise;
+      return captured;
+    });
+    const aggregate = spyOn(ClaimRepository.prototype, 'organizationUnitsOf');
+    let reading: Promise<Error> | undefined;
+    try {
+      await source.uow.run(async (scope) => {
+        const plans = plansOf(scope);
+        reading = failureOf(
+          surface === 'execution'
+            ? plans.readExecution('a1', access, null)
+            : plans.readWorkPackageResources('a1', access),
+        );
+        // A premature failure settles instead of leaving this test waiting on the seam.
+        await Promise.race([
+          entered.promise,
+          reading.then((failure) => {
+            throw failure;
+          }),
+        ]);
+        return { commit: true, value: undefined };
+      });
+      if (reading === undefined) throw new Error('the borrowed read did not start');
+      resume.release();
+      expect((await reading).message).toContain('read snapshot is closed');
+      expect(capacity).toHaveBeenCalledTimes(1);
+      expect(aggregate).not.toHaveBeenCalled();
+    } finally {
+      capacity.mockRestore();
+      aggregate.mockRestore();
+      await source.close();
+    }
+  },
+);
+
+test.each([
+  'occupancy catalog',
+  'occupancy capacity dispatch',
+  'occupancy stamp dispatch',
+  'occupancy name dispatch',
+  'startable holders',
+  'startable origin dispatch',
+  'startable name dispatch',
+] as const)('borrowed %s cannot issue SQL after settlement', async (read) => {
+  const queries: string[] = [];
+  const reached = hold();
+  const resume = hold();
+  const occupancy = read.startsWith('occupancy');
+  const completion = { commit: occupancy, value: undefined };
+  let settleOwner: (decision: typeof completion) => void = () => {
+    throw new Error('owner decision not initialized');
+  };
+  const decision = new Promise<typeof completion>((resolve) => {
+    settleOwner = resolve;
+  });
+  let entered = false;
+  let armed = false;
+  const enter = () => {
+    if (!armed || entered) return;
+    entered = true;
+    reached.release();
+    settleOwner(completion);
+  };
+  const sqlite = openSqliteSource({
+    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+    logger: {
+      logQuery: (query) => {
+        queries.push(query);
+      },
+    },
+  });
+  const source = sqlite.bindLivePlans({ schedulerOf: () => fastScheduler });
+  const restored: (() => void)[] = [];
+  type ReadOutcome = { kind: 'reply' } | { kind: 'error'; failure: unknown };
+  let pending: Promise<ReadOutcome> | undefined;
+  try {
+    if (occupancy) {
+      sqlite.db.run(sql`INSERT INTO access_grant
+        (id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at)
+        VALUES ('snapshot-directory','org-a','organization','org-a','user','ada','org-admin','route',1)`);
+    } else {
+      sqlite.db.run(sql`DROP TRIGGER organization_activation_no_revert`);
+      sqlite.db.run(
+        sql`UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL`,
+      );
+    }
+    sqlite.db.run(
+      sql`INSERT INTO resource (id,name,kind,unit_label) VALUES ('ram','RAM','divisible','GB')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO resource_organization (resource_id,organization_id,name) VALUES ('ram','org-a','RAM')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO resource_directory_capacity (resource_id,units) VALUES ('ram',16)`,
+    );
+    sqlite.db.run(sql`INSERT INTO person (id,name,kind) VALUES ('holder','Holder','agent')`);
+    sqlite.db.run(
+      sql`INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('holder','org-a','Holder')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO work_item (id,work_package_id,position,name) VALUES ('ask','a1',10,'Ask'),('held','a2',10,'Held')`,
+    );
+    const binding = await source.stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'do',
+        code: 'do',
+        name: 'Do',
+        position: 10,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowancePercent: 0,
+      },
+      {
+        bindingId: 'do-parent',
+        scopeKind: 'project',
+        scopeId: 'fixture-parent-org-a',
+        workItemTypeId: null,
+        position: 10,
+      },
+      { by: 'ada', at: 1 },
+    );
+    expect(binding.ok).toBe(true);
+    sqlite.db.run(
+      sql`INSERT INTO work_item_resource_demand (work_item_id,resource_id,units) VALUES ('ask','ram',16)`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO claim (id,work_item_id,person_id,created_at,created_by) VALUES ('hold','held','holder',1,'ada')`,
+    );
+    sqlite.db.run(
+      sql`INSERT INTO claim_occupancy (claim_id,resource_id,units) VALUES ('hold','ram',16)`,
+    );
+
+    const readWithin = (plans: LivePlanStore) =>
+      occupancy
+        ? plans.readResourceOccupancyWithin('ram', 'ada', access)
+        : plans.readStartableWithin('a1', 'ada', { kind: 'legacy' }, null);
+    await source.uow.run(async (scope) => {
+      expect(await readWithin(plansOf(scope))).toMatchObject(
+        occupancy
+          ? { ok: true, value: { workPackages: [{ claims: [{ personName: 'Holder' }] }] } }
+          : {
+              kind: 'ready',
+              value: { doesNotFit: [{ exhausted: { holders: [{ name: 'Holder' }] } }] },
+            },
+      );
+      return { commit: true, value: undefined };
+    });
+
+    if (read === 'occupancy catalog') {
+      const original = Object.getOwnPropertyDescriptor(
+        DirectoryRepository.prototype,
+        'listInOrganization',
+      )?.value as DirectoryRepository['listInOrganization'];
+      const method = spyOn(DirectoryRepository.prototype, 'listInOrganization').mockImplementation(
+        async function <Catalog extends DirectoryCatalog>(
+          this: DirectoryRepository,
+          catalog: Catalog,
+          organizationId: string,
+        ): Promise<DirectoryCatalogRows[Catalog]> {
+          const captured = await original.bind(this)(catalog, organizationId);
+          if (catalog === 'resources') {
+            enter();
+            await resume.promise;
+          }
+          return captured;
+        },
+      );
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else if (read === 'startable holders') {
+      const original = Object.getOwnPropertyDescriptor(
+        ClaimRepository.prototype,
+        'organizationOccupancyOf',
+      )?.value as ClaimRepository['organizationOccupancyOf'];
+      const method = spyOn(ClaimRepository.prototype, 'organizationOccupancyOf').mockImplementation(
+        async function (this: ClaimRepository, ids) {
+          const captured = await original.call(this, ids);
+          enter();
+          await resume.promise;
+          return captured;
+        },
+      );
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else if (read === 'occupancy capacity dispatch') {
+      const original = Object.getOwnPropertyDescriptor(
+        DirectoryRepository.prototype,
+        'directoryCapacitiesOf',
+      )?.value as DirectoryRepository['directoryCapacitiesOf'];
+      const method = spyOn(
+        DirectoryRepository.prototype,
+        'directoryCapacitiesOf',
+      ).mockImplementation(function (this: DirectoryRepository, ids) {
+        enter();
+        return original.call(this, ids);
+      });
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else if (read === 'occupancy stamp dispatch') {
+      const original = Object.getOwnPropertyDescriptor(
+        ClaimRepository.prototype,
+        'listStampedByIds',
+      )?.value as ClaimRepository['listStampedByIds'];
+      const method = spyOn(ClaimRepository.prototype, 'listStampedByIds').mockImplementation(
+        function (this: ClaimRepository, workPackageId, ids) {
+          enter();
+          return original.call(this, workPackageId, ids);
+        },
+      );
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else if (read === 'occupancy name dispatch') {
+      const original = Object.getOwnPropertyDescriptor(
+        DirectoryRepository.prototype,
+        'personNamesInOrganization',
+      )?.value as DirectoryRepository['personNamesInOrganization'];
+      const method = spyOn(
+        DirectoryRepository.prototype,
+        'personNamesInOrganization',
+      ).mockImplementation(function (this: DirectoryRepository, organizationId, ids) {
+        enter();
+        return original.call(this, organizationId, ids);
+      });
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else if (read === 'startable origin dispatch') {
+      const original = Object.getOwnPropertyDescriptor(
+        ClaimRepository.prototype,
+        'mayReadWorkPackageWithin',
+      )?.value as ClaimRepository['mayReadWorkPackageWithin'];
+      const method = spyOn(
+        ClaimRepository.prototype,
+        'mayReadWorkPackageWithin',
+      ).mockImplementation(function (this: ClaimRepository, ...args) {
+        if (args[0].id === 'a2') enter();
+        return original.call(this, ...args);
+      });
+      restored.push(() => {
+        method.mockRestore();
+      });
+    } else {
+      const original = Object.getOwnPropertyDescriptor(DirectoryRepository.prototype, 'namesOf')
+        ?.value as DirectoryRepository['namesOf'];
+      const method = spyOn(DirectoryRepository.prototype, 'namesOf').mockImplementation(function (
+        this: DirectoryRepository,
+        catalog,
+        ids,
+      ) {
+        if (ids.includes('holder')) enter();
+        return original.call(this, catalog, ids);
+      });
+      restored.push(() => {
+        method.mockRestore();
+      });
+    }
+
+    armed = true;
+    // The repository's own first await lets this real owner's decision settle
+    // if the implementation defers SQL. There is no synthetic lifetime token.
+    const first = source.uow.run((scope) => {
+      pending = readWithin(plansOf(scope))
+        .then<ReadOutcome, ReadOutcome>(
+          () => ({ kind: 'reply' }),
+          (failure: unknown) => ({ kind: 'error', failure }),
+        )
+        .then((outcome) => {
+          if (!entered) settleOwner(completion);
+          return outcome;
+        });
+      return decision;
+    });
+    const reading = await Promise.race([
+      reached.promise.then(() => {
+        if (pending === undefined) throw new Error('missing borrowed read');
+        return { pending };
+      }),
+      first.then(() => {
+        throw new Error('unit settled before its selected read seam');
+      }),
+    ]);
+    await first;
+    resume.release();
+    const outcome = await reading.pending;
+    if (outcome.kind !== 'error' || !(outcome.failure instanceof Error))
+      throw new Error('expected lifetime refusal');
+    expect(outcome.failure.message).toContain('read snapshot is closed');
+    const last = queries.lastIndexOf(occupancy ? 'COMMIT' : 'ROLLBACK');
+    expect(last).toBeGreaterThan(0);
+    expect(queries.slice(last + 1)).toEqual([]);
+  } finally {
+    settleOwner(completion);
+    resume.release();
+    await pending;
+    for (const restore of restored) restore();
     await source.close();
   }
 });

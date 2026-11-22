@@ -51,6 +51,9 @@ export const workItemModule = DiBag.createBuilder()
     workItemOptions: DiBag.createProvider(
       ({
         livePlans,
+        resourceOccupancy,
+        capacityPreview,
+        workPackageReportSnapshot,
         workItemStore,
         stepParallelStore,
         workPackageStore,
@@ -85,6 +88,9 @@ export const workItemModule = DiBag.createBuilder()
         clock,
       }: {
         livePlans: LivePlanStore | undefined;
+        resourceOccupancy: WorkItemServiceOptions['resourceOccupancy'];
+        capacityPreview: WorkItemServiceOptions['capacityPreview'];
+        workPackageReportSnapshot: WorkItemServiceOptions['workPackageReportSnapshot'];
         workItemStore: WorkItemStore;
         stepParallelStore: Pick<StepParallelStore, 'listByWorkItems'>;
         accessDecisions: WorkItemServiceOptions['accessDecisions'];
@@ -121,6 +127,9 @@ export const workItemModule = DiBag.createBuilder()
         clock: Clock;
       }): WorkItemServiceOptions => ({
         ...(livePlans === undefined ? {} : { livePlans }),
+        ...(resourceOccupancy === undefined ? {} : { resourceOccupancy }),
+        ...(capacityPreview === undefined ? {} : { capacityPreview }),
+        ...(workPackageReportSnapshot === undefined ? {} : { workPackageReportSnapshot }),
         workItems: workItemStore,
         stepParallels: stepParallelStore,
         workPackages: workPackageStore,

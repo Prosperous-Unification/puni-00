@@ -1,55 +1,5 @@
 ## MODIFIED Requirements
 
-### Requirement: Saved plans retain typed dependency history
-
-A saved plan SHALL capture each typed relationship's stable ID, relationship type, endpoint scopes, owning project IDs, work-item IDs, applicable step node IDs and step IDs, step codes, work-item numbers and project-step identities needed to interpret it. For external endpoints it SHALL capture the project abbreviation, qualified address, names and external readiness and scheduling evidence needed to explain the saved target schedule. These values SHALL be captured coherently with the target inputs and selected schedule. Historical reads SHALL display that captured meaning after live edits to abbreviations, numbering, steps, parentage, accessibility or relationships, or deletion of external work. Historical display and comparison SHALL NOT live-dereference external facts to fill or replace captured evidence. Stable navigation identity MAY target the current authorized endpoint, but navigating SHALL NOT rewrite historical facts. Saved plans remain immutable inspection records; this change SHALL NOT introduce restoration of a saved plan into the live project.
-
-A save with missing, unreadable or malformed required external evidence SHALL fail explicitly without persisting an incomplete saved plan or fabricating endpoint or schedule facts. A historical record that claims external dependencies but lacks required captured evidence SHALL be reported as incompatible or invalid rather than repaired from current live values. Existing records that contain no external dependencies SHALL remain readable under their supported historical format.
-
-#### Scenario: Later step reorder does not reinterpret history
-
-- **GIVEN** a saved plan with a dependency on a named step
-- **WHEN** live project steps are reordered and the saved plan is read
-- **THEN** the saved dependency still points to the captured step identity
-
-#### Scenario: Later relationship edit does not rewrite history
-
-- **GIVEN** a saved FS relationship
-- **WHEN** its live counterpart is changed or removed
-- **THEN** the saved plan still displays its captured FS endpoints
-
-#### Scenario: External renaming and deletion preserve historical meaning
-
-- **GIVEN** a saved dependency displayed as `PUNI-CORE.080.39` with captured external schedule evidence
-- **WHEN** the external project abbreviation and number change or its work item is deleted
-- **THEN** the historical dependency retains its captured address, names, identities and schedule evidence
-- **AND** historical inspection does not fetch current external facts to reinterpret the record
-
-#### Scenario: Historical inspection does not depend on current external reads
-
-- **GIVEN** an authorized saved plan contains complete captured external endpoint and scheduling evidence
-- **WHEN** the live external project cannot be read
-- **THEN** historical inspection uses only the captured evidence
-- **AND** any attempted live navigation remains subject to current authorization without modifying history
-
-#### Scenario: Required evidence is absent at save time
-
-- **GIVEN** the target plan has a cross-project dependency
-- **WHEN** required external endpoint or scheduling evidence cannot be captured coherently
-- **THEN** save fails explicitly and no incomplete saved plan is persisted
-
-#### Scenario: Historical external evidence is malformed
-
-- **GIVEN** a stored historical record claims a cross-project dependency but required captured external evidence is missing or malformed
-- **WHEN** the saved plan is read
-- **THEN** the reader reports an incompatible or invalid record rather than dropping the relationship or fetching live replacements
-
-#### Scenario: An older local-only saved plan stays readable
-
-- **GIVEN** a saved plan in a supported older format with no external dependencies
-- **WHEN** it is inspected after cross-project dependencies are introduced
-- **THEN** its existing local dependency meaning remains readable without invented external evidence
-
 ### Requirement: Saved and current schedules preserve capture mode
 
 In isolated mode without external dependencies, saved-plan capture and comparison against
@@ -104,6 +54,46 @@ The same existing absent-schedule policy SHALL apply to save and `current` compa
 - **THEN** the saved target schedule bytes remain unchanged
 
 ## ADDED Requirements
+
+### Requirement: Saved plans capture external dependency evidence without live repair
+
+For an external endpoint, the saved plan SHALL capture the project abbreviation, qualified address, names, and external readiness and schedule evidence needed to explain the saved target schedule. The external relationships and evidence SHALL be captured in the same observation as the target inputs and selected schedule.
+
+Historical reads and comparisons SHALL display captured values after changes to live abbreviations, numbering, steps, parentage, access or relationships, and after deletion of external work. Historical display and comparison SHALL NOT live-dereference external facts to fill or replace captured evidence. Stable navigation MAY target a currently authorized endpoint and SHALL NOT rewrite historical facts.
+
+A save with missing, unreadable or malformed required external evidence SHALL fail before persistence, without fabricating endpoint or schedule facts. A record claiming external dependencies without required evidence SHALL be reported as incompatible or invalid without live repair. Existing records without external dependencies SHALL remain readable in their supported historical format.
+
+#### Scenario: External renaming and deletion preserve historical meaning
+
+- **GIVEN** a saved dependency displayed as `PUNI-CORE.080.39` with captured external schedule evidence
+- **WHEN** the external project abbreviation and number change or its work item is deleted
+- **THEN** the historical dependency retains its captured address, names, identities and schedule evidence
+- **AND** historical inspection does not fetch current external facts to reinterpret the record
+
+#### Scenario: Historical inspection does not depend on current external reads
+
+- **GIVEN** an authorized saved plan contains complete captured external endpoint and scheduling evidence
+- **WHEN** the live external project cannot be read
+- **THEN** historical inspection uses only the captured evidence
+- **AND** any attempted live navigation remains subject to current authorization without modifying history
+
+#### Scenario: Required evidence is absent at save time
+
+- **GIVEN** the target plan has a cross-project dependency
+- **WHEN** required external endpoint or scheduling evidence cannot be captured coherently
+- **THEN** save fails explicitly and no incomplete saved plan is persisted
+
+#### Scenario: Historical external evidence is malformed
+
+- **GIVEN** a stored historical record claims a cross-project dependency but required captured external evidence is missing or malformed
+- **WHEN** the saved plan is read
+- **THEN** the reader reports an incompatible or invalid record rather than dropping the relationship or fetching live replacements
+
+#### Scenario: An older local-only saved plan stays readable
+
+- **GIVEN** a saved plan in a supported older format with no external dependencies
+- **WHEN** it is inspected after cross-project dependencies are introduced
+- **THEN** its existing local dependency meaning remains readable without invented external evidence
 
 ### Requirement: Comparison responses preserve each side's historical scope
 

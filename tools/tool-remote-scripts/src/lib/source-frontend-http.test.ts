@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, realpathSync, writeFileSync, writeSync } from 'node:fs';
 import { access, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, posix, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, posix, resolve } from 'node:path';
 
 import { expect, spyOn, test } from 'bun:test';
 
@@ -100,55 +100,73 @@ const CAPTURED_INPUTS = {
   },
 };
 
-test('registry S3 current frontend pair materializes and selects without Vite', async () => {
-  const prepared = await artifact();
-  const registration = roots.indexOf(prepared.root);
-  if (registration < 0) throw new Error('canonical fixture root unregistered');
-  try {
-    await prepareRetainedSourceFrontendProfile(prepared.root);
-    await modes(prepared.root);
-    await git(prepared.root, 'add', '.');
-    await git(
-      prepared.root,
-      '-c',
-      'user.name=Fixture',
-      '-c',
-      'user.email=fixture@example.invalid',
-      'commit',
-      '-qm',
-      'registry S3 frontend pair',
-    );
-    await modes(prepared.root);
-    const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
-    const generated = await createSourceStartupManifest(prepared.root, sourceSha, configuration);
-    const manifest = decodeSourceStartupManifest(generated.contents, {
-      ...prepared.pins,
-      sourceSha,
-      manifestSha256: generated.sha256,
-    });
-    for (const [path, expected] of Object.entries(CAPTURED_INPUTS)) {
-      const bytes = await readFile(join(prepared.root, path));
-      const observed = {
-        bytes: bytes.byteLength,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-      };
-      expect(observed).toEqual(expected);
-      const selected = path.replace('node_modules/vite/', 'node_modules/.frontend-profile/vite/');
-      const entry = manifest.entries.find(
-        (candidate) =>
-          (candidate.root === 'dependencies'
-            ? `node_modules/${candidate.path}`
-            : candidate.path) === selected,
+test.each(['renamed', 'serial-lint'] as const)(
+  'retained %s frontend triple materializes and selects without Vite',
+  async (member) => {
+    const prepared = await artifact();
+    const registration = roots.indexOf(prepared.root);
+    if (registration < 0) throw new Error('canonical fixture root unregistered');
+    try {
+      await prepareRetainedSourceFrontendProfile(prepared.root, member);
+      await modes(prepared.root);
+      await git(prepared.root, 'add', '.');
+      await git(
+        prepared.root,
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=fixture@example.invalid',
+        'commit',
+        '-qm',
+        'registry S3 frontend pair',
       );
-      if (entry?.kind !== 'file') throw new Error('canonical frontend input absent');
-      expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(observed);
+      await modes(prepared.root);
+      const sourceSha = await git(prepared.root, 'rev-parse', 'HEAD');
+      const generated = await createSourceStartupManifest(prepared.root, sourceSha, configuration);
+      const manifest = decodeSourceStartupManifest(generated.contents, {
+        ...prepared.pins,
+        sourceSha,
+        manifestSha256: generated.sha256,
+      });
+      const pins =
+        member === 'renamed'
+          ? CAPTURED_INPUTS
+          : {
+              ...CAPTURED_INPUTS,
+              'apps/wbs/fe-01/vite.config.ts': {
+                bytes: 19302,
+                sha256: '0cd1af512952d71c83929cbff1e6ead7e8c2a80edd69ce66bfeb619df189de1b',
+              },
+              'apps/wbs/fe-01/project.json': {
+                bytes: 8218,
+                sha256: '5caf0f4894d2c16e8adb287e7fadb4adc6098d315d2abea5135a626baba8f11c',
+              },
+            };
+      for (const [path, expected] of Object.entries(pins)) {
+        const bytes = await readFile(join(prepared.root, path));
+        const observed = {
+          bytes: bytes.byteLength,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+        };
+        expect(observed).toEqual(expected);
+        const selected = path.replace('node_modules/vite/', 'node_modules/.frontend-profile/vite/');
+        const entry = manifest.entries.find(
+          (candidate) =>
+            (candidate.root === 'dependencies'
+              ? `node_modules/${candidate.path}`
+              : candidate.path) === selected,
+        );
+        if (entry?.kind !== 'file') throw new Error('canonical frontend input absent');
+        expect({ bytes: entry.size, sha256: entry.sha256 }).toEqual(observed);
+      }
+      expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
+    } finally {
+      await rm(prepared.root, { recursive: true, force: true });
+      roots.splice(registration, 1);
     }
-    expect(selectSourceFrontendProfile(manifest)).toBe('wbs-source-frontend-wire-v1');
-  } finally {
-    await rm(prepared.root, { recursive: true, force: true });
-    roots.splice(registration, 1);
-  }
-}, 30000);
+  },
+  30000,
+);
 
 const FRONTEND_CONFIGURATION_PATHS = [
   'apps/wbs/fe-01/vite.config.ts',
@@ -1389,18 +1407,36 @@ test.each([
   ['before-ctt', 'bun.lock'],
   ['fourth', 'package.json'],
   ['fourth', 'bun.lock'],
+  ['before-ctt', 'both'],
+  ['fourth', 'both'],
+  ['current', 'project'],
 ] as const)(
   'producer fixed-root boundary refuses mixed %s %s before consumer or runtime',
-  async (epoch, path) => {
+  async (epoch, fault) => {
     const root = await mkdtemp(join(tmpdir(), 'frontend-producer-boundary-'));
     try {
-      await prepareRetainedSourceFrontendProfile(root);
-      const bytes = await readFile(join(root, path));
-      const historical =
-        epoch === 'fourth'
-          ? reconstructFourthInput(path, bytes)
-          : reconstructHistoricalInput(path, bytes);
-      await writeFile(join(root, path), historical);
+      await prepareRetainedSourceFrontendProfile(
+        root,
+        fault === 'both' ? 'serial-lint' : 'renamed',
+      );
+      if (fault === 'project') {
+        const path = join(root, 'apps/wbs/fe-01/project.json');
+        const original = await readFile(path, 'utf8');
+        const changed = original.replace('"name": "wbs-fe-01"', '"name": "wbs-fe-02"');
+        expect(changed).not.toBe(original);
+        expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(original));
+        await writeFile(path, changed);
+      } else {
+        const paths = fault === 'both' ? (['package.json', 'bun.lock'] as const) : [fault];
+        for (const path of paths) {
+          const bytes = await readFile(join(root, path));
+          const historical =
+            epoch === 'fourth'
+              ? reconstructFourthInput(path, bytes)
+              : reconstructHistoricalInput(path, bytes);
+          await writeFile(join(root, path), historical);
+        }
+      }
       const copied = join(
         root,
         'tools/tool-remote-scripts/src/fixtures/source-frontend-producer.ts',
@@ -1430,7 +1466,7 @@ test.each([
           destination,
           copied,
           sha256: createHash('sha256').update(source).digest('hex'),
-          fault: path,
+          fault,
         }),
       );
       // The owned module bytes equal the known producer above; only its fixed ROOT differs.
@@ -1701,16 +1737,22 @@ async function prepareOwnedProducer(
   return { root, producer, current, historical, sourceSha, roster };
 }
 
+function isProducerScratch(directory: string): boolean {
+  return (
+    dirname(directory) === tmpdir() &&
+    /^puni-source-frontend-wire-[A-Za-z0-9]+$/.test(basename(directory)) &&
+    realpathSync(directory) === directory
+  );
+}
+
 function readProducerRefusal(fault: unknown): { directory: string; cause: Error } {
   if (!(fault instanceof Error) || !(fault.cause instanceof Error))
     throw new Error('producer refusal attribution absent', { cause: fault });
-  const match =
-    /^frontend producer scratch retained: (\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+)$/.exec(
-      fault.message,
-    );
-  const directory = match?.at(1);
-  if (directory === undefined)
+  const prefix = 'frontend producer scratch retained: ';
+  const directory = fault.message.slice(prefix.length);
+  if (!fault.message.startsWith(prefix) || !isProducerScratch(directory)) {
     throw new Error('producer refusal directory absent', { cause: fault });
+  }
   return { directory, cause: fault.cause };
 }
 
@@ -1825,7 +1867,7 @@ async function assertProducerClosingEpochRefusal(
     const isProbe =
       typeof probe === 'string' &&
       typeof directory === 'string' &&
-      /^\/tmp\/puni-source-frontend-wire-[A-Za-z0-9]+$/.test(directory) &&
+      isProducerScratch(directory) &&
       probe === join(directory, 'probe.mjs') &&
       options?.cwd === join(directory, 'snapshot/apps/wbs/fe-01');
     if (isProbe) {

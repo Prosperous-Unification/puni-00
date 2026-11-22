@@ -6,6 +6,28 @@ TBD - created by archiving change add-step-finish-start-dependencies. Update Pur
 
 ## Requirements
 
+### Requirement: Saved plans capture readiness and hold
+
+New saved-plan inputs SHALL capture each work item’s `readiness` and `hold`, using input schema 9
+for ordinary captures and schema 10 for dependency-aware captures. The historical schema-3-to-4
+upgrade populated both fields with `null` and produced the same schedule as its schema-3 input.
+The later schema-8-to-9 upgrade adds the measure defaults and preserves the original stored bytes.
+A saved plan’s schedule SHALL exclude held work exactly as the working plan does. Comparing
+two saved plans SHALL report readiness and hold changes per work item.
+
+#### Scenario: an old saved plan reads with nothing held
+
+- **GIVEN** a saved plan stored at input schema version 3
+- **WHEN** the historical schema-3-to-4 upgrade reads it
+- **THEN** the schema-4 input has every readiness and hold `null`, and its schedule equals
+  the one computed from the schema-3 body
+
+#### Scenario: a comparison names a hold
+
+- **GIVEN** two saved plans differing only in one leaf's hold
+- **WHEN** they are compared
+- **THEN** the difference names that leaf and its hold before and after
+
 ### Requirement: Saved plans retain typed dependency history
 
 A saved plan SHALL capture each typed relationship's stable ID, endpoint scopes, step IDs, step codes, work-item numbers and FS type with the tree and work-package step identities needed to interpret it. Historical reads SHALL display that captured meaning after live edits to steps, parentage or relationships. Saved plans remain immutable inspection records; this change SHALL NOT introduce restoration of a saved plan into the live work package.

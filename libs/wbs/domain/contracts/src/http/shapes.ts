@@ -128,7 +128,11 @@ import {
   readResourceAuthority,
   readResourceCleanupRequests,
 } from './resource-runtime-shapes';
-import { previewDirectoryCapacity, readWorkPackageResources } from './resource-shapes';
+import {
+  previewDirectoryCapacity,
+  readResourceOccupancy,
+  readWorkPackageResources,
+} from './resource-shapes';
 import {
   appendResourceUseEvent,
   listResourceUses,
@@ -284,6 +288,7 @@ const ordinaryHttpShapes = [
   setSessionPolicy,
   readOrganizationLimits,
   previewDirectoryCapacity,
+  readResourceOccupancy,
   listSsoConnections,
   createSsoConnection,
   updateSsoConnection,

@@ -642,6 +642,17 @@ export function inMemoryDirectory(
         }),
       );
     },
+    personNamesInOrganization(organizationId, ids) {
+      return Promise.resolve(
+        [...new Set(ids)].flatMap((id) => {
+          const found = people.get(id);
+          // Proof: dropping ownership returned the foreign name in the scoped memory same-id read.
+          return found === undefined || organizationOf.get(id) !== organizationId
+            ? []
+            : [{ id, name: found.name }];
+        }),
+      );
+    },
     assignmentsFor(workItemId) {
       return Promise.resolve(
         [...assignments.values()].filter((each) => each.workItemId === workItemId),

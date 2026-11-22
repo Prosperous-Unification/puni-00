@@ -76,8 +76,8 @@ export interface ScheduleInput {
    */
   readonly elsewhere?: Elsewhere;
   /**
-   * The work package's stated resource capacities by resource id (`wbs-resources`
-   * R5) — `schedule()`'s eleventh argument. The demands themselves ride the
+   * The effective work package resource pools by resource id — `schedule()`'s
+   * eleventh argument. The demands themselves ride the
    * slices ({@link Slice.demands}).
    *
    * **Optional, and absent means empty**, `elsewhere`'s rule: the entry is left
@@ -313,6 +313,8 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
   // Proof: this entry left out made `hashes a resource capacity`
   // (canonical-schedule-input.test.ts) keep one key across a capacity edit
   // that moved the schedule (40 pass / 1 fail); watched 2026-10-20.
+  // Proof: hashing raw project units here kept liveHash equal to slackHash
+  // after the mounted isolated roll-up moved to the clamped schedule.
   const resourceCapacities = sortedPairs(input.resourceCapacities ?? new Map<string, number>());
 
   return JSON.stringify({

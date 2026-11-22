@@ -2,6 +2,12 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "file": "src/owner-lint-plan.test.ts"
+    },
+    {
+      "file": "src/owner-lint-runner.test.ts"
+    },
+    {
       "file": "playwright-config.test.ts"
     },
     {

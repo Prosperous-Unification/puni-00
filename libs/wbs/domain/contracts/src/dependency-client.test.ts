@@ -78,6 +78,8 @@ test('pins the complete protected and exempt operation matrix', () => {
       // failed the real protected/exempt matrix consumer (2026-10-26);
       // restoring the classifier passed both tests. Classification proof only.
       'getApiOrganizationResourceAuthoritiesByAuthorityId',
+      // Proof: exempting this operation in the production classifier failed the pinned matrix.
+      'getApiOrganizationResourcesByResourceIdOccupancy',
       'getApiOrganizationSession-policy',
       'getApiOrganizationSso-connections',
       'getApiOrganizationTrusted-issuers',

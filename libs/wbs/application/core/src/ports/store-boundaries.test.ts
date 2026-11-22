@@ -94,6 +94,7 @@ describe('store ports', () => {
       capacity: new Map(),
       demands: [],
       resourceCapacities: [],
+      directoryCapacities: [],
       resources: [],
       priorityBands: [],
       people: [],

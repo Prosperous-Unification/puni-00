@@ -1,0 +1,4 @@
+- [x] 1. Extend the existing parsed CI workflow tuple test. Observe it reject the integrated production workflow's legacy Fleet tuple.
+- [x] 2. Apply the two Fleet-only selectors. Observe green, then independently restore the old image, restore the old Python pin and widen the project predicate in the actual workflow. Observe the tuple test reject each change and restore the exact workflow.
+- [x] 3. Run the affected workflow, scope, aggregate, merge-base and native provisioning tests, plus scoped lint, typecheck, formatting and OpenSpec validation. Record the outcomes and failure proofs in [verify.md](verify.md).
+- [ ] 4. Qualify the published source with the complete hosted Fleet leaf, required hosted checks and a fresh full canonical gate. Retain the exact source and run identities in the release record.

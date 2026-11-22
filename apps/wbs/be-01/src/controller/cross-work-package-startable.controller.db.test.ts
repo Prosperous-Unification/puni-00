@@ -981,7 +981,16 @@ test('remote FS completion exposes organization capacity before a shared claim c
   expect(exhausted.status).toBe(200);
   expect(exhausted.body).toMatchObject({
     occupancyScope: 'work_package',
-    resources: [{ resourceId: 'machine', capacity: 2, occupied: 0, free: 2 }],
+    resources: [
+      {
+        resourceId: 'machine',
+        capacity: 2,
+        occupied: 0,
+        free: 0,
+        occupancyScope: 'organization',
+        directory: { capacity: 7, occupied: 7, free: 0 },
+      },
+    ],
     leaves: [],
     doesNotFit: [
       {
@@ -993,6 +1002,16 @@ test('remote FS completion exposes organization capacity before a shared claim c
           free: 0,
           shortfall: 2,
           scope: 'organization',
+          holders: [
+            {
+              workPackageId: peer.workPackage.id,
+              workItemId: 'resource-peer',
+              personId: 'executor',
+              name: 'Executor',
+              runId: 'remote-run',
+            },
+          ],
+          hiddenHolders: { units: 0 },
         },
       },
     ],
@@ -1008,14 +1027,32 @@ test('remote FS completion exposes organization capacity before a shared claim c
   harness.sqlite.run("DELETE FROM claim WHERE id='remote-claim'");
   expect((await startable()).body).toMatchObject({
     occupancyScope: 'work_package',
-    resources: [{ resourceId: 'machine', capacity: 2, occupied: 0, free: 2 }],
+    resources: [
+      {
+        resourceId: 'machine',
+        capacity: 2,
+        occupied: 0,
+        free: 2,
+        occupancyScope: 'organization',
+        directory: { capacity: 7, occupied: 0, free: 7 },
+      },
+    ],
     leaves: [{ workItemId: 'target-leaf', stepIds: [targetStep], fits: true }],
     doesNotFit: [],
   });
   await assertAcceptedClaim();
   expect((await startable()).body).toMatchObject({
     occupancyScope: 'work_package',
-    resources: [{ resourceId: 'machine', capacity: 2, occupied: 2, free: 0 }],
+    resources: [
+      {
+        resourceId: 'machine',
+        capacity: 2,
+        occupied: 2,
+        free: 0,
+        occupancyScope: 'organization',
+        directory: { capacity: 7, occupied: 2, free: 5 },
+      },
+    ],
     claimed: [{ workItemId: 'target-leaf', stepId: targetStep }],
   });
   expect(harness.sqlite.query('SELECT resource_id,units FROM claim_occupancy').all()).toEqual([

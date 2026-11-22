@@ -157,6 +157,23 @@ describe('fe-01’s test tiers', () => {
 
 /** The lint inputs are explicit paths, so each new root source needs an entry. */
 describe('fe-01 lint inputs', () => {
+  it('preserves the complete literal lint scope and fast cache command', () => {
+    const project = JSON.parse(readFileSync(join(APP, 'project.json'), 'utf8')) as {
+      targets: Record<string, { options: { command: string } }>;
+    };
+    const full = project.targets['lint'].options.command.split(/\s+/);
+    const fast = project.targets['lint:fast'].options.command.split(/\s+/);
+    expect(fast.slice(0, 2)).toEqual(['bunx', 'eslint']);
+    expect(fast.slice(-3)).toEqual(['--cache', '--cache-location', '.nx/eslintcache-wbs-fe-01']);
+    const operands = fast.slice(2, -3);
+    expect(operands.slice(0, 3)).toEqual([
+      'apps/wbs/fe-01/src',
+      'apps/wbs/fe-01/e2e',
+      'apps/wbs/fe-01/e2e-packaged',
+    ]);
+    expect(full).toEqual(['node', 'apps/wbs/fe-01/tools/owner-lint.mjs', ...operands, '--']);
+  });
+
   it.each(['lint', 'lint:fast'])('includes every root TypeScript source in %s', (target) => {
     // Proof: leaving vitest.zoned.config.ts out of both production commands
     // failed these cases on expected ['apps/wbs/fe-01/vitest.zoned.config.ts']

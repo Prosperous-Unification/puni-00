@@ -1,227 +1,458 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PlanCommand, Scope } from '@wbs/core';
-import { clockOf, LEGACY_EDIT_ADMISSION } from '@wbs/core';
-import { servicesOver } from '@wbs/core/compose';
-import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
-import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
-import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
-import { expectCreated } from '@wbs/core/testing/expect-created';
-import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
-import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import type { ClaimStore } from '@wbs/core';
 import { sql } from 'drizzle-orm';
 
-import { runMigrations } from '../migrate';
-import { openSqliteSource } from '../source';
-import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './dependency-capability';
-import { seedOrganizationPackage, seedPackageParent } from './legacy-package-parent';
+import { openDatabase } from '../db';
+import {
+  claimRows,
+  commandOf,
+  copyFixture,
+  journalCount,
+  OCCUPIED,
+  type Opened,
+  openFixture,
+  prepare,
+  readClaim,
+  readFixture,
+  readJournalHead,
+  releaseClaim,
+  RESOURCE,
+  same,
+  setCapacity,
+  snapshot,
+  STATED,
+} from './measure-shared-occupancy-fixture';
+import {
+  type Arm,
+  armsOf,
+  type ClaimTarget,
+  type MeasurementRow,
+  PAIRS,
+  readMeasurement,
+} from './shared-occupancy-measurement';
 
-/**
- * `wbs-shared-occupancy` task 3.5: a claim batch's p99 latency with a
- * directory capacity stated against the same batch without one, on a fixture
- * of 50 work packages of one organization holding 20 standing claims each of the
- * resource, every claim by an agent of its own, 200 runs each under scoped access, alternated so drift lands on both sides. Prints one
- * JSON line; the bounds (at most 5 ms and 25 % added at p99) are judged in
- * verify.md, not here: a measurement on a shared laptop is not a gate.
- *
- * Run: `bun libs/wbs/adapters/store-sqlite/src/testing/measure-shared-occupancy.ts`.
- */
-const MIGRATIONS = new URL('../../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const F = 'account-f';
-const ORG = 'org-measure';
-const RAM = 'resource-host-ram';
-const WORK_PACKAGES = 50;
-const STANDING = 20;
-const RUNS = 200;
+const WARMUPS = 8;
 
-async function measure(): Promise<void> {
-  const folder = mkdtempSync(join(tmpdir(), 'measure-shared-occupancy-'));
-  const dbPath = join(folder, 'plan.db');
-  runMigrations(dbPath, MIGRATIONS);
-  // Caps far above the fixture: the bound-claim cap is counted, never reached.
-  const source = openSqliteSource({
-    dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath,
-    organizationDefaultLimits: {
-      maxAgentPersons: 100_000,
-      maxConcurrentClaims: 100_000,
-      maxCapacityUnitsPerResource: 1_000_000,
-    },
-  });
-  try {
-    let minted = 0;
-    const clock = clockOf({
-      now: () => 1_000,
-      newId: () => {
-        minted += 1;
-        return `id-${String(minted).padStart(8, '0')}`;
+function record(kind: string, fields: object): void {
+  console.log(JSON.stringify({ kind, ...fields }));
+}
+
+function fixturePaths(folder: string) {
+  return { db: join(folder, 'seed.db'), manifest: join(folder, 'fixture.json') };
+}
+
+function pragmas(opened: Opened) {
+  const db = opened.source.db;
+  return {
+    version: db.all(
+      'SELECT sqlite_version() AS sqlite_version, sqlite_source_id() AS sqlite_source_id',
+    ),
+    ...Object.fromEntries(
+      [
+        'page_size',
+        'journal_mode',
+        'synchronous',
+        'busy_timeout',
+        'wal_autocheckpoint',
+        'foreign_keys',
+      ].map((name) => [name, db.all(`PRAGMA ${name}`)]),
+    ),
+  };
+}
+
+function files(db: string) {
+  const physical = statSync(db);
+  return {
+    bytes: physical.size,
+    device: physical.dev,
+    inode: physical.ino,
+    walBytes: statSync(`${db}-wal`, { throwIfNoEntry: false })?.size ?? 0,
+    shmBytes: statSync(`${db}-shm`, { throwIfNoEntry: false })?.size ?? 0,
+  };
+}
+
+function observeAggregate(suppressed: boolean) {
+  const queries: { query: string; binds: unknown[]; inWrite: boolean }[] = [];
+  const calls: { ids: readonly string[]; inWrite: boolean }[] = [];
+  let inWrite = false;
+
+  return {
+    queries,
+    calls,
+    logger: {
+      logQuery(query: string, binds: unknown[]) {
+        if (query === 'BEGIN IMMEDIATE') inWrite = true;
+        if (query === 'COMMIT' || query === 'ROLLBACK') inWrite = false;
+        if (query.includes('SUM(CASE WHEN leaf.owned')) queries.push({ query, binds, inWrite });
       },
-    });
-    const options = {
-      admission: LEGACY_EDIT_ADMISSION,
-      clock,
-      broadcast: recordingBroadcaster(),
-      scheduler: fastScheduler,
-      dependencyContext: createLocalDependencyContext(source.stores),
-    };
-    const graph = servicesOver(source.stores, options);
-    const runner = createPlanCommandRunner({
-      commandAccess: localCommandAccess,
-      uow: source.uow,
-      announcements: options.broadcast,
-      publicServices: graph,
-      batchServices: (scope: Scope, announcements) =>
-        servicesOver(scope.stores, {
-          ...options,
-          broadcast: announcements,
-          dependencyContext: createLocalDependencyContext(scope.stores),
-        }),
-    });
-    await source.stores.users.create(
-      { id: F, username: F, passwordHash: 'x', createdAt: 1 },
-      { at: 1, by: F },
-    );
-    // One agent per claim, each a person of the organization: the scoped
-    // claim path reads the organization's people, so their number counts.
-    const agentOf = async (id: string): Promise<string> => {
-      await source.stores.directory.addPerson({ id, name: id, kind: 'agent' }, [], {
-        at: 1,
-        by: F,
+    },
+    claims(claims: ClaimStore): ClaimStore {
+      // The real staged repository retains its own receiver and connection.
+      return new Proxy(claims, {
+        get(repo, name) {
+          if (name === 'organizationUnitsOf')
+            return async (ids: readonly string[]) => {
+              calls.push({ ids, inWrite });
+              return suppressed ? [] : await repo.organizationUnitsOf(ids);
+            };
+          const member: unknown = Reflect.get(repo, name);
+          if (typeof member !== 'function') return member;
+          return (...args: unknown[]): unknown => Reflect.apply(member, repo, args);
+        },
       });
-      const bound = await source.stores.directory.patchPerson(
-        id,
-        { accountId: F },
-        { at: 1, by: F },
-      );
-      if (!bound.ok) throw new Error(`the agent ${id} was refused`);
-      source.db.run(
-        sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${id}, ${ORG}, ${id})`,
-      );
-      return id;
-    };
-    const added = await source.stores.directory.addResource(
-      { id: RAM, name: 'host ram', kind: 'divisible', unitLabel: 'GB' },
-      { at: 1, by: F },
-    );
-    if (!added.ok) throw new Error('the resource was refused');
-    source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES (${ORG}, ${ORG}, 1)`);
-    seedPackageParent(dbPath, ORG, 'fixture-project');
-    source.db.run(
-      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${ORG}, ${F}, 'admin', 1)`,
-    );
-    source.db.run(
-      sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${RAM}, ${ORG}, 'host ram')`,
-    );
-    const leavesOf = async (workPackageId: string, count: number): Promise<string[]> => {
-      const created = await runner.run(
-        workPackageId,
-        F,
-        Array.from({ length: count }, (_, index): PlanCommand => ({
-          kind: 'createWorkItem',
-          ref: `L${String(index)}`,
-          name: `Leaf ${String(index)}`,
-          parentId: null,
-          afterId: null,
-        })).flatMap((create, index): PlanCommand[] => [
-          create,
-          { kind: 'setDemand', workItemRef: `L${String(index)}`, resourceId: RAM, units: 1 },
-        ]),
-      );
-      if (!created.ok) throw new Error(`the leaves were refused: ${JSON.stringify(created)}`);
-      // A create mints an id (`MintedBase`); a demand mints none.
-      return created.results.flatMap((applied) =>
-        applied.kind === 'createWorkItem' ? [applied.id] : [],
-      );
-    };
-    const workPackages: string[] = [];
-    for (let index = 0; index < WORK_PACKAGES; index += 1) {
-      const { workPackage } = expectCreated(
-        await seedOrganizationPackage(
-          source.stores.workPackages,
-          options.clock,
-          ORG,
-          'fixture-project',
-          F,
-          `P${String(index)}`,
-        ),
-      );
-      workPackages.push(workPackage.id);
+    },
+  };
+}
 
-      for (const [leafIndex, workItemId] of (await leavesOf(workPackage.id, STANDING)).entries()) {
-        const personId = await agentOf(`standing-${String(index)}-${String(leafIndex)}`);
-        const claimed = await runner.run(workPackage.id, F, [
-          { kind: 'claimWorkItem', workItemId, personId },
-        ]);
-        if (!claimed.ok)
-          throw new Error(`a standing claim was refused: ${JSON.stringify(claimed)}`);
-      }
-    }
-    const target = workPackages.at(0);
-    if (target === undefined) throw new Error('no work package to measure in');
-    // A batch takes at most 200 commands: two per leaf, so 50 leaves a batch.
-    const fresh: string[] = [];
-    while (fresh.length < RUNS * 2) fresh.push(...(await leavesOf(target, 50)));
-    const state = async (units: number | null) => {
-      const written = await source.stores.directory.setDirectoryCapacity(RAM, units, {
-        stamp: { at: 1, by: F },
-        actor: F,
-        auditId: clock.newId(),
+/** Reads the ordinary claim's post-commit tree publication from the fixture broadcaster. */
+function claimPublications(opened: Opened, from: number, target: ClaimTarget) {
+  const publications = opened.broadcast.published.slice(from);
+  // Proof: the first warmup rejected a real commit when it expected the lease-only claims_changed.
+  if (
+    !publications.some(
+      ({ workPackageId, event }) =>
+        workPackageId === target.workPackageId &&
+        event.type === 'tree_replaced' &&
+        event.workItems.some(({ id }) => id === target.workItemId),
+    )
+  )
+    throw new Error(
+      `Claim on ${target.workItemId} did not publish its updated tree before replying`,
+    );
+  return publications.map(({ workPackageId, event }) => ({ workPackageId, type: event.type }));
+}
+
+async function controls(folder: string, scratch: string, fault: boolean): Promise<void> {
+  const { db, manifest } = fixturePaths(folder);
+  const fixture = readFixture(db, manifest);
+  const sibling = join(scratch, 'control.db');
+  const copy = copyFixture(db, sibling, fixture.sha256);
+  const observed = observeAggregate(fault);
+  const opened = openFixture(sibling, fixture.minted, observed);
+  try {
+    const target = fixture.spares.at(0);
+    if (target === undefined) throw new Error('Missing disposable claim target');
+    const baseline = snapshot(opened.read, fixture);
+    const command = commandOf(target);
+    const claim = () => opened.run(target.workPackageId, [command]);
+    const journal = journalCount(opened.read, target.workPackageId);
+    await setCapacity(opened, OCCUPIED);
+    const refusal = await claim();
+    // Proof: the staged aggregate omission made this real scoped claim commit both steps.
+    if (
+      refusal.ok ||
+      !('reason' in refusal) ||
+      refusal.reason !== 'resources_exhausted' ||
+      refusal.detail.resourceId !== RESOURCE ||
+      refusal.detail.free !== 0 ||
+      refusal.detail.asked !== 1 ||
+      !refusal.detail.resources.some(
+        (resource) => 'scope' in resource && resource.scope === 'organization',
+      ) ||
+      claimRows(opened.read, target.workItemId).length !== 0 ||
+      journalCount(opened.read, target.workPackageId) !== journal
+    ) {
+      record('aggregate-refusal-failure', {
+        answer: refusal,
+        calls: observed.calls,
+        queries: observed.queries,
       });
-      if (!written.ok) throw new Error(`the directory capacity was refused: ${written.reason}`);
-    };
-    const agents: string[] = [];
-    for (const [index] of fresh.entries()) agents.push(await agentOf(`measured-${String(index)}`));
-    // Measured under scoped access, as an activated deployment claims.
-    source.db.run(
-      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
-    );
-    const admin = {
-      principal: { id: F },
-      kind: 'scoped',
-      scope: { cap: null, organizationId: ORG, userId: F, role: 'admin' },
-    } as const;
-    const timings: { stated: number[]; unstated: number[] } = { stated: [], unstated: [] };
-    for (const [index, workItemId] of fresh.entries()) {
-      const stated = index % 2 === 0;
-      await state(stated ? 1_000_000 : null);
-      const personId = agents.at(index);
-      if (personId === undefined) throw new Error('no agent for a measured claim');
-      const started = performance.now();
-      const claimed = await runner.runWithin(
-        target,
-        { id: F, username: F, scopes: ['write'] },
-        [{ kind: 'claimWorkItem', workItemId, personId }],
-        admin,
+      throw new Error(
+        'Expected organization aggregate refusal without durable claim or journal write',
       );
-      const elapsed = performance.now() - started;
-      if (!claimed.ok) throw new Error(`a measured claim was refused: ${JSON.stringify(claimed)}`);
-      (stated ? timings.stated : timings.unstated).push(elapsed);
     }
-    const p = (values: number[], quantile: number) => {
-      const sorted = [...values].sort((left, right) => left - right);
-      const value = sorted.at(Math.min(sorted.length - 1, Math.ceil(quantile * sorted.length) - 1));
-      if (value === undefined) throw new Error('no timings to summarise');
-      return Math.round(value * 1000) / 1000;
-    };
-    const stated99 = p(timings.stated, 0.99);
-    const unstated99 = p(timings.unstated, 0.99);
-    console.log(
-      JSON.stringify({
-        workPackages: WORK_PACKAGES,
-        standingClaimsPerWorkPackage: STANDING,
-        runsEach: RUNS,
-        statedMs: { p50: p(timings.stated, 0.5), p99: stated99 },
-        unstatedMs: { p50: p(timings.unstated, 0.5), p99: unstated99 },
-        addedP99Ms: Math.round((stated99 - unstated99) * 1000) / 1000,
-        addedP99Percent: Math.round(((stated99 - unstated99) / unstated99) * 10_000) / 100,
-      }),
-    );
+    record('aggregate-refusal', { answer: refusal, baselineJournal: journal, copy });
+
+    await setCapacity(opened, STATED);
+    const beforeStated = observed.calls.length;
+    const beforeStatedQueries = observed.queries.length;
+    const statedStart = opened.broadcast.published.length;
+    const stated = readClaim(opened.read, target, await claim());
+    const statedPublications = claimPublications(opened, statedStart, target);
+    if (
+      !same(observed.calls.slice(beforeStated), [{ ids: [RESOURCE], inWrite: true }]) ||
+      observed.queries.length !== beforeStatedQueries + 1 ||
+      !same(observed.queries.at(-1)?.binds, [RESOURCE]) ||
+      observed.queries.at(-1)?.inWrite !== true
+    )
+      throw new Error('Stated sample did not read the aggregate on the staged write connection');
+    await releaseClaim(opened, target);
+
+    await setCapacity(opened, null);
+    const beforeUnstated = observed.calls.length;
+    const unstatedStart = opened.broadcast.published.length;
+    const unstated = readClaim(opened.read, target, await claim());
+    const unstatedPublications = claimPublications(opened, unstatedStart, target);
+    if (observed.calls.length !== beforeUnstated)
+      throw new Error('Unstated sample read the organization aggregate');
+    await releaseClaim(opened, target);
+
+    const membership = opened.source.db
+      .all<{ organizationId: string; userId: string }>(
+        sql`
+      SELECT organization_id AS organizationId, user_id AS userId FROM organization_membership
+    `,
+      )
+      .at(0);
+    if (membership === undefined) throw new Error('Missing control membership');
+    const beforeMembership = journalCount(opened.read, target.workPackageId);
+    opened.source.db.run(sql`
+      DELETE FROM organization_membership WHERE organization_id = ${membership.organizationId}
+      AND user_id = ${membership.userId}
+    `);
+    const removed = await claim();
+    if (
+      !same(removed, { ok: false, refusal: 'not_a_member' }) ||
+      claimRows(opened.read, target.workItemId).length !== 0 ||
+      journalCount(opened.read, target.workPackageId) !== beforeMembership
+    )
+      throw new Error(
+        `Current membership removal did not refuse atomically: ${JSON.stringify(removed)}`,
+      );
+    opened.source.db.run(sql`
+      INSERT INTO organization_membership (organization_id, user_id, role, created_at)
+      VALUES (${membership.organizationId}, ${membership.userId}, 'admin', 1000)
+    `);
+    if (!same(snapshot(opened.read, fixture), baseline))
+      throw new Error('Disposable controls changed the standing cohort');
+    record('controls', {
+      stated,
+      unstated,
+      statedPublications,
+      unstatedPublications,
+      removed,
+      calls: observed.calls,
+      queries: observed.queries,
+      database: files(sibling),
+      sqlite: pragmas(opened),
+    });
   } finally {
-    await source.close();
-    rmSync(folder, { recursive: true, force: true });
+    await opened.close();
   }
 }
 
-await measure();
+async function sample(
+  opened: Opened,
+  target: ClaimTarget,
+  phase: MeasurementRow['phase'],
+  pair: number,
+  order: number,
+  arm: Arm,
+): Promise<MeasurementRow> {
+  const commands = [commandOf(target)];
+  const before = readJournalHead(opened.read, target.workPackageId);
+  if (claimRows(opened.read, target.workItemId).length !== 0)
+    throw new Error(`Target ${target.workItemId} is already occupied before pair ${String(pair)}`);
+  const announced = opened.broadcast.published.length;
+  const started = performance.now();
+  const reply = await opened.run(target.workPackageId, commands);
+  const ended = performance.now();
+  const durationMs = ended - started;
+  try {
+    const claim = readClaim(opened.read, target, reply);
+    const journal = readJournalHead(opened.read, target.workPackageId);
+    if (
+      !Number.isFinite(durationMs) ||
+      durationMs <= 0 ||
+      journal.seq !== before.seq + 1 ||
+      journal.id === before.id
+    )
+      throw new Error(
+        `Expected positive duration and one durable journal write for pair ${String(pair)} arm ${arm}`,
+      );
+    const publications = claimPublications(opened, announced, target);
+    await releaseClaim(opened, target);
+    const afterRelease = readJournalHead(opened.read, target.workPackageId);
+    if (afterRelease.seq !== journal.seq + 1 || afterRelease.id === journal.id)
+      throw new Error(
+        `Expected a durable release journal write for pair ${String(pair)} arm ${arm}`,
+      );
+    const row: MeasurementRow = { phase, pair, order, arm, target, durationMs, claim };
+    record('sample', {
+      ...row,
+      startedMs: started,
+      endedMs: ended,
+      commands,
+      journal,
+      afterRelease,
+      publications,
+    });
+    return row;
+  } catch (error) {
+    record('failed-sample', {
+      phase,
+      pair,
+      order,
+      arm,
+      target,
+      startedMs: started,
+      endedMs: ended,
+      durationMs,
+      reply,
+    });
+    throw error;
+  }
+}
+
+async function measure(folder: string, scratch: string) {
+  const { db, manifest } = fixturePaths(folder);
+  const fixture = readFixture(db, manifest);
+  const databases = { D: join(scratch, 'D.db'), U: join(scratch, 'U.db') };
+  const d = copyFixture(db, databases.D, fixture.sha256);
+  const u = copyFixture(db, databases.U, fixture.sha256);
+  if (d.inode === u.inode) throw new Error('The timed arms share a database file');
+
+  const D = openFixture(databases.D, fixture.minted);
+  try {
+    const U = openFixture(databases.U, fixture.minted);
+    try {
+      const arms = { D, U };
+      const cohort = snapshot(D.read, fixture);
+      if (!same(snapshot(U.read, fixture), cohort) || !same(pragmas(D), pragmas(U)))
+        throw new Error('Paired starting state differs');
+      const startable = fixture.spares.slice(0, WARMUPS + PAIRS);
+      const targets = startable.slice(WARMUPS);
+      record('setup', {
+        D: d,
+        U: u,
+        seed: fixture.sha256,
+        minted: fixture.minted,
+        workPackages: cohort.workPackages,
+        standingStepClaims: 2 * OCCUPIED,
+        occupiedUnits: OCCUPIED,
+        sparePersons: fixture.spares.length,
+        sqlite: pragmas(D),
+        pairs: PAIRS,
+        warmups: WARMUPS,
+        clock: 'performance.now',
+        clockOriginEpochMs: performance.timeOrigin,
+        bun: Bun.version,
+        bunRevision: Bun.revision,
+        firstOrder: 'D/U, then U/D',
+      });
+      await setCapacity(D, STATED);
+      await setCapacity(U, null);
+      if (D.minted() !== U.minted()) throw new Error('Capacity setup desynchronized arm clocks');
+      const rows: MeasurementRow[] = [];
+      for (const [index, target] of startable.entries()) {
+        const phase = index < WARMUPS ? 'warmup' : 'measured';
+        const pair = phase === 'warmup' ? index + 1 : index - WARMUPS + 1;
+        const paired: MeasurementRow[] = [];
+        for (const [order, arm] of armsOf(pair).entries())
+          paired.push(await sample(arms[arm], target, phase, pair, order + 1, arm));
+        if (D.minted() !== U.minted() || !same(paired.at(0)?.claim, paired.at(1)?.claim))
+          throw new Error(`Arm writes differed for ${phase} pair ${String(pair)}`);
+        if (phase === 'measured') rows.push(...paired);
+      }
+      if (!same(snapshot(D.read, fixture), cohort) || !same(snapshot(U.read, fixture), cohort))
+        throw new Error('A timed arm changed the original holders');
+      const summary = readMeasurement(rows, targets, RESOURCE);
+      record('summary', {
+        ...summary,
+        databases: { D: files(databases.D), U: files(databases.U) },
+        minted: D.minted(),
+        phase: 'measured',
+        p99Rank: 198,
+        p99Index: 197,
+      });
+      return summary;
+    } finally {
+      await U.close();
+    }
+  } finally {
+    await D.close();
+  }
+}
+
+async function diagnose(folder: string, scratch: string): Promise<void> {
+  const { db, manifest } = fixturePaths(folder);
+  const fixture = readFixture(db, manifest);
+  const sibling = join(scratch, 'diagnostic.db');
+  copyFixture(db, sibling, fixture.sha256);
+  const observed = observeAggregate(false);
+  const opened = openFixture(sibling, fixture.minted, observed);
+  try {
+    const target = fixture.spares.at(0);
+    if (target === undefined) throw new Error('Missing diagnostic claim target');
+    await setCapacity(opened, STATED);
+    readClaim(opened.read, target, await opened.run(target.workPackageId, [commandOf(target)]));
+    await releaseClaim(opened, target);
+    const statement = observed.queries.at(0);
+    if (
+      observed.queries.length !== 1 ||
+      statement === undefined ||
+      !statement.inWrite ||
+      !same(statement.binds, [RESOURCE])
+    )
+      throw new Error('Missing production statement and resource binding');
+    const native = openDatabase(sibling);
+    try {
+      const explain = native.query(`EXPLAIN QUERY PLAN ${statement.query}`).all(RESOURCE);
+      const query = native.query(statement.query);
+      const durations = Array.from({ length: 200 }, () => {
+        const started = performance.now();
+        const aggregate = query.all(RESOURCE);
+        const durationMs = performance.now() - started;
+        if (!same(aggregate, [{ resourceId: RESOURCE, units: OCCUPIED, unowned: 0 }]))
+          throw new Error('Diagnostic query changed the aggregate');
+        return durationMs;
+      });
+      record('diagnostic', {
+        ...statement,
+        explain,
+        durationMs: durations,
+        resourceId: RESOURCE,
+        sqlite: pragmas(opened),
+        database: files(sibling),
+      });
+    } finally {
+      native.close();
+    }
+  } finally {
+    await opened.close();
+  }
+}
+
+/** Runs the task 3.5 committed claim comparison on two private SQLite copies. */
+async function main(): Promise<void> {
+  const args = Bun.argv.slice(2);
+  const scratch = mkdtempSync(join(tmpdir(), 'measure-shared-occupancy-'));
+  const mode = args.at(0);
+  const supplied = args.at(1);
+  record('workspace', { scratch, mode: mode ?? 'full' });
+  if (mode === undefined || mode === 'prepare') {
+    if (args.length > 1) throw new Error('Expected only the prepare mode');
+    const { db, manifest } = fixturePaths(scratch);
+    const seeded = await prepare(db, manifest);
+    record('prepared', {
+      folder: scratch,
+      seed: seeded.sha256,
+      minted: seeded.minted,
+      file: files(db),
+      manifestBytes: statSync(manifest).size,
+      standingLeaves: seeded.standing.length,
+      spareLeaves: seeded.spares.length,
+    });
+    await controls(scratch, scratch, false);
+    if (mode === 'prepare') return;
+  } else if (!['measure', 'control', 'fault', 'diagnose'].includes(mode) || args.length !== 2) {
+    throw new Error(
+      'Expected prepare, measure <seed>, control <seed>, fault <seed> or diagnose <seed>',
+    );
+  }
+
+  const folder = supplied ?? scratch;
+  if (mode === 'control' || mode === 'fault') {
+    await controls(folder, scratch, mode === 'fault');
+  } else if (mode === 'diagnose') {
+    await diagnose(folder, scratch);
+  } else {
+    const summary = await measure(folder, scratch);
+    if (!summary.passes) process.exitCode = 2;
+  }
+}
+
+await main();

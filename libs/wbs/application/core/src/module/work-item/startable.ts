@@ -2,7 +2,7 @@ import {
   deriveNumbers,
   effectiveTeamsOf,
   type ExecutionPrerequisite,
-  freeUnitsOf,
+  type HiddenHolders,
   indexTree,
   isStartableStatus,
   leafOccupancyOf,
@@ -20,6 +20,10 @@ import {
 import type { StampedClaim } from '../../ports/claim-store';
 import type { ExecutionReads as StartableReads } from '../../ports/execution-read-values';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
+import type { DirectoryTotals } from '../../ports/work-package-report-store';
+import type { NamedOccupancyHolder } from './claims';
+import { nameOccupancyHolder, sharedHolders } from './shared-holders';
+import { directoryTotalsOf } from './work-package-resources';
 
 /** A person as the startable read names them: id and the caller's display name. */
 export interface NamedPerson {
@@ -70,8 +74,8 @@ export interface StartableLeaf extends LeafSteps {
 }
 
 /**
- * A leaf whose steps are otherwise startable but whose demand the work package's
- * free units do not cover, listed apart from {@link StartableWork.leaves}.
+ * A leaf whose steps are otherwise startable but whose demand the available
+ * units do not cover, listed apart from {@link StartableWork.leaves}.
  */
 export interface UnfitLeaf extends LeafSteps {
   readonly fits: false;
@@ -80,31 +84,36 @@ export interface UnfitLeaf extends LeafSteps {
 
 /**
  * The first resource, in resource-id order, a leaf's demand does not fit:
- * `free` is the stated capacity minus what the work package's other leaves hold,
- * and `shortfall` is `asked - free`.
+ * `free` is the binding capacity minus what the other leaves in that scope
+ * hold, and `shortfall` is `asked - free`.
  */
-export interface Shortfall {
+export type Shortfall = {
   readonly resourceId: string;
   readonly name: string;
   readonly unitLabel: string;
   readonly asked: number;
   readonly free: number;
   readonly shortfall: number;
-  /**
-   * The check that bound it (`wbs-shared-occupancy` S3), present only for a
-   * resource with a directory capacity: `free` is then the organization's
-   * when it binds.
-   */
-  readonly scope?: OccupancyScope;
-}
+} & (
+  | {
+      /** The binding scope can already be known before holder enrichment. */
+      readonly scope?: OccupancyScope;
+      readonly holders?: never;
+      readonly hiddenHolders?: never;
+    }
+  | {
+      readonly scope: OccupancyScope;
+      readonly holders: NamedOccupancyHolder[];
+      readonly hiddenHolders: HiddenHolders;
+    }
+);
 
 /**
- * One resource the work package states a capacity for, with the units its leaves'
- * claims hold and the units left. `free` reads below 0 when a capacity was
- * lowered under units already held. An unstated resource is not listed: it
- * constrains nothing (`docs/capacity.md`).
+ * A resource this work package states a capacity for, or a resource with a directory
+ * capacity demanded by one of the work package's leaves. `occupied` counts the work package's
+ * leaves. `free` is limited by each stated capacity and may be negative after lowering.
  */
-export interface ResourceFree {
+export type ResourceFree = {
   readonly resourceId: string;
   readonly name: string;
   readonly unitLabel: string;
@@ -112,7 +121,10 @@ export interface ResourceFree {
   readonly capacity: number;
   readonly occupied: number;
   readonly free: number;
-}
+} & (
+  | { readonly occupancyScope: 'work_package'; readonly directory: null }
+  | { readonly occupancyScope: 'organization'; readonly directory: DirectoryTotals }
+);
 
 /** A claimed step of a leaf the read covers, so an operator sees silent claims. */
 export interface ClaimedStep extends WorkItemAddress {
@@ -155,7 +167,7 @@ export interface StepPrerequisites {
 /**
  * The startable read: leaves with startable steps that fit now, and apart the
  * leaves that do not fit, the claimed steps of those leaves and every subtree
- * claim of the work package, with the work package's free units per resource.
+ * claim of the work package, with the resource summary across applicable scopes.
  */
 export interface StartableWork {
   readonly prerequisites: StepPrerequisites[];
@@ -164,7 +176,7 @@ export interface StartableWork {
   readonly doesNotFit: UnfitLeaf[];
   readonly claimed: ClaimedStep[];
   readonly subtreeClaims: HeldSubtree[];
-  /** Every stated capacity of the work package, in resource-id order. */
+  /** Work package capacity statements and shared leaf demands, in resource-id order. */
   readonly resources: ResourceFree[];
   /**
    * The `resources` summary counts this work package's occupancy. Fit also checks
@@ -426,22 +438,34 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     occupancyByResource(reads.occupancy).map((each) => [each.resourceId, each.occupied]),
   );
   const capacityOf = new Map(reads.capacities.map((each) => [each.resourceId, each.units]));
-  const resources = freeUnitsOf(reads.capacities, reads.occupancy).map(
-    ({ resourceId, units }): ResourceFree => {
-      const { name, unitLabel, kind } = resourceOf(resourceId);
-      const capacity = capacityOf.get(resourceId);
-      if (capacity === undefined) throw new Error(`resource ${resourceId} has no stated capacity`);
+  const directory = directoryTotalsOf(reads.directoryCapacities, reads.organizationOccupied);
+  const resourceIds = [...new Set([...capacityOf.keys(), ...directory.keys()])].sort();
+  const resources = resourceIds.map((resourceId): ResourceFree => {
+    const { name, unitLabel, kind } = resourceOf(resourceId);
+    const local = capacityOf.get(resourceId);
+    const held = occupied.get(resourceId) ?? 0;
+    const shared = directory.get(resourceId);
+    // Proof: substituting directory occupied made the two-store report show 12 local units where it held 4.
+    const resource = { resourceId, name, unitLabel, kind, occupied: held };
+    if (shared !== undefined)
       return {
-        resourceId,
-        name,
-        unitLabel,
-        kind,
-        capacity,
-        occupied: occupied.get(resourceId) ?? 0,
-        free: units,
+        ...resource,
+        capacity: local ?? shared.capacity,
+        // Proof: using local free alone reported 6 instead of 4 while the shortage remained correct.
+        free: local === undefined ? shared.free : Math.min(local - held, shared.free),
+        // Proof: using work package scope here failed the actual shared summaries on both stores.
+        occupancyScope: 'organization',
+        directory: shared,
       };
-    },
-  );
+    if (local === undefined) throw new Error(`resource ${resourceId} has no stated capacity`);
+    return {
+      ...resource,
+      capacity: local,
+      free: local - held,
+      occupancyScope: 'work_package',
+      directory: null,
+    };
+  });
   return {
     prerequisites,
     leaves,
@@ -478,4 +502,58 @@ function nearestSubtreeClaim(
     at = row.parentId;
   }
   return null;
+}
+
+/** Adds holder names and unit-only denied aggregates after the actual fit calculation. */
+export async function startableWithHolders(
+  work: StartableWork,
+  authority: Parameters<typeof sharedHolders>[0] & {
+    readonly holderNames: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
+  },
+): Promise<StartableWork> {
+  const shortages = work.doesNotFit.flatMap(({ exhausted }) =>
+    exhausted.scope === undefined
+      ? []
+      : [{ resourceId: exhausted.resourceId, scope: exhausted.scope }],
+  );
+  if (shortages.length === 0) return work;
+  const projectHolders = await sharedHolders(authority, shortages);
+  const enriched = work.doesNotFit.map((leaf) => {
+    const { exhausted } = leaf;
+    if (exhausted.scope === undefined) return { leaf, projection: null };
+    return {
+      leaf,
+      projection: {
+        scope: exhausted.scope,
+        ...projectHolders(
+          { resourceId: exhausted.resourceId, scope: exhausted.scope },
+          leaf.workItemId,
+        ),
+      },
+    };
+  });
+  const ids = [
+    ...new Set(
+      enriched.flatMap(
+        ({ projection }) => projection?.holders.map(({ personId }) => personId) ?? [],
+      ),
+    ),
+  ];
+  const names = ids.length === 0 ? new Map<string, string>() : await authority.holderNames(ids);
+  return {
+    ...work,
+    doesNotFit: enriched.map(({ leaf, projection }) =>
+      projection === null
+        ? leaf
+        : {
+            ...leaf,
+            exhausted: {
+              ...leaf.exhausted,
+              scope: projection.scope,
+              hiddenHolders: projection.hiddenHolders,
+              holders: projection.holders.map((holder) => nameOccupancyHolder(holder, names)),
+            },
+          },
+    ),
+  };
 }

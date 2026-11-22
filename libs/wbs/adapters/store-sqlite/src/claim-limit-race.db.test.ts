@@ -16,12 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import fc from 'fast-check';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 import { seedOrganizationPackage, seedPackageParent } from './testing/legacy-package-parent';
 
-const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const DEFAULTS = {
   maxAgentPersons: 50,
   maxConcurrentClaims: 200,
@@ -57,7 +56,10 @@ let source: SqliteSource;
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'claim-limit-race-'));
   const dbPath = join(directory, 'plan.db');
-  runMigrations(dbPath, folder);
+  migrateEmptyCatalogueFixture(
+    { path: dbPath, directory, reportedAt: 1 },
+    { hasUnknownOwner: false },
+  );
   source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath,
@@ -86,6 +88,26 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
     source.db.run(sql`INSERT INTO users (id, username, created_at) VALUES (${id}, ${id}, 1)`);
   source.db.run(sql`INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)`);
   seedPackageParent(join(directory, 'plan.db'), 'org-a', 'fixture-project');
+  const definition = await source.stores.stepCatalogue.defineAndBindStep(
+    'org-a',
+    {
+      id: 'race-dev',
+      code: 'dev',
+      name: 'Development',
+      position: 10,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowancePercent: 0,
+    },
+    {
+      bindingId: 'race-dev-binding',
+      scopeKind: 'project',
+      scopeId: 'fixture-project',
+      workItemTypeId: null,
+      position: 10,
+    },
+    { by: 'dany', at: 1 },
+  );
+  expect(definition.ok).toBe(true);
   for (const id of ACCOUNTS)
     source.db.run(
       sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ${id}, 'admin', 1)`,
@@ -123,7 +145,7 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
     ),
   );
   const workPackageId = created.workPackage.id;
-  const firstStep = created.steps.at(0);
+  const firstStep = (await source.stores.workPackages.stepsOf(workPackageId)).at(0);
   if (firstStep === undefined) throw new Error('the claim fixture has no first step');
 
   const hold: Hold = { reached: () => undefined, release: Promise.resolve(), armed: false };
@@ -142,6 +164,8 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
         }
         return counting.source === 'turn' ? reading : { ...reading, current: staleCount };
       },
+      readDirectoryCapacityLimit: (organizationId, resourceId) =>
+        gauge.readDirectoryCapacityLimit(organizationId, resourceId),
       readCapacityCap: (organizationId, resourceId, exceptWorkPackageId) =>
         gauge.readCapacityCap(organizationId, resourceId, exceptWorkPackageId),
     };
@@ -310,7 +334,10 @@ describe('the claim cap as a model invariant', () => {
         rmSync(directory, { recursive: true, force: true });
         directory = mkdtempSync(join(tmpdir(), 'claim-limit-model-'));
         const dbPath = join(directory, 'plan.db');
-        runMigrations(dbPath, folder);
+        migrateEmptyCatalogueFixture(
+          { path: dbPath, directory, reportedAt: 1 },
+          { hasUnknownOwner: false },
+        );
         source = openSqliteSource({
           dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
           dbPath,

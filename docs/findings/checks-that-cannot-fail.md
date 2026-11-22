@@ -908,6 +908,293 @@ Each of these faults failed a test:
   - run that leaf's native tests on the gate hosts;
   - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
 
+### Amendment, 2026-11-22 (second): AWS leaves go dark 20 minutes into the phase
+
+Three `tool-fleet` leaves on AWS-hosted runners went dark at the same point in the phase, each in
+a different test file. Each #963 comment kept its tick 11 and nothing after it:
+
+| Run         | Job          | Host                       | Last tick (UTC) | Phase seconds | Test file in the tail                |
+| ----------- | ------------ | -------------------------- | --------------- | ------------- | ------------------------------------ |
+| 44982325124 | 137085408175 | `cloud=aws`, `m8id.xlarge` | 04:11:04Z       | 1214          | `k3d-resource-caller.test.ts`        |
+| 44985451809 | 137095018944 | `cloud=aws`, `m8id.xlarge` | 04:53:45Z       | 1214          | `lab-settlement-publication.test.ts` |
+| 44988319045 | 137103806229 | `cloud=aws` (PR, entities) | 05:33:29Z       | 1216          | a CRD-inventory test                 |
+
+The first two ran on main (`142c91669` and `98cfe6be9`), the third on the `feat/puni-entities-cli`
+PR (`3fb17e0af`). Ticks were 120 s apart, so each runner died between 1214 s and about 1336 s
+after the phase start, about 22 minutes after job start. An Azure leaf of the same period, main
+run 44987434788 (`89fc265fb`), passed its tick 14 at 1577 s and went on. Azure reaches
+`lab-settlement-publication.test.ts` about 30 minutes into its phase, so the AWS leaves were at
+different points of the suite when they died.
+
+**The first death's last tick shows a healthy host:**
+
+- `Runner.Listener` and `Runner.Worker` were alive, and the largest `bun` held 3.4 GB RSS.
+- `memAvailable` was 11 GB, the host ran 197 tasks, and the scope held 47 pids and 5.6 GiB.
+- Every disk path had 84 GB free, and the kernel log of the last 3 minutes read "No entries".
+- Docker, k3d and kubectl are fakes in the file its tail ended in.
+
+**The death is time-based and on the host's side.** Three different files at the same elapsed
+time rule out any one test as the trigger, so "skip the dying test" is refuted. Something on
+AWS-hosted runners ends the runner's connection about 20 minutes into this phase.
+
+**GitHub declares the loss about 45 minutes late.** At 04:50Z the first job still showed
+`in_progress`. The earlier losses lasted 67m00s to 67m03s from job start: each one died about 22
+minutes in, and the fixed 67 minutes is GitHub's declaration timeout. That last step is an
+inference. It means the earlier amendment's "hangs for about 27 minutes past the point where a
+healthy one has finished" is wrong: the runner dies about 10 to 18 minutes before a healthy leaf
+would finish. Azure-hosted leaves finish in 31 to 40 minutes.
+
+**The sharpened recorder (A-CI-LEAF-RECORDER-2).** It is the same step text in both copies, and
+still optional telemetry. It is for confirming the host-side trigger, not for naming a test:
+
+- **Tick.** Every 45 s instead of 120 s, one PATCH per tick, with the 61440-byte cap kept.
+- **Log section.** Every other `nx-gate.log` line written since the previous tick, read from a
+  stored byte offset as whole lines, the last 200 that fit 40960 bytes, with ANSI escapes stripped
+  and the redaction kept. `shown=` counts the lines posted. A tick with no new line says so and
+  repeats the last earlier line. The final report's section is incremental as well, so the full
+  log stays in the artifact. The offset advances when the report is built, so a failed PATCH
+  loses that window from later ticks. A NUL byte in the log, which a bash string cannot hold,
+  makes the offset undercount, and a later tick repeats lines.
+- **Network.** `ip -br addr`, `ip -br link`, `ip route`, `ss -s`, the first 20 lines of
+  `resolvectl status` (or `/etc/resolv.conf`), and the line counts of `sudo -n iptables -S` and
+  `sudo -n nft list ruleset`. Then the byte, packet, error and drop counters from `/proc/net/dev`
+  for every interface but `lo`, with the default route's interface marked, beside the previous
+  tick's counters. Each probe prints `unavailable` when it fails.
+- **Journal.** `sudo -n journalctl --since -3min -o short-iso`, filtered after the time and host
+  fields to network, DHCP, time sync, provisioner (`provjobd`), runner, `sshd`, `cloud-init`,
+  `ena`, link, carrier, OOM and `systemd-logind` lines, the last 40. The trigger may log there
+  before the link dies. The kernel section stays.
+- **Recent processes.** Processes started in the last 60 s, newest first, at most 30, with their
+  arguments cut at 120 characters. The recorder's and the sampler's own trees are left out.
+
+`pr-merge-base.test.ts` covers it with the production step text. A pass-through `sleep` scaled
+45 times runs the real 45 s tick; fake `ip`, `ss`, `iptables` and `journalctl` stand in for the
+host tools, and a scratch `/proc/net/dev` is bound through the step's `recorder_net_dev=` line.
+Each of these faults failed a test:
+
+- `recorder_interval=120` asked for no 45 s nap and posted 3 ticks in the 8 s window. The test
+  asks for at least 4, which leaves room for a gate host's slowdown.
+- Dropping the offset update reposted the log from byte 0.
+- Dropping the 200-line cap posted 258 lines. Dropping the byte condition from the whole-line trim
+  posted 200 wide lines past the body cap, so no tick showed the last one.
+- Running the trim's awk in the step's own locale posted 41154 bytes on hosted run 44991572202:
+  under `LANG=C.UTF-8` gawk's `length()` counts the 3-byte ✓ as one character. The awk now runs
+  under `LC_ALL=C`, and the test runs the step under `LANG=C.UTF-8`, `LC_ALL=C.UTF-8` and
+  `LC_ALL=C`. On a mawk host the fault does not show; gawk 5.2.1 reproduced the 41154 locally.
+- Dropping the probes' `unavailable` branch left absent tools' labels empty.
+- Dropping the network section, the previous tick's counters, the journal section, its filter, the
+  120-character cut, the 60 s filter or the own-tree exclusion failed the living-comment test.
+- A 60 s tick in the heavy-leaf copy alone failed the byte-equality test.
+
+**The levers, host-side first:**
+
+1. **Fail fast on AWS and rerun.** The `tool-fleet` leaf's start record refuses `cloud=aws` with a
+   refusal line, so the job fails in about a minute instead of being lost after 67. A final
+   `if: failure()` job then reruns the failed leaf with `gh run rerun <run> --failed`, which needs
+   `actions: write`, for at most 3 attempts of about a minute each. GitHub Actions has no re-queue
+   primitive, but this works as one: each attempt draws a new host.
+2. **Gate hosts only.** Run `tool-fleet`'s tests on the gate hosts and drop the hosted leaf.
+3. **A runner label off the AWS pool**, if GitHub offers one.
+
+The next AWS death's journal and network sections either show the host-side trigger or show
+nothing before the link dies. Neither outcome changes the lever order.
+
+### Amendment, 2026-11-22 (third): refuse AWS hosts for the tool-fleet leaf and requeue
+
+The second amendment's first lever is now in place, as assumption **A-CI-LEAF-AWS-1**, for Dany to
+confirm. It does not explain the fault. It turns an AWS draw from a lost runner into a refusal
+in about a minute of runner time, followed by an automatic requeue. It does not shorten red main
+much: see the arithmetic.
+
+**Refusal.** Both copies of the shared step check the start record's cloud right after writing
+it. On `partition=heavy-tool-fleet` with `cloud=aws` the step does four things before the sampler,
+the recorder or the gate scope starts. It writes the refusal line to `nx-gate.log` and stderr,
+`aws_refused=true` to the step outputs, a line to the job summary and `aws-refused.txt` to the
+workspace. Then it exits 78. The gate-log upload still carries `nx-gate.log`. A new
+`if: always()` upload, gated on `aws_refused == 'true'`, publishes the marker artifact
+`aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}`. Only `gate_heavy` uploads that
+marker, so only the tool-fleet leaf can trigger a requeue. Every other partition runs
+unchanged, and so does the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`. An
+unreadable DMI file proves nothing about the host, so it must not refuse.
+
+**Requeue.** A new job, `requeue tool-fleet leaf`, needs `gate_heavy` and `gate`, so it fires at
+the end of the run, and runs when `gate_heavy` failed on attempt 1, 2 or 3. `gate` does not need
+it. It is the only job in `ci.yml` with `actions: write`, and it is
+`continue-on-error`, so its own failure is visible but changes no verdict. It lists this run's
+artifacts by the marker's name and goes on only if this attempt's marker exists, so an ordinary
+failure is never rerun automatically. A fork pull request's token cannot requeue, so that case
+logs a line and stops.
+
+The brief asked this job to run `gh run rerun --failed` itself. This change makes an assumption
+instead, **A-CI-LEAF-AWS-2**, which is unverified: a run cannot rerun its own failed jobs while
+one of its jobs, this one, is still running. GitHub's re-run documentation describes re-runs of
+finished runs only. So the job dispatches `ci-requeue.yml` with the run id, the attempt and the
+run's head commit. The dispatch names no ref, so it runs that file from the default branch, and
+the first dispatch fails until the file is on main. That workflow checks the inputs and the
+marker again. It polls the run once a minute, for at most 150 minutes, until it completes. It
+tolerates three consecutive failed or malformed polls; a polled attempt outside 1 to 4 counts as
+malformed. It stops without rerunning when the run has moved to another attempt or records
+another head. It also stops when the run concluded anything but `failure`: off main
+`cancel-in-progress` cancels a superseded PR run, and rerunning it would cancel the newer
+commit's live run. Only a `failure` gets `gh run rerun <run> --failed` and the line
+`A-CI-LEAF-AWS-1: requeued attempt N+1 after an AWS refusal`.
+
+The #982 review found the first version's 15-minute wait too short. That version fired at about
+20 minutes, after `gate_heavy`. Main runs complete about 85 to 88 minutes after they start, with
+`gate twilight` last, so every real requeue would have timed out unrerun. The native alternative
+is a separate workflow on `workflow_run: completed`, which fires only after the run completes and
+needs no wait. It was not taken because it is unverified whether `workflow_run` fires for an
+attempt that `GITHUB_TOKEN` started, which every requeued attempt is. A `workflow_dispatch` from
+`GITHUB_TOKEN` is documented to start a run. The rerun includes the requeue job, a dependent of the
+failed leaf, so the chain carries itself to attempt 4 and no further. `--failed` also reruns any
+other failed job of the same attempt.
+
+`gate` keeps failing every refused attempt: `Require every gate shard` neither waits on nor reads
+the requeue. Main stays red until an attempt draws Azure.
+
+**Arithmetic.** About two thirds of today's runners were AWS. The chance that all four attempts
+draw AWS is 0.67^4 ≈ 0.20, so about 80% of runs reach an Azure leaf within four attempts. The
+expected number of attempts is 1 + 0.67 + 0.45 + 0.30 ≈ 2.42, or about 1.4 reruns. A refused
+attempt costs the job's setup, about 1 to 2 minutes of runner time, plus the requeue job and the
+waiter's polling. Wall-clock red main is different. The rerun waits for the whole run to complete,
+about 88 minutes. The requeued Azure leaf then takes its own 31 to 40 minutes, so one refusal
+still means about 2 hours of red main. A lost runner had meant about 68 minutes of red main with
+no automatic retry. The other 20% end red after four attempts, with four refusal lines and no
+lost runner. The figure is only as good as the two-thirds share.
+
+**Proof plan.** On the next main runs:
+
+- refused attempts show `aws_refused=true`, the refusal line in the uploaded `nx-gate.log` and the
+  marker artifact;
+- the requeue job logs a dispatch and `ci-requeue` logs `requeued attempt N+1`;
+- a requeued attempt on Azure finishes the leaf in 31 to 40 minutes;
+- no `tool-fleet` leaf is lost after 67 minutes any more.
+
+A loss after this change on `cloud=azure` would refute the "AWS only" reading.
+
+`pr-merge-base.test.ts` runs the production step on an `Amazon EC2` DMI fixture: exit 78, the
+refusal line after the start record, `aws_refused=true`, the summary line and the marker file, no
+sample, no recorder, no gate scope and no runtime call. Azure, another vendor, an absent or
+unreadable vendor, another heavy leaf on AWS and the workspace shard on AWS all run their phase.
+`gate-workflow.test.ts` pins the requeue job's condition, permissions and marker upload. It also
+runs both requeue scripts against a fake `gh`. Each of these faults failed a test:
+
+- deleting `exit 78` or the output line;
+- dropping the partition check;
+- refusing every cloud but Azure, or also `cloud=unavailable`;
+- changing one step copy alone;
+- dropping `< 4`, adding `actions: write` to `gate_heavy`, or making `gate` need the requeue;
+- dropping `always()` from the marker upload;
+- skipping either marker check or the fork guard;
+- dropping `gate` from the requeue job's needs, or the head commit from the dispatch;
+- widening the attempt bound, admitting any run id or head commit, or skipping the completion
+  wait, the moved-attempt check or the poll bound;
+- in the waiter, dropping the conclusion check (a cancelled run was rerun), the head check, or
+  the polled attempt's 1-4 check (a garbled attempt read as moved);
+- in the waiter, exiting on the first failed poll, never resetting the failure count, or a
+  45-poll bound;
+- dropping `--failed`.
+
+**What stays unexplained.** The AWS host-side fault itself. A refused leaf never starts the
+recorder, so from now on no AWS host carries the #963 journal and network sections. Those
+sections were the evidence that could show the trigger. Other leaves on AWS keep their
+`nx-gate.log` samples but have no recorder. Seeing the fault again needs the recorder on another
+leaf that runs long on AWS, or a deliberate AWS run of this leaf.
+
+**Structural options for Dany.** The requeue is a workaround that depends on GitHub's host mix.
+Options that remove the dependence:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
+### Amendment, 2026-11-22 (fourth): a longer requeue bound and a 10-minute delay
+
+The third amendment's requeue ran for the first time on main run 45012388967 (`709c7edf8`), and
+it ended red. This amendment records that exercise, corrects the "AWS always dies" reading with
+the day's full leaf table, and makes assumption **A-CI-LEAF-AWS-3**, for Dany to confirm: a bound
+of six attempts and a 10-minute pause before each rerun.
+
+**Structural options for Dany come first.** The requeue is still a workaround that depends on
+GitHub's host mix. These options remove the dependence, and any one of them retires it:
+
+- a runner label that avoids the AWS pool, if GitHub offers one;
+- larger runners, whose pool and host type differ;
+- running `tool-fleet`'s tests on the gate hosts and dropping the hosted leaf.
+
+**The first live exercise.** Attempt 1 drew AWS and refused at 10:26Z, 75 s into the job. The run
+completed at about 11:38Z, and `ci-requeue` reran its failed jobs. Attempts 2, 3 and 4 each drew
+AWS again and each refused within about 75 s, at 11:38, 11:40 and 11:41Z. Attempt 4 was the
+bound, so the chain stopped and main stayed red. The marker, the dispatch, the wait and the
+rerun all ran. What failed was the bound together with the timing: three back-to-back draws.
+
+**AWS does not always die.** The #963 recorder headers of the day, with the cloud and outcome of
+every `tool-fleet` leaf:
+
+| Cloud              | Leaves | Finished | Lost | Notes                                                    |
+| ------------------ | ------ | -------- | ---- | -------------------------------------------------------- |
+| Azure              | 7      | 7        | 0    | 25 to 40 minutes                                         |
+| AWS, `m8id.xlarge` | 6      | 1        | 5    | run 45004146162 finished, 08:44 to 09:13Z, `state=final` |
+
+The five lost AWS leaves went dark 1095 to 1339 s into the phase: runs 44982325124 and
+44985451809 on main, and 44988319045, 45000106372 and 45009725192 on pull requests (newer pushes
+later cancelled the PR runs). So the leaf died on 5 of 6 AWS hosts today, and one finished in 28
+minutes. Wherever these notes or the step comments say the leaf dies on AWS hosts, read "died on
+5 of 6 today". The refusal still pays: a loss holds the runner about 67 minutes, and one finish in
+six is too small a sample to plan on.
+
+**Draws are correlated over minutes, not frozen per hour.** The cloud alternated within minutes
+all day: 05:28 AWS and 05:42 Azure; 08:22 AWS, 08:25 Azure and 08:44 AWS. But the three reruns
+inside five minutes, 11:38 to 11:41Z, all drew AWS. A rerun seconds after a refusal seems to draw
+from the same pool state, so back-to-back reruns are weaker evidence than independent draws.
+
+**The change (A-CI-LEAF-AWS-3).**
+
+- **Bound.** The `requeue tool-fleet leaf` job runs when `github.run_attempt < 6`, so attempts 1
+  to 5 can requeue and a run reaches attempt 6, with five reruns at most. `ci-requeue` accepts a
+  refused attempt of 1 to 5 and treats a polled attempt outside 1 to 6 as malformed.
+- **Delay.** After the run completes with `failure`, `ci-requeue` prints
+  `A-CI-LEAF-AWS-1: waiting 600 s before the rerun so the next draw is less correlated with this host pool`
+  and sleeps `REQUEUE_DELAY_SECONDS`, which the step sets to 600 and the script validates as a
+  whole number. The job's timeout grows from 160 to 175 minutes to hold the delay.
+- **Read again.** After the delay it reads the run again, with the same three tolerated failed
+  polls. A different head, a different attempt (someone reran by hand) or anything but
+  `completed failure` (someone reran and cancelled) ends it with `no requeue`. Only then does it
+  run `gh run rerun --failed`.
+
+**Arithmetic.** It still assumes about two thirds of draws are AWS and, with the delay, that
+draws are independent; the 11:38 to 11:41Z chain says they were not without it.
+
+- Uncapped, the expected number of attempts is 1/(1 − 0.67) ≈ 3.
+- Capped at six, the expected number is 1 + 0.67 + 0.45 + 0.30 + 0.20 + 0.14 ≈ 2.76 attempts,
+  about 1.8 reruns. P(all six draw AWS) is 0.67^6 ≈ 0.09, so about 9% of all runs still end red
+  (0.67^5 ≈ 13% of runs whose first draw was AWS), against about 20% (30%) with four attempts.
+- Runner time: each refused attempt costs about 75 s plus the requeue job's well under a minute,
+  so a full chain of six refusals costs under 10 minutes of working runner time. Each waiter also
+  holds an idle runner through its 10-minute sleep, about 50 minutes over five reruns.
+- Wall clock per refusal: the run's length, then the 10-minute delay, then the next attempt. The
+  first refusal waits for the whole run, about 88 minutes. A rerun runs only the failed jobs, so
+  a further refused attempt completes in about 2 minutes and adds about 12 minutes. An Azure draw
+  then takes 25 to 40 minutes. One refusal means about 2 hours 15 minutes of red main; five
+  refusals before an Azure draw, about 3 hours.
+
+**Proof.** `gate-workflow.test.ts` pins `< 6` and runs `ci-requeue`'s script with a fake `gh` and
+a fake `sleep` that write one ordered trace. The trace shows the 600 s sleep after the completed
+poll and before the read again and the rerun. Attempt 5 reruns as attempt 6, and a polled attempt
+6 reads as moved. After the delay, a cancelled attempt, a new attempt and another head are each
+left alone, and the read again tolerates three failed polls. Each of these faults failed a test:
+
+- the bound put back to `< 4`;
+- the refused-attempt bound put back to 1 to 3, or the polled attempt back to 1 to 4;
+- the delay's validation dropped;
+- the delay's `sleep` replaced with `:` (the order check);
+- the read after the delay and its checks replaced with `if false` (the cancelled attempt was
+  rerun).
+
+**Proof plan.** On the next AWS-first main run, `ci-requeue` logs the waiting line and the rerun
+starts about 10 minutes after completion. If reruns 10 minutes apart keep drawing AWS, the delay
+does not decorrelate the draw, and only the structural options above remain.
+
 ## A race measured in one shape can lose in another
 
 **R5-33**, observed 2026-11-22 on h2puni (gate calibration e1b18304). Dash's container watch

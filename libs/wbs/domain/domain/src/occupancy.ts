@@ -24,6 +24,11 @@ export interface OccupancyRow {
   readonly units: number;
 }
 
+/** Units held by leaves the reader cannot name, after deduplicating standing claim copies. */
+export interface HiddenHolders {
+  readonly units: number;
+}
+
 /** Who holds units of a resource: one claimant and run on one leaf. */
 export interface OccupancyHolder {
   readonly personId: string;
@@ -79,6 +84,8 @@ export type OccupancyScope = 'work_package' | 'organization';
  * it did before directory capacities existed.
  */
 export interface ResourceShortage {
+  /** Organization fact for shared resources, with no hidden holder identity or count. */
+  readonly hiddenHolders?: HiddenHolders;
   readonly resourceId: string;
   readonly asked: number;
   readonly free: number;

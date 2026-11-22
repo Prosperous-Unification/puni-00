@@ -24,6 +24,8 @@ const stubServer = (routes: Parameters<typeof baseStubServer>[0]) =>
     ...routes,
   });
 const ACTIVE = 'GET /api/organization/active';
+const requestHref = (input: Parameters<typeof fetch>[0]): string =>
+  typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 
 beforeEach(() => {
   // Only `Date`: the panel's 30 s tick and every promise stay on the real clock.
@@ -65,14 +67,18 @@ const measured = (fields: Partial<Report> = {}): Report => ({
   ...fields,
 });
 
-const resourceOf = (fields: Partial<WorkPackageResource> = {}): WorkPackageResource => ({
-  id: 'r1',
-  name: 'h2puni ram',
-  kind: 'divisible',
-  unitLabel: 'GB',
-  providerId: 'cp-1',
-  ...fields,
-});
+const resourceOf = (
+  fields: Partial<Omit<WorkPackageResource, 'directory' | 'directoryCapacity'>> = {},
+) =>
+  ({
+    id: 'r1',
+    name: 'h2puni ram',
+    kind: 'divisible',
+    unitLabel: 'GB',
+    providerId: 'cp-1',
+    directoryCapacity: null,
+    ...fields,
+  }) satisfies WorkPackageResource;
 
 const readOf =
   (resources: WorkPackageResource[], capacities: { resourceId: string; units: number }[] = []) =>
@@ -107,6 +113,16 @@ function mount(onChanged: () => Promise<void> = () => Promise.resolve(), resourc
       />
     </OrganizationResourcesProvider>,
   );
+}
+
+function pauseRead() {
+  let resume: () => void = () => {
+    throw new Error('read gate was not set');
+  };
+  const promise = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  return { promise, resolve: resume };
 }
 
 const row = (name: string) => screen.findByRole('listitem', { name });
@@ -278,7 +294,7 @@ describe('resources section states', () => {
     expect(within(disk).queryByRole('button', { name: /Adopt/ })).toBeNull();
   });
 
-  it('names the instance on the row for a member, with no picker, and offers a member Adopt', async () => {
+  it('names the instance for a member, withholding picker and Adopt and keeping manual capacity', async () => {
     const sent = serve({
       [READ]: [
         readOf(
@@ -288,6 +304,7 @@ describe('resources section states', () => {
       ],
       [PROVIDERS]: [() => answer(403, { error: 'forbidden' })],
       [ACTIVE]: [activeAs('member')],
+      [PLAN]: [applied],
       [STARTABLE]: [startableOf({ resourceId: 'r1', capacity: 12, occupied: 0, free: 12 })],
     });
     mount();
@@ -296,8 +313,17 @@ describe('resources section states', () => {
     expect(chipIn(ram, 'Compute provider: SSH host·h2puni')).toBeDefined();
     expect(within(ram).queryByText('Fulfilled by a compute provider')).toBeNull();
     expect(within(ram).queryByRole('combobox')).toBeNull();
-    // be-01 lets a member state capacity, so Adopt follows the role, not the providers list.
-    expect(within(ram).getByRole('button', { name: /^Adopt 15 GB/ })).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+    const capacity = within(ram).getByRole('textbox', {
+      name: 'This work package may use h2puni ram',
+    });
+    fireEvent.change(capacity, { target: { value: '16' } });
+    fireEvent.click(within(ram).getByRole('button', { name: 'State' }));
+    await waitFor(() => {
+      expect(plans(sent)).toEqual([
+        { commands: [{ kind: 'setResourceCapacity', resourceId: 'r1', units: 16 }] },
+      ]);
+    });
   });
 
   it('shows the chip to an admin beside the picker, and none on a resource without one', async () => {
@@ -373,6 +399,34 @@ describe('resources section states', () => {
 });
 
 describe('resources section clock', () => {
+  it('refuses a still-visible Adopt after the report expires before the next render', async () => {
+    const sent = serve({
+      [READ]: [
+        readOf([
+          {
+            ...resourceOf({ report: measured({ observedAt: NOW - 3 * CADENCE_S * 1000 }) }),
+            directoryCapacity: 32,
+          },
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [applied],
+      [PLAN]: [applied],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(ram.getAttribute('data-report')).toBe('measured');
+    const adopt = within(ram).getByRole('button', { name: /^Adopt 15 GB/ });
+    vi.setSystemTime(NOW + 1);
+    expect(adopt).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(adopt);
+      await Promise.resolve();
+    });
+    expect(sent.filter(({ route }) => route === PLAN || route === DIRECTORY)).toEqual([]);
+    expect(sent.filter(({ route }) => route === READ)).toHaveLength(1);
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+  });
   it('goes stale on its own clock without a reread', async () => {
     vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: NOW });
     const sent = serve({
@@ -409,6 +463,358 @@ describe('resources section instances read', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry resources' }));
     expect(await within(ram).findByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-1');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('measured directory capacity', () => {
+  const directoryRead = (units: number, packageUnits = 9) =>
+    readOf(
+      [
+        {
+          ...resourceOf({
+            report: measured(),
+            measurement: {
+              declared: packageUnits,
+              measured: 15,
+              measuredAt: NOW - 120_000,
+              state: 'measured',
+            },
+          }),
+          directoryCapacity: units,
+          directory: { capacity: units, occupied: 0, free: units },
+        },
+      ],
+      [{ resourceId: 'r1', units: packageUnits }],
+    );
+
+  const writes = (sent: ReturnType<typeof stubServer>) =>
+    sent.filter(({ route }) => route === PLAN || route === DIRECTORY);
+  const command = (units: number) => ({
+    route: DIRECTORY,
+    body: { commands: [{ kind: 'setDirectoryCapacity', resourceId: 'r1', units }] },
+  });
+
+  it('adopts once on the directory, then restores 32 despite an unrelated work package reread', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15, 11), directoryRead(32, 11)],
+      [DIRECTORY]: [applied],
+      [PLAN]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(writes(sent)).toEqual([]);
+    const adopt = within(ram).getByRole('button', { name: /^Adopt 15 GB/ });
+    act(() => {
+      adopt.click();
+      adopt.click();
+    });
+    await waitFor(() => {
+      expect(writes(sent)).toEqual([command(15)]);
+    });
+    expect(adopt).toHaveAccessibleName(/directory capacity/i);
+    expect(await within(ram).findByText('11 GB')).toBeDefined();
+    const undo = await within(ram).findByRole('button', { name: /^Undo adopting/ });
+    fireEvent.click(undo);
+    await waitFor(() => {
+      expect(writes(sent)).toEqual([command(15), command(32)]);
+    });
+    await waitFor(() => {
+      expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    });
+  });
+
+  it('adopts on a stated directory zero even when the work package already equals the measurement', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(0, 15), directoryRead(15, 15)],
+      [DIRECTORY]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [ACTIVE]: [activeAs('super_admin')],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    await waitFor(() => {
+      expect(writes(sent)).toEqual([command(15)]);
+    });
+  });
+
+  it('does not offer adoption when the directory already equals the measurement', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(15)],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+    expect(writes(sent)).toEqual([]);
+  });
+
+  it('keeps a mixed-version measurement readable without guessing the write target', async () => {
+    const sent = serve({
+      [READ]: [readOf([{ ...resourceOf({ report: measured() }), directoryCapacity: undefined }])],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByText('Measured 15 GB, 8 in use')).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+    expect(writes(sent)).toEqual([]);
+  });
+
+  it('does not offer adoption on a legacy synthetic admin', async () => {
+    const sent = serve({ [READ]: [directoryRead(32)] });
+    mount(() => Promise.resolve(), { ...scope, organization: { kind: 'legacy' } });
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByText('Measured 15 GB, 8 in use')).toBeDefined();
+    expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+    expect(writes(sent)).toEqual([]);
+  });
+
+  it('withdraws directory compensation on demotion to member', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15)],
+      [ACTIVE]: [activeAs('admin'), activeAs('member')],
+      [DIRECTORY]: [applied],
+      [PLAN]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    await waitFor(() => {
+      expect(sent.filter(({ route }) => route === ACTIVE)).toHaveLength(2);
+    });
+    await waitFor(() => {
+      expect(within(ram).queryByRole('combobox')).toBeNull();
+    });
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    expect(writes(sent)).toEqual([command(15)]);
+  });
+
+  it('withdraws both actions while a new target and role observation is pending', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15), directoryRead(0), directoryRead(15)],
+      [DIRECTORY]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    const fetch = globalThis.fetch;
+    const currentRead = pauseRead();
+    const resumeRead = pauseRead();
+    let holdRole = false;
+    vi.stubGlobal('fetch', async (...request: Parameters<typeof fetch>) => {
+      if (holdRole && requestHref(request[0]).endsWith('/api/organization/active')) {
+        currentRead.resolve();
+        await resumeRead.promise;
+      }
+      return await fetch(...request);
+    });
+    const panel = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={scope}>
+        <ResourcesPanel
+          workPackageId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(panel(true));
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    const oldUndo = await within(ram).findByRole('button', { name: /^Undo adopting/ });
+    holdRole = true;
+    mounted.rerender(panel(false));
+    mounted.rerender(panel(true));
+    await currentRead.promise;
+    try {
+      expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+      expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+      fireEvent.click(oldUndo);
+      expect(writes(sent)).toEqual([command(15)]);
+    } finally {
+      holdRole = false;
+      resumeRead.resolve();
+    }
+    fireEvent.click(await within(ram).findByRole('button', { name: /^Adopt 15 GB/ }));
+    await waitFor(() => {
+      expect(writes(sent)).toEqual([command(15), command(15)]);
+    });
+  });
+
+  it('reconciles an unanswered undo and keeps it if the directory still holds the adopted value', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15), directoryRead(15)],
+      [DIRECTORY]: [
+        applied,
+        () => {
+          throw new Error('no response');
+        },
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    fireEvent.click(await within(ram).findByRole('button', { name: /^Undo adopting/ }));
+    expect(await within(ram).findByRole('alert')).toBeDefined();
+    await waitFor(() => {
+      expect(sent.filter(({ route }) => route === READ)).toHaveLength(3);
+    });
+    expect(await within(ram).findByRole('button', { name: /^Undo adopting/ })).toBeEnabled();
+    expect(writes(sent)).toEqual([command(15), command(32)]);
+  });
+
+  it('shows a refused compensation and rereads without switching targets', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15), directoryRead(15)],
+      [DIRECTORY]: [
+        applied,
+        () =>
+          answer(409, {
+            error: 'capacity_limit',
+            kind: 'setDirectoryCapacity',
+            resourceId: 'r1',
+            at: 0,
+            cap: 30,
+            declared: 0,
+            asked: 32,
+          }),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    fireEvent.click(await within(ram).findByRole('button', { name: /^Undo adopting/ }));
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/directory capacity.*32.*30/i);
+    await waitFor(() => {
+      expect(sent.filter(({ route }) => route === READ)).toHaveLength(3);
+    });
+    expect(await within(ram).findByRole('button', { name: /^Undo adopting/ })).toBeEnabled();
+    expect(writes(sent)).toEqual([command(15), command(32)]);
+  });
+
+  it('cannot compensate from an expired scope', async () => {
+    let current = true;
+    const resourceScope = { ...scope, isCurrent: () => current };
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15)],
+      [DIRECTORY]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    const screenFor = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={resourceScope}>
+        <ResourcesPanel
+          workPackageId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(screenFor(true));
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    const undo = await within(ram).findByRole('button', { name: /^Undo adopting/ });
+    current = false;
+    fireEvent.click(undo);
+    mounted.rerender(screenFor(true));
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    expect(writes(sent)).toEqual([command(15)]);
+  });
+
+  it.each([20, null])('withdraws directory Undo after a replacement to %s', async (replacement) => {
+    const third =
+      replacement === null
+        ? readOf(
+            [{ ...resourceOf({ report: measured() }), directory: null }],
+            [{ resourceId: 'r1', units: 15 }],
+          )
+        : directoryRead(replacement, 15);
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(15, 15), third],
+      [DIRECTORY]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    const screenFor = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={scope}>
+        <ResourcesPanel
+          workPackageId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(screenFor(true));
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    expect(await within(ram).findByRole('button', { name: /^Undo adopting/ })).toBeDefined();
+    mounted.rerender(screenFor(false));
+    mounted.rerender(screenFor(true));
+    await waitFor(() => {
+      expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    });
+    expect(sent.filter(({ route }) => route === READ)).toHaveLength(3);
+    expect(writes(sent)).toEqual([command(15)]);
+  });
+
+  it('permits a second explicit adoption after the first refusal and a fresh read', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32), directoryRead(32), directoryRead(15)],
+      [DIRECTORY]: [
+        () =>
+          answer(409, {
+            error: 'capacity_limit',
+            kind: 'setDirectoryCapacity',
+            resourceId: 'r1',
+            at: 0,
+            cap: 14,
+            declared: 0,
+            asked: 15,
+          }),
+        applied,
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/directory capacity.*15.*14/i);
+    expect(writes(sent)).toEqual([command(15)]);
+    const adopt = await within(ram).findByRole('button', { name: /^Adopt 15 GB/ });
+    fireEvent.click(adopt);
+    await waitFor(() => {
+      expect(writes(sent)).toEqual([command(15), command(15)]);
+    });
+    expect(await within(ram).findByRole('button', { name: /^Undo adopting/ })).toBeEnabled();
+  });
+
+  it('does not add a fallback or Undo when the directory write is refused', async () => {
+    const sent = serve({
+      [READ]: [directoryRead(32)],
+      [DIRECTORY]: [
+        () =>
+          answer(409, {
+            error: 'capacity_limit',
+            kind: 'setDirectoryCapacity',
+            resourceId: 'r1',
+            at: 0,
+            cap: 14,
+            declared: 0,
+            asked: 15,
+          }),
+      ],
+      [PLAN]: [applied],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    expect(await within(ram).findByRole('alert')).toHaveTextContent(/directory capacity.*15.*14/i);
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    expect(writes(sent)).toEqual([command(15)]);
   });
 });
 
@@ -454,7 +860,7 @@ describe('resources section writes', () => {
 
   it('withdraws Undo after the post-adoption read observes viewer', async () => {
     const sent = serve({
-      [ACTIVE]: [activeAs('member'), activeAs('viewer')],
+      [ACTIVE]: [activeAs('admin'), activeAs('viewer')],
       [READ]: [
         readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }]),
         readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 15 }]),
@@ -467,9 +873,6 @@ describe('resources section writes', () => {
     expect(
       await screen.findByText('Your role can read these resources but not change them.'),
     ).toBeDefined();
-    expect(await within(ram).findByRole('status')).toHaveTextContent(
-      'Declared 15 GB from the measurement (was 12 GB).',
-    );
     expect(within(ram).getByText('15 GB')).toBeDefined();
     expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
     expect(plans(sent)).toEqual([
@@ -866,6 +1269,68 @@ describe('resources section directory (wbs-resources 1.5)', () => {
       { commands: [{ kind: 'deleteResource', resourceId: 'r1', cascade: true }] },
     ]);
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers adoption after keeping an in-use resource during a refresh', async () => {
+    const sent = serve({
+      [READ]: [
+        readOf([{ ...resourceOf({ report: measured() }), directoryCapacity: 32 }]),
+        readOf([{ ...resourceOf({ report: measured() }), directoryCapacity: 48 }]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [DIRECTORY]: [inUse(2, 1, 'Swarm B'), applied],
+    });
+    const fetch = globalThis.fetch;
+    const refreshStarted = pauseRead();
+    const resumeRead = pauseRead();
+    let holdRole = false;
+    vi.stubGlobal('fetch', async (...request: Parameters<typeof fetch>) => {
+      if (holdRole && requestHref(request[0]).endsWith('/api/organization/active')) {
+        refreshStarted.resolve();
+        await resumeRead.promise;
+      }
+      return await fetch(...request);
+    });
+    const panel = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={scope}>
+        <ResourcesPanel
+          workPackageId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(panel(true));
+    const ram = await row('h2puni ram');
+    expect(within(ram).getByRole('button', { name: /^Adopt 15 GB/ })).toBeEnabled();
+    holdRole = true;
+    mounted.rerender(panel(false));
+    mounted.rerender(panel(true));
+    await refreshStarted.promise;
+    const plainRemoval = { commands: [{ kind: 'deleteResource', resourceId: 'r1' }] };
+    try {
+      expect(within(ram).queryByRole('button', { name: /^Adopt/ })).toBeNull();
+      fireEvent.click(within(ram).getByRole('button', { name: 'Remove h2puni ram' }));
+      fireEvent.click(await within(ram).findByRole('button', { name: 'Remove h2puni ram' }));
+      expect(await within(ram).findByText(/is still used by/)).toBeDefined();
+      fireEvent.click(within(ram).getByRole('button', { name: 'Keep h2puni ram' }));
+      expect(within(ram).queryByText(/is still used by/)).toBeNull();
+      expect(directories(sent)).toEqual([plainRemoval]);
+    } finally {
+      holdRole = false;
+      resumeRead.resolve();
+    }
+    const adopt = await within(ram).findByRole('button', { name: /^Adopt 15 GB/ });
+    expect(adopt).toHaveAccessibleName(/directory capacity/i);
+    expect(directories(sent)).toEqual([plainRemoval]);
+    fireEvent.click(adopt);
+    await waitFor(() => {
+      expect(directories(sent)).toEqual([
+        plainRemoval,
+        { commands: [{ kind: 'setDirectoryCapacity', resourceId: 'r1', units: 15 }] },
+      ]);
+    });
   });
 
   it('asks again when what uses a resource changed since it was shown', async () => {

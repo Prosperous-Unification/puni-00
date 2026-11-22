@@ -81,6 +81,7 @@ const reads = (id: string, startDate: IsoDate | null = '2026-10-05'): ResolvedPl
   capacity: new Map(),
   demands: [],
   resourceCapacities: [],
+  directoryCapacities: [],
   resources: [],
   priorityBands: [],
   people: [],

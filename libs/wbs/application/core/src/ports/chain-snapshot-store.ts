@@ -1,8 +1,12 @@
 import type { CapacityMode } from '@wbs/domain';
 
+import type { CapacityPreview } from '../module/work-item/capacity-preview';
+import type { ResourceOccupancyRead } from '../module/work-item/resource-occupancy';
+import type { StartableWork } from '../module/work-item/startable';
 import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import type { ExecutionReads } from './execution-read-values';
 import type {
+  MembershipRefusal,
   OrganizationPrincipal,
   RefusedOrganizationAccess,
   ResourceAccess,
@@ -16,6 +20,7 @@ import type {
   LivePlanRead,
   SharedPeopleRead,
 } from './shared-people-values';
+import type { WorkPackageResourceRead } from './work-package-report-store';
 import type { WorkPackage } from './work-package-values';
 
 /** Capabilities borrowed only while one authorized, rank-ordered read snapshot is open. */
@@ -47,8 +52,44 @@ export interface ChainSnapshotStore {
   ): Promise<{ readonly ok: true; readonly value: SharedPeopleRead } | RefusedOrganizationAccess>;
 }
 
+/** Startable holder evidence and its admitted read outcomes. */
+export type StartableRead =
+  | { readonly kind: 'ready'; readonly value: StartableWork }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'unknown_team' }
+  | { readonly kind: 'access_refused'; readonly refusal: MembershipRefusal };
+
+/** A detached inventory from one admitted organization observation. */
+export interface ResourceOccupancyStore {
+  readResourceOccupancyWithin(
+    resourceId: string,
+    actorId: string,
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  ): Promise<ResourceOccupancyRead>;
+}
+
 /** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */
-export interface LivePlanStore extends PlanExportReader {
+export interface LivePlanStore extends PlanExportReader, ResourceOccupancyStore {
+  /** Captures an admitted work package catalogue, plan statements and directory totals. */
+  readWorkPackageResources(
+    workPackageId: string,
+    access: ResourceAccess,
+  ): Promise<WorkPackageResourceRead>;
+  /** Holder decisions and the first shared shortage are completed inside one read snapshot. */
+  readStartableWithin(
+    workPackageId: string,
+    actorId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableRead>;
+  /** Admits current membership, then projects a capacity preview in the same observation. */
+  previewDirectoryCapacityWithin(
+    resourceId: string,
+    units: number | null,
+    actorId: string,
+    access: Extract<ResourceAccess, { kind: 'scoped' }>,
+  ): Promise<CapacityPreview>;
+
   /** Scheduler-free detached facts; command readers borrow their existing write observation. */
   readExecution(
     workPackageId: string,
@@ -58,7 +99,7 @@ export interface LivePlanStore extends PlanExportReader {
     | { readonly kind: 'ready'; readonly reads: ExecutionReads }
     | { readonly kind: 'not_found' }
     | { readonly kind: 'unknown_team' }
-    | { readonly kind: 'access_refused'; readonly refusal: RefusedOrganizationAccess['refusal'] }
+    | { readonly kind: 'access_refused'; readonly refusal: MembershipRefusal }
   >;
   read(workPackageId: string, access: ResourceAccess): Promise<LivePlanRead>;
   /** WorkPackage-owned command/background authority, distinct from human observation. */
@@ -68,3 +109,6 @@ export interface LivePlanStore extends PlanExportReader {
   /** Captures readable shared or isolated connected aggregates in one authorized observation; ordinary isolated reads retain their uncaptured path. */
   readAggregate(actorId: string, access: ResourceAccess): Promise<LivePlanAggregate>;
 }
+
+/** Detached organization capacity preview for a source without a live-plan reader. */
+export type CapacityPreviewStore = Pick<LivePlanStore, 'previewDirectoryCapacityWithin'>;

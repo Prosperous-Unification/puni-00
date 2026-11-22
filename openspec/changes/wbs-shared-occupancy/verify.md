@@ -513,3 +513,151 @@ Commands (each with `env -u CLAUDECODE`):
 wbs-be-01 --skip-nx-cache --parallel=1` → exit 0.
 - Prettier on changed files → clean; `openspec validate --all --json` → 304/304;
   `check-indexes working . HEAD` → exit 0.
+
+### Task 4.1 local holder-read verification
+
+The authenticated actor and verified project origin drive the read decision.
+The current policy admits a same-organization viewer and denies a foreign
+origin even for an administrator. The explicit pre-activation path retains
+legacy project admission. Task 0.1 authorizes the controlled
+same-organization denial. Real restricted grants belong to Permissions.
+
+The mounted claim refusal names readable holders and folds denied holdings
+into units in both the first-shortage aliases and every resource entry. Two
+claims on the same denied leaf count 16 units once. A tighter project bound
+includes only that project's holders. Scoped decoration reads distinct
+visible people by ID under their organization-local aliases. A fully denied
+shortfall performs no decoration lookup. The mounted Startable read reuses
+the names captured in the SQLite snapshot. The fallback uses the same
+holder projection with explicit admission and targeted names. Legacy
+decoration keeps root-name lookup by ID.
+
+The preview reads current admission, affected projects and their holdings in
+one SQLite observation. With four units visible, sixteen hidden and a
+second denied project holding zero, a proposed capacity of eighteen yields
+two hidden projects and free −2. Clearing yields null. A throwing read
+decision returns a server error without a partial response. The affected
+requests leave claims, journal rows and the proposed capacity unchanged.
+
+The initial focused run failed six cases for the missing read decision,
+holder fields and mounted refusal. The restored original selection passed
+217 cases across domain, contracts, core, SQLite, connected admission and
+mounted BE. The name-lookup correction first failed both mounted cases on
+the old producer. A claim read one full catalog after visibility in both
+mixed and fully denied shortages. Startable read a second catalog when the
+grant reopened.
+
+The final affected Bun selection passed contracts (10), core (18), SQLite
+(137), connected admission (1), memory (2) and mounted BE (50), with zero
+failed cases in the completed groups. The first covering service's disk
+guard stopped it before the mounted group finished. Its four completed
+groups retained their native statuses and captures. The separate restored
+memory and mounted service was fully observed. The additional BE
+interface-consumer cases passed eight checks.
+
+The original eleven one-fault controls failed on their intended assertions
+and restored the source. They covered viewer access, denied wire identity,
+same-leaf unit counting, each claim alias, each Startable producer, distinct
+and zero-held preview origins, hidden units in free capacity and the
+preview transaction. The name-lookup fault then added a denied-only
+person to the lookup while leaving both redacted refusals and no-write
+checks intact. The lookup assertion alone detected the extra ID. Separate
+faults removed the actor check and the scope predicate in each store.
+Each failed its own assertion and restored the exact bytes. The Memory
+fault completed before a populated resource sample was observed. Its native
+assertion and restoration were captured, and its observer qualification
+remains refused.
+
+The existing BE OpenAPI emitter produced the exact paired-field Startable
+variants and both command conflict holder locations. The emitted document
+has SHA-256 `cbbc44deaec2d6fa541d8d157acf0f51d08dfb00d136059e6323e619e4b10434`.
+
+Owning Nx lint and TypeScript checks passed for domain, contracts, core,
+SQLite, memory and BE. The forced TypeScript targets used the installed
+compiler with one builder and one checker inside the existing 4 GiB,
+zero-swap, two-CPU service. The two declared module dependencies used
+their original commands and completed 17 core modules and three BE
+modules. Earlier resource and static typing failures remain in the local
+evidence. Full CI and the host gate remain pending.
+
+### Task 4.2 local resource occupancy verification
+
+The mounted occupancy GET uses the same organization admission as the preview. SQLite rechecks
+activation, current membership and the credential role ceiling in its existing live observation.
+The Memory source captures one committed epoch after admission. Scoped project creation and
+occupancy now share one ownership map in Memory. A clone preserves the alias, and commit
+publishes project ownership with its rows. Direct scoped creation waits for the same writer.
+
+The read lists every distinct visible holding claim and its stored write and nullable lease
+instants. Project and claim IDs use ordinal order. Units use each leaf's maximum holding for
+the resource. A stated directory capacity keeps the full organization total, including hidden
+holdings, and free can be negative. An unstated capacity keeps the visible total and returns
+null for capacity and free. Person names resolve by visible ID under the organization's alias.
+
+The first mounted tests failed twice because the route was missing. Both real release scenarios
+then passed. An unrestricted administrator's release frees the resource for a blocked second
+project. A restricted noncreator administrator can see the claim and receives a refusal when
+attempting release. The claim and occupancy rows, lease instants, audit, journal and capacity
+are unchanged by GET. The controller suite checks direct and forwarded authority, own MCP
+sessions and agent consent, stale organization, nonmembers and identical foreign/absent
+responses. Its interleaved release and demotion leave the earlier read coherent and the
+next read correctly refused. The Memory twin checks a newer alias across its detached read.
+
+The normal Memory publication regression initially failed all four cases. Scoped project
+creation, staged commit and rollback, and a concurrent direct scoped writer all passed after
+the repair. The ordering regression then failed against the old locale comparator, which
+ordered project Z and claim Z last. The restored case orders project Z and claim Z first and retains the two normalization-distinct
+IDs. The public composition reaches the opened Memory observer and a graph without a reader
+fails closed.
+
+| Injected fault                                                                                                  | Failing observation                                                                                         |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Removed role check or credential ceiling                                                                        | Mounted member or real admin machine key received content                                                   |
+| Reused admitted role or ignored removed membership                                                              | The demoted or removed admin received content                                                               |
+| Skipped activation, actor scope or legacy gate                                                                  | The wrong refusal, accepted actor or unexpected observation was observed                                    |
+| Skipped resource ownership, or accepted an inconsistent project origin                                          | An inadmissible resource or holding returned HTTP 200                                                       |
+| Summed claim copies or collapsed distinct claim details                                                         | Occupancy was overcounted, or an actual claim ID disappeared                                                |
+| Projected a denied holder or resolved its name                                                                  | Hidden content leaked, or the independent bounded-name assertion failed                                     |
+| Counted only visible holdings for a stated capacity, or all holdings for an unstated one                        | Shared units disappeared, or hidden units leaked under project scope                                        |
+| Replaced a genuine zero or returned an unconditional release category                                           | The zero became null, or the restricted release scenario failed                                             |
+| Invented a missing project, name or stamp, accepted conflicting rows or duplicate stamps                        | The corrupt read returned partial HTTP 200                                                                  |
+| Bypassed write or expiry validation, or removed the bounded claim ID filter                                     | Direct SQLite returned malformed instants, or the mounted read fetched an unrequested corrupt stamp         |
+| Removed observed SQLite transaction or borrowed live Memory after admission                                     | The older read lost the claim stamp or picked up the newer alias                                            |
+| Split Memory ownership, split the clone alias, skipped publish, bypassed writer turn or forced a refused commit | The real scoped creation, staged lookup, post-commit lookup, queued visibility or rollback assertion failed |
+| Removed the route inventory entry                                                                               | The independent mounted inventory failed                                                                    |
+
+The 34 original qualified failures restored exact source bytes. The first malformed-stamp
+mutation stayed green at transport validation. The isolated SQLite checks proved the direct
+guards separately. The first skipped Memory publication observation failed at the intended
+lookup while the wrapper's marker was incorrect. Its exact diagnostic rerun qualified.
+Task 0.1 authorizes the controlled same-organization grant denial only. The actual permission
+grant activation, full CI, host gate and deployment remain open.
+
+The round-one causal checks each produced native Bun exit one and restored the original bytes.
+Removing the public Memory observer binding failed the composed read. Removing the project
+predicate in either adapter exposed a foreign claim in the common stamped case.
+
+Native checks after restoring the reviewed source all had zero failed tests.
+
+- Focused Bun checks passed 5 Memory inventory, 21 composition and 14 BE route-policy tests.
+- The actual source certifications passed 84 SQLite and 84 Memory tests. The common conformance inventory passed 1 test. Both certifications reported `claims.listStampedByProject:write-instant`.
+- The final mounted organization selection passed 58 tests. The both-store shared occupancy selection passed 31.
+- Regression selections passed 53 SQLite, 35 Memory and 93 core tests.
+- `bunx nx run wbs-mcp-01:prepare --skip-nx-cache --parallel=1` prepared the default emitted document with SHA-256 `c37516368eef8dd49ca5e8ee92c57e966d14e7bb03357c1ff667f8ca96afbe68`. The mounted OpenAPI and derived MCP selections passed 6 and 53 tests respectively.
+
+The declared Nx lint and full typecheck targets passed for conformance, core, contracts,
+SQLite, Memory, BE and MCP. Compiler targets used the pinned TS7 invocation with one
+builder and one checker, and the two declared module targets ran without forwarded
+compiler flags. Those targets enumerated 17 core and three BE modules. The core module
+target completed under the approved 240-second retry, with the same 4 GiB and two-CPU
+limits. Four BE test-only unbound-method diagnostics were corrected with the existing
+prototype descriptor pattern. The affected BE tests, typecheck and lint passed afterward.
+Earlier native type failures, core module timeouts and BE and MCP disk-related refusals
+remain in the retained local evidence.
+
+Each owner typecheck ran as `bunx nx run <owner>:typecheck --excludeTaskDependencies --skip-nx-cache --parallel=1` with the single extra argument `--args=--builders 1 --checkers 1`. Lint and standalone module targets used the respective declared target with the same Nx switches and no compiler argument.
+
+Changed-path Prettier and Git whitespace checks passed. `openspec validate
+wbs-shared-occupancy --type change --json` passed one change, and `openspec validate
+--all --json` passed 347 items. The local apply instructions report 15 of 26 tasks
+complete with the change still ready.

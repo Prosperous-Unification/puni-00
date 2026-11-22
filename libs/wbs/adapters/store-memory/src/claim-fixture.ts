@@ -81,6 +81,7 @@ export function inMemoryClaims(
   holdsResource: (resourceId: string) => boolean,
   plan: MemoryPlanTables,
   readSteps: (workPackageId: string, claims: readonly StampedClaim[]) => ClaimStepOrder,
+  mayReadWorkPackageWithin: ClaimStore['mayReadWorkPackageWithin'],
 ): ClaimStore {
   const inWorkPackage = async (workPackageId: string): Promise<StampedClaim[]> => {
     const ids = new Set((await workItems.listByWorkPackage(workPackageId)).map(({ id }) => id));
@@ -153,6 +154,7 @@ export function inMemoryClaims(
     );
   };
   return {
+    mayReadWorkPackageWithin,
     listByWorkPackage: async (workPackageId) =>
       (await inWorkPackage(workPackageId)).map(unstampClaim),
     listStampedByWorkPackage: inWorkPackage,
@@ -207,6 +209,17 @@ export function inMemoryClaims(
             compare(left.resourceId, right.resourceId) ||
             compare(left.claimId, right.claimId),
         );
+    },
+    // Proof: removing the work package predicate exposed a foreign claim in source conformance.
+    async listStampedByIds(workPackageId, ids) {
+      await Promise.resolve();
+      const wanted = new Set(ids);
+      return table.rows
+        .filter(
+          ({ id, workItemId }) =>
+            wanted.has(id) && plan.workItems.byId.get(workItemId)?.workPackageId === workPackageId,
+        )
+        .map((stamped) => ({ ...stamped }));
     },
     // SQLite's join, modelled: a row counts only when its work package and its
     // resource belong to one organization.

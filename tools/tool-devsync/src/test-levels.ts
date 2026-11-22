@@ -40,6 +40,24 @@ export interface LevelTarget {
  * obliges that target to collect exactly the files {@link levelOf} puts at its level.
  */
 export const LEVEL_TARGETS: readonly LevelTarget[] = [
+  // Proof: the public baseline refused the exact TEST-AXES-197 lookup.
+  {
+    project: 'tool-smoke',
+    root: 'tools/tool-smoke',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/tool-smoke.unit.xml',
+    testRoots: ['.'],
+  },
+  // Proof: the public baseline refused the exact TEST-AXES-199 lookup.
+  {
+    project: 'wbs-runtime-portable',
+    root: 'libs/wbs/adapters/runtime-portable',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/wbs-runtime-portable.unit.xml',
+    testRoots: ['.'],
+  },
   // Proof: removing this registration failed shared-test-evidence's canonical Unit collection
   // test with the production lookup's not-a-declared-level refusal (2026-10-19).
   {
@@ -513,7 +531,8 @@ export function assertFrontendLevelCollection(
  * {@link verifyDeclaredCollections} after this shared inventory boundary.
  *
  * @throws when a required target is absent, a selector admits another level or
- * omits a source test, or the command envelope or report identity differs.
+ * omits a required test, a whole-root selection exceeds its census, or the
+ * command envelope or report identity differs.
  */
 export async function verifyBunProjectCollection(
   root: string,
@@ -523,21 +542,38 @@ export async function verifyBunProjectCollection(
   const conformance = conformanceFilesIn(
     manifest.targets['test:conformance']?.options?.command ?? '',
   );
+  const targets = LEVEL_TARGETS.filter((entry) => entry.root === root);
+  const wholeProject = targets.some((target) => target.testRoots.includes('.'));
   const bunFiles = new Set<string>();
-  for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
+  for (const target of targets) {
     const command = assertLevelEnvelope(target, manifest);
     assertBunReport(target, command);
     for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
   }
   if (bunFiles.size > 0) {
-    for (const file of await testFilesUnder(root, 'src')) {
-      const canonical = `${root}/${file}`;
+    // Proof: the previous src-only census admitted an omitted outside/root-only.test.ts
+    // in both TEST-AXES-198 and TEST-AXES-200.
+    const census = wholeProject
+      ? await testFilesInProject(root)
+      : (await testFilesUnder(root, 'src')).map((file) => `${root}/${file}`);
+    for (const canonical of census) {
       // Proof: omitting space-fixture.test.ts from the memory Unit selector made
       // the production CLI pass when this complete-collection guard was removed.
       // Proof: removing this guard made shared-validation's narrowed selector omit added.test.ts
       // and exit zero; the complete Unit inventory test failed (2026-10-17).
       if (!bunFiles.has(canonical))
         throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
+    }
+    if (wholeProject) {
+      const expected = new Set(census);
+      // Proof: the previous one-way audit admitted node_modules/decoy.test.ts
+      // in both TEST-AXES-198 and TEST-AXES-200.
+      for (const file of bunFiles) {
+        if (!expected.has(file))
+          throw new Error(
+            `${manifest.name} level targets collect ${file} outside the project census`,
+          );
+      }
     }
   }
 }
@@ -897,6 +933,9 @@ export const AGGREGATE_TARGETS: readonly string[] = AGGREGATE_DECLARATIONS.map(
  * one of these three lists.
  */
 export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
+  'tool-smoke:test': 'Preserved whole-project Bun runner without a JUnit report.',
+  'wbs-runtime-portable:test': 'Preserved whole-project LCOV runner without a JUnit report.',
+  'wbs-runtime-portable:test:unit': 'Preserved whole-project LCOV runner without a JUnit report.',
   'shared-test-evidence:test':
     'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
   'shared-test-evidence:test:unit':
@@ -1061,7 +1100,9 @@ export async function testFilesUnder(root: string, dir: string): Promise<string[
   const glob = new Bun.Glob('**/*');
   for await (const entry of glob.scan({ cwd: base })) {
     if (entry.split('/').some((segment) => NEVER_WALKED.has(segment))) continue;
-    if (BUN_TEST_FILE.test(entry)) found.push(`${dir}/${entry}`);
+    // Proof: prefixing the whole-root census with ./ made the outside-root matrix
+    // report nine false extras and the exact-level matrix report nine false omissions.
+    if (BUN_TEST_FILE.test(entry)) found.push(dir === '.' ? entry : `${dir}/${entry}`);
   }
   return found.sort();
 }

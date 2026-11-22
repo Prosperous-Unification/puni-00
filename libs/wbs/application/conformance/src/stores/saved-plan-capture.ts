@@ -31,6 +31,9 @@ type CaptureSeedStores = Pick<
 export type CaptureRevisionPolicy = 'memory-unbumped' | 'sqlite-bumped';
 export type CaptureDirectoryEpoch = 'before' | 'after';
 
+export const CAPTURE_RESOURCE = 'capture-ram';
+export const CAPTURE_ORGANIZATION = 'capture-ram-organization';
+
 const A_BANDS = [
   { startsAt: 1, label: 'A urgent', defaultValue: 2 },
   { startsAt: 11, label: 'A high', defaultValue: 12 },
@@ -138,6 +141,8 @@ export function observePlanInput(reads: PlanInputReads) {
       .map((row) => ({ ...row }))
       .sort((left, right) => byPair(left, right) || left.personId.localeCompare(right.personId)),
     capacity: [...reads.capacity.entries()].sort(([left], [right]) => left.localeCompare(right)),
+    resourceCapacities: reads.resourceCapacities.map((row) => ({ ...row })),
+    directoryCapacities: reads.directoryCapacities.map((row) => ({ ...row })),
     priorityBands: reads.priorityBands.map((row) => ({ ...row })),
     people: reads.people
       .map(({ id, name, teamIds }) => ({ id, name, teamIds: [...teamIds].sort() }))
@@ -342,6 +347,8 @@ export function savedPlanCaptureExpected(
       },
     ],
     capacity: [[isA ? 'team-b' : 'team-a', isA ? 4 : 6]] as [string, number][],
+    resourceCapacities: isA ? [{ resourceId: CAPTURE_RESOURCE, units: 32 }] : [],
+    directoryCapacities: isA ? [{ resourceId: CAPTURE_RESOURCE, units: 16 }] : [],
     priorityBands: (isA ? A_BANDS : B_BANDS).map((row) => ({ ...row })),
     people: [
       {
@@ -473,6 +480,9 @@ async function readSeededPlanInput(
     capacity,
     demands,
     resourceCapacities,
+    directoryCapacities: await stores.directory.directoryCapacitiesOf(
+      resourceCapacities.map(({ resourceId }) => resourceId),
+    ),
     resources: resourceCatalog,
     priorityBands,
     people,
@@ -485,7 +495,11 @@ async function readSeededPlanInput(
 }
 
 /** Adds every work-package-scoped fact and every capture-only directory witness. */
-export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: SeededPlan) {
+export async function seedSavedPlanCapture(
+  stores: CaptureSeedStores,
+  seed: SeededPlan,
+  ownCaptureResource: () => void,
+) {
   const stamp = seed.stamps[0];
   const workPackage = await stores.workPackages.findById(seed.workPackageIds[0]);
   if (workPackage === null) throw new Error('capture fixture work package is absent');
@@ -731,6 +745,24 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
     ok: true,
   });
 
+  expect(
+    await stores.directory.addResource(
+      { id: CAPTURE_RESOURCE, name: 'Capture RAM', kind: 'divisible', unitLabel: 'GB' },
+      stamp,
+    ),
+  ).toHaveProperty('ok', true);
+  ownCaptureResource();
+  expect(
+    await stores.resourceCapacity.set(seed.workPackageIds[0], CAPTURE_RESOURCE, 32, stamp),
+  ).toHaveProperty('ok', true);
+  expect(
+    await stores.directory.setDirectoryCapacity(CAPTURE_RESOURCE, 16, {
+      stamp,
+      actor: seed.ownerIds[0],
+      auditId: 'capture-ram-capacity',
+    }),
+  ).toHaveProperty('ok', true);
+
   const [workPackageA, workPackageB, dependenciesA, dependenciesB] = await Promise.all([
     readSeededPlanInput(stores, seed.workPackageIds[0]),
     readSeededPlanInput(stores, seed.workPackageIds[1]),
@@ -954,6 +986,8 @@ export function savedPlanCaptureRegistrations(
           first.measures,
           first.dependencies,
           first.assignments,
+          first.resourceCapacities,
+          first.directoryCapacities,
           first.priorityBands,
           first.people,
           first.teams,

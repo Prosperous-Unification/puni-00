@@ -91,6 +91,11 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    resourceOccupancy: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    capacityPreview: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
+    workPackageReportSnapshot: DiBag.createProvider(() => undefined, {
+      factoryReturnKind: 'sync-value',
+    }),
     workPackageStore: DiBag.createProvider(() => stores.workPackages, {
       factoryReturnKind: 'sync-value',
     }),

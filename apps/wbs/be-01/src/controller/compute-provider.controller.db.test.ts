@@ -6,6 +6,7 @@ import { generateKeyPair } from 'jose';
 
 import { openDrizzle } from '../repository/db';
 import { WriteCoordinator } from '../repository/gate';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import {
   addAgentPerson,
   grantCredential,
@@ -78,7 +79,11 @@ async function setUp(): Promise<void> {
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('dany-p', 'org-a', 'dany-p')",
   );
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
+  const projectId = await createProject('dany', 'org-a');
+  const created = await h.call('dany', 'POST', '/api/work-packages', {
+    name: 'Plan of A',
+    projectId,
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   workPackageA = (created.body as { workPackage: { id: string } }).workPackage.id;
   const rows = await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
@@ -89,6 +94,20 @@ async function setUp(): Promise<void> {
   ram = await declare('dany', 'h4claw ram');
   staging = await declare('dany', 'staging');
   ramOfB = await declare('bob', 'h4claw ram');
+}
+
+async function createProject(username: string, organizationId: string): Promise<string> {
+  const parent = await h.call(username, 'POST', '/api/projects', { name: 'Provider planning' });
+  if (parent.status !== 201) throw new Error('Provider project refused: ' + JSON.stringify(parent));
+  const projectId = (parent.body as { project: { id: string } }).project.id;
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    await bindDevQaFixture(stores.stepCatalogue, organizationId, projectId, {
+      by: h.userId(username),
+      at: 1,
+    });
+    return { commit: true, value: undefined };
+  });
+  return projectId;
 }
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
@@ -181,19 +200,7 @@ async function readResources(username: string) {
   const parsed = await validateSchema(success.schema, answer.body);
   if (parsed.issues !== undefined)
     throw new Error(`the resources read failed its contract: ${JSON.stringify(parsed.issues)}`);
-  return answer.body as {
-    resources: {
-      id: string;
-      name: string;
-      kind: string;
-      unitLabel: string;
-      directoryCapacity?: number | null;
-      providerId: string | null;
-      provider?: { kind: string; name: string };
-      report?: Record<string, unknown>;
-      measurement?: { state: string } & Record<string, unknown>;
-    }[];
-  };
+  return parsed.value;
 }
 
 /** An agent's API key in org-a, and one pinned to Dany's own person. */
@@ -324,6 +331,16 @@ describe('provider instance administration', () => {
         body: { error: 'insufficient_scope' },
       });
     expect(rows('SELECT id FROM compute_provider')).toHaveLength(1);
+  });
+
+  it('refuses the limits read for a forwarded machine grant from a super-admin account', async () => {
+    const { agent } = await keys();
+    const path = '/api/organization/limits';
+    expect(await callForwarded(h, agent, 'GET', path)).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(await h.callWith(agent, 'GET', path)).toEqual(MACHINE_BEARER_NOT_ACCEPTED);
   });
 
   it('answers every route no_active_organization before activation', async () => {
@@ -489,6 +506,7 @@ describe("a resource's provider reference", () => {
       unitLabel: 'GB',
       providerId: null,
       directoryCapacity: null,
+      directory: null,
     });
     const listed = (await h.call('dany', 'GET', PATH)).body as {
       computeProviders: { resources: number }[];
@@ -742,10 +760,86 @@ describe('a capacity report', () => {
       },
     );
   }
+
+  it('adopts a stored report on the directory and compensates outside plan Undo', async () => {
+    const plan = `/api/work-packages/${workPackageA}`;
+    const send = (units: number) =>
+      h.call('dany', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'setDirectoryCapacity', resourceId: ram, units }],
+      });
+    expect(
+      (
+        await h.call('dany', 'POST', `${plan}/commands`, {
+          commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 9 }],
+        })
+      ).status,
+    ).toBe(200);
+    expect((await send(32)).status).toBe(200);
+    const observedAt = Date.now() - 240_000;
+    expect((await report(agent, h4claw, ram, measured(observedAt))).status).toBe(200);
+    const history = await h.call('dany', 'GET', `${plan}/history`);
+    expect(history.status).toBe(200);
+    const read = async (directoryCapacity: number) => {
+      const observed = await readResources('dany');
+      expect(observed.resources.find(({ id }) => id === ram)).toMatchObject({
+        directoryCapacity,
+        measurement: { declared: 9, measured: 15, measuredAt: observedAt, state: 'measured' },
+      });
+      expect(observed.capacities).toContainEqual({ resourceId: ram, units: 9 });
+    };
+    await read(32);
+    const findLeaf = () =>
+      h.sqlite.query<{ id: string }, [string]>('SELECT id FROM work_item WHERE id = ?').get(leaf);
+    expect(findLeaf()).toEqual({ id: leaf });
+    const directoryAudit = () =>
+      h.sqlite
+        .query<{ detail: string }, [string]>(
+          "SELECT detail FROM organization_audit WHERE action = 'directory_capacity_changed' AND subject_kind = 'resource' AND subject_id = ? ORDER BY created_at, rowid",
+        )
+        .all(ram);
+    const audited = directoryAudit();
+    expect(audited.map(({ detail }): unknown => JSON.parse(detail))).toEqual([
+      { before: null, after: 32 },
+    ]);
+    expect((await send(15)).status).toBe(200);
+    await read(15);
+    expect(await h.call('dany', 'GET', `${plan}/history`)).toEqual(history);
+    expect(await h.call('dany', 'POST', `${plan}/undo`)).toMatchObject({
+      status: 200,
+      body: { done: 'add “Leaf”' },
+    });
+    await read(15);
+    const undone = await h.call('dany', 'GET', `${plan}/history`);
+    expect(undone.status).toBe(200);
+    expect(undone).toEqual(history);
+    expect(findLeaf()).toBeNull();
+    expect((await send(32)).status).toBe(200);
+    await read(32);
+    expect(await h.call('dany', 'GET', `${plan}/history`)).toEqual(undone);
+    expect(
+      directoryAudit()
+        .slice(audited.length)
+        .map(({ detail }): unknown => JSON.parse(detail)),
+    ).toEqual([
+      { before: 32, after: 15 },
+      { before: 15, after: 32 },
+    ]);
+  });
+
   it('stores h4claw at 15 GB with 8 in use, idempotently, beside the declared 32', async () => {
     await h.call('dany', 'POST', `/api/work-packages/${workPackageA}/commands`, {
       commands: [{ kind: 'setResourceCapacity', resourceId: ram, units: 32 }],
     });
+    expect(
+      (
+        await h.call('dany', 'POST', '/api/directory/commands', {
+          commands: [
+            { kind: 'setDirectoryCapacity', resourceId: ram, units: 24 },
+            { kind: 'setDirectoryCapacity', resourceId: staging, units: 0 },
+          ],
+        })
+      ).status,
+    ).toBe(200);
     const observedAt = Date.now() - 240_000;
     const first = await report(agent, h4claw, ram, measured(observedAt));
     expect(first.status).toBe(200);
@@ -763,6 +857,13 @@ describe('a capacity report', () => {
       providerId: h4claw,
       report: first.body,
       measurement: { declared: 32, measured: 15, measuredAt: observedAt, state: 'measured' },
+      directoryCapacity: 24,
+      directory: { capacity: 24, occupied: 0, free: 24 },
+    });
+    expect(read.resources.find((each) => each.id === staging)).toMatchObject({
+      providerId: null,
+      directoryCapacity: 0,
+      directory: { capacity: 0, occupied: 0, free: 0 },
     });
     // No audit row per report (P6), only the two registrations.
     expect(auditRows()).toHaveLength(2);
@@ -1115,9 +1216,13 @@ describe('the plan export', () => {
     expect(after).not.toContain('providerId');
     const document = (
       await h.call('dany', 'GET', `/api/work-packages/${workPackageA}/export?format=json`)
-    ).body as object;
-    const imported = await h.call('bob', 'POST', '/api/work-packages/import', document);
-    expect(imported.status).toBe(201);
+    ).body;
+    const projectId = await createProject('bob', 'org-b');
+    const imported = await h.call('bob', 'POST', '/api/work-packages/import', {
+      projectId,
+      document,
+    });
+    expect(imported).toMatchObject({ status: 201 });
     expect(
       rows<{ n: number }>(
         "SELECT count(*) AS n FROM resource r JOIN resource_organization o ON o.resource_id = r.id WHERE o.organization_id = 'org-b' AND r.provider_id IS NOT NULL",

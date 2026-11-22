@@ -104,6 +104,7 @@ describe('resources in an organization', () => {
             providerId: null,
             // Unstated: no directory capacity (`wbs-shared-occupancy` S1).
             directoryCapacity: null,
+            directory: null,
           },
         ],
         capacities: [],
@@ -135,6 +136,7 @@ describe('resources in an organization', () => {
             providerId: null,
             // Unstated: no directory capacity (`wbs-shared-occupancy` S1).
             directoryCapacity: null,
+            directory: null,
           },
         ],
         capacities: [{ resourceId: ram, units: 32 }],

@@ -2,7 +2,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import type { AccessTarget, ScopedPrincipal } from '@wbs/core';
+import type { AccessTarget, ResourceAccess, ScopedPrincipal } from '@wbs/core';
 import {
   CONTRIBUTOR_CAP,
   EmptyRoleSet,
@@ -17,6 +17,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { sql } from 'drizzle-orm';
 
 import { AccessDecisionRepository } from './access-decisions';
+import { ClaimRepository } from './claim';
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
 import { openSqliteSource } from './source';
@@ -51,6 +52,7 @@ let path: string;
 let sqlite: Database;
 let decisions: AccessDecisionRepository;
 let packages: WorkPackageRepository;
+let claims: ClaimRepository;
 let statements: { sql: string; bindings: unknown[] }[];
 
 /**
@@ -151,6 +153,7 @@ beforeEach(() => {
     fixtureCleanup.unshift(connection.close);
     decisions = new AccessDecisionRepository(connection.db);
     packages = new WorkPackageRepository(connection.db, OPEN);
+    claims = new ClaimRepository(connection.db, OPEN);
   } catch (cause) {
     closeFixture({ cause });
   }
@@ -1349,4 +1352,35 @@ it('ignores nonreaching package catalogue corruption beside an actual project gr
   expect(before).toEqual([{ permission: 'package.read' }, { permission: 'package.teleport' }]);
   expect([...(await decisions.readableProjectIds(person('ada'), ORG))]).toEqual(['proj']);
   expect(readPermissions()).toEqual(before);
+});
+
+it('conceals a restricted holder until the current claim store sees package.read', async () => {
+  sqlite.run(
+    "UPDATE organization_activation SET state = 'activated', activated_at = 1 WHERE singleton = 1",
+  );
+  const access: ResourceAccess = {
+    kind: 'scoped',
+    scope: { organizationId: ORG, userId: 'ada', cap: null },
+    principal: person('ada'),
+  };
+  const origin = { id: 'wp-closed', organizationId: ORG };
+  grant('organization', ORG, 'user', 'ada', 'org-viewer');
+  expect(await claims.mayReadWorkPackageWithin(origin, 'ada', access)).toBe(false);
+  expect(
+    await claims.mayReadWorkPackageWithin({ id: 'wp-open', organizationId: ORG }, 'ada', access),
+  ).toBe(true);
+  grant('work_package', origin.id, 'user', 'ada', 'package-viewer');
+  expect(await claims.mayReadWorkPackageWithin(origin, 'ada', access)).toBe(true);
+  expect(
+    await claims.mayReadWorkPackageWithin({ id: 'wp-b', organizationId: 'org-b' }, 'ada', access),
+  ).toBe(false);
+  await claims.mayReadWorkPackageWithin(origin, 'cy', access).then(
+    () => {
+      throw new Error('a mismatched actor received a visibility decision');
+    },
+    (cause: unknown) => {
+      expect(cause).toBeInstanceOf(Error);
+      expect(String(cause)).toContain('actor differs');
+    },
+  );
 });
