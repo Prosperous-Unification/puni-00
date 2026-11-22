@@ -2,7 +2,7 @@ import type { AnalyticsReviewRoute, ConversationScoping } from '@website/contrac
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import { readStartingChoice, useMilestone, useMilestones } from './analytics-flow';
-import { ApiFailure, requestJson } from './api';
+import { ApiFailure, apiOrigin, requestJson } from './api';
 import { describeFailure } from './app-flow';
 import { parseDraft, parseScoping } from './build-contract';
 import { siteOrigin } from './chrome';
@@ -696,7 +696,12 @@ export function RequestEditor({
               </button>
             </div>
             {isContactOpen && (
-              <form onSubmit={(event) => void submitRequest(event)}>
+              // Proof: removing action exposed query/hash in form-destinations.test.tsx versioned manual/chat.
+              <form
+                action={`${apiOrigin}/proposals`}
+                method="post"
+                onSubmit={(event) => void submitRequest(event)}
+              >
                 <label className="proposal-label" htmlFor={`${id}-email`}>
                   Email
                 </label>

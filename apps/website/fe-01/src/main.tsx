@@ -11,7 +11,7 @@ import {
   useMilestone,
   useMilestones,
 } from './analytics-flow';
-import { ApiFailure, requestJson, sendCommand } from './api';
+import { ApiFailure, apiOrigin, requestJson, sendCommand } from './api';
 import { describeFailure, describeOperatorFailure, offersAi } from './app-flow';
 import { type Draft, parseDraft } from './build-contract';
 import { AppErrorBoundary, BuildPage } from './build-page';
@@ -480,7 +480,13 @@ function ManualPage() {
                         Save draft
                       </button>
                     </div>
-                    <form className="field" onSubmit={(event) => void submitProposal(event)}>
+                    {/* Proof: removing action exposed query/hash in form-destinations.test.tsx mounted legacy manual. */}
+                    <form
+                      className="field"
+                      action={`${apiOrigin}/proposals`}
+                      method="post"
+                      onSubmit={(event) => void submitProposal(event)}
+                    >
                       <label htmlFor="email">Where can we reply?</label>
                       <input
                         id="email"
