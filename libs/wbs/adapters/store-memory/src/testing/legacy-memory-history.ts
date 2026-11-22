@@ -8,8 +8,9 @@ import { expect } from 'bun:test';
 
 import { type MemorySourceFixture, openMemorySourceFixture } from '../source';
 import provenance from './fixtures/legacy-memory-history.json';
+import laundering from './fixtures/legacy-memory-laundering.json';
 
-export type LegacyMemoryKind = keyof typeof provenance.cases;
+export type LegacyMemoryKind = keyof typeof provenance.cases | keyof typeof laundering.cases;
 export type LegacyMemoryPhase = 'after-move' | 'before-final-redo';
 
 // Proof: widening this boundary accepted unrecorded joined labels (memory-history-fault-joins-v1).
@@ -142,7 +143,7 @@ const archive = type({
   schema: "'puni-genuine-memory-history-v5'",
   runtime: type({ version: 'string > 0', revision: 'string > 0' }).onUndeclaredKey('reject'),
   sourceCommit: "'c8018843e6ff6827f7d97b67ff986cc717656578'",
-  kind: "'rename' | 'progress'",
+  kind: "'rename' | 'progress' | 'extra-qa' | 'mixed-progress-patch'",
   chronology: stage.array(),
   outcome: type({
     ok: 'false',
@@ -155,23 +156,26 @@ const archive = type({
   qualification: 'string > 0',
 }).onUndeclaredKey('reject');
 
-/** Strict boundary for these two genuine archived arrangements; unsupported metadata is not defaulted. */
+/** Strict boundary for the genuine archived arrangements; unsupported metadata is not defaulted. */
 export function decodeLegacyMemoryHistory(input: unknown) {
   return parseOrThrow(archive, input);
 }
 
 /** Checks the actual predecessor archive and frozen producer before current metadata/history is authored. */
 export function readLegacyMemoryHistory(kind: LegacyMemoryKind) {
-  const selected = provenance.cases[kind];
+  const { manifest, selected } =
+    kind === 'rename' || kind === 'progress'
+      ? { manifest: provenance, selected: provenance.cases[kind] }
+      : { manifest: laundering, selected: laundering.cases[kind] };
   const compressed = readFileSync(new URL('./fixtures/' + selected.file, import.meta.url));
   // Proof: valid gzip metadata drift failed this independent compressed pin (memory-history-fault-compressed-v1).
   expect(createHash('sha256').update(compressed).digest('hex')).toBe(selected.gzipSha256);
   const bytes = Bun.gunzipSync(compressed);
   // Proof: breaking only the original digest failed here (memory-history-fault-original-v1).
   expect(createHash('sha256').update(bytes).digest('hex')).toBe(selected.sha256);
-  const script = readFileSync(new URL('./fixtures/' + provenance.producer, import.meta.url));
+  const script = readFileSync(new URL('./fixtures/' + manifest.producer, import.meta.url));
   // Proof: changing only the frozen producer bytes failed this dependency (memory-history-fault-producer-v1).
-  expect(createHash('sha256').update(script).digest('hex')).toBe(provenance.producerSha256);
+  expect(createHash('sha256').update(script).digest('hex')).toBe(manifest.producerSha256);
   const captured = decodeLegacyMemoryHistory(JSON.parse(new TextDecoder().decode(bytes)));
   // Proof: selecting the other genuine archive failed at this profile boundary (memory-history-fault-profile-v1).
   expect(captured.kind).toBe(kind);

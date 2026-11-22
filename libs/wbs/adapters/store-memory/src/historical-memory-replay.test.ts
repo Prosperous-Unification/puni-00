@@ -20,9 +20,12 @@ import {
 } from './testing/legacy-memory-history';
 import { workPackageRow } from './work-package-fixture';
 
-function makeRunner(source: MemorySourceFixture['source']) {
-  const broadcast = recordingBroadcaster(),
-    clock = clockOf({ now: () => 1000, newId: () => crypto.randomUUID() });
+function makeRunner(
+  source: MemorySourceFixture['source'],
+  broadcast = recordingBroadcaster(),
+  now = () => 1000,
+) {
+  const clock = clockOf({ now, newId: () => crypto.randomUUID() });
   const compose = (
     stores: Parameters<typeof servicesOver>[0],
     announcements: Parameters<typeof servicesOver>[1]['broadcast'] = broadcast,
@@ -145,67 +148,133 @@ for (const collision of ['entry', 'event', 'none'] as const)
     },
   );
 
-for (const kind of ['rename', 'progress'] as const) {
-  test(
-    'genuine Memory ' + kind + ' history refuses laundering after current prior undo and redo',
-    async () => {
-      const fixture = await openLegacyMemoryHistory(kind, 'after-move');
-      try {
-        const { source, workPackageId, author } = fixture;
-        const broadcast = recordingBroadcaster(),
-          clock = clockOf({ now: () => 1000, newId: () => crypto.randomUUID() });
-        const compose = (
-          stores: Parameters<typeof servicesOver>[0],
-          announcements: Parameters<typeof servicesOver>[1]['broadcast'] = broadcast,
-        ) =>
-          servicesOver(stores, {
-            dependencyContext: createLocalDependencyContext(stores),
-            admission: LEGACY_EDIT_ADMISSION,
-            clock,
-            broadcast: announcements,
-            scheduler: fastScheduler,
-          });
-        const runner = createPlanCommandRunner({
-          commandAccess: localCommandAccess,
-          uow: source.uow,
-          announcements: broadcast,
-          publicServices: compose(source.stores),
-          batchServices: (scope, announcements) => compose(scope.stores, announcements),
-        });
-        const recorded = await fixture.fixture.journalHistoryFor(workPackageId);
-        expect(recorded).toEqual(fixture.checkpoint.events);
-        expect(
-          await source.stores.journal.entriesFor({ workPackageId, userId: author, personId: null }),
-        ).toEqual(fixture.checkpoint.entries);
-        expect(await runner.undo(workPackageId, author)).toMatchObject({ ok: true });
-        const changed = fixture.selected.metadata.steps.find(
-          (step) => step.code === (kind === 'rename' ? 'dev' : 'qa'),
-        );
-        if (changed === undefined) throw new Error('Genuine changed step is missing');
+for (const [kind, drift] of [
+  ['rename', 'state'],
+  ['progress', 'state'],
+  ['progress', 'time'],
+  ['progress', 'missing'],
+  ['progress', 'none'],
+  ['extra-qa', 'extra'],
+  ['mixed-progress-patch', 'state'],
+] as const) {
+  const title =
+    drift === 'none'
+      ? 'genuine Memory progress history restamps Dev and preserves untouched QA'
+      : 'genuine Memory ' +
+        kind +
+        ' history refuses laundering after current prior undo and redo' +
+        (drift === 'state' ? '' : ' with QA ' + drift + ' drift');
+  test(title, async () => {
+    const fixture = await openLegacyMemoryHistory(kind, 'after-move');
+    try {
+      const { source, workPackageId, author } = fixture;
+      const broadcast = recordingBroadcaster();
+      let now = 1000;
+      const runner = makeRunner(source, broadcast, () => now);
+      const stack = { workPackageId, userId: author, personId: null };
+      const recorded = await fixture.fixture.journalHistoryFor(workPackageId);
+      expect(recorded).toEqual(fixture.checkpoint.events);
+      expect(await source.stores.journal.entriesFor(stack)).toEqual(fixture.checkpoint.entries);
+      const move = fixture.checkpoint.entries.at(-1);
+      if (move === undefined) throw new Error('Genuine Memory move entry is absent');
+      const moveId = move.id;
+      async function readMoveProgress(): Promise<unknown> {
+        const preconditions = (await source.stores.journal.entriesFor(stack)).find(
+          ({ id }) => id === moveId,
+        )?.preconditions;
+        if (
+          typeof preconditions !== 'object' ||
+          preconditions === null ||
+          !('moveProgress' in preconditions)
+        )
+          throw new Error('Genuine Memory move progress is absent');
+        return structuredClone(preconditions.moveProgress);
+      }
+
+      expect(await runner.undo(workPackageId, author)).toMatchObject({ ok: true });
+      const destination = () =>
+        source.stores.progress.listByWorkItems(workPackageId, ['destination']);
+      const before = await destination();
+      const dev = fixture.selected.metadata.steps.find(({ code }) => code === 'dev');
+      const qa = fixture.selected.metadata.steps.find(({ code }) => code === 'qa');
+      if (dev === undefined || qa === undefined)
+        throw new Error('Genuine Memory destination step is absent');
+      const changed = before.find(({ stepId }) => stepId === (kind === 'rename' ? dev.id : qa.id));
+      if ((drift === 'extra') !== (changed === undefined))
+        throw new Error('Genuine Memory destination progress differs from the archive premise');
+      const guarded = await readMoveProgress();
+      expect(guarded).toEqual({ destination: before });
+
+      const stamp = { at: 2, by: author };
+      if (changed === undefined) {
         expect(
           await source.stores.progress.set(
-            { workItemId: 'destination', stepId: changed.id, state: 'in_progress', statedAt: 456 },
-            { at: 2, by: author },
+            { workItemId: 'destination', stepId: qa.id, state: 'in_progress', statedAt: 456 },
+            stamp,
           ),
         ).toBe('written');
-        expect(await runner.undo(workPackageId, author)).toMatchObject({ ok: true });
+      } else if (drift === 'missing') {
+        await source.stores.progress.remove(changed.workItemId, changed.stepId, stamp);
+      } else if (drift === 'state' || drift === 'time') {
+        const injected = {
+          ...changed,
+          state: drift === 'state' ? ('in_progress' as const) : changed.state,
+          statedAt: drift === 'time' ? 456 : changed.statedAt,
+        };
+        expect(injected).not.toEqual(changed);
+        expect(await source.stores.progress.set(injected, stamp)).toBe('written');
+        expect((await destination()).find(({ stepId }) => stepId === changed.stepId)).toEqual(
+          injected,
+        );
+      }
+      now = 1001;
+      expect(await runner.undo(workPackageId, author)).toMatchObject({ ok: true });
+      if (kind === 'mixed-progress-patch')
+        expect(await source.stores.workItems.findById('destination')).toMatchObject({
+          name: 'Rewire the shed',
+        });
+      if (drift === 'none')
+        expect((await destination()).filter(({ stepId }) => stepId === qa.id)).toEqual(
+          before.filter(({ stepId }) => stepId === qa.id),
+        );
+      now = 1002;
+      expect(await runner.redo(workPackageId, author)).toMatchObject({ ok: true });
+      if (kind === 'mixed-progress-patch')
+        expect(await source.stores.workItems.findById('destination')).toMatchObject({
+          name: 'Renamed',
+        });
+
+      if (drift === 'none') {
+        const originalDev = before.find(({ stepId }) => stepId === dev.id);
+        if (originalDev === undefined || changed === undefined)
+          throw new Error('Genuine Memory destination progress is absent');
+        expect(originalDev.statedAt).not.toBe(now);
+        const restampedDev = { ...originalDev, statedAt: now };
+        expect((await destination()).filter(({ stepId }) => stepId === qa.id)).toEqual(
+          before.filter(({ stepId }) => stepId === qa.id),
+        );
+        expect(await readMoveProgress()).toEqual({ destination: [changed, restampedDev] });
         expect(await runner.redo(workPackageId, author)).toMatchObject({ ok: true });
-        const before = await fixture.snapshot(),
+        expect(await destination()).toEqual([]);
+      } else {
+        expect(await readMoveProgress()).toEqual(guarded);
+        const unchanged = await fixture.snapshot(),
           publicationCount = broadcast.published.length;
         // Proof: bypassing the actual progress snapshot admitted stale replay in both genuine cases (memory-history-fault-snapshot-v1).
         expect(await runner.redo(workPackageId, author)).toMatchObject({
           ok: false,
           reason: 'stale_undo',
           detail: 'progress on a guarded work item changed since this command.',
+          entryId: moveId,
         });
-        expect(await fixture.snapshot()).toEqual(before);
+        expect(await fixture.snapshot()).toEqual(unchanged);
         expect(broadcast.published).toHaveLength(publicationCount);
-        expect(await fixture.fixture.journalHistoryFor(workPackageId)).toEqual(recorded);
-      } finally {
-        await fixture.close();
       }
-    },
-  );
+      expect(await fixture.fixture.journalHistoryFor(workPackageId)).toEqual(recorded);
+    } finally {
+      await fixture.close();
+    }
+  });
 }
 
 for (const fault of [
@@ -440,7 +509,7 @@ test('actual Memory history opener refuses a missing checkpoint with its source 
   );
 });
 
-for (const kind of ['rename', 'progress'] as const)
+for (const kind of ['rename', 'progress', 'extra-qa', 'mixed-progress-patch'] as const)
   for (const boundary of ['runner', 'borrowed'] as const)
     test(
       'genuine final ' +
