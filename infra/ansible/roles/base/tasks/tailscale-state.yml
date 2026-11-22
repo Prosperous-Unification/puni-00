@@ -1,0 +1,16 @@
+---
+- name: Read the host's tailnet state after joining
+  ansible.builtin.command: '{{ puni_tailscale }} status --json'
+  register: puni_tailscale_after
+  changed_when: false
+
+- name: Require a running device with exactly the host's tag and no key expiry
+  # A device tagged when it first authenticates has key expiry off by default (decision 12).
+  # Proof: removing the Tags condition, and separately the KeyExpiry condition, each made
+  # node-roles.test.ts `refuses a device with another tag or an expiring key` fail (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - (puni_tailscale_after.stdout | from_json).BackendState == 'Running'
+      - (puni_tailscale_after.stdout | from_json).Self.Tags | default([]) == [puni_tailscale_tag]
+      - (puni_tailscale_after.stdout | from_json).Self.KeyExpiry is not defined
+    fail_msg: The device is not running under {{ puni_tailscale_tag }} alone, or its key expires

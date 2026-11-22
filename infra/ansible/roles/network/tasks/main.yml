@@ -26,6 +26,40 @@
     enabled: true
     daemon_reload: true
 
+- name: Require the play to come through the bastion before SSH is limited to it
+  when: puni_public_ports is defined
+  ansible.builtin.include_tasks: ssh-source.yml
+
+- name: Keep IPv6 off the private interface of a separated host
+  when: puni_public_ports is defined
+  block:
+    - name: Disable IPv6 on the private interface at boot
+      # The private network is IPv4; with IPv6 off no address answers there that the IPv4 rules
+      # do not cover. The prerouting chain drops new IPv6 there as well.
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/91-puni-private-ipv6.conf
+        content: "net.ipv6.conf.{{ puni_private_interface }}.disable_ipv6 = 1\n"
+        owner: root
+        group: root
+        mode: '0644'
+      register: puni_private_ipv6_setting
+
+    - name: Apply the private-interface IPv6 setting
+      when: puni_private_ipv6_setting is changed
+      ansible.builtin.command: sysctl -p /etc/sysctl.d/91-puni-private-ipv6.conf
+      changed_when: true
+
+    - name: Read the private interface's IPv6 state
+      ansible.builtin.slurp:
+        src: '/proc/sys/net/ipv6/conf/{{ puni_private_interface }}/disable_ipv6'
+      register: puni_private_ipv6_state
+
+    - name: Require IPv6 off on the private interface
+      ansible.builtin.assert:
+        that:
+          - (puni_private_ipv6_state.content | b64decode | trim) == '1'
+        fail_msg: IPv6 is still on {{ puni_private_interface }}
+
 - name: Render the isolated k3s firewall candidate
   # Proof: removing this notification made the changed-policy convergence contract test fail.
   ansible.builtin.template:
@@ -34,6 +68,7 @@
     owner: root
     group: root
     mode: '0600'
+  register: puni_k3s_firewall_candidate
   notify: Restart fleet firewall
 
 - name: Validate the new firewall before changing active rules
@@ -41,6 +76,22 @@
   ansible.builtin.command: >-
     unshare --net nft -c -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
   changed_when: false
+
+- name: Arm a timer that removes the new rules unless a fresh login cancels it
+  # Separated hosts only: their rules limit SSH to the bastion. If the fresh login below cannot
+  # get in, the timer deletes the table and the host is back to no host firewall.
+  when: puni_public_ports is defined and puni_k3s_firewall_candidate is changed
+  ansible.builtin.command:
+    argv:
+      - systemd-run
+      - --on-active=5min
+      - --unit=puni-k3s-firewall-revert
+      - /usr/sbin/nft
+      - delete
+      - table
+      - inet
+      - puni_k3s
+  changed_when: true
 
 - name: Install the persistent isolated k3s firewall service
   # Proof: removing multi-user enablement made the reboot-persistence contract test fail.
@@ -60,6 +111,15 @@
     state: started
     enabled: true
     daemon_reload: true
+
+- name: Apply the firewall before the fresh login
+  ansible.builtin.meta: flush_handlers
+
+- name: Cancel the revert timer from a fresh login through the new rules
+  when: puni_public_ports is defined and puni_k3s_firewall_candidate is changed
+  ansible.builtin.include_tasks: ../../../tasks/fresh-connection.yml
+  vars:
+    puni_fresh_command: [systemctl, stop, puni-k3s-firewall-revert.timer]
 
 - name: Verify private-path MTU without fragmentation
   ansible.builtin.command: >-

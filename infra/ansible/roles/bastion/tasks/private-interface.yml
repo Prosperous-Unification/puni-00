@@ -1,0 +1,11 @@
+---
+- name: Require the declared private interface to carry the bastion's private address
+  # Proof: with this condition made always true, node-roles.test.ts `refuses a bastion whose
+  # private interface does not carry its address` failed (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_bastion_private_interface in ansible_interfaces
+      - >-
+        (hostvars[inventory_hostname]['ansible_' ~ (puni_bastion_private_interface | replace('-', '_'))]
+        .ipv4.address | default('')) == puni_bastion_private_address
+    fail_msg: '{{ puni_bastion_private_interface }} does not carry {{ puni_bastion_private_address }}'

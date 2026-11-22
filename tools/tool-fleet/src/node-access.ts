@@ -1,12 +1,18 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 /**
  * Judges the files the node and bastion roles render for each host of a static inventory
- * (`infra/ansible/tests/render-hosts.yml`): the k3s server configuration, the fleet firewall and
- * the bastion's `sshd` drop-in and firewall (openspec/changes/separate-node-roles, slices 1.2,
- * 1.8 and 1.9). `tool-fleet:check` runs them on the controller's renders and
- * `infra/ansible/tests/node-roles.test.ts` on renders of the committed templates.
+ * (`infra/ansible/tests/render-hosts.yml`): the k3s server configuration, the fleet firewall, the
+ * servers' sshd drop-in and the bastion's sshd drop-in and firewall (openspec/changes/
+ * separate-node-roles, slices 1.2, 1.8 and 1.9). `tool-fleet:check` runs them on the controller's
+ * renders and `infra/ansible/tests/node-roles.test.ts` on renders of the committed templates.
  *
- * Each judge returns problems; an empty list is a pass. A file the host should have and lacks is
- * a problem, never a skip.
+ * Two layers: every rendered file must equal its committed golden byte for byte
+ * ({@link judgeHostRenders}), and on top of that each critical chain and option set must be
+ * exactly the one the inventory's facts call for, in order, so a golden re-recorded around a
+ * wide-open rule still fails. Each judge returns problems; an empty list is a pass. A file the host
+ * should have and lacks is a problem, never a skip.
  */
 
 /** One host's renders and the inventory facts the judges compare them with. */
@@ -21,33 +27,37 @@ export interface HostRender {
 
 const serverGroups = ['k3s_bootstrap_servers', 'k3s_join_servers'];
 const k3sGroups = [...serverGroups, 'k3s_agents'];
+const neighbourDiscovery =
+  'icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept';
 
-function stringList(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-    ? [...value]
-    : null;
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
 function capabilitiesOf(render: HostRender): string[] {
-  return stringList(render.variables['puni_node_capabilities']) ?? [];
+  return stringList(render.variables['puni_node_capabilities']);
 }
 
-/** The rule lines of one `chain <name> { ... }` block, trimmed, comments and blanks dropped. */
-function chainRules(text: string, name: string): string[] | null {
-  const lines = text.split('\n').map((line) => line.trim());
+/** The lines of one `chain <name> { ... }` block, trimmed, with comments and blanks dropped. */
+function chainRules(rendered: string, name: string): string[] | null {
+  const lines = rendered.split('\n').map((line) => line.trim());
   const start = lines.indexOf(`chain ${name} {`);
   if (start < 0) return null;
   const rules: string[] = [];
   for (const line of lines.slice(start + 1)) {
     if (line === '}') return rules;
-    if (line !== '' && !line.startsWith('#')) rules.push(line);
+    if (line !== '' && !line.startsWith('#')) rules.push(line.replace(/ comment "[^"]*"$/, ''));
   }
   return null;
 }
 
 /** The elements of `set <name>`, or null when the set or its elements line is absent. */
-function setElements(text: string, name: string): string[] | null {
-  const lines = text.split('\n').map((line) => line.trim());
+function setElements(rendered: string, name: string): string[] | null {
+  const lines = rendered.split('\n').map((line) => line.trim());
   const start = lines.indexOf(`set ${name} {`);
   if (start < 0) return null;
   for (const line of lines.slice(start + 1)) {
@@ -58,58 +68,87 @@ function setElements(text: string, name: string): string[] | null {
   return null;
 }
 
-function withoutComment(rule: string): string {
-  return rule.replace(/ comment "[^"]*"$/, '');
+/** The chains a ruleset declares, in order. */
+function chainNames(rendered: string): string[] {
+  return [...rendered.matchAll(/^\s*chain (\S+) \{$/gm)].map((match) => match[1]);
 }
 
-/** The ports of a `tcp dport { a, b }` or `tcp dport a` match, or null when the rule has none. */
-function tcpPorts(rule: string): string[] | null {
-  const braced = /tcp dport \{ ([^}]*) \}/.exec(rule);
-  if (braced !== null) return braced[1].split(', ').sort();
-  const single = /tcp dport (\S+)/.exec(rule);
-  return single === null ? null : [single[1]];
+/** Compares two ordered lists; the problem names the first line that differs. */
+function compareLines(
+  where: string,
+  label: string,
+  actual: readonly string[] | null,
+  expected: readonly string[],
+): string[] {
+  if (actual === null) return [`${where} has no ${label}`];
+  for (let index = 0; index < Math.max(actual.length, expected.length); index += 1) {
+    if (actual[index] !== expected[index]) {
+      return [
+        `${where} ${label} differs at line ${String(index + 1)}: expected ${JSON.stringify(expected[index] ?? '(end)')}, found ${JSON.stringify(actual[index] ?? '(end)')}`,
+      ];
+    }
+  }
+  return [];
+}
+
+function compareSet(
+  where: string,
+  rendered: string,
+  name: string,
+  expected: readonly string[],
+): string[] {
+  const elements = setElements(rendered, name);
+  return JSON.stringify(elements) === JSON.stringify(expected)
+    ? []
+    : [
+        `${where} set ${name} holds ${elements === null ? 'nothing' : elements.join(', ')}, not ${expected.join(', ')}`,
+      ];
+}
+
+function sshdLines(rendered: string | undefined): string[] | null {
+  if (rendered === undefined) return null;
+  return rendered
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'));
 }
 
 /**
- * Every server writes `etcd-expose-metrics: true`. A `platform-services` server registers with
- * `CriticalAddonsOnly=true:NoSchedule` (R25) and appends `PodNodeSelector` with `+=`, which
- * keeps the `NodeRestriction` k3s sets itself; any other server writes neither.
+ * `etcd-expose-metrics`, the `CriticalAddonsOnly` taint (R25) and the `+=` PodNodeSelector entry
+ * that keeps k3s's own `NodeRestriction` are written by a `platform-services` server alone; any
+ * other server writes none of the three, so the existing servers keep their configuration.
  */
 export function judgeServerConfig(render: HostRender): string[] {
   const where = `${render.inventory} ${render.host}`;
   const config = render.files['k3s-server.yaml'];
   if (config === undefined) return [`${where} has no rendered k3s server configuration`];
   const lines = config.split('\n');
+  const platform = capabilitiesOf(render).includes('platform-services');
   const problems: string[] = [];
-  // Proof: dropping the template line made node-roles.test.ts `renders the platform taint and
-  // admission plugin on m1plat1` and `keeps the existing servers without an API server argument`
-  // fail (2026-11-22).
-  if (!lines.includes('etcd-expose-metrics: true')) {
-    problems.push(`${where} does not expose etcd metrics`);
-  }
-  const taint = lines.includes('  - CriticalAddonsOnly=true:NoSchedule');
-  const argIndex = lines.indexOf('kube-apiserver-arg:');
-  const plainAdmission = lines.some((line) => line.includes('enable-admission-plugins='));
-  if (capabilitiesOf(render).includes('platform-services')) {
-    // Proof: removing the template branch made node-roles.test.ts `renders the platform taint
-    // and admission plugin on m1plat1` fail (2026-11-22).
-    if (!taint) problems.push(`${where} is a platform-services server without the platform taint`);
-    if (argIndex < 0 || lines[argIndex + 1] !== '  - enable-admission-plugins+=PodNodeSelector') {
-      problems.push(`${where} does not append PodNodeSelector to the API server's plugins`);
-    }
-    // Proof: writing `=` in the template made node-roles.test.ts `renders the platform taint and
-    // admission plugin on m1plat1` fail (2026-11-22).
-    if (plainAdmission) {
+  const present = {
+    'etcd-expose-metrics': lines.includes('etcd-expose-metrics: true'),
+    'platform taint': lines.includes('  - CriticalAddonsOnly=true:NoSchedule'),
+    'kube-apiserver-arg': lines.includes('kube-apiserver-arg:'),
+  };
+  // Proof: removing the template's taint line, and writing etcd-expose-metrics for every server,
+  // each made node-roles.test.ts `renders the platform taint and admission plugin on m1plat1
+  // alone` fail; node-access.test.ts refuses a render without the taint or the etcd line
+  // (2026-11-22).
+  for (const [name, found] of Object.entries(present)) {
+    if (found !== platform) {
       problems.push(
-        `${where} replaces the API server's admission plugins, dropping NodeRestriction`,
+        `${where} ${platform ? 'lacks' : 'writes'} ${name} ${platform ? 'as a' : 'without'} platform-services server`,
       );
     }
-  } else {
-    // Proof: writing the entry for every server made node-roles.test.ts `keeps the existing
-    // servers without an API server argument` fail (2026-11-22).
-    if (argIndex >= 0)
-      problems.push(`${where} writes kube-apiserver-arg without platform-services`);
-    if (taint) problems.push(`${where} carries the platform taint without platform-services`);
+  }
+  const argument = lines.indexOf('kube-apiserver-arg:');
+  if (platform && lines[argument + 1] !== '  - enable-admission-plugins+=PodNodeSelector') {
+    problems.push(`${where} does not append PodNodeSelector to the API server's plugins`);
+  }
+  // Proof: writing `=` in the template made node-roles.test.ts `renders the platform taint and
+  // admission plugin on m1plat1 alone` fail (2026-11-22).
+  if (lines.some((line) => line.includes('enable-admission-plugins='))) {
+    problems.push(`${where} replaces the API server's admission plugins, dropping NodeRestriction`);
   }
   return problems;
 }
@@ -121,307 +160,198 @@ export interface FirewallFacts {
 }
 
 /**
- * The firewall of a host of a separated inventory (one that sets `puni_public_ports`): SSH from
- * the bastion on the private interface alone and on no other interface; the cluster's ports from
- * the enrolled node addresses alone, which are exactly the nodes and never the bastion; and a
- * stateful prerouting chain at -150 that limits the bastion to the host's `sshd`, keeps private
- * addresses that are not nodes off the cluster CIDR, the service CIDR and the NodePorts, and drops
- * every new connection on the public side but the host's public ports (80 and 443 with `ingress`,
- * none without) and Tailscale's UDP port (design decision 12).
+ * The exact input and prerouting chains, and sets, of a host of a separated inventory (one that
+ * sets `puni_public_ports`): SSH from the bastion on the private interface alone; the API on the
+ * tailnet; etcd's metrics, the cluster's ports and VXLAN from the enrolled nodes and the pod
+ * network alone; and a stateful prerouting chain at -150 that drops new IPv6 on the private
+ * interface, limits the bastion to this host's `sshd`, keeps private addresses that are not nodes
+ * off the cluster and service CIDRs and the NodePorts (the CI server to the otel-gateway's on this
+ * host excepted), and drops every new connection on the declared public interfaces but the host's
+ * public ports (80 and 443 with `ingress`, none without) and Tailscale's UDP port (decision 12).
+ * The servers' sshd drop-in (keys only, the console account denied) is compared too.
  */
 export function judgeSeparatedFirewall(render: HostRender, facts: FirewallFacts): string[] {
   const where = `${render.inventory} ${render.host}`;
-  const text = render.files['firewall.nft'];
-  if (text === undefined) return [`${where} has no rendered firewall`];
+  const rendered = render.files['firewall.nft'];
+  if (rendered === undefined) return [`${where} has no rendered firewall`];
   const variables = render.variables;
-  const privateInterface = String(variables['puni_private_interface']);
-  const bastion = String(variables['puni_bastion_address']);
-  const node = String(variables['puni_node_ip']);
-  const problems: string[] = [];
-  const input = chainRules(text, 'input');
-  const prerouting = chainRules(text, 'prerouting');
-  if (input === null) return [`${where} firewall has no input chain`];
-
-  const bastionSsh = `iifname "${privateInterface}" ip saddr ${bastion} ip daddr ${node} tcp dport 22 accept`;
-  // Every input rule that names port 22 is read, on every interface: checking the private
-  // interface's rules alone would let the tailnet admit SSH.
-  // Proof: keeping the "retain SSH recovery" rule or admitting the private range in the template
-  // made node-roles.test.ts `renders a separated firewall the judge accepts ...` fail; reading
-  // `iifname "<private>"` rules alone made node-access.test.ts `refuses SSH on the tailnet
-  // interface` fail (2026-11-22).
-  const sshRules = input.map(withoutComment).filter((rule) => tcpPorts(rule)?.includes('22'));
-  if (JSON.stringify(sshRules) !== JSON.stringify([bastionSsh, 'tcp dport 22 drop'])) {
-    problems.push(
-      `${where} admits SSH other than from the bastion on the private interface: ${sshRules.join(' | ')}`,
-    );
-  }
-
-  const enrolled = setElements(text, 'enrolled_ipv4');
-  const expectedEnrolled = [...facts.nodeAddresses].sort();
-  if (
-    enrolled === null ||
-    JSON.stringify([...enrolled].sort()) !== JSON.stringify(expectedEnrolled)
-  ) {
-    problems.push(
-      `${where} enrolled set is ${String(enrolled)}, not the node addresses ${expectedEnrolled.join(', ')}`,
-    );
-  }
-  // Proof: widening the source of the 8472 rule to the private range in the template made
-  // node-roles.test.ts `renders a separated firewall the judge accepts ...` fail (2026-11-22).
-  for (const ports of ['tcp dport { 6443, 2379, 2380, 10250 } accept', 'udp dport 8472 accept']) {
-    const rule = `iifname "${privateInterface}" ip saddr @enrolled_ipv4 ${ports}`;
-    const sources = input.filter((each) => each.endsWith(ports) && !each.includes('@cluster_ipv4'));
-    if (JSON.stringify(sources) !== JSON.stringify([rule])) {
-      problems.push(`${where} admits ${ports.replace(' accept', '')} from ${sources.join(' | ')}`);
-    }
-  }
-
-  if (prerouting === null) return [...problems, `${where} firewall has no prerouting chain`];
-  const header = 'type filter hook prerouting priority -150; policy accept;';
-  if (prerouting[0] !== header) problems.push(`${where} prerouting chain is not "${header}"`);
-  if (prerouting[1] !== 'ct state established,related accept') {
-    problems.push(`${where} prerouting does not accept established traffic first`);
-  }
-  const rules = prerouting.slice(1).map(withoutComment);
-  if (!rules.includes('ct state invalid drop')) {
-    problems.push(`${where} prerouting does not drop invalid traffic`);
-  }
-  // Proof: dropping `ct state new` from the template's public drop made node-roles.test.ts
-  // `renders a separated firewall the judge accepts ...` fail (2026-11-22).
-  for (const rule of rules.filter((each) => each.endsWith(' drop'))) {
-    if (rule !== 'ct state invalid drop' && !rule.endsWith(' ct state new drop')) {
-      problems.push(`${where} prerouting drops more than new connections: ${rule}`);
-    }
-  }
-  // Proof: dropping the template's bastion rule made node-roles.test.ts `renders a separated
-  // firewall the judge accepts ...` fail (2026-11-22).
-  const bastionAccept = rules.indexOf(bastionSsh);
-  if (
-    bastionAccept < 0 ||
-    rules[bastionAccept + 1] !==
-      `iifname "${privateInterface}" ip saddr ${bastion} ct state new drop`
-  ) {
-    problems.push(`${where} lets the bastion reach more than this host's sshd`);
-  }
-  for (const target of [
-    'ip daddr @cluster_ipv4',
-    'ip daddr @service_ipv4',
-    'tcp dport 30000-32767',
-    'udp dport 30000-32767',
-  ]) {
-    const rule = `iifname "${privateInterface}" ip saddr != @enrolled_ipv4 ${target} ct state new drop`;
-    if (!rules.includes(rule)) {
-      problems.push(
-        `${where} prerouting lets a private address that is not a node reach ${target}`,
-      );
-    }
-  }
-
-  const publicSide = /^iifname != \{ "lo", "([^"]+)", "([^"]+)", "cni0", "flannel\.1" \} /;
-  const publicRules = rules.filter((rule) => publicSide.test(rule));
-  const internal = publicRules.map((rule) => publicSide.exec(rule)?.slice(1, 3).join(' '));
-  if (
-    internal.some(
-      (names) => names !== `${privateInterface} ${String(variables['puni_tailnet_interface'])}`,
-    )
-  ) {
-    problems.push(
-      `${where} public side excludes interfaces other than the private and tailnet ones`,
-    );
-  }
+  const privateInterface = text(variables['puni_private_interface']);
+  const tailnet = text(variables['puni_tailnet_interface']);
+  const bastion = text(variables['puni_bastion_address']);
+  const node = text(variables['puni_node_ip']);
   const ingress = capabilitiesOf(render).includes('ingress');
-  const expectedPorts = ingress ? ['443', '80'] : [];
-  const declared = (
-    Array.isArray(variables['puni_public_ports']) ? variables['puni_public_ports'] : []
-  )
-    .map(String)
-    .sort();
-  if (JSON.stringify(declared) !== JSON.stringify(expectedPorts)) {
+  const declaredPorts = stringList(variables['puni_public_ports']);
+  const ci = stringList(variables['puni_ci_private_addresses']);
+  const otel = stringList(variables['puni_otel_gateway_node_ports']);
+  const publicSide = `iifname { ${stringList(variables['puni_public_interfaces'])
+    .map((name) => `"${name}"`)
+    .join(', ')} }`;
+  const priv = `iifname "${privateInterface}"`;
+  const problems: string[] = [];
+
+  if (JSON.stringify([...declaredPorts].sort()) !== JSON.stringify(ingress ? ['443', '80'] : [])) {
     problems.push(
-      `${where} declares public ports ${declared.join(', ') || 'none'}; ${ingress ? 'an ingress host serves 80 and 443' : 'a host without ingress serves none'}`,
+      `${where} declares public ports ${declaredPorts.join(', ') || 'none'}; ${ingress ? 'an ingress host serves 80 and 443' : 'a host without ingress serves none'}`,
     );
   }
-  // Proof: rendering `tcp dport { 80, 443 }` for every host in the template made
-  // node-roles.test.ts `renders a separated firewall the judge accepts ...` fail (2026-11-22).
-  const publicTcp = publicRules
-    .filter((rule) => rule.endsWith(' accept'))
-    .flatMap((rule) => tcpPorts(rule) ?? [])
-    .sort();
-  if (JSON.stringify(publicTcp) !== JSON.stringify(expectedPorts)) {
-    problems.push(
-      `${where} accepts public TCP ${publicTcp.join(', ') || 'none'}, not ${expectedPorts.join(', ') || 'none'}`,
-    );
+  if (facts.nodeAddresses.includes(bastion)) {
+    problems.push(`${where} enrolls the bastion ${bastion}, which has public SSH`);
   }
-  // Proof: removing the template's public drop from prerouting (leaving the input hook alone)
-  // made node-roles.test.ts `renders a separated firewall the judge accepts ...` fail (2026-11-22).
-  const last = rules.at(-1) ?? '';
-  if (!publicSide.test(last) || !last.endsWith(' ct state new drop')) {
-    problems.push(`${where} prerouting does not end with the public drop`);
-  }
-  const consoleAccount = variables['puni_console_account'];
-  // Proof: dropping the DenyUsers line from sshd-console.conf.j2 made node-roles.test.ts `renders
-  // every host of both static inventories as the judges require` fail (2026-11-22).
-  if (
-    typeof consoleAccount !== 'string' ||
-    !(render.files['sshd-console.conf'] ?? '').split('\n').includes(`DenyUsers ${consoleAccount}`)
-  ) {
-    problems.push(`${where} sshd does not refuse the console account`);
-  }
-  const nodePortAccepts = rules.filter(
-    (rule) => rule.endsWith(' accept') && rule.includes('@ci_ipv4'),
+  problems.push(
+    ...compareLines(where, 'chain list', chainNames(rendered), ['input', 'prerouting']),
+    ...compareSet(where, rendered, 'enrolled_ipv4', facts.nodeAddresses),
+    ...compareSet(where, rendered, 'cluster_ipv4', [text(variables['puni_cluster_cidr'])]),
+    ...compareSet(where, rendered, 'service_ipv4', [text(variables['puni_service_cidr'])]),
+    ...(ci.length > 0 ? compareSet(where, rendered, 'ci_ipv4', ci) : []),
   );
-  const ci = stringList(variables['puni_ci_private_addresses']) ?? [];
-  const otelPorts = (
-    Array.isArray(variables['puni_otel_gateway_node_ports'])
-      ? variables['puni_otel_gateway_node_ports']
-      : []
-  )
-    .map(String)
-    .sort();
-  if (ci.length === 0 ? nodePortAccepts.length > 0 : nodePortAccepts.length !== 1) {
-    problems.push(
-      `${where} admits the CI server to ${String(nodePortAccepts.length)} NodePort rules`,
-    );
-  }
-  for (const rule of nodePortAccepts) {
-    if (JSON.stringify(tcpPorts(rule)) !== JSON.stringify(otelPorts)) {
-      problems.push(`${where} admits the CI server beyond the otel-gateway NodePorts: ${rule}`);
-    }
-  }
+  // Proof: skipping this comparison made six node-access.test.ts cases fail, among them `refuses
+  // public SSH kept as "retain SSH recovery"`; each of those template faults, and SSH or 8472
+  // from the private range or a tailnet SSH accept, also failed node-roles.test.ts `renders
+  // every host byte-equal to its committed golden` (2026-11-22).
+  problems.push(
+    ...compareLines(where, 'input chain', chainRules(rendered, 'input'), [
+      'type filter hook input priority -5; policy accept;',
+      'iifname "lo" accept',
+      `${priv} ip saddr ${bastion} ip daddr ${node} tcp dport 22 accept`,
+      'tcp dport 22 drop',
+      `iifname "${tailnet}" tcp dport 6443 accept`,
+      'iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport 2381 accept',
+      `${priv} ip saddr @enrolled_ipv4 tcp dport 2381 accept`,
+      'tcp dport 2381 reject with tcp reset',
+      'iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport { 6443, 10250 } accept',
+      `${priv} ip saddr @enrolled_ipv4 tcp dport { 6443, 2379, 2380, 10250 } accept`,
+      'tcp dport { 6443, 2379, 2380, 10250 } reject with tcp reset',
+      `${priv} ip saddr @enrolled_ipv4 udp dport 8472 accept`,
+      'udp dport 8472 drop',
+    ]),
+  );
+  // Proof: in the template, dropping the bastion rule, `ct state new` from the public drop, the
+  // public drop or the IPv6 drop, or rendering 80 and 443 for every host, each failed
+  // node-roles.test.ts `renders every host byte-equal to its committed golden`; dropping
+  // `ip daddr` from the CI accept failed its `renders a separated firewall the judge accepts`
+  // case, which this list alone judges. node-access.test.ts refuses each of the first five
+  // here alone (2026-11-22).
+  problems.push(
+    ...compareLines(where, 'prerouting chain', chainRules(rendered, 'prerouting'), [
+      'type filter hook prerouting priority -150; policy accept;',
+      'ct state established,related accept',
+      neighbourDiscovery,
+      `${priv} meta nfproto ipv6 ct state new drop`,
+      'ct state invalid drop',
+      `${priv} ip saddr ${bastion} ip daddr ${node} tcp dport 22 accept`,
+      `${priv} ip saddr ${bastion} ct state new drop`,
+      ...(ci.length > 0
+        ? [`${priv} ip saddr @ci_ipv4 ip daddr ${node} tcp dport { ${otel.join(', ')} } accept`]
+        : []),
+      `${priv} ip saddr != @enrolled_ipv4 ip daddr @cluster_ipv4 ct state new drop`,
+      `${priv} ip saddr != @enrolled_ipv4 ip daddr @service_ipv4 ct state new drop`,
+      `${priv} ip saddr != @enrolled_ipv4 tcp dport 30000-32767 ct state new drop`,
+      `${priv} ip saddr != @enrolled_ipv4 udp dport 30000-32767 ct state new drop`,
+      ...(ingress ? [`${publicSide} tcp dport { 80, 443 } accept`] : []),
+      `${publicSide} udp dport 41641 accept`,
+      `${publicSide} ct state new drop`,
+    ]),
+  );
+  // Proof: dropping the DenyUsers line from sshd-console.conf.j2 failed node-roles.test.ts
+  // `renders every host byte-equal to its committed golden`; node-access.test.ts refuses a
+  // drop-in without it, or without `PasswordAuthentication no`, here alone (2026-11-22).
+  problems.push(
+    ...compareLines(where, 'sshd drop-in', sshdLines(render.files['sshd-console.conf']), [
+      'PasswordAuthentication no',
+      'KbdInteractiveAuthentication no',
+      `DenyUsers ${text(variables['puni_console_account'])}`,
+    ]),
+  );
   return problems;
 }
 
 /**
- * The bastion's `sshd` drop-in and firewall (R55, slice 1.9). `jump` gets no TTY, agent, X11,
- * stream-local or tunnel forwarding, `AllowTcpForwarding local`, and `PermitOpen` to exactly the
- * forwarded hosts' port 22; passwords are refused for every user. The firewall admits public TCP
- * 22 alone, each family through a per-source meter, private TCP 22 from the probers alone, and
- * drops everything else inbound.
+ * The bastion's `sshd` drop-in and firewall (R55, slice 1.9), compared exactly. Every user: keys
+ * only, no root, `MaxAuthTries 6`, `AllowUsers` the operator and `jump`, the console account
+ * denied. `jump`: no TTY, agent, X11, stream-local or tunnel forwarding, `AllowTcpForwarding
+ * local`, and `PermitOpen` to exactly the forwarded hosts' port 22. The firewall drops by default
+ * and drops IPv6 on the private interface, admits private TCP 22 from the probers alone, and
+ * public TCP 22 alone, each family through a per-source meter.
  */
 export function judgeBastion(render: HostRender, forwardedAddresses: readonly string[]): string[] {
   const where = `${render.inventory} ${render.host}`;
-  const sshd = render.files['bastion-sshd.conf'];
+  const sshd = sshdLines(render.files['bastion-sshd.conf']);
   const firewall = render.files['bastion.nft'];
+  if (sshd === null || firewall === undefined) {
+    return [`${where} lacks its rendered sshd drop-in or firewall`];
+  }
+  const variables = render.variables;
+  const probers = stringList(variables['puni_bastion_probers']);
   const problems: string[] = [];
-  if (sshd === undefined) problems.push(`${where} has no rendered sshd drop-in`);
-  if (firewall === undefined) problems.push(`${where} has no rendered bastion firewall`);
-  if (sshd === undefined || firewall === undefined) return problems;
-
-  const lines = sshd.split('\n').map((line) => line.trim());
-  const match = lines.indexOf('Match User jump');
-  const global = match < 0 ? lines : lines.slice(0, match);
-  const consoleAccount = render.variables['puni_console_account'];
-  // Proof: dropping the DenyUsers line from the bastion's sshd.conf.j2 made node-roles.test.ts
-  // `forwards to every server the inventory adds` fail (2026-11-22).
-  if (typeof consoleAccount !== 'string' || !global.includes(`DenyUsers ${consoleAccount}`)) {
-    problems.push(`${where} sshd does not refuse the console account`);
-  }
-  for (const option of ['PasswordAuthentication no', 'KbdInteractiveAuthentication no']) {
-    if (!global.includes(option))
-      problems.push(`${where} sshd does not set ${option} for every user`);
-  }
-  if (match < 0) return [...problems, `${where} sshd has no Match User jump block`];
-  const jump = lines.slice(match + 1).filter((line) => line !== '' && !line.startsWith('#'));
-  // Proof: dropping the PermitTunnel and AllowTcpForwarding comparisons (checking PermitOpen
-  // alone) made node-access.test.ts `refuses jump forwarding other than local` fail (2026-11-22).
-  for (const option of [
-    'PermitTTY no',
-    'AllowAgentForwarding no',
-    'X11Forwarding no',
-    'AllowStreamLocalForwarding no',
-    'PermitTunnel no',
-    'AllowTcpForwarding local',
-  ]) {
-    const key = option.split(' ')[0];
-    const set = jump.filter((line) => line.split(' ')[0] === key);
-    if (JSON.stringify(set) !== JSON.stringify([option])) {
-      problems.push(`${where} jump sets ${set.join(' | ') || `no ${key}`}, not ${option}`);
-    }
-  }
-  const permitOpen = jump.filter((line) => line.startsWith('PermitOpen '));
-  const entries = permitOpen.flatMap((line) => line.split(' ').slice(1)).sort();
   // Proof: accepting any port here made node-access.test.ts `refuses a PermitOpen entry for a
   // port other than 22` fail (2026-11-22).
-  for (const entry of entries) {
+  for (const entry of sshd
+    .filter((line) => line.startsWith('PermitOpen '))
+    .flatMap((line) => line.split(' ').slice(1))) {
     if (!/^\d{1,3}(?:\.\d{1,3}){3}:22$/.test(entry)) {
       problems.push(`${where} jump may open ${entry}, which is not a server's port 22`);
     }
   }
-  const expected = forwardedAddresses.map((address) => `${address}:22`).sort();
   // Proof: rendering PermitOpen from a literal list made node-roles.test.ts `forwards to every
-  // server the inventory adds` fail (2026-11-22).
-  if (permitOpen.length !== 1 || JSON.stringify(entries) !== JSON.stringify(expected)) {
-    problems.push(`${where} jump may open ${entries.join(' ')}, not ${expected.join(' ')}`);
-  }
-
-  const input = chainRules(firewall, 'input');
-  if (input === null) return [...problems, `${where} bastion firewall has no input chain`];
-  if (input[0] !== 'type filter hook input priority 0; policy drop;') {
-    problems.push(`${where} bastion input chain does not drop by default`);
-  }
-  const rules = input.slice(1).map(withoutComment);
-  const probers = stringList(render.variables['puni_bastion_probers']) ?? [];
-  const privateAccepts = rules.filter(
-    (rule) => rule.startsWith('ip saddr ') && rule.endsWith(' accept'),
+  // server the inventory adds` fail, which this list alone judges; dropping AllowUsers or
+  // PermitRootLogin from the template failed its golden case; node-access.test.ts refuses each
+  // of those and a widened jump option here alone (2026-11-22).
+  problems.push(
+    ...compareLines(where, 'sshd drop-in', sshd, [
+      'PasswordAuthentication no',
+      'KbdInteractiveAuthentication no',
+      'PermitRootLogin no',
+      'PubkeyAuthentication yes',
+      'MaxAuthTries 6',
+      `AllowUsers ${text(variables['puni_operator_name'])} jump`,
+      `DenyUsers ${text(variables['puni_console_account'])}`,
+      'Match User jump',
+      'PermitTTY no',
+      'AllowAgentForwarding no',
+      'X11Forwarding no',
+      'AllowStreamLocalForwarding no',
+      'PermitTunnel no',
+      'AllowTcpForwarding local',
+      `PermitOpen ${forwardedAddresses.map((address) => `${address}:22`).join(' ')}`,
+    ]),
+    ...compareLines(where, 'firewall chain list', chainNames(firewall), ['input', 'output']),
+    ...compareSet(where, firewall, 'private_ipv4', [text(variables['puni_private_network'])]),
+    ...(probers.length > 0 ? compareSet(where, firewall, 'probers_ipv4', probers) : []),
   );
-  // Proof: admitting the private range in bastion.nft.j2 made node-roles.test.ts `forwards to
-  // every server the inventory adds` fail (2026-11-22).
-  const expectedPrivate =
-    probers.length === 0 ? [] : ['ip saddr @probers_ipv4 tcp dport 22 ct state new accept'];
-  const proberSet = setElements(firewall, 'probers_ipv4');
-  if (
-    JSON.stringify(privateAccepts) !== JSON.stringify(expectedPrivate) ||
-    (probers.length > 0 && JSON.stringify(proberSet) !== JSON.stringify(probers))
-  ) {
-    problems.push(
-      `${where} bastion admits private traffic beyond the probers: ${privateAccepts.join(' | ')}`,
-    );
-  }
-  const privateDrop = rules.indexOf('ip saddr @private_ipv4 drop');
-  if (privateDrop < 0)
-    problems.push(`${where} bastion does not drop the rest of the private network`);
-  const publicAccepts = rules.filter(
-    (rule, index) => index > privateDrop && rule.endsWith(' accept'),
+  // Proof: in bastion.nft.j2, dropping the IPv4 meter or the private IPv6 drop failed
+  // node-roles.test.ts's golden case, and admitting the private range failed `forwards to every
+  // server the inventory adds`, which this list alone judges; node-access.test.ts refuses those
+  // and a public port 80 here alone (2026-11-22).
+  problems.push(
+    ...compareLines(where, 'input chain', chainRules(firewall, 'input'), [
+      'type filter hook input priority 0; policy drop;',
+      'iifname "lo" accept',
+      `iifname "${text(variables['puni_bastion_private_interface'])}" meta nfproto ipv6 drop`,
+      'ct state established,related accept',
+      neighbourDiscovery,
+      'ct state invalid drop',
+      ...(probers.length > 0 ? ['ip saddr @probers_ipv4 tcp dport 22 ct state new accept'] : []),
+      'ip saddr @private_ipv4 drop',
+      'meta nfproto ipv4 tcp dport 22 ct state new add @ssh_sources_ipv4 { ip saddr limit rate 10/minute burst 5 packets } accept',
+      'meta nfproto ipv6 tcp dport 22 ct state new add @ssh_sources_ipv6 { ip6 saddr limit rate 10/minute burst 5 packets } accept',
+    ]),
+    ...compareLines(where, 'output chain', chainRules(firewall, 'output'), [
+      'type filter hook output priority 0; policy accept;',
+    ]),
   );
-  const publicPorts = [...new Set(publicAccepts.flatMap((rule) => tcpPorts(rule) ?? ['(any)']))];
-  // Proof: checking that 22 is present rather than alone made node-access.test.ts `refuses a
-  // public port set other than exactly 22` fail on its {22, 80} case (2026-11-22).
-  if (JSON.stringify(publicPorts) !== JSON.stringify(['22'])) {
-    problems.push(
-      `${where} bastion serves public ports ${publicPorts.join(', ') || 'none'}, not exactly 22`,
-    );
-  }
-  // Proof: dropping the IPv4 meter from bastion.nft.j2 made node-roles.test.ts `renders every host
-  // of both static inventories as the judges require` fail (2026-11-22).
-  for (const family of ['ip saddr', 'ip6 saddr']) {
-    const metered = publicAccepts.filter((rule) =>
-      new RegExp(
-        `ct state new add @\\S+ \\{ ${family} limit rate \\d+/minute burst \\d+ packets \\} accept$`,
-      ).test(rule),
-    );
-    if (metered.length !== 1) {
-      problems.push(
-        `${where} bastion does not limit new public SSH per ${family.split(' ')[0]} source`,
-      );
-    }
-  }
-  if (publicAccepts.length !== 2) {
-    problems.push(
-      `${where} bastion has ${String(publicAccepts.length)} public accepts, not one per family`,
-    );
-  }
   return problems;
 }
 
 /**
- * Judges every host render of the static inventories. A host of a separated inventory gets
- * {@link judgeSeparatedFirewall}; any other k3s host's firewall must equal its committed copy in
- * `existingFirewalls` (keyed `<inventory>/<host>`), so the existing inventories render exactly
- * what they rendered before slice 1.8.
+ * Judges every host render of the static inventories. Each rendered file must equal its
+ * committed golden in `goldens` (keyed `<inventory file name without .yml>/<host>/<file>`), and
+ * the host's rendered files must be exactly the ones committed for it. On top of that each server
+ * gets {@link judgeServerConfig}, a separated host {@link judgeSeparatedFirewall}, and the
+ * bastion {@link judgeBastion}.
  */
 export function judgeHostRenders(
   renders: readonly HostRender[],
-  existingFirewalls: Readonly<Partial<Record<string, string>>>,
+  goldens: Readonly<Partial<Record<string, string>>>,
 ): string[] {
   if (renders.length === 0) return ['no static inventory host was rendered'];
   const problems: string[] = [];
@@ -430,35 +360,63 @@ export function judgeHostRenders(
     byInventory.set(render.inventory, [...(byInventory.get(render.inventory) ?? []), render]);
   }
   for (const [inventory, hosts] of byInventory) {
+    const label = inventory.replace(/^.*\//, '').replace(/\.yml$/, '');
     const nodes = hosts.filter(({ groups }) => groups.some((group) => k3sGroups.includes(group)));
-    const nodeAddresses = nodes.map(({ variables }) => String(variables['puni_node_ip']));
+    const nodeAddresses = nodes.map(({ variables }) => text(variables['puni_node_ip']));
     const forwarded = hosts
       .filter(({ groups }) =>
         groups.some((group) => k3sGroups.includes(group) || group === 'bastion_forward_hosts'),
       )
-      .map(({ variables }) => String(variables['ansible_host']));
+      .map(({ variables }) => text(variables['ansible_host']));
     for (const render of hosts) {
+      const prefix = `${label}/${render.host}/`;
+      const committed = Object.keys(goldens)
+        .filter((key) => key.startsWith(prefix))
+        .map((key) => key.slice(prefix.length))
+        .sort();
+      const rendered = Object.keys(render.files).sort();
+      // Proof: changing the firewall template's default branch made node-roles.test.ts `renders
+      // every host byte-equal to its committed golden` fail for h4claw and h3mon (2026-11-22).
+      if (JSON.stringify(committed) !== JSON.stringify(rendered)) {
+        problems.push(
+          `${inventory} ${render.host} renders ${rendered.join(', ') || 'nothing'}, but ${committed.join(', ') || 'nothing'} is committed`,
+        );
+      }
+      for (const name of rendered) {
+        const golden = goldens[`${prefix}${name}`];
+        if (golden !== undefined && golden !== render.files[name]) {
+          problems.push(`${inventory} ${render.host} ${name} differs from its committed golden`);
+        }
+      }
       if (render.groups.some((group) => serverGroups.includes(group))) {
         problems.push(...judgeServerConfig(render));
       }
-      if (render.groups.some((group) => k3sGroups.includes(group))) {
-        if (render.variables['puni_public_ports'] === undefined) {
-          const committed = existingFirewalls[`${inventory}/${render.host}`];
-          // Proof: changing the template's default branch made node-roles.test.ts `renders the
-          // existing inventory's firewalls byte-equal` fail (2026-11-22).
-          if (committed === undefined) {
-            problems.push(`${inventory} ${render.host} has no committed firewall to compare`);
-          } else if (render.files['firewall.nft'] !== committed) {
-            problems.push(
-              `${inventory} ${render.host} firewall differs from its committed rendering`,
-            );
-          }
-        } else {
-          problems.push(...judgeSeparatedFirewall(render, { nodeAddresses }));
-        }
+      if (
+        render.groups.some((group) => k3sGroups.includes(group)) &&
+        render.variables['puni_public_ports'] !== undefined
+      ) {
+        problems.push(...judgeSeparatedFirewall(render, { nodeAddresses }));
       }
       if (render.groups.includes('bastion')) problems.push(...judgeBastion(render, forwarded));
     }
   }
   return problems;
+}
+
+/** Reads the committed goldens under `directory`, keyed `<inventory>/<host>/<file>`. */
+export async function readHostRenderGoldens(
+  directory: string,
+): Promise<Partial<Record<string, string>>> {
+  const goldens: Record<string, string> = {};
+  for (const inventory of await readdir(directory)) {
+    for (const host of await readdir(join(directory, inventory))) {
+      for (const name of await readdir(join(directory, inventory, host))) {
+        goldens[`${inventory}/${host}/${name.replace(/\.golden$/, '')}`] = await readFile(
+          join(directory, inventory, host, name),
+          'utf8',
+        );
+      }
+    }
+  }
+  return goldens;
 }

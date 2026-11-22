@@ -24,6 +24,9 @@ table inet puni_k3s {
     iifname "enp8s0" ip saddr 10.10.1.12 ip daddr 10.10.1.11 tcp dport 22 accept comment "SSH from the bastion alone"
     tcp dport 22 drop
     iifname "tailscale0" tcp dport 6443 accept comment "Kubernetes API over the tailnet"
+    iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport 2381 accept comment "etcd metrics"
+    iifname "enp8s0" ip saddr @enrolled_ipv4 tcp dport 2381 accept
+    tcp dport 2381 reject with tcp reset
     # Proof: removing this rule made the pod-to-API firewall contract test fail.
     # Proof: without 10250 the live QEMU lab metrics-server could not scrape its own node's
     # kubelet ("connection refused") and stayed unready after an agent retirement.
@@ -37,11 +40,12 @@ table inet puni_k3s {
   # Before destination NAT (-100) and after connection tracking (-200), so a forwarded port such as
   # a NodePort is covered and not only what the host listens on. Drops match new connections only:
   # replies to the host's own connections arrive here too (design decision 12). The public side is
-  # every interface but loopback, the private one, the tailnet and the pod network.
+  # the declared public interfaces; the network role refuses an interface no class names.
   chain prerouting {
     type filter hook prerouting priority -150; policy accept;
     ct state established,related accept
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+    iifname "enp8s0" meta nfproto ipv6 ct state new drop comment "the private network is IPv4"
     ct state invalid drop
     iifname "enp8s0" ip saddr 10.10.1.12 ip daddr 10.10.1.11 tcp dport 22 accept
     iifname "enp8s0" ip saddr 10.10.1.12 ct state new drop comment "the bastion reaches sshd alone"
@@ -49,7 +53,7 @@ table inet puni_k3s {
     iifname "enp8s0" ip saddr != @enrolled_ipv4 ip daddr @service_ipv4 ct state new drop
     iifname "enp8s0" ip saddr != @enrolled_ipv4 tcp dport 30000-32767 ct state new drop
     iifname "enp8s0" ip saddr != @enrolled_ipv4 udp dport 30000-32767 ct state new drop
-    iifname != { "lo", "enp8s0", "tailscale0", "cni0", "flannel.1" } udp dport 41641 accept comment "direct tailnet connections"
-    iifname != { "lo", "enp8s0", "tailscale0", "cni0", "flannel.1" } ct state new drop comment "public interface"
+    iifname { "enp3s0" } udp dport 41641 accept comment "direct tailnet connections"
+    iifname { "enp3s0" } ct state new drop comment "public interface"
   }
 }

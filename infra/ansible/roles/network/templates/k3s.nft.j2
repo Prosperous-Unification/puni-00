@@ -41,6 +41,9 @@ table inet puni_k3s {
     iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ip daddr {{ puni_node_ip }} tcp dport 22 accept comment "SSH from the bastion alone"
     tcp dport 22 drop
     iifname "{{ puni_tailnet_interface }}" tcp dport 6443 accept comment "Kubernetes API over the tailnet"
+    iifname { "cni0", "flannel.1" } ip saddr @cluster_ipv4 tcp dport 2381 accept comment "etcd metrics"
+    iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 tcp dport 2381 accept
+    tcp dport 2381 reject with tcp reset
 {% else %}
     tcp dport 22 accept comment "retain SSH recovery"
 {% endif %}
@@ -58,26 +61,27 @@ table inet puni_k3s {
   # Before destination NAT (-100) and after connection tracking (-200), so a forwarded port such as
   # a NodePort is covered and not only what the host listens on. Drops match new connections only:
   # replies to the host's own connections arrive here too (design decision 12). The public side is
-  # every interface but loopback, the private one, the tailnet and the pod network.
+  # the declared public interfaces; the network role refuses an interface no class names.
   chain prerouting {
     type filter hook prerouting priority -150; policy accept;
     ct state established,related accept
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+    iifname "{{ puni_private_interface }}" meta nfproto ipv6 ct state new drop comment "the private network is IPv4"
     ct state invalid drop
     iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ip daddr {{ puni_node_ip }} tcp dport 22 accept
     iifname "{{ puni_private_interface }}" ip saddr {{ puni_bastion_address }} ct state new drop comment "the bastion reaches sshd alone"
 {% if puni_ci_private_addresses | length > 0 %}
-    iifname "{{ puni_private_interface }}" ip saddr @ci_ipv4 tcp dport { {{ puni_otel_gateway_node_ports | join(', ') }} } accept comment "otel-gateway from the CI server"
+    iifname "{{ puni_private_interface }}" ip saddr @ci_ipv4 ip daddr {{ puni_node_ip }} tcp dport { {{ puni_otel_gateway_node_ports | join(', ') }} } accept comment "otel-gateway from the CI server"
 {% endif %}
     iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 ip daddr @cluster_ipv4 ct state new drop
     iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 ip daddr @service_ipv4 ct state new drop
     iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 tcp dport 30000-32767 ct state new drop
     iifname "{{ puni_private_interface }}" ip saddr != @enrolled_ipv4 udp dport 30000-32767 ct state new drop
 {% if puni_public_ports | length > 0 %}
-    iifname != { "lo", "{{ puni_private_interface }}", "{{ puni_tailnet_interface }}", "cni0", "flannel.1" } tcp dport { {{ puni_public_ports | join(', ') }} } accept
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } tcp dport { {{ puni_public_ports | join(', ') }} } accept
 {% endif %}
-    iifname != { "lo", "{{ puni_private_interface }}", "{{ puni_tailnet_interface }}", "cni0", "flannel.1" } udp dport 41641 accept comment "direct tailnet connections"
-    iifname != { "lo", "{{ puni_private_interface }}", "{{ puni_tailnet_interface }}", "cni0", "flannel.1" } ct state new drop comment "public interface"
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } udp dport 41641 accept comment "direct tailnet connections"
+    iifname { "{{ puni_public_interfaces | join('", "') }}" } ct state new drop comment "public interface"
   }
 {% endif %}
 }

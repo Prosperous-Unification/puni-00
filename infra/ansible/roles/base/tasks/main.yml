@@ -8,7 +8,8 @@
       - ansible_architecture in ['x86_64', 'amd64']
       - puni_operator_name is defined
       - puni_operator_name | length > 0
-      - puni_operator_authorized_keys is defined
+      - puni_operator_authorized_keys is sequence
+      - puni_operator_authorized_keys is not string
       - puni_operator_authorized_keys | length > 0
       # 0 disables every swap device; a positive size keeps exactly one fleet swap file.
       - puni_swap_file_mib is defined
@@ -54,13 +55,12 @@
     mode: '0700'
 
 - name: Install the exact operator authorized keys
-  ansible.builtin.copy:
-    dest: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
-    content: |
-      {{ puni_operator_authorized_keys | join('\n') }}
-    owner: '{{ puni_operator_name }}'
-    group: '{{ puni_operator_name }}'
-    mode: '0600'
+  ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml
+  vars:
+    puni_keys: '{{ puni_operator_authorized_keys }}'
+    puni_keys_owner: '{{ puni_operator_name }}'
+    puni_keys_group: '{{ puni_operator_name }}'
+    puni_keys_file: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
 
 - name: Install the operator sudo boundary
   # Proof: replacing the template newline with literal `\n` made the rendered-output visudo test fail.
@@ -224,41 +224,10 @@
     state: started
     enabled: true
 
-- name: Create the console account that sshd refuses
-  # Separated inventories only (R49): the break-glass login on the provider's console, with a
-  # password hash from $OPS. The drop-in below keeps it off SSH.
+- name: Refuse passwords and the console account over SSH, then create the account
+  # Separated inventories only (R49); playbooks/firewall.yml runs the same file for A26.
   when: puni_console_account is defined
-  block:
-    - name: Require the console account's password hash
-      ansible.builtin.assert:
-        that:
-          - puni_console_account is match('^[a-z][a-z0-9-]*$')
-          - puni_console_account != puni_operator_name
-          - puni_console_password_hash is match('^\$6\$')
-        fail_msg: A console account other than the operator and its SHA-512 password hash are required
-      no_log: true
-
-    - name: Create the console account
-      ansible.builtin.user:
-        name: '{{ puni_console_account }}'
-        shell: /bin/bash
-        password: '{{ puni_console_password_hash }}'
-        create_home: true
-        groups: sudo
-        append: true
-      no_log: true
-
-    - name: Refuse the console account over SSH
-      # Proof: dropping the DenyUsers line from the template made node-roles.test.ts `renders
-      # every host of both static inventories as the judges require` fail (2026-11-22).
-      ansible.builtin.template:
-        src: sshd-console.conf.j2
-        dest: /etc/ssh/sshd_config.d/00-puni-console.conf
-        owner: root
-        group: root
-        mode: '0644'
-        validate: /usr/sbin/sshd -t -f %s
-      notify: Reload sshd
+  ansible.builtin.include_tasks: console.yml
 
 - name: Join the private access network
   when: puni_tailscale_tag is defined

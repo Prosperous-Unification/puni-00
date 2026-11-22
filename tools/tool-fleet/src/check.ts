@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
@@ -7,7 +7,7 @@ import { parse, parseAllDocuments } from 'yaml';
 
 import { judgeBackupJob, judgeVerifyJob, type K8sObject } from './check-backup';
 import { readToolchain } from './contracts';
-import { type HostRender, judgeHostRenders } from './node-access';
+import { type HostRender, judgeHostRenders, readHostRenderGoldens } from './node-access';
 import { validatePlatform } from './platform';
 import { platformReleases } from './platform-releases';
 
@@ -321,8 +321,8 @@ export interface AnsibleReport {
 }
 
 /**
- * The host renders, judged by {@link judgeHostRenders} against the existing inventory's
- * committed firewalls. A render that failed is a problem with its error.
+ * The host renders, judged by {@link judgeHostRenders} against the committed goldens of
+ * `fixtures/host-renders`. A render that failed is a problem with its error.
  */
 export async function judgeAnsibleRenders(root: string, report: AnsibleReport): Promise<string[]> {
   const problems: string[] = [];
@@ -334,13 +334,10 @@ export async function judgeAnsibleRenders(root: string, report: AnsibleReport): 
       renders.push({ ...entry, host: entry.host });
     }
   }
-  const directory = join(root, 'tools/tool-fleet/src/fixtures/firewall-existing-hosts');
-  const committed: Record<string, string> = {};
-  for (const name of await readdir(directory)) {
-    committed[`inventory/production-existing-hosts.yml/${name.replace(/\.nft$/, '')}`] =
-      await readFile(join(directory, name), 'utf8');
-  }
-  return [...problems, ...judgeHostRenders(renders, committed)];
+  const goldens = await readHostRenderGoldens(
+    join(root, 'tools/tool-fleet/src/fixtures/host-renders'),
+  );
+  return [...problems, ...judgeHostRenders(renders, goldens)];
 }
 
 const unprivilegedPortFloor = 'net.ipv4.ip_unprivileged_port_start = 0';

@@ -17,9 +17,10 @@ cluster-init: true
 {% else %}
 server: {{ puni_registration_url }}
 {% endif %}
-# etcd's latency is scraped on the node that may also carry a database (separate-node-roles, Risks).
-etcd-expose-metrics: true
 {% if 'platform-services' in puni_node_capabilities %}
+# etcd's latency is scraped on the node that may also carry a database (separate-node-roles,
+# Risks); the firewall admits 2381 from the enrolled nodes and the pod network alone.
+etcd-expose-metrics: true
 # `+=` appends to the NodeRestriction k3s sets itself; a plain `=` would replace it (decision 14).
 kube-apiserver-arg:
   - enable-admission-plugins+=PodNodeSelector

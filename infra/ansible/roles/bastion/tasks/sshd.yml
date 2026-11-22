@@ -1,0 +1,88 @@
+---
+# The sshd change of the bastion, confirmed by a fresh login or undone (slice 1.9). The paths,
+# owner and reload command are variables so node-roles.test.ts runs this file for real.
+- name: Compute the forwards the drop-in names
+  ansible.builtin.include_tasks: inputs.yml
+
+- name: Change sshd, confirm a fresh login as the operator, or put the hand-made drop-in back
+  block:
+    - name: Read whether the hand-made drop-in is still there
+      ansible.builtin.stat:
+        path: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
+      register: puni_bastion_hand_drop_in
+
+    - name: Keep a copy of the hand-made drop-in for the way back
+      when: puni_bastion_hand_drop_in.stat.exists
+      ansible.builtin.copy:
+        src: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
+        dest: '{{ puni_bastion_backup_dir }}/10-puni-jump.conf.puni-backup'
+        remote_src: true
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0600'
+
+    - name: Render the bastion sshd drop-in, read before every other
+      ansible.builtin.template:
+        src: sshd.conf.j2
+        dest: '{{ puni_bastion_sshd_dir }}/00-puni-bastion.conf'
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0644'
+        validate: '{{ puni_bastion_sshd }} -t -f %s'
+      register: puni_bastion_drop_in
+
+    - name: Remove the hand-made drop-in
+      # Its `AllowUsers root jump` would add root: sshd accumulates AllowUsers across files.
+      ansible.builtin.file:
+        path: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
+        state: absent
+      register: puni_bastion_hand_removed
+
+    - name: Validate the whole sshd configuration
+      # Proof: with this command replaced by `true`, node-roles.test.ts `stops on an sshd
+      # configuration that does not validate` failed (2026-11-22).
+      ansible.builtin.command: '{{ puni_bastion_sshd }} -t'
+      changed_when: false
+
+    - name: Reload sshd; existing sessions, the play's among them, stay open
+      when: puni_bastion_drop_in is changed or puni_bastion_hand_removed is changed
+      ansible.builtin.command:
+        argv: '{{ puni_sshd_reload }}'
+      changed_when: true
+
+    - name: Read back what sshd applies to jump
+      ansible.builtin.include_tasks: readback.yml
+
+    - name: Log in afresh as the operator with the bastion's admin key
+      ansible.builtin.include_tasks: ../../../tasks/fresh-connection.yml
+      vars:
+        puni_fresh_command: ['true']
+
+  rescue:
+    # Proof: with this restore disabled, node-roles.test.ts `puts the hand-made drop-in back
+    # when a fresh login fails` failed: neither drop-in was left in place (2026-11-22).
+    - name: Put the hand-made drop-in back
+      when: puni_bastion_hand_drop_in.stat.exists | default(false)
+      ansible.builtin.copy:
+        src: '{{ puni_bastion_backup_dir }}/10-puni-jump.conf.puni-backup'
+        dest: '{{ puni_bastion_sshd_dir }}/10-puni-jump.conf'
+        remote_src: true
+        owner: '{{ puni_root_owner }}'
+        group: '{{ puni_root_group }}'
+        mode: '0644'
+
+    - name: Remove the drop-in this play rendered
+      ansible.builtin.file:
+        path: '{{ puni_bastion_sshd_dir }}/00-puni-bastion.conf'
+        state: absent
+
+    - name: Reload sshd with the configuration from before the play
+      ansible.builtin.command:
+        argv: '{{ puni_sshd_reload }}'
+      changed_when: true
+
+    - name: Stop after putting sshd back
+      ansible.builtin.fail:
+        msg: >-
+          sshd was put back as it was: the change failed or a fresh login as
+          {{ puni_operator_name }} did not succeed ({{ ansible_failed_result.msg | default('') }})

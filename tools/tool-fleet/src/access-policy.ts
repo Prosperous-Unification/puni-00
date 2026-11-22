@@ -1,3 +1,5 @@
+import { type } from 'arktype';
+
 /**
  * The tailnet policy of `infra/access/policy.hujson` against the rows of design decision 12 of
  * openspec/changes/separate-node-roles: who may reach what over the private access network. The
@@ -71,69 +73,64 @@ export function parseHujson(source: string): unknown {
   }
 }
 
-function isPrincipal(name: unknown): boolean {
-  return typeof name === 'string' && /^(?:tag|autogroup):[a-z0-9-]+$/.test(name);
+function isPrincipal(name: string): boolean {
+  return /^(?:tag|autogroup):[a-z0-9-]+$/.test(name);
 }
 
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
-}
+const GrantSchema = type({ src: 'string[]', dst: 'string[]', ip: 'string[]', '+': 'reject' });
+/** The sections decision 12 uses, and nothing else: no Tailscale SSH, no ACLs, no auto-approvers. */
+const PolicySchema = type({
+  tagOwners: { '[string]': 'string[]' },
+  grants: GrantSchema.array(),
+  'groups?': { '[string]': 'string[]' },
+  '+': 'reject',
+});
 
 /**
- * Problems with a parsed policy: a section the decision does not use (Tailscale SSH among
- * them), a principal that is not a tag or a built-in group, a tag outside the declared set, and
- * any source whose reach differs from its row of {@link accessRows}. Empty means it matches.
+ * Problems with a parsed policy: a section or grant key the decision does not use (Tailscale SSH
+ * among them), a principal that is not a tag or a built-in group, a tag outside the declared set,
+ * and any source whose reach differs from its row of {@link accessRows}. Empty means it matches.
  */
-export function judgeAccessPolicy(policy: unknown): string[] {
-  if (typeof policy !== 'object' || policy === null || Array.isArray(policy)) {
-    return ['policy is not an object'];
-  }
-  const sections = policy as Record<string, unknown>;
+export function judgeAccessPolicy(input: unknown): string[] {
+  // Proof: dropping `'+': 'reject'` from GrantSchema made access-policy.test.ts `refuses
+  // Tailscale SSH rules, other sections and unknown grant keys` fail (2026-11-22).
+  const policy = PolicySchema(input);
+  if (policy instanceof type.errors) return [`policy does not decode: ${policy.summary}`];
   const problems: string[] = [];
-  const extra = Object.keys(sections)
-    .filter((key) => key !== 'tagOwners' && key !== 'grants' && key !== 'groups')
-    .sort();
-  if (extra.length > 0) {
-    problems.push(`policy has sections other than tagOwners and grants: ${extra.join(', ')}`);
-  }
   // Proof: skipping this check for groups made access-policy.test.ts `refuses a policy that
   // names a person` resolve on its group case (2026-11-22).
-  const groups = sections['groups'];
-  if (groups !== undefined) {
-    for (const [group, members] of Object.entries(groups as Record<string, unknown>)) {
-      for (const member of strings(members)) {
-        if (!isPrincipal(member)) {
-          problems.push(`${group} names ${member}, not a tag or a built-in group`);
-        }
+  for (const [group, members] of Object.entries(policy.groups ?? {})) {
+    for (const member of members) {
+      if (!isPrincipal(member)) {
+        problems.push(`${group} names ${member}, not a tag or a built-in group`);
       }
     }
   }
-  const owners = (sections['tagOwners'] ?? {}) as Record<string, unknown>;
+  const owners = policy.tagOwners;
   if (JSON.stringify(Object.keys(owners).sort()) !== JSON.stringify([...declaredTags].sort())) {
     problems.push(
       `tagOwners declares ${Object.keys(owners).join(', ')}, not ${declaredTags.join(', ')}`,
     );
   }
   for (const [tag, tagOwners] of Object.entries(owners)) {
-    for (const owner of strings(tagOwners)) {
-      if (!isPrincipal(owner))
+    for (const owner of tagOwners) {
+      if (!isPrincipal(owner)) {
         problems.push(`${tag} is owned by ${owner}, not a tag or a built-in group`);
+      }
     }
   }
 
   const reach = new Map<string, Set<string>>();
-  const grants = Array.isArray(sections['grants']) ? (sections['grants'] as unknown[]) : [];
-  grants.forEach((grant, position) => {
-    const { src, dst, ip } = grant as Record<string, unknown>;
-    for (const name of [...strings(src), ...strings(dst)]) {
+  policy.grants.forEach(({ src, dst, ip }, position) => {
+    for (const name of [...src, ...dst]) {
       if (!isPrincipal(name)) {
         problems.push(`grant ${String(position + 1)} names ${name}, not a tag or a built-in group`);
       }
     }
-    for (const source of strings(src)) {
+    for (const source of src) {
       const reached = reach.get(source) ?? new Set<string>();
-      for (const destination of strings(dst)) {
-        for (const ports of strings(ip)) reached.add(`${destination}:${ports}`);
+      for (const destination of dst) {
+        for (const ports of ip) reached.add(`${destination}:${ports}`);
       }
       reach.set(source, reached);
     }

@@ -7,16 +7,24 @@
       - '{{ puni_bastion_sshd }}'
       - -T
       - -C
-      - 'user=jump,host=m2bast1,addr={{ puni_bastion_permit_open[0] | regex_replace(":22$", "") }}'
+      - 'user=jump,host={{ inventory_hostname }},addr={{ puni_bastion_permit_open[0] | regex_replace(":22$", "") }}'
   register: puni_bastion_sshd_effective
   changed_when: false
 
-- name: Require every option the drop-in sets for jump
-  # Proof: comparing the rendered options instead of this output made node-roles.test.ts `fails
-  # the read-back when an earlier drop-in sets another PermitOpen` fail (2026-11-22).
+- name: Require every option the drop-in sets, and exactly its allowed and denied users
+  # Proof: comparing the rendered options instead of this output, and dropping the AllowUsers
+  # comparison, each made node-roles.test.ts `fails the read-back when an earlier drop-in sets
+  # another PermitOpen or adds root` fail (2026-11-22).
   ansible.builtin.assert:
     that:
       - puni_bastion_jump_effective_options | difference(puni_bastion_sshd_effective.stdout_lines) | length == 0
+      - >-
+        puni_bastion_sshd_effective.stdout_lines | select('match', '^allowusers ') | list
+        == puni_bastion_allowed_users
+      - >-
+        puni_bastion_sshd_effective.stdout_lines | select('match', '^denyusers ') | list
+        == puni_bastion_denied_users
     fail_msg: >-
       sshd applies other values to jump than the drop-in sets; missing:
-      {{ puni_bastion_jump_effective_options | difference(puni_bastion_sshd_effective.stdout_lines) }}
+      {{ puni_bastion_jump_effective_options | difference(puni_bastion_sshd_effective.stdout_lines) }};
+      users: {{ puni_bastion_sshd_effective.stdout_lines | select('match', '^(allow|deny)users ') | list }}

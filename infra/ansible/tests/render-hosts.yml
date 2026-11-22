@@ -24,13 +24,13 @@
       ansible.builtin.file:
         path: '{{ puni_render_host_root }}'
         state: directory
-        mode: '0700'
+        mode: '0755'
 
     - name: Render the k3s server configuration
       ansible.builtin.template:
         src: '{{ puni_render_roles }}/k3s_server/templates/config.yaml.j2'
         dest: '{{ puni_render_host_root }}/k3s-server.yaml'
-        mode: '0600'
+        mode: '0644'
       vars:
         puni_k3s_cluster_init: "{{ inventory_hostname in groups.get('k3s_bootstrap_servers', []) }}"
       when: inventory_hostname in puni_render_server_hosts
@@ -39,14 +39,14 @@
       ansible.builtin.template:
         src: '{{ puni_render_roles }}/network/templates/k3s.nft.j2'
         dest: '{{ puni_render_host_root }}/firewall.nft'
-        mode: '0600'
+        mode: '0644'
       when: inventory_hostname in puni_render_k3s_hosts
 
     - name: Render the sshd drop-in that refuses the console account
       ansible.builtin.template:
         src: '{{ puni_render_roles }}/base/templates/sshd-console.conf.j2'
         dest: '{{ puni_render_host_root }}/sshd-console.conf'
-        mode: '0600'
+        mode: '0644'
       when: inventory_hostname in puni_render_k3s_hosts and puni_console_account is defined
 
     - name: Render the bastion's files
@@ -61,10 +61,10 @@
           ansible.builtin.template:
             src: '{{ puni_render_roles }}/bastion/templates/sshd.conf.j2'
             dest: '{{ puni_render_host_root }}/bastion-sshd.conf'
-            mode: '0600'
+            mode: '0644'
 
         - name: Render the bastion firewall
           ansible.builtin.template:
             src: '{{ puni_render_roles }}/bastion/templates/bastion.nft.j2'
             dest: '{{ puni_render_host_root }}/bastion.nft'
-            mode: '0600'
+            mode: '0644'

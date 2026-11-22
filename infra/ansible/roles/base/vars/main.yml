@@ -7,3 +7,9 @@ puni_tailscale_repository: >-
   {{ (lookup('ansible.builtin.file', role_path ~ '/../../../versions/toolchain.json') | from_json).hostRepositories.tailscale }}
 # The tags of design decision 12, one per trust class; the bastion joins no tailnet (R55).
 puni_tailscale_tags: [tag:platform, tag:apps, tag:observability, tag:ci, tag:operator-host]
+puni_sshd: /usr/sbin/sshd
+puni_tailscale: tailscale
+puni_sshd_config_dir: /etc/ssh/sshd_config.d
+puni_root_owner: root
+puni_root_group: root
+puni_sshd_reload: [systemctl, reload, ssh]

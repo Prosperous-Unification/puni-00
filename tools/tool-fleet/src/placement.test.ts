@@ -402,3 +402,24 @@ describe('the platform-2 inventory', () => {
     );
   });
 });
+
+describe('the otel-gateway NodePorts the separated firewall admits', () => {
+  it('are the NodePorts of the production otlp-ingress Service', async () => {
+    // Proof: changing one port in production-hosts.yml made this fail (2026-11-22).
+    const service = (
+      await readFile(
+        join(root, 'infra/platform/observability/production/otlp-ingress.yaml'),
+        'utf8',
+      )
+    )
+      .split(/^---$/m)
+      .map((document) => parse(document) as { kind?: string; spec?: { ports?: unknown } })
+      .find(({ kind }) => kind === 'Service')?.spec?.ports;
+    const nodePorts = (service as { nodePort: number }[]).map(({ nodePort }) => nodePort).sort();
+    const inventory = parse(
+      await readFile(join(root, 'infra/ansible/inventory/production-hosts.yml'), 'utf8'),
+    ) as { all: { vars: { puni_otel_gateway_node_ports: number[] } } };
+    expect([...inventory.all.vars.puni_otel_gateway_node_ports].sort()).toEqual(nodePorts);
+    expect(nodePorts).toHaveLength(2);
+  });
+});

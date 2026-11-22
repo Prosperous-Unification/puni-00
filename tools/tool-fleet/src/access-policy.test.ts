@@ -82,12 +82,21 @@ describe('the tailnet policy file', () => {
     );
   });
 
-  it('refuses Tailscale SSH rules and sections the decision does not use', async () => {
+  it('refuses Tailscale SSH rules, other sections and unknown grant keys', async () => {
     const policy = await committedPolicy();
     policy['ssh'] = [];
-    policy['autoApprovers'] = {};
-    expect(judgeAccessPolicy(policy)).toEqual([
-      'policy has sections other than tagOwners and grants: autoApprovers, ssh',
-    ]);
+    expect(judgeAccessPolicy(policy).join('\n')).toMatch(
+      /policy does not decode: ssh must be removed/,
+    );
+    const granted = await committedPolicy();
+    grantsOf(granted).push({
+      src: ['tag:ci'],
+      dst: ['tag:platform'],
+      ip: ['tcp:6443'],
+      app: {},
+    } as Grant);
+    expect(judgeAccessPolicy(granted).join('\n')).toMatch(
+      /policy does not decode: .*app must be removed/,
+    );
   });
 });

@@ -1,0 +1,60 @@
+---
+# The break-glass login of R49 on the provider's console, as an account `sshd` refuses. The
+# drop-in comes first and is read back from `sshd -T` before the account exists, so the account
+# never has a moment in which a password could open SSH.
+- name: Require the console account and its password hash
+  # Proof: with `!= puni_operator_name` removed, node-roles.test.ts `refuses the console
+  # account's inputs` failed on its operator case (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_console_account is match('^[a-z][a-z0-9-]*$')
+      - puni_console_account != puni_operator_name
+      - puni_console_password_hash is match('^\$6\$')
+    fail_msg: A console account other than the operator and its SHA-512 password hash are required
+
+- name: Refuse passwords for every user and the console account over SSH
+  # Proof: dropping the DenyUsers line from the template made node-roles.test.ts `renders every
+  # host of both static inventories as the judges require` fail (2026-11-22).
+  ansible.builtin.template:
+    src: sshd-console.conf.j2
+    dest: '{{ puni_sshd_config_dir }}/00-puni-sshd.conf'
+    owner: '{{ puni_root_owner }}'
+    group: '{{ puni_root_group }}'
+    mode: '0644'
+    validate: '{{ puni_sshd }} -t -f %s'
+  notify: Reload sshd
+
+- name: Apply the drop-in before the account exists
+  ansible.builtin.meta: flush_handlers
+
+- name: Read what sshd applies to the console account
+  ansible.builtin.command:
+    argv:
+      - '{{ puni_sshd }}'
+      - -T
+      - -C
+      - 'user={{ puni_console_account }},host={{ inventory_hostname }},addr={{ puni_bastion_address }}'
+  register: puni_console_sshd
+  changed_when: false
+
+- name: Require sshd to refuse the console account and every password
+  # Proof: with the `denyusers` condition removed, node-roles.test.ts `creates the console
+  # account only after sshd refuses it` failed: a stand-in sshd that denies no one passed
+  # (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - ('denyusers ' ~ puni_console_account) in puni_console_sshd.stdout_lines
+      - "'passwordauthentication no' in puni_console_sshd.stdout_lines"
+      - "'kbdinteractiveauthentication no' in puni_console_sshd.stdout_lines"
+    fail_msg: sshd does not refuse {{ puni_console_account }} and passwords; the account is not created
+
+- name: Create the console account
+  tags: [puni_console_account_create]
+  ansible.builtin.user:
+    name: '{{ puni_console_account }}'
+    shell: /bin/bash
+    password: '{{ puni_console_password_hash }}'
+    create_home: true
+    groups: sudo
+    append: true
+  no_log: true

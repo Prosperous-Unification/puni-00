@@ -453,8 +453,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(joinPlaybook).toContain('k3s_join_servers');
     expect(joinPlaybook).toContain('puni_k3s_cluster_init: false');
     expect(joinPlaybook).toContain('k3s_agents');
-    expect(base).toContain('puni_operator_authorized_keys is defined');
-    expect(base).toContain('content: |');
+    expect(base).toContain('puni_operator_authorized_keys is not string');
+    expect(base).toContain('ansible.builtin.include_tasks: ../../../tasks/authorized-keys.yml');
     expect(base).toContain('puni_swap_file_mib is defined');
     expect(base).toContain("ansible_distribution_version in ['24.04', '26.04']");
     expect(base).toContain('- jq');

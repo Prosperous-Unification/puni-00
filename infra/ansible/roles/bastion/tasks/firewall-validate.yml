@@ -1,0 +1,7 @@
+---
+- name: Validate the bastion firewall before changing active rules
+  # Proof: with the command replaced by `true`, node-roles.test.ts `stops on a ruleset nft
+  # refuses` failed: a ruleset with a syntax error passed (2026-11-22).
+  ansible.builtin.command:
+    argv: '{{ puni_nft_check + [puni_bastion_nft_file] }}'
+  changed_when: false

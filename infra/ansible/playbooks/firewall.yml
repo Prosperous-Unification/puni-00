@@ -1,10 +1,21 @@
 ---
 # Refresh the private-network firewall on existing members before another node enrolls. The
 # enrolled address set comes from the reviewed enrollment variables; everything else is per host.
+# The k3s groups alone: a gate host or the bastion has no fleet firewall here.
 - name: Refresh the k3s firewall on existing cluster members
-  hosts: all
+  hosts: k3s_bootstrap_servers:k3s_join_servers:k3s_agents
   become: true
   gather_facts: true
   serial: 1
-  roles:
-    - role: network
+  tasks:
+    # A26 opens with a login on the provider's console as this account, before the base role
+    # (A3) has run; a separated inventory therefore creates it here first.
+    - name: Create the console account that sshd refuses
+      when: puni_console_account is defined
+      ansible.builtin.include_role:
+        name: base
+        tasks_from: console.yml
+
+    - name: Render and activate the fleet firewall
+      ansible.builtin.include_role:
+        name: network

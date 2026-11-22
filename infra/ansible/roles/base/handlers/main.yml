@@ -9,6 +9,6 @@
   changed_when: true
 
 - name: Reload sshd
-  ansible.builtin.systemd_service:
-    name: ssh
-    state: reloaded
+  ansible.builtin.command:
+    argv: '{{ puni_sshd_reload }}'
+  changed_when: true

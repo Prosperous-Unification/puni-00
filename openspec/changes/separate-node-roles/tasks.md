@@ -109,9 +109,12 @@ and the step reads back that the name answers (design decision 12).
       inventory. In the `k3s_server` template: a server with `platform-services` writes
       the taint `CriticalAddonsOnly=true:NoSchedule` (R25) and the
       `kube-apiserver-arg` entry `enable-admission-plugins+=PodNodeSelector`, which
-      appends to the `NodeRestriction` k3s sets itself (design decision 14), and every server writes
+      appends to the `NodeRestriction` k3s sets itself (design decision 14), and
       `etcd-expose-metrics: true`, so that etcd's latency can be scraped on the node that
-      also carries a database (design, Risks). In `validate-enrollment.yml`: the
+      also carries a database (design, Risks); a server without `platform-services` writes none
+      of the three, so the existing servers' configuration is unchanged, and the separated
+      firewall of slice 1.8 admits etcd's metrics port, 2381, from the enrolled nodes and the
+      pod network alone (amended 2026-11-22 after review). In `validate-enrollment.yml`: the
       CoreDNS step appends the enrollment toleration when it is absent (a JSON patch that adds
       one list entry) where it now replaces the whole list with a strategic patch, so the
       packaged `CriticalAddonsOnly` toleration stays. Test: the template renders the taint;
@@ -126,7 +129,8 @@ and the step reads back that the name answers (design decision 12).
       the server only); a gate host under `k3s_agents` is refused (fault: skip the gate-host
       comparison); a `platform-services` server whose rendered config lacks the
       taint fails the role test (fault: remove the template branch); a server config without
-      `etcd-expose-metrics` fails it (fault: drop the line); a `platform-services` server
+      `etcd-expose-metrics` fails it (fault: drop the line), and so does an existing server's
+      config that has it (fault: write it for every server); a `platform-services` server
       config without the `+=` entry, or with the plain `=` form that would drop
       `NodeRestriction`, fails it (fault: write `=`); the old inventories' rendered server
       configs hold no `kube-apiserver-arg` entry (fault: write the entry for every server); a play whose CoreDNS
@@ -138,8 +142,9 @@ and the step reads back that the name answers (design decision 12).
       are in `decodeFleet`, the inventory rules in `inventory-binding.ts`, the template judges in
       `node-access.ts`, run by `tool-fleet:check` and `infra/ansible/tests/node-roles.test.ts`.
       The trust-class rules apply only where the cluster requires `platform-services`: the
-      existing inventory keeps h4claw as a gate host and a server. Every server, h4claw
-      included, now writes `etcd-expose-metrics: true`, as this slice says.
+      existing inventory keeps h4claw as a gate host and a server. h4claw's rendered server
+      configuration is byte-equal to its rendering at `7a0279c7d`, and every host's renders
+      are compared with committed goldens under `tools/tool-fleet/src/fixtures/host-renders`.
 - [ ] 1.3 Repeats once per server of the platform cluster, after A1, A12 and A16 and before the step that enrolls
       the host, and once more before A17, to give h7obs the capabilities `nonproduction` and
       `ingress` and raise those two floors (minimal profile, once the sum of design decision 2 holds at the reading after A15). The first revision follows the A1 that creates the server that stays: a
@@ -284,9 +289,23 @@ and the step reads back that the name answers (design decision 12).
       Done 2026-11-22 for source and tests. Left at their owners' boundaries: every rehearsal
       negative (2.7); the egress negative of rule 2.4(k) (slice 2.4); the store's private
       listener's exception (pull request #935 defines it); the controller's `ProxyJump` (2.5).
-      The public side is every interface but loopback, the private one, the tailnet and the pod
-      network, because no public interface name is recorded. Not run on a host: the join, the
-      second run's `changed=0` and the console account's refusal by a live `sshd`.
+      Amended 2026-11-22 after review. The public side is the declared
+      `puni_public_interfaces` (m1plat1: `enp3s0`, its default-route device); the `network` role
+      refuses any interface that is not loopback, private, tailnet, pod network (`cni0`,
+      `flannel.1`, `veth*`), declared public or a container bridge (`docker0`, `br-*`, whose
+      new outbound connections are allowed: the coordinator's decision). IPv6 is off on the
+      private interface (sysctl, read back) and new IPv6 there is dropped. Before it limits SSH
+      the role requires the private interface to carry the node's address and the play's own
+      connection to come from the bastion; it arms a timer that deletes the new table and
+      cancels it only from a fresh controller login. The console account comes after a drop-in
+      that refuses it and every password, read back from `sshd -T`. Every key list is staged
+      from a template loop and counted with `ssh-keygen -lf` before it is installed. Whether
+      the public interface uses DHCPv6 or MLD was not read (the read was refused on
+      2026-11-22), so only neighbour discovery is accepted there; A26 reads it. The tailnet
+      address in the server's certificate names (`tls-san`) is slice 2.5's: the controller
+      adds it from the join's read-back before `k3s_server` first runs. Not run on a host: the
+      join, the second run's `changed=0`, the timer and the fresh login, and the console
+      account's refusal by a live `sshd`.
 
 - [x] 1.9 The bastion as code (R55, design decision 12), after the first revision of 1.3,
       which creates the inventory file, and before A26. m2bast1 was set up by hand on
@@ -330,6 +349,17 @@ and the step reads back that the name answers (design decision 12).
       names the operator and `jump` in `AllowUsers` and refuses root, and the role removes the
       hand-made `10-puni-jump.conf`, whose `AllowUsers root jump` would accumulate; the hand-made
       nftables rules are left for A26 to read and remove.
+      Amended 2026-11-22 after review. The sshd change is a block whose rescue puts the
+      hand-made drop-in back, removes the new one and reloads, entered when validation, the
+      read-back (every option, and the `AllowUsers` and `DenyUsers` lines exactly) or a fresh
+      controller login as the operator fails; tested with a stand-in `sshd` and `ssh`. The
+      firewall loads behind a timer that deletes its table unless a fresh login cancels it;
+      its unit is shaped like `nftables.service` and passes `systemd-analyze verify`.
+      `MaxAuthTries` is 6, and the controller's fresh login sets `IdentitiesOnly=yes` with one
+      key (`tasks/fresh-connection.yml`); slice 2.5's `ProxyJump` settings should set the same.
+      IPv6 arriving on the bastion's private interface is dropped; that interface,
+      `puni_bastion_private_interface`, is assumed `enp8s0` and the role refuses it unless the
+      facts show it carrying 10.10.1.12.
 
 ## 2. Argo CD delivery (agent slices)
 
@@ -1247,6 +1277,18 @@ this change reserves is step A25, so those namespaces are not an open end.
       timer restores the ruleset and the MTU by itself;
       a probe is answered; or the panel rule cannot be removed. Rollback: the timer, or from
       the console restore the saved ruleset, correct the input, and run the step again.
+      Amended 2026-11-22 after review. The console account the first login uses is created by
+      `playbooks/firewall.yml` itself, for a separated inventory, before the `network` role, so
+      it exists before A3; on the bastion, `playbooks/bastion.yml` creates its own. Two risks
+      to read before the step: the boot window, from the network coming up to the firewall
+      unit's start, in which m1plat1 has no host rules (its unit runs after
+      `network-online.target`; the panel firewall covers that window, so the panel rule must
+      stay until A26's receipt); and a hand-made `/etc/nftables.conf` that begins with
+      `flush ruleset`, which, if `nftables.service` is enabled and starts after the fleet's
+      unit, removes the fleet's tables at boot. Before the step, read on both hosts whether
+      `nftables.service` is enabled and the file's first line; disable the service, or remove
+      its flush, on each host first, and record it in the receipt. Also read `networkctl status enp3s0`
+      on both hosts for DHCPv6 and MLD before the public drop is applied.
 - [ ] A27 Rancher Manager (R54, design decision 14), after A7, slice 2.11 and the receipt
       2.7/A27. Who: operator; owner for the passwords. Commands: the owner generates the
       bootstrap password, puts it in escrow and writes it into OpenBao; merge the revision

@@ -4,7 +4,9 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
-MaxAuthTries 3
+# Six: an agent offering several keys fails before the right one at three. The controller
+# sets IdentitiesOnly=yes and names the one key (tasks/fresh-connection.yml).
+MaxAuthTries 6
 AllowUsers {{ puni_operator_name }} jump
 DenyUsers {{ puni_console_account }}
 

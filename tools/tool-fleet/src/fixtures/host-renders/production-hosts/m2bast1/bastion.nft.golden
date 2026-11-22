@@ -25,6 +25,7 @@ table inet puni_bastion {
   chain input {
     type filter hook input priority 0; policy drop;
     iifname "lo" accept
+    iifname "enp8s0" meta nfproto ipv6 drop comment "the private network is IPv4"
     ct state established,related accept
     icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
     ct state invalid drop

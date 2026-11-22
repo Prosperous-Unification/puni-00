@@ -1,0 +1,30 @@
+---
+# Opens a new SSH connection from the controller, outside the play's own multiplexed one, and
+# runs `puni_fresh_command` there with sudo. A change that locks the operator out fails here
+# while the play's existing connection can still undo it (separate-node-roles, slices 1.8, 1.9).
+# The connection settings are the host's own: `ansible_host`, `ansible_user`, the key file and,
+# behind the bastion, the ProxyJump in `ansible_ssh_common_args` that the controller supplies.
+- name: Require the settings of a fresh connection
+  ansible.builtin.assert:
+    that:
+      - ansible_host is defined
+      - ansible_user is defined
+      - ansible_ssh_private_key_file is defined
+      - puni_fresh_command is sequence
+      - puni_fresh_command is not string
+    fail_msg: The controller must supply ansible_host, ansible_user and the key for a fresh connection
+
+- name: Open a fresh connection and run the confirming command
+  # Proof: with `failed_when: false` added, node-roles.test.ts `fails when a fresh connection is
+  # refused` failed, its stand-in `ssh` exiting 255 unnoticed; the same test's recording stand-in
+  # shows ControlMaster=no, ControlPath=none and BatchMode=yes (2026-11-22).
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command:
+    argv: >-
+      {{ [puni_ssh_client, '-o', 'ControlMaster=no', '-o', 'ControlPath=none',
+          '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ConnectTimeout=20',
+          '-i', ansible_ssh_private_key_file, '-p', (ansible_port | default(22) | string)]
+         + (ansible_ssh_common_args | default('') | split | list)
+         + [ansible_user ~ '@' ~ ansible_host, 'sudo', '-n'] + puni_fresh_command }}
+  changed_when: false

@@ -2,12 +2,18 @@
 # The inputs the inventory alone supplies, and the forwards computed from it. Rendering
 # (tests/render-hosts.yml) runs this file too, so the assertions guard every render.
 - name: Require the bastion's inventory inputs
+  # Proof: removing the self-forward condition, and separately the probers' address condition,
+  # each made node-roles.test.ts `refuses the bastion's inventory inputs` fail (2026-11-22).
   ansible.builtin.assert:
     that:
       - puni_bastion_private_address is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
       - puni_bastion_address == puni_bastion_private_address
       - puni_private_network is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+      - puni_bastion_private_interface | length > 0
       - puni_bastion_probers is sequence
+      - puni_bastion_probers is not string
+      - puni_bastion_probers | select('match', '^[0-9]{1,3}(\.[0-9]{1,3}){3}$') | list == puni_bastion_probers
+      - puni_bastion_address not in puni_bastion_probers
       - puni_operator_name | length > 0
       - puni_console_account | length > 0
       - inventory_hostname not in puni_bastion_forwarded_hosts
@@ -24,6 +30,8 @@
          | map('regex_replace', '$', ':22') | list }}
 
 - name: Require each forward to be one IPv4 address and port 22
+  # Proof: with the address-and-port-22 condition removed, node-roles.test.ts `refuses a forward
+  # that is not an address at port 22` failed (2026-11-22).
   ansible.builtin.assert:
     that:
       - puni_bastion_permit_open | length > 0

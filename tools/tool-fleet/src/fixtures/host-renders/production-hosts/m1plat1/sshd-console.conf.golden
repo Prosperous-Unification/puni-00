@@ -1,0 +1,5 @@
+# Read before every other drop-in, so these are sshd's values: keys only, and the console account
+# of R49 logs in on the provider's console alone.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+DenyUsers puni-console

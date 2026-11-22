@@ -1,0 +1,19 @@
+---
+# Before a separated host's firewall drops SSH from everywhere but the bastion, the play's own
+# connection must be arriving from the bastion, or the next run could not get in.
+- name: Read the address the play's SSH connection comes from
+  become: false
+  ansible.builtin.command: printenv SSH_CONNECTION
+  register: puni_network_ssh_connection
+  changed_when: false
+  failed_when: puni_network_ssh_connection.rc != 0
+
+- name: Require the play to connect through the bastion
+  # Proof: with this condition replaced by `true`, node-roles.test.ts `refuses a play that does
+  # not come through the bastion` failed: a connection from 203.0.113.9 passed (2026-11-22).
+  ansible.builtin.assert:
+    that:
+      - puni_network_ssh_connection.stdout.split()[0] == puni_bastion_address
+    fail_msg: >-
+      The play connects from {{ puni_network_ssh_connection.stdout.split()[0] }}, not the bastion
+      {{ puni_bastion_address }}; the firewall would refuse the next run
