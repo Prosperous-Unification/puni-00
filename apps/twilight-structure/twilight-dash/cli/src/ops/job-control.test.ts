@@ -75,21 +75,31 @@ it('contains recipient failure until its operation explicitly surfaces it', () =
   }
 });
 it('owns standalone INT TERM and HUP only until retirement', () => {
-  const counts = ['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => process.listenerCount(signal)),
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+  const readListeners = () => ({
+    SIGINT: process.rawListeners('SIGINT'),
+    SIGTERM: process.rawListeners('SIGTERM'),
+    SIGHUP: process.rawListeners('SIGHUP'),
+  });
+  const before = readListeners(),
     lease = createJobControl();
   try {
-    expect(['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => process.listenerCount(signal))).toEqual(
-      counts.map((count) => count + 1),
-    );
-    process.emit('SIGHUP');
+    const installed = readListeners();
+    for (const signal of signals) {
+      expect(installed[signal]).toHaveLength(before[signal].length + 1);
+      expect(installed[signal].slice(0, before[signal].length)).toEqual(before[signal]);
+    }
+    const deliver = installed.SIGHUP.find((listener) => !before.SIGHUP.includes(listener));
+    if (deliver === undefined) throw new Error('standalone SIGHUP listener absent');
+    // Proof: preloading a one-shot SIGHUP listener made the global emit consume it and fail
+    // the retirement assertion. Deliver directly to the actual owned callback.
+    Reflect.apply(deliver, process, []);
     expect(lease.received()).toEqual({ kind: 'native', signal: 'SIGHUP' });
     expect(lease.signal.aborted).toBe(true);
   } finally {
     lease.close();
   }
-  expect(['SIGINT', 'SIGTERM', 'SIGHUP'].map((signal) => process.listenerCount(signal))).toEqual(
-    counts,
-  );
+  expect(readListeners()).toEqual(before);
 });
 
 for (const [name, operate] of [
