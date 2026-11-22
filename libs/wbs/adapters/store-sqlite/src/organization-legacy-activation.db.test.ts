@@ -9,7 +9,6 @@ import { type Connection, openConnection, openDatabase } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { beginOptimizationDrain, finishOptimizationDrain } from './optimization-drain';
 import { activateLegacyOrganization } from './organization-legacy-activation';
 import { copyRecoveryPrefix } from './testing/recovery-state';
 
@@ -43,13 +42,14 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-/** Events on both work packages through the production log, then `p-gone` deleted by the drain. */
+/** Records both streams before deleting `p-gone` from the pre-catalogue schema. */
 async function deleteWorkPackageWithEvents(): Promise<void> {
   const events = new DrizzleEventLogStore(connection.db, OPEN);
   await events.recordEvent('work-package:p-live', { kind: 'renamed' }, 1);
   await events.recordEvent('work-package:p-gone', { kind: 'renamed' }, 1);
-  beginOptimizationDrain(connection.db, 'p-gone', { at: 2, by: 'u1' });
-  expect(finishOptimizationDrain(connection.db, 'p-gone')).toBe('finished');
+  expect(connection.db.all("DELETE FROM work_package WHERE id='p-gone' RETURNING id")).toEqual([
+    { id: 'p-gone' },
+  ]);
 }
 
 function subscriptions(table: 'event_sequencer' | 'event_log'): unknown[] {

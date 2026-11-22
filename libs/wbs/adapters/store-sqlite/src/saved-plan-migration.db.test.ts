@@ -7,8 +7,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const INITIAL_ACCESS_OFFERS = '20261103110000_add_initial_access_offers';
 const SAVED_PLAN = '20260903190000_add_saved_plan';
 /** Reversed ahead of {@link SAVED_PLAN}: it adds a column to the table below. */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
@@ -24,12 +25,12 @@ const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 // `rollbackTo` reverses everything applied after its target, newest first, so
 // they lead the list even though this file never mentions them otherwise.
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
-const WORK_PACKAGE_SETTINGS = '20260904140000_add_work_package_settings';
+const PROJECT_SETTINGS = '20260904140000_add_project_settings';
 /**
- * The newest: the `(work_package_id, id)` index that serves
+ * The newest: the `(project_id, id)` index that serves
  * `listByWorkPackage`'s stated `ORDER BY` (ADR 0016). Additive and
  * index-only, so it heads every descending reversal list here and tails
- * every ascending one, exactly as {@link WORK_PACKAGE_SETTINGS} did while it
+ * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
  * was newest.
  */
 const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
@@ -92,11 +93,13 @@ const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-saved-plan-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, INITIAL_ACCESS_OFFERS);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -116,13 +119,11 @@ function columnsOf(table: string): string[] {
   }
 }
 
-function seedWorkPackage(): void {
+function seedHistoricalProject(): void {
   const db = openDatabase(path);
   try {
     db.run(`INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1000)`);
-    db.run(
-      `INSERT INTO work_package (id, name, owner_id, created_at) VALUES ('p1', 'P', 'u1', 1000)`,
-    );
+    db.run(`INSERT INTO project (id, name, owner_id, created_at) VALUES ('p1', 'P', 'u1', 1000)`);
   } finally {
     db.close();
   }
@@ -134,7 +135,7 @@ function seedSavedPlan(): void {
   try {
     db.run(
       `INSERT INTO saved_plan (
-         id, work_package_id, name, created_by, created_at,
+         id, project_id, name, created_by, created_at,
          input_schema_version, input_bytes, input_sha256, schedule_absent_reason
        ) VALUES ('sp1', 'p1', '2026-09-03 19:00', 'Ada', 1000, 1, 3, 'deadbeef', 'pending')`,
     );
@@ -170,8 +171,8 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
-    expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
-      '20261103110000_add_initial_access_offers',
+    expect(rollbackTo(path, migrations, LOOKUP_INDEXES)).toEqual([
+      INITIAL_ACCESS_OFFERS,
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
       '20261101120000_add_host_job_projection',
@@ -189,9 +190,9 @@ describe('the saved-plan migration', () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -221,13 +222,13 @@ describe('the saved-plan migration', () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -242,7 +243,7 @@ describe('the saved-plan migration', () => {
       WORK_ITEM_DEADLINE,
       READ_ORDER_INDEX,
       CALENDAR_MARKER,
-      WORK_PACKAGE_SETTINGS,
+      PROJECT_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
       SAVED_PLAN,
@@ -253,7 +254,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan')).toEqual([]);
     expect(columnsOf('saved_plan_body')).toEqual([]);
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
 
     expect(columnsOf('saved_plan')).toContain('input_sha256');
     expect(columnsOf('saved_plan_body')).toContain('bytes');
@@ -262,7 +263,7 @@ describe('the saved-plan migration', () => {
   it('takes the whole header column list forward, not a subset', () => {
     expect(columnsOf('saved_plan')).toEqual([
       'id',
-      'work_package_id',
+      'project_id',
       'name',
       'created_by',
       'created_at',
@@ -293,7 +294,7 @@ describe('the saved-plan migration', () => {
    * half a `RESTRICT` would fail and a missing constraint would pass.
    */
   it('deletes header and body with the work package, and does not block the delete', () => {
-    seedWorkPackage();
+    seedHistoricalProject();
     seedSavedPlan();
     expect(countOf('saved_plan')).toBe(1);
     expect(countOf('saved_plan_body')).toBe(1);
@@ -303,7 +304,7 @@ describe('the saved-plan migration', () => {
       // Not `.toThrow()`-wrapped on purpose: an outgoing blue/green release runs
       // exactly this statement knowing nothing of these tables, and a constraint
       // it cannot see would surface as a 500 for the length of the swap.
-      db.run(`DELETE FROM work_package WHERE id = 'p1'`);
+      db.run(`DELETE FROM project WHERE id = 'p1'`);
     } finally {
       db.close();
     }
@@ -313,7 +314,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('deletes a body with its header', () => {
-    seedWorkPackage();
+    seedHistoricalProject();
     seedSavedPlan();
 
     const db = openDatabase(path);
@@ -327,7 +328,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('refuses half a schedule', () => {
-    seedWorkPackage();
+    seedHistoricalProject();
     const db = openDatabase(path);
     try {
       // A hash and a length but no algorithm identity and no absent reason: the
@@ -335,7 +336,7 @@ describe('the saved-plan migration', () => {
       expect(() =>
         db.run(
           `INSERT INTO saved_plan (
-             id, work_package_id, name, created_by, created_at,
+             id, project_id, name, created_by, created_at,
              input_schema_version, input_bytes, input_sha256,
              schedule_schema_version, schedule_bytes, schedule_sha256
            ) VALUES ('sp2', 'p1', 'half', 'Ada', 1000, 1, 3, 'deadbeef', 1, 9, 'feedface')`,
@@ -347,7 +348,7 @@ describe('the saved-plan migration', () => {
   });
 
   it('refuses a body of an unknown kind', () => {
-    seedWorkPackage();
+    seedHistoricalProject();
     seedSavedPlan();
     const db = openDatabase(path);
     try {
@@ -366,7 +367,7 @@ describe('the saved-plan migration', () => {
    * orphan or erase a permanent record.
    *
    * Asserted by naming an account that does not exist rather than by deleting
-   * one: `workPackage.owner_id` is `NOT NULL` and references `users`, so no work package
+   * one: `project.owner_id` is `NOT NULL` and references `users`, so no work package
    * with a saved plan can outlive its owner's row in the first place, and a
    * delete-then-read test would be measuring that constraint instead of this
    * one. Foreign keys are on for every connection `openDatabase` hands out
@@ -374,12 +375,12 @@ describe('the saved-plan migration', () => {
    * would refuse the row below.
    */
   it('stores a creator no account row backs', () => {
-    seedWorkPackage();
+    seedHistoricalProject();
     const db = openDatabase(path);
     try {
       db.run(
         `INSERT INTO saved_plan (
-           id, work_package_id, name, created_by, created_at,
+           id, project_id, name, created_by, created_at,
            input_schema_version, input_bytes, input_sha256, schedule_absent_reason
          ) VALUES ('sp3', 'p1', 'left the company', 'nobody-by-that-id', 1000, 1, 3, 'deadbeef', 'pending')`,
       );
@@ -393,7 +394,7 @@ describe('the saved-plan migration', () => {
       expect(() =>
         db.run(
           `INSERT INTO saved_plan (
-             id, work_package_id, name, created_by, created_at,
+             id, project_id, name, created_by, created_at,
              input_schema_version, input_bytes, input_sha256, schedule_absent_reason
            ) VALUES ('sp4', 'no-such-work-package', 'orphan', 'Ada', 1000, 1, 3, 'deadbeef', 'pending')`,
         ),

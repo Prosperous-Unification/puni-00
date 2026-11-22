@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { permitsExternalDependencies } from '@wbs/core/ports/external-dependency-authoring';
 import { afterEach, expect, test } from 'bun:test';
 
-import { runMigrations } from './migrate';
 import { openSqliteSource, type SqliteSource } from './source';
+import { migrateEmptyCatalogueFixture } from './testing/catalogue-database';
 import { seedDependencyAuthority } from './testing/dependency-activation';
 import { INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY } from './testing/dependency-capability';
 
@@ -21,7 +21,7 @@ afterEach(async () => {
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-writer-authority-'));
   const path = join(directory, 'source.db');
-  runMigrations(path, new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname);
+  migrateEmptyCatalogueFixture({ path, directory, reportedAt: 1 }, { hasUnknownOwner: false });
   const source = openSqliteSource({
     dependencyCapability: INCAPABLE_BACKEND_DEPENDENCY_CAPABILITY,
     dbPath: path,
@@ -92,7 +92,7 @@ test('borrowed authorities remain bound to their source when another writer is a
 for (const [fault, statement, message] of [
   [
     'missing ledger',
-    "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_work_package_dependency_activation'",
+    "DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation'",
     'missing dependency activation migration',
   ],
   [

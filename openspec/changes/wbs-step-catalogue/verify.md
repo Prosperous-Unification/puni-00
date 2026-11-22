@@ -2252,3 +2252,17 @@ Nx typecheck passed.
   capture witnesses check the actual parent and inherited step, refuse
   corrupt organization ownership, and preserve the read snapshot under a
   concurrent mutation.
+
+### SQLite saved-plan, legacy event and writer authority checks
+
+- The focused uncached Nx target passed 14 historical saved-plan and
+  legacy-activation tests. The saved-plan suite checks the original schema
+  and full ordered rollback. The activation suite records both event streams
+  through the real log, then uses historical SQL to delete the package before
+  exercising prune, refusal and rollback through the actual activator.
+- The focused uncached Nx target passed 13 writer-authority and resource
+  tests. The missing-ledger case removes the exact immutable migration record.
+  Resource tests preserve distinct ownership and both foreign references.
+- The focused uncached Nx target passed all six step-node-attempt migration
+  tests at the named migration and its immediate predecessor, including
+  historical timestamp and state constraints and the exact rollback guard.
