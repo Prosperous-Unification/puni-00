@@ -2312,3 +2312,14 @@ Nx typecheck passed.
   the project and binds Plan through mounted catalogue endpoints, then checks
   that the package inherits exactly that one step. The backend, SQLite and
   Twilight Dash Nx typechecks passed.
+
+### Backend import authority and machine credentials
+
+- Uncached focused Nx passed all 66 import-authority tests with 710
+  assertions. The harness authors and binds both imported step codes
+  through the actual catalogue writer before package birth. The mounted,
+  queued revocation, activation and rollback witnesses remain active.
+- The native machine-grant suite passed 42 tests with 205 assertions using
+  its local OIDC listener. The fixture uses a real project in each
+  organization and proves that a live credential needs its own grant
+  before it can list its organization's package.

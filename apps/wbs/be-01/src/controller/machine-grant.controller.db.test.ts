@@ -106,10 +106,20 @@ async function populate(activate = true): Promise<void> {
   h.bind('bob', 'org-b');
   if (!activate) return;
   h.activate();
-  const created = await h.call('dany', 'POST', '/api/work-packages', { name: 'Plan of A' });
+  h.sqlite.run(
+    "INSERT INTO project(id,organization_id,name,created_at,created_by) VALUES ('grant-parent-a','org-a','A',1,?),('grant-parent-b','org-b','B',1,?)",
+    [h.userId('dany'), h.userId('bob')],
+  );
+  const created = await h.call('dany', 'POST', '/api/work-packages', {
+    name: 'Plan of A',
+    projectId: 'grant-parent-a',
+  });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
   workPackageA = (created.body as { workPackage: { id: string } }).workPackage.id;
-  const other = await h.call('bob', 'POST', '/api/work-packages', { name: 'Plan of B' });
+  const other = await h.call('bob', 'POST', '/api/work-packages', {
+    name: 'Plan of B',
+    projectId: 'grant-parent-b',
+  });
   if (other.status !== 200) throw new Error(`create refused: ${JSON.stringify(other)}`);
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'vics-agent', 'org-a', h.userId('vic'));
@@ -576,8 +586,13 @@ describe('the issuance audit', () => {
 
 describe('a machine grant at each call', () => {
   it('acts as its credential’s person’s account in its organization, with the secret', async () => {
-    const { key } = await claireKey();
-    const answer = await withGrant(await grantFor(key), 'GET', '/api/work-packages');
+    const { id, key } = await claireKey();
+    const grant = await grantFor(key);
+    const before = await withGrant(grant, 'GET', '/api/work-packages');
+    expect(before.status).toBe(200);
+    expect(workPackageIds(before)).toEqual([]);
+    grantCredential(h.sqlite, 'org-a', id, 'org-viewer', 'organization', 'org-a');
+    const answer = await withGrant(grant, 'GET', '/api/work-packages');
     expect(answer.status).toBe(200);
     expect(workPackageIds(answer)).toEqual([workPackageA]);
   });

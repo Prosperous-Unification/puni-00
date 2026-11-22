@@ -93,6 +93,35 @@ async function openHarness() {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+  await harness.publicWrites().uow.run(async ({ stores }) => {
+    for (const [code, name, position, defaultAllowancePercent] of [
+      ['impl', 'Build', 10, 0],
+      ['qa', 'QA', 20, 30],
+    ] as const) {
+      expect(
+        await stores.stepCatalogue.defineAndBindStep(
+          'org-a',
+          {
+            id: 'import-step-' + code,
+            code,
+            name,
+            position,
+            defaultEstimateUnit: 'workdays',
+            defaultAllowancePercent,
+          },
+          {
+            bindingId: 'import-binding-' + code,
+            scopeKind: 'project',
+            scopeId: 'import-parent-a',
+            workItemTypeId: null,
+            position,
+          },
+          { at: instant, by: harness.userId('ada') },
+        ),
+      ).toMatchObject({ ok: true });
+    }
+    return { commit: true, value: undefined };
+  });
   const created = await request('POST', '/api/work-packages', {
     projectId: 'import-parent-a',
     name: 'Plan',
@@ -100,14 +129,15 @@ async function openHarness() {
   expect(created.status).toBe(200);
   const workPackage = harness.sqlite.query<{ id: string }, []>('SELECT id FROM work_package').get();
   if (workPackage === null) throw new Error('fixture work package is absent');
-  const step = harness.sqlite
-    .query<{ id: string }, []>('SELECT id FROM step ORDER BY position LIMIT 1')
-    .get();
-  if (step === null) throw new Error('fixture step is absent');
+  expect(
+    harness.sqlite
+      .query('SELECT step_id FROM work_package_step WHERE work_package_id=? ORDER BY step_id')
+      .all(workPackage.id),
+  ).toEqual([{ step_id: 'import-step-impl' }, { step_id: 'import-step-qa' }]);
   const path = `/api/work-packages/${workPackage.id}`;
   const commands = [{ kind: 'createWorkItem', parentId: null, afterId: null, name: 'Row' }];
   expect((await request('POST', `${path}/commands`, { commands })).status).toBe(200);
-  return { request, path, stepId: step.id, workPackageId: workPackage.id, cookie };
+  return { request, cookie };
 }
 
 /** Snapshots every application table after the deliberate authority mutation. */
