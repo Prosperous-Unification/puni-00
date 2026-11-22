@@ -1044,6 +1044,20 @@ jobs:
         if: ${{ matrix.project == 'tool-fleet' }}
         run: bash bin/registry-source-test-prerequisites.sh
 
+      # Devsync launches Dash fixtures under its own runner account.
+      # Proof: omitting this step failed the Devsync heavy-leaf check in toolchain-pins.test.ts.
+      - name: Provision unshare for Dash resource tests
+        if: ${{ matrix.project == 'tool-devsync' }}
+        run: |
+          set -euo pipefail
+          # Ubuntu restricts user namespaces through AppArmor. Admit this executable only;
+          # preserve the host-wide restriction and run the probe/tests as the runner account.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile unshare /usr/bin/unshare flags=(unconfined) {' '  userns,' '}' |
+            sudo tee /etc/apparmor.d/unshare > /dev/null
+          sudo apparmor_parser --replace /etc/apparmor.d/unshare
+          unshare --user --map-root-user --pid --fork --mount-proc setpriv --bounding-set=-sys_ptrace true
+
       # The shared runner records the validated project roster, commands and elapsed time.
       # A failed or timed-out Nx phase remains failed after annotation and log upload.
       - name: Heavy leaf — test, lint, typecheck, build

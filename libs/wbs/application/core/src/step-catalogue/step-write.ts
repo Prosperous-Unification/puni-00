@@ -5,9 +5,9 @@ import {
   type WorkPackageChain,
 } from '@wbs/domain';
 
-import type { EstimateStore, ValueGroupPlacement } from '../../ports/estimate-store';
-import type { StepWriteOutcome } from '../../ports/estimate-store';
-import { WorkPackageStepMissing } from '../../ports/step-store';
+import type { EstimateStore, ValueGroupPlacement } from '../ports/estimate-store';
+import type { StepWriteOutcome } from '../ports/estimate-store';
+import { WorkPackageStepMissing } from '../ports/step-store';
 import type { PackageStepValues, StepIdentity } from './step-catalogue';
 import { readCatalogueId } from './step-catalogue';
 import { compareStepUsageIds, type StepUsageTypeRecord } from './step-usage-capture';

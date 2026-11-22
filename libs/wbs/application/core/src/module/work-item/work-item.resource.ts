@@ -276,8 +276,8 @@ import {
 } from '../../service/replay-authorization';
 import { prepareCapturedScheduleParts, prepareScheduleParts } from '../../service/schedule-parts';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
-import type { FirstChildWrite } from '../step-catalogue/first-child';
-import { prepareFirstChildRelationships } from '../step-catalogue/first-child-relationships';
+import type { FirstChildWrite } from '../../step-catalogue/first-child';
+import { prepareFirstChildRelationships } from '../../step-catalogue/first-child-relationships';
 import { type BudgetHeadroom, findBudgetHeadroom } from './budget-headroom';
 import { withBudgets } from './budget-read';
 import {

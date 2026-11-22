@@ -1,8 +1,5 @@
 import { readCatalogueId } from '@wbs/core';
-import {
-  readStepRetirement,
-  type StepRetirement,
-} from '@wbs/core/module/step-catalogue/step-retirement';
+import { readStepRetirement, type StepRetirement } from '@wbs/core/step-catalogue/step-retirement';
 
 import type { MemoryStepCatalogueScope, MemoryStepCatalogueTables } from './step-catalogue';
 

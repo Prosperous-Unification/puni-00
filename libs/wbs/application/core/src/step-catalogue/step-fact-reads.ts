@@ -6,8 +6,8 @@ import {
   type StoredStepParallel,
 } from '@wbs/domain';
 
-import type { StoredActual } from '../../ports/actual-store';
-import type { StoredProgress } from '../../ports/progress-store';
+import type { StoredActual } from '../ports/actual-store';
+import type { StoredProgress } from '../ports/progress-store';
 import { type PackageStepValues, readCatalogueId, type StepIdentity } from './step-catalogue';
 import type { StepUsagePackage } from './step-usage';
 import { compareStepUsageIds } from './step-usage-capture';
@@ -17,7 +17,7 @@ export interface StepFactAddress {
   readonly workItemId: string;
   readonly stepId: string;
 }
-import type { StepFactKind } from '../../ports/step-catalogue';
+import type { StepFactKind } from '../ports/step-catalogue';
 
 /** Raw trusted actual columns are decoded once after ownership selection, including both numeric fields. */
 export interface StepActualRecord {

@@ -9,8 +9,6 @@ import {
   resolveSteps,
 } from '@wbs/domain';
 
-import { projectCatalogueBindings } from '../module/step-catalogue/step-catalogue';
-import { projectReadableStepUsage } from '../module/step-catalogue/step-usage';
 import type { AccessDecisions } from '../ports/access-decisions';
 import { AnnouncementCollector } from '../ports/announcement-collector';
 import type { Clock } from '../ports/clock';
@@ -33,6 +31,8 @@ import type { ProjectStepManifest } from '../ports/step-manifest';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { Broadcaster } from '../ports/work-package-event';
+import { projectCatalogueBindings } from '../step-catalogue/step-catalogue';
+import { projectReadableStepUsage } from '../step-catalogue/step-usage';
 import { type Authorization, authorize, requireAccessDecisions } from './authorize';
 
 export type CatalogueReadRefusal =

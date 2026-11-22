@@ -1,8 +1,8 @@
-import type { IncidentNodeReceipt } from '../../ports/incident-node-transition';
-import type { StepNodesInUse } from '../../ports/step-catalogue';
-import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
-import type { Repositioned, WorkItem } from '../../ports/work-item-store';
-import type { WriteStamp } from '../../ports/write-stamp';
+import type { IncidentNodeReceipt } from '../ports/incident-node-transition';
+import type { StepNodesInUse } from '../ports/step-catalogue';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
+import type { Repositioned, WorkItem } from '../ports/work-item-store';
+import type { WriteStamp } from '../ports/write-stamp';
 import { readFirstChildRecord } from './first-child-history';
 
 /**

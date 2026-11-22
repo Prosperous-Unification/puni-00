@@ -164,6 +164,12 @@
       "rationale": "WorkItemService folds each row's status from its progress reading, hold, readiness and the dependency graph with the @wbs/domain folds, with no store or clock access"
     },
     {
+      "path": "libs/wbs/application/core/src/service/project-settings.ts",
+      "kind": "feature",
+      "capability": "Project settings admission",
+      "rationale": "ProjectSettingsPurpose revalidates the caller and actual project owner in the admitted Source unit, resolves inherited settings and commits authorized budget changes before announcing affected packages"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/provisioning-secret.ts",
       "kind": "support",
       "disposition": "private member of libs/wbs/application/core/src/service/scim.feature.ts and the provisioning-token routes",
@@ -216,6 +222,12 @@
       "kind": "feature",
       "capability": "Organization work package rank write",
       "rationale": "The standalone rank facade acquires one write unit, rechecks current rank authority, captures before and after scheduling observations, records fan-out events atomically, then delivers after release"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/step-catalogue-purpose.ts",
+      "kind": "feature",
+      "capability": "Organization step catalogue admission",
+      "rationale": "StepCataloguePurpose authorizes current organization and project catalogue reads and binding writes in the owning Source unit, preserving hidden-object refusals and publishing package changes only after commit"
     },
     {
       "path": "libs/wbs/application/core/src/service/list-query.ts",

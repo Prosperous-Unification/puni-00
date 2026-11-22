@@ -1,10 +1,10 @@
 import { isHold, isReadiness } from '@wbs/domain';
 
-import type { Demand } from '../../ports/demand-store';
-import type { StepNodesInUse } from '../../ports/step-catalogue';
-import type { StepUsageSnapshot } from '../../ports/step-usage';
-import type { Repositioned, WorkItem } from '../../ports/work-item-store';
-import type { WriteStamp } from '../../ports/write-stamp';
+import type { Demand } from '../ports/demand-store';
+import type { StepNodesInUse } from '../ports/step-catalogue';
+import type { StepUsageSnapshot } from '../ports/step-usage';
+import type { Repositioned, WorkItem } from '../ports/work-item-store';
+import type { WriteStamp } from '../ports/write-stamp';
 import { readCatalogueId } from './step-catalogue';
 import { projectMoveStepUsage, projectStepNodesInUse } from './step-usage';
 

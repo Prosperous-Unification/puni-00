@@ -1,7 +1,7 @@
 import {
   assertStepRetirementEpoch,
   type StepRetirementEpochRecord,
-} from '@wbs/core/module/step-catalogue/step-retirement';
+} from '@wbs/core/step-catalogue/step-retirement';
 import {
   assertStepParallel,
   type EstimateUnit,

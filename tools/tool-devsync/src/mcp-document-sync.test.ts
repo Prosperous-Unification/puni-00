@@ -58,8 +58,7 @@ beforeAll(async () => {
   const executables = join(directory, 'bin');
   await mkdir(executables, { recursive: true });
   await mkdir(source);
-  // Deliberately copy only the complete generation source closure: a new
-  // source-library dependency must be included before fixture preparation works.
+  // Copy the generation sources and the release inventory used by rehearsal admission.
   for (const path of [
     'apps/puni/cli/project.json',
     'apps/puni/cli/tsconfig.json',
@@ -67,6 +66,7 @@ beforeAll(async () => {
     'libs/shared/adapters/bun-startup/project.json',
     'libs/shared/adapters/heavy-lock/project.json',
     'libs/wbs/domain/domain/src/access-role.ts',
+    'libs/wbs/domain/domain/src/step-fact.ts',
     'libs/wbs/domain/domain/tsconfig.json',
     'libs/wbs/domain/contracts/src',
     'libs/wbs/domain/contracts/tsconfig.json',
@@ -78,6 +78,8 @@ beforeAll(async () => {
     // Cannot find module '@shared/delivery' from delivery-shapes.ts.
     'libs/shared/domain/delivery/src',
     'libs/shared/domain/delivery/tsconfig.json',
+    // Proof: without this pre-grant baseline, all 17 sync cases refused the missing migration root.
+    'apps/wbs/be-01/drizzle/20260426171432_talented_smiling_tiger',
     'apps/wbs/be-01/src/openapi',
     'apps/wbs/be-01/tsconfig.json',
     'apps/wbs/be-01/project.json',

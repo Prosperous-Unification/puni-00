@@ -1,6 +1,5 @@
 import type { AllowancePercent, BudgetPolicy, Days, MoneyBasis, StepState } from '@wbs/domain';
 
-import type { FirstChildRecord } from '../module/step-catalogue/first-child';
 import type { ActualKey, StoredActual } from '../ports/actual-store';
 import type { StoredBudget } from '../ports/budget-store';
 import type { Claim, ClaimOccupancy } from '../ports/claim-store';
@@ -18,6 +17,7 @@ import type { EstimateKey } from '../ports/subtree-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Repositioned } from '../ports/work-item-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
+import type { FirstChildRecord } from '../step-catalogue/first-child';
 // Documentation targets remain in the journal decoder; these aliases preserve their displayed names.
 import type {
   Preconditions as _Preconditions,

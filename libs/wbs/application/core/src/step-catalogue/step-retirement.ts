@@ -1,6 +1,6 @@
 import { allowanceHundredthsOf, isEstimateUnit } from '@wbs/domain';
 
-import type { StepDefinitionPatch } from '../../ports/step-catalogue';
+import type { StepDefinitionPatch } from '../ports/step-catalogue';
 import { readCatalogueId } from './step-catalogue';
 
 export const STEP_RETIREMENT_MIGRATION = '20261118210000_add_step_retirements';

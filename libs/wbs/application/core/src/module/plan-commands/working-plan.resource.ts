@@ -13,7 +13,7 @@ import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
-import { guardStepCatalogue } from '../step-catalogue/step-catalogue';
+import { guardStepCatalogue } from '../../step-catalogue/step-catalogue';
 import { createWorkingPlanDirectory } from './working-plan-directory.resource';
 import { createWorkingPlanEdges } from './working-plan-edges.resource';
 import { cloneWorkItem, createWorkingPlanRows } from './working-plan-rows.resource';

@@ -18,9 +18,9 @@ import type {
   StepDefinition,
   StepScope,
   StepUnbindOptions,
-} from '../../ports/step-catalogue';
-import { WorkPackageStepMissing } from '../../ports/step-store';
-import type { WriteStamp } from '../../ports/write-stamp';
+} from '../ports/step-catalogue';
+import { WorkPackageStepMissing } from '../ports/step-store';
+import type { WriteStamp } from '../ports/write-stamp';
 
 export interface StepDefinitionRecord {
   readonly id: unknown;

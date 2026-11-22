@@ -1,6 +1,6 @@
-import type { FirstChildWrite, FirstChildWriteOutcome } from '../module/step-catalogue/first-child';
-import type { FirstChildDecision } from '../module/step-catalogue/first-child-decision';
-import type { MoveWrite, MoveWriteOutcome } from '../module/step-catalogue/move';
+import type { FirstChildWrite, FirstChildWriteOutcome } from '../step-catalogue/first-child';
+import type { FirstChildDecision } from '../step-catalogue/first-child-decision';
+import type { MoveWrite, MoveWriteOutcome } from '../step-catalogue/move';
 import type { ActualKey, StoredActual } from './actual-store';
 import type { Demand } from './demand-store';
 import type { StoredDependency } from './dependency-store';

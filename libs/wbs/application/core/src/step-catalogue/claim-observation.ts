@@ -1,7 +1,7 @@
 import { resolveSteps, type StepBinding } from '@wbs/domain';
 
-import type { ClaimStore, StampedClaim } from '../../ports/claim-store';
-import type { StepUsagePackage } from '../../ports/step-usage';
+import type { ClaimStore, StampedClaim } from '../ports/claim-store';
+import type { StepUsagePackage } from '../ports/step-usage';
 import type { PackageStepValues, StepIdentity } from './step-catalogue';
 import { projectStoredStepFacts } from './step-fact-reads';
 import type { StepFactReadLifetime } from './step-write';

@@ -1,6 +1,6 @@
 import { type ProjectChain, resolveSteps, type StepBinding } from '@wbs/domain';
 
-import type { ProjectStepManifest } from '../../ports/step-manifest';
+import type { ProjectStepManifest } from '../ports/step-manifest';
 import { readCatalogueId } from './step-catalogue';
 import { compareStepUsageIds } from './step-usage-capture';
 

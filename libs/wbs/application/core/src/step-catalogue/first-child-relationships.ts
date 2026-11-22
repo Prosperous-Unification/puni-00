@@ -1,6 +1,6 @@
 import type { ScopedDependencyEndpoint } from '@wbs/domain';
 
-import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FirstChildWrite } from './first-child';
 import type { StepUsageFactRecord } from './step-usage-capture';
 

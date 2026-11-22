@@ -1,5 +1,5 @@
-import type { SubtreeCopy, SubtreeStore, SubtreeWriteOutcome } from '../../ports/subtree-store';
-import type { WriteStamp } from '../../ports/write-stamp';
+import type { SubtreeCopy, SubtreeStore, SubtreeWriteOutcome } from '../ports/subtree-store';
+import type { WriteStamp } from '../ports/write-stamp';
 import { retainFirstChildWrite } from './first-child';
 import { retainMoveWrite } from './move';
 

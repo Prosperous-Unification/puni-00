@@ -3112,12 +3112,12 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * Which algorithm produced a schedule — the identity a saved plan stores.
  *
  * **The rule that moves it: any change to {@link schedule}'s semantics bumps
- * this in the same commit.** A semantics change is any edit after which some
- * input produces a different {@link Schedule} — a new floor kind, a changed
- * tie-break, a different reservation order, a bound that clamps where it did
- * not. TASK-219's dual objective and TASK-240's deadline both qualify.
- * Refactors, renames, comments and performance work that leave every output
- * identical do not.
+ * this in the same commit.** A new floor kind, a changed tie-break, a different
+ * reservation order or a newly clamped bound changes the scheduling facts.
+ * TASK-219's dual objective and TASK-240's deadline both qualify. The plain1→3
+ * and connected2→4 formats rename the start floor and holder while preserving
+ * their meaning. Their readers project the recorded vocabulary forward, so the
+ * same algorithm identity applies across those formats.
  *
  * Without that rule the column is a constant and the feature it exists for
  * fails silently. `saved_plan.scheduler_algorithm_id` is how a stored plan
@@ -3130,9 +3130,9 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * It is deliberately **not** a hash of this file. A source hash moves on every
  * comment edit, so it would be bumped by rote until nobody read it, and it
  * cannot be written into a migration, a fixture or a review by hand.
- * `schedule-algorithm-id.test.ts` supplies the enforcement a bare constant
- * cannot: a behavioural digest over a fixed corpus, pinned beside this value,
- * so a semantics change lands as one red test naming both.
+ * `schedule-algorithm-id.test.ts` pins the original corpus digest beside this
+ * identity and compares each raw current answer to the production reader's
+ * forward projection of those original facts.
  *
  * Format is `<engine>-v<n>` with `n` a monotonically increasing integer. The
  * value is stored, so it is never reused for a different meaning.

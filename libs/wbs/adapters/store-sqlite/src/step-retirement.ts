@@ -5,7 +5,7 @@ import {
   type StepRetirement,
   type StepRetirementEpochRecord,
   type StepRetirementRecord,
-} from '@wbs/core/module/step-catalogue/step-retirement';
+} from '@wbs/core/step-catalogue/step-retirement';
 import { sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';

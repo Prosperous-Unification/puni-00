@@ -1,7 +1,7 @@
 import { resolveSteps, type StepBinding } from '@wbs/domain';
 
-import { STEP_FACT_KINDS, type StepFactKind } from '../../ports/step-catalogue';
-import type { WorkItem } from '../../ports/work-item-store';
+import { STEP_FACT_KINDS, type StepFactKind } from '../ports/step-catalogue';
+import type { WorkItem } from '../ports/work-item-store';
 import type { FirstChildRecord, FirstChildWrite, FirstChildWriteOutcome } from './first-child';
 import {
   projectStepNodesInUse,

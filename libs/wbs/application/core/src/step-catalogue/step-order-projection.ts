@@ -1,6 +1,6 @@
 import { indexCapturedLeafSteps, type LeafStepOrder, type StepTypeState } from '@wbs/domain';
 
-import type { WorkItemStepProjection } from '../../ports/work-item-store';
+import type { WorkItemStepProjection } from '../ports/work-item-store';
 
 /** Actual ownership/type evidence retained by one adapter observation, never caller-authored Source authority. */
 export interface StepOrderObservation {

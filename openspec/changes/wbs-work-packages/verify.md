@@ -2917,3 +2917,28 @@ record these checks. Known legacy permission and historical frontend producer
 fixtures, operational PUNI provisioning, normal hooks, current-main integration,
 CI, exact-SHA host gates and formal Astra review remain outstanding. This is
 delivery preparation; no push, merge or live migration has occurred.
+
+### Fast algorithm identity across the saved-schedule rename
+
+The eight original identity cases were captured with the plain1 writer and Fast
+engine from `c8018843e6ff6827f7d97b67ff986cc717656578`, in their original
+order with a null calendar anchor. The [fixture](../../../libs/wbs/domain/domain/fixtures/schedule-algorithm-v4-plain1.json)
+has compact-JSON SHA-256 `58481402acb79c56ccc32931c2cc28968ac8d787d0b67b2489b59bdc9767d534`.
+The original raw facts reproduce `f0145c81759486b5` under `slice-leveling-v4`.
+Every raw current corpus byte matches the expected facts from the production
+plain1→3 reader. Only the expected captures pass through that reader.
+
+In a private copy of the domain source based on `9a9e78879dd88ecf914a44dff9429b154d50ed6a`,
+`bun test` on `schedule-algorithm-id.test.ts`, `schedule-weighted.test.ts`,
+`schedule-elsewhere.test.ts` and `saved-plan/schedule-rename.test.ts` passed
+59 tests across four files. The native TypeScript compiler also passed with
+the identity test as its only root under the domain spec configuration.
+The full domain target and repository gate remain unverified by this check.
+
+Four independent faults failed their intended assertions and passed after
+exact restoration. Increasing an original slice's earliest finish failed the
+historical pin. Mapping the published start floor to predecessor or increasing
+each live slice duration independently failed the full current comparison.
+Dropping a future top-level field failed the added-field control. Increasing
+live earliest finish instead hit the existing FS publication guard before the
+identity assertion and is excluded from those four proofs.

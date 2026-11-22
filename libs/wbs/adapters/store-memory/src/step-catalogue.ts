@@ -36,7 +36,7 @@ import {
 import {
   retainStepDefinitionPatch,
   type StepRetirementRecord,
-} from '@wbs/core/module/step-catalogue/step-retirement';
+} from '@wbs/core/step-catalogue/step-retirement';
 import type { WorkPackageChain } from '@wbs/domain';
 
 import { captureMemoryCatalogueScope } from './step-catalogue-scope';

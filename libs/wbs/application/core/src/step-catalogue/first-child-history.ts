@@ -1,6 +1,6 @@
 import { isHold, isReadiness } from '@wbs/domain';
 
-import type { Repositioned } from '../../ports/work-item-store';
+import type { Repositioned } from '../ports/work-item-store';
 import type { FirstChildRecord } from './first-child';
 
 function readClosedRecord(

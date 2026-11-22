@@ -1,8 +1,8 @@
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
-import { retainFirstChildWrite } from '../step-catalogue/first-child';
-import { retainMoveWrite } from '../step-catalogue/move';
-import { retainSubtreeWrite } from '../step-catalogue/subtree-write';
+import { retainFirstChildWrite } from '../../step-catalogue/first-child';
+import { retainMoveWrite } from '../../step-catalogue/move';
+import { retainSubtreeWrite } from '../../step-catalogue/subtree-write';
 
 interface RetainedSubtreeReads {
   byIds(ids: readonly string[]): ReturnType<WorkItemStore['listByIds']>;

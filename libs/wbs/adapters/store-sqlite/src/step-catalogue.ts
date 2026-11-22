@@ -37,7 +37,7 @@ import {
   type StepUnbindOutcome,
   type WriteStamp,
 } from '@wbs/core';
-import { retainStepDefinitionPatch } from '@wbs/core/module/step-catalogue/step-retirement';
+import { retainStepDefinitionPatch } from '@wbs/core/step-catalogue/step-retirement';
 import type { ProjectChain, WorkPackageChain } from '@wbs/domain';
 import { sql } from 'drizzle-orm';
 

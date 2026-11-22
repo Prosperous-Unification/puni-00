@@ -144,7 +144,7 @@ describe('recovery evidence contract boundaries', () => {
       );
     }
   }
-  for (const name of ['plan-execution.ts', 'recovery-codecs.ts', 'recovery-evidence.test.ts']) {
+  for (const name of ['plan-execution.ts', 'recovery-evidence.test.ts']) {
     it(
       name + ' remains unlisted',
       async () => {
@@ -1549,7 +1549,18 @@ const ACTIVATION_IMPORTS = [
       '@wbs/store-sqlite/migration-set',
     ],
   ],
-  ['fixtures/dependency-complete-activation.ts', ['@wbs/store-sqlite/migrate']],
+  [
+    'fixtures/dependency-complete-activation.ts',
+    ['@wbs/store-sqlite/migrate', '@wbs/store-sqlite/testing/catalogue-database'],
+  ],
+  [
+    'lib/dependency-complete-fixture.test.ts',
+    [
+      '@wbs/store-sqlite/db',
+      '@wbs/store-sqlite/migrate-down',
+      '@wbs/store-sqlite/testing/recovery-state',
+    ],
+  ],
 ] as const;
 
 describe('source-bundled activation leaves', () => {

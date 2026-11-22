@@ -1,7 +1,7 @@
 import type { StepBinding, StepTypeState } from '@wbs/domain';
 import { expect, test } from 'bun:test';
 
-import type { StepUsageSnapshot } from '../../ports/step-usage';
+import type { StepUsageSnapshot } from '../ports/step-usage';
 import {
   projectMoveStepUsage,
   projectStepNodesInUse,

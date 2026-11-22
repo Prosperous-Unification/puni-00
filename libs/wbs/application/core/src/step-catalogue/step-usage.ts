@@ -5,13 +5,13 @@ import {
   type StepFactKind,
   type StepInUsePair,
   type StepNodesInUse,
-} from '../../ports/step-catalogue';
+} from '../ports/step-catalogue';
 import type {
   StepUsageFact,
   StepUsagePackage,
   StepUsageSnapshot,
   StepUsageWorkItem,
-} from '../../ports/step-usage';
+} from '../ports/step-usage';
 export type {
   StepUsageAllocator,
   StepUsageDescendantStep,
@@ -22,7 +22,7 @@ export type {
   StepUsageSubtreeClaim,
   StepUsageWhole,
   StepUsageWorkItem,
-} from '../../ports/step-usage';
+} from '../ports/step-usage';
 
 function required<Key, Value>(rows: ReadonlyMap<Key, Value>, key: Key, label: string): Value {
   const value = rows.get(key);

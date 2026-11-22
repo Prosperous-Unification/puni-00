@@ -1,6 +1,6 @@
-import type { MeasureEstimateStore } from '../../ports/measure-estimate-store';
-import type { MeasureStore } from '../../ports/measure-store';
-import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
+import type { MeasureEstimateStore } from '../ports/measure-estimate-store';
+import type { MeasureStore } from '../ports/measure-store';
+import type { StepNodeAttemptStore } from '../ports/step-node-attempt-store';
 import type { StepFactReadLifetime } from './step-write';
 import { guardStepFactReads } from './step-write';
 

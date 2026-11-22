@@ -502,6 +502,52 @@ describe('productConstraints', () => {
         .map((edge) => edge.target + ':' + edge.type)
         .sort(),
     ).toEqual(providerNames.flatMap((name) => [name + ':static', name + ':dynamic']).sort());
+    const staticImporters = [
+      {
+        source: 'puni-cli',
+        target: 'tool-test-performance-execution',
+        files: ['apps/puni/cli/src/packaging/test-level-installation.test.fixture.ts'],
+      },
+      {
+        source: 'tool-devsync',
+        target: 'twilight-dash',
+        files: [
+          'tools/tool-devsync/src/browser-level.ts',
+          'tools/tool-devsync/src/performance-level.ts',
+          'tools/tool-devsync/src/performance-processes.ts',
+          'tools/tool-devsync/src/source-test-level-context.ts',
+        ],
+      },
+      {
+        source: 'tool-devsync',
+        target: 'puni-cli',
+        files: ['tools/tool-devsync/src/k3s/forge-installation.ts'],
+      },
+      {
+        source: 'tool-remote-scripts',
+        target: 'puni-cli',
+        files: ['tools/tool-remote-scripts/src/lib/source-puni-installation.ts'],
+      },
+    ];
+    for (const { source, target, files } of staticImporters) {
+      const types = graph.dependencies[source]
+        .filter((edge) => edge.target === target)
+        .map((edge) => edge.type);
+      // Proof: this graph test received [] after the installation fixture lost its execution
+      // dependency, and ['implicit', 'static'] after a remote-scripts manifest edge was added.
+      expect(types, `${source} -> ${target} edge types`).toEqual(['static']);
+      const importers = getFileMap()
+        .fileMap.projectFileMap[source].filter((file) =>
+          file.deps?.some(
+            (edge) => fileDataDepTarget(edge) === target && fileDataDepType(edge) === 'static',
+          ),
+        )
+        .map((file) => file.file)
+        .sort();
+      // Proof: the actual Devsync-to-Dash graph gained sync.ts after a peer re-export and lost
+      // source-test-level-context.ts after its type import was removed. Each failed this equality.
+      expect(importers, `${source} -> ${target} static importers`).toEqual(files);
+    }
     for (const project of projects) {
       // A product-less project is the infra rule's subject: the tools reach infra and the
       // shared product, plus whatever the root config's `allow` list excuses.
@@ -543,14 +589,42 @@ describe('productConstraints', () => {
             .sort();
           const expectedImporters =
             dependency.type === 'dynamic'
-              ? ['apps/puni/cli/src/execute-command.ts']
+              ? target.name === 'twilight-navigator'
+                ? ['apps/puni/cli/src/execute-command.ts']
+                : [
+                    'apps/puni/cli/src/execute-command.ts',
+                    'apps/puni/cli/src/packaging/test-levels.ts',
+                  ]
               : target.name === 'twilight-burokrat'
-                ? ['apps/puni/cli/src/cli-parser.ts', 'apps/puni/cli/src/packaging/build.ts']
-                : ['apps/puni/cli/src/cli-parser.ts'];
+                ? [
+                    'apps/puni/cli/src/cli-parser.ts',
+                    'apps/puni/cli/src/packaging/build.ts',
+                    'apps/puni/cli/src/packaging/install.ts',
+                    'apps/puni/cli/src/packaging/prepare-source-test-levels.ts',
+                    'apps/puni/cli/src/packaging/prepare-test-level-assets-cli.ts',
+                    'apps/puni/cli/src/packaging/selection.ts',
+                  ]
+                : target.name === 'twilight-dash'
+                  ? [
+                      'apps/puni/cli/src/cli-parser.ts',
+                      'apps/puni/cli/src/execute-command.ts',
+                      'apps/puni/cli/src/packaging/test-level-installation.test.fixture.ts',
+                      'apps/puni/cli/src/packaging/test-levels.ts',
+                    ]
+                  : ['apps/puni/cli/src/cli-parser.ts'];
           // Proof: c31-integration-b-graph-extra-static; injected graph-extra-static in apps/puni/cli/src/version.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
           // Proof: c31-integration-b-graph-extra-dynamic; injected graph-extra-dynamic in apps/puni/cli/src/version.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
           // Proof: c31-integration-b-graph-missing-builder; injected graph-missing-builder in apps/puni/cli/src/packaging/build.ts failed `productConstraints > is satisfiable by every internal dependency in the actual repository graph`; restoration passed. Actual current source graph with graph/file-map cache explicitly disabled; structural importer/type ownership only, no automatic cache invalidation or mutant application runtime claim.
+          // Proof: removing the Burokrat dynamic import in packaging/test-levels.ts left the
+          // execute-command.ts importer intact and failed this graph test on the missing client.
           expect(importers).toEqual(expectedImporters);
+          continue;
+        }
+        if (
+          staticImporters.some(
+            ({ source, target: reached }) => source === project.name && reached === target.name,
+          )
+        ) {
           continue;
         }
         if (project.name === 'tool-remote-scripts' && target.name === 'wbs-be-01') {

@@ -473,6 +473,19 @@ describe('the CI gate scope', () => {
     }
   });
 
+  it('provisions and probes unshare before the Devsync heavy leaf runs Dash fixtures', async () => {
+    const workflow = await readCiWorkflow();
+    const name = 'Provision unshare for Dash resource tests';
+    const step = gateStep(workflow, 'gate_heavy', name);
+    expect(step.if).toBe("${{ matrix.project == 'tool-devsync' }}");
+    expect(step).not.toHaveProperty('continue-on-error');
+    const steps = workflow.jobs?.gate_heavy?.steps ?? [];
+    expect(steps.indexOf(step)).toBeLessThan(
+      steps.indexOf(gateStep(workflow, 'gate_heavy', 'Heavy leaf — test, lint, typecheck, build')),
+    );
+    expect(step.run).toBe(gateStep(workflow, 'gate_twilight', name).run);
+  });
+
   it.each([
     ['profile loader', 41, 0],
     ['namespace probe', 0, 42],

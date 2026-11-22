@@ -1,6 +1,6 @@
 import type { StepTypeState, WorkPackageChain } from '@wbs/domain';
 
-import type { StepFactKind } from '../../ports/step-catalogue';
+import type { StepFactKind } from '../ports/step-catalogue';
 import { readCatalogueId, type StepIdentity } from './step-catalogue';
 import type {
   StepUsageEndpoint,

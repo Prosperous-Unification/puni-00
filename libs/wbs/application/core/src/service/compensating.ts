@@ -7,10 +7,6 @@ import {
   type ScopedDependencyEndpoint,
 } from '@wbs/domain';
 
-import {
-  readFirstChildPositions,
-  readFirstChildRecord,
-} from '../module/step-catalogue/first-child-history';
 import type { ScopedRevision, WorkItemAddress } from '../ports/dependency-context';
 import type { IncidentNodeReceipt } from '../ports/incident-node-transition';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
@@ -18,6 +14,10 @@ import type { StoredAttempt } from '../ports/step-node-attempt-store';
 import type { IncidentReceipt } from '../ports/typed-dependency-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
+import {
+  readFirstChildPositions,
+  readFirstChildRecord,
+} from '../step-catalogue/first-child-history';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
 import { formatIncidentKey, mapIncidentNode } from './incident-node-transition';
 import { readReplayAuthorization } from './replay-authorization';

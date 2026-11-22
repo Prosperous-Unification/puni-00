@@ -1,5 +1,5 @@
 import type { WorkItemStepProjection, WorkItemStore } from '../../ports/work-item-store';
-import type { StepFactReadLifetime } from '../step-catalogue/step-write';
+import type { StepFactReadLifetime } from '../../step-catalogue/step-write';
 
 /** Tree observations borrow Source admission; only a loan rechecks authority after return. */
 export function guardTreeReads(

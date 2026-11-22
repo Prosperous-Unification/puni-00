@@ -1,4 +1,4 @@
-import type { WorkPackageStore } from '../../ports/work-package-store';
+import type { WorkPackageStore } from '../ports/work-package-store';
 
 /**
  * The existing Source/loan assertion admits this single purpose at call entry.

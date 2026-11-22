@@ -41,10 +41,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import {
-  readCatalogueId,
-  retainCatalogueStamp,
-} from '@wbs/core/module/step-catalogue/step-catalogue';
+import { readCatalogueId, retainCatalogueStamp } from '@wbs/core/step-catalogue/step-catalogue';
 import type { MeasureDefinition, MeasureUsage, ResourceCapacity } from '@wbs/domain';
 import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';

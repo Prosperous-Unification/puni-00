@@ -1,6 +1,6 @@
 import type { StoredEstimate } from '@wbs/domain';
 
-import type { StepWriteDecision } from '../module/step-catalogue/step-write';
+import type { StepWriteDecision } from '../step-catalogue/step-write';
 import type { WriteStamp } from './write-stamp';
 
 export type { StoredEstimate } from '@wbs/domain';

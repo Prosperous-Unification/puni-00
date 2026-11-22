@@ -1,23 +1,27 @@
-import {
-  closeSync,
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
-import { expect, it } from 'bun:test';
+import { dlopen, ptr } from 'bun:ffi';
+import { afterEach, beforeEach, expect, it } from 'bun:test';
 
-import {
-  createPerformanceProcessOwner,
-  type PerformanceProcessOwner,
-} from './performance-processes';
+import { awaitPerformanceSupervisor } from './performance-supervisor-test';
+
+/** Read the Linux child-subreaper flag on this Bun test process before and after each worker. */
+function expectOrdinaryParent(): void {
+  const libc = dlopen('libc.so.6', {
+    prctl: { args: ['i32', 'ptr', 'i64', 'i64', 'i64'], returns: 'i32' },
+  });
+  const status = Int32Array.of(-1);
+  try {
+    const PR_GET_CHILD_SUBREAPER = 37;
+    expect(libc.symbols.prctl(PR_GET_CHILD_SUBREAPER, ptr(status), 0, 0, 0)).toBe(0);
+    expect(status[0]).toBe(0);
+  } finally {
+    libc.close();
+  }
+}
+
+beforeEach(expectOrdinaryParent);
+afterEach(expectOrdinaryParent);
 
 for (const scenario of [
   'borrowed-run',
@@ -52,117 +56,21 @@ for (const scenario of [
   it(
     'borrowed host job control ' + scenario,
     async () => {
-      const root = mkdtempSync(join(tmpdir(), 'puni-c35-job-control-'));
-      let owner: PerformanceProcessOwner | undefined, output: number | undefined;
-      let primary: { kind: 'healthy' } | { kind: 'failed'; cause: unknown } = { kind: 'healthy' };
-      let stop: Promise<void> | undefined;
-      const failures: unknown[] = [];
-      const stopOnce = () => {
-        stop ??= owner === undefined ? Promise.resolve() : owner.stop();
-        return stop;
-      };
-      try {
-        output = openSync(join(root, 'output.log'), 'wx', 0o600);
-        owner = createPerformanceProcessOwner();
-        writeFileSync(
-          join(root, 'setup-input.json'),
-          JSON.stringify({ credential: 'wbs_mk_' + crypto.randomUUID() + '.' + 'k'.repeat(43) }),
-          { mode: 0o600 },
-        );
-        const fixture = resolve(
-          import.meta.dir,
-          '../../../apps/twilight-structure/twilight-dash/cli/src/ops/testing/job-control.test.fixture.ts',
-        );
-        const child = owner.spawn(
-          [
-            'unshare',
-            '--user',
-            '--map-current-user',
-            '--pid',
-            '--fork',
-            '--mount-proc',
-            process.execPath,
-            '--no-env-file',
-            '--config=/dev/null',
-            fixture,
-            root,
-            scenario,
-          ],
-          root,
-          Object.fromEntries(
-            Object.entries(process.env).filter(
-              (entry): entry is [string, string] => entry[1] !== undefined,
-            ),
-          ),
-          { stdout: output, stderr: output },
-        );
-        const exited = child.exited.then(
-          (exitCode) => ({ kind: 'exited' as const, exitCode }),
-          (cause: unknown) => ({ kind: 'failed' as const, cause }),
-        );
-        let watchdog: ReturnType<typeof setTimeout> | undefined;
-        const observed = await Promise.race([
-          exited,
-          new Promise<{ kind: 'expired' }>((resolveExpiry) => {
-            watchdog = setTimeout(() => {
-              resolveExpiry({ kind: 'expired' });
-            }, 12000);
-          }),
-        ]);
-        clearTimeout(watchdog);
-        writeFileSync(
-          join(root, 'native.json'),
-          JSON.stringify({ observed, exitCode: child.exitCode, signalCode: child.signalCode }),
-        );
-        expect(observed.kind, readFileSync(join(root, 'output.log'), 'utf8')).toBe('exited');
-        if (observed.kind !== 'exited')
-          throw new Error('job-control native fixture did not settle');
-        expect(observed.exitCode, readFileSync(join(root, 'output.log'), 'utf8')).toBe(0);
-        expect(JSON.parse(readFileSync(join(root, 'receipt.json'), 'utf8'))).toMatchObject({
+      const supervisor = Bun.spawn(
+        [
+          process.execPath,
+          '--no-env-file',
+          '--config=/dev/null',
+          join(import.meta.dir, 'job-control-supervisor.test.fixture.ts'),
           scenario,
-        });
-      } catch (cause) {
-        primary = { kind: 'failed', cause };
-      } finally {
-        try {
-          await stopOnce();
-        } catch (cause) {
-          failures.push(cause);
-        }
-        if (output !== undefined) {
-          try {
-            closeSync(output);
-          } catch (cause) {
-            failures.push(cause);
-          }
-        }
-        writeFileSync(
-          join(root, 'cleanup.json'),
-          JSON.stringify({
-            settled: failures.length === 0,
-            failures: failures.map((cause) => String(cause)),
-            primary: primary.kind === 'failed' ? String(primary.cause) : null,
-          }),
-        );
-        const capture = process.env['PUNI_C35_JOB_CONTROL_CAPTURE'];
-        if (capture !== undefined) {
-          mkdirSync(capture, { recursive: true });
-          cpSync(root, join(capture, scenario), { recursive: true });
-          if (existsSync(join(root, 'pool-path')))
-            cpSync(readFileSync(join(root, 'pool-path'), 'utf8'), join(capture, scenario, 'pool'), {
-              recursive: true,
-            });
-        }
-        if (failures.length === 0 && existsSync(join(root, 'pool-path')))
-          rmSync(readFileSync(join(root, 'pool-path'), 'utf8'), { recursive: true, force: true });
-        if (failures.length === 0) rmSync(root, { recursive: true, force: true });
-      }
-      if (failures.length > 0)
-        throw new AggregateError(
-          primary.kind === 'failed' ? [primary.cause, ...failures] : failures,
-          'job-control oracle and cleanup failed',
-        );
-      if (primary.kind === 'failed') throw primary.cause;
+        ],
+        { stdin: 'ignore', stdout: 'ignore', stderr: 'pipe' },
+      );
+      const { exitCode, stderr } = await awaitPerformanceSupervisor(supervisor, 25000);
+      // Proof: a worker writing the expected completion and exiting 27 failed here.
+      expect(exitCode, stderr).toBe(0);
+      // Proof: a zero-exit worker with an empty or wrong-scenario receipt failed here.
+      expect(stderr.split('\n')).toContain('completed job-control scenario ' + scenario);
     },
     30000,
   );

@@ -34,13 +34,20 @@ if (
   typeof supplied.credential !== 'string'
 )
   throw new Error('missing job-control fixture credential');
-const pool = hostPoolFixture({
-  cpuCores: 4,
-  memoryGib: 4,
-  headroom: { cpuCores: 0, memoryGib: 1 },
-  gateTrees: 0,
-  credential: supplied.credential,
-});
+const pool = hostPoolFixture(
+  {
+    cpuCores: 4,
+    memoryGib: 4,
+    headroom: { cpuCores: 0, memoryGib: 1 },
+    gateTrees: 0,
+    credential: supplied.credential,
+  },
+  // The borrowed job requests one GiB. Calibration reserves both units through real disk admission.
+  // Proof: with 16 units, eight calibrations expired. A queued calibration had 13,895,712,768
+  // bytes free with 17,179,869,184 required. With two units all 28 native cases and the following
+  // parent-isolation check passed at their original deadlines.
+  { diskBudgetUnits: 2 },
+);
 writeFileSync(join(root, 'pool-path'), pool.base);
 const runtime = ResourceRuntime.initialize(
     loadResourceConfiguration(pool.config),
