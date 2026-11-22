@@ -1659,11 +1659,17 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const session = operatorSession(request, now);
       if (!session) return attachCors(failure('operator_unauthorized', 401), origin);
       const csrf = request.headers.get('x-puni-csrf');
+      // Proof: omitting CSRF let the status test mark a request irrelevant with only a session.
       if (!csrf || !equal(digest(csrf), session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
       const body = await readBody(request);
       const status = body?.['status'];
-      if (status !== 'reviewing' && status !== 'contacted' && status !== 'closed')
+      if (
+        status !== 'reviewing' &&
+        status !== 'contacted' &&
+        status !== 'closed' &&
+        status !== 'irrelevant'
+      )
         return attachCors(failure('invalid_status', 400), origin);
       const advanced = store.advanceSubmission(statusMatch[1], status, now);
       return attachCors(advanced ? json({ status }) : failure('invalid_transition', 409), origin);

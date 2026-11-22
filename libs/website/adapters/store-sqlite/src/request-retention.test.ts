@@ -137,14 +137,15 @@ function contentFingerprint(databasePath: string): string {
       'prospect_account',
       'submission_replay',
     ];
+    const originalColumns: Record<string, string> = {
+      intake_draft: 'id, description, brief, claim_hash, created_at, expires_at, consumed_at',
+      proposal_submission:
+        'id, draft_id, email, brief, receipt, status, created_at, updated_at, updated_by',
+    };
     return JSON.stringify(
       tables.map((table) =>
         database
-          .query(
-            table === 'intake_draft'
-              ? 'SELECT id, description, brief, claim_hash, created_at, expires_at, consumed_at FROM intake_draft ORDER BY rowid'
-              : `SELECT * FROM ${table} ORDER BY rowid`,
-          )
+          .query(`SELECT ${originalColumns[table] ?? '*'} FROM ${table} ORDER BY rowid`)
           .all(),
       ),
     );

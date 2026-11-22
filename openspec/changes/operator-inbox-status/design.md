@@ -1,0 +1,1 @@
+Keep the original SQLite workflow constraints and add a nullable irrelevance timestamp. The authenticated status route writes it atomically and the inbox projects that timestamp as Irrelevant. Older requests use their existing status. The inbox filters the already-loaded list on effective status.
