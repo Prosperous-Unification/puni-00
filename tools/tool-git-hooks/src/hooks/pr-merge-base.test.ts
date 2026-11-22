@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -255,6 +263,8 @@ interface ScopeFixture {
   pidsEventsMax?: string | null;
   oomKills?: string;
   pidsPeak?: string | null;
+  /** The recorder's tick in seconds in place of the production 120 (A-CI-LEAF-RECORDER-1). */
+  recorderInterval?: number;
 }
 
 /**
@@ -293,6 +303,52 @@ function bindScopeCgroup(root: string, script: string, fixture: ScopeFixture): s
   return script.replace(assignment, `cgroup_root='${cgroupRoot}'\n`);
 }
 
+/** Rewrites the step's one `recorder_interval=120` line so a test sees several ticks. */
+function bindRecorderInterval(script: string, seconds: number | undefined): string {
+  const assignment = 'recorder_interval=120\n';
+  if (seconds === undefined || !script.includes(assignment)) return script;
+  expect(script.split(assignment)).toHaveLength(2);
+  return script.replace(assignment, `recorder_interval=${String(seconds)}\n`);
+}
+
+/**
+ * A stand-in for `gh` (A-CI-LEAF-RECORDER-1): each call leaves its argv, NUL-separated, and the
+ * GH_TOKEN it saw under GH_CALLS. A create prints the comment id 4242, or with GH_CREATE_STATUS
+ * fails as a fork PR's read-only token does; a PATCH fails with GH_PATCH_STATUS.
+ */
+const fakeGh = `#!/bin/bash
+n="$(find "$GH_CALLS" -name '*.args' | wc -l)"
+printf '%s\\0' "$@" > "$GH_CALLS/$n.args"
+printf '%s' "\${GH_TOKEN:-}" > "$GH_CALLS/$n.token"
+if [ "$2" = -X ]; then
+  if [ -n "\${GH_PATCH_STATUS:-}" ]; then printf 'gh: Server Error (HTTP 502)\\n' >&2; exit "$GH_PATCH_STATUS"; fi
+  exit 0
+fi
+if [ -n "\${GH_CREATE_STATUS:-}" ]; then
+  printf '{"message":"Resource not accessible by integration","status":"403"}\\n'
+  printf 'gh: Resource not accessible by integration (HTTP 403)\\n' >&2
+  exit "$GH_CREATE_STATUS"
+fi
+printf '4242\\n'
+`;
+
+interface GhCall {
+  args: string[];
+  token: string;
+}
+
+function readGhCalls(dir: string): GhCall[] {
+  const calls: GhCall[] = [];
+  for (let n = 0; existsSync(join(dir, `${String(n)}.args`)); n++)
+    calls.push({
+      args: readFileSync(join(dir, `${String(n)}.args`), 'utf8')
+        .split('\0')
+        .slice(0, -1),
+      token: readFileSync(join(dir, `${String(n)}.token`), 'utf8'),
+    });
+  return calls;
+}
+
 function runStep(
   h: ReturnType<typeof history>,
   production: string,
@@ -303,7 +359,11 @@ function runStep(
   mkdirSync(bin, { recursive: true });
   symlinkSync(join(ROOT, 'tools'), join(h.root, 'tools'));
   writeScopeChain(bin, fixture.absent ?? []);
-  const script = bindScopeCgroup(h.root, production, fixture);
+  writeFileSync(join(bin, 'gh'), fakeGh, { mode: 0o755 });
+  const script = bindRecorderInterval(
+    bindScopeCgroup(h.root, production, fixture),
+    fixture.recorderInterval,
+  );
   writeFileSync(
     join(bin, 'bunx'),
     `#!/bin/bash\nprintf '%s\\n' "$*" >> "$NX_CALLS"\nprintf '["wbs-fe-01"]\\n'\n`,
@@ -322,7 +382,10 @@ case "$*" in
     exit 0 ;;
   *ci-run-runtime.ts*)
     printf '%s\\n' "$*" >> "$NX_CALLS"
-    printf 'runtime environment sentinel=%s nodeOptions=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" "\${NODE_OPTIONS:-}" >> "$SCOPE_CALLS"
+    printf 'runtime environment sentinel=%s nodeOptions=%s ghToken=%s\\n' "\${GATE_ENVIRONMENT_SENTINEL:-}" "\${NODE_OPTIONS:-}" "\${GH_TOKEN:-}" >> "$SCOPE_CALLS"
+    # Test output for the recorder's log tail, and a phase long enough for several recorder ticks.
+    if [ -n "\${RUNTIME_OUTPUT:-}" ]; then cat "$RUNTIME_OUTPUT"; fi
+    if [ -n "\${RUNTIME_SLEEP:-}" ]; then sleep "$RUNTIME_SLEEP"; fi
     # The scope's wrapper is this process's grandparent (wrapper, timeout, runtime): killing it
     # stands in for the OOM killer or a foreign signal taking the wrapper down with the gate.
     if [ -n "\${KILL_SCOPE_WRAPPER:-}" ]; then kill -9 "$(ps -o ppid= -p "$PPID" | tr -d ' ')"; fi
@@ -335,6 +398,8 @@ exec '${process.execPath}' "$@"
   const output = join(h.root, 'output');
   const calls = join(h.root, 'calls');
   const scopeCalls = join(h.root, 'scope-calls');
+  const ghCalls = join(h.root, 'gh-calls');
+  mkdirSync(ghCalls);
   writeFileSync(output, '');
   writeFileSync(calls, '');
   writeFileSync(scopeCalls, '');
@@ -346,6 +411,13 @@ exec '${process.execPath}' "$@"
       GITHUB_OUTPUT: output,
       NX_CALLS: calls,
       SCOPE_CALLS: scopeCalls,
+      GH_CALLS: ghCalls,
+      // The run identity the recorder heads its comment with; GH_TOKEN is hermetic like NODE_OPTIONS.
+      GITHUB_REPOSITORY: 'owner/repo',
+      GITHUB_RUN_ID: '44797660117',
+      GITHUB_JOB: 'gate_heavy',
+      GITHUB_RUN_ATTEMPT: '2',
+      GH_TOKEN: '',
       // Matrix values the shared runtime steps read: the remote-model leaf, and for the heavy
       // leaf step (the one that reads PHASE_MINUTES) the tool-fleet leaf with its 75m phase.
       RUNTIME_PARTITION: script.includes('phase_limit="$PHASE_MINUTES"')
@@ -365,6 +437,7 @@ exec '${process.execPath}' "$@"
     output: Bun.file(output),
     calls: Bun.file(calls),
     scopeCalls: Bun.file(scopeCalls),
+    ghCalls: () => readGhCalls(ghCalls),
   };
 }
 
@@ -600,7 +673,10 @@ test.each(headroomShards)(
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
         Number(status),
       );
-      const ledger = (await execution.scopeCalls.text()).split('\n').filter(Boolean);
+      // The tool-fleet recorder's own kernel reads (A-CI-LEAF-RECORDER-1) are covered by its tests.
+      const ledger = (await execution.scopeCalls.text())
+        .split('\n')
+        .filter((line) => line !== '' && !line.startsWith('journalctl -k --since -3min '));
       const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
       expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
       const scope = (suffix: string) =>
@@ -613,7 +689,7 @@ test.each(headroomShards)(
         identity,
         scope(''),
         identity,
-        `runtime environment sentinel=${sentinel} nodeOptions=${nodeOptions}`,
+        `runtime environment sentinel=${sentinel} nodeOptions=${nodeOptions} ghToken=`,
       ]);
       expect(ledger[5]).toMatch(/^journalctl -k --no-pager -o short-iso --since @[0-9]+$/);
       expect(ledger).toHaveLength(6);
@@ -952,3 +1028,267 @@ test.each([
     }
   },
 );
+
+// A-CI-LEAF-RECORDER-1 (R5-32): a lost tool-fleet runner keeps nothing, so on that leaf alone a
+// recorder outside the scope PATCHes one comment on issue #963 every 120 s and once after the
+// phase. These run the production step with a fake `gh` and the tick rewritten to one second.
+const heavyStep = () => step('gate_heavy', 'Heavy leaf — test, lint, typecheck, build');
+const recorderGate = 'if [ "$partition" = heavy-tool-fleet ]; then\n';
+
+function recorderBodies(calls: readonly GhCall[]) {
+  return calls.map(({ args }) => {
+    const field = args.find((arg) => arg.startsWith('body='));
+    if (field === undefined) throw new Error(`gh call without a body: ${args.join(' ')}`);
+    return field.slice('body='.length);
+  });
+}
+
+function recorderOutput(h: ReturnType<typeof history>, lines: readonly string[]): string {
+  const path = join(h.root, 'runtime-output');
+  writeFileSync(path, lines.map((line) => `${line}\n`).join(''));
+  return path;
+}
+
+// Proof (2026-11-21): dropping the stored comment id (every tick created a comment) failed the
+// single-create and PATCH-id assertions; dropping `unset GH_TOKEN` put the token in the runtime's
+// ledger line; dropping the final publish left no `state=final` body.
+test('the tool-fleet leaf recorder keeps one living comment on #963', async () => {
+  const h = history();
+  const execution = runStep(
+    h,
+    heavyStep(),
+    {
+      GATE_MODE: 'affected',
+      GATE_BASE: h.base,
+      GH_TOKEN: 'recorder-test-token',
+      RUNTIME_SLEEP: '6',
+      RUNTIME_OUTPUT: recorderOutput(h, [
+        'tool-fleet:test',
+        '(pass) registry native source > compiles the pthread fixture [812.00ms]',
+        'src/lab-guest-control.test.ts:',
+      ]),
+    },
+    { recorderInterval: 1 },
+  );
+  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+  const calls = execution.ghCalls();
+  const bodies = recorderBodies(calls);
+  expect(calls[0]?.args.slice(0, 2)).toEqual(['api', 'repos/owner/repo/issues/963/comments']);
+  expect(calls[0]?.args.slice(-2)).toEqual(['--jq', '.id']);
+  const patches = calls.slice(1);
+  expect(patches.length).toBeGreaterThanOrEqual(3);
+  for (const patch of patches) {
+    expect(patch.args.slice(0, 4)).toEqual([
+      'api',
+      '-X',
+      'PATCH',
+      'repos/owner/repo/issues/comments/4242',
+    ]);
+    expect(patch.args.at(-1)).toBe('--silent');
+  }
+  expect(calls.every(({ token }) => token === 'recorder-test-token')).toBe(true);
+  const ledger = await execution.scopeCalls.text();
+  expect(ledger).toContain('nodeOptions=--max-old-space-size=4096 ghToken=\n');
+  expect(ledger).toContain('journalctl -k --since -3min --no-pager -o short\n');
+  for (const body of bodies) {
+    expect(Buffer.byteLength(body)).toBeLessThanOrEqual(61440);
+    expect(body).toStartWith('## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n');
+    expect(body).toContain(
+      `\nrun=44797660117 job=gate_heavy attempt=2 head=${h.merge} partition=heavy-tool-fleet\n`,
+    );
+    expect(body).toMatch(/\nstate=(tick [0-9]+|final) utc=\S+ phaseElapsedSeconds=[0-9]+\n/);
+    expect(body).toMatch(/### headroom samples, last 3\n\n````text\nruntime headroom sample utc=/);
+    expect(body).toMatch(/### processes by RSS\n\n````text\n +PID +PPID +ELAPSED +RSS COMMAND\n/);
+    expect(body).toMatch(/### task count\n\n````text\n[1-9][0-9]*\n````/);
+    expect(body).toContain(
+      '### kernel, last 3 minutes\n\n````text\n2026-11-21T04:40:00+0000 runner kernel: audit',
+    );
+    expect(body).toContain('### nx-gate.log tail without samples\n\n````text\n');
+    const tail = body.slice(body.indexOf('### nx-gate.log tail')).split('\n');
+    expect(tail.some((line) => line.startsWith('runtime headroom sample '))).toBe(false);
+    expect(tail.some((line) => line.startsWith('runtime recorder '))).toBe(false);
+  }
+  expect(bodies.filter((body) => body.includes('\nstate=tick ')).length).toBeGreaterThanOrEqual(3);
+  // A mid-phase tick names the running test from the runtime's output.
+  expect(
+    bodies.some(
+      (body) =>
+        body.includes('\nstate=tick ') && body.includes('(pass) registry native source > compiles'),
+    ),
+  ).toBe(true);
+  const final = bodies.at(-1) ?? '';
+  expect(final).toContain('\nstate=final ');
+  expect(final).toMatch(
+    /### phase end and scope events\n\n````text\nruntime phase end partition=heavy-tool-fleet utc=\S+ elapsedSeconds=[0-9]+ exit=0\nruntime headroom scope events pidsEventsMax=0 memoryEventsOomKill=0 pidsPeak=90\n````/,
+  );
+  expect(bodies.filter((body) => body.includes('\nstate=final ')).length).toBe(1);
+  const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+  expect(lines).toContain('runtime recorder comment id=4242 issue=963');
+  expect(lines).toContain('runtime recorder stopped kill=0 wait=0');
+  const recorder = /^runtime recorder pid=([0-9]+) issue=963 interval=1s$/.exec(
+    lines.find((line) => line.startsWith('runtime recorder pid=')) ?? '',
+  );
+  expect(recorder).not.toBeNull();
+  expect(isRunning(Number(recorder?.[1]))).toBe(false);
+  expect(lines.some((line) => line.startsWith('runtime recorder unavailable'))).toBe(false);
+}, 60_000);
+
+// Proof (2026-11-21): without the cap the final body was 92254 bytes; without the shape guard
+// the bearer value was posted; matching the word `token` again redacted a third line; without the
+// escape filter ESC bytes were posted, and without the `@` filter the mention.
+test('the tool-fleet leaf recorder caps its body and replaces lines that look like secrets', () => {
+  const h = history();
+  const sample = `runtime headroom sample utc=2026-11-21T00:00:00Z memAvailableKiB=1 ${'x'.repeat(30000)}`;
+  const execution = runStep(h, heavyStep(), {
+    GATE_MODE: 'affected',
+    GATE_BASE: h.base,
+    RUNTIME_OUTPUT: recorderOutput(h, [
+      sample,
+      sample,
+      sample,
+      'issued wbs_mk_0123456789abcdef',
+      '(pass) a test whose last line stays',
+    ]),
+  });
+  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+  const bodies = recorderBodies(execution.ghCalls());
+  const final = bodies.at(-1) ?? '';
+  expect(final).toContain('\nstate=final ');
+  for (const body of bodies) expect(Buffer.byteLength(body)).toBeLessThanOrEqual(61440);
+  expect(final).toEndWith('\n\n[truncated to the 61440-byte cap]');
+  const small = history();
+  const uncapped = runStep(
+    small,
+    heavyStep(),
+    {
+      GATE_MODE: 'affected',
+      GATE_BASE: small.base,
+      RUNTIME_SLEEP: '1.5',
+      RUNTIME_OUTPUT: recorderOutput(small, [
+        // The shapes a GitHub token, a bearer header and a WBS machine key take.
+        `header Authorization: Bearer ${'a'.repeat(24)}.sig`,
+        `issued wbs_mk_0123456789abcdef and ghp_${'B'.repeat(36)}`,
+        'custody before readonly server effects: token',
+        'owner @someone asked',
+        '\u001b[1m\u001b[36mtool-fleet:\u001b[39m\u001b[22m \u001b[32m✓\u001b[39m a test whose last line stays',
+      ]),
+    },
+    { recorderInterval: 1 },
+  );
+  expect(uncapped.invocation.exitCode, uncapped.invocation.stderr.toString()).toBe(0);
+  const plain = recorderBodies(uncapped.ghCalls());
+  for (const body of plain) {
+    expect(body).not.toContain('a'.repeat(24));
+    expect(body).not.toContain('wbs_mk_0123');
+    expect(body).not.toContain('B'.repeat(36));
+    expect(body).not.toContain('\u001b');
+    expect(body).not.toContain('@someone');
+    expect(body).not.toContain('[truncated');
+  }
+  // A mid-phase tick, whose log tail holds the runtime's output with its escapes stripped.
+  const tick =
+    plain.find((body) => body.includes('tool-fleet: ✓ a test whose last line stays\n')) ?? '';
+  expect(tick).toContain('\nstate=tick ');
+  expect(tick.split('[line redacted: a secret shape]').length - 1).toBe(2);
+  // A word is not a secret: such lines cluster in real tool-fleet output and must stay.
+  expect(tick).toContain('custody before readonly server effects: token\n');
+  expect(tick).toContain('owner @\u200bsomeone asked\n');
+}, 60_000);
+
+// Proof (2026-11-21): without the final publish's `||` fallback a 403 ended the step 1; without
+// the `unavailable` marker the final report retried the create; dropping the `patch failed` line
+// failed its count.
+test('recorder trouble is logged once and leaves the gate status unchanged', async () => {
+  for (const status of ['0', '7']) {
+    const h = history();
+    const execution = runStep(
+      h,
+      heavyStep(),
+      {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+        GH_CREATE_STATUS: '1',
+        RUNTIME_SLEEP: '4',
+      },
+      { recorderInterval: 1 },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    expect(execution.ghCalls()).toHaveLength(1);
+    const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    expect(lines.filter((line) => line.startsWith('runtime recorder unavailable'))).toEqual([
+      'runtime recorder unavailable: HTTP 403',
+    ]);
+    expect(lines).toContain('runtime recorder final not posted');
+    expect(
+      lines.some(
+        (line) =>
+          line.startsWith(`runtime phase end partition=heavy-tool-fleet `) &&
+          line.endsWith(` exit=${status}`),
+      ),
+    ).toBe(true);
+  }
+  for (const status of ['0', '7']) {
+    const h = history();
+    const execution = runStep(
+      h,
+      heavyStep(),
+      {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_STATUS: status,
+        GH_PATCH_STATUS: '1',
+        RUNTIME_SLEEP: '4',
+      },
+      { recorderInterval: 1 },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
+      Number(status),
+    );
+    const calls = execution.ghCalls();
+    expect(calls.filter(({ args }) => args[1] !== '-X')).toHaveLength(1);
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    const { lines } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    expect(lines.filter((line) => line === 'runtime recorder patch failed: HTTP 502').length).toBe(
+      calls.length - 1,
+    );
+  }
+}, 60_000);
+
+// Proof (2026-11-21): with the partition gate replaced by `if :; then`, the workspace step called
+// gh.
+test('only the tool-fleet leaf runs the recorder', async () => {
+  for (const [name, env] of [
+    ['the workspace step', {}],
+    ['the tool-devsync leaf', { RUNTIME_PARTITION: 'heavy-tool-devsync' }],
+    ['the wbs-core leaf', { RUNTIME_PARTITION: 'heavy-wbs-core' }],
+  ] as const) {
+    const h = history();
+    const execution = runStep(
+      h,
+      name === 'the workspace step'
+        ? step('gate_workspace', 'Gate — test, lint, typecheck, build')
+        : heavyStep(),
+      { GATE_MODE: 'affected', GATE_BASE: h.base, GH_TOKEN: 'recorder-test-token', ...env },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+    expect(execution.ghCalls(), name).toEqual([]);
+    const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
+    expect(log, name).not.toContain('runtime recorder');
+    expect(log, name).toContain('runtime phase end partition=');
+    expect(await execution.scopeCalls.text(), name).toContain('ghToken=\n');
+  }
+  // The gate is one token, held once in each step text.
+  for (const shard of ['gate_workspace', 'gate_heavy'] as const) {
+    expect(
+      step(
+        shard,
+        shard === 'gate_heavy'
+          ? 'Heavy leaf — test, lint, typecheck, build'
+          : 'Gate — test, lint, typecheck, build',
+      ).split(recorderGate),
+    ).toHaveLength(2);
+  }
+}, 60_000);

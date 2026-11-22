@@ -667,6 +667,99 @@ scope=ci-gate-workspace-2799.scope`, the probe refused nothing, and the phase en
 `elapsedSeconds=1284 exit=0` with `pidsEventsMax=0 memoryEventsOomKill=0`. That run predates the
 `pidsPeak` field. It selected no tool-fleet leaf, so the lever itself waits for main.
 
+### Amendment, 2026-11-21: a black-box recorder that lives off the runner
+
+Both `gate workspace-heavy (tool-fleet)` losses lasted exactly 67m03s from job start: job
+136708786587 ran uncapped and job 136887016810 ran inside `MemoryMax=12G` with no swap. Each
+carries the annotation "The hosted runner lost communication with the server", and neither has a
+step conclusion, a log or an artifact. The job's log blob returns 404, so GitHub keeps nothing.
+
+The suite itself is modest. A laptop probe ran `bunx nx run tool-fleet:test` inside a user scope
+capped at 12G and 4096 tasks:
+
+- 9368 tests across 319 files passed in 1873 s, and the process tree peaked at 5.9 GiB.
+- The scope recorded no OOM kill and no `pids.max` event, and the run exited 0.
+- In CI the same suite took 2027 s (33.8 minutes) in the surviving workspace shard of run 44797660117.
+
+So the leaf is lost about 20 minutes after its suite should have ended. Something hangs at or
+after the end, and the runner then dies at a fixed offset.
+
+**On-runner evidence cannot survive this.** The sampler, the end record, #967's scope telemetry
+and the `nx-gate.log` artifact are all written on the runner. They reach GitHub only through
+steps that run after the phase, and a lost runner never runs them. Whatever names the hanging test
+has to leave the runner while the phase is still running.
+
+**The recorder (A-CI-LEAF-RECORDER-1).** The heavy-leaf step starts a background loop for the
+`tool-fleet` leaf only. It runs outside the scope, next to the sampler. The partition gate is a
+shell test on `partition`, so the workspace and heavy-leaf step texts stay byte-equal. Every
+120 s the loop builds a short report:
+
+- **Header.** Run id, job, attempt and head SHA, then the UTC time and the phase's elapsed time.
+- **Samples.** The last three `runtime headroom sample` lines.
+- **Log tail.** The last 15 other `nx-gate.log` lines, with ANSI escapes stripped. Bun prints a
+  `✓` or `✗` line as each test ends, under the line naming its file. The last `✓` is the last
+  completed test, so the hanging test is the next one in the file named above it.
+- **Processes.** `ps -eo pid,ppid,etimes,rss,comm --sort=-rss`, the first 12 lines, and the
+  `pgrep -c .` task count.
+- **Kernel.** The last five lines of `journalctl -k --since -3min`.
+
+The first tick creates one comment on issue #963 with `gh api`. The loop stores its id, and every
+later tick PATCHes that same comment, so each run attempt keeps one living comment. After the
+phase the step stops the loop with kill and wait, then PATCHes a final report. That report adds
+the phase end line and the scope events line. If the runner dies, the last PATCH stays on the
+issue, and that is the point.
+
+**Safety of the report.** The log carries no secret. As a cheap guard, any line with a secret's
+shape is replaced with a redaction marker before posting: a GitHub token
+(`gh[pousr]_` followed by 20 or more characters, or `github_pat_`), a `Bearer` value of 20 or more
+characters, or a `wbs_mk_` key. Words are not redacted. 83 of 10858 real tool-fleet lines contain
+`token` or `secret` (for example "…custody before readonly server effects: token"), and they
+cluster, so redacting words could blank the whole 15-line window. A zero-width space after each
+`@` keeps the comment from mentioning anyone. The body is capped at 61440 bytes, under GitHub's
+65536-character comment limit.
+
+**Permissions.** The `gate_heavy` job alone now has `issues: write` alongside `contents: read`,
+and its step gets `GH_TOKEN` from `github.token`. The widening is limited in three ways:
+
+- The token can write issues only on push, merge_group, dispatch and same-repository PRs.
+- On a fork PR GitHub issues a read-only token, so the first create fails. The recorder then
+  writes `runtime recorder unavailable: HTTP 403` once and stops.
+- The step reads the token into a shell variable and unsets `GH_TOKEN` before it captures the
+  exported environment for the scope. The token therefore never reaches the scope's argv, sudo's
+  journal line or the tests.
+
+The recorder is optional telemetry and never changes the gate status. A failed create stops it
+after one `unavailable` line, and a failed PATCH writes `runtime recorder patch failed: …` and the
+loop carries on. Each `gh` call is bounded by a 30-second `timeout`.
+
+`pr-merge-base.test.ts` runs the production step with a fake `gh` that records each call's argv,
+body and token, and with the tick rewritten to one second. It asserts the header, the sections,
+one create followed by PATCHes of comment 4242, the cap, the redaction, the final report, and that
+the runtime saw no token. Another test asserts that a 403 or a failed PATCH leaves the status
+unchanged, and that the workspace step and the `tool-devsync` and `wbs-core` leaves make no `gh`
+call. Each of these faults failed a test:
+
+- Gating on any partition made the workspace step call `gh`.
+- Dropping the stored comment id created a comment on every tick.
+- Dropping the cap posted a 92254-byte body. Dropping the shape guard posted a bearer value, and
+  matching the word `token` again redacted a line that should stay.
+- Dropping the escape filter posted ESC bytes, and dropping the `@` filter posted a mention.
+- Without the final publish's fallback, a 403 failed the step with exit 1. Without the
+  `unavailable` marker, the final report retried the create.
+- Leaving `GH_TOKEN` exported put the token in the runtime's environment.
+
+No hosted run has exercised the recorder yet. The fake `gh` proves the call pattern, but not
+GitHub's acceptance of the PATCH or its rate limits.
+
+**Proof plan.** On the next full-mode main run, one of two things happens:
+
+- **The leaf is lost again.** The issue #963 comment for that run names the test that was running
+  at the hang, with the processes and kernel lines from the last tick before the loss.
+- **The leaf passes.** The final report shows the phase end, and the comment holds the full
+  trail.
+
+The recorder is removed once #963's cause is fixed.
+
 ## Checks kept without a reachable negative
 
 This section is outside the mapped payload region below: it is new prose, not a block preserved

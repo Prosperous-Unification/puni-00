@@ -191,7 +191,8 @@ Budgets: every `bun test` target passes `--timeout` on a 10/30/60 s ladder
   event is refused. Jobs: `gate_workspace` (ubuntu-24.04, 120 min cap), `gate_heavy` (gate
   workspace-heavy, one matrix leaf per project at parallel 1: tool-fleet 90 min, tool-devsync
   and wbs-store-sqlite 60 min, wbs-core 45 min; workspace and heavy Nx phases run in a systemd
-  scope with `MemoryMax=12G`, `TasksMax=4096` and `AllowedCPUs=0-2`, A-CI-LEAF-MEMORYMAX-1 and -2),
+  scope with `MemoryMax=12G`, `TasksMax=4096` and `AllowedCPUs=0-2`, A-CI-LEAF-MEMORYMAX-1 and -2;
+  the tool-fleet leaf also keeps one living comment on issue #963 every 120 s, A-CI-LEAF-RECORDER-1),
   `gate_backend`, `gate_remote`,
   `gate_remote_model` and `gate_frontend` (90 min caps), `gate_checks` (secrets scan, migration
   lint, doc caps), `gate_docs`, `gate_twilight`, the `gate` reducer, `pixels` shards 1–4.
