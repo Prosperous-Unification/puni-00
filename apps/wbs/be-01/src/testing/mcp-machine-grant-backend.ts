@@ -16,6 +16,7 @@ import {
   revokeMachineCredential,
 } from './machine-credential-fixture';
 import { OrganizationHarness } from './organization-harness';
+import { createFixturePackage } from './space-rollup';
 
 /**
  * be-01 for mcp-01's booted machine token test
@@ -136,7 +137,8 @@ async function fixture(request: Request, path: string): Promise<Response | undef
   }
   if (request.method === 'POST' && path === '/__fixture/work-package') {
     const { name } = (await request.json()) as { name: string };
-    const created = await h.call('dany', 'POST', '/api/work-packages', { name });
+    const id = await createFixturePackage(h, 'dany', name);
+    const created = await h.call('dany', 'GET', '/api/work-packages/' + id);
     if (created.status !== 200) return Response.json(created, { status: 500 });
     return Response.json(created.body);
   }

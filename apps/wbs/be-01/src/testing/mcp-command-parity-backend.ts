@@ -47,7 +47,29 @@ harness.bind('ada', 'org-a');
 harness.activate();
 const endpoints = [];
 for (const name of ['Predecessor', 'Successor']) {
-  requireOk(await harness.call('ada', 'POST', '/api/work-packages', { name }));
+  const parent = await harness.call('ada', 'POST', '/api/projects', { name: name + ' parent' });
+  if (parent.status !== 201) throw new Error('parity project creation refused', { cause: parent });
+  const projectId = (parent.body as { project: { id: string } }).project.id;
+  for (const [position, label] of ['Dev', 'QA'].entries()) {
+    const bound = await harness.call('ada', 'POST', '/api/organization/step-bindings', {
+      scopeKind: 'project',
+      scopeId: projectId,
+      workItemTypeId: null,
+      position,
+      define: {
+        name: name + ' ' + label,
+        code: name.toLowerCase() + '-' + label.toLowerCase(),
+        position,
+        defaultEstimateUnit: 'workdays',
+        defaultAllowanceBps: 0,
+      },
+    });
+    if (bound.status !== 201) throw new Error('parity step binding refused', { cause: bound });
+  }
+  const created = await harness.call('ada', 'POST', '/api/work-packages', { name, projectId });
+  requireOk(created);
+  const { steps } = created.body as { steps: { id: string }[] };
+  if (steps.length !== 2) throw new Error('parity package did not inherit its two steps');
   const workPackage = harness.sqlite
     .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
     .get(name);
@@ -67,11 +89,6 @@ for (const name of ['Predecessor', 'Successor']) {
     )
     .run(workPackage.id);
   harness.sqlite.query("UPDATE work_item SET readiness='ready' WHERE id=?").run(row.id);
-  const steps = harness.sqlite
-    .query<{ id: string }, [string]>(
-      'SELECT id FROM step WHERE work_package_id=? ORDER BY position',
-    )
-    .all(workPackage.id);
   for (const step of steps)
     harness.sqlite
       .query(
@@ -154,14 +171,18 @@ const backend = Bun.serve({
             'work_package',
             predecessor.workPackageId,
           );
-          harness.sqlite.run('UPDATE work_package SET owner_id=?, restricted=1 WHERE id=?', [
-            harness.userId('owner'),
-            predecessor.workPackageId,
-          ]);
-          harness.sqlite.run('UPDATE work_package SET owner_id=? WHERE id=?', [
-            harness.userId('owner'),
-            successor.workPackageId,
-          ]);
+          harness.sqlite.transaction(() => {
+            harness.sqlite.run('UPDATE work_package SET restricted=1 WHERE id=?', [
+              predecessor.workPackageId,
+            ]);
+            for (const endpoint of [predecessor, successor]) {
+              const changed = harness.sqlite.run(
+                "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND subject_kind='user' AND subject_id=? AND role_id='package-manager' AND origin='creation'",
+                [harness.userId('owner'), endpoint.workPackageId, harness.userId('ada')],
+              );
+              if (changed.changes !== 1) throw new Error('parity direct package grant absent');
+            }
+          })();
           break;
         }
         case 'write-predecessor':

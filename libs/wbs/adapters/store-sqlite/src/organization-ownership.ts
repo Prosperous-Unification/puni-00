@@ -24,6 +24,7 @@ import {
   workPackage,
   workPackageOrganization,
 } from './schema';
+import { readStepStorageEpoch } from './step-identity';
 
 /** The root resources an organization owns; dependents inherit through them. */
 export const OWNED_ROOT_KINDS = [
@@ -116,35 +117,42 @@ function buildWorkItemCatalogConflictSql(
     WHERE ${buildWorkPackageOwnerSql('w.work_package_id')} != ${buildCatalogOwnerSql(kind, `l.${column}`)}`;
 }
 
-/** A per-step row whose step lies in another work package than its work item. */
-function buildWorkItemStepConflictSql(table: string, id: string): string {
+/**
+ * Historical steps belong to one package. A catalogue fact needs both a matching definition
+ * organization and an explicit package/step pair, even when a damaged pair crosses organizations.
+ * Proof: removing the organization equality or the package-step join separately hid one/foreign
+ * or two/shared in the current ownership preflight test in organization-catalogue-reconciliation.db.test.ts.
+ */
+function buildWorkItemStepConflictSql(
+  epoch: ReturnType<typeof readStepStorageEpoch>,
+  table: string,
+  id: string,
+): string {
+  if (epoch === 'catalogue')
+    return `SELECT ${id} AS id FROM ${table} AS l JOIN work_item AS w ON w.id=l.work_item_id
+      WHERE NOT EXISTS (SELECT 1 FROM step_definition d
+        JOIN work_package_organization owner ON owner.resource_id=w.work_package_id AND owner.organization_id=d.organization_id
+        JOIN work_package_step pair ON pair.work_package_id=w.work_package_id AND pair.step_id=d.id
+        WHERE d.id=l.step_id)`;
+
   return `SELECT ${id} AS id FROM ${table} AS l
     JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
     WHERE st.work_package_id != w.work_package_id`;
 }
 
-/**
- * Every conflict query, keyed so a kind added to {@link OWNERSHIP_CONFLICT_KINDS} without a
- * query here is a type error. Each selects the conflicting rows' `id`.
- *
- * Proof: each of the twenty-four queries replaced alone by one selecting nothing failed its own
- * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`: the first
- * twenty-one observed 2026-09-27, `work_package_resource_capacity` and `work_item_resource_demand`
- * 2026-10-20, `measure_estimate_step` 2026-10-23.
- */
-const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
+const SHARED_CONFLICT_QUERIES = {
   saved_plan_work_package: `SELECT sp.id AS id FROM saved_plan AS sp
-    WHERE (SELECT organization_id FROM saved_plan_organization WHERE resource_id = sp.id)
-      != ${buildWorkPackageOwnerSql('sp.work_package_id')}`,
+  WHERE (SELECT organization_id FROM saved_plan_organization WHERE resource_id = sp.id)
+    != ${buildWorkPackageOwnerSql('sp.work_package_id')}`,
   dependency_endpoint: `SELECT d.id AS id FROM dependency AS d
-    JOIN work_item AS p ON p.id = d.predecessor_id JOIN work_item AS s ON s.id = d.successor_id
-    WHERE p.work_package_id != d.work_package_id OR s.work_package_id != d.work_package_id`,
+  JOIN work_item AS p ON p.id = d.predecessor_id JOIN work_item AS s ON s.id = d.successor_id
+  WHERE p.work_package_id != d.work_package_id OR s.work_package_id != d.work_package_id`,
   work_item_parent: `SELECT w.id AS id FROM work_item AS w JOIN work_item AS parent ON parent.id = w.parent_id
-    WHERE parent.work_package_id != w.work_package_id`,
+  WHERE parent.work_package_id != w.work_package_id`,
   work_item_service_team: `SELECT w.id AS id FROM work_item AS w
-    WHERE ${buildWorkPackageOwnerSql('w.work_package_id')} != ${buildCatalogOwnerSql('service_team', 'w.service_team_id')}`,
+  WHERE ${buildWorkPackageOwnerSql('w.work_package_id')} != ${buildCatalogOwnerSql('service_team', 'w.service_team_id')}`,
   work_item_service: `SELECT w.id AS id FROM work_item AS w
-    WHERE ${buildWorkPackageOwnerSql('w.work_package_id')} != ${buildCatalogOwnerSql('service', 'w.service_id')}`,
+  WHERE ${buildWorkPackageOwnerSql('w.work_package_id')} != ${buildCatalogOwnerSql('service', 'w.service_id')}`,
   work_item_tag: buildWorkItemCatalogConflictSql(
     'work_item_tag',
     'tag_id',
@@ -181,43 +189,20 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
     'person',
     "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
   ),
-  assignment_step: buildWorkItemStepConflictSql(
-    'assignment',
-    "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
-  ),
-  estimate_step: buildWorkItemStepConflictSql('estimate', "l.work_item_id || '/' || l.step_id"),
-  actual_step: buildWorkItemStepConflictSql('actual', "l.work_item_id || '/' || l.step_id"),
-  step_progress_step: buildWorkItemStepConflictSql(
-    'step_progress',
-    "l.work_item_id || '/' || l.step_id",
-  ),
-  step_measure_step: buildWorkItemStepConflictSql(
-    'step_measure',
-    "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
-  ),
-  // Proof: with this query answering no row, `reports a measure_estimate_step
-  // conflict` (organization-reconciliation.db.test.ts) failed; watched 2026-10-23.
-  measure_estimate_step: buildWorkItemStepConflictSql(
-    'measure_estimate',
-    "l.work_item_id || '/' || l.step_id || '/' || l.measure_key",
-  ),
   person_team: `SELECT pt.person_id || '/' || pt.service_team_id AS id FROM person_team AS pt
-    WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,
+  WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,
   team_service: `SELECT ts.team_id || '/' || ts.service_id AS id FROM team_service AS ts
-    WHERE ${buildCatalogOwnerSql('service_team', 'ts.team_id')} != ${buildCatalogOwnerSql('service', 'ts.service_id')}`,
+  WHERE ${buildCatalogOwnerSql('service_team', 'ts.team_id')} != ${buildCatalogOwnerSql('service', 'ts.service_id')}`,
   work_package_team_capacity: `SELECT c.work_package_id || '/' || c.service_team_id AS id FROM work_package_team_capacity AS c
-    WHERE ${buildWorkPackageOwnerSql('c.work_package_id')} != ${buildCatalogOwnerSql('service_team', 'c.service_team_id')}`,
+  WHERE ${buildWorkPackageOwnerSql('c.work_package_id')} != ${buildCatalogOwnerSql('service_team', 'c.service_team_id')}`,
   work_package_resource_capacity: `SELECT c.work_package_id || '/' || c.resource_id AS id FROM work_package_resource_capacity AS c
-    WHERE ${buildWorkPackageOwnerSql('c.work_package_id')} != ${buildCatalogOwnerSql('resource', 'c.resource_id')}`,
+  WHERE ${buildWorkPackageOwnerSql('c.work_package_id')} != ${buildCatalogOwnerSql('resource', 'c.resource_id')}`,
   work_item_resource_demand: buildWorkItemCatalogConflictSql(
     'work_item_resource_demand',
     'resource_id',
     'resource',
     "l.work_item_id || '/' || l.resource_id",
   ),
-  plan_event_subject: `SELECT e.id AS id FROM plan_event AS e
-    WHERE EXISTS (SELECT 1 FROM work_item AS w WHERE w.id = e.work_item_id AND w.work_package_id != e.work_package_id)
-      OR EXISTS (SELECT 1 FROM step AS st WHERE st.id = e.step_id AND st.work_package_id != e.work_package_id)`,
   // Proof: 2026-11-12, `inventory-retained` and `inventory-current` each removed its
   // stored namespace from this set. The test
   // `both stored namespaces resolve the same mapped owner without rewriting transport rows`
@@ -225,11 +210,71 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   // Each RED had 1 assertion; restored GREEN had 2 (27 filtered; native 1/null then 0/null).
   // Accepted evidence: openspec/changes/wbs-work-packages/verification-activation-namespaces.json.
   event_stream: `SELECT subscription AS id FROM (
-      SELECT subscription FROM event_sequencer UNION SELECT subscription FROM event_log)
-    WHERE subscription NOT IN (
-      SELECT 'project:' || resource_id FROM work_package_organization
-      UNION SELECT 'work-package:' || resource_id FROM work_package_organization)`,
+    SELECT subscription FROM event_sequencer UNION SELECT subscription FROM event_log)
+  WHERE subscription NOT IN (
+    SELECT 'project:' || resource_id FROM work_package_organization
+    UNION SELECT 'work-package:' || resource_id FROM work_package_organization)`,
 };
+
+/**
+ * Every conflict query, keyed so a kind added to {@link OWNERSHIP_CONFLICT_KINDS} without a
+ * query here is a type error. Each selects the conflicting rows' `id`.
+ *
+ * Proof: each of the twenty-four queries replaced alone by one selecting nothing failed its own
+ * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`: the first
+ * twenty-one observed 2026-09-27, `work_package_resource_capacity` and `work_item_resource_demand`
+ * 2026-10-20, `measure_estimate_step` 2026-10-23.
+ */
+function buildConflictQueries(
+  epoch: ReturnType<typeof readStepStorageEpoch>,
+): Record<OwnershipConflictKind, string> {
+  // Historical event subjects can outlive their definition. Known merged identities still resolve
+  // to their survivor's organization. Proof: removing this alias lookup hid foreign-event in
+  // organization-catalogue-reconciliation.db.test.ts.
+  const foreignEventStep =
+    epoch === 'catalogue'
+      ? `SELECT 1 FROM step_definition st WHERE (st.id=e.step_id OR st.id=(SELECT step_id FROM step_identity_history WHERE old_step_id=e.step_id))
+       AND st.organization_id != ${buildWorkPackageOwnerSql('e.work_package_id')}`
+      : 'SELECT 1 FROM step AS st WHERE st.id = e.step_id AND st.work_package_id != e.work_package_id';
+  return {
+    ...SHARED_CONFLICT_QUERIES,
+    assignment_step: buildWorkItemStepConflictSql(
+      epoch,
+      'assignment',
+      "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
+    ),
+    estimate_step: buildWorkItemStepConflictSql(
+      epoch,
+      'estimate',
+      "l.work_item_id || '/' || l.step_id",
+    ),
+    actual_step: buildWorkItemStepConflictSql(
+      epoch,
+      'actual',
+      "l.work_item_id || '/' || l.step_id",
+    ),
+    step_progress_step: buildWorkItemStepConflictSql(
+      epoch,
+      'step_progress',
+      "l.work_item_id || '/' || l.step_id",
+    ),
+    step_measure_step: buildWorkItemStepConflictSql(
+      epoch,
+      'step_measure',
+      "l.work_item_id || '/' || l.step_id || '/' || coalesce(l.metric, l.measure_id)",
+    ),
+    // Proof: with this query answering no row, `reports a measure_estimate_step
+    // conflict` (organization-reconciliation.db.test.ts) failed; watched 2026-10-23.
+    measure_estimate_step: buildWorkItemStepConflictSql(
+      epoch,
+      'measure_estimate',
+      "l.work_item_id || '/' || l.step_id || '/' || l.measure_key",
+    ),
+    plan_event_subject: `SELECT e.id AS id FROM plan_event AS e
+    WHERE EXISTS (SELECT 1 FROM work_item AS w WHERE w.id = e.work_item_id AND w.work_package_id != e.work_package_id)
+      OR EXISTS (${foreignEventStep})`,
+  };
+}
 
 /** Why the legacy backfill refused; nothing was written. */
 export class LegacyBackfillRefused extends Error {}
@@ -437,8 +482,9 @@ export class OrganizationOwnershipRepository {
    */
   async findOwnershipConflicts(): Promise<OwnershipConflict[]> {
     await Promise.resolve();
+    const queries = buildConflictQueries(readStepStorageEpoch(this.db));
     return OWNERSHIP_CONFLICT_KINDS.flatMap((kind) =>
-      this.db.all<{ id: unknown }>(sql.raw(`${CONFLICT_QUERIES[kind]} ORDER BY id`)).map((row) => {
+      this.db.all<{ id: unknown }>(sql.raw(`${queries[kind]} ORDER BY id`)).map((row) => {
         // Raw SQL rows arrive unknown; every key selected above is text.
         if (typeof row.id !== 'string') throw new Error(`${kind} conflict has a non-text id`);
         return { kind, id: row.id };

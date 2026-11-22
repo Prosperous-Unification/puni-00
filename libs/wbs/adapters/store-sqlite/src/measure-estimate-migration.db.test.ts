@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023160000_add_measure_estimate';
 const WORK_ITEM_BUDGETS = '20261023170000_add_work_item_budget';
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
@@ -28,16 +29,14 @@ function seedBaseline(): void {
   db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'u', 'x', 1)");
   db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
   db.run(
-    "INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+    "INSERT INTO project (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+  );
+  db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('p', 'org-a')");
+  db.run(
+    "INSERT INTO step (id, project_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
   );
   db.run(
-    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p', 'org-a')",
-  );
-  db.run(
-    "INSERT INTO step (id, work_package_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
-  );
-  db.run(
-    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('p-two', 'p', 'Two', 2, 0), ('q-one', 'q', 'One', 1, 0)",
+    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('p-two', 'p', 'Two', 2, 0), ('q-one', 'q', 'One', 1, 0)",
   );
   db.run(
     `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at, created_at, updated_at, created_by) VALUES
@@ -95,8 +94,9 @@ function single(workItemId: string, stepId: string, value: number, key: string |
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-estimate-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
@@ -115,7 +115,7 @@ beforeEach(() => {
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -213,9 +213,7 @@ describe(MIGRATION, () => {
   // Proof: with the keying trigger's UPDATE replaced by `SELECT 1`, this case
   // read q's trio unkeyed; watched 2026-10-23.
   it('keys an unowned work package’s trios when an organization takes it', () => {
-    db.run(
-      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('q', 'org-a')",
-    );
+    db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-a')");
     expect(trios()).toContainEqual(single('q-one', 'q-dev', 50, 'tokens'));
   });
 
@@ -226,7 +224,7 @@ describe(MIGRATION, () => {
       "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('p-two', 'p-dev', 'tokens', 1, 2, 3)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'measure estimates the legacy token estimate cannot hold exist',
     );
     db = openDatabase(path);
@@ -236,7 +234,7 @@ describe(MIGRATION, () => {
       "INSERT INTO measure_estimate (work_item_id, step_id, measure_key, optimistic, realistic, pessimistic) VALUES ('p-two', 'p-dev', 'cost', 1, 1, 1)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       'measure estimates the legacy token estimate cannot hold exist',
     );
     db = openDatabase(path);
@@ -246,7 +244,7 @@ describe(MIGRATION, () => {
   it('rolls back over single-point trios alone, keeping every legacy row, and comes forward again', () => {
     const before = legacyRows();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
@@ -268,7 +266,7 @@ describe(MIGRATION, () => {
     ).toEqual([]);
     expect(legacyRows()).toEqual(before);
     db.close();
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     db = openDatabase(path);
     expect(trios()).toEqual([
       single('p-one', 'p-dev', 12000, 'tokens'),

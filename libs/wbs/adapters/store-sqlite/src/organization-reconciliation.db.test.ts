@@ -11,8 +11,7 @@ import {
   OWNERSHIP_CONFLICT_KINDS,
   type OwnershipConflictKind,
 } from './organization-ownership';
-
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+import { copyRecoveryPrefix } from './testing/recovery-state';
 /**
  * The conflicts here re-own roots, which the ownership freeze refuses;
  * reconciliation still guards a database that reached such a state before the
@@ -116,7 +115,7 @@ function links(org: string): string[] {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-reconciliation-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  runMigrations(path, copyRecoveryPrefix(dir, '20261110100000_rename_project_to_work_package'));
   dropOwnershipFreeze();
   run([
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",

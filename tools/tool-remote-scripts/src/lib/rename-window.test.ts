@@ -37,14 +37,17 @@ function fixture() {
   const sourcePath = join(artifacts, 'source.db');
   const snapshotPath = join(artifacts, 'snapshot.db');
   const reportPath = join(artifacts, 'report.json');
-  const setup =
-    'import{runMigrations}from"@wbs/store-sqlite/migrate";runMigrations(process.argv[1],"./drizzle");';
-  const migrated = Bun.spawnSync([process.execPath, '-e', setup, sourcePath], {
+  const setup = `
+    import { runMigrations } from '@wbs/store-sqlite/migrate';
+    import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
+    runMigrations(process.argv[1], copyRecoveryPrefix(process.argv[2], '20261103110000_add_initial_access_offers'));
+  `;
+  const migrated = Bun.spawnSync([process.execPath, '-e', setup, sourcePath, root], {
     cwd: APP_ROOT,
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  expect(migrated.exitCode).toBe(0);
+  expect(migrated.exitCode, migrated.stderr.toString()).toBe(0);
   const produced = Bun.spawnSync(
     [process.execPath, 'run', 'src/backup-db-cli.ts', snapshotPath, '--report=' + reportPath],
     { cwd: APP_ROOT, env: { ...process.env, DB_PATH: sourcePath }, stdout: 'pipe', stderr: 'pipe' },
@@ -97,7 +100,7 @@ function fixture() {
     'const verified=Bun.spawnSync([process.execPath,"run","src/assert-window-cli.ts",report],{cwd:' +
       JSON.stringify(APP_ROOT) +
       ',env:{...process.env,DB_PATH:source},stdout:"pipe",stderr:"pipe"});',
-    'process.stdout.write(verified.stdout);process.stderr.write(verified.stderr);process.exit(verified.exitCode);',
+    'process.stdout.write(verified.stdout);process.stderr.write(verified.stderr);process.exitCode=verified.exitCode;',
     '}else{console.error("unexpected docker argv");process.exit(23);}',
   ].join('\n');
   writeFileSync(join(tools, 'docker'), program, { mode: 0o755 });

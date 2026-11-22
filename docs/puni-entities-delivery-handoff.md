@@ -1,5 +1,9 @@
 # Paused PUNI entities delivery
 
+This records the original pause. The delivery goal later resumed and pushed CI
+repairs at `ab6e0c69a90561167bb2eaccc704d3428d5446f1`. Read the live PR head and
+required checks before using the historical status below.
+
 The user paused implementation on 2026-11-22, then explicitly requested pushing
 everything in progress. This document accompanies that WIP checkpoint. Do not
 resume implementation or merge without a new user request. The delivery goal is
@@ -156,12 +160,10 @@ After an explicit resume:
    is empty because that installed `gh` rejected `--allow-escape-sequences`.
    Use the supported raw `gh api repos/.../actions/jobs/<id>/logs` endpoint or
    inspect current CLI help; do not treat the empty file as a product log.
-4. Complete required checks, update the verification records and obtain an
-   exact-commit canonical host gate from a clean isolated gate launcher. Never
-   gate from `/home/puni1/wbs-dev/src` or run raw full Nx gates on h2puni. Read
-   [gate hosts](infra/gate-hosts.md) and the linked workspace-safety runbook first.
-   No current exact-commit host gate has passed; an older admission timeout with
-   exit 75 supplies no gate credit.
+4. Complete the required PR checks and update the verification records. Follow
+   [release validation](runbook-release-validation.md) for product releases.
+   Use the canonical host launcher for repository-wide validation, as described
+   in [gate hosts](infra/gate-hosts.md).
 5. Push reviewed repairs through normal hooks and merge only after the required
    evidence is complete. No live migration/deployment is part of this pause or
    handoff. Regroup the broader CLI/client-script goal after this delivery scope.

@@ -1,6 +1,7 @@
 import { JwksTokenVerifier } from '@wbs/auth';
 import type { SqliteSource } from '@wbs/store-sqlite';
 import { AccessGrantRepository } from '@wbs/store-sqlite/access-grant';
+import { WriteCoordinator } from '@wbs/store-sqlite/gate';
 import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
@@ -61,10 +62,32 @@ const backend = await BootedBrowserProcess.open(
   },
 );
 if (source === undefined) throw new Error('boot did not expose its source');
+// Scoped and public gates enter the same physical FIFO through different wrappers. Capture
+// this source's coordinator during a single synchronous enqueue before the server starts.
 const gate = source.gate;
-const enter = gate.enter.bind(gate);
-gate.enter = (work) => {
-  const pending = enter(work);
+const descriptor = Object.getOwnPropertyDescriptor(WriteCoordinator.prototype, 'enter');
+if (descriptor === undefined) throw new Error('delegation fixture writer method absent');
+// The descriptor belongs to the concrete class; each invocation binds its actual receiver.
+const originalEnter = descriptor.value as WriteCoordinator['enter'];
+const capture: { writer?: WriteCoordinator } = {};
+let probe: Promise<void>;
+try {
+  WriteCoordinator.prototype.enter = function <T>(this: WriteCoordinator, work: () => Promise<T>) {
+    capture.writer = this;
+    return originalEnter.bind(this)(work);
+  };
+  probe = gate.enter(() => Promise.resolve());
+} finally {
+  WriteCoordinator.prototype.enter = originalEnter;
+}
+await probe;
+const writer = capture.writer;
+if (writer === undefined) throw new Error('delegation fixture did not observe its writer');
+const enqueue = writer.enter.bind(writer);
+// Proof: watching only source.gate.enter missed the scoped command enqueue and timed out all
+// six queued consent cases. Observing the shared FIFO reached all six actual authority assertions.
+writer.enter = (work) => {
+  const pending = enqueue(work);
   observeQueued?.();
   observeQueued = undefined;
   return pending;
@@ -81,7 +104,7 @@ backend.options.organizations.resolve = async (principal) => {
     const released = new Promise<void>((resolve) => {
       releaseWriter = resolve;
     });
-    heldWriter = enter(() => released);
+    heldWriter = gate.enter(() => released);
     observeQueued = markQueued;
   }
   return resolution;
@@ -230,11 +253,15 @@ const server = Bun.serve({
         );
       return new Response(run.stdout.toString(), { status: 200 });
     }
-    if (request.method === 'POST' && path === '/__fixture/create-work-package') {
-      const { username, name, token } = (await request.json()) as {
+    if (
+      request.method === 'POST' &&
+      (path === '/__fixture/create-work-package' || path === '/__fixture/create-project')
+    ) {
+      const { username, name, token, projectId } = (await request.json()) as {
         username: string;
         name: string;
         token: string;
+        projectId?: string;
       };
       const target = backend.sqlite
         .query<{ organization_id: string }, [string]>(
@@ -256,19 +283,45 @@ const server = Bun.serve({
         );
       const cookie = selected.headers.get('set-cookie')?.split(';')[0];
       if (cookie === undefined) throw new Error('fixture native selection set no cookie');
-      const created = await backend.app.handle(
-        new Request(`${BOOTED_ORIGIN}/api/work-packages`, {
-          method: 'POST',
-          headers: {
-            authorization,
-            origin: BOOTED_ORIGIN,
-            cookie,
-            'X-WBS-Expected-Organization': target.organization_id,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({ name }),
-        }),
-      );
+      const nativePost = (path: string, body: unknown) =>
+        backend.app.handle(
+          new Request(BOOTED_ORIGIN + path, {
+            method: 'POST',
+            headers: {
+              authorization,
+              cookie,
+              origin: BOOTED_ORIGIN,
+              'X-WBS-Expected-Organization': target.organization_id,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(body),
+          }),
+        );
+      if (path === '/__fixture/create-project') {
+        const parent = await nativePost('/api/projects', { name });
+        if (parent.status !== 201)
+          throw new Error('fixture project refused: ' + (await parent.text()));
+        const { project } = (await parent.json()) as { project: { id: string } };
+        for (const [position, step] of ['Dev', 'QA'].entries()) {
+          const binding = await nativePost('/api/organization/step-bindings', {
+            scopeKind: 'project',
+            scopeId: project.id,
+            workItemTypeId: null,
+            position,
+            define: {
+              name: step,
+              code: step.toLowerCase(),
+              position,
+              defaultEstimateUnit: 'workdays',
+              defaultAllowanceBps: 0,
+            },
+          });
+          if (binding.status !== 201)
+            throw new Error('fixture binding refused: ' + (await binding.text()));
+        }
+        return Response.json(project);
+      }
+      const created = await nativePost('/api/work-packages', { name, projectId });
       const body: unknown = await created.json();
       return Response.json({ status: created.status, body });
     }
@@ -365,11 +418,17 @@ const server = Bun.serve({
     }
     if (request.method === 'POST' && path === '/__fixture/restrict-work-package') {
       const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
-      backend.sqlite.run('UPDATE work_package SET restricted = ?, owner_id = ? WHERE id = ?', [
-        restricted ? 1 : 0,
-        restricted ? 'u-grace' : 'u-dany',
-        id,
-      ]);
+      backend.sqlite.transaction(() => {
+        backend.sqlite.run('UPDATE work_package SET restricted=? WHERE id=?', [
+          restricted ? 1 : 0,
+          id,
+        ]);
+        const changed = backend.sqlite.run(
+          "UPDATE access_grant SET subject_id=? WHERE scope_kind='work_package' AND scope_id=? AND subject_kind='user' AND subject_id=? AND role_id='package-manager' AND origin='creation'",
+          [restricted ? 'u-ada' : 'u-dany', id, restricted ? 'u-dany' : 'u-ada'],
+        );
+        if (changed.changes !== 1) throw new Error('fixture direct package grant absent');
+      })();
       return Response.json({ id, restricted });
     }
     if (request.method === 'POST' && path === '/__fixture/typed-dependencies')
@@ -399,7 +458,7 @@ const server = Bun.serve({
         'dependency',
         'typed_dependency',
         'external_dependency',
-        'step',
+        'work_package_step',
         'calendar_marker',
         'command_journal',
         'saved_plan',
@@ -407,6 +466,8 @@ const server = Bun.serve({
         'organization_audit',
         'event_log',
         'event_sequencer',
+        'step_definition',
+        'step_binding',
       ];
       return Response.json(
         tables.map((table) => backend.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),

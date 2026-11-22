@@ -223,10 +223,28 @@ const resourceIds = idsOf(
 const ram = resourceIds.at(0);
 const disk = resourceIds.at(1);
 if (ram === undefined || disk === undefined) throw new Error('the resources were not created');
+const { project } = await adminOk<{ project: { id: string } }>('POST', '/api/projects', {
+  name: 'Pool operations',
+});
+for (const [position, name] of ['Dev', 'QA'].entries()) {
+  await adminOk('POST', '/api/organization/step-bindings', {
+    scopeKind: 'project',
+    scopeId: project.id,
+    workItemTypeId: null,
+    position,
+    define: {
+      name,
+      code: name.toLowerCase(),
+      position,
+      defaultEstimateUnit: 'workdays',
+      defaultAllowanceBps: 0,
+    },
+  });
+}
 const workPackage = await adminOk<{ workPackage: { id: string }; steps: { id: string }[] }>(
   'POST',
   '/api/work-packages',
-  { name: 'Pool swarm' },
+  { name: 'Pool swarm', projectId: project.id },
 );
 const workPackageId = workPackage.workPackage.id;
 const leafIds = idsOf(

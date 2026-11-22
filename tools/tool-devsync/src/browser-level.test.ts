@@ -21,6 +21,9 @@ import {
   validatedPortShift,
   withBrowserInvocation,
 } from './browser-level';
+import { processOwnerTest } from './process-owner-test';
+
+const test = processOwnerTest(import.meta.path);
 
 async function expectRefusal(action: Promise<unknown>, phrase: string): Promise<void> {
   let cause: unknown;
@@ -43,7 +46,7 @@ async function seedBrowserOwner(root: string): Promise<string> {
   return owner;
 }
 
-it('clears stale Browser pointers and refuses a dirty candidate before execution', async () => {
+test('clears stale Browser pointers and refuses a dirty candidate before execution', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-dirty-'));
   const call = (args: string[]) => {
     const invocation = Bun.spawnSync(['git', '-C', root, ...args], {
@@ -497,7 +500,7 @@ it('refuses malformed reporter bytes, command failure and unsafe Browser environ
   }
 });
 
-it('bounds a hung Browser child before evidence publication', async () => {
+test('bounds a hung Browser child before evidence publication', async () => {
   await expectRefusal(
     run(
       [process.execPath, '-e', 'await Bun.sleep(500)'],
@@ -557,7 +560,7 @@ it('re-raises SIGTERM received before a Browser deadline while the child still h
   }
 }, 15000);
 
-it('kills descendant processes and returns before inherited output pipes can drain', async () => {
+test('kills descendant processes and returns before inherited output pipes can drain', async () => {
   const root = await mkdtemp(join(tmpdir(), 'puni-browser-group-'));
   const marker = join(root, 'descendant-marker');
   const command = `sleep 0.4; touch '${marker}'`;
@@ -718,7 +721,7 @@ it('does not read a legacy shared report without a published pointer', async () 
 
 import { spyOn } from 'bun:test';
 
-it('uses the selected Bun executable for real Browser discovery and execution', async () => {
+test('uses the selected Bun executable for real Browser discovery and execution', async () => {
   const parent = await mkdtemp(join(tmpdir(), 'puni-browser-bun-dispatch-'));
   const candidate = join(parent, 'candidate');
   const previousPath = process.env['PATH'];

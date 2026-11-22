@@ -185,21 +185,28 @@ it('backend probe refuses a closed native listener', async () => {
 
 it('backend probe aborts a real pending response within its fifteen-second request bound', async () => {
   const pending = Promise.withResolvers<Response>();
+  let requestedAt: number | undefined;
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  let watchdogReached = false;
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
     idleTimeout: 30,
-    fetch: () => pending.promise,
+    fetch() {
+      // Start the watchdog at request arrival, after CLI startup.
+      // Proof: extending the real request deadline to 60 s let this watchdog
+      // return a healthy response, so the refusal assertion received status 0.
+      requestedAt = performance.now();
+      watchdog = setTimeout(() => {
+        watchdogReached = true;
+        pending.resolve(
+          Response.json({ user: null, features: { onboarding: false, organizations: false } }),
+        );
+      }, 21_000);
+      return pending.promise;
+    },
   });
   servers.push(server);
-  let watchdogReached = false;
-  const watchdog = setTimeout(() => {
-    watchdogReached = true;
-    pending.resolve(
-      Response.json({ user: null, features: { onboarding: false, organizations: false } }),
-    );
-  }, 21_000);
-  const started = performance.now();
   try {
     const probe = await invoke([
       'dash',
@@ -211,7 +218,8 @@ it('backend probe aborts a real pending response within its fifteen-second reque
     expect(probe.stdout).toBe('');
     expect(probe.stderr).toContain('backend probe:');
     expect(watchdogReached).toBe(false);
-    expect(performance.now() - started).toBeGreaterThanOrEqual(14_000);
+    if (requestedAt === undefined) throw new Error('probe did not reach the real pending server');
+    expect(performance.now() - requestedAt).toBeGreaterThanOrEqual(14_000);
   } finally {
     clearTimeout(watchdog);
     pending.resolve(new Response('fixture settled'));

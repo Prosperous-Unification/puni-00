@@ -99,6 +99,7 @@ const expectedLeaves = {
     'dev',
     'dev-env supervise',
     'dev-ports',
+    'dev-probe be',
     'inspect-authority',
     'install-puni',
     'mcp token',

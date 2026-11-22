@@ -4,14 +4,18 @@ import { join } from 'node:path';
 
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 
-import { openDatabase, openDrizzle } from './db';
+import { openDatabase } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { StepMeasureRepository } from './step-measure';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
+import { MIGRATIONS_FOLDER } from './testing/space-database';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023150000_key_step_measure';
 const BASELINE = '20261023140000_add_measure';
 /** The measure estimates, which reverse first over single-point token trios alone. */
@@ -32,16 +36,14 @@ function seedBaseline(): void {
   db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'u', 'x', 1)");
   db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
   db.run(
-    "INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+    "INSERT INTO project (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+  );
+  db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('p', 'org-a')");
+  db.run(
+    "INSERT INTO step (id, project_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
   );
   db.run(
-    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p', 'org-a')",
-  );
-  db.run(
-    "INSERT INTO step (id, work_package_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('p-qa', 'p', 'QA', 20), ('q-dev', 'q', 'Dev', 10)",
-  );
-  db.run(
-    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('q-one', 'q', 'One', 1, 0)",
+    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('q-one', 'q', 'One', 1, 0)",
   );
   db.run(
     `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at, created_at, updated_at, created_by) VALUES
@@ -100,8 +102,9 @@ function measureId(organizationId: string, key: string): string {
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-measure-key-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
@@ -129,7 +132,7 @@ afterEach(() => {
 
 function comeForward(): void {
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 }
 
@@ -150,7 +153,19 @@ describe(MIGRATION, () => {
 
   it('reads every existing fact back unchanged through the store', async () => {
     comeForward();
-    const repo = new StepMeasureRepository(openDrizzle(path), OPEN);
+    db.run("INSERT INTO organization(id,name,created_at) VALUES ('org-b','B',1)");
+    db.run("INSERT INTO project_organization(resource_id,organization_id) VALUES ('q','org-b')");
+    db.close();
+    try {
+      applyHistoricalCatalogueFixture(path, dir, {
+        'org-a': { codes: {}, uncoded: { 'p-dev': { code: 'dev' }, 'p-qa': { code: 'qa' } } },
+        'org-b': { codes: {}, uncoded: { 'q-dev': { code: 'dev' } } },
+      });
+      runMigrations(path, MIGRATIONS_FOLDER);
+    } finally {
+      db = openDatabase(path);
+    }
+    const repo = new StepMeasureRepository(drizzle({ client: db }), OPEN);
     expect(await repo.listByWorkPackage('p')).toEqual([
       { workItemId: 'p-one', stepId: 'p-dev', metric: 'hours_actual', value: 2.5, recordedAt: 8 },
       { workItemId: 'p-one', stepId: 'p-dev', metric: 'token_actual', value: 15000, recordedAt: 6 },
@@ -192,14 +207,12 @@ describe(MIGRATION, () => {
     expect(keyOf('p-one', 'p-qa', 'token_estimate')).toBeNull();
   });
 
-  // Proof: with the UPDATE in `work_package_organization_keys_measure_facts`
+  // Proof: with the UPDATE in `project_organization_keys_measure_facts`
   // replaced by `SELECT 1`, this case read NULL for q's fact; watched 2026-10-23.
   it('keys an unowned work package’s facts when an organization takes it', () => {
     comeForward();
     db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
-    db.run(
-      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('q', 'org-b')",
-    );
+    db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-b')");
     expect(keyOf('q-one', 'q-dev', 'token_actual')).toBe('tokens');
     const organizationOfKey = db
       .query<{ organization_id: string }, []>(
@@ -247,7 +260,7 @@ describe(MIGRATION, () => {
       "INSERT INTO step_measure (work_item_id, step_id, measure_id, value, recorded_at) VALUES ('p-one', 'p-dev', 'gpu', 3, 30)",
     );
     db.close();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('facts on defined measures exist');
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow('facts on defined measures exist');
     db = openDatabase(path);
     expect(
       db.query("SELECT COUNT(*) AS n FROM step_measure WHERE measure_id = 'gpu'").get(),
@@ -263,7 +276,7 @@ describe(MIGRATION, () => {
       .get();
     comeForward();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,

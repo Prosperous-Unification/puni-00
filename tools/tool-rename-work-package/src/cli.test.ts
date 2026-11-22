@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { scratchSync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
+import { HISTORICAL_TREE as REPO } from './historical-tree.spec';
 import { git } from './tree';
 
-const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const CLI = fileURLToPath(new URL('./cli.ts', import.meta.url));
 
 /** A scratch git repository holding `files` (repo-relative path to content), all staged. */

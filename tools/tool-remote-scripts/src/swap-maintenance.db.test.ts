@@ -39,18 +39,27 @@ for (const fault of [
     const root = mkdtempSync(join(tmpdir(), 'compose-predecessor-'));
     const database = join(root, 'plan.db');
     try {
-      cpSync(join(backend, 'drizzle'), join(root, 'drizzle'), { recursive: true });
+      const tip =
+        fault === 'historical-authority'
+          ? '20261022210000_add_project_abbreviations'
+          : '20261115120000_add_step_migration_report';
+      const setup = `
+        import { renameSync } from 'node:fs';
+        import { join } from 'node:path';
+        import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
+        const [, root, tip] = process.argv;
+        renameSync(copyRecoveryPrefix(root, tip), join(root, 'drizzle'));
+      `;
+      const copied = Bun.spawnSync([process.execPath, '-e', setup, root, tip], {
+        cwd: backend,
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      expect(copied.exitCode, copied.stderr.toString()).toBe(0);
       rmSync(join(root, 'drizzle', activation), { recursive: true });
       rmSync(join(root, 'drizzle', '20261015100000_add_step_blockage_activation_receipt'), {
         recursive: true,
       });
-      if (fault === 'historical-authority') {
-        for (const name of [
-          '20261022211000_add_external_dependencies',
-          '20261022212000_add_cross_project_dependency_activation',
-        ])
-          rmSync(join(root, 'drizzle', name), { recursive: true });
-      }
       const cli = (file: string, args: string[]) =>
         Bun.spawnSync([process.execPath, 'run', join(backend, file), ...args], {
           cwd: root,
@@ -59,7 +68,7 @@ for (const fault of [
           stderr: 'pipe',
         });
       const predecessor = cli('src/migrate-cli.ts', []);
-      expect(predecessor.exitCode).toBe(0);
+      expect(predecessor.exitCode, predecessor.stderr.toString()).toBe(0);
       const bootProgram = `
         import { bootBe01 } from ${JSON.stringify(join(backend, 'src/boot.ts'))};
         import { buildApp } from ${JSON.stringify(join(backend, 'src/app.ts'))};
@@ -148,8 +157,11 @@ for (const fault of [
             order.push('stop-maintenance');
             if (fault === 'dependency-drift') {
               const sqlite = new Database(database);
-              sqlite.run("UPDATE cross_project_dependency_activation SET state='ENABLED'");
-              sqlite.close();
+              try {
+                sqlite.run("UPDATE cross_work_package_dependency_activation SET state='ENABLED'");
+              } finally {
+                sqlite.close();
+              }
               stoppedFamily = readdirSync(root)
                 .filter((name) => name === 'plan.db' || name.startsWith('plan.db-'))
                 .map((name) => [name, readFileSync(join(root, name)).toString('hex')] as const);

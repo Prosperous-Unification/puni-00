@@ -9,8 +9,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023140000_add_measure';
 /** The measure-keyed facts, which reverse first over legacy facts alone. */
 const MEASURE_FACTS = '20261023150000_key_step_measure';
@@ -27,7 +28,8 @@ let db: Database;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-measure-schema-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -96,7 +98,7 @@ describe(MIGRATION, () => {
   // Proof: with the five seeding INSERTs removed from migration.sql, this case
   // read no definitions for either existing organization; watched 2026-10-23.
   it('seeds the five definitions for every organization that existed before it', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
@@ -116,7 +118,7 @@ describe(MIGRATION, () => {
     ]);
     organization('org-a', 11);
     organization('org-b', 12);
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(measuresOf('org-a')).toEqual(seededRows(11));
     expect(measuresOf('org-b')).toEqual(seededRows(12));
   });
@@ -230,7 +232,9 @@ describe(MIGRATION, () => {
     const ledger = () =>
       db.query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY id').all();
     const before = ledger();
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
+      /defined or edited measures exist/,
+    );
     expect(measuresOf('org-a')).toHaveLength(6);
     // The newer estimates and measure-keyed facts reversed first, over legacy rows alone.
     expect(ledger()).toEqual(
@@ -257,7 +261,7 @@ describe(MIGRATION, () => {
 
   it('rolls back over untouched seeded definitions, and comes forward seeding again', () => {
     organization('org-a', 5);
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
@@ -284,7 +288,7 @@ describe(MIGRATION, () => {
     ).toEqual([]);
     // The outgoing release's organizations get no seed while the table is gone.
     organization('org-b', 6);
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(measuresOf('org-a')).toEqual(seededRows(5));
     expect(measuresOf('org-b')).toEqual(seededRows(6));
   });
@@ -302,13 +306,17 @@ describe(MIGRATION, () => {
     it(`refuses rollback over a seeded definition edited by ${edit}`, () => {
       organization('org-a');
       db.run(`UPDATE measure SET ${edit} WHERE key = 'tokens'`);
-      expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
+      expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
+        /defined or edited measures exist/,
+      );
       expect(measuresOf('org-a')).toHaveLength(5);
     });
 
   it('refuses rollback over a seeded cost repriced in another currency', () => {
     organization('org-a');
     db.run("UPDATE measure SET currency = 'EUR' WHERE key = 'cost'");
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/defined or edited measures exist/);
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
+      /defined or edited measures exist/,
+    );
   });
 });

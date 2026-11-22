@@ -3,9 +3,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 
 import { createPerformanceProcessOwner } from './performance-processes';
+import { processOwnerTest } from './process-owner-test';
+
+const test = processOwnerTest(import.meta.path);
 
 async function awaitWithin<Value>(pending: Promise<Value>, milliseconds: number): Promise<Value> {
   let timer: ReturnType<typeof setTimeout> | undefined;

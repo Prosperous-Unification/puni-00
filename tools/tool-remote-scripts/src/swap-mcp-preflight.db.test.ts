@@ -70,12 +70,15 @@ afterEach(() => {
 function store(): { root: string; dbPath: string } {
   const root = mkdtempSync(join(tmpdir(), 'swap-mcp-preflight-'));
   roots.push(root);
-  mkdirSync(join(root, 'data'));
-  const dbPath = join(root, 'data', 'plan.db');
-  new Database(dbPath).close();
-  const migrated = Bun.spawnSync([process.execPath, 'run', 'src/migrate-cli.ts'], {
+  const directory = join(root, 'data');
+  mkdirSync(directory);
+  const dbPath = join(directory, 'plan.db');
+  const setup = `
+    import { migrateOrganizationCatalogueFixture } from './src/testing/organization-catalogue-fixture';
+    migrateOrganizationCatalogueFixture(process.argv[1]);
+  `;
+  const migrated = Bun.spawnSync([process.execPath, '-e', setup, dbPath], {
     cwd: BACKEND,
-    env: { ...process.env, DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
   });

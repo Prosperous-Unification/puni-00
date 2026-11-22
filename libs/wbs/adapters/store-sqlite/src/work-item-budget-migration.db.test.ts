@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+let migrations: string;
 const MIGRATION = '20261023170000_add_work_item_budget';
 const BASELINE = '20261023160000_add_measure_estimate';
 const ACCESS_GRANTS = '20261102120000_add_access_grants';
@@ -27,16 +28,14 @@ function seedBaseline(): void {
   db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'u', 'x', 1)");
   db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
   db.run(
-    "INSERT INTO work_package (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+    "INSERT INTO project (id, name, owner_id, revision, created_at) VALUES ('p', 'Plan', 'u', 0, 1), ('q', 'Other', 'u', 0, 1)",
+  );
+  db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('p', 'org-a')");
+  db.run(
+    "INSERT INTO step (id, project_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('q-dev', 'q', 'Dev', 10)",
   );
   db.run(
-    "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('p', 'org-a')",
-  );
-  db.run(
-    "INSERT INTO step (id, work_package_id, name, position) VALUES ('p-dev', 'p', 'Dev', 10), ('q-dev', 'q', 'Dev', 10)",
-  );
-  db.run(
-    "INSERT INTO work_item (id, work_package_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('q-one', 'q', 'One', 1, 0)",
+    "INSERT INTO work_item (id, project_id, name, position, revision) VALUES ('p-one', 'p', 'One', 1, 0), ('q-one', 'q', 'One', 1, 0)",
   );
   db.run(
     `INSERT INTO step_measure (work_item_id, step_id, metric, measure_id, value, recorded_at)
@@ -65,8 +64,8 @@ const budgetOn = (workItemId: string, key: string, cap = 10, policy = 'strict') 
   db.run(
     `INSERT INTO work_item_budget (work_item_id, measure_key, measure_id, cap, policy)
      VALUES ('${workItemId}', '${key}', (SELECT m.id FROM measure AS m
-       JOIN work_package_organization AS po ON po.organization_id = m.organization_id
-       JOIN work_item AS w ON w.work_package_id = po.resource_id
+       JOIN project_organization AS po ON po.organization_id = m.organization_id
+       JOIN work_item AS w ON w.project_id = po.resource_id
        WHERE w.id = '${workItemId}' AND m.key = '${key}'), ${String(cap)}, '${policy}')`,
   );
 
@@ -74,8 +73,9 @@ const budgetOn = (workItemId: string, key: string, cap = 10, policy = 'strict') 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-work-item-budget-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+  migrations = copyRecoveryPrefix(dir, '20261103110000_add_initial_access_offers');
+  runMigrations(path, migrations);
+  expect(rollbackTo(path, migrations, BASELINE)).toEqual([
     '20261103110000_add_initial_access_offers',
     '20261102130000_widen_organization_audit_access',
     ACCESS_GRANTS,
@@ -93,7 +93,7 @@ beforeEach(() => {
   db = openDatabase(path);
   seedBaseline();
   db.close();
-  runMigrations(path, FOLDER);
+  runMigrations(path, migrations);
   db = openDatabase(path);
 });
 
@@ -118,14 +118,14 @@ describe(MIGRATION, () => {
   // Proof: with the factor's CHECK made `CHECK (1)` in migration.sql, this
   // case stored a factor of 0; watched 2026-10-23.
   it('defaults every work package’s budget factor to 1 and refuses 0', () => {
-    expect(db.query('SELECT id, budget_factor FROM work_package ORDER BY id').all()).toEqual([
+    expect(db.query('SELECT id, budget_factor FROM project ORDER BY id').all()).toEqual([
       { id: 'p', budget_factor: 1 },
       { id: 'q', budget_factor: 1 },
     ]);
-    expect(() => db.run("UPDATE work_package SET budget_factor = 0 WHERE id = 'p'")).toThrow(
+    expect(() => db.run("UPDATE project SET budget_factor = 0 WHERE id = 'p'")).toThrow(
       'CHECK constraint failed',
     );
-    expect(() => db.run("UPDATE work_package SET budget_factor = 1001 WHERE id = 'p'")).toThrow(
+    expect(() => db.run("UPDATE project SET budget_factor = 1001 WHERE id = 'p'")).toThrow(
       'CHECK constraint failed',
     );
   });
@@ -165,9 +165,7 @@ describe(MIGRATION, () => {
   it('keys an unowned work package’s budgets when an organization takes it', () => {
     budgetOn('q-one', 'tokens');
     expect(budgets()).toEqual([expect.objectContaining({ work_item_id: 'q-one', key: null })]);
-    db.run(
-      "INSERT INTO work_package_organization (resource_id, organization_id) VALUES ('q', 'org-a')",
-    );
+    db.run("INSERT INTO project_organization (resource_id, organization_id) VALUES ('q', 'org-a')");
     expect(budgets()).toEqual([expect.objectContaining({ work_item_id: 'q-one', key: 'tokens' })]);
   });
 
@@ -176,7 +174,7 @@ describe(MIGRATION, () => {
   it('refuses rollback while a budget, a factor or a priced figure exists, keeping it', () => {
     const refused = () => {
       db.close();
-      expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+      expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
         'budgets, budget factors or priced figures exist',
       );
       db = openDatabase(path);
@@ -185,9 +183,9 @@ describe(MIGRATION, () => {
     refused();
     expect(budgets()).toHaveLength(1);
     db.run('DELETE FROM work_item_budget');
-    db.run("UPDATE work_package SET budget_factor = 1.5 WHERE id = 'p'");
+    db.run("UPDATE project SET budget_factor = 1.5 WHERE id = 'p'");
     refused();
-    db.run("UPDATE work_package SET budget_factor = 1 WHERE id = 'p'");
+    db.run("UPDATE project SET budget_factor = 1 WHERE id = 'p'");
     db.run(
       "UPDATE step_measure SET currency = 'USD', rate_card_digest = 'card-a' WHERE value = 700",
     );
@@ -204,7 +202,7 @@ describe(MIGRATION, () => {
         .all();
     const before = facts();
     db.close();
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       ACCESS_GRANTS,
@@ -223,12 +221,10 @@ describe(MIGRATION, () => {
     expect(db.query("SELECT name FROM sqlite_master WHERE name LIKE '%budget%'").all()).toEqual([]);
     expect(facts()).toEqual(before);
     expect(
-      db
-        .query("SELECT name FROM pragma_table_info('work_package') WHERE name = 'budget_factor'")
-        .all(),
+      db.query("SELECT name FROM pragma_table_info('project') WHERE name = 'budget_factor'").all(),
     ).toEqual([]);
     db.close();
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     db = openDatabase(path);
     expect(budgets()).toEqual([]);
   });

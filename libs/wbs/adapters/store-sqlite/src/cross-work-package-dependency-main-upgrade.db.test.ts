@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -9,14 +9,16 @@ import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders } from './migrate-down';
 import { parseMigrationSetCapture } from './migration-set';
+import { applyHistoricalCatalogueFixture } from './testing/historical-catalogue';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
 const MAIN = '64572eeeb6a393662b29c2377ba9278a7d85e21f';
 const REPOSITORY = new URL('../../../../../', import.meta.url).pathname;
 const APP = join(REPOSITORY, 'apps/wbs/be-01');
 const OLDER_DEPENDENCIES = [
-  '20261022210000_add_work_package_abbreviations',
+  '20261022210000_add_project_abbreviations',
   '20261022211000_add_external_dependencies',
-  '20261022212000_add_cross_work_package_dependency_activation',
+  '20261022212000_add_cross_project_dependency_activation',
   '20261022213000_add_optimization_boundary_certificates',
 ];
 /**
@@ -103,7 +105,7 @@ function mainValuesAt(dbPath: string) {
   const db = openDatabase(dbPath);
   try {
     return {
-      workPackage: db.query("SELECT * FROM work_package WHERE id='main-plan'").all(),
+      project: db.query("SELECT * FROM project WHERE id='main-plan'").all(),
       organization: db.query("SELECT * FROM organization WHERE id='main-org'").all(),
       definitions: db
         .query("SELECT * FROM measure WHERE organization_id='main-org' ORDER BY key")
@@ -132,16 +134,16 @@ function seedMain(dbPath: string): void {
       "INSERT INTO organization(id,name,created_at) VALUES ('main-org','Main organization',11)",
     );
     db.run(
-      "INSERT INTO work_package(id,name,owner_id,created_at,budget_factor) VALUES ('main-plan','Main plan','main-owner',12,2.75)",
+      "INSERT INTO project(id,name,owner_id,created_at,budget_factor) VALUES ('main-plan','Main plan','main-owner',12,2.75)",
     );
     db.run(
-      "INSERT INTO work_package_organization(resource_id,organization_id) VALUES ('main-plan','main-org')",
+      "INSERT INTO project_organization(resource_id,organization_id) VALUES ('main-plan','main-org')",
     );
     db.run(
-      "INSERT INTO step(id,work_package_id,name,position) VALUES ('main-dev','main-plan','Development',10)",
+      "INSERT INTO step(id,project_id,name,position) VALUES ('main-dev','main-plan','Development',10)",
     );
     db.run(
-      "INSERT INTO work_item(id,work_package_id,name,position,revision) VALUES ('main-work','main-plan','Retained work',1,0)",
+      "INSERT INTO work_item(id,project_id,name,position,revision) VALUES ('main-work','main-plan','Retained work',1,0)",
     );
     db.run(
       "UPDATE measure SET name='Main priced cost',show_by_default=1 WHERE organization_id='main-org' AND key='cost'",
@@ -188,7 +190,11 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     const candidateMigrations = join(candidateRoot, 'drizzle');
     const dbPath = join(root, 'main.db');
     copyMainMigrations(mainMigrations);
-    cpSync(join(APP, 'drizzle'), candidateMigrations, { recursive: true });
+    mkdirSync(candidateRoot);
+    renameSync(
+      copyRecoveryPrefix(candidateRoot, '20261103110000_add_initial_access_offers'),
+      candidateMigrations,
+    );
     runMigrations(dbPath, mainMigrations);
     seedMain(dbPath);
     const baseline = ledgerAt(dbPath);
@@ -198,7 +204,7 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     );
     const mainEnd = baseline.at(-1)?.name;
     if (mainEnd === undefined) throw new Error('main ledger has no last entry');
-    // Live forward migrations after main, so later additions need no edit to these expectations.
+    // Exercise every forward identity through the last pre-rename project schema.
     const forward = readMigrationFolders(candidateMigrations)
       .map(({ name }) => name)
       .filter((name) => !OLDER_DEPENDENCIES.includes(name) && name > mainEnd)
@@ -207,10 +213,17 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     const forwardTables = createdTables(candidateMigrations, forward);
     const values = mainValuesAt(dbPath);
     const schema = schemaAt(dbPath);
+    // The current complete migration set requires explicit catalogue maintenance.
+    expect(() => {
+      runMigrations(dbPath, join(APP, 'drizzle'));
+    }).toThrow('step catalogue migration requires the explicit atomic apply owner');
+    expect(ledgerAt(dbPath)).toEqual(baseline);
+    expect(schemaAt(dbPath)).toEqual(schema);
+    expect(mainValuesAt(dbPath)).toEqual(values);
     expect(baseline.some(({ name }) => name === '20261022121000_add_runtime_commands')).toBe(true);
     expect(baseline.at(-1)?.name).toBe('20261101120000_add_host_job_projection');
     expect(baseline.filter(({ name }) => name.startsWith('20261023'))).toHaveLength(5);
-    expect(values.workPackage).toMatchObject([{ budget_factor: 2.75 }]);
+    expect(values.project).toMatchObject([{ budget_factor: 2.75 }]);
     expect(values.definitions).toHaveLength(5);
     expect(values.definitions).toContainEqual(
       expect.objectContaining({ key: 'cost', name: 'Main priced cost' }),
@@ -276,12 +289,12 @@ test('upgrades the exact fresh main pool database with four older dependency ide
         )
         .map(({ name }) => name),
     ).toEqual([
-      'cross_work_package_dependency_activation',
-      'cross_work_package_dependency_activation_receipt',
+      'cross_project_dependency_activation',
+      'cross_project_dependency_activation_receipt',
       'external_dependency',
       'optimization_boundary_certificate',
-      'work_package_abbreviation',
-      'work_package_abbreviation_counter',
+      'project_abbreviation',
+      'project_abbreviation_counter',
     ]);
     expect(mainValuesAt(dbPath)).toEqual(values);
     expect(
@@ -304,6 +317,55 @@ test('upgrades the exact fresh main pool database with four older dependency ide
     expect(ledgerAt(dbPath)).toEqual(baseline);
     expect(schemaAt(dbPath)).toEqual(schema);
     expect(mainValuesAt(dbPath)).toEqual(values);
+    const currentFolder = join(APP, 'drizzle');
+    const completeCapture = parseMigrationSetCapture(
+      JSON.parse(
+        await runCli(APP, dbPath, 'migrate-status-cli.ts', ['--capture', ...identityFlags]),
+      ),
+      identity,
+    );
+    expect(completeCapture.applied).toEqual(capture.applied);
+    const report = applyHistoricalCatalogueFixture(dbPath, root, {
+      'main-org': { codes: {}, uncoded: { 'main-dev': { code: 'development' } } },
+    });
+    expect(report.rows.filter((issue) => issue.kind === 'uncoded')).toMatchObject([
+      { kind: 'uncoded', stepId: 'main-dev', organizationId: 'main-org' },
+    ]);
+    expect(await runCli(APP, dbPath, 'migrate-cli.ts', [])).toBe('migrations applied\n');
+    expect(ledgerAt(dbPath).map(({ name, hash }) => ({ name, hash }))).toEqual(
+      readMigrationFolders(currentFolder).map(({ name, hash }) => ({ name, hash })),
+    );
+    expect(
+      ledgerAt(dbPath).filter(
+        ({ name }) => !completeCapture.pending.some((pending) => pending.name === name),
+      ),
+    ).toEqual(baseline);
+    const current = openDatabase(dbPath);
+    try {
+      expect(
+        current
+          .query(
+            "SELECT w.id,w.name,w.created_by,w.created_at,json_extract(s.value_json,'$') AS budget_factor FROM work_package w JOIN project p ON p.id=w.project_id AND p.organization_id='main-org' JOIN setting_value s ON s.scope_kind='project' AND s.scope_id=p.id AND s.key='budgetFactor' WHERE w.id='main-plan'",
+          )
+          .get(),
+      ).toEqual({
+        id: 'main-plan',
+        name: 'Main plan',
+        created_by: 'main-owner',
+        created_at: 12,
+        budget_factor: 2.75,
+      });
+      expect(
+        current.query("SELECT id,code FROM step_definition WHERE id='main-dev'").get(),
+      ).toEqual({ id: 'main-dev', code: 'development' });
+    } finally {
+      current.close();
+    }
+    const { project: historicalProject, ...historicalMeasures } = values;
+    const { project: currentProject, ...currentMeasures } = mainValuesAt(dbPath);
+    expect(historicalProject).toHaveLength(1);
+    expect(currentProject).toHaveLength(0);
+    expect(currentMeasures).toEqual(historicalMeasures);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

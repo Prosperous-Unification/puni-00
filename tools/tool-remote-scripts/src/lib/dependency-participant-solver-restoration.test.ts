@@ -29,10 +29,10 @@ function readStore(path: string) {
   try {
     return {
       authority: database
-        .query('SELECT * FROM cross_project_dependency_activation ORDER BY id')
+        .query('SELECT * FROM cross_work_package_dependency_activation ORDER BY id')
         .all(),
       receipts: database
-        .query('SELECT * FROM cross_project_dependency_activation_receipt ORDER BY id')
+        .query('SELECT * FROM cross_work_package_dependency_activation_receipt ORDER BY id')
         .all(),
       ledger: database.query('SELECT name,hash FROM __drizzle_migrations ORDER BY name').all(),
     };

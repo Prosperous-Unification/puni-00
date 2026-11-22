@@ -267,15 +267,16 @@ describe('a headless agent on /mcp', () => {
       TOOLS.map((tool) => tool.name).toSorted(),
     );
 
-    const created = await call('postApiWorkPackages', { name: 'Fleet' });
+    const workPackage = await fixture<{
+      workPackage: { id: string; projectId: string };
+      steps: { id: string }[];
+    }>('work-package', { name: 'Fleet' });
+    const created = await call('postApiWorkPackages', {
+      name: 'Unauthorized fleet',
+      projectId: workPackage.workPackage.projectId,
+    });
     expect(created.isError).toBe(true);
     expect(created.text).toContain('HTTP 403 forbidden');
-    const workPackage = await fixture<{ workPackage: { id: string }; steps: { id: string }[] }>(
-      'work_package',
-      {
-        name: 'Fleet',
-      },
-    );
     ids.workPackage = workPackage.workPackage.id;
     const firstStep = workPackage.steps.at(0);
     if (firstStep === undefined) throw new Error('created work package has no first workflow step');

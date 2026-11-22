@@ -5,10 +5,13 @@ import { pathToFileURL } from 'node:url';
 import { inspect } from 'node:util';
 
 import { createLaunch } from '@shared/bun-startup';
-import { expect, test } from 'bun:test';
+import { expect } from 'bun:test';
 
 import { createExecutionFixture } from './performance-execution-fixture';
 import { createPerformanceProcessOwner } from './performance-processes';
+import { processOwnerTest } from './process-owner-test';
+
+const test = processOwnerTest(import.meta.path);
 
 async function awaitWithin<Value>(promise: Promise<Value>, milliseconds: number): Promise<Value> {
   let timer: ReturnType<typeof setTimeout> | undefined;

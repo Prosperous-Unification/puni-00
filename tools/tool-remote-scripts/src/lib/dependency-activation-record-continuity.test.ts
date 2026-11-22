@@ -86,15 +86,18 @@ for (const boundary of ['capture', 'fenced-only', 'preparation'] as const)
       const database = new Database(path, { create: false, readonly: true });
       try {
         expect(
-          database.query('SELECT state FROM cross_project_dependency_activation').all(),
+          database.query('SELECT state FROM cross_work_package_dependency_activation').all(),
         ).toEqual([{ state: enabled ? 'ENABLED' : 'DISABLED' }]);
         expect(
-          database.query('SELECT * FROM cross_project_dependency_activation_receipt').all().length,
+          database.query('SELECT * FROM cross_work_package_dependency_activation_receipt').all()
+            .length,
         ).toBe(enabled ? 1 : 0);
         if (enabled) {
           expect(expectedReceipt).toBeDefined();
           expect(
-            database.query('SELECT receipt FROM cross_project_dependency_activation_receipt').all(),
+            database
+              .query('SELECT receipt FROM cross_work_package_dependency_activation_receipt')
+              .all(),
           ).toEqual([{ receipt: expectedReceipt }]);
         }
       } finally {

@@ -327,12 +327,30 @@ async function fixture(path: string, body: unknown): Promise<unknown> {
   return await response.json();
 }
 
+async function createProjectFixture(username: 'dany' | 'grace'): Promise<string> {
+  const project = await fixture('create-project', {
+    username,
+    name: username + ' engagement',
+    token: await upstreamToken('auth0|' + username, 900),
+  });
+  if (
+    typeof project !== 'object' ||
+    project === null ||
+    !('id' in project) ||
+    typeof project.id !== 'string' ||
+    project.id.length === 0
+  )
+    throw new Error('fixture project identity absent');
+  return project.id;
+}
+
 async function createWorkPackageFixture(
   username: 'dany' | 'grace',
   body: { name: string },
 ): Promise<{ workPackage: { id: string }; steps: { id: string }[] }> {
   const created = (await fixture('create-work-package', {
     username,
+    projectId: username === 'dany' ? ids.primaryProject : ids.foreignProject,
     ...body,
     token: await upstreamToken(`auth0|${username}`, 900),
   })) as { status: number; body: { workPackage: { id: string }; steps: { id: string }[] } };
@@ -592,7 +610,14 @@ const workPackageNames = (text: string) =>
     .toSorted();
 
 const sessions: Record<string, string> = {};
-const ids = { launch: '', foreign: '', leaf: '', firstStep: '' };
+const ids = {
+  primaryProject: '',
+  foreignProject: '',
+  launch: '',
+  foreign: '',
+  leaf: '',
+  firstStep: '',
+};
 const claire = { access: '', refresh: '', clientId: '' };
 
 /** One eligible first-step `claimWorkItem` for `personId` through `access`. */
@@ -607,11 +632,15 @@ describe('MCP organization delegation against a booted be-01', () => {
   test('before activation an MCP session works exactly as before', async () => {
     const dany = await connect('auth0|dany');
     sessions['legacy'] = dany.access;
-    const created = await tool(dany.access, 'postApiWorkPackages', { name: 'Launch' });
-    expect(created.isError).toBe(false);
-    ids.launch = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage.id;
-    const listed = await tool(dany.access, 'getApiWorkPackages', {});
-    expect(workPackageNames(listed.text)).toEqual(['Launch']);
+    const created = await tool(dany.access, 'postApiDirectoryCommands', {
+      commands: [{ kind: 'createPerson', name: 'Legacy directory member', teamIds: [] }],
+    });
+    expect(created, created.text).toMatchObject({ isError: false });
+    const listed = await tool(dany.access, 'getApiPeople', {});
+    expect(listed, listed.text).toMatchObject({ isError: false });
+    expect(
+      (JSON.parse(listed.text) as { people: { name: string }[] }).people.map(({ name }) => name),
+    ).toContain('Legacy directory member');
   });
 
   test('the operator activates organizations', async () => {
@@ -630,6 +659,18 @@ describe('MCP organization delegation against a booted be-01', () => {
     sessions['dany'] = dany.access;
     sessions['danyRefresh'] = dany.refresh;
     sessions['danyClient'] = dany.clientId;
+    const people = await tool(dany.access, 'getApiPeople', {});
+    expect(people, people.text).toMatchObject({ isError: false });
+    expect(
+      (JSON.parse(people.text) as { people: { name: string }[] }).people.map(({ name }) => name),
+    ).toContain('Legacy directory member');
+    ids.primaryProject = await createProjectFixture('dany');
+    const created = await tool(dany.access, 'postApiWorkPackages', {
+      name: 'Launch',
+      projectId: ids.primaryProject,
+    });
+    expect(created, created.text).toMatchObject({ isError: false });
+    ids.launch = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage.id;
     const listed = await tool(dany.access, 'getApiWorkPackages', {});
     expect(listed.isError).toBe(false);
     expect(workPackageNames(listed.text)).toEqual(['Launch']);
@@ -647,7 +688,11 @@ describe('MCP organization delegation against a booted be-01', () => {
   test("the same session is refused on another organization's work package", async () => {
     const grace = await connect('auth0|grace');
     sessions['grace'] = grace.access;
-    const created = await tool(grace.access, 'postApiWorkPackages', { name: 'Foreign' });
+    ids.foreignProject = await createProjectFixture('grace');
+    const created = await tool(grace.access, 'postApiWorkPackages', {
+      name: 'Foreign',
+      projectId: ids.foreignProject,
+    });
     expect(created.isError).toBe(false);
     ids.foreign = (JSON.parse(created.text) as { workPackage: { id: string } }).workPackage.id;
     expect(workPackageNames((await tool(grace.access, 'getApiWorkPackages', {})).text)).toEqual([
@@ -841,7 +886,10 @@ describe('MCP organization delegation against a booted be-01', () => {
         ],
         ['postApiWorkPackagesByIdUndo', { id: ids.launch }],
         ['postApiWorkPackagesByIdRedo', { id: ids.launch }],
-        ['postApiWorkPackagesByIdSteps', { id: ids.launch, name: 'Outside consent cap' }],
+        [
+          'patchWorkPackageStepValues',
+          { id: ids.launch, stepId: ids.firstStep, allowanceBps: 500 },
+        ],
         [
           'postApiWorkPackagesByIdOptimizationRetry',
           { id: ids.launch, objective: 'pri', inputHash: 'ignored' },
@@ -1049,7 +1097,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     if (!Object.hasOwn(sessions, 'dany'))
       throw new Error('the organization-bound session is missing');
     const access = sessions['dany'];
-    const created = await tool(access, 'postApiWorkPackages', { name: 'External prerequisite' });
+    const created = await tool(access, 'postApiWorkPackages', {
+      name: 'External prerequisite',
+      projectId: ids.primaryProject,
+    });
     expect(created.isError).toBe(false);
     const predecessorWorkPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
       .workPackage.id;
@@ -1115,6 +1166,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       throw new Error('organization-bound parity session missing');
     const access = sessions['dany'];
     const created = await tool(access, 'postApiWorkPackages', {
+      projectId: ids.primaryProject,
       name: 'Dormant matrix prerequisite',
     });
     expect(created.isError).toBe(false);
@@ -1388,13 +1440,19 @@ describe('MCP organization delegation against a booted be-01', () => {
     await fixture('active-commands', {});
     const access = sessions['dany'];
     if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
-    const created = await tool(access, 'postApiWorkPackages', { name: 'Consented predecessor' });
+    const created = await tool(access, 'postApiWorkPackages', {
+      name: 'Consented predecessor',
+      projectId: ids.primaryProject,
+    });
     // Proof: replacing server.ts's per-call bearerFor with the raw upstream
     // token made this active tool call answer 403 no_active_organization.
     expect(created, created.text).toMatchObject({ isError: false });
     const predecessorWorkPackageId = (JSON.parse(created.text) as { workPackage: { id: string } })
       .workPackage.id;
-    const successor = await tool(access, 'postApiWorkPackages', { name: 'Consented successor' });
+    const successor = await tool(access, 'postApiWorkPackages', {
+      name: 'Consented successor',
+      projectId: ids.primaryProject,
+    });
     expect(successor.isError).toBe(false);
     const successorWorkPackageId = (JSON.parse(successor.text) as { workPackage: { id: string } })
       .workPackage.id;
@@ -1571,6 +1629,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       const access = sessions['dany'];
       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
       const created = await tool(access, 'postApiWorkPackages', {
+        projectId: ids.primaryProject,
         name: `${transport} scoped remote`,
       });
       // Proof: raw upstream token in place of per-call bearerFor made this
@@ -1646,6 +1705,7 @@ describe('MCP organization delegation against a booted be-01', () => {
       const access = sessions['dany'];
       if (!Object.hasOwn(sessions, 'dany')) throw new Error('organization-bound session missing');
       const created = await tool(access, 'postApiWorkPackages', {
+        projectId: ids.primaryProject,
         name: `${transport} descendant remote`,
       });
       expect(created.isError).toBe(false);
@@ -1784,7 +1844,10 @@ describe('MCP organization delegation against a booted be-01', () => {
         })();
         await grantConsent(consent.access, 'project-contributor', { kind: 'organization' });
         const createWorkPackage = async (name: string): Promise<string> => {
-          const denied = await tool(consent.access, 'postApiWorkPackages', { name });
+          const denied = await tool(consent.access, 'postApiWorkPackages', {
+            name,
+            projectId: ids.primaryProject,
+          });
           expect(denied.isError).toBe(true);
           expect(denied.text).toContain('HTTP 403 forbidden');
           const created = await createWorkPackageFixture('dany', { name });
@@ -1957,6 +2020,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(sent[0]?.headers.get('authorization')).toBeNull();
     const created = await tool(tokens.access_token, 'postApiWorkPackages', {
       name: 'Confidential',
+      projectId: ids.foreignProject,
     });
     expect(created.isError).toBe(false);
     const listed = await tool(tokens.access_token, 'getApiWorkPackages', {});

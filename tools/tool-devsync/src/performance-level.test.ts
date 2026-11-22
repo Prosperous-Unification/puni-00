@@ -20,6 +20,9 @@ import {
   xmlText,
 } from './performance-level';
 import { awaitPerformanceSupervisor } from './performance-supervisor-test';
+import { processOwnerTest } from './process-owner-test';
+
+const test = processOwnerTest(import.meta.path);
 
 const roots: string[] = [];
 /** Fixture supervisors still running; afterEach cancels any a timed-out test abandoned. */
@@ -981,7 +984,7 @@ describe('Performance level target production boundary', () => {
     }
   }, 60_000);
 
-  it('runs Burokrat identity in an external empty cwd without candidate preload', async () => {
+  test('runs Burokrat identity in an external empty cwd without candidate preload', async () => {
     const fixture = await committedPerformanceFixture();
     const revision = Bun.spawnSync(['git', '-C', fixture.root, 'rev-parse', 'HEAD'])
       .stdout.toString()

@@ -11,14 +11,8 @@ const CATALOGUE_TABLES = [
   'step_identity_history',
 ];
 
-/**
- * Capture organization-local historical aliases on the caller's existing saved-read loan.
- * Schema and the actual117 ledger must agree; absence of expected state never means no aliases.
- * Coherent foreign definitions are excluded before history metadata decoding. A missing survivor
- * has no reliable organization attribution and refuses generically rather than disappearing.
- * @throws on missing/malformed epoch, package attribution or selected history state.
- */
-export function readStepIdentityIn(snapshot: Drizzle, workPackageId: string): StepIdentityRead {
+/** Resolves the actual catalogue epoch only when its ledger and required table inventory agree. */
+export function readStepStorageEpoch(snapshot: Drizzle): 'pre_catalogue' | 'catalogue' {
   const tables = new Set(
     snapshot
       .all<{ name: string }>(
@@ -37,7 +31,7 @@ export function readStepIdentityIn(snapshot: Drizzle, workPackageId: string): St
   if (applied.length === 0) {
     if (!tables.has('step') || CATALOGUE_TABLES.some((name) => tables.has(name)))
       throw new Error('saved step identity schema disagrees with its pre-catalogue ledger');
-    return { kind: 'pre_catalogue' };
+    return 'pre_catalogue';
   }
   const migration = applied.at(0);
   // Proof: H01 replaced this whole epoch condition with false. The timestamp-only
@@ -54,6 +48,18 @@ export function readStepIdentityIn(snapshot: Drizzle, workPackageId: string): St
     CATALOGUE_TABLES.some((name) => !tables.has(name))
   )
     throw new Error('saved step identity schema disagrees with its catalogue ledger');
+  return 'catalogue';
+}
+
+/**
+ * Capture organization-local historical aliases on the caller's existing saved-read loan.
+ * Schema and the actual117 ledger must agree; absence of expected state never means no aliases.
+ * Coherent foreign definitions are excluded before history metadata decoding. A missing survivor
+ * has no reliable organization attribution and refuses generically rather than disappearing.
+ * @throws on missing/malformed epoch, package attribution or selected history state.
+ */
+export function readStepIdentityIn(snapshot: Drizzle, workPackageId: string): StepIdentityRead {
+  if (readStepStorageEpoch(snapshot) === 'pre_catalogue') return { kind: 'pre_catalogue' };
   const ownership = snapshot.all<{ organization_id: unknown; actual_organization_id: unknown }>(sql`
     SELECT mapping.organization_id,organization.id AS actual_organization_id
     FROM work_package package

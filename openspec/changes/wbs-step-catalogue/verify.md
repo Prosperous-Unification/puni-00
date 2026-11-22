@@ -2085,3 +2085,17 @@ Protected receipts retain the genuine failures, successful owners and original
 workspace custody. The latest pushed head's CI checks and core jobs passed;
 the other required jobs were still running when observed. These repairs do not
 establish whole-PR closure, a final exact-commit host gate or merge.
+
+### Organization ownership preflight after catalogue migration
+
+The current ownership preflight validates the catalogue ledger and table
+inventory, then requires a matching organization and package-step pair for
+each live step fact. Event history can retain a deleted subject and resolves
+known merged step IDs to their surviving definition when checking ownership.
+
+Before the repair, the current fixture failed on `no such table: step`.
+Removing the pair check, organization match or alias lookup independently hid
+its corresponding seeded conflict. The combined current/historical SQLite run
+passed 71 cases across seven files, including the pinned main upgrade through
+migration 119 and the 28 historical reconciliation cases. A separate saved-read
+test still refused a corrupted catalogue migration timestamp.

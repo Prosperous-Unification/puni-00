@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { expect, it } from 'bun:test';
 
+import { HISTORICAL_TREE } from './historical-tree.spec';
 import { renameText } from './rename-text';
 
 function readSource(path: string): string {
-  return readFileSync(new URL('../../../' + path, import.meta.url), 'utf8');
+  return readFileSync(join(HISTORICAL_TREE, path), 'utf8');
 }
 
 it('keeps the future GrantScope arm while renaming the old SQL row in its mixed documentation', () => {

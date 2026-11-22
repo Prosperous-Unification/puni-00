@@ -2942,3 +2942,17 @@ each live slice duration independently failed the full current comparison.
 Dropping a future top-level field failed the added-field control. Increasing
 live earliest finish instead hit the existing FS publication guard before the
 identity assertion and is excluded from those four proofs.
+
+### Navigator current export fixtures
+
+The Navigator v15 and v16 JSON fixtures come from `currentExportFixture` in
+`libs/wbs/application/core/src/testing/current-export-fixture.ts`. It runs the
+actual `PlanDocumentService` serializer over constructed evidence for work package
+`C` and project `captured-parent`. Both outputs validated against the strict current
+schema and repeated generation returned identical JSON. Only v16 has the connected
+envelope. The historical fixtures retain their original bytes.
+
+Without these files, the parent-reference, lazy-decoder and connected-progress
+suites reported 33 failures, including missing-file errors. The uncached
+`nx run twilight-navigator:test --skip-nx-cache --output-style=stream` passed all
+221 tests after generation.

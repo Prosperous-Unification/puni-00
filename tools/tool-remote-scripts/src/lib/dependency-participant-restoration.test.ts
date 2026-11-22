@@ -111,7 +111,7 @@ test('actual committed store observer survives source finalizers only under the 
         try {
           database
             .query(
-              "UPDATE cross_project_dependency_activation_receipt SET receipt=json_set(receipt,'$.activationId',?) WHERE id=1",
+              "UPDATE cross_work_package_dependency_activation_receipt SET receipt=json_set(receipt,'$.activationId',?) WHERE id=1",
             )
             .run('PRIVATE_RECEIPT_REPLACEMENT');
         } finally {
@@ -274,7 +274,7 @@ test('genuine prepared stores recheck full ledger, nonselected authority and ori
           const authority = new Database(fixture.devPath, { create: false });
           try {
             authority.run(
-              "UPDATE cross_project_dependency_activation SET state='ENABLED' WHERE id=1",
+              "UPDATE cross_work_package_dependency_activation SET state='ENABLED' WHERE id=1",
             );
           } finally {
             authority.close();
@@ -285,7 +285,7 @@ test('genuine prepared stores recheck full ledger, nonselected authority and ori
             const repaired = new Database(fixture.devPath, { create: false });
             try {
               repaired.run(
-                "UPDATE cross_project_dependency_activation SET state='DISABLED' WHERE id=1",
+                "UPDATE cross_work_package_dependency_activation SET state='DISABLED' WHERE id=1",
               );
             } finally {
               repaired.close();

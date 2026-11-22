@@ -1,15 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 
+import { HISTORICAL_TREE as REPO } from './historical-tree.spec';
 import { isProtectedSpan, readProtectedSpans } from './protection';
 import { constantSpellingOf, NAMED_RENAMES, PATH_MOVES, RENAME_MAP } from './rename-map';
 import { renamePath, renameText } from './rename-text';
 import { git, residualsIn, trackedPaths } from './tree';
-
-const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 describe('the rename map', () => {
   it('gives every key its five spellings, each in its own case family', () => {
@@ -36,7 +34,7 @@ describe('the rename map', () => {
     }
   });
 
-  it('derives both module moves from the map, and both modules exist today', () => {
+  it('derives both module moves from the map, and both modules exist in the historical input', () => {
     for (const { from, to } of PATH_MOVES) {
       expect(renamePath(from)).toBe(to);
       expect(git(REPO, ['ls-files', '--', `${from}/README.md`]).trim()).toBe(`${from}/README.md`);
@@ -46,7 +44,7 @@ describe('the rename map', () => {
   // Proof: before the dated-records glob reached docs/wbs/research, this case named
   // `work_package` and `work-packages` on lines of 2026-10-23-authorization-model.md, written in
   // the new names ahead of the rename (2026-10-25).
-  it('collides with no identifier already in the tree while old words remain', () => {
+  it('adds no collisions beyond the historical migration assertions while old words remain', () => {
     const targets = [...RENAME_MAP.values()].flatMap((spellings) => [
       spellings.sql,
       spellings.identifier,
@@ -99,9 +97,21 @@ describe('the rename map', () => {
           .map((hit) => `${target}: ${hit}`);
       },
     );
-    // After the mechanical commit no old word remains and every target is the rename's own.
-    const oldWordsRemain = residualsIn(REPO).length > 0;
-    expect(oldWordsRemain ? collisions : []).toEqual([]);
+    expect(residualsIn(REPO).length).toBeGreaterThan(0);
+    // Historical migration fixtures already assert the new SQL names. Pin every hit;
+    // do not exclude their file or accept arbitrary collisions.
+    expect(collisions).toEqual([
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:31:      '../../../../../openspec/changes/wbs-work-packages/fixtures/rename-before.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:195:      '../../../../../openspec/changes/wbs-work-packages/fixtures/outgoing-store.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:313:      '../../../../../openspec/changes/wbs-work-packages/fixtures/command-json.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:416:      '../../../../../openspec/changes/wbs-work-packages/fixtures/schema-exceptions.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:591:      '../../../../../openspec/changes/wbs-work-packages/fixtures/command-json-duplicates.json',",
+      "work-packages: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:623:      '../../../../../openspec/changes/wbs-work-packages/fixtures/rename-integrity.json',",
+      "work-package: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:40:  directory = mkdtempSync(join(tmpdir(), 'work-package-rename-'));",
+      "work_package_id: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:291:        .query('SELECT COUNT(*) AS n FROM saved_plan WHERE work_package_id=?')",
+      'work_package_id: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:508:        "SELECT abbreviation FROM work_package_abbreviation WHERE work_package_id=\'rename-next\'",',
+      "restricted_work_package_recovery: libs/wbs/adapters/store-sqlite/src/work-package-rename.db.test.ts:564:      \"INSERT INTO organization_audit(id,organization_id,actor_id,action,subject_kind,subject_id,detail,created_at) VALUES('new-recovery','rename-org','rename-owner','restricted_work_package_recovery','work_package','rename-p','{}',2)\",",
+    ]);
   }, 30_000);
 });
 
