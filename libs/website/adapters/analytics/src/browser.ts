@@ -81,6 +81,7 @@ function clearCookies(window: Window, configuration: AnalyticsConfiguration): bo
 
 /** Commands use an isolated layer and contain safe metadata before insertion. Startup holds at most
  * 100 command records for at most ten seconds per attempt; overflow disables optional measurement.
+ * Global privacy controls stay outside stream config to avoid unapproved event parameters.
  * The loaded Google tag owns its standard command layer thereafter. Withdrawal purges the layer.
  */
 function createVendor(window: Window): AnalyticsPorts['vendor'] {
@@ -118,11 +119,8 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
       campaign_id: '',
       campaign_content: '',
       campaign_term: '',
-      url_passthrough: false,
-      ads_data_redaction: true,
       allow_ad_personalization_signals: false,
       allow_enhanced_conversions: false,
-      user_data: null,
       // Proof: enabling automatic pageviews failed the pre-insertion privacy configuration assertion.
       send_page_view: false,
       cookie_domain: config.cookieDomain,
@@ -135,8 +133,15 @@ function createVendor(window: Window): AnalyticsPorts['vendor'] {
     // initialization precedes config/events in startup-preserves-Home.
     // Proof: using default after a loaded-tag withdrawal failed returning-permission's required update.
     enqueueConsent(initialized ? 'update' : 'default', permission);
-    command('set', privacy);
+    command('set', {
+      ...privacy,
+      url_passthrough: false,
+      ads_data_redaction: true,
+      user_data: null,
+    });
     command('js', new Date());
+    // Proof: reinserting each global control into config failed "vendor keeps global privacy controls";
+    // omitting each global control from set failed its exact-value assertion. Google emits ep.* for config.
     command('config', config.measurementId, privacy);
   }
   return {

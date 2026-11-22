@@ -685,7 +685,10 @@ export function LiveHarness({
               </button>
             </p>
           ) : (
+            // Proof: removing action exposed query/hash in both form-destinations.test.tsx composer cases.
             <form
+              action={`${apiOrigin}/conversation/stream`}
+              method="post"
               className="harness-composer"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -911,7 +914,12 @@ function ProposalCard({
       <p className="proposal-lead">
         A person at PUNI reads every brief. Edit it if anything is off, then leave your email.
       </p>
-      <form onSubmit={(event) => void submit(event)}>
+      {/* Proof: removing action exposed query/hash in form-destinations.test.tsx legacy proposal cases. */}
+      <form
+        action={`${apiOrigin}/proposals`}
+        method="post"
+        onSubmit={(event) => void submit(event)}
+      >
         <label className="visually-hidden" htmlFor="proposal-brief">
           Your brief
         </label>

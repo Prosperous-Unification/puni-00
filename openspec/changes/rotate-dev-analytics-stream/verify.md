@@ -1,3 +1,5 @@
 The two focused tests in `libs/website/adapters/analytics/src/analytics.test.ts` failed against the previous runtime. It refused the new development ID on the development host and accepted it on the production host. Both tests passed after rotation, including acceptance on both development hosts and continued refusal of the retired ID on production.
 
 Uncached `nx run-many -t test,lint,typecheck,build -p website-analytics,website-fe-01 --skip-nx-cache` passed for both projects and the three dependency builds. Dev packaging and live stream checks are pending.
+
+The subsequent Enhanced measurement regressions failed before the approved production fixes were imported into the dev release. Seven forms exposed the synthetic query and fragment in their default DOM destinations, and the stream-config test observed a duplicated privacy-control field. After the fixes, the same tests passed. The copied tests preserve the existing authenticated JSON submission and check that the privacy controls still exist globally.

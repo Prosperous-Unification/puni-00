@@ -440,16 +440,25 @@ try {
       Object.values(insertion[0][2]).every((value) => value === 'denied'),
       'Insertion granted consent',
     );
+    const privacy = insertion.find((command) => command[0] === 'set')[1];
     const configuration = insertion.find((command) => command[0] === 'config')[2];
     // Proof: automatic-pageview, signals and enhanced-conversion faults fail home-first at insertion.
     assert(
       configuration.send_page_view === false &&
         configuration.allow_google_signals === false &&
         configuration.allow_ad_personalization_signals === false &&
-        configuration.allow_enhanced_conversions === false &&
-        configuration.user_data === null &&
-        configuration.ads_data_redaction === true,
+        configuration.allow_enhanced_conversions === false,
       'Unsafe insertion privacy configuration',
+    );
+    // Proof: each config reinsertion/global omission failed "vendor keeps global privacy controls" in browser.test.ts.
+    assert(
+      privacy.url_passthrough === false &&
+        privacy.ads_data_redaction === true &&
+        privacy.user_data === null &&
+        !Object.hasOwn(configuration, 'url_passthrough') &&
+        !Object.hasOwn(configuration, 'ads_data_redaction') &&
+        !Object.hasOwn(configuration, 'user_data'),
+      'Global privacy controls must not become stream event parameters',
     );
     assert(configuration.page_location === `${site}/`, 'Unsafe initial config');
     assertCookieless(await storage(fixture.context, fixture.page));
