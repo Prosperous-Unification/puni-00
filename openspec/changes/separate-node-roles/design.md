@@ -109,7 +109,7 @@ rest moved to the changes `host-postgres` and `add-agent-hosts` under ids of the
 | R11 | **Decided.** The website and the request app run on the new cluster from the same release pins and source registry as today, moved after the release bootstrap finishes; the session that owns it writes the fleet repository's directory for the new cluster                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Route them to Harbor during the build. Cost: it changes exactly what that session asked to keep untouched                                                                                                                                                                                                                                                                        |
 | R12 | The CI role is gates and builds, on a cluster of its own that runs nothing else: release builds and the staging builds of R31, every one a Workflow there (change `run-ci-on-argo-workflows`). No app, staging or production, and no database runs there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Dev stacks on the CI host, as an earlier draft had it. Cost: the agents' tracker slows under every gate and sits beside branch code                                                                                                                                                                                                                                              |
 | R13 | **Decided.** Backups of everything on the new cluster run inside it: each app's own backup job, and retention and the freshness alert as cluster units (slice 3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Keep an outside puller. Cost: a host whose only job is to watch another                                                                                                                                                                                                                                                                                                          |
-| R15 | **Decided:** MLflow is kept. Assumed: it runs on the observability node as a cluster unit with a `Retain` claim and the same backup job as the apps (slice 3.6); Victoria and Grafana are not rebuilt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | A Compose service with a host timer. Cost: a second backup mechanism for one store                                                                                                                                                                                                                                                                                               |
+| R15 | **Decided:** MLflow is kept. Assumed: it runs on the observability node as a cluster unit with one `Retain` claim and a backup and verify pair of its own, for a SQLite metadata store and an artifact root (slice 3.6); Victoria and Grafana are not rebuilt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | A Compose service with a host timer. Cost: a second backup mechanism for one store                                                                                                                                                                                                                                                                                               |
 | R16 | Each node is probed from another node; the observability node from the platform node                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | In-cluster monitoring only. Cost: the node that hosts monitoring cannot report its own loss                                                                                                                                                                                                                                                                                      |
 | R17 | The Ansible controller is the operator's laptop, or a workstation of its own as the full profile of `add-agent-hosts` defines it if the owner moves it there, and never a machine where gates or agents run (decision 10). It reaches every server by its address on the private access network (R47, decision 12). There is no jump host. When that network cannot be used, the break-glass of R49 applies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | A jump on the CI host. Cost: a host that runs branch code sits on the path to every node                                                                                                                                                                                                                                                                                         |
 | R19 | One root Application owns plain Application files (app of apps). It syncs automatically and manages only Application and AppProject objects. The ApplicationSet controller is not installed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | An ApplicationSet with a cluster generator. Cost: a generator and a controller for one cluster                                                                                                                                                                                                                                                                                   |
@@ -137,6 +137,7 @@ rest moved to the changes `host-postgres` and `add-agent-hosts` under ids of the
 | R50 | Assumed the same way: the CI server is 12 vCPUs and 24 GiB. He had chosen to start at the 8 vCPU and 16 GiB class; on the figures of the CI change's decision 5 one gate does not fit that class beside the CI cluster's own pods                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 8 vCPUs and 16 GiB with a lower limit for the gate. Cost: a limit under the gate's measured use, where the kernel kills it                                                                                                                                                                                                                                                       |
 | R51 | Assumed the same way, on the planning session's recommendation of 2026-11-22, which he had not answered: the CI cluster has no public webhook. A push to `main` starts a small job on the provider's hosted runner that joins the private access network for the length of the job and submits the Workflow there (CI change, decision 2). It is what R47 asks for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The signed, path-restricted webhook of the CI change's earlier draft. Cost: one public endpoint on the CI cluster, with an ingress and a certificate issuer there                                                                                                                                                                                                                |
 | R52 | Assumed: Tailnet Lock is on, key expiry is off for tagged servers, and login stays `sshd` with operator keys on the tailnet interface; Tailscale SSH is not enabled                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Tailscale SSH. Cost: who may log in is then decided by the coordination service's policy alone, without a key the operator holds                                                                                                                                                                                                                                                 |
+| R53 | Assumed by the planning session on 2026-11-22 while the owner was away, for him to overrule: a schema change reaches WBS staging with no command, through a hook Job of the staging Application that captures, migrates and reverses with the candidate image's own CLIs while the old backend keeps serving, as the old colour does in the Compose swap. The website API applies its own migrations at start, read from source, so its staging needs no hook (decision 9, slice 3.9)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Keep every schema change on the attended path, as production's is. Cost: R20 would not hold for a WBS merge that carries a migration                                                                                                                                                                                                                                             |
 
 ## Decisions
 
@@ -442,9 +443,9 @@ Elasticsearch 100, Prometheus 10, two signal stores of 2 each. With 30 GiB assum
 system and images and a fifth of the whole disk kept free, the root disk needs
 (114 + 30) / 0.8 = 180 GiB. The kubelet evicts at 10% free on the node filesystem and 15% on
 the image filesystem (both k3s templates), so a fifth leaves room above both. With
-non-production on the node the claims grow by 36 GiB: the three staging claims at 13, the
-same again reserved for dev and 10 for `nonproduction-db`. The floor is then
-(114 + 36 + 30) / 0.8 = 225 GiB. A12 reads the new server's disk and stops on a smaller
+non-production on the node the claims grow by 42 GiB: the three staging claims at 19,
+with the tracker's at 16 for the schema hook's snapshots (decision 9), 13 reserved for dev
+and 10 for `nonproduction-db`. The floor is then (114 + 42 + 30) / 0.8 = 233 GiB. A12 reads the new server's disk and stops on a smaller
 one, and A14 measures growth.
 
 **CI server.** It carries a cluster of its own, and its budget is decision 5 of the change
@@ -461,12 +462,12 @@ assumed under 256 MiB per cluster, and A8 reads them with Argo CD.
 
 **Disk elsewhere.**
 
-| Node            | What lands there                                                                                                                   |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots; `platform-db` and a drill, at first         |
-| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                  |
-| Non-production  | The same three claims, with `wbs-data` assumed at 10 GiB because the dev database is 2.2 GB today; on h7obs in the minimal profile |
-| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                       |
+| Node            | What lands there                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform        | Harbor's 40 GiB of bounded filesystems, OpenBao's store, etcd and its local snapshots; `platform-db` and a drill, at first                                                                   |
+| Production apps | Production SQLite claims: `website-data` 2 GiB, `wbs-data` 5 GiB, `wbs-mcp` 1 GiB                                                                                                            |
+| Non-production  | The same three claims, with staging's `wbs-data` at 16 GiB: the dev database is 2.2 GB today and the schema hook keeps two snapshots beside it (decision 9); on h7obs in the minimal profile |
+| CI              | gate trees, caches, 11 GiB of temporary space per gate, release build layers                                                                                                                 |
 
 **Minimum disk per role.** A requirement of the role, not of a provider's product: the step
 that creates a server reads `df -h /` and stops on less, before anything is installed. A
@@ -476,9 +477,9 @@ type that has the memory and not the disk fails there, whoever sells it.
 | ---------------------------------------- | ----------------: | --------------------------------------------------------------------------------------------- |
 | Platform, with `platform-db`             |           175 GiB | above                                                                                         |
 | Production apps                          |            50 GiB | above                                                                                         |
-| Observability with non-production        |           225 GiB | above; 180 without non-production                                                             |
+| Observability with non-production        |           233 GiB | above; 180 without non-production                                                             |
 | CI                                       |           150 GiB | assumed: today's gate hosts have that and run near full; the CI change's decision 5 counts it |
-| Non-production, on a server of its own   |            85 GiB | the 36 GiB of claims and 30 for the system and images, with a fifth kept free                 |
+| Non-production, on a server of its own   |            90 GiB | the 42 GiB of claims and 30 for the system and images, with a fifth kept free                 |
 | Database server (change `host-postgres`) |           140 GiB | that change's decision 2                                                                      |
 | Operator host (change `add-agent-hosts`) |           100 GiB | that change: OpenClaw's state is about 21 GiB today, and the sessions' work filled 460 GB     |
 
@@ -848,12 +849,12 @@ Application carries the resources finalizer, so deleting an Application leaves i
 
 Each row is an agent slice in [tasks.md](tasks.md). Slices 1.1 to 1.3, 2.1 to 2.6, 2.9 and
 the first receipt of 2.7 are needed before the platform stage can start; 1.4, 1.5, 2.8, 3.2
-and 3.6 before stage 3; 1.7, 2.10, 3.1, 3.5, 3.7 and 3.8 before stage 4. One gap has no row
+and 3.6 before stage 3; 1.7, 2.10, 3.1, 3.5 and 3.7 to 3.9 before stage 4. One missing piece has no row
 in the table below: nothing reconciles the capability labels of a node that has already
 joined, which the minimal profile's A17 and every growth step need; slice 1.7 adds it.
 Slice 3.7 is due before A23, which A18's WBS part waits for.
 
-| Gap                                                                                                                                                                                                                                                                    | Slice                 |
+| Missing                                                                                                                                                                                                                                                                | Slice                 |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
 | No capability for platform services                                                                                                                                                                                                                                    | 1.1                   |
 | Nothing refuses a server with `product` or `ingress`, a gate host that is a k3s node, or an untainted server                                                                                                                                                           | 1.2                   |
@@ -879,8 +880,9 @@ Slice 3.7 is due before A23, which A18's WBS part waits for.
 | The WBS `staging` and `prod` overlays both render the namespaces `wbs` and `wbs-solver`, select no node for three workloads, set no cluster prefix, expect SOPS Secrets, and nothing stops staging configuration from naming a production Service                      | 3.5                   |
 | The solver admission policy trusts one namespace, one selector and one parameter ConfigMap; the supervisor's caller list has no staging name and its decoder refuses a pod caller's rule without a caller image; the `solver` role asserts `product`                   | 3.8                   |
 | Nothing binds at admission: a pod in an app namespace may select any node, an Ingress, IngressRoute or Certificate may claim any host, a non-production namespace has no quota or default-deny of the platform's own, and cert-manager's solver pods carry no selector | 2.10                  |
-| MLflow runs as a Compose service with no backup of its own                                                                                                                                                                                                             | 3.6                   |
+| MLflow runs as a Compose service with no backup of its own: a SQLite metadata store and an artifact root on one volume                                                                                                                                                 | 3.6                   |
 | Nothing turns a merge to `main` into a staging deployment: no job builds on a merge, renders the staging manifests or writes them where Argo CD reads; nothing on a host is started by GitHub                                                                          | 3.7 and the CI change |
+| An automated sync has no schema step: the WBS backend starts with startup migrations off, and the only caller of the schema Job is the release coordinator, which needs a Flux unit                                                                                    | 3.9                   |
 
 Six slices have no requirement in the delta spec, on purpose. Slices 1.4 and 1.5 turn two
 hard-coded inputs into data, and the checks that already read those inputs are their test.
@@ -954,14 +956,14 @@ request #935 owns the alerts for a sealed store and a failed sync.
 
 ### 6. Build order
 
-| Stage | Role          | Needs                                                                                                                                             | Receipt that ends the stage                                                                                                                                                                   |
-| ----- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Decisions     | none                                                                                                                                              | overrules recorded; the secrets of task 0.5 read back from escrow; the `main` rulesets read back; the slices decision 4 lists for stage 1 landed, except 1.3, whose first revision follows A1 |
-| 1     | Platform      | stage 0; rehearsal receipts 2.7/A3 and 2.7/A7; pull request #935, for A7 only                                                                     | server Ready; orders 0 to 7 Synced and Healthy; a canary read from OpenBao through an ExternalSecret; one etcd restore on the empty cluster                                                   |
-| 2     | CI            | stage 1's Argo CD, to deliver it; the change `run-ci-on-argo-workflows`                                                                           | a full gate exits 0 through a Workflow on the CI cluster, on a commit that also passed on an old gate host (CI-A4)                                                                            |
-| 3     | Observability | the server; OpenBao serving; slices 2.8, 3.2 and 3.6                                                                                              | orders 8 to 12 Healthy, `sqlite-custody` excepted, which lands in stage 4; memory and disk measured; a test alert raised; MLflow restored (A15)                                               |
-| 4     | Apps          | the server; orders 11 and 12 Healthy; slices 2.10, 3.1, 3.5, 3.8; for WBS, Harbor, slice 3.7 and A23; the server of A16; A14's placement decision | staging and then production answer on their names with their data checked against the final backup                                                                                            |
-| 5     | Retirement    | stage 4's receipts; stage 2's receipt for the gate hosts                                                                                          | old servers deleted; `desired.yaml` and the inventories name only the new cluster                                                                                                             |
+| Stage | Role          | Needs                                                                                                                                                      | Receipt that ends the stage                                                                                                                                                                   |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Decisions     | none                                                                                                                                                       | overrules recorded; the secrets of task 0.5 read back from escrow; the `main` rulesets read back; the slices decision 4 lists for stage 1 landed, except 1.3, whose first revision follows A1 |
+| 1     | Platform      | stage 0; rehearsal receipts 2.7/A3 and 2.7/A7; pull request #935, for A7 only                                                                              | server Ready; orders 0 to 7 Synced and Healthy; a canary read from OpenBao through an ExternalSecret; one etcd restore on the empty cluster                                                   |
+| 2     | CI            | stage 1's Argo CD, to deliver it; the change `run-ci-on-argo-workflows`                                                                                    | a full gate exits 0 through a Workflow on the CI cluster, on a commit that also passed on an old gate host (CI-A4)                                                                            |
+| 3     | Observability | the server; OpenBao serving; slices 2.8, 3.2 and 3.6                                                                                                       | orders 8 to 12 Healthy, `sqlite-custody` excepted, which lands in stage 4; memory and disk measured; a test alert raised; MLflow restored (A15)                                               |
+| 4     | Apps          | the server; orders 11 and 12 Healthy; slices 2.10, 3.1, 3.5, 3.8; for WBS, Harbor, slices 3.7 and 3.9 and A23; the server of A16; A14's placement decision | staging and then production answer on their names with their data checked against the final backup                                                                                            |
+| 5     | Retirement    | stage 4's receipts; stage 2's receipt for the gate hosts                                                                                                   | old servers deleted; `desired.yaml` and the inventories name only the new cluster                                                                                                             |
 
 - **Platform first, and OpenBao first on it.** Every other node joins this server, and every
   later unit reads its Secrets from the store.
@@ -1032,9 +1034,9 @@ pointed at the new node, because the new writer may be running in both cases:
    workload to zero replicas, suspends its backup job and adds a file `HOLD`, which is not
    a manifest; the render step of slice 3.7 refuses to commit to a directory that holds
    it. For the website and request app in staging, whose source is the fleet overlay, the
-   hold is the zero-replica overlay merged there, and their owner's tooling has to honour
-   the same marker, which is part of the migration contract of decision 9; without that
-   contract their publication is not automatic and the merge alone holds. For production
+   hold is the zero-replica overlay merged there; their owner's tooling moves a pin and
+   does not change the replica count, so the merge alone holds, which task 0.4 asks that
+   owner to confirm. For production
    and for MLflow the hold is the zero-replica overlay merged to `main` and synced by the
    owner; nothing else syncs them.
 2. _See every writer pod of the new side gone_: the workload reports zero replicas and no
@@ -1063,9 +1065,10 @@ one edit made after the first app's switch and one merge made during the hold.
 The final backup of a store on an old host is taken with the store's own tool after its writer
 stops: the cluster's backup job for the website, and for the Compose databases a
 `sqlite3` `.backup` on the host with `integrity_check` and a recorded SHA-256. MLflow is
-not one database file: it keeps a metadata store and an artifact store, where each lives on
-h3mon is read in A15's first part, and its custody is slice 3.6's own pair of jobs, because
-the apps' runner accepts only a database with the apps' migration table. The final
+not one database file: it keeps a SQLite metadata store and an artifact root on one volume
+(verify.md, the reading of 2026-11-22; the root held no file), and its custody is slice
+3.6's own pair of jobs, because the apps' runner accepts only a database with the apps'
+migration table. A15 reads the layout again before it moves anything. The final
 backup is always taken from the stopped store itself. A pull h1claw made earlier is never a
 substitute for it: an older copy is a valid database that lacks every edit made since. If
 h1claw still exists, a member of its set may be used only when its `.dump` digest equals
@@ -1234,23 +1237,149 @@ The build itself:
   of the one the directory's head names, so a build that finishes late cannot replace a
   newer render. The first build has a head to compare with because A23 seeds each app's
   directory with a baseline, the zero-replica render at a named commit of `main`.
-- **Schema changes do not ride the automatic path yet.** The WBS backend starts with
-  `MIGRATE_ON_STARTUP` off, because a migration Job is the single migration actor
-  (`deploy/k8s/wbs/base/backend.yaml`), and `AGENTS.md` requires a Kubernetes caller to
-  capture the applied set before moving forward and to reverse exactly the additions on
-  abort. An automated sync of a render does neither. So the render step refuses a source
-  commit whose migration set for the app differs from the one staging runs, and such a
-  change reaches staging by an attended run of the existing schema Job with its capture
-  and rollback, after which a person commits the render. Making that path automatic, as
-  hooks of the staging Application or as steps of the build, is the WBS deploy tooling
-  owner's design and is listed with slice 3.5; until it lands, R20 holds for a WBS merge
-  without a migration and not for one with. How the website's store and the request
-  app's apply their own catalogues was not read. So their automatic publication to
-  staging is blocked on a **migration contract** from their owner: how a schema change
-  is applied, how the applied set is captured, and how it is reversed on abort. Until
-  that contract is recorded as a dated decision, each of their staging pins is moved by
-  a person, and A18 does not start for them without the contract or the owner's dated
-  waiver of automatic publication for that app.
+- **A schema change rides the automatic path through a hook (R53).** The WBS backend
+  starts with `MIGRATE_ON_STARTUP` off, because a migration Job is the single migration
+  actor (`deploy/k8s/wbs/base/backend.yaml`), and `AGENTS.md` requires a Kubernetes caller
+  to ask the candidate's capability command, to capture the applied set before moving
+  forward and to reverse exactly the additions on abort. The release coordinator does
+  this for production, but it suspends a Flux unit and writes with a cluster credential,
+  and neither exists for an automated sync. So the staging render carries a Job that does
+  the same with the candidate image's own CLIs and no credential beyond the backend's
+  own environment (slice 3.9):
+  - _Where it runs._ It is a hook of the staging Application in the `Sync` phase, one
+    wave before the Deployment and one after the solver parameter ConfigMap and the
+    candidate's `wbs-backend-config`. `PreSync`
+    was not taken: that phase holds hooks only, and the Job's image has to be in the
+    admission list before its pod is created. Argo CD applies waves in order and waits
+    for each to be healthy; a hook that fails marks the sync failed, and the Deployment's
+    wave is not applied.
+  - _What it does._ Capability check; then, on every run and before anything is
+    written, the candidate's two boot preflights on the live store, read-only: the
+    machine grant settings and the trusted issuer audience, which the release
+    coordinator runs before its snapshot (`execute.ts`). The backend refuses to boot on
+    an activated store that lacks those settings (`boot.ts`), and `Recreate` removes the
+    serving pod before the new one starts, so a candidate that would refuse must fail
+    the sync here, while the old pod serves, also when nothing is pending. Then the
+    capture; nothing more when nothing is pending; otherwise a `VACUUM INTO` snapshot
+    with its integrity check and SHA-256, the capture, the list of schema objects and an
+    attempt record written to the data claim; the forward migration; and a second
+    capture that must equal the first plus what was pending. On a failure it runs the
+    exact-set reversal against the recorded capture and compares the complete ledger
+    and the list of schema objects.
+  - _What the preflights read._ `DB_PATH` on the data claim and the backend's own
+    environment, by the `envFrom` the Deployment has: the candidate render's
+    `wbs-backend-config`, applied in the wave before the hook, and
+    `wbs-backend-secrets`. The Job holds nothing the backend does not hold, and still
+    no ServiceAccount token. A candidate image without the two CLIs is refused: the
+    coordinator's exception for a declared older candidate has no place on a path that
+    never moves backwards.
+  - _Where the capture lives._ On the data claim, under `/data/schema-hook`. A ConfigMap
+    or a Secret would need a ServiceAccount token, and the solver namespace's admission
+    admits the backend's account without one. The capture is as durable as the database
+    it describes, and a second pod finds it after the first one died.
+  - _No fence, and what gives exclusive access._ The release coordinator refuses a
+    schema Job while a writer pod exists (`execute.ts`), and a `ReadWriteOnce` claim
+    does not keep a second pod of the same node out. The hook does not ask for zero
+    writers: scaling the backend down from the hook needs a token and a Role in the
+    trusted namespace, and a failed hook would then have to bring the old pod back. It
+    relies on SQLite's own lock, as the Compose swap does while the old colour serves
+    (`AGENTS.md`, Migrations): forward migrations are additive, which the migration lint
+    holds; the store opens with a busy timeout (`db.ts`); a migration and a reversal
+    hold the write lock for their transactions, and the old backend's writes wait
+    behind them or fail with a busy error once the timeout passes. The consequence is
+    accepted for staging: during a long migration writes may be slow or refused, and
+    what was acknowledged must still be there. Ledger equality does not prove that, so
+    the rehearsal has the old backend acknowledge an edit while a failing migration and
+    its reversal run, and reads that edit afterwards, with no table's row count lower
+    than before and no schema object left over. A lost edit is slice 3.9's stop. With
+    no fence a failed hook changes nothing that serves: the old pod runs on, on the old
+    schema.
+  - _The admission list._ The render writes the candidate digest first, then the digest
+    that serves and every digest published since it. Nothing is counted out: the render
+    reads the boot commit from the staging backend's public health response, takes that
+    commit's render from the pins repository's history and lists its digest and every
+    later one, however many publications failed or are still in progress. So a restart
+    of the running pod is always admitted, also when another candidate became Healthy
+    between two renders. A built image has no repository to read, so the build writes
+    the source commit into it and the backend reports that. If the render cannot read
+    the response, reads no commit, or finds no render for it, it publishes nothing for
+    the app. Over a zero-replica head (the baseline, the first activation, a hold)
+    nothing serves, and it lists every digest since the baseline without reading. The
+    staging sync alert fires at the first failure.
+  - _The attempt record after success._ The hook removes its record once the forward
+    ledger is verified and before it exits 0. A record left behind would make a later
+    sync of the same candidate reverse a schema the new backend already writes with.
+  - _The backup before a change, and its room._ The snapshot above, on the claim, kept
+    until the next one succeeds, and the hourly custody job, which reads one
+    transaction and needs no pause. At the worst moment the claim holds the store, its
+    WAL, the retained snapshot, the incoming one and what a migration or a reversal
+    rewrites when it rebuilds a table. For the tracker's 2.2 GB of today that is three
+    copies, 1 GiB of WAL and one more copy for a rebuild: about 10 GiB. The base
+    claim's 5 GiB (`deploy/k8s/wbs/base/storage.yaml`) is too small, and the 10 GiB
+    first assumed for staging leaves no margin, so the staging overlay requests 16 GiB
+    (decision 2). The hook refuses before any write unless the claim's free space is at
+    least twice the store's size plus 1 GiB, and removes the retained snapshot only
+    after the new attempt has succeeded.
+  - _When the render carries no hook._ A render at zero replicas carries none: the
+    baseline A23 seeds, the first sync of A18, which comes before the store is
+    restored, and a directory under the `HOLD` marker of decision 7, which the render
+    step leaves untouched. The hook is in a render exactly when the backend has a
+    replica, and rule 2.4(w) holds both directions. A hook that finds no store at
+    `DB_PATH` fails the sync and writes nothing.
+  - _What stays attended, and when._ Three cases, each refused by the render step or by
+    the hook and named in its message. A source commit whose migration set is not a
+    superset of the one staging runs, which is a revert or an edit of an applied
+    migration: the candidate image no longer holds the script that reverses it. An
+    unfinished attempt left by another candidate. And a reversal that failed: the hook
+    keeps its record and prints the manual completion command. In each the old pod
+    serves and a person runs the schema step. Production never takes this path: its
+    schema step is attended in A20, and the rule of slice 3.9 refuses the hook there.
+  - _The attended schema step._ It is the same script, run as a plain Job that the
+    operator creates from the manifest the tool prints, with the image about to run and
+    the workload at zero replicas; A18 to A20 use it when a restored store is behind its
+    image. A commit that removes a migration takes more care, because the operator
+    interface `AGENTS.md` keeps for it, `migrate-down-cli.ts --to=<name>`, selects by
+    stamp: it reverses every applied migration stamped after the named one
+    (`migrate-down.ts`), which can include migrations the target still needs, and a
+    `down.sql` may drop a table with its rows, as the one that removes `actual` does.
+    So the order is fixed, and nothing is run on a stamp alone. The writers are fenced:
+    the workload at zero replicas and its pods read gone. A fresh backup of the stopped
+    store is taken and verified as decision 7 states. The operator writes down the
+    intended set of removals, reads the applied ledger with the capture, and computes
+    the set `--to=<name>` would reverse; the step refuses before any SQL unless the two
+    sets are equal by name and hash. The `down.sql` of each selected migration is read:
+    a statement that drops a table or a column, or deletes rows, of a table that holds
+    rows in the stopped store stops the step for the owner's dated decision, because
+    that data is the tracker's. Only then does the Job, from the image that applied the
+    migrations, run the reversal; the ledger is read back and must equal the one before
+    less the intended set, and only then is the render committed by hand.
+    The release coordinator's own transaction is not used on the new cluster: it
+    requires a Flux unit to suspend, which an Argo CD cluster does not have.
+  - _Repeated attempts._ With self-heal on, Argo CD may try a failed sync of the same
+    commit again. A run that finds an attempt record never captures again and never
+    exits 0. For its own candidate it resumes from the recorded capture: it runs the
+    exact-set reversal against that capture, compares the ledger and the schema
+    objects, removes the record and exits nonzero, so that the next attempt starts from
+    the captured state and not from partial progress. A record of another candidate,
+    or one that marks a failed reversal, is refused with the manual completion
+    command. What this version does at the same commit is read in the rehearsal.
+- **The website API migrates itself at start, and that is safe to automate.** Read from
+  source (verify.md has the lines). The API is the one owner of the website database; the
+  request app is a browser application and holds no store. `WebsiteStore`'s constructor
+  runs every catalogued migration that the ledger `schema_migration` lacks, each in one
+  immediate transaction with its ledger row, so a start is idempotent and a failed
+  migration leaves no half of itself. It refuses to start on an applied migration whose
+  bytes changed. It starts on a database that a newer release migrated additively, which
+  a test holds, so going back is the previous image on the newer schema. Every migration
+  ships a `down.sql` that a test proves exact, but no command applies one: a destructive
+  change has no automatic reversal, and the migration lint that guards the store's path
+  keeps forward migrations additive. So an automated sync of a new API image needs no
+  hook and no contract from its owner: a migration that fails keeps the new pod from
+  becoming Ready and loses nothing. Two things could not be read, because the website's
+  manifests are in the private fleet repository: the Deployment's update strategy, which
+  decides whether the old pod serves on during a failed start, and that the overlay
+  keeps one replica on a node-local claim. Task 0.4 asks their owner for both, and A18's
+  website part records the answer.
 - **A stateful app's first render.** Guard 1 restores a store while its workload is at zero
   replicas. For WBS staging the first overlay merged is the zero-replica one with the backup
   job suspended; A23 seeds the pins directory with that render as the baseline, and a
@@ -1279,8 +1408,9 @@ The build itself:
 - **One milestone for all three apps.** A18's receipt, per app, is a merge to the app's
   source that reaches staging with no command. For WBS the path is slices 3.5, 3.7 and
   CI-S7 and steps A23 and CI-A5. For the website and the request app it is their owner's
-  tooling. Where it does not exist when A18 runs, the owner's dated waiver is recorded for
-  that app, and the app is listed as not yet following `main`.
+  tooling, which moves a pin as it does today; the API's own start applies a schema
+  change. Where that tooling does not exist when A18 runs, the owner's dated waiver is
+  recorded for that app, and the app is listed as not yet following `main`.
 - **Under the owner's waiver.** If A23 or the CI change's CI-A5 cannot be done and the owner waives it in writing,
   a person renders and commits each staging change by a pull request in the pins
   repository. Staging then does not follow `main` by itself, and R20 does not hold for
@@ -1323,7 +1453,8 @@ merge can reach staging hours later (its decision 5).
 
 Needed from other owners: from the CI change, the trigger, the tenant's namespace, engine
 and store path, and the `staging-build` template; from the WBS deploy tooling's owner, the
-build entrypoint and a staging overlay the job can render at a commit; from the release
+build entrypoint and a staging overlay the job can render at a commit, which carries the
+schema hook of slice 3.9; from the release
 bootstrap's owner, whether the website takes the same path; from the Harbor change, the
 project and the push robot; from the owner, the staging pins repository and the App.
 
@@ -1900,11 +2031,19 @@ change `host-postgres`, and the one for the agents' hosts in `add-agent-hosts`.
 - **Two dev databases and a configuration archive on h2puni are not carried** and lose their
   only backup with h1claw (decision 7).
 - **Removing a unit takes two merges and a command** (decision 3).
-- **A schema change does not reach staging by itself.** The render step refuses it, and a
-  person runs the schema Job and commits the render until the WBS owner automates that
-  path (decision 9).
-- **MLflow's layout on h3mon is unread.** Its custody is designed after A15's first part;
-  h3mon is not deleted before metadata and artifacts have been restored together.
+- **A schema change reaches WBS staging through a hook that does not fence the writer**
+  (R53, decision 9). It rests on forward migrations being additive, which the migration
+  lint holds and nothing at run time does. Three cases stay attended: a commit that
+  removes or edits an applied migration, an attempt left by another candidate, and a
+  reversal that failed. The render publishes nothing for the app while it cannot read
+  which commit serves.
+- **The website API applies a schema change at its own start, with no reversal command**
+  (decision 9). Going back is the previous image on the newer, additive schema. Its
+  Deployment's update strategy and replica count are in the private fleet repository and
+  are asked of their owner (task 0.4).
+- **MLflow's artifact root was empty when read.** The custody archives it with a manifest
+  all the same, and A15 stops if it has grown past what the claim was sized for. h3mon is
+  not deleted before metadata and artifacts have been restored together.
 - **Devices the Kubernetes operator makes need the owner's signature** under Tailnet Lock,
   and how often is unknown. The fallback gives up the operator for those exposures, not
   the lock (decision 12).
@@ -1930,8 +2069,9 @@ and size, are questions of `add-agent-hosts`.
 
 Not questions, but his to overrule by id: R34, that dev is delivered by a follow-up change;
 R35, that the CI cluster is one trust zone while there are no production users; and R49 to
-R52, which the planning session set on 2026-11-22 while he was away so that nothing waited:
-no public SSH rule, the CI server's size, no public webhook, and Tailnet Lock with `sshd`. The planning
+R53, which the planning session set on 2026-11-22 while he was away so that nothing waited:
+no public SSH rule, the CI server's size, no public webhook, Tailnet Lock with `sshd`, and
+the schema hook for WBS staging. The planning
 session also recommends a second Slack channel for production alerts once production has
 users.
 
@@ -1946,9 +2086,15 @@ users.
   was run.
 - That the root, without prune, leaves an Application whose file was removed.
 - Whether the object storage provider can limit a key to one bucket.
-- Where MLflow keeps its metadata and its artifacts on h3mon, which A15's first part reads.
-- How the website's store applies a migration, and so whether its automatic staging path
-  has the gap decision 9 states for WBS.
+- That `alembic_version` holds one row on the real MLflow store: the table and the server's
+  refusal of an out-of-date schema were read in MLflow's source at v3.7.0, not on the store.
+- The website API Deployment's update strategy and replica count: its manifests are in the
+  private fleet repository.
+- What Argo CD does with a failed sync of the same commit under self-heal: its page on
+  automated sync says both that it is not attempted again and that self-heal attempts it
+  again after a timeout. Slice 3.9's rehearsal records it.
+- That a hook Job and the serving backend can hold the node-local claim together; the
+  claim is `ReadWriteOnce` and both pods are on one node, as in the Compose swap.
 - That a rule in the prerouting hook, before destination NAT, drops a forwarded port on the
   public interface with the firewall as the role writes it; slice 1.8's negative shows it.
 - Whether a device the Tailscale operator makes keeps its identity across a restart, and so
@@ -1993,8 +2139,6 @@ users.
 - The exact `ignoreDifferences` list, and the memory of Argo CD, the k3s server and etcd.
 - How the public certificates are solved, and the content of the fleet repository's overlays
   beyond their file list: both are private.
-- How MLflow stores its data on h3mon, and whether one SQLite file and one directory are all
-  of it.
 - The figures for `puni-request-app`, OpenBao and the staging WBS database's growth.
 - Pull request #935 beyond its design file at its branch on 2026-11-21.
 - That the backup archive key and the registry CA exist in escrow outside the hosts that use

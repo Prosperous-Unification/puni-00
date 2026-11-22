@@ -370,48 +370,48 @@ of this plan between 2026-11-21 and 2026-11-22. Their findings and what became o
 in the pull request's history; draft and review ids are not carried here. The last two read
 the commit `08507cb8e`, and this is what became of their findings.
 
-| Finding                                                                                   | Outcome                                                                                                    |
-| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Going back after the new writer accepted edits                                            | Fixed: decision 7's rule, the comparison in A18, the rollbacks of A15 and A18 to A20, a requirement        |
-| MLflow backed up by the apps' runner                                                      | Fixed: its own custody (slice 3.6), a reading first and a whole restore with a checked artifact (A15)      |
-| h1claw deletable before its receipts; h4claw's inventoried container                      | Fixed: the same receipts whenever it is deleted; a signed list per retirement step (A21, A22, AH-A3)       |
-| The trigger key readable from any branch; a gate at a chosen commit                       | Fixed: an environment that admits `main` only; the trigger identity cannot start a gate (CI change)        |
-| The new cluster's keys on a host where gate code is root                                  | Fixed: the controller is the operator's laptop only (decision 10); the h2puni option is removed            |
-| Automatic staging without the schema Job                                                  | Fixed by refusal: a source commit that changes the migration set is not published automatically            |
-| CI stage ordering; inventory group; sync and rules for the `ci` project; network paths    | Fixed: CI-S2's inventory after A9, rules 2.4(a), (c) and slice 2.5 extended, two paths named (decision 12) |
-| The gate submitted where its pod may not run; a Secret in the build namespace             | Fixed: the gate's template and Workflows are in the `-build` namespace; `report-status` posts the result   |
-| Tailnet Lock and devices the operator makes; the CI cluster's route to the store          | Fixed: a signing action per step, a fallback that keeps the lock, the private listener named               |
-| Conversation quoted in a public repository; review histories                              | Fixed: decisions are stated and dated; histories are removed from the four verify files                    |
-| Private addresses in the public inventory                                                 | Kept as decided on 2026-11-21 (R5), with its alternative, a private inventory; no new kind of identifier   |
-| The telemetry gateway's NodePorts against the ban; a forwarded port on a public interface | Fixed: a drop before destination NAT (slice 1.8), the ban in every project, two exemptions by name         |
-| SQL flows of the dump and drill jobs; isolation proved by a refused listing               | Fixed in `host-postgres` and in A18: the two flows allowed, a read refused by authorisation                |
-| A late build replacing a newer render                                                     | Fixed: the render step refuses a source commit that is not a descendant (slice 3.7)                        |
-| Automatic staging for two apps left to another owner; empty dev namespaces                | Stated: one milestone per app with a recorded waiver where the path does not exist; dev is the follow-up   |
-| A build beside a gate against "waits behind"; pod priority and the kernel's kill          | Fixed: a build waits in phase 1, since by one shared mutex (CI change, decision 5)                         |
-| No fallback if the gate cannot run in a pod                                               | Fixed: the host form of the gate, started by a Workflow (CI change, decision 6)                            |
-| No alert before the trigger key expires or for a stale pin                                | Fixed: slice CI-S9                                                                                         |
-| Rule letters, the console password, policy rows for operator tags, a single signer        | Fixed in place                                                                                             |
+| Finding                                                                                   | Outcome                                                                                                              |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Going back after the new writer accepted edits                                            | Fixed: decision 7's rule, the comparison in A18, the rollbacks of A15 and A18 to A20, a requirement                  |
+| MLflow backed up by the apps' runner                                                      | Fixed: its own custody (slice 3.6), a reading first and a whole restore with a checked artifact (A15)                |
+| h1claw deletable before its receipts; h4claw's inventoried container                      | Fixed: the same receipts whenever it is deleted; a signed list per retirement step (A21, A22, AH-A3)                 |
+| The trigger key readable from any branch; a gate at a chosen commit                       | Fixed: an environment that admits `main` only; the trigger identity cannot start a gate (CI change)                  |
+| The new cluster's keys on a host where gate code is root                                  | Fixed: the controller is the operator's laptop only (decision 10); the h2puni option is removed                      |
+| Automatic staging without the schema Job                                                  | Fixed, then designed: first by refusing such a commit, now by the staging schema hook of slice 3.9 (decision 9, R53) |
+| CI stage ordering; inventory group; sync and rules for the `ci` project; network paths    | Fixed: CI-S2's inventory after A9, rules 2.4(a), (c) and slice 2.5 extended, two paths named (decision 12)           |
+| The gate submitted where its pod may not run; a Secret in the build namespace             | Fixed: the gate's template and Workflows are in the `-build` namespace; `report-status` posts the result             |
+| Tailnet Lock and devices the operator makes; the CI cluster's route to the store          | Fixed: a signing action per step, a fallback that keeps the lock, the private listener named                         |
+| Conversation quoted in a public repository; review histories                              | Fixed: decisions are stated and dated; histories are removed from the four verify files                              |
+| Private addresses in the public inventory                                                 | Kept as decided on 2026-11-21 (R5), with its alternative, a private inventory; no new kind of identifier             |
+| The telemetry gateway's NodePorts against the ban; a forwarded port on a public interface | Fixed: a drop before destination NAT (slice 1.8), the ban in every project, two exemptions by name                   |
+| SQL flows of the dump and drill jobs; isolation proved by a refused listing               | Fixed in `host-postgres` and in A18: the two flows allowed, a read refused by authorisation                          |
+| A late build replacing a newer render                                                     | Fixed: the render step refuses a source commit that is not a descendant (slice 3.7)                                  |
+| Automatic staging for two apps left to another owner; empty dev namespaces                | Stated: one milestone per app with a recorded waiver where the path does not exist; dev is the follow-up             |
+| A build beside a gate against "waits behind"; pod priority and the kernel's kill          | Fixed: a build waits in phase 1, since by one shared mutex (CI change, decision 5)                                   |
+| No fallback if the gate cannot run in a pod                                               | Fixed: the host form of the gate, started by a Workflow (CI change, decision 6)                                      |
+| No alert before the trigger key expires or for a stale pin                                | Fixed: slice CI-S9                                                                                                   |
+| Rule letters, the console password, policy rows for operator tags, a single signer        | Fixed in place                                                                                                       |
 
 Not changed, with the reason: nothing was found wrong against source in either review.
 
 The second model then read the commit `3f7b5f60b` against its own list. Six findings it
 called resolved; this is what became of the rest and of what it added.
 
-| Finding                                                                     | Outcome                                                                                                        |
-| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| The comparison ran before the new writer stopped, and read `event_log` only | Fixed: stop first, then the `.dump` digest of the whole store; MLflow by metadata digest and artifact manifest |
-| The trigger identity could submit `report-status` with chosen parameters    | Fixed: admission admits only `staging-build` with its two parameters (CI change, decision 2)                   |
-| The controller image built on any machine and pinned by digest              | Fixed: built on the controller; the keys are refused an image without a matching local build (decision 10)     |
-| The website's staging part could start without its migration contract       | Fixed: A18 does not start for the website or the request app without the contract or a dated waiver            |
-| Receipts that publish messages                                              | Fixed: tasks 0.4, CI-0.3 and PG-0.3 record dated decisions with their owner, in neutral words                  |
-| A telemetry receipt in stage 2, before the receiver exists                  | Fixed: moved from CI-A2 to A14                                                                                 |
-| The drill's policy allowed SQL and storage, but it creates a `Cluster`      | Fixed in `host-postgres`: the API server and DNS for the drill, a Role for `Cluster` objects in its namespace  |
-| Dev deferred with no executable milestone                                   | Fixed: step A25 is the follow-up's first deployment into the reserved namespaces                               |
-| A pull h1claw made standing in for the final backup                         | Fixed: the final backup is taken from the stopped store; an earlier copy only at an equal digest (decision 7)  |
-| A gate and a build in two namespaces kept apart by a namespace's quota      | Fixed: one mutex both templates name in the `-build` namespace; its overlap is rehearsed (CI change)           |
-| Every finished Workflow reported, the report included                       | Fixed: a filter on the `template` label and phase; the report is named after the Workflow's UID                |
-| A prior per-app commit required of an empty pins repository                 | Fixed: A23 seeds a baseline for each app before the App exists                                                 |
-| Freshness compared with the tip of `main` though only app merges build      | Fixed: the latest commit that touches the app's source paths; an unrelated merge starts nothing                |
+| Finding                                                                     | Outcome                                                                                                                        |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| The comparison ran before the new writer stopped, and read `event_log` only | Fixed: stop first, then the `.dump` digest of the whole store; MLflow by metadata digest and artifact manifest                 |
+| The trigger identity could submit `report-status` with chosen parameters    | Fixed: admission admits only `staging-build` with its two parameters (CI change, decision 2)                                   |
+| The controller image built on any machine and pinned by digest              | Fixed: built on the controller; the keys are refused an image without a matching local build (decision 10)                     |
+| The website's staging part could start without its migration contract       | Fixed, then read from source: the API migrates at its own start; A18 records the fleet owner's answer on strategy and replicas |
+| Receipts that publish messages                                              | Fixed: tasks 0.4, CI-0.3 and PG-0.3 record dated decisions with their owner, in neutral words                                  |
+| A telemetry receipt in stage 2, before the receiver exists                  | Fixed: moved from CI-A2 to A14                                                                                                 |
+| The drill's policy allowed SQL and storage, but it creates a `Cluster`      | Fixed in `host-postgres`: the API server and DNS for the drill, a Role for `Cluster` objects in its namespace                  |
+| Dev deferred with no executable milestone                                   | Fixed: step A25 is the follow-up's first deployment into the reserved namespaces                                               |
+| A pull h1claw made standing in for the final backup                         | Fixed: the final backup is taken from the stopped store; an earlier copy only at an equal digest (decision 7)                  |
+| A gate and a build in two namespaces kept apart by a namespace's quota      | Fixed: one mutex both templates name in the `-build` namespace; its overlap is rehearsed (CI change)                           |
+| Every finished Workflow reported, the report included                       | Fixed: a filter on the `template` label and phase; the report is named after the Workflow's UID                                |
+| A prior per-app commit required of an empty pins repository                 | Fixed: A23 seeds a baseline for each app before the App exists                                                                 |
+| Freshness compared with the tip of `main` though only app merges build      | Fixed: the latest commit that touches the app's source paths; an unrelated merge starts nothing                                |
 
 Read for this pass: `libs/wbs/adapters/store-sqlite/src/user.ts`, where an account is
 written outside `event_log`; `docs/infra/cutover-plan.md`, whose `event_log` test this plan
@@ -420,3 +420,79 @@ builds that came out equal; and Argo Workflows' synchronization guide and types 
 pinned tag (the CI change's verify.md). Not verified: that `sqlite3 .dump` of an unchanged
 store is byte-identical between two readings on the two hosts' `sqlite3` versions; A18's
 first comparison, made before any edit, shows it, and a difference there stops the step.
+
+## Three items closed after the merge (2026-11-22)
+
+The merged plan left three things to named owners. Each is now designed, or a stated limit
+with its condition. Nothing was changed on a host; one read-only reading was taken.
+
+**MLflow's layout, read on the observability host on 2026-11-22, read-only.** MLflow v3.7.0
+runs as one Compose service, started as `mlflow server` with
+`--backend-store-uri=sqlite:////mlflow/mlflow.db`, `--default-artifact-root=/mlflow/artifacts`
+and `--artifacts-destination=/mlflow/artifacts`. One named volume is mounted at `/mlflow`
+and holds both. `mlflow.db` was about 1.07 GB. `/mlflow/artifacts` existed and held no
+file. Slice 3.6 and A15 are written for that layout, and A15 reads it again before it
+moves anything. In MLflow's source at that tag, `mlflow/store/db/utils.py` builds an
+Alembic configuration, leaves out tables named `alembic_` when it lists its own, and
+refuses an out-of-date schema in `_verify_schema`; `mlflow/store/db_migrations/alembic.ini`
+sets no version table, so the revision is in Alembic's default table, `alembic_version`.
+That table was not read on the store itself.
+
+**How the website applies migrations, read in this repository.**
+
+| Fact                                                                                                                                                      | Where                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| The API opens the store at start; nothing else migrates                                                                                                   | `apps/website/be-01/src/server.ts:341`; `docs/website/request-retention.md:9`       |
+| The constructor makes the ledger `schema_migration` and runs each catalogued migration the ledger lacks, in one immediate transaction with its ledger row | `libs/website/adapters/store-sqlite/src/store.ts:236-259`                           |
+| An applied migration whose bytes changed stops the start                                                                                                  | `store.ts:246-248`                                                                  |
+| The catalogue is fourteen named directories, each read for `migration.sql` and `down.sql`                                                                 | `migration-catalogue.ts:4-39`; `store.ts:240-241`                                   |
+| A store that a newer release migrated additively still starts                                                                                             | `migration-rollback.test.ts:59-76`                                                  |
+| Every `down.sql` restores the exact schema before it, in a test; no command applies one                                                                   | `migration-rollback.test.ts:27-40`; no caller outside tests                         |
+| Maintenance commands open an existing file read-only or validated and refuse anything but the image's exact migrations and schema                         | `checked-database.ts:56-88`, `:96-110`                                              |
+| The lock wait is bounded at five seconds, for two processes on one file                                                                                   | `checked-database.ts:21-22`; `store.ts:233-234`                                     |
+| The migration lint runs on the store's path                                                                                                               | `lefthook.yml:27-29`                                                                |
+| The request app is a browser application with no store                                                                                                    | `apps/website/fe-01/package.json:2`; no `bun:sqlite` under `apps/website/fe-01/src` |
+
+Not read: the website's Deployment, its update strategy and its replica count, which are
+in the private fleet repository. Task 0.4 asks their owner for them.
+
+**The schema path for WBS staging, from source and Argo CD's documentation.** Read:
+`AGENTS.md` (Migrations); `apps/wbs/be-01/src/migrate-capabilities-cli.ts`,
+`migrate-status-cli.ts`, `migrate-cli.ts`, `migrate-down-cli.ts` and
+`migrate-capture-digest-cli.ts`; `deploy/k8s/wbs/base/backend.yaml` (startup migrations
+off, `Recreate`, the writer label) and `storage.yaml` (`ReadWriteOnce`);
+`tools/tool-deploy/src/k8s/execute.ts` (the schema Job's manifest and script);
+`infra/platform/policy/trusted-workloads.yaml` (account, controller label, selector and
+digest list for every pod of the solver namespace); `docs/infra/deployment.md` (the release
+transaction, which suspends a Flux unit). In Argo CD's `docs/user-guide/sync-waves.md` at
+v3.6.2: `PreSync` and `PostSync` hold hooks only; a `Sync` hook runs with the application
+of the manifests; resources are ordered by phase, then wave, then kind and name, and the
+next wave is applied when the one before is in sync and healthy; a failed hook marks the
+operation failed; a hook without a delete policy is treated as `BeforeHookCreation`; and
+a hook Job should carry no `ttlSecondsAfterFinished`. In `docs/user-guide/auto_sync.md` at
+that tag: a retry policy exists, and the page states both that a failed sync of the same
+commit is not attempted again and that with self-heal it is attempted again after the
+self-heal timeout. Not verified: which of the two holds; that a `Sync` hook in wave -1
+finishes before a Deployment in wave 0 is applied on this version; and that the hook's pod
+and the serving backend hold the claim together on one node. Slice 3.9's rehearsal case
+shows all three, and its stop keeps schema changes attended if one fails.
+
+A review of that closing pass by Codex (`gpt-6.2-astra`, high effort, on 2026-11-22) found
+the MLflow and website items closed and seven defects in the staging schema hook, all
+folded here:
+
+| Finding                                                              | What was read                                                                                                                                                                                       | Now                                                                                                                             |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| The attended removal ran `--to` on a stamp before reading the ledger | `libs/wbs/adapters/store-sqlite/src/migrate-down.ts` (`migrationsToRollback`: every applied migration stamped after the baseline); `20260817130000_add_actual/down.sql` (drops `actual`)            | Fence, fresh backup, the two sets compared before any SQL, destructive statements on tables with rows to the owner (decision 9) |
+| The hook skipped the coordinator's boot preflights                   | `tools/tool-deploy/src/k8s/execute.ts` (the two CLIs before the snapshot; `CAPTURE_ENV_FROM`); `apps/wbs/be-01/src/boot.ts` (refusal on an activated store); `backend.yaml` (`Recreate`, `envFrom`) | Both preflights on every run with the backend's own `envFrom`                                                                   |
+| Exclusive access; ledger equality as the only proof                  | `execute.ts` (`writerPods` refusal); `libs/wbs/adapters/store-sqlite/src/db.ts` (busy timeout); `AGENTS.md`, Migrations                                                                             | SQLite's lock, stated with its cost; an acknowledged concurrent edit read in the rehearsal                                      |
+| A retry of the same candidate recaptured partial progress            | slice 3.9 as it stood                                                                                                                                                                               | A record is never recaptured and never ends in exit 0                                                                           |
+| The hook ran at bootstrap and during a hold                          | A18's order: the first sync precedes the restore                                                                                                                                                    | No hook in a zero-replica render; rule 2.4(w) holds both directions                                                             |
+| No room counted for the snapshots                                    | `deploy/k8s/wbs/base/storage.yaml` (5 GiB); the dev store's 2.2 GB                                                                                                                                  | Staging's claim at 16 GiB; a free-space floor in the hook; disk minimums 233 and 90 GiB                                         |
+| The rehearsal refused an added migration                             | slice 2.7                                                                                                                                                                                           | It refuses an edited one                                                                                                        |
+
+Not verified: that the two preflight CLIs need nothing beyond the backend's `envFrom`
+on the new cluster's overlay, which slice 3.5's owner renders; the busy timeout's length
+against a real migration of the tracker; and the drizzle migrator's transaction
+boundaries, on which the survival of a concurrent edit rests. The rehearsal reads the
+last two.

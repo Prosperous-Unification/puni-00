@@ -17,7 +17,7 @@ database server is the growth step it later moves to (PG8).
 **Ids.** This change's own carry the prefix PG: assumptions PG1 to PG8, slices PG-S1 to
 PG-S6, attended steps PG-A1 to PG-A5, and decisions 1 to 5 of this file. Every other id is
 the core change's, [`separate-node-roles`](../separate-node-roles/design.md): R1 to R35, R45,
-R46, A1 to A25, slices 1.1 to 3.8, rules 2.4(a) to (n), guards 1 to 6, and what is written "core
+R46, A1 to A25, slices 1.1 to 3.9, rules 2.4(a) to (n), guards 1 to 6, and what is written "core
 decision n". Rule (o) is this change's addition to that `delivery` family, and orders 18 to
 20 continue that order table.
 
@@ -459,7 +459,7 @@ segment, before it goes.
 
 **What is missing in source.** Each row is an agent slice in [tasks.md](tasks.md).
 
-| Gap                                                                                                                                                             | Slice |
+| Missing                                                                                                                                                         | Slice |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | No role or capability for a database node; the agent template writes one taint, the enrollment one                                                              | PG-S1 |
 | No PostgreSQL operator, backup plugin or operand image is locked or has a unit                                                                                  | PG-S2 |

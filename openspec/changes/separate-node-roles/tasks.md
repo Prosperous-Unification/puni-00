@@ -18,11 +18,12 @@ and the step reads back that the name answers (design decision 12).
 
 ## 0. Decisions
 
-- [ ] 0.1 Owner reads assumptions R1 to R35 and R45 to R52 in design.md and overrules by id.
+- [ ] 0.1 Owner reads assumptions R1 to R35 and R45 to R53 in design.md and overrules by id.
       This change has no open question. He may overrule R34 (dev is delivered by a
-      follow-up change), R35 (the CI cluster is one trust zone), and R49 to R52, which the
+      follow-up change), R35 (the CI cluster is one trust zone), and R49 to R53, which the
       planning session set on 2026-11-22 while he was away: no public SSH rule, the CI
-      server's size, no public webhook, Tailnet Lock with `sshd`; and the controller on
+      server's size, no public webhook, Tailnet Lock with `sshd`, the schema hook for
+      WBS staging; and the controller on
       his laptop only (design decision 10). Rows marked decided record his
       answers of 2026-11-21 and 2026-11-22. Receipt: the overrules, dated, as decisions in verify.md. Until then only
       slices 1.1, 1.2 and 2.1 to 2.5 may start; the rehearsal 2.7 needs 2.1 to 2.5 and
@@ -39,8 +40,9 @@ and the step reads back that the name answers (design decision 12).
       3.7's list, the withdrawal of the old gate hosts, the solver per environment in every
       ACME issuer (design decision 3), and, for the release bootstrap's owner, whether the
       website takes the staging build path, by which step a merge to its source reaches
-      staging with no command, and the migration contract of design decision 9 for the
-      website and the request app. Tell them too that this change edits no path
+      staging with no command, and the two things design decision 9 could not read in
+      the private fleet repository: the update strategy of the website API's Deployment
+      and that its overlay keeps one writer. Tell them too that this change edits no path
       the old cluster reconciles, so its pin needs no freeze. Receipt: for each owner, the
       date they were told and what each answered, recorded in verify.md as decisions with
       their owner, in neutral words. No message is copied into the repository.
@@ -470,7 +472,7 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       Service of type NodePort in a staging namespace denied at admission; two fixture
       builds of one app finishing in reverse order, the later commit's render staying in
       the pins directory and the earlier one refused; a fixture build whose source commit
-      adds a migration refused by the render step; a recreated Tailscale proxy pod
+      edits an applied migration refused by the render step; a recreated Tailscale proxy pod
       answering again under its name, and what that needed from the owner.
       Stop: a unit cannot become Healthy, or validation cannot pass with one node. Then
       design decisions 3 and 6 are revised before the step that part gates. Fallbacks already
@@ -615,13 +617,13 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       record. The Flux paths of the old cluster are removed by a later change. Test:
       `bunx nx run tool-fleet:check`.
 - [ ] 3.5 Before A18's WBS part and A20. Owner: the WBS deploy tooling's owner; this change
-      only names the gap. The `staging` overlay renders namespaces of its own, the solver
+      states what the overlays have to hold and checks it. The `staging` overlay renders namespaces of its own, the solver
       one being `wbs-solver-staging` (slice 3.8), and carries that namespace's parameter
       ConfigMap, whose backend digest the staging build sets when it renders the overlay
       (design decision 1), and renders without a cluster; both
       overlays carry the selector patches of design decision 1, a backup prefix per decision
       7, ExternalSecrets in place of the SOPS Secrets they expect, the stale-backup rule of
-      3.1, NetworkPolicies that only allow, since each namespace's default-deny is the
+      3.1, for staging the schema hook of slice 3.9 with its waves, NetworkPolicies that only allow, since each namespace's default-deny is the
       `policy` unit's (slice 2.10), and image references that name Harbor (R28); the WBS alert group is added to `alerts` with each. The `delivery`
       check reads both under rules (f), (g), (k), (m) and (n) and the rules of 3.1. Test: both
       overlays render together into one fixture cluster with no object in common. Negatives:
@@ -630,26 +632,34 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       refused. Faults to inject: compare the two renders by kind only and watch the shared
       namespace pass; search object names only
       and watch the staging value that names a production Service pass.
-- [ ] 3.6 After the reading of A15's first part and before its second (R15, guard 1). MLflow
-      keeps a metadata store and an artifact store, and the apps' backup runner cannot
-      hold either: it refuses a database without the apps' migration table and uploads
-      one file (`tools/tool-fleet/src/backup-sqlite.ts`). Where both stores are on h3mon
-      is not written in this repository, so the slice starts from that reading. It adds a
-      unit `mlflow` under `infra/argocd/units`: the MLflow server pinned by digest,
-      selecting `observability`, with `Retain` claims for metadata and artifacts carrying
-      `Prune=false` and `Delete=false`; a backup CronJob of its own that takes a
-      consistent copy of the metadata store, archives the artifact store with a manifest
-      of every file's SHA-256, and writes both under one stamp to a prefix per decision 7;
-      a verify CronJob that restores a stamp into scratch, opens the metadata and checks
-      every artifact against the manifest; and the stale-backup rule of 3.1. Test: the
-      backup and verify pair against a fixture store with two runs and three artifacts.
-      Negatives, each with its own fault: a stamp whose artifact differs from its
-      manifest fails verify (fault: compare file counts); a stamp with metadata and no
-      artifact archive fails verify (fault: verify the metadata alone); the unit without
-      its backup CronJob fails rule 2.4(n) (fault: add `mlflow` to that rule's exemption
-      table). Stop: the layout read in A15 is not a database file and a directory, for
-      example a database server or an object store. Then the slice reports, and the owner
-      decides before h3mon may be deleted.
+- [ ] 3.6 Before A15 (R15, guard 1). MLflow keeps a metadata store and an artifact root,
+      and the apps' backup runner cannot hold either: it refuses a database without the
+      apps' migration table and uploads one file (`tools/tool-fleet/src/backup-sqlite.ts`).
+      The layout is read (verify.md, the reading of 2026-11-22): one volume mounted at
+      `/mlflow` holds a SQLite metadata store, `/mlflow/mlflow.db`, and the artifact root,
+      `/mlflow/artifacts`, which held no file. The slice adds a unit `mlflow` under
+      `infra/argocd/units`: the MLflow server pinned by digest and started with those two
+      paths, selecting `observability`, with one `Retain` claim mounted at `/mlflow`
+      carrying `Prune=false` and `Delete=false`; a backup CronJob of its own, a script on
+      `bun:sqlite` in the pattern of `backup-sqlite.ts`, which takes a consistent copy of
+      the metadata store with `VACUUM INTO`, runs `PRAGMA integrity_check` on the copy,
+      reads the one row of `alembic_version`, the table in which MLflow's schema
+      migrations keep the revision, archives the artifact root with a manifest of every
+      file's path, size and SHA-256, an empty manifest when there is no file, and writes
+      copy, archive, manifest and a report under one stamp to a prefix per decision 7; a
+      verify CronJob that restores a stamp into scratch, checks the copy's SHA-256,
+      integrity and revision against the report and every artifact against the manifest;
+      and the stale-backup rule of 3.1. Test: the pair against a fixture store with two
+      runs and three artifacts, and against one with no artifact. Negatives, each with
+      its own fault: a stamp whose artifact differs from its manifest fails verify
+      (fault: compare file counts); a stamp with metadata and no manifest fails verify,
+      an empty artifact root included (fault: verify the metadata alone); a copy whose
+      revision differs from the report fails verify (fault: skip the revision read); a
+      store without `alembic_version` is refused by the backup (fault: record the
+      revision as unknown); the unit without its backup CronJob fails rule 2.4(n)
+      (fault: add `mlflow` to that rule's exemption table). Stop: on a copy of the real
+      store, taken read-only, `alembic_version` is absent or holds more than one row.
+      Then the slice reports before A15.
 - [ ] 3.7 Before A23, which A18's WBS part waits for (R20, R31, R35, design decision 9).
       Owners: the WBS deploy tooling's owner for the build entrypoint and a staging
       overlay that renders at a commit; the release bootstrap's owner for whether the
@@ -684,9 +694,13 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       kinds only); a commit whose source commit is not a descendant of the one the
       directory's head names is refused, so a build that finishes late cannot replace a
       newer render (fault: compare timestamps); a source commit whose migration set for
-      the app differs from that of the commit the directory's head names is refused with
-      a message that names the attended path of design decision 9 (fault: compare image
-      digests only); a directory that holds the `HOLD` marker of design decision 7 is
+      the app is not a superset, by name and hash, of that of the commit the directory's
+      head names is refused with a message that names the attended path of design
+      decision 9, because a removed or edited migration cannot be reversed from the
+      candidate image (fault: compare counts only); a WBS render with a backend replica
+      and without the schema hook of slice 3.9, or whose hook image differs from the
+      backend's, is refused, and so is a render at zero replicas that carries the hook
+      (fault: read the Deployment alone); a directory that holds the `HOLD` marker of design decision 7 is
       left as it is and the step exits nonzero, so a publication during a hold starts no
       writer (fault: clear the directory before looking for the marker); the
       promotion check refuses a base manifest changed since the commit staging ran
@@ -723,6 +737,138 @@ Slices 2.1 to 2.6, 2.9 and the receipt 2.7/A3 are needed before A3 and A4; 2.8 b
       caller image or a ConfigMap owned by the overlay. Then the slice stops and reports.
       Staging would need the operator's two writes for each backend, as production does, and
       the owner is told that R20 does not hold for the WBS backend until that is solved.
+- [ ] 3.9 Before A23 and A18's WBS part (R20, R53, design decision 9). The staging schema
+      hook, so that a merge with a migration reaches WBS staging with no command.
+      Owners: this change for the script, the rule and the render step's checks; the WBS
+      deploy tooling's owner for carrying the hook in the staging overlay (slice 3.5). In
+      `tools/tool-deploy/src/k8s`: a script `staging-schema-hook`, run with `bun` from the
+      candidate backend image's own directory, which calls only that image's CLIs. In
+      order: it fails when no store is at `DB_PATH`; on an attempt record it never
+      captures and never exits 0: for another candidate, or for a record that marks a
+      failed reversal, it refuses and prints the manual completion command, and for its
+      own candidate it runs the reversal below against the recorded capture, removes the
+      record on an equal ledger and exits nonzero; it asks
+      `migrate-capabilities-cli.ts` for `capture-v1` and `restore-v1-sha256`; on every
+      run, also with nothing pending, it runs `mcp-service-settings-check-cli.ts` and
+      `trusted-issuer-audience-check-cli.ts` on the live store with the candidate's
+      environment, as the release coordinator does before its snapshot, and fails on
+      either refusal or on a candidate that lacks either file; runs
+      `migrate-status-cli.ts --capture` with target `staging`, the source commit as
+      attempt and the image digest as candidate; exits 0 when the pending set is empty,
+      having written nothing; otherwise requires free space on the claim of at least
+      twice the store's size plus 1 GiB, takes a
+      `VACUUM INTO` snapshot with `integrity_check` and a SHA-256, writes the capture's
+      bytes and SHA-256 and the names of the store's schema objects beside it under
+      `/data/schema-hook` and an attempt record last;
+      runs `migrate-cli.ts`; captures again and requires the applied set to be the
+      captured one plus the captured pending one, with nothing pending; removes the
+      snapshot kept from the attempt before only now; and then removes the attempt
+      record, syncs the directory to disk and reads the record absent before it exits
+      0, so that a later sync of the same candidate finds nothing pending and no
+      record and reverses nothing that the new backend has since written with. On a
+      failure
+      after the attempt record it runs
+      `migrate-down-cli.ts --capture-file --capture-sha256 --target --attempt --candidate`,
+      captures again, requires the complete name and hash ledger and the schema
+      objects to equal the first capture's, removes the attempt record and exits
+      nonzero; if the reversal or that
+      comparison fails it keeps the record and the snapshot, prints the manual
+      completion command with the capture's path and SHA-256 and exits nonzero. The
+      script is carried byte for byte in a ConfigMap of the staging overlay, as the
+      backup runner is, with a test of the equality. The tool also prints the same Job
+      as a plain manifest, without the hook annotations, for the attended schema step
+      of design decision 9, and for a removal it prints the comparison of that
+      decision: the set `--to=<name>` would reverse beside the intended one, and each
+      selected `down.sql` statement that drops or deletes from a table holding rows; it
+      refuses to print a runnable Job unless the sets are equal, and marks one that
+      needs the owner's decision. The staging overlay requests 16 GiB for `wbs-data`
+      (design decision 2). Its render holds,
+      besides the backend: the parameter ConfigMap in wave -2, listing the candidate
+      digest first, then the digest that serves and every digest published since that
+      one, with no cap by count, and in that wave also the candidate's
+      `wbs-backend-config` and the ConfigMap that carries the candidate's hook script,
+      so that a changed script never arrives after its Job. The digest that serves is
+      read at render time: the render asks the staging backend's public health
+      response for its boot commit, takes that commit's render from the pins
+      repository's history and lists its digest and the digest of every render
+      published after it, so that a candidate that became Healthy between two renders
+      is still admitted when a later one is applied; when the response cannot be read,
+      reports no commit, or names a commit with no render in the history, the render
+      publishes nothing for that app and fails. A built image has no `.git`, where
+      `apps/wbs/be-01/src/deployed-commit.ts` answers null today: the build writes the
+      source commit into the image and that function reads it when there is no
+      repository, with its test, so that the health response of a built backend names
+      its commit. While the head of the app's pins directory is at zero replicas,
+      which the baseline, the first activation and a hold are, nothing serves: the
+      render reads no health response and lists the candidate and every digest
+      published since the baseline; with a backend replica, the hook Job in wave
+      -1, annotated `argocd.argoproj.io/hook: Sync` and
+      `hook-delete-policy: BeforeHookCreation`, with `backoffLimit: 0`, no
+      `ttlSecondsAfterFinished`, the candidate digest, the backend's service account
+      without its token, the backend's `envFrom` of `wbs-backend-config` and
+      `wbs-backend-secrets` and nothing more, the controller label, the `nonproduction`
+      selector, the data claim and the security context of the release coordinator's
+      schema Job; and the Deployment in wave 0. A render at zero replicas, which the
+      baseline, A18's first sync and a hold are, holds no hook. Rule 2.4(w), lettered
+      after the CI change's (s) to (v): a WBS staging render with a backend replica has
+      that hook with the backend's digest, its `envFrom` and those waves; one at zero
+      replicas has none; and no production or platform
+      Application has a hook that runs a migration. Test: the script against a fixture
+      store with the real CLIs, and the rule against rendered fixtures. Negatives, each
+      with its own fault and `Proof:` comment: a failing migration leaves the ledger
+      equal to the capture and exits nonzero (fault: skip the reversal); a reversal that
+      leaves a table behind keeps the attempt record and names the manual command
+      (fault: compare the newest name only); an attempt record of another candidate is
+      refused (fault: overwrite it); a second run of the same candidate on its own
+      record reverses from the recorded capture and exits nonzero (fault: capture
+      again); a record that marks a failed reversal is refused with nothing pending
+      (fault: exit 0 on an empty pending set); a candidate whose machine grant settings
+      are missing on an activated store fails before any write, with nothing pending
+      (fault: run the preflights only when something is pending); an unaccepted
+      breaking audience fails the same way (fault: skip the second CLI); a candidate
+      without the preflight files is refused (fault: skip a missing file); a run with
+      nothing pending writes no snapshot
+      (fault: snapshot first); a claim with less free space than twice the store plus
+      1 GiB is refused before any migration (fault: migrate first); a removal whose
+      `--to` set differs from the intended one prints no runnable Job (fault: compare
+      the named migration only); a selected `down.sql` that drops a table holding rows
+      is marked for the owner (fault: read the table's existence only); a hook in wave 0 or later is refused by the
+      rule (fault: read the annotation's presence only); a production overlay with the
+      hook is refused (fault: scope the rule to staging files); the ConfigMap's script
+      differs from the source by one byte (fault: compare lengths); after a successful
+      migration and a write that uses the new schema, a second run of the same
+      candidate finds no record, changes nothing and exits 0 (fault: keep the record
+      on success); a render after four failed publications still lists the serving
+      digest (fault: list the newest three only); with A serving and B's sync in
+      progress, renders C, D and E each list B (fault: list only the observed serving
+      digest and a fixed number after it); a render that cannot read the serving
+      commit, or reads none, publishes nothing (fault: fall back to the newest
+      three); a built image without the embedded commit reports none and its test
+      fails (fault: read `.git` only); a render over a zero-replica head reads no
+      health response and lists every digest since the baseline (fault: require the
+      response always); the
+      script's ConfigMap in wave -1 or later is refused by the rule (fault: check the
+      Job's wave only). The rehearsal
+      2.7/A18 gains a case: on k3d under Argo CD, an additive migration is applied by a
+      new pins commit with no command and the new pod serves; a failing one leaves the
+      sync failed, the old pod serving, the ledger equal and no further commit applied
+      until a new one arrives; an edit that the old backend acknowledges while that
+      failing migration and its reversal run is read afterwards, with no table's row
+      count lower than before and no schema object left over; a candidate that would
+      refuse to boot fails the sync with the old pod serving; a commit that edits an
+      applied migration is refused by the render step; after a successful migration
+      the new backend writes with the new schema, the same commit is synced again and
+      that write is read afterwards; three failing publications in a row are followed
+      by a restart of the serving pod, which is admitted; with A serving, B is
+      published and held before it is Healthy while C, D and E are published, B then
+      becomes Healthy, E is applied and its hook fails, and a restart of B's pod is
+      admitted; the zero-replica baseline is followed by the first activation, whose
+      pod is admitted with no health response to read; a zero-replica render syncs
+      with no hook pod; and what a repeated attempt at the same commit does
+      under self-heal is observed and recorded. Stop: the hook cannot be made to run
+      before the Deployment's wave on this version, the old pod cannot keep serving
+      while the Job holds the claim on the same node, or the acknowledged edit is lost. Then schema-changing commits stay
+      on the attended path and the owner is told that R20 does not hold for them.
 
 The dev environment's delivery is not in this change: it is the follow-up
 `add-dev-environment` (R34, design decision 9). Its first deployment into the namespaces
@@ -847,7 +993,7 @@ this change reserves is step A25, so those namespaces are not an open end.
 
 - [ ] A12 Create the observability server. Who: owner, as A1, with at least 24 GiB (R2: 12
       vCPUs and 24 GiB assumed, 16 and 32 if the provider has no such class with the
-      disk), a root disk of at least 225 GiB and a public IPv4 address for ports 80
+      disk), a root disk of at least 233 GiB and a public IPv4 address for ports 80
       and 443, because it carries the non-production environments in the minimal profile.
       Receipt: as A1. Stop: `free -m` or `df -h /` shows less, or the host has no public
       IPv4 address. Rollback: delete the server.
@@ -882,27 +1028,31 @@ this change reserves is step A25, so those namespaces are not an open end.
       available memory falls under 1,024 MiB, the sum does not hold, or the disk would fill within 60 days.
       Rollback: nothing depends on the stack yet. Reduce the units to their markers and sync,
       then remove their Application files (design decision 3). Claims stay.
-- [ ] A15 MLflow (R15, guard 1), in two parts. **First part**, any time after A13,
-      read-only. Who: operator. Commands on h3mon: read how MLflow is started, its
-      backend store and its artifact root, and the size and file count of each; pick one
-      run and one artifact of it and record the artifact's SHA-256. Receipt: the layout
-      in verify.md without any credential; the run id, the artifact's path and its
-      SHA-256. Stop: the stores are not a database file and a directory; slice 3.6 then
-      reports before anything else. **Second part**, after 3.6. Who: operator. Commands:
-      the owner writes the MLflow backup credentials into OpenBao; merge the `mlflow`
-      unit at zero replicas with its backup job suspended, together with its
-      ExternalSecrets; sync `secret-sync`, then `mlflow`; stop MLflow on h3mon; take the
-      final copy of both stores there under one stamp with the unit's own tool; restore
-      metadata and artifacts together into the unit's claims; merge one replica and the
-      job resumed, and sync; run the backup job and the verify job once. Receipt: the
-      final stamp and its manifest's SHA-256; the recorded run read back from the new
-      instance and its artifact fetched through MLflow with the recorded SHA-256; one
-      backup and one verify under the new prefix, taken after the restore. Stop: the
-      artifact's SHA-256 differs, the verify fails, or a backup under the new prefix
-      predates the restore. Rollback: as design decision 7 states for every store: merge
-      the unit at zero replicas and sync it, see no pod of the new instance left, only
-      then compare its metadata digest and artifact manifest with the final stamp, and
-      start MLflow on h3mon again only when they are equal.
+- [ ] A15 MLflow (R15, guard 1), after A13 and slice 3.6. Who: operator. Commands: on
+      h3mon, read again, read-only, how MLflow is started, its two paths, the size of
+      the metadata store and the count and total size of the files under the artifact
+      root, and compare them with the reading in verify.md; pick one run, and, if the
+      artifact root holds a file, one artifact of a run with its SHA-256; the owner
+      writes the MLflow backup credentials into OpenBao; merge the `mlflow` unit at zero
+      replicas with its backup job suspended, together with its ExternalSecrets; sync
+      `secret-sync`, then `mlflow`; stop MLflow on h3mon; take the final copy of the
+      metadata store and the artifact root there under one stamp with the unit's own
+      tool; restore both together into the unit's claim; merge one replica and the job
+      resumed, and sync; run the backup job and the verify job once. Receipt: the layout
+      as read at this step; the final stamp, the copy's SHA-256 and revision, and the
+      manifest's SHA-256, which is that of the empty manifest when the artifact root
+      held no file; the recorded run read back from the new instance; the artifact
+      fetched through MLflow with the recorded SHA-256 if one was recorded; one backup
+      and one verify under the new prefix, taken after the restore. Stop: the layout
+      differs from the reading in kind, which is another backend store, an artifact root
+      outside the volume or an object store; the artifact root holds more than 1 GiB,
+      which the claim and the hourly archive were not sized for; the artifact's SHA-256
+      differs; the verify fails; or a backup under the new prefix predates the restore.
+      On the first two the unit is not merged and slice 3.6's owner resizes or redesigns
+      first. Rollback: as design decision 7 states for every store: merge the unit at
+      zero replicas and sync it, see no pod of the new instance left, only then compare
+      its metadata digest and artifact manifest with the final stamp, and start MLflow
+      on h3mon again only when they are equal.
 
 ### Stage 4: apps
 
@@ -911,7 +1061,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       with a root disk of at least 50 GiB (design decision 2). Receipt: as A1. Stop: as A1, or the host has no public IPv4 address for ports
       80 and 443. Rollback: delete the server. If the sum of design decision 2 did not hold
       and the owner chose a non-production server of its own, it is created here too, as
-      the first growth step of design decision 11, with a root disk of at least 85 GiB.
+      the first growth step of design decision 11, with a root disk of at least 90 GiB.
 - [ ] A17 Join h6apps and give h7obs the non-production capabilities, after the 1.3
       revisions for both, slices 1.7 and 2.10, the receipt 2.7/A18, and the sum of design
       decision 2 holding for this node at the reading after A15. Who: operator. Commands: `playbooks/firewall.yml` limited to
@@ -933,12 +1083,13 @@ this change reserves is step A25, so those namespaces are not an open end.
       at the reading after A15 and the owner has not chosen an exit. Rollback: reduce
       `traefik` to its marker and sync, remove its Application file, then as A13.
 - [ ] A18 Staging, on the node that carries `nonproduction`, h7obs in the minimal profile (R29, R45, R26), after 3.1, the receipt 2.7/A18 and the fleet
-      repository's directory of design decision 9; its WBS part also after 3.5, 3.8, Harbor,
+      repository's directory of design decision 9; its WBS part also after 3.5, 3.8, 3.9, Harbor,
       and A23's receipt or the owner's dated waiver of it: the dev poller is not stopped
       without one of the two, because nothing else would make the tracker follow `main`.
-      Its website and request-app part also needs their owner's migration contract of
-      design decision 9, recorded as a dated decision, or the owner's dated waiver of
-      automatic publication for that app; without either it does not start for them.
+      Its website part also needs the two answers task 0.4 asks of the fleet
+      repository's owner, the API Deployment's update strategy and its single writer,
+      recorded as a dated decision; the migration contract itself is read from source
+      (design decision 9). The request app holds no store.
       Who: operator, with the website's owner; owner for the Secrets. The owner
       writes the staging Secrets of design decision 5 into OpenBao, reading the website's
       present ones with the old cluster's age identity on the controller; the staging backup
@@ -949,7 +1100,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       Compose dev stack and the dev poller on h2puni); take the final backup of the dev store
       as design decision 7 states and record its file name, stamp and SHA-256; merge the
       staging overlay with the workload at zero replicas and its backup CronJob
-      suspended; for WBS that overlay has been on `main` since A23's baseline, so read
+      suspended, which for WBS carries no schema hook (slice 3.9); for WBS that overlay has been on `main` since A23's baseline, so read
       the head of the app's pins directory, the baseline or a build after it, which
       must show zero replicas and the suspended job;
       only then merge the app's staging Application file, which the root applies at
@@ -964,8 +1115,13 @@ this change reserves is step A25, so those namespaces are not an open end.
       or changed in the candidate's own scripts, and prints the applied and the pending
       sets. The candidate's `migrate-capabilities-cli.ts` is asked first, as the deploy
       callers do, and answers only whether the image knows `capture-v1`; it carries no
-      names. For the website and request app it is the command their migration contract
-      names. Only when the capture exits 0 and its pending set is empty merge one
+      names. For the website the check is `validateDatabase` of the image about to run,
+      which that image's `request-retention-cli.js report` runs read-only before
+      anything else (`docs/website/request-retention.md`): it requires integrity,
+      exactly the image's migration names and checksums, and the schema they produce.
+      The image is the one the old side ran, since the website's pins are not moved by
+      this change (R11), so the two sets are expected equal. Only when the check exits 0, for WBS with an
+      empty pending set, merge one
       replica and the CronJob resumed; point the names the staging overlay declares
       at that node; wait for the certificates from the issuer each overlay names; run the new
       backup job once. Receipt, per app: the stamp and SHA-256, and the check's "OK"; a
@@ -989,14 +1145,16 @@ this change reserves is step A25, so those namespaces are not an open end.
       publish, the pins directory's head stayed the hold, and no writer pod started; for each of the three apps, a merge to the app's source
       deployed to staging with no command, or the owner's dated waiver for that app: for
       WBS as a second backend digest with no pin moved by hand and no run of
-      `solver.yml`, for the website and the request app by their owner's tooling (design
-      decision 9). Stop: the Application file would be merged while the
+      `solver.yml`, and once more as a merge that adds a migration, applied by the hook
+      of slice 3.9 with no command; for the website and the request app by their
+      owner's tooling (design decision 9). Stop: the Application file would be merged while the
       pins directory's head, or for the website the fleet overlay on `main`, is not the
       zero-replica render; the SHA-256 differs; the candidate does not answer `capture-v1`, the
       capture fails, which is an applied migration absent or changed in the candidate,
       or its pending set is not empty: then the workload stays at zero and the
       difference goes through the attended schema Job with its capture and rollback
-      (design decision 9);
+      (design decision 9); the website API's overlay has more than one replica or a
+      claim that is not on that node, or the owner's answer on it is missing;
       the staging credential can read a named production object, or the refusal is anything
       but an authorisation error; the restore differs from the
       backup; a backup under the new prefix predates the restore or is empty; or a
@@ -1043,7 +1201,7 @@ this change reserves is step A25, so those namespaces are not an open end.
       owner.
 
 - [ ] A23 The staging build path (R20, R31, R35), in two parts. Numbered last so that
-      the other steps keep their ids. **First part**, after A17, slices 3.5, 3.7 and 3.8,
+      the other steps keep their ids. **First part**, after A17, slices 3.5 and 3.7 to 3.9,
       Harbor's project and push robot, and task 0.6; before the CI change's CI-A5. Who:
       owner and operator. Commands: create the staging pins repository with its two
       rulesets; seed it, before the App exists, with a baseline for each app the tenant
