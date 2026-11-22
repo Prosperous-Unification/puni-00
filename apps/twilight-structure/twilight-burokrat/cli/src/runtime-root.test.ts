@@ -144,6 +144,12 @@ it('freezes ordinary root Git lookup before candidate and toolkit cwd changes', 
     stderr: 'pipe',
   });
   expect(init.exitCode, init.stderr.toString()).toBe(0);
+  writeFileSync(join(candidate, 'tracked.txt'), 'root selection fixture\n');
+  const add = Bun.spawnSync(['/usr/bin/git', '-C', candidate, 'add', '--', 'tracked.txt'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  expect(add.exitCode, add.stderr.toString()).toBe(0);
   const commit = Bun.spawnSync(
     [
       '/usr/bin/git',
@@ -154,7 +160,6 @@ it('freezes ordinary root Git lookup before candidate and toolkit cwd changes', 
       '-c',
       'user.email=puni-root@example.test',
       'commit',
-      '--allow-empty',
       '-m',
       'fixture',
     ],

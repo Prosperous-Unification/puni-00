@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { invokeCli } from '../invoke-cli';
 import { evaluateAudit } from '../review/audit';
 import type { LintReportFixture } from '../testing/trusted-policy.test.fixture';
 import {
@@ -588,7 +589,15 @@ describe('trusted policy production CLI', () => {
     satisfyApplication(fixture);
     write(join(fixture.repository, 'untracked.ts'), 'export const untracked = true;\n');
 
-    const invocation = await runCi(fixture, fixture.bindingPath, [], 'working');
+    const invocation = await invokeCli(
+      ['lint-ci', 'working', fixture.repository, fixture.revision, fixture.evidencePath],
+      {
+        GIT_CONFIG_GLOBAL: '/dev/null',
+        GIT_CONFIG_SYSTEM: '/dev/null',
+        TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+        TOOL_WIKI_CI_TRUSTED_BINDING: fixture.bindingPath,
+      },
+    );
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     const stdout = invocation.stdout;

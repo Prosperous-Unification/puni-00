@@ -2432,3 +2432,15 @@ Nx typecheck passed.
   and four historical physical step deletions. These scenarios remain
   visible in the suite. A logger stdout EPERM also appeared under the Nx
   harness, including a focused run in which all eight cases passed.
+
+### Burokrat fixture isolation
+
+- The scoped native run passed all nine affected working-selection cases
+  and 18 existing executable-filter controls with a synthetic runner
+  configuration. The fixture roots isolate only ambient Git configuration
+  and preserve explicit repository-local filter refusal. The entrypoint's
+  final Bun fixture shim passed the same affected case on its own.
+- The native package-assets suite passed all 23 cases and 123 assertions
+  under its existing 60-second deadline. Each case now removes its own
+  temporary producer roots after completion. The previous hosted suite
+  passed the named tests and timed out during its shared cleanup hook.

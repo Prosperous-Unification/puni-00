@@ -78,8 +78,11 @@ interface GitEntry {
   blob: string;
 }
 
+const fixtureGitConfig = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+
 function runGit(repository: string, argv: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
+    env: { ...process.env, ...fixtureGitConfig },
     stderr: 'pipe',
     stdout: 'pipe',
   });
@@ -124,10 +127,10 @@ async function runCandidateCli(
   env?: Record<string, string>,
 ): Promise<CliInvocation> {
   const argv = ['read-candidate', kind, repository, base];
-  if (env === undefined) return invokeCli(argv);
+  if (env === undefined) return invokeCli(argv, fixtureGitConfig);
   const invocation = spawnCaptured([process.execPath, 'run', cliPath, ...argv], {
     cwd: import.meta.dir,
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...fixtureGitConfig, ...env },
   });
   return {
     exitCode: invocation.exitCode,

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import * as promises from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { afterAll, expect, it, spyOn } from 'bun:test';
+import { afterEach, expect, it, spyOn } from 'bun:test';
 
 import * as installed from '../packaging/installed';
 import { readInstalledPuniToolkit } from '../packaging/installed';
@@ -12,7 +12,7 @@ import { buildPuniAssets, ToolkitBuildFailure } from './build-bun-toolkit';
 import { captureCommittedSource } from './committed-source';
 import * as operator from './preparation-inputs';
 const roots: string[] = [];
-afterAll(() => {
+afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 it('delivers the coordinated package programs beside their strict current manifest and five-role toolkit', async () => {
