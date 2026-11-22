@@ -3,6 +3,7 @@ import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blocka
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const endpoint of ['single', 'batch']) {
   describe(`duplicate sparse preservation through ${endpoint} command`, () => {
@@ -24,14 +25,8 @@ for (const endpoint of ['single', 'batch']) {
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Preserve sparse nodes',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id')
-          .all(workPackageId) as { id: string }[];
+        const workPackageId = await createFixturePackage(h, 'owner', 'Preserve sparse nodes');
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
         if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(

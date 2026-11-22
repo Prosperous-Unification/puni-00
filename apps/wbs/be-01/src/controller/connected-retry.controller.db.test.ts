@@ -36,6 +36,7 @@ import { createOptimizationOutcomeOwner } from '../service/optimization-outcome'
 import { createRetryReservationOwner } from '../service/optimization-retry-reservation';
 import { testApp } from '../testing/app-fixture';
 import { testLocalAuthService } from '../testing/auth-fixture';
+import { bindRuntimeFixtureSteps } from '../testing/dev-qa-fixture';
 
 const installed = { solverVersion: '0.4.0', budgetMs: 1000, now: () => 12 };
 const access = {
@@ -61,9 +62,11 @@ async function fixture(failedPri = false, installedReader = true) {
   seedDependencyAuthority(path);
   const sqlite = openDatabase(path);
   sqlite.run("UPDATE organization_activation SET state='activated',activated_at=1");
-  sqlite.run(
-    "INSERT INTO organization_membership(organization_id,user_id,role,created_at) VALUES('org-a','ada','member',1)",
-  );
+  expect(
+    sqlite.run(
+      "DELETE FROM access_grant WHERE scope_kind='work_package' AND scope_id='a1' AND organization_id='org-a' AND subject_kind='user' AND subject_id='ada' AND role_id='package-manager' AND origin='creation'",
+    ).changes,
+  ).toBe(1);
   sqlite.run(
     "INSERT INTO access_grant(id,organization_id,scope_kind,scope_id,subject_kind,subject_id,role_id,origin,created_at) VALUES('retry-manager','org-a','organization','org-a','user','ada','org-admin','route',1)",
   );
@@ -71,29 +74,31 @@ async function fixture(failedPri = false, installedReader = true) {
   sqlite.run(
     "UPDATE work_package SET schedule_engine='optimized',optimization_enabled=1 WHERE id='a1'",
   );
+  const source = openSqliteSource({
+    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
+    dbPath: path,
+  });
+  const stepId = 'retry-build';
+  await bindRuntimeFixtureSteps(
+    source.stores.stepCatalogue,
+    'fixture-parent-org-a',
+    [[stepId, 'Build']],
+    { at: 2, by: 'ada' },
+  );
   for (const id of ['a1', 'a2']) {
     sqlite.run('INSERT INTO work_item(id,work_package_id,position,name) VALUES(?,?,10,?)', [
       id,
       id,
       id,
     ]);
-    sqlite.run('INSERT INTO step(id,work_package_id,name,position) VALUES(?,?,?,10)', [
-      id + '-s',
-      id,
-      'Build',
-    ]);
     sqlite.run(
       'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES(?,?,1,1,1)',
-      [id, id + '-s'],
+      [id, stepId],
     );
   }
   sqlite.run(
     "INSERT INTO external_dependency(id,organization_id,predecessor_work_package_id,successor_work_package_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES('edge','org-a','a2','a1','a2','a1','whole','whole','FS')",
   );
-  const source = openSqliteSource({
-    dependencyCapability: BACKEND_DEPENDENCY_CAPABILITY,
-    dbPath: path,
-  });
   let openReads = 0;
   let readCount = 0;
   let afterRead: (() => void) | undefined;

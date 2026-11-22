@@ -27,6 +27,7 @@ let approvalIds: string[];
 let actorA: string;
 let actorB: string;
 let saved: ReturnType<typeof createBackup>;
+const recoveryRoots: string[] = [];
 const operationId = 'process-restore';
 const tables = [
   'organization',
@@ -147,14 +148,23 @@ beforeEach(async () => {
     harness.member('org-b', 'alice', 'super_admin');
     harness.grantPermissions('org-b', 'alice', ['organization.manage_security']);
     harness.activate();
+    for (const [org, owner] of [
+      ['org-a', actorA],
+      ['org-b', actorB],
+    ]) {
+      harness.sqlite.run(
+        'INSERT INTO project (id, organization_id, name, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+        [`parent-${org}`, org, `Parent of ${org}`, owner],
+      );
+    }
     for (const [workPackage, org, owner] of [
       ['a1', 'org-a', actorA],
       ['a-unranked', 'org-a', actorA],
       ['b1', 'org-b', actorB],
     ]) {
       harness.sqlite.run(
-        'INSERT INTO work_package (id, name, owner_id, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
-        [workPackage, workPackage, owner, owner],
+        'INSERT INTO work_package (id, project_id, name, created_at, created_by) VALUES (?, ?, ?, 1, ?)',
+        [workPackage, `parent-${org}`, workPackage, owner],
       );
       harness.sqlite.run(
         'INSERT INTO work_package_organization (resource_id, organization_id) VALUES (?, ?)',
@@ -193,6 +203,7 @@ beforeEach(async () => {
       approvalIds.push(approval.id);
     }
     database = await harness.stopForRecovery();
+    recoveryRoots.push(dirname(database));
   } catch (cause) {
     await harness.closeComposed();
     throw cause;
@@ -213,7 +224,7 @@ beforeEach(async () => {
   );
 });
 afterEach(() => {
-  rmSync(dirname(database), { recursive: true, force: true });
+  for (const root of recoveryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
   rmSync(directory, { recursive: true, force: true });
 });
 // Proof: legacy dispatch failed lost-output exit/receipt; bypassed receipt retry failed cold retry after later edits.

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage, readProjectIds } from '../testing/space-rollup';
 
 /**
  * Resources (`wbs-resources` slice 1) under organization isolation, over real
@@ -29,8 +30,8 @@ beforeEach(async () => {
   h.bind('sue', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   h.sqlite.run(
     "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Build')",
     [own],
@@ -40,24 +41,6 @@ beforeEach(async () => {
 afterEach(() => {
   h.close();
 });
-
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  const workPackageId = (answer.body as { workPackage: { id: string } }).workPackage.id;
-  if (
-    h.sqlite.query<{ state: string }, []>('SELECT state FROM organization_activation').get()
-      ?.state === 'activated'
-  )
-    h.grant(
-      username === 'grace' ? 'org-b' : 'org-a',
-      username,
-      'package-manager',
-      'work_package',
-      workPackageId,
-    );
-  return workPackageId;
-}
 
 /** Declares one divisible resource through the caller's directory, answering its id. */
 async function declare(username: string, name: string): Promise<string> {
@@ -313,7 +296,7 @@ describe('resources in an organization', () => {
     expect(h.sqlite.query('SELECT count(*) AS n FROM resource').get()).toEqual({ n: 1 }); // grace's, in org-b
   });
 
-  /** Every top-level key of a version 11 document but `optimization`, the same in both modes. */
+  /** Every top-level key of a version 15 document but `optimization`, the same in both modes. */
   const EXPORT_KEYS = [
     'assignedPeople',
     'budgets',
@@ -330,8 +313,7 @@ describe('resources in an organization', () => {
     'measureFacts',
     'pertWeights',
     'priorityBands',
-    'work_package',
-    'workPackageRevision',
+    'project',
     'resourceCapacities',
     'scheduleError',
     'seq',
@@ -346,6 +328,8 @@ describe('resources in an organization', () => {
     'waitingForCapacity',
     'waitingForPerson',
     'workItems',
+    'workPackage',
+    'workPackageRevision',
   ];
 
   // Both export paths: an isolated organization's direct read, and a shared one's
@@ -369,7 +353,7 @@ describe('resources in an organization', () => {
       expect(exported).toMatchObject({
         status: 200,
         body: {
-          document: { version: 11 },
+          document: { version: 15 },
           directory: {
             resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
           },
@@ -389,7 +373,10 @@ describe('resources in an organization', () => {
           .filter((key) => key !== 'optimization')
           .sort(),
       ).toEqual(EXPORT_KEYS);
-      const imported = await h.call('ada', 'POST', '/api/work-packages/import', exported.body);
+      const imported = await h.call('ada', 'POST', '/api/work-packages/import', {
+        projectId: readProjectIds(h, own),
+        document: exported.body,
+      });
       expect(imported.status).toBe(201);
       const { workPackageId } = imported.body as { workPackageId: string };
       const read = await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/resources`);
@@ -411,12 +398,9 @@ describe('resources in an organization', () => {
     h.member('org-a', 'nell', 'member', ['project-contributor']);
     h.bind('nell', 'org-a');
     const ram = await declare('ada', 'h2puni ram');
-    const firstStep = h.sqlite
-      .query<{ id: string }, [string]>(
-        'SELECT id FROM step WHERE work_package_id = ? ORDER BY position LIMIT 1',
-      )
-      .get(own);
-    if (firstStep === null) throw new Error('resource occupancy work package has no first step');
+    const firstStep = (await readFixturePackage(h, 'ada', own)).steps.at(0);
+    if (firstStep === undefined)
+      throw new Error('resource occupancy work package has no first step');
     h.sqlite.run(
       "INSERT INTO work_item (id, work_package_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 1, 'Test')",
       [own],

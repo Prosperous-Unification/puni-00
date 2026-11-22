@@ -242,7 +242,6 @@ it('encodes manage_directory for role-only runtime authority bind and read witho
 function deletePlanningRows() {
   harness.sqlite.run('DELETE FROM work_item WHERE id=?', [workItemId]);
   harness.sqlite.run('DELETE FROM work_package_access WHERE work_package_id=?', [workPackageId]);
-  harness.sqlite.run('DELETE FROM step WHERE work_package_id=?', [workPackageId]);
   harness.sqlite.run('DELETE FROM work_package WHERE id=?', [workPackageId]);
 }
 it('uses minimal manage_directory for immutable personal orphan reads and updates', async () => {

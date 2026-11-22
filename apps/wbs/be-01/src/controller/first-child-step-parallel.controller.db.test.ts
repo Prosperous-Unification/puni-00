@@ -5,7 +5,9 @@ import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blocka
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { BACKEND_DEPENDENCY_CAPABILITY } from '../runtime/dependency-support';
+import { bindDevQaFixture } from '../testing/dev-qa-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
+import { readFixturePackage } from '../testing/space-rollup';
 
 /** Awaits real rejected calls without relying on Bun's void-typed rejection matcher. */
 async function rejectedMessage(promise: Promise<unknown>): Promise<string> {
@@ -47,9 +49,14 @@ for (const endpoint of ['single', 'batch']) {
         });
         expect(created.status).toBe(200);
         const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id')
-          .all(workPackageId) as { id: string }[];
+        await h.publicWrites().uow.run(async ({ stores }) => {
+          await bindDevQaFixture(stores.stepCatalogue, 'org', projectId, {
+            at: 2,
+            by: h.userId('owner'),
+          });
+          return { commit: true, value: undefined };
+        });
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
         if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(

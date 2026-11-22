@@ -2,6 +2,7 @@ import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-ac
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let harness: OrganizationHarness;
 let target: string;
@@ -16,17 +17,14 @@ beforeEach(async () => {
   harness.bind('ada', 'arrange-org');
   harness.activate();
   seedDependencyAuthority(harness.databasePath());
-  const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    expect(answer.status).toBe(200);
-    return answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-  };
-  const first = await create('Target');
-  const second = await create('Predecessor');
-  target = first.workPackage.id;
-  predecessor = second.workPackage.id;
-  targetStep = first.steps[0].id;
-  predecessorStep = second.steps[0].id;
+  target = await createFixturePackage(harness, 'ada', 'Target');
+  predecessor = await createFixturePackage(harness, 'ada', 'Predecessor');
+  const first = (await readFixturePackage(harness, 'ada', target)).steps.at(0);
+  const second = (await readFixturePackage(harness, 'ada', predecessor)).steps.at(0);
+  if (first === undefined || second === undefined) throw new Error('fixture step absent');
+  targetStep = first.id;
+  predecessorStep = second.id;
+  await harness.drainOptimization();
   harness.sqlite.run("UPDATE work_package SET start_date='2026-10-05'");
   for (const [id, workPackage, step, position] of [
     ['late', target, targetStep, 10],

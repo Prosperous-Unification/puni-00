@@ -4,6 +4,7 @@ import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 for (const endpoint of ['single', 'batch']) {
   describe(`move sparse preservation through ${endpoint} command`, () => {
@@ -25,14 +26,8 @@ for (const endpoint of ['single', 'batch']) {
         h.bind('viewer', 'org');
         h.bind('outsider', 'foreign');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Preserve sparse nodes',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const steps = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id')
-          .all(workPackageId) as { id: string }[];
+        const workPackageId = await createFixturePackage(h, 'owner', 'Preserve sparse nodes');
+        const { steps } = await readFixturePackage(h, 'owner', workPackageId);
         const first = steps.at(0);
         if (first === undefined) throw new Error('work package has no fixture steps');
         h.sqlite.run(
@@ -150,13 +145,33 @@ for (const endpoint of ['single', 'batch']) {
         });
         expect(snapshot()).toEqual(before);
         h.sqlite.run("DELETE FROM step_parallel WHERE work_item_id = 'parent'");
-        expect(
-          (
-            await h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
-              commands: [{ kind: 'moveWorkItem', ...move }],
-            })
-          ).status,
-        ).toBe(200);
+        const moveOnly = () =>
+          h.call('owner', 'POST', `/api/work-packages/${workPackageId}/commands`, {
+            commands: [{ kind: 'moveWorkItem', ...move }],
+          });
+        const protectedDestination = snapshot();
+        expect(await moveOnly()).toEqual({
+          status: 409,
+          body: {
+            error: 'step_nodes_in_use',
+            at: 0,
+            kind: 'moveWorkItem',
+            count: 1,
+            pairs: [
+              {
+                id: 'parent',
+                name: 'Parent',
+                stepId: first.id,
+                workPackageId,
+                facts: ['estimate', 'blockage'],
+              },
+            ],
+          },
+        });
+        expect(snapshot()).toEqual(protectedDestination);
+        h.sqlite.run("DELETE FROM estimate WHERE work_item_id = 'parent'");
+        h.sqlite.run("DELETE FROM step_blockage WHERE work_item_id = 'parent'");
+        expect(await moveOnly()).toMatchObject({ status: 200 });
       } finally {
         await h.closeComposed();
       }
@@ -176,15 +191,9 @@ for (const replay of ['undo', 'redo'] as const) {
         h.grantPermissions('org', 'owner', ['organization.create_project']);
         h.bind('owner', 'org');
         h.activate();
-        const created = await h.call('owner', 'POST', '/api/work-packages', {
-          name: 'Replay policy',
-        });
-        expect(created.status).toBe(200);
-        const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
-        const step = h.sqlite
-          .query('SELECT id FROM step WHERE work_package_id = ? ORDER BY position,id LIMIT 1')
-          .get(workPackageId) as { id: string } | null;
-        if (step === null) throw new Error('fixture step absent');
+        const workPackageId = await createFixturePackage(h, 'owner', 'Replay policy');
+        const step = (await readFixturePackage(h, 'owner', workPackageId)).steps.at(0);
+        if (step === undefined) throw new Error('fixture step absent');
         for (const [id, parentId, position] of [
           ['old-parent', null, 1],
           ['new-parent', null, 2],
