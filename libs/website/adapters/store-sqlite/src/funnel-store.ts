@@ -16,9 +16,10 @@ import {
  * - `briefsCaptured`: legacy completed brief-stage captures, plus each version-1 conversation
  *   once on its first validated candidate operation day, independent of stage;
  * - `exhausted`: conversations created that day that are now exhausted, by reason;
- * - `proposals`: `proposal_submission` rows created that day, `fromChat` when the draft's
- *   conversation is `handed_off` (the visitor started the AI chat; it does not mean the chat
- *   wrote the brief), otherwise `manual`;
+ * - `proposals`: `proposal_submission` rows created that day, `fromChat` when the draft has a
+ *   conversation row (the visitor reached the AI chat; it does not mean the chat wrote the
+ *   brief), otherwise `manual`. Earlier binaries marked exactly those conversations
+ *   `handed_off` at submission; the chat now stays open after submission;
  * - `ceilingSettled`: that day's {@link readCeilingSettled};
  * - `spendMicroUsd`: that day's recorded site spend ({@link readSiteSpend}): settled amounts, and
  *   reservations still in flight. It may over-count by `ceilingSettled.microUsd` and never
@@ -118,7 +119,8 @@ export function readFunnelCounts(database: Database, now: number, days = 30): Fu
     dayRow(counted.utc_day).exhausted[counted.reason] = counted.count;
   for (const counted of database
     .query<DayCount & { from_chat: 0 | 1 }, [number, number]>(
-      `SELECT strftime('%Y-%m-%d', proposal_submission.created_at / 1000, 'unixepoch') AS utc_day, EXISTS (SELECT 1 FROM conversation WHERE conversation.draft_id = proposal_submission.draft_id AND conversation.state = 'handed_off') AS from_chat, count(*) AS count FROM proposal_submission WHERE proposal_submission.created_at >= ?1 AND proposal_submission.created_at < ?2 GROUP BY utc_day, from_chat`,
+      // Proof: restoring the `handed_off` condition counted the open submitted chat as manual in funnel-store.test.ts.
+      `SELECT strftime('%Y-%m-%d', proposal_submission.created_at / 1000, 'unixepoch') AS utc_day, EXISTS (SELECT 1 FROM conversation WHERE conversation.draft_id = proposal_submission.draft_id) AS from_chat, count(*) AS count FROM proposal_submission WHERE proposal_submission.created_at >= ?1 AND proposal_submission.created_at < ?2 GROUP BY utc_day, from_chat`,
     )
     .all(from, until)) {
     const proposals = dayRow(counted.utc_day).proposals;

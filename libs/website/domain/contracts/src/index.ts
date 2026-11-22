@@ -109,6 +109,8 @@ export interface SubmissionView {
   status: ProposalStatus;
   createdAt: string;
   updatedAt: string;
+  /** The visitor's chat messages saved after submission, oldest first. */
+  followUps: string[];
 }
 
 export * from './analytics';
