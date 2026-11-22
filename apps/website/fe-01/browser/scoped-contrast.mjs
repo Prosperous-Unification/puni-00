@@ -173,24 +173,28 @@ export async function auditScopedEditor(page, isDark) {
   }
   // Proof: stripping .form-panel from the compiled repair failed the dark palette check at
   // all four widths in screens.mjs; byte-identical restoration passed all scoped captures.
+  // Proof: a 0.06 card fill reported "dark scoped palette changed" in build-scoped-review.
   if (isDark) {
     const palette = await editor.evaluate((root) => {
       const style = globalThis.getComputedStyle(root);
       return {
-        label: globalThis.getComputedStyle(root.querySelector('.message-label')).color,
+        // The card has no visible heading; its muted copy carries the same night palette token.
+        label: (() => {
+          const muted = root.querySelector('p.small, p.proposal-lead, p.proposal-privacy');
+          return muted === null ? null : globalThis.getComputedStyle(muted).color;
+        })(),
         preview:
           root.querySelector('.request-preview p') === null
             ? null
             : globalThis.getComputedStyle(root.querySelector('.request-preview p')).color,
-        glass: globalThis.getComputedStyle(root, '::before').backgroundImage,
+        glass: globalThis.getComputedStyle(root, '::before').backgroundColor,
         page: style.getPropertyValue('--night').trim(),
       };
     });
     if (
-      palette.label !== 'rgb(196, 189, 208)' ||
+      (palette.label !== null && palette.label !== 'rgb(196, 189, 208)') ||
       (palette.preview !== null && palette.preview !== 'rgb(244, 242, 247)') ||
-      palette.glass !==
-        'linear-gradient(160deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04))' ||
+      palette.glass !== 'rgba(255, 255, 255, 0.05)' ||
       palette.page !== '#0b0915'
     )
       problems.push(`dark scoped palette changed: ${JSON.stringify(palette)}`);

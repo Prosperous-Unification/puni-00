@@ -242,6 +242,8 @@ const api = createWebsiteApi({
   openRouterOutputCeilingUsdPerMillion: 1.76,
   openRouterPrivacyVerified: true,
   operatorPassword: env['OPERATOR_PASSWORD'],
+  // Lets bin/puni-website-local-reset.sh replenish a fixture browser's allowance.
+  testingResetSecret: env['WEBSITE_TEST_RESET_SECRET'],
   providerFetch,
 });
 

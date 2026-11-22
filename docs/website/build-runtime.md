@@ -179,6 +179,9 @@ configuration, and refuses enablement on production origins. Never commit or log
 Open `https://dev.request.puni.dev/#test-reset=<secret>`, or run `bin/puni-website-dev-reset.sh`
 (`--help` for options), which reads the secret from `website-dev/website-runtime` and opens the link. The legacy development app origin
 `https://dev.app.puni.dev` remains accepted; production and lookalike hostnames are refused.
+For a loopback run, `bin/puni-website-local-reset.sh` keeps a local secret outside the repository,
+prints it for the API's environment with `--env`, checks that the local API was started with it and
+opens the same fragment link on the local app (`--help` for ports).
 The app removes the fragment before
 analytics or initial API requests, sends a secret-authenticated POST to `/testing/reset`, then
 loads the same chat. The endpoint requires the exact app Origin. A current draft keeps its

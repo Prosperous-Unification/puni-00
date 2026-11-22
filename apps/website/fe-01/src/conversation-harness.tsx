@@ -463,7 +463,13 @@ export function LiveHarness({
 
   const retryable = live?.phase === 'stopped' || live?.phase === 'failed' ? live.attempt : stopped;
   const pendingMessage = live?.attempt.message ?? stopped?.message ?? null;
-  const assistantLabel = isSimulated ? 'PUNI · SIMULATED' : 'PUNI · AI';
+  const firstReply = conversation.turns.findIndex((turn) => turn.role === 'assistant');
+  /** Demo replies are each labelled Simulated; a live thread discloses AI once, on its first reply. */
+  function labelReply(index: number): string | null {
+    if (isSimulated) return 'PUNI · SIMULATED';
+    return index === firstReply || (index === -1 && firstReply === -1) ? 'PUNI · AI' : null;
+  }
+  const liveLabel = labelReply(-1);
   // Once the Home request is in the thread (sending, stopped or failed), the composer stops
   // repeating it; Retry in the thread resends it under the same identity.
   const isHomeInThread = mode.kind === 'initial' && pendingMessage !== null;
@@ -480,13 +486,6 @@ export function LiveHarness({
         tabIndex={-1}
       >
         <div className="harness-column">
-          <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>
-          {isSimulated && (
-            <p className="harness-simulated">
-              <span className="simulated-chip">Simulated</span>
-              Local demo replies. No AI model is involved.
-            </p>
-          )}
           {conversation.turns.length === 0 && pendingMessage === null && (
             <p className="harness-empty">
               {conversation.scoping.version === 1 && conversation.scoping.startConversation
@@ -494,18 +493,20 @@ export function LiveHarness({
                 : 'Your Home request is ready below. Press Send when you want to start the conversation.'}
             </p>
           )}
-          {conversation.turns.map((turn, index) => (
-            <div key={index} className={`build-message ${turn.role}`}>
-              <span className="message-label">{turn.role === 'user' ? 'YOU' : assistantLabel}</span>
-              <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
-            </div>
-          ))}
+          {conversation.turns.map((turn, index) => {
+            const label = turn.role === 'assistant' ? labelReply(index) : null;
+            return (
+              <div key={index} className={`build-message ${turn.role}`}>
+                {label && <span className="message-label">{label}</span>}
+                <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
+              </div>
+            );
+          })}
           {conversation.latestOperation?.truncated && live === null && (
             <p className="harness-aside">This reply reached its length limit.</p>
           )}
           {pendingMessage !== null && (
             <div className="build-message user">
-              <span className="message-label">YOU</span>
               <p>{pendingMessage}</p>
             </div>
           )}
@@ -518,7 +519,7 @@ export function LiveHarness({
               }
               aria-busy={isBusy}
             >
-              <span className="message-label">{assistantLabel}</span>
+              {liveLabel && <span className="message-label">{liveLabel}</span>}
               {live.phase === 'submitted' ? (
                 <span className="typing" role="img" aria-label="PUNI is thinking">
                   <span />
@@ -583,16 +584,19 @@ export function LiveHarness({
               </div>
             )}
           {conversation.scoping.version === 1 && (
-            <>
-              <button
-                type="button"
-                className="harness-text-button"
-                onClick={() => {
-                  setReviewOpen(true);
-                }}
-              >
-                Send my request now
-              </button>
+            <div className="request-entry">
+              {/* Once the contact form is open this would repeat it; focus moves to its email. */}
+              {!isReviewOpen && (
+                <button
+                  type="button"
+                  className="harness-text-button"
+                  onClick={() => {
+                    setReviewOpen(true);
+                  }}
+                >
+                  Send my request now
+                </button>
+              )}
               <RequestEditor
                 draft={conversation}
                 route={
@@ -622,7 +626,7 @@ export function LiveHarness({
                   onHandedOff();
                 }}
               />
-            </>
+            </div>
           )}
           {conversation.scoping.version === 'legacy' &&
             (offersProposal(conversation) || receipt !== null) && (
@@ -748,15 +752,11 @@ export function LiveHarness({
                   </button>
                 )}
               </div>
-              <p className="harness-meta">
-                <span>
-                  {remaining} of {conversation.visitorTurnLimit} messages left
-                  {isSimulated ? ' · Simulated' : ''}
-                </span>
-                <span className="harness-shortcut">
-                  Enter to send · Shift + Enter for a new line
-                </span>
-              </p>
+              {remaining <= 2 && (
+                <p className="harness-meta">
+                  {remaining === 1 ? '1 message left' : `${String(remaining)} messages left`}
+                </p>
+              )}
             </form>
           )}
         </div>
@@ -905,12 +905,10 @@ function ProposalCard({
     );
   return (
     <section className="proposal-card" aria-labelledby={headingId}>
-      <h2 id={headingId} className="message-label">
-        [ YOUR BRIEF ]
+      <h2 id={headingId} className="visually-hidden">
+        Your brief
       </h2>
-      <p className="proposal-lead">
-        A person at PUNI reads every brief. Edit it if anything is off, then leave your email.
-      </p>
+      <p className="proposal-lead">Edit the brief if anything is off, then leave your email.</p>
       <form onSubmit={(event) => void submit(event)}>
         <label className="visually-hidden" htmlFor="proposal-brief">
           Your brief
@@ -933,7 +931,7 @@ function ProposalCard({
             Saved. It stays with this browser for 24 hours.
           </p>
         )}
-        <label htmlFor="proposal-email" className="proposal-label">
+        <label htmlFor="proposal-email" className="visually-hidden">
           Email
         </label>
         <div className="proposal-actions">
@@ -994,10 +992,12 @@ export function PausedHarness({
     <div className="harness-root">
       <section className="harness-thread" aria-label="Conversation with PUNI">
         <div className="harness-column">
-          <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>
           {turns.map((turn, index) => (
             <div key={index} className={`build-message ${turn.role}`}>
-              <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI · AI'}</span>
+              {turn.role === 'assistant' &&
+                index === turns.findIndex((first) => first.role === 'assistant') && (
+                  <span className="message-label">PUNI · AI</span>
+                )}
               <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
             </div>
           ))}

@@ -57,16 +57,53 @@ test('the rendered thread never shows brief markers', () => {
   expect(markup).not.toContain('[/brief]');
 });
 
-test("the allowance line uses the server's turn limit", () => {
+test("the allowance line shows the server's remaining count once two or fewer remain", () => {
+  for (const [remaining, line] of [
+    [2, '2 messages left'],
+    [1, '1 message left'],
+  ] as const) {
+    const markup = renderToStaticMarkup(
+      <LiveHarness
+        initial={{ ...briefed, visitorTurnLimit: 5, visitorTurnsRemaining: remaining }}
+        onReload={() => undefined}
+        onHandedOff={() => undefined}
+      />,
+    );
+    expect(markup.replaceAll('<!-- -->', '')).toContain(line);
+  }
+});
+
+test('the allowance line stays hidden while more than two messages remain', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+  );
+  // Proof: the always-on "5 of 8 messages left" line failed this assertion.
+  expect(markup).not.toContain('messages left');
+  expect(markup).not.toContain('message left');
+});
+
+test('the thread shows the conversation without repeated chrome', () => {
+  const markup = renderToStaticMarkup(
+    <LiveHarness initial={briefed} onReload={() => undefined} onHandedOff={() => undefined} />,
+  ).replaceAll('<!-- -->', '');
+  // Proof: the tagline row, YOU labels, a label on every reply and the keyboard hint each failed.
+  expect(markup).not.toContain('AI can do everything');
+  expect(markup).not.toContain('>YOU<');
+  expect(markup.split('PUNI · AI').length - 1).toBe(1);
+  expect(markup).not.toContain('Shift + Enter');
+});
+
+test('a demo conversation labels every reply Simulated', () => {
   const markup = renderToStaticMarkup(
     <LiveHarness
-      initial={{ ...briefed, visitorTurnLimit: 5, visitorTurnsRemaining: 2 }}
+      initial={{ ...briefed, provider: 'demo' }}
       onReload={() => undefined}
       onHandedOff={() => undefined}
     />,
   );
-  // Proof: rendering the limit from a FE constant of 8 made this markup read "2 of 8".
-  expect(markup.replaceAll('<!-- -->', '')).toContain('2 of 5 messages left');
+  // Proof: labelling only the first reply counted 1 here.
+  expect(markup.split('PUNI · SIMULATED').length - 1).toBe(3);
+  expect(markup).not.toContain('PUNI · AI');
 });
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', {
@@ -1105,4 +1142,36 @@ test('anonymous scoped questions and candidate review do not mount an email form
     expect(markup).toContain('Send my request now');
     expect(markup).not.toContain('type="email"');
   }
+});
+
+test('opening the contact form retires its shortcut and moves focus to the email field', async () => {
+  globalThis.fetch = Object.assign(
+    (input: RequestInfo | URL) => {
+      throw new Error(
+        `Unexpected request ${input instanceof Request ? input.url : input.toString()}`,
+      );
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  const harness = await mountHarness(scoped, () => Promise.resolve(null));
+  const findShortcut = () =>
+    [...harness.container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Send my request now',
+    );
+  const shortcut = findShortcut();
+  if (!shortcut) throw new Error('Send my request now absent before the form opens');
+  act(() => {
+    shortcut.click();
+  });
+  await settleUntil(
+    () => harness.container.querySelector('input[type="email"]') !== null,
+    () => harness.container.innerHTML,
+  );
+  // Proof: rendering the shortcut unconditionally left it beside the open form here, and dropping
+  // the email focus effect left focus on the body once the clicked shortcut unmounted.
+  expect(findShortcut()).toBeUndefined();
+  expect(dom.window.document.activeElement).toBe(
+    harness.container.querySelector('input[type="email"]'),
+  );
+  harness.unmount();
 });

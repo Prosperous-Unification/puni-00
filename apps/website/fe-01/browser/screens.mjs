@@ -355,6 +355,21 @@ const states = [
       const viewport = page.viewportSize();
       if (!composer || !viewport || composer.y + composer.height > viewport.height)
         problems.push('composer is not pinned inside the viewport');
+      // Proof: restoring the flexible full-height harness put the DB-IP credit inside the first
+      // screen and reported "credit sits beside the conversation" at all five widths.
+      const credit = page.getByRole('link', { name: 'IP Geolocation by DB-IP', exact: true });
+      const creditBox = await credit.boundingBox();
+      if (!creditBox || !viewport || creditBox.y < viewport.height)
+        problems.push('credit sits beside the conversation');
+      await page.evaluate(() => {
+        const shell = globalThis.document.querySelector('.night-shell');
+        shell.scrollTop = shell.scrollHeight;
+      });
+      if (!(await credit.isVisible()) || (await credit.boundingBox()).y > (viewport?.height ?? 0))
+        problems.push('credit is not reachable by scrolling past the conversation');
+      await page.evaluate(() => {
+        globalThis.document.querySelector('.night-shell').scrollTop = 0;
+      });
       return problems;
     },
     ready: async (page) => {
@@ -670,7 +685,7 @@ async function auditMasthead(page) {
       link.textContent.trim(),
     );
     // Proof: removing Blog from SiteHeader failed all four operator captures with the three remaining labels.
-    if (labels.join(',') !== 'Home,Build,Services,Blog')
+    if (labels.join(',') !== 'Home,Build,Services,About,Blog')
       problems.push(`masthead labels ${labels.join(',')}`);
     // Proof: injecting a real .nav-index into SiteHeader failed all four operator widths with obsolete masthead rail.
     if (globalThis.document.querySelector('header .nav-rail-label, header .nav-index'))
