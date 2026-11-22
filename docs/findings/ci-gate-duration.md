@@ -309,6 +309,7 @@ issue #963 with `phaseElapsedSeconds` and the log tail, so even a lost run keeps
 
 A-CI-LEAF-DISK-1 changes no budget. Each 30-second sample adds four `df --output=avail` calls and
 one `docker info`, bounded by a 10-second `timeout`, and the #963 report adds one `df -h` per path.
-The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, far inside the leaf's
-90-minute job limit, so no budget explains them
+The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, inside the leaf's
+90-minute job limit, while healthy leaves on Azure finished in 39m27s (job 137055572828) and 31.6
+minutes (run 44973329598). No budget explains the losses
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).

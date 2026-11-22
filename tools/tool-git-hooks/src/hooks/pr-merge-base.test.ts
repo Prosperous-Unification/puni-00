@@ -269,6 +269,34 @@ interface ScopeFixture {
   disk?: Record<string, string>;
   /** Docker's data root as `docker info` reports it; `null` is a host without a daemon. */
   dockerRoot?: string | null;
+  /**
+   * The host's DMI strings under the step's `dmi_root` (A-CI-LEAF-DISK-1); Azure's by default. A
+   * `null` file is absent and `unreadable` is mode 000.
+   */
+  dmi?: { sys_vendor?: string | null; product_name?: string | null };
+}
+
+/** What an Azure-hosted runner's start record and #963 header say about its host. */
+const azureCloud = 'cloud=azure dmiProduct=Virtual_Machine';
+
+/** Writes the fixture's DMI files under a scratch root and points the step's one `dmi_root=` line at it. */
+function bindDmiRoot(root: string, script: string, fixture: ScopeFixture): string {
+  const assignment = 'dmi_root=/sys/class/dmi/id\n';
+  if (!script.includes(assignment)) return script;
+  expect(script.split(assignment)).toHaveLength(2);
+  const dmiRoot = join(root, 'dmi');
+  mkdirSync(dmiRoot, { recursive: true });
+  const files = {
+    sys_vendor: 'Microsoft Corporation',
+    product_name: 'Virtual Machine',
+    ...fixture.dmi,
+  };
+  for (const [file, value] of Object.entries(files)) {
+    if (value === null) continue;
+    writeFileSync(join(dmiRoot, file), value === 'unreadable' ? 'hidden\n' : `${value}\n`);
+    if (value === 'unreadable') chmodSync(join(dmiRoot, file), 0o000);
+  }
+  return script.replace(assignment, `dmi_root='${dmiRoot}'\n`);
 }
 
 /** The `${TMPDIR:-/tmp}` the step's disk fields read: an empty TMPDIR also means /tmp. */
@@ -420,7 +448,7 @@ function runStep(
   writeFileSync(join(bin, 'gh'), fakeGh, { mode: 0o755 });
   const disk = writeDiskFakes(bin, h.root, fixture);
   const script = bindRecorderInterval(
-    bindScopeCgroup(h.root, production, fixture),
+    bindDmiRoot(h.root, bindScopeCgroup(h.root, production, fixture), fixture),
     fixture.recorderInterval,
   );
   writeFileSync(
@@ -758,7 +786,7 @@ test.each(headroomShards)(
       );
       const log = await Bun.file(join(h.root, 'nx-gate.log')).text();
       const heap =
-        / heapSizeLimit=([0-9]+) memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=(\S+)\n/.exec(
+        / heapSizeLimit=([0-9]+) memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=(\S+) cloud=azure dmiProduct=Virtual_Machine\n/.exec(
           log,
         );
       expect(heap?.[2]).toBe(`${unit}.scope`);
@@ -879,7 +907,7 @@ test.each(headroomShards)(
       expect(start, status).toBe(1);
       expect(lines[start], status).toMatch(
         new RegExp(
-          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=ci-gate-${partition}-[0-9]+\\.scope$`,
+          ` imageOS=ubuntu24 imageVersion=20261116\\.376\\.1 os=.+ heapSizeLimit=[1-9][0-9]* memoryMax=12G tasksMax=4096 allowedCpus=0-2 scope=ci-gate-${partition}-[0-9]+\\.scope ${azureCloud}$`,
         ),
       );
       // The first sample precedes the gate scope, and the fixture never creates its cgroup, so the
@@ -1001,6 +1029,50 @@ test.each(headroomShards)("%s step samples the gate scope's own cgroup", (job, n
   writeFileSync(join(scope, 'memory.peak'), '0\n');
   writeFileSync(join(scope, 'cpu.stat'), 'user_usec 1\n');
   expect(sample(), 'a cpu.stat without usage_usec').toEndWith(unavailable);
+});
+
+// A-CI-LEAF-DISK-1 (R5-32): the losses follow the hosting cloud, so the start record names it from
+// the host's DMI strings: azure, aws, `other:<vendor>`, or `unavailable` when a file is absent or
+// unreadable, and the record still succeeds.
+// Proof (2026-11-22): dropping `"$(host_cloud)"` from the start record failed this test and the
+// heap-limit and start-record patterns; dropping the "Amazon EC2" mapping failed the aws case.
+test.each(headroomShards)("%s step's start record names the host's cloud", async (job, name) => {
+  const cases: [string, ScopeFixture['dmi'], string][] = [
+    ['azure', {}, azureCloud],
+    [
+      'aws',
+      { sys_vendor: 'Amazon EC2', product_name: 'm7a.xlarge' },
+      'cloud=aws dmiProduct=m7a.xlarge',
+    ],
+    [
+      'another vendor',
+      { sys_vendor: 'QEMU', product_name: 'Standard PC (Q35 + ICH9, 2009)' },
+      'cloud=other:QEMU dmiProduct=Standard_PC__Q35___ICH9__2009_',
+    ],
+    ['an absent vendor', { sys_vendor: null }, 'cloud=unavailable dmiProduct=unavailable'],
+    [
+      'an unreadable product',
+      { product_name: 'unreadable' },
+      'cloud=unavailable dmiProduct=unavailable',
+    ],
+  ];
+  for (const [label, dmi, expected] of cases) {
+    const h = history();
+    const execution = runStep(
+      h,
+      step(job, name),
+      { GATE_MODE: 'affected', GATE_BASE: h.base },
+      { dmi },
+    );
+    expect(
+      execution.invocation.exitCode,
+      `${label}: ${execution.invocation.stderr.toString()}`,
+    ).toBe(0);
+    const { lines, at } = headroomLog(await Bun.file(join(h.root, 'nx-gate.log')).text());
+    expect(lines[at('runtime headroom start ')], label).toMatch(
+      new RegExp(` scope=ci-gate-\\S+\\.scope ${expected.replaceAll('.', '\\.')}$`),
+    );
+  }
 });
 
 // A-CI-LEAF-DISK-1 (R5-32): each sample carries the free KiB on /, /mnt, ${TMPDIR:-/tmp} and
@@ -1211,7 +1283,8 @@ function recorderOutput(h: ReturnType<typeof history>, lines: readonly string[])
 // Proof (2026-11-21): dropping the stored comment id (every tick created a comment) failed the
 // single-create and PATCH-id assertions; dropping `unset GH_TOKEN` put the token in the runtime's
 // ledger line; dropping the final publish left no `state=final` body. Proof (2026-11-22): dropping
-// the disk section, or its per-path `unavailable` fallback, failed the disk assertions.
+// the disk section or its per-path `unavailable` line failed the disk assertions, and dropping the
+// header's cloud field failed the header assertion.
 test('the tool-fleet leaf recorder keeps one living comment on #963', async () => {
   const h = history();
   const dockerRoot = join(h.root, 'docker');
@@ -1255,7 +1328,7 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
     expect(Buffer.byteLength(body)).toBeLessThanOrEqual(61440);
     expect(body).toStartWith('## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n');
     expect(body).toContain(
-      `\nrun=44797660117 job=gate_heavy attempt=2 head=${h.merge} partition=heavy-tool-fleet\n`,
+      `\nrun=44797660117 job=gate_heavy attempt=2 head=${h.merge} partition=heavy-tool-fleet ${azureCloud}\n`,
     );
     expect(body).toMatch(/\nstate=(tick [0-9]+|final) utc=\S+ phaseElapsedSeconds=[0-9]+\n/);
     expect(body).toMatch(/### headroom samples, last 3\n\n````text\nruntime headroom sample utc=/);

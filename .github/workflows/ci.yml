@@ -582,8 +582,8 @@ jobs:
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
           # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
-          # - Start record (strict): image, OS, Node heap limit (from the probe scope), `free -m`,
-          #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
+          # - Start record (strict): image, OS, Node heap limit (from the probe scope), the host's cloud,
+          #   `free -m`, `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
           #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
           #   MemAvailable, node/bun process counts, the largest-RSS process, the gate scope's own
@@ -602,11 +602,35 @@ jobs:
           # record failed `telemetry failures leave the gate status unchanged`. Under FORCE_COLOR=1,
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+          # A-CI-LEAF-DISK-1 (R5-32): the losses follow the hosting cloud, and a lost job's `Set up job` log
+          # goes with it, so the start record and the #963 header name the host's cloud from its DMI strings:
+          # `cloud=azure` for sys_vendor "Microsoft Corporation", `cloud=aws` for "Amazon EC2", otherwise
+          # `cloud=other:<vendor>`, then `dmiProduct=<product_name>` (Azure's "Virtual Machine", an EC2
+          # instance type), with characters outside [A-Za-z0-9._-] replaced by `_`. An unreadable or absent
+          # file gives `cloud=unavailable dmiProduct=unavailable`; the record never fails on it.
+          # Proof (2026-11-22, pr-merge-base.test.ts): dropping it from the start record failed `names the
+          # host's cloud` and the start-record and heap-limit patterns; dropping it from the recorder
+          # header failed the living-comment test; dropping the aws mapping failed the aws case.
+          dmi_root=/sys/class/dmi/id
+          host_cloud() {
+            local vendor product
+            if vendor="$(cat "$dmi_root/sys_vendor" 2> /dev/null)" &&
+              product="$(cat "$dmi_root/product_name" 2> /dev/null)"; then
+              case $vendor in
+                'Microsoft Corporation') printf 'cloud=azure' ;;
+                'Amazon EC2') printf 'cloud=aws' ;;
+                *) printf 'cloud=other:%s' "${vendor//[^A-Za-z0-9._-]/_}" ;;
+              esac
+              printf ' dmiProduct=%s' "${product//[^A-Za-z0-9._-]/_}"
+            else
+              printf 'cloud=unavailable dmiProduct=unavailable'
+            fi
+          }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
             free -m
             df -h /
           }
@@ -711,8 +735,8 @@ jobs:
           # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
           # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
           # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
-          # every 120 s: run, job, attempt and head, the phase's elapsed time, the last three samples,
-          # `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
+          # every 120 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
+          # three samples, `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
           # KiB it shows the disk trend before a loss), the last 15 other nx-gate.log lines (the running
           # test's file and name), the largest processes, the task count and the last kernel lines. A
           # lost runner leaves its last PATCH there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
@@ -731,8 +755,8 @@ jobs:
           # the escape filter posted ESC bytes and the `@` filter a mention; without the final
           # publish's fallback a 403 failed the step 1; without the `unavailable` marker the final
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
-          # Proof (2026-11-22): dropping the disk section, or its per-path `unavailable` fallback, failed
-          # the living-comment test.
+          # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
+          # cloud field failed the living-comment test.
           recorder_issue=963
           recorder_interval=120
           recorder_body_limit=61440
@@ -760,21 +784,26 @@ jobs:
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
-            # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads unavailable.
+            # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
+            # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
             recorder_disk() {
-              local path root
+              local path root usage
               root="$(docker_root)" || root=
               printf 'dockerRootDir=%s\n' "${root:-unavailable}"
               for path in / /mnt "${TMPDIR:-/tmp}" ${root:+"$root"}; do
-                printf '%s ' "$path"
-                df -h --output=size,used,avail,pcent,target "$path" 2> /dev/null | tail -1 || printf 'unavailable\n'
+                if usage="$(df -h --output=size,used,avail,pcent,target "$path" 2> /dev/null)"; then
+                  printf '%s %s\n' "$path" "${usage##*$'\n'}"
+                else
+                  printf '%s unavailable\n' "$path"
+                fi
               done
             }
           }
           recorder_report() {
             printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
-            printf 'run=%s job=%s attempt=%s head=%s partition=%s\n' "${GITHUB_RUN_ID:-absent}" \
-              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition"
+            printf 'run=%s job=%s attempt=%s head=%s partition=%s %s\n' "${GITHUB_RUN_ID:-absent}" \
+              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition" \
+              "$(host_cloud)"
             printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
             recorder_section 'headroom samples, last 3' recorder_samples
             recorder_section 'disk' recorder_disk
@@ -1184,8 +1213,8 @@ jobs:
           # ("The hosted runner lost communication with the server") with no step conclusion and
           # no log; the catalogue lists the jobs. Nothing yet localises the death, so this step
           # leaves evidence in nx-gate.log for the next run that survives long enough to upload it.
-          # - Start record (strict): image, OS, Node heap limit (from the probe scope), `free -m`,
-          #   `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
+          # - Start record (strict): image, OS, Node heap limit (from the probe scope), the host's cloud,
+          #   `free -m`, `df -h /`. It runs before any gate work, so a missing tool fails in seconds instead of
           #   hiding behind 70 minutes.
           # - Sampler (optional telemetry): every 30 s a `runtime headroom sample` line with
           #   MemAvailable, node/bun process counts, the largest-RSS process, the gate scope's own
@@ -1204,11 +1233,35 @@ jobs:
           # record failed `telemetry failures leave the gate status unchanged`. Under FORCE_COLOR=1,
           # restoring `node -p` failed the first test's no-ESC check and heap-limit pattern.
           headroom_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+          # A-CI-LEAF-DISK-1 (R5-32): the losses follow the hosting cloud, and a lost job's `Set up job` log
+          # goes with it, so the start record and the #963 header name the host's cloud from its DMI strings:
+          # `cloud=azure` for sys_vendor "Microsoft Corporation", `cloud=aws` for "Amazon EC2", otherwise
+          # `cloud=other:<vendor>`, then `dmiProduct=<product_name>` (Azure's "Virtual Machine", an EC2
+          # instance type), with characters outside [A-Za-z0-9._-] replaced by `_`. An unreadable or absent
+          # file gives `cloud=unavailable dmiProduct=unavailable`; the record never fails on it.
+          # Proof (2026-11-22, pr-merge-base.test.ts): dropping it from the start record failed `names the
+          # host's cloud` and the start-record and heap-limit patterns; dropping it from the recorder
+          # header failed the living-comment test; dropping the aws mapping failed the aws case.
+          dmi_root=/sys/class/dmi/id
+          host_cloud() {
+            local vendor product
+            if vendor="$(cat "$dmi_root/sys_vendor" 2> /dev/null)" &&
+              product="$(cat "$dmi_root/product_name" 2> /dev/null)"; then
+              case $vendor in
+                'Microsoft Corporation') printf 'cloud=azure' ;;
+                'Amazon EC2') printf 'cloud=aws' ;;
+                *) printf 'cloud=other:%s' "${vendor//[^A-Za-z0-9._-]/_}" ;;
+              esac
+              printf ' dmiProduct=%s' "${product//[^A-Za-z0-9._-]/_}"
+            else
+              printf 'cloud=unavailable dmiProduct=unavailable'
+            fi
+          }
           record_headroom_start() {
-            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s\n' \
+            printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
             free -m
             df -h /
           }
@@ -1313,8 +1366,8 @@ jobs:
           # A-CI-LEAF-RECORDER-1 (R5-32): the tool-fleet leaf's runner was lost twice at exactly 67m03s,
           # and GitHub kept no log, no step conclusion and no artifact, so nothing written on the runner
           # survives. On that leaf only, a recorder outside the scope PATCHes one comment on issue #963
-          # every 120 s: run, job, attempt and head, the phase's elapsed time, the last three samples,
-          # `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
+          # every 120 s: run, job, attempt, head and the host's cloud, the phase's elapsed time, the last
+          # three samples, `df -h` for /, /mnt, $TMPDIR and Docker's data root (A-CI-LEAF-DISK-1; with the samples' free
           # KiB it shows the disk trend before a loss), the last 15 other nx-gate.log lines (the running
           # test's file and name), the largest processes, the task count and the last kernel lines. A
           # lost runner leaves its last PATCH there. It is optional telemetry: a failed create (a fork PR's read-only token, an absent gh)
@@ -1333,8 +1386,8 @@ jobs:
           # the escape filter posted ESC bytes and the `@` filter a mention; without the final
           # publish's fallback a 403 failed the step 1; without the `unavailable` marker the final
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
-          # Proof (2026-11-22): dropping the disk section, or its per-path `unavailable` fallback, failed
-          # the living-comment test.
+          # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
+          # cloud field failed the living-comment test.
           recorder_issue=963
           recorder_interval=120
           recorder_body_limit=61440
@@ -1362,21 +1415,26 @@ jobs:
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
-            # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads unavailable.
+            # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
+            # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
             recorder_disk() {
-              local path root
+              local path root usage
               root="$(docker_root)" || root=
               printf 'dockerRootDir=%s\n' "${root:-unavailable}"
               for path in / /mnt "${TMPDIR:-/tmp}" ${root:+"$root"}; do
-                printf '%s ' "$path"
-                df -h --output=size,used,avail,pcent,target "$path" 2> /dev/null | tail -1 || printf 'unavailable\n'
+                if usage="$(df -h --output=size,used,avail,pcent,target "$path" 2> /dev/null)"; then
+                  printf '%s %s\n' "$path" "${usage##*$'\n'}"
+                else
+                  printf '%s unavailable\n' "$path"
+                fi
               done
             }
           }
           recorder_report() {
             printf '## tool-fleet leaf recorder (A-CI-LEAF-RECORDER-1)\n\n'
-            printf 'run=%s job=%s attempt=%s head=%s partition=%s\n' "${GITHUB_RUN_ID:-absent}" \
-              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition"
+            printf 'run=%s job=%s attempt=%s head=%s partition=%s %s\n' "${GITHUB_RUN_ID:-absent}" \
+              "${GITHUB_JOB:-absent}" "${GITHUB_RUN_ATTEMPT:-absent}" "${GITHUB_SHA:-absent}" "$partition" \
+              "$(host_cloud)"
             printf 'state=%s utc=%s phaseElapsedSeconds=%s\n' "$1" "$(headroom_utc)" "$(($(date +%s) - phase_epoch))"
             recorder_section 'headroom samples, last 3' recorder_samples
             recorder_section 'disk' recorder_disk
