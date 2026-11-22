@@ -11,6 +11,7 @@ import {
   SqliteOrganizationAccess,
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
+import type { Database } from 'bun:sqlite';
 import { type SQL, sql } from 'drizzle-orm';
 
 import { buildApp } from '../../../../../../wbs/be-01/src/app';
@@ -18,7 +19,10 @@ import { bootBe01, type RunningBe } from '../../../../../../wbs/be-01/src/boot';
 import { runMigrations } from '../../../../../../wbs/be-01/src/repository/migrate';
 import { TEST_JWT_KEY } from '../../../../../../wbs/be-01/src/testing/auth-fixture';
 import { TEST_MCP_SERVICE_SETTINGS } from '../../../../../../wbs/be-01/src/testing/machine-grant-fixture';
-import { OrganizationHarness } from '../../../../../../wbs/be-01/src/testing/organization-harness';
+import {
+  migrateRenamedRuntimeCatalogueFixture,
+  OrganizationHarness,
+} from '../../../../../../wbs/be-01/src/testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../../../../../../wbs/be-01/src/testing/organization-limits-fixture';
 import { createRuntimeClient, type RuntimeClient } from '../../bridge/runtime-client';
 import type { RuntimeScope } from '../runtime-records';
@@ -70,7 +74,9 @@ export async function createRecoveryReceiver(
   return createReceiver({ kind: 'fresh' }, inspectHarness);
 }
 /** Restores the independently captured outgoing110 database through the actual migration owner, then grants only a distinct named current caller. Historical runtime identities are never retargeted. */
-export async function createLegacyRecoveryReceiver(): Promise<LegacyRecoveryReceiverFixture> {
+export async function createLegacyRecoveryReceiver(
+  inspectRename?: (database: Database) => void,
+): Promise<LegacyRecoveryReceiverFixture> {
   const base = new URL(
     '../../../../../../../openspec/changes/wbs-work-packages/fixtures/',
     import.meta.url,
@@ -87,7 +93,16 @@ export async function createLegacyRecoveryReceiver(): Promise<LegacyRecoveryRece
   if (hash(captureBytes) !== '5a887d7358e184285324a76f15e9aacc9bd935f706f54a17bc167485f3df8868')
     throw Error('original paired WBS110 identity changed');
   const capture = JSON.parse(captureBytes.toString()) as LegacyReceiverCapture;
-  return createReceiver({ kind: 'legacy', snapshot, capture });
+  const migrations = new URL('../../../../../../wbs/be-01/drizzle', import.meta.url).pathname;
+  return createReceiver({
+    kind: 'legacy',
+    capture,
+    migrate(path) {
+      writeFileSync(path, snapshot, { flag: 'wx' });
+      migrateRenamedRuntimeCatalogueFixture(path, inspectRename);
+      runMigrations(path, migrations);
+    },
+  });
 }
 /** Owns the composed SQLite/controller graph and all restarted native resources; barriers stop transport before admission. */
 async function createReceiver(
@@ -95,7 +110,7 @@ async function createReceiver(
     | { readonly kind: 'fresh' }
     | {
         readonly kind: 'legacy';
-        readonly snapshot: Uint8Array;
+        readonly migrate: (path: string) => void;
         readonly capture: LegacyReceiverCapture;
       },
   inspectHarness?: ReceiverInspection,
@@ -103,15 +118,7 @@ async function createReceiver(
   const harness =
     setup.kind === 'fresh'
       ? OrganizationHarness.openComposed()
-      : OrganizationHarness.openComposedWith({
-          migrate(path) {
-            writeFileSync(path, setup.snapshot, { flag: 'wx' });
-            runMigrations(
-              path,
-              new URL('../../../../../../wbs/be-01/drizzle', import.meta.url).pathname,
-            );
-          },
-        });
+      : OrganizationHarness.openComposedWith({ migrate: setup.migrate });
   const username = setup.kind === 'fresh' ? 'ada' : 'current-reader';
   console.log('Task3 receiver DB root ' + dirname(harness.databasePath()));
   let mounted: Pick<OrganizationHarness['app'], 'handle'> = harness.app;

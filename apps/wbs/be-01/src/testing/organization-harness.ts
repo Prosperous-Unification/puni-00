@@ -158,6 +158,8 @@ import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
 import { testWrites } from './writes-fixture';
 
+export { migrateRenamedRuntimeCatalogueFixture } from './organization-catalogue-fixture';
+
 /**
  * A deterministic, non-cryptographic stand-in for `Bun.password` in {@link OrganizationHarness.open}.
  * No harness test proves anything about argon2id, and each real hash cost 1 to 2 s of a loaded

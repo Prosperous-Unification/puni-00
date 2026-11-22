@@ -1,14 +1,17 @@
-import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
-const MIGRATIONS = join(APP_ROOT, 'drizzle');
+const INITIAL_ACCESS = '20261103110000_add_initial_access_offers';
+const SCOPE_AUDIENCE = '20261022120000_scope_trusted_issuer_audience';
+const CLAIM_OCCUPANCY = '20261020130000_add_claim_occupancy';
 const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
@@ -18,22 +21,17 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-/** The migration immediately before `add_machine_credential`. */
-function baseline(): string {
-  const names = readdirSync(MIGRATIONS).sort();
-  const before = names.at(names.indexOf(MACHINE_CREDENTIAL) - 1);
-  if (before === undefined || names.indexOf(MACHINE_CREDENTIAL) < 1)
-    throw new Error(`${MACHINE_CREDENTIAL} has no predecessor on disk`);
-  return before;
-}
-
-/** A store migrated to the latest, with an organization, an account and an agent person. */
-function migratedStore(): { root: string; dbPath: string } {
+/** A seeded store through trusted issuer scoping for credential checks or initial access for rollback. */
+function migratedStore(through: typeof INITIAL_ACCESS | typeof SCOPE_AUDIENCE = INITIAL_ACCESS): {
+  root: string;
+  dbPath: string;
+} {
   const root = mkdtempSync(join(tmpdir(), 'wbs-machine-credential-'));
   roots.push(root);
-  cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+  const folder = join(root, 'drizzle');
+  renameSync(copyRecoveryPrefix(root, through), folder);
   const dbPath = join(root, 'plan.db');
-  runMigrations(dbPath, join(root, 'drizzle'));
+  runMigrations(dbPath, folder);
   run(dbPath, [
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
@@ -82,7 +80,7 @@ async function rollBack(root: string, dbPath: string, to: string) {
 
 describe(MACHINE_CREDENTIAL, () => {
   it('stores an API key and its secret digest, and refuses a malformed digest', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(SCOPE_AUDIENCE);
     run(dbPath, [
       credential('source', "'api_key'"),
       `INSERT INTO machine_credential_secret (id, credential_id, digest, created_at) VALUES ('s1', '${CREDENTIAL}', '${'a'.repeat(64)}', 1)`,
@@ -97,7 +95,7 @@ describe(MACHINE_CREDENTIAL, () => {
   // Proof: the per-source CHECK replaced by `CHECK (1)` made this store an
   // API key carrying a subject; watched 2026-10-22.
   it('refuses a credential whose columns contradict its source', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(SCOPE_AUDIENCE);
     for (const [columns, values] of [
       ['source, subject', "'api_key', 'repo:acme/wbs'"],
       ['source, issuer, subject', "'oidc', 'https://token.example', 'repo:acme/wbs'"],
@@ -118,7 +116,7 @@ describe(MACHINE_CREDENTIAL, () => {
   // credential; watched 2026-10-22. Since `20261022120000_scope_trusted_issuer_audience`
   // the pair is held per trusted issuer (`machine_credential_trusted_subject`).
   it('keeps one OIDC pair on one credential', () => {
-    const { dbPath } = migratedStore();
+    const { dbPath } = migratedStore(SCOPE_AUDIENCE);
     run(dbPath, [
       credential(
         'source, issuer, subject, trusted_issuer_id',
@@ -135,7 +133,7 @@ describe(MACHINE_CREDENTIAL, () => {
   it('rolls back when empty and comes forward again', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, ['DELETE FROM organization_trusted_issuer']);
-    const down = await rollBack(root, dbPath, baseline());
+    const down = await rollBack(root, dbPath, CLAIM_OCCUPANCY);
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     const reversed = readdirSync(join(root, 'drizzle'))
@@ -153,7 +151,7 @@ describe(MACHINE_CREDENTIAL, () => {
   it('refuses rollback while one credential exists, keeping it', async () => {
     const { root, dbPath } = migratedStore();
     run(dbPath, ['DELETE FROM organization_trusted_issuer', credential('source', "'api_key'")]);
-    const down = await rollBack(root, dbPath, baseline());
+    const down = await rollBack(root, dbPath, CLAIM_OCCUPANCY);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('machine credentials or trusted issuers exist');
     const sqlite = openDatabase(dbPath);
@@ -166,7 +164,7 @@ describe(MACHINE_CREDENTIAL, () => {
 
   it('refuses rollback while a trusted issuer exists', async () => {
     const { root, dbPath } = migratedStore();
-    const down = await rollBack(root, dbPath, baseline());
+    const down = await rollBack(root, dbPath, CLAIM_OCCUPANCY);
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('machine credentials or trusted issuers exist');
     expect(tablesOf(dbPath)).toContain('organization_trusted_issuer');

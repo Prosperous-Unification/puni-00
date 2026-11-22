@@ -192,7 +192,34 @@ test('current RuntimeClient replays all original1 operations after actual111 mig
   const provenance = JSON.parse(
     readFileSync(new URL('legacy-runtime-database-capture.json', base), 'utf8'),
   ) as { readonly outgoingMigrations: readonly { readonly name: string; readonly hash: string }[] };
-  const receiver = await createLegacyRecoveryReceiver();
+  const expectedRetained = paired.tables.runtime_command_receipt
+    .map(({ command_id, accepted }) => ({ command_id, accepted }))
+    .sort((left, right) => left.command_id.localeCompare(right.command_id));
+  const receiver = await createLegacyRecoveryReceiver((database) => {
+    const ledger = database
+      .query<{ name: string; hash: string }, []>(
+        'SELECT name,hash FROM __drizzle_migrations ORDER BY name',
+      )
+      .all();
+    strictEqual(ledger.length, 111);
+    deepStrictEqual(ledger.slice(0, 110), provenance.outgoingMigrations);
+    const rename = readFileSync(
+      new URL(
+        '../../../../../../../apps/wbs/be-01/drizzle/20261110100000_rename_project_to_work_package/migration.sql',
+        import.meta.url,
+      ),
+    );
+    deepStrictEqual(ledger[110], {
+      name: '20261110100000_rename_project_to_work_package',
+      hash: createHash('sha256').update(rename).digest('hex'),
+    });
+    deepStrictEqual(
+      database
+        .query('SELECT command_id,accepted FROM runtime_command_receipt ORDER BY command_id')
+        .all(),
+      expectedRetained,
+    );
+  });
   const params = { id: paired.scope.projectId };
   const lookup = (commandId: string) =>
     receiver.client.lookupReceipt({
@@ -259,28 +286,8 @@ test('current RuntimeClient replays all original1 operations after actual111 mig
       }))
       .sort((left, right) => String(left.command_id).localeCompare(String(right.command_id)));
   }
-  const expectedRetained = paired.tables.runtime_command_receipt
-    .map(({ command_id, accepted }) => ({ command_id, accepted }))
-    .sort((left, right) => left.command_id.localeCompare(right.command_id));
   const rawResponses = new Map<string, string>();
   try {
-    const first = inspect();
-    const ledger = first['__drizzle_migrations'].map((row) => ({
-      name: row['name'],
-      hash: row['hash'],
-    }));
-    strictEqual(ledger.length, 111);
-    deepStrictEqual(ledger.slice(0, 110), provenance.outgoingMigrations);
-    const rename = readFileSync(
-      new URL(
-        '../../../../../../../apps/wbs/be-01/drizzle/20261110100000_rename_project_to_work_package/migration.sql',
-        import.meta.url,
-      ),
-    );
-    deepStrictEqual(ledger[110], {
-      name: '20261110100000_rename_project_to_work_package',
-      hash: createHash('sha256').update(rename).digest('hex'),
-    });
     deepStrictEqual(retained(), expectedRetained);
     for (let round = 0; round < 3; round++) {
       if (round === 1) await receiver.reopen();

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 let h: OrganizationHarness;
 let workPackageId: string;
@@ -14,8 +15,7 @@ beforeEach(async () => {
   h.member('org-a', 'ada', 'admin', ['org-admin']);
   h.bind('ada', 'org-a');
   h.activate();
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Runtime' });
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Runtime');
   h.sqlite.run("INSERT INTO person (id, name) VALUES ('person', 'Person')");
   h.sqlite.run(
     "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('person', 'org-a', 'Person')",
@@ -110,17 +110,34 @@ async function acquireAuthority() {
 async function createClaimRequest(): Promise<RuntimeClaimRequest & { personId: string }> {
   const { observation, grant } = await acquireAuthority();
   // Pin/cap/receipt fixtures require an unstarted first step before the work package's default Dev/QA.
-  const first = h.sqlite
-    .query<{ position: number }, [string]>(
-      'SELECT position FROM step WHERE work_package_id=? ORDER BY position LIMIT 1',
-    )
-    .get(workPackageId);
-  if (first === null) throw new Error('fixture default workflow steps missing');
+  const fixture = await readFixturePackage(h, 'ada', workPackageId);
+  const first = fixture.steps.at(0);
+  if (first === undefined) throw new Error('fixture default workflow steps missing');
   expect(first.position).toBeGreaterThan(0);
-  h.sqlite.run(
-    "INSERT INTO step (id, work_package_id, name, position, code) VALUES ('dev', ?, 'Runtime test', 0, 'runtime-test')",
-    [workPackageId],
-  );
+  await h.publicWrites().uow.run(async ({ stores }) => {
+    const bound = await stores.stepCatalogue.defineAndBindStep(
+      'org-a',
+      {
+        id: 'dev',
+        code: 'runtime-test',
+        name: 'Runtime test',
+        position: 0,
+        defaultAllowancePercent: 0,
+        defaultEstimateUnit: 'workdays',
+      },
+      {
+        bindingId: 'runtime-test-binding',
+        scopeKind: 'project',
+        scopeId: fixture.workPackage.projectId,
+        workItemTypeId: null,
+        position: 0,
+      },
+      { at: 1, by: h.userId('ada') },
+    );
+    if (!bound.ok) throw new Error('fixture runtime step binding refused: ' + bound.reason);
+    return { commit: true, value: undefined };
+  });
+  expect((await readFixturePackage(h, 'ada', workPackageId)).steps.at(0)?.id).toBe('dev');
   h.sqlite.run(
     "INSERT INTO work_item (id, work_package_id, position, name, readiness) VALUES ('leaf', ?, 10, 'Leaf', 'ready')",
     [workPackageId],
@@ -223,12 +240,19 @@ async function createClaimRequestAfterAuthority(ledgerId: string) {
 }
 test('current grant and person binding refuse before historical replay, and foreign work packages match absence', async () => {
   const { request, observation } = await acquireAuthority();
+  expect(
+    h.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_kind='user' AND subject_id=? AND origin='creation' AND (scope_kind='project' OR scope_kind='work_package')",
+      [h.userId('ada')],
+    ).changes,
+  ).toBe(2);
   h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
-  h.sqlite.run("UPDATE access_grant SET role_id='org-viewer' WHERE subject_id=?", [
-    h.userId('ada'),
-  ]);
+  h.sqlite.run(
+    "UPDATE access_grant SET role_id='org-viewer' WHERE organization_id='org-a' AND scope_kind='organization' AND scope_id='org-a' AND subject_kind='user' AND subject_id=?",
+    [h.userId('ada')],
+  );
   expect(
     await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-authority`, request),
   ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.write' } });
@@ -244,9 +268,10 @@ test('current grant and person binding refuse before historical replay, and fore
   h.sqlite.run("UPDATE organization_membership SET role = 'member' WHERE user_id = ?", [
     h.userId('ada'),
   ]);
-  h.sqlite.run("UPDATE access_grant SET role_id='project-contributor' WHERE subject_id=?", [
-    h.userId('ada'),
-  ]);
+  h.sqlite.run(
+    "UPDATE access_grant SET role_id='project-contributor' WHERE organization_id='org-a' AND scope_kind='organization' AND scope_id='org-a' AND subject_kind='user' AND subject_id=?",
+    [h.userId('ada')],
+  );
   expect(
     await h.call('ada', 'POST', `/api/work-packages/${workPackageId}/runtime-authority`, request),
   ).toEqual({ status: 403, body: { error: 'forbidden', permission: 'package.claim_for_others' } });
@@ -267,8 +292,7 @@ test('legacy runtime access refuses while ordinary APIs remain available', async
   await h.closeComposed();
   h = OrganizationHarness.openComposed();
   await h.register('ada');
-  const created = await h.call('ada', 'POST', '/api/work-packages', { name: 'Legacy' });
-  workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
+  workPackageId = await createFixturePackage(h, 'ada', 'Legacy');
   expect(
     await h.call('ada', 'GET', `/api/work-packages/${workPackageId}/runtime-state?personId=person`),
   ).toEqual({ status: 403, body: { error: 'runtime_scope_unavailable' } });
