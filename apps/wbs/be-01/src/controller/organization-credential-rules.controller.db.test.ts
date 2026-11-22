@@ -80,6 +80,10 @@ async function populate(): Promise<void> {
   for (const username of ['mia', 'pat']) await h.register(username);
   for (const organization of ['org-a', 'org-b']) {
     h.organization(organization);
+    h.sqlite.run(
+      'INSERT INTO project(id,organization_id,name,created_by,created_at) VALUES(?,?,?,?,1)',
+      [`rules-${organization}`, organization, 'Credential rules project', h.userId('mia')],
+    );
     h.member(organization, 'mia', 'member', ['project-contributor', 'org-viewer']);
     h.grantPermissions(organization, 'mia', ['organization.create_project']);
   }
@@ -232,7 +236,7 @@ describe('enforced SSO', () => {
     expect(selected.status).toBe(200);
     const created = await send(token, 'POST', '/api/work-packages', {
       selection: selected.pair,
-      body: { name: 'Plan' },
+      body: { name: 'Plan', projectId: 'rules-org-a' },
     });
     expect(created.status).toBe(200);
     const workPackageId = (created.body as { workPackage: { id: string } }).workPackage.id;
@@ -504,7 +508,7 @@ it('applies expected organization to verified OIDC cookie and Bearer writes', as
           ...(bearer ? { authorization: `Bearer ${token}` } : {}),
           ...(expectation === undefined ? {} : { 'X-WBS-Expected-Organization': expectation }),
         },
-        body: JSON.stringify({ name: 'OIDC scoped work package' }),
+        body: JSON.stringify({ name: 'OIDC scoped work package', projectId: 'rules-org-b' }),
       });
       expect(response.status).toBe(expectation === 'org-b' ? 200 : 409);
       if (expectation !== 'org-b') {
@@ -521,7 +525,7 @@ it('a matching expectation cannot bypass SSO, membership, viewer or session poli
   const attempt = () =>
     send(token, 'POST', '/api/work-packages', {
       selection: selected.pair,
-      body: { name: 'refused' },
+      body: { name: 'refused', projectId: 'rules-org-a' },
     });
   enforce();
   expect((await attempt()).body).toEqual(SSO_REQUIRED);

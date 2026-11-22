@@ -25,6 +25,7 @@ import { grantCredential } from '../testing/machine-credential-fixture';
 import { TEST_MCP_AUTHORIZATION_SERVER } from '../testing/machine-grant-fixture';
 import { OrganizationHarness } from '../testing/organization-harness';
 import { TEST_ORGANIZATION_DEFAULT_LIMITS } from '../testing/organization-limits-fixture';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const path = '/api/organization/agent-pools';
 let harness: OrganizationHarness;
@@ -98,18 +99,11 @@ for (const operation of ['list', 'create', 'rekey', 'revoke'] as const) {
 }
 
 async function seedPoolClaim(): Promise<void> {
-  const created = await harness.call('keeper', 'POST', '/api/work-packages', {
-    name: 'Pool claim plan',
-  });
-  if (created.status !== 200) throw new Error('pool claim work package creation refused');
-  const workPackage = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM work_package WHERE name=?')
-    .get('Pool claim plan');
-  if (workPackage === null) throw new Error('pool claim work package missing');
+  const workPackageId = await createFixturePackage(harness, 'keeper', 'Pool claim plan');
   const added = await harness.call(
     'keeper',
     'POST',
-    '/api/work-packages/' + workPackage.id + '/commands',
+    '/api/work-packages/' + workPackageId + '/commands',
     {
       commands: [{ kind: 'createWorkItem', name: 'Claimed pool work' }],
     },
@@ -117,21 +111,20 @@ async function seedPoolClaim(): Promise<void> {
   if (added.status !== 200) throw new Error('pool claim work creation refused');
   const leaf = harness.sqlite
     .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE work_package_id=?')
-    .get(workPackage.id);
-  const step = harness.sqlite
-    .query<{ id: string }, [string]>('SELECT id FROM step WHERE work_package_id=? ORDER BY rowid')
-    .get(workPackage.id);
+    .get(workPackageId);
+  const { steps } = await readFixturePackage(harness, 'keeper', workPackageId);
+  const step = steps.at(0);
   const person = harness.sqlite
     .query<{ person_id: string }, [string]>(
       'SELECT person_id FROM machine_credential WHERE agent_pool_id=?',
     )
     .get(poolId);
-  if (leaf === null || step === null || person === null)
+  if (leaf === null || step === undefined || person === null)
     throw new Error('pool claim references missing');
   const claimed = await harness.call(
     'keeper',
     'POST',
-    '/api/work-packages/' + workPackage.id + '/commands',
+    '/api/work-packages/' + workPackageId + '/commands',
     {
       commands: [
         {

@@ -1,11 +1,20 @@
 import { afterEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 const opened: OrganizationHarness[] = [];
-afterEach(() => {
-  for (const harness of opened.splice(0)) harness.close();
+afterEach(async () => {
+  for (const harness of opened.splice(0)) await harness.closeComposed();
 });
+
+async function create(harness: OrganizationHarness, name: string) {
+  const workPackageId = await createFixturePackage(harness, 'ada', name);
+  const { steps } = await readFixturePackage(harness, 'ada', workPackageId);
+  const step = steps.at(0);
+  if (step === undefined) throw new Error('fanout fixture has no step');
+  return { workPackageId, stepId: step.id };
+}
 
 /**
  * Seeds the asserted topology independently of creation-time/ID tie breaks.
@@ -53,17 +62,13 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   harness.grantPermissions('org-a', 'ada', ['organization.create_project']);
   harness.bind('ada', 'org-a');
   harness.activate();
-  const create = async (name: string) => {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    if (answer.status !== 200)
-      throw new Error(`work package creation refused: ${JSON.stringify(answer)}`);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const step = body.steps.at(0);
-    if (step === undefined) throw new Error('work package creation omitted its first step');
-    return { workPackageId: body.workPackage.id, stepId: step.id };
-  };
-  const upstream = await create('Upstream');
-  const downstream = await create('Downstream');
+  const upstream = await create(harness, 'Upstream');
+  const downstream = await create(harness, 'Downstream');
+  const setupAudits = harness.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all();
+  const lastSetupEvent = harness.sqlite
+    .query<{ id: number }, []>('SELECT id FROM event_log ORDER BY id DESC LIMIT 1')
+    .get();
+  if (lastSetupEvent === null) throw new Error('catalogue setup event missing');
   rankWorkPackages(harness, [upstream.workPackageId, downstream.workPackageId]);
   harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
   harness.sqlite.run(
@@ -118,10 +123,10 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   const answer = await pending;
   expect(answer.status).toBe(200);
   const events = harness.sqlite
-    .query<{ message: string }, [string]>(
-      'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+    .query<{ message: string }, [string, number]>(
+      'SELECT message FROM event_log WHERE subscription = ? AND id > ? ORDER BY seq',
     )
-    .all(`work-package:${downstream.workPackageId}`);
+    .all(`work-package:${downstream.workPackageId}`, lastSetupEvent.id);
   expect(events.map(({ message }) => JSON.parse(message) as unknown)).toEqual([
     {
       type: 'elsewhere_changed',
@@ -153,8 +158,8 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   expect(twice.status).toBe(200);
   expect(
     harness.sqlite
-      .query('SELECT * FROM event_log WHERE subscription = ? ORDER BY seq')
-      .all(`work-package:${downstream.workPackageId}`),
+      .query('SELECT * FROM event_log WHERE subscription = ? AND id > ? ORDER BY seq')
+      .all(`work-package:${downstream.workPackageId}`, lastSetupEvent.id),
   ).toHaveLength(2);
   const roundTrip = await harness.call(
     'ada',
@@ -180,8 +185,8 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
   expect(roundTrip.status).toBe(200);
   expect(
     harness.sqlite
-      .query('SELECT * FROM event_log WHERE subscription = ? ORDER BY seq')
-      .all(`work-package:${downstream.workPackageId}`),
+      .query('SELECT * FROM event_log WHERE subscription = ? AND id > ? ORDER BY seq')
+      .all(`work-package:${downstream.workPackageId}`, lastSetupEvent.id),
   ).toHaveLength(2);
   const beforeRefusal = [
     'estimate',
@@ -253,28 +258,50 @@ it('records a cold shared command fan-out without a preceding tree GET', async (
       .query('SELECT * FROM event_log WHERE subscription = ? AND message LIKE ? ORDER BY seq')
       .all(`work-package:${downstream.workPackageId}`, '%elsewhere_changed%'),
   ).toHaveLength(3);
+  const binding = harness.sqlite
+    .query<{ id: string }, [string, string]>(
+      "SELECT binding.id FROM step_binding AS binding JOIN work_package AS package ON package.project_id=binding.scope_id WHERE binding.scope_kind='project' AND binding.work_item_type_id IS NULL AND package.id=? AND binding.step_id=?",
+    )
+    .get(upstream.workPackageId, upstream.stepId);
+  if (binding === null) throw new Error('upstream Dev binding absent');
+  const unbindEffects = () =>
+    [
+      'step_binding',
+      'work_package_step',
+      'estimate',
+      'assignment',
+      'event_log',
+      'event_sequencer',
+    ].map((table) => harness.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  const beforeUnbind = unbindEffects();
   expect(
-    await harness.removeBareStep(
-      upstream.workPackageId,
-      upstream.stepId,
-      { id: harness.userId('ada'), username: 'ada', scopes: ['write'] },
-      true,
-      {
-        principal: { id: harness.userId('ada') },
-        kind: 'scoped',
-        scope: {
-          cap: null,
-          organizationId: 'org-a',
-          userId: harness.userId('ada'),
+    await harness.call('ada', 'DELETE', `/api/organization/step-bindings/${binding.id}`, {
+      dryRun: false,
+    }),
+  ).toEqual({
+    status: 409,
+    body: {
+      error: 'step_nodes_in_use',
+      count: 1,
+      pairs: [
+        {
+          id: 'row-0',
+          name: 'row-0',
+          workPackageId: upstream.workPackageId,
+          stepId: upstream.stepId,
+          facts: ['estimate', 'assignment'],
         },
-      },
-    ),
-  ).toEqual({ ok: true });
-  expect(harness.sqlite.query('SELECT * FROM organization_audit').all()).toEqual([]);
+      ],
+    },
+  });
+  expect(unbindEffects()).toEqual(beforeUnbind);
+  expect(harness.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all()).toEqual(
+    setupAudits,
+  );
   expect(
     harness.sqlite
-      .query('SELECT * FROM event_log WHERE subscription = ? ORDER BY seq')
-      .all(`work-package:${downstream.workPackageId}`),
+      .query('SELECT * FROM event_log WHERE subscription = ? AND id > ? ORDER BY seq')
+      .all(`work-package:${downstream.workPackageId}`, lastSetupEvent.id),
   ).toHaveLength(3);
 });
 
@@ -289,15 +316,7 @@ it('records distinct sorted causes from a directory-only batch across old shared
   harness.bind('ada', 'org-a');
   harness.activate();
   const workPackages: { workPackageId: string; stepId: string }[] = [];
-  for (const name of ['A', 'B', 'C']) {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    if (answer.status !== 200)
-      throw new Error(`work package creation refused: ${JSON.stringify(answer)}`);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const step = body.steps.at(0);
-    if (step === undefined) throw new Error('work package creation omitted its first step');
-    workPackages.push({ workPackageId: body.workPackage.id, stepId: step.id });
-  }
+  for (const name of ['A', 'B', 'C']) workPackages.push(await create(harness, name));
   rankWorkPackages(
     harness,
     workPackages.map((workPackage) => workPackage.workPackageId),
@@ -417,15 +436,7 @@ it('keeps both changed connection endpoints as durable causes on assignment remo
   harness.bind('ada', 'org-a');
   harness.activate();
   const workPackages: { workPackageId: string; stepId: string }[] = [];
-  for (const name of ['A', 'B', 'C']) {
-    const answer = await harness.call('ada', 'POST', '/api/work-packages', { name });
-    if (answer.status !== 200)
-      throw new Error(`work package creation refused: ${JSON.stringify(answer)}`);
-    const body = answer.body as { workPackage: { id: string }; steps: { id: string }[] };
-    const step = body.steps.at(0);
-    if (step === undefined) throw new Error('work package creation omitted its first step');
-    workPackages.push({ workPackageId: body.workPackage.id, stepId: step.id });
-  }
+  for (const name of ['A', 'B', 'C']) workPackages.push(await create(harness, name));
   rankWorkPackages(
     harness,
     workPackages.map((workPackage) => workPackage.workPackageId),

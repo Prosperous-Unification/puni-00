@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
+import { createFixturePackage, readFixturePackage } from '../testing/space-rollup';
 
 /**
  * The by-person read (`GET /api/work-packages/:id/people/:personId/work`,
@@ -15,7 +16,7 @@ let dev: string;
 let qa: string;
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -28,8 +29,8 @@ beforeEach(async () => {
   h.bind('vic', 'org-a');
   h.bind('grace', 'org-b');
   h.activate();
-  own = await create('ada', 'A plan');
-  foreign = await create('grace', 'B plan');
+  own = await createFixturePackage(h, 'ada', 'A plan');
+  foreign = await createFixturePackage(h, 'grace', 'B plan');
   [dev, qa] = await stepsOf('ada', own);
   for (const [id, organizationId, name] of [
     ['pe-kat', 'org-a', 'Kat'],
@@ -75,19 +76,12 @@ beforeEach(async () => {
   }
 });
 
-afterEach(() => {
-  h.close();
+afterEach(async () => {
+  await h.closeComposed();
 });
 
-async function create(username: string, name: string): Promise<string> {
-  const answer = await h.call(username, 'POST', '/api/work-packages', { name });
-  if (answer.status !== 200) throw new Error(`create refused: ${JSON.stringify(answer)}`);
-  return (answer.body as { workPackage: { id: string } }).workPackage.id;
-}
-
 async function stepsOf(username: string, workPackageId: string): Promise<[string, string]> {
-  const answer = await h.call(username, 'GET', `/api/work-packages/${workPackageId}`);
-  const { steps } = answer.body as { steps: { id: string }[] };
+  const { steps } = await readFixturePackage(h, username, workPackageId);
   const first = steps.at(0);
   const second = steps.at(1);
   if (first === undefined || second === undefined)

@@ -2532,3 +2532,9 @@ the external dependency read is unavailable and reports the exact protected
 node after restoring the read. Current estimate clearing and dependency reach
 still exercise real cycle rollback, and the catalogue fixture tests scope
 against distinct bindings alongside shared Dev and QA definitions.
+
+The predecessor's `fanout-command.controller.db.test.ts` (blob
+`dc4431cb27e199b176fc95075d368c8a892a9158`) passed all three tests with 20
+assertions, including package-local cascade removal. The current fanout suite
+checks the mounted refusal to unbind a step with an estimate and assignment.
+It verifies that the binding, facts, audit and event ledger are preserved.

@@ -6,6 +6,7 @@ import {
   harness,
   openFixture,
   readTables,
+  restrictFixturePackage,
 } from './cross-work-package-dependency-fixture';
 
 afterEach(closeFixture);
@@ -21,7 +22,21 @@ for (const delivery of ['healthy', 'wrong-owner', 'wrong-identity'] as const)
       "UPDATE organization_membership SET role='member' WHERE organization_id='org-a' AND user_id=?",
       [fixture.principal.id],
     );
-    harness.sqlite.run('UPDATE work_package SET owner_id=?,restricted=1 WHERE id=?', [
+    restrictFixturePackage(fixture.predecessor.workPackageId);
+    harness.sqlite.run(
+      "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id=? AND role_id='org-super-admin'",
+      [fixture.principal.id],
+    );
+    harness.grant('org-a', 'ada', 'project-contributor');
+    harness.grant('org-a', 'ada', 'org-viewer');
+    harness.grant(
+      'org-a',
+      'grace',
+      'package-manager',
+      'work_package',
+      fixture.predecessor.workPackageId,
+    );
+    harness.sqlite.run('UPDATE work_package SET created_by=? WHERE id=?', [
       harness.userId('grace'),
       fixture.predecessor.workPackageId,
     ]);
@@ -34,9 +49,9 @@ for (const delivery of ['healthy', 'wrong-owner', 'wrong-identity'] as const)
     );
     expect(
       harness.sqlite
-        .query('SELECT owner_id,restricted FROM work_package WHERE id=?')
+        .query('SELECT created_by,restricted FROM work_package WHERE id=?')
         .get(fixture.predecessor.workPackageId),
-    ).toEqual({ owner_id: harness.userId('grace'), restricted: 1 });
+    ).toEqual({ created_by: harness.userId('grace'), restricted: 1 });
     expect(fixture.principal.id).not.toBe(harness.userId('grace'));
     expect(
       (
