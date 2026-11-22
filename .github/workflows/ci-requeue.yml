@@ -1,0 +1,115 @@
+# A-CI-LEAF-AWS-1 (R5-32): reruns the failed jobs of a ci run whose tool-fleet leaf refused an
+# AWS-hosted runner. ci.yml's `requeue tool-fleet leaf` job dispatches it, because a run cannot
+# rerun itself while one of its own jobs is still running. The inputs are untrusted (anyone with
+# write access can dispatch), so they are validated here and the marker artifact, which only
+# gate_heavy uploads, is checked again: without `aws-refused-heavy-tool-fleet-attempt-<attempt>`
+# on that run nothing is rerun. The bound is the same as the dispatcher's: attempts 1 to 4, three
+# reruns at most. Only a `failure` conclusion is rerun: a cancelled run (off main a newer commit
+# cancels it) or a passing one is left alone, so a requeue never revives a superseded commit.
+# gate-workflow.test.ts runs this step's script against a fake `gh`.
+name: ci-requeue
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The ci run whose tool-fleet leaf refused an AWS host
+        required: true
+        type: string
+      attempt:
+        description: The refused attempt of that run
+        required: true
+        type: string
+      head_sha:
+        description: The head commit the run records
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-requeue-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  requeue:
+    name: requeue tool-fleet leaf
+    runs-on: ubuntu-latest
+    # The poll bound below is 150 minutes; main runs complete about 88 minutes after they start.
+    timeout-minutes: 160
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Rerun failed jobs after an AWS refusal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run_id }}
+          RUN_ATTEMPT: ${{ inputs.attempt }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -euo pipefail
+          # Proof: see gate-workflow.test.ts `ci-requeue` for each injected fault.
+          case "$RUN_ID" in '' | *[!0-9]* | 0*)
+            printf 'A-CI-LEAF-AWS-1: invalid run id: %s\n' "$RUN_ID" >&2
+            exit 1
+            ;;
+          esac
+          case "$RUN_ATTEMPT" in [1-3]) ;; *)
+            printf 'A-CI-LEAF-AWS-1: attempt %s is outside the requeue bound 1-3\n' "$RUN_ATTEMPT" >&2
+            exit 1
+            ;;
+          esac
+          if ! [[ $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            printf 'A-CI-LEAF-AWS-1: invalid head sha: %s\n' "$HEAD_SHA" >&2
+            exit 1
+          fi
+          marker="aws-refused-heavy-tool-fleet-attempt-$RUN_ATTEMPT"
+          markers="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/artifacts?name=$marker" --jq '.total_count')"
+          if [ "$markers" != 1 ]; then
+            printf 'A-CI-LEAF-AWS-1: run %s has %s %s artifacts, not 1; no requeue\n' "$RUN_ID" "$markers" "$marker" >&2
+            exit 1
+          fi
+          # The run completes after its last job; poll once a minute for at most 150 minutes. Up to
+          # three consecutive failed or malformed polls are tolerated; the fourth ends the wait.
+          polls=150
+          failures=0
+          while :; do
+            if [ "$polls" -eq 0 ]; then
+              printf 'A-CI-LEAF-AWS-1: run %s did not complete within 150 minutes\n' "$RUN_ID" >&2
+              exit 1
+            fi
+            polls=$((polls - 1))
+            status='' attempt='' conclusion='' head=''
+            if state="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID" \
+              --jq '"\(.status) \(.run_attempt) \(.conclusion) \(.head_sha)"')" &&
+              read -r status attempt conclusion head <<< "$state" &&
+              [ -n "$status" ] && [[ $attempt =~ ^[1-4]$ ]] && [[ $head =~ ^[0-9a-f]{40}$ ]]; then
+              failures=0
+            else
+              failures=$((failures + 1))
+              printf 'A-CI-LEAF-AWS-1: poll of run %s failed or was malformed (%s of 3 tolerated)\n' \
+                "$RUN_ID" "$failures" >&2
+              if [ "$failures" -gt 3 ]; then exit 1; fi
+              sleep 60
+              continue
+            fi
+            if [ "$head" != "$HEAD_SHA" ]; then
+              printf 'A-CI-LEAF-AWS-1: run %s records head %s, not %s; no requeue\n' "$RUN_ID" "$head" "$HEAD_SHA"
+              exit 0
+            fi
+            if [ "$attempt" != "$RUN_ATTEMPT" ]; then
+              printf 'A-CI-LEAF-AWS-1: run %s is already on attempt %s; no requeue\n' "$RUN_ID" "$attempt"
+              exit 0
+            fi
+            if [ "$status" = completed ]; then break; fi
+            sleep 60
+          done
+          if [ "$conclusion" != failure ]; then
+            printf 'A-CI-LEAF-AWS-1: run %s attempt %s concluded %s; no requeue\n' "$RUN_ID" "$attempt" "$conclusion"
+            exit 0
+          fi
+          gh run rerun "$RUN_ID" --repo "$REPOSITORY" --failed
+          printf 'A-CI-LEAF-AWS-1: requeued attempt %s after an AWS refusal\n' "$((RUN_ATTEMPT + 1))"

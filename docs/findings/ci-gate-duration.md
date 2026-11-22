@@ -315,3 +315,16 @@ The five main `tool-fleet` losses lasted 67m00s to 67m03s from job start, inside
 90-minute job limit, while healthy leaves on Azure finished in 39m27s (job 137055572828) and 31.6
 minutes (run 44973329598). No budget explains the losses
 ([R5-32](checks-that-cannot-fail.md#a-lost-hosted-runner-leaves-no-step-conclusion-and-no-log)).
+
+## AWS refusal and requeue, 2026-11-22
+
+A-CI-LEAF-AWS-1 changes no budget. On an AWS host the `tool-fleet` leaf now refuses right after
+its start record. It spends about 1 to 2 minutes of runner time on checkout, provisioning and
+install, against the 67 or 68 minutes a lost leaf held. The `requeue tool-fleet leaf` job runs
+after `gate`, at the end of the run, for well under a minute. The `ci-requeue` workflow waits for
+the run to complete, polling once a minute within a 150-minute bound, then reruns the failed
+jobs. Red main in wall-clock time is not shorter: the rerun starts when the run completes, about
+88 minutes in, and the Azure leaf then takes 31 to 40 minutes, so a refusal still costs about 2
+hours of red main. With about two thirds of hosts on AWS, a run needs about 2.42 attempts of the
+leaf, about 1.4 reruns, and about 80% reach Azure within the four-attempt bound
+([R5-32](checks-that-cannot-fail.md#amendment-2026-11-22-third-refuse-aws-hosts-for-the-tool-fleet-leaf-and-requeue)).

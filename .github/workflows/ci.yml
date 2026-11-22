@@ -630,7 +630,7 @@ jobs:
             printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$start_cloud"
             free -m
             df -h /
           }
@@ -994,7 +994,26 @@ jobs:
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
             refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
           fi
+          start_cloud="$(host_cloud)"
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # A-CI-LEAF-AWS-1 (R5-32): GitHub serves ubuntu-24.04 from Azure and AWS hosts. The tool-fleet
+          # leaf finished on every Azure host and died on every AWS host 1214-1336 s into its phase, in
+          # three different test files, so the fault is the host's, not a test's. On the start record's
+          # `cloud=aws` that leaf refuses before the sampler, the recorder or any gate work: the refusal
+          # line goes to nx-gate.log and stderr, `aws_refused=true` to the step outputs, a line to the
+          # job summary and aws-refused.txt to the marker artifact; exit 78 fails the job in seconds.
+          # The `requeue tool-fleet leaf` job reruns the attempt only when that marker exists. Every
+          # other partition, and the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`, runs
+          # unchanged: an unreadable DMI file proves nothing about the host, so it must not refuse.
+          # Proof (2026-11-22, pr-merge-base.test.ts `refuses an AWS-hosted runner for the tool-fleet
+          # leaf alone`): see the test's Proof comment for the faults injected and observed.
+          if [ "$partition" = heavy-tool-fleet ] && [ "${start_cloud%% *}" = cloud=aws ]; then
+            aws_refusal='A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf dies about 20 minutes into its phase on AWS hosts, R5-32); requeue'
+            printf '%s\n' "$aws_refusal" | tee -a nx-gate.log aws-refused.txt >&2
+            printf 'aws_refused=true\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$aws_refusal" >> "$GITHUB_STEP_SUMMARY"
+            exit 78
+          fi
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -1389,7 +1408,7 @@ jobs:
             printf 'runtime headroom start partition=%s utc=%s imageOS=%s imageVersion=%s os=%s heapSizeLimit=%s memoryMax=%s tasksMax=%s allowedCpus=%s scope=%s %s\n' \
               "$partition" "$(headroom_utc)" "${ImageOS:-absent}" "${ImageVersion:-absent}" \
               "$(sed -n 's/^PRETTY_NAME=//p' /etc/os-release)" "$scope_heap" \
-              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$(host_cloud)"
+              "$memory_max" "$tasks_max" "$allowed_cpus" "$scope_unit.scope" "$start_cloud"
             free -m
             df -h /
           }
@@ -1753,7 +1772,26 @@ jobs:
           if [ "$scope_heap" -lt "$gate_heap_floor" ]; then
             refuse_uncapped "the probe scope's Node heap limit $scope_heap is below the $gate_node_heap pin"
           fi
+          start_cloud="$(host_cloud)"
           NO_COLOR=1 record_headroom_start >> nx-gate.log
+          # A-CI-LEAF-AWS-1 (R5-32): GitHub serves ubuntu-24.04 from Azure and AWS hosts. The tool-fleet
+          # leaf finished on every Azure host and died on every AWS host 1214-1336 s into its phase, in
+          # three different test files, so the fault is the host's, not a test's. On the start record's
+          # `cloud=aws` that leaf refuses before the sampler, the recorder or any gate work: the refusal
+          # line goes to nx-gate.log and stderr, `aws_refused=true` to the step outputs, a line to the
+          # job summary and aws-refused.txt to the marker artifact; exit 78 fails the job in seconds.
+          # The `requeue tool-fleet leaf` job reruns the attempt only when that marker exists. Every
+          # other partition, and the leaf on `cloud=azure`, `cloud=other:*` or `cloud=unavailable`, runs
+          # unchanged: an unreadable DMI file proves nothing about the host, so it must not refuse.
+          # Proof (2026-11-22, pr-merge-base.test.ts `refuses an AWS-hosted runner for the tool-fleet
+          # leaf alone`): see the test's Proof comment for the faults injected and observed.
+          if [ "$partition" = heavy-tool-fleet ] && [ "${start_cloud%% *}" = cloud=aws ]; then
+            aws_refusal='A-CI-LEAF-AWS-1: AWS-hosted runner refused for the tool-fleet leaf (the leaf dies about 20 minutes into its phase on AWS hosts, R5-32); requeue'
+            printf '%s\n' "$aws_refusal" | tee -a nx-gate.log aws-refused.txt >&2
+            printf 'aws_refused=true\n' >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$aws_refusal" >> "$GITHUB_STEP_SUMMARY"
+            exit 78
+          fi
           NO_COLOR=1 sample_headroom >> nx-gate.log
           (
             nap=
@@ -1838,6 +1876,17 @@ jobs:
           name: nx-gate-log-heavy-${{ matrix.project }}-${{ github.run_attempt }}
           path: nx-gate.log
           if-no-files-found: error
+
+      # A-CI-LEAF-AWS-1: the marker the `requeue tool-fleet leaf` job looks for, named for this
+      # attempt, so an ordinary failure (no marker) is never rerun automatically.
+      - name: Upload AWS refusal marker
+        if: ${{ always() && steps.nx_gate.outputs.aws_refused == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aws-refused-heavy-tool-fleet-attempt-${{ github.run_attempt }}
+          path: aws-refused.txt
+          if-no-files-found: error
+          retention-days: 7
 
   gate_backend:
     name: gate backend
@@ -2958,6 +3007,68 @@ jobs:
               exit 1
               ;;
           esac
+
+  # A-CI-LEAF-AWS-1 (R5-32): when the tool-fleet leaf refused an AWS-hosted runner, ask for
+  # another attempt of the failed jobs, hoping for an Azure host. `gate` still fails this attempt,
+  # so main is red only until an attempt draws Azure. The bound is attempts 1 to 4 (three
+  # reruns); with about two thirds of runners on AWS, P(Azure within four attempts) is about
+  # 1 - 0.67^4, roughly 80%. The marker artifact of this attempt is the only trigger, so an
+  # ordinary failure is never rerun automatically. Only gate_heavy uploads that marker. A run
+  # cannot rerun itself while one of its own jobs still runs, so this job dispatches
+  # ci-requeue.yml, which waits for the run to complete, checks the marker again and runs
+  # `gh run rerun --failed` only on a failed conclusion; the rerun reruns this job with the
+  # failed leaf, which continues the chain. It needs `gate` as well, so it fires at the end of
+  # the run and the waiter's wait is short; `gate` does not need it. A fork PR's token cannot
+  # dispatch, so a fork's refused attempt is logged and left for a maintainer.
+  # continue-on-error: a failure here is visible on the job and never changes the run's
+  # verdict, which `gate` decides.
+  requeue_tool_fleet_leaf:
+    name: requeue tool-fleet leaf
+    needs: [gate_heavy, gate]
+    if: ${{ always() && needs.gate_heavy.result == 'failure' && github.run_attempt < 4 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch the requeue after an AWS refusal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          # The run's own head_sha: a pull_request run records the PR head, not the merge commit.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          marker="aws-refused-heavy-tool-fleet-attempt-$RUN_ATTEMPT"
+          # Proof: see gate-workflow.test.ts `requeue tool-fleet leaf` for each injected fault.
+          if [ "$EVENT_NAME" = pull_request ] && [ "$HEAD_REPOSITORY" != "$REPOSITORY" ]; then
+            printf 'A-CI-LEAF-AWS-1: fork pull request from %s; its token cannot requeue, rerun by hand\n' \
+              "$HEAD_REPOSITORY"
+            exit 0
+          fi
+          markers="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/artifacts?name=$marker" --jq '.total_count')"
+          case "$markers" in
+            0)
+              printf 'A-CI-LEAF-AWS-1: no %s artifact; this failure is not an AWS refusal, no requeue\n' "$marker"
+              exit 0
+              ;;
+            1) ;;
+            *)
+              printf 'A-CI-LEAF-AWS-1: unexpected %s artifact count: %s\n' "$marker" "$markers" >&2
+              exit 1
+              ;;
+          esac
+          # No --ref: the dispatch runs ci-requeue.yml from the default branch, so the first dispatch
+          # fails until that file is on main (continue-on-error keeps it out of the verdict).
+          gh workflow run ci-requeue.yml --repo "$REPOSITORY" \
+            -f "run_id=$RUN_ID" -f "attempt=$RUN_ATTEMPT" -f "head_sha=$HEAD_SHA"
+          printf 'A-CI-LEAF-AWS-1: requeue of attempt %s dispatched after an AWS refusal\n' "$RUN_ATTEMPT"
 
   # Whether a pull request can reach the browser stack at all — the shards' half of
   # the switch `Gate mode` makes for the Nx gate, with the same refusal arm and the
