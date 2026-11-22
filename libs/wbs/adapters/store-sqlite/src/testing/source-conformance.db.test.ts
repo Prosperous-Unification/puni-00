@@ -10,7 +10,6 @@ import {
   assertSettingSettlement,
   brokenSource,
   type Capabilities,
-  CAPTURE_ORGANIZATION,
   CAPTURE_RESOURCE,
   type CaptureDirectoryChange,
   type CaseFixture,
@@ -633,10 +632,14 @@ async function openSqliteSavedPlanCase(
 
 function seedCapture(source: SqliteSource, stores = source.stores): Promise<void> {
   return seedSavedPlanCapture(stores, DETERMINISTIC_SEED, () => {
-    source.db.run(sql`INSERT INTO organization (id, name, created_at)
-      VALUES (${CAPTURE_ORGANIZATION}, ${CAPTURE_ORGANIZATION}, 1)`);
-    source.db.run(sql`INSERT INTO resource_organization (resource_id, organization_id, name)
-      VALUES (${CAPTURE_RESOURCE}, ${CAPTURE_ORGANIZATION}, 'Capture RAM')`);
+    // The legacy bridge maps a resource on insert under the fixture's existing owner.
+    expect(
+      source.db.all(sql`SELECT resource_organization.name
+        FROM resource_organization
+        JOIN project ON project.organization_id = resource_organization.organization_id
+        WHERE resource_organization.resource_id = ${CAPTURE_RESOURCE}
+          AND project.id = ${CURRENT_SOURCE_PROJECT_IDS[0]}`),
+    ).toEqual([{ name: 'Capture RAM' }]);
   });
 }
 
