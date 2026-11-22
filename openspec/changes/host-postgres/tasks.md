@@ -237,11 +237,20 @@ server (design decision 4) and are not run before its trigger.
       role is applied there so that a volume of the server's static class exists, and
       the receipt is that volume, a replica caught up on it and a switchover. The
       restore path, taken if the replica path is not chosen or the operator places no
-      replica on that volume: no static volume is made on `h10db`, the new cluster's
-      claim is on `puni-retain`, and the receipt is the restore of design decision 4
-      with the apps' writers stopped, its start and end noted. Either way: the drill CronJob resumed and one run seen. Stop: validation fails, another pod is
-      scheduled there, or a restore would start without the owner's word on the hour.
-      Rollback: as A13; the instance on h5plat is removed only after the new one serves.
+      replica on that volume: the new cluster's claim is on `puni-retain`; a static
+      volume already made on `h10db` is left in place only after it is read unbound
+      and unused, and none is made otherwise. With the apps' writers stopped and their
+      pods read gone, the operator records a named restore point on the source, forces
+      a WAL switch and reads the archive holding the segment that contains that point;
+      the new cluster recovers through that restore point, and a row written just
+      before the writers stopped is read on it. The receipt is that restore of design
+      decision 4, its start and end noted, the restore point's name and LSN, the
+      archived segment and the row. Either way: the drill CronJob resumed and one run
+      seen. Stop: validation fails, another pod is scheduled there, a restore would
+      start without the owner's word on the hour, the segment is not in the archive,
+      or recovery ends before the restore point; writes are not reopened and the
+      source is not removed in either case. Rollback: as A13; the instance on h5plat
+      is removed only after the new one serves with that row read.
 - [ ] PG-A3 The operator, the plugin and the non-production cluster, after A17, stage 3's
       receipt, slices 2.10 and PG-S2 to PG-S5, and the store paths design decision 3 asks of
       pull request #935. Who: operator; owner for the values. Commands: first run

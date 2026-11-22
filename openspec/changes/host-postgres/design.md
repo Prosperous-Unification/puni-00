@@ -440,11 +440,14 @@ serves (PG-S6), and a `Cluster` names one storage class for its instances, so a 
 `h10db` needs a volume of that same class there. Only on that path does PG-A2 apply
 PG-S6's role to `h10db` to make one, which the role does on a database-only node when
 the inventory sets the replica path and not otherwise; whether the operator then places a
-replica on it was not read. If the path is not chosen, or the operator does not, no
-static volume is made there and
-the move is a restore from the archive into a new cluster on `h10db`, on `puni-retain`,
-with the apps' writers stopped for its length, which PG-A5 has timed: planned downtime, the
-size of the data. Either way the core's capability play then takes `database` from h5plat
+replica on it was not read. If the path is not chosen, or the operator does not, the
+move is a restore from the archive into a new cluster on `h10db`, on `puni-retain`; a
+static volume already made there stays only if it is read unbound and unused, and none
+is made otherwise. The apps' writers are stopped for its length, which PG-A5 has timed:
+planned downtime, the size of the data. Stopping the writers does not put the last WAL
+segment in the archive, so after they stop the operator records a named restore point,
+forces a WAL switch and reads the segment archived, and the new cluster recovers through
+that point before writes are reopened or the source is removed. Either way the core's capability play then takes `database` from h5plat
 (the volume there is empty or removed first, slice 1.7's guard), the drill CronJob is
 resumed, and the instance's limit is raised to the full profile's 4,096 MiB. No app's
 manifest changes.
