@@ -907,80 +907,92 @@ Each of these faults failed a test:
   - run that leaf's native tests on the gate hosts;
   - give the leaf a runner label that keeps it off the AWS pool, if GitHub offers one.
 
-### Amendment, 2026-11-22 (second): an AWS leaf goes dark 22 minutes in
+### Amendment, 2026-11-22 (second): AWS leaves go dark 20 minutes into the phase
 
-Main `142c91669` (run 44982325124) ran its `tool-fleet` leaf, job 137085408175, on an AWS host:
-the #963 header read `cloud=aws dmiProduct=m8id.xlarge`. The job started at 03:49:35Z and the
-phase at about 03:50:50Z. The recorder's last tick read
-`state=tick 11 utc=2026-11-22T04:11:04Z phaseElapsedSeconds=1214`, and no PATCH followed. The
-next one was due by about 04:13Z, so the runner went dark between 04:11:04Z and about 04:13Z,
-22 minutes after job start. At 04:50Z GitHub still showed the job as `in_progress`.
+Three `tool-fleet` leaves on AWS-hosted runners went dark at the same point in the phase, each in
+a different test file. Each #963 comment kept its tick 11 and nothing after it:
 
-**The last tick shows a healthy host:**
+| Run         | Job          | Host                       | Last tick (UTC) | Phase seconds | Test file in the tail                |
+| ----------- | ------------ | -------------------------- | --------------- | ------------- | ------------------------------------ |
+| 44982325124 | 137085408175 | `cloud=aws`, `m8id.xlarge` | 04:11:04Z       | 1214          | `k3d-resource-caller.test.ts`        |
+| 44985451809 | 137095018944 | `cloud=aws`, `m8id.xlarge` | 04:53:45Z       | 1214          | `lab-settlement-publication.test.ts` |
+| 44988319045 | 137103806229 | `cloud=aws` (PR, entities) | 05:33:29Z       | 1216          | a CRD-inventory test                 |
+
+The first two ran on main (`142c91669` and `98cfe6be9`), the third on the `feat/puni-entities-cli`
+PR (`3fb17e0af`). Ticks were 120 s apart, so each runner died between 1214 s and about 1336 s
+after the phase start, about 22 minutes after job start. An Azure leaf of the same period, main
+run 44987434788 (`89fc265fb`), passed its tick 14 at 1577 s and went on. Azure reaches
+`lab-settlement-publication.test.ts` about 30 minutes into its phase, so the AWS leaves were at
+different points of the suite when they died.
+
+**The first death's last tick shows a healthy host:**
 
 - `Runner.Listener` and `Runner.Worker` were alive, and the largest `bun` held 3.4 GB RSS.
 - `memAvailable` was 11 GB, the host ran 197 tasks, and the scope held 47 pids and 5.6 GiB.
 - Every disk path had 84 GB free, and the kernel log of the last 3 minutes read "No entries".
-- The log tail ended in `tools/tool-fleet/src/k3d-resource-caller.test.ts`, at the test
-  "Task44 sealed v3 reader refuses runtime-graph before teardown". Docker, k3d and kubectl are
-  fakes in that file.
+- Docker, k3d and kubectl are fakes in the file its tail ended in.
 
-Those tests end every 1.8 s, so the 15-line tail covered only 30 s. The test running at the loss
-is one of the next 60 or so in execution order, and the tail cannot say which.
+**The death is time-based and on the host's side.** Three different files at the same elapsed
+time rule out any one test as the trigger, so "skip the dying test" is refuted. Something on
+AWS-hosted runners ends the runner's connection about 20 minutes into this phase.
 
-**GitHub declares the loss about 45 minutes late.** The earlier losses lasted 67m00s to 67m03s
-from job start. If they went dark the same way, each one died about 22 minutes in, and the fixed
-67 minutes is the declaration timeout. That is an inference from one observed death. It means
-the previous amendment's "hangs for about 27 minutes past the point where a healthy one has
-finished" is wrong. The runner dies about 10 to 18 minutes before a healthy leaf would finish.
-Azure-hosted leaves finish in 31 to 40 minutes, and AWS-hosted ones die.
-
-The order of test files differs between hosts. The Azure leaf of run 44972618306 reached the same
-test about 11 minutes into its phase, the AWS leaf about 20 minutes in. So the Azure order of the
-files that come next is a guide only.
+**GitHub declares the loss about 45 minutes late.** At 04:50Z the first job still showed
+`in_progress`. The earlier losses lasted 67m00s to 67m03s from job start: each one died about 22
+minutes in, and the fixed 67 minutes is GitHub's declaration timeout. That last step is an
+inference. It means the earlier amendment's "hangs for about 27 minutes past the point where a
+healthy one has finished" is wrong: the runner dies about 10 to 18 minutes before a healthy leaf
+would finish. Azure-hosted leaves finish in 31 to 40 minutes.
 
 **The sharpened recorder (A-CI-LEAF-RECORDER-2).** It is the same step text in both copies, and
-still optional telemetry:
+still optional telemetry. It is for confirming the host-side trigger, not for naming a test:
 
 - **Tick.** Every 45 s instead of 120 s, one PATCH per tick, with the 61440-byte cap kept.
 - **Log section.** Every other `nx-gate.log` line written since the previous tick, read from a
-  stored byte offset as whole lines, the last 200 kept, with ANSI escapes stripped and the
-  redaction kept. Its last line is therefore the last completed test at the tick. A tick with no
-  new line says so and repeats the last earlier line, so a hang keeps the name of the last test
-  that passed.
+  stored byte offset as whole lines, the last 200 that fit 40960 bytes, with ANSI escapes stripped
+  and the redaction kept. `shown=` counts the lines posted. A tick with no new line says so and
+  repeats the last earlier line. The final report's section is incremental as well, so the full
+  log stays in the artifact. The offset advances when the report is built, so a failed PATCH
+  loses that window from later ticks. A NUL byte in the log, which a bash string cannot hold,
+  makes the offset undercount, and a later tick repeats lines.
 - **Network.** `ip -br addr`, `ip -br link`, `ip route`, `ss -s`, the first 20 lines of
   `resolvectl status` (or `/etc/resolv.conf`), and the line counts of `sudo -n iptables -S` and
   `sudo -n nft list ruleset`. Then the byte, packet, error and drop counters from `/proc/net/dev`
   for every interface but `lo`, with the default route's interface marked, beside the previous
-  tick's counters. Each probe prints `unavailable` when it fails. A dead link shows as counters
-  that stop moving, a missing route or a changed address.
+  tick's counters. Each probe prints `unavailable` when it fails.
+- **Journal.** `sudo -n journalctl --since -3min -o short-iso`, filtered after the time and host
+  fields to network, DHCP, time sync, provisioner (`provjobd`), runner, `sshd`, `cloud-init`,
+  `ena`, link, carrier, OOM and `systemd-logind` lines, the last 40. The trigger may log there
+  before the link dies. The kernel section stays.
 - **Recent processes.** Processes started in the last 60 s, newest first, at most 30, with their
-  arguments cut near 120 characters. The recorder's and the sampler's own trees are left out. A
-  test's helper (`bwrap`, `unshare`, `dockerd`, `k3d`, `python3`) is named here.
+  arguments cut at 120 characters. The recorder's and the sampler's own trees are left out.
 
 `pr-merge-base.test.ts` covers it with the production step text. A pass-through `sleep` scaled
-45 times runs the real 45 s tick; fake `ip`, `ss` and `iptables` stand in for the network tools,
-and a scratch `/proc/net/dev` is bound through the step's `recorder_net_dev=` line. Each of these
-faults failed a test:
+45 times runs the real 45 s tick; fake `ip`, `ss`, `iptables` and `journalctl` stand in for the
+host tools, and a scratch `/proc/net/dev` is bound through the step's `recorder_net_dev=` line.
+Each of these faults failed a test:
 
-- `recorder_interval=120` asked for no 45 s nap and posted 3 ticks in the 8 s window, where 45 s
-  posts at least 6.
+- `recorder_interval=120` asked for no 45 s nap and posted 3 ticks in the 8 s window. The test
+  asks for at least 4, which leaves room for a gate host's slowdown.
 - Dropping the offset update reposted the log from byte 0.
-- Dropping the 200-line cap posted 258 lines.
+- Dropping the 200-line cap posted 258 lines. Dropping the byte condition from the whole-line trim
+  posted 200 wide lines past the body cap, so no tick showed the last one.
 - Dropping the probes' `unavailable` branch left absent tools' labels empty.
-- Dropping the network section, the previous tick's counters, the 60 s filter or the own-tree
-  exclusion failed the living-comment test.
+- Dropping the network section, the previous tick's counters, the journal section, its filter, the
+  120-character cut, the 60 s filter or the own-tree exclusion failed the living-comment test.
 - A 60 s tick in the heavy-leaf copy alone failed the byte-equality test.
 
-**The lever, once the next AWS leaf dies:**
+**The levers, host-side first:**
 
-- **The last tick names a test.** If the dying test is named, skip it loudly on `cloud=aws`, with
-  the gate hosts running it instead, or fix its AWS incompatibility.
-- **The link dies with no test boundary.** If the counters stop or the route goes and no test
-  stands out, the fault is the host's. Move the leaf off the AWS pool with a runner label, or run
-  it on the gate hosts.
+1. **Fail fast on AWS and rerun.** The `tool-fleet` leaf's start record refuses `cloud=aws` with a
+   refusal line, so the job fails in about a minute instead of being lost after 67. A final
+   `if: failure()` job then reruns the failed leaf with `gh run rerun <run> --failed`, which needs
+   `actions: write`, for at most 3 attempts of about a minute each. GitHub Actions has no re-queue
+   primitive, but this works as one: each attempt draws a new host.
+2. **Gate hosts only.** Run `tool-fleet`'s tests on the gate hosts and drop the hosted leaf.
+3. **A runner label off the AWS pool**, if GitHub offers one.
 
-Both levers need the next loss's last tick, so the cause stays open until then.
+The next AWS death's journal and network sections either show the host-side trigger or show
+nothing before the link dies. Neither outcome changes the lever order.
 
 ## Checks kept without a reachable negative
 

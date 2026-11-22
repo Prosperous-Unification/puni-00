@@ -243,6 +243,11 @@ exec "$@"
 printf 'journalctl %s\\n' "$*" >> "$SCOPE_CALLS"
 printf '2026-11-21T04:40:00+0000 runner kernel: audit: type=1400 apparmor="STATUS"\\n'
 printf '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 4242 (bun) total-vm:9000000kB\\n'
+# The whole journal (the recorder's journal section) adds a network line and an unrelated one.
+if [ "$1" != -k ]; then
+  printf '2026-11-21T04:42:00+0000 runner systemd-networkd[612]: eth0: Lost carrier\\n'
+  printf '2026-11-21T04:42:30+0000 runner CRON[1700]: (root) CMD (true)\\n'
+fi
 `,
   };
   for (const [name, text] of Object.entries(chain))
@@ -830,10 +835,16 @@ test.each(headroomShards)(
       expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
         Number(status),
       );
-      // The tool-fleet recorder's own kernel reads (A-CI-LEAF-RECORDER-1) are covered by its tests.
+      // The tool-fleet recorder's own kernel and journal reads (A-CI-LEAF-RECORDER-1 and -2) are
+      // covered by its tests.
       const ledger = (await execution.scopeCalls.text())
         .split('\n')
-        .filter((line) => line !== '' && !line.startsWith('journalctl -k --since -3min '));
+        .filter(
+          (line) =>
+            line !== '' &&
+            !line.startsWith('journalctl -k --since -3min ') &&
+            line !== 'journalctl --since -3min --no-pager -o short-iso',
+        );
       const unit = /--unit=(ci-gate-\S+-[0-9]+)-probe /.exec(ledger[0] ?? '')?.[1] ?? '';
       expect(unit, ledger.join('\n')).toMatch(new RegExp(`^ci-gate-${partition}-[0-9]+$`));
       const scope = (suffix: string) =>
@@ -1372,7 +1383,8 @@ const recentTitle = 'processes started in the last 60 s';
 // the disk section or its per-path `unavailable` line failed the disk assertions, and dropping the
 // header's cloud field failed the header assertion. Proof (2026-11-22, A-CI-LEAF-RECORDER-2):
 // dropping the network section, the previous tick's counters, the recent processes' 60 s filter
-// or their own-tree exclusion each failed this test.
+// or their own-tree exclusion each failed this test, and so did dropping the journal section,
+// its filter, or the 120-character argument cut.
 test('the tool-fleet leaf recorder keeps one living comment on #963', async () => {
   const h = history();
   const dockerRoot = join(h.root, 'docker');
@@ -1455,8 +1467,17 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
       '\ndefaultInterface=eth0\neth0 (default) rxBytes=123456789 rxPackets=4242 rxErrs=0 rxDrop=1 txBytes=98765432 txPackets=3131 txErrs=0 txDrop=0\n',
     );
     expect(network).not.toContain('\nlo rxBytes=');
+    // The journal keeps the host's network, runner and OOM lines and drops the rest.
+    expect(recorderSection(body, 'journal, last 3 minutes')).toBe(
+      '2026-11-21T04:41:00+0000 runner kernel: Out of memory: Killed process 4242 (bun) total-vm:9000000kB\n2026-11-21T04:42:00+0000 runner systemd-networkd[612]: eth0: Lost carrier\n',
+    );
     const recent = recorderSection(body, recentTitle).trimEnd().split('\n');
     expect(recent[0]).toMatch(/^ +PID +PPID +ELAPSED +COMMAND +COMMAND$/);
+    // Arguments are cut at 120 characters from where the header's args column starts; the
+    // zero-width space the mention guard adds after each `@` comes after the cut.
+    const args = (recent[0] ?? '').lastIndexOf('COMMAND');
+    for (const row of recent.slice(1))
+      expect(row.replaceAll('\u200b', '').length).toBeLessThanOrEqual(args + 120);
     // Only processes under 60 s old, and none of the recorder's own pipeline.
     // A host process whose arguments carry a secret's shape is replaced whole; the rest show age.
     for (const row of recent.slice(1))
@@ -1507,7 +1528,8 @@ test('the tool-fleet leaf recorder keeps one living comment on #963', async () =
 }, 60_000);
 
 // A-CI-LEAF-RECORDER-2. Proof (2026-11-22): `recorder_interval=120` asked for no 45 s nap, and
-// with those assertions set aside posted 3 ticks in the 8 s window instead of at least 6.
+// with those assertions set aside posted 3 ticks in the 8 s window. At least 4 leaves room for a
+// gate host's 2.5–4× slowdown; the sleep log is the deterministic negative.
 test('the tool-fleet leaf recorder ticks every 45 s', () => {
   const h = history();
   const sleeps = join(h.root, 'sleep-calls');
@@ -1526,7 +1548,7 @@ test('the tool-fleet leaf recorder ticks every 45 s', () => {
   const ticks = recorderBodies(execution.ghCalls()).filter((body) =>
     body.includes('\nstate=tick '),
   );
-  expect(ticks.length).toBeGreaterThanOrEqual(6);
+  expect(ticks.length).toBeGreaterThanOrEqual(4);
   expect(ticks.length).toBeLessThanOrEqual(10);
 }, 60_000);
 
@@ -1577,37 +1599,65 @@ test('each tick posts only the nx-gate.log lines written since the previous tick
   expect(sections.some((section) => section.endsWith(quiet))).toBe(true);
 }, 60_000);
 
-// Proof (2026-11-22): without the 200-line cap the tick posted 258 lines, all 250 among them.
-test('a tick posts at most the last 200 new lines', () => {
-  const h = history();
-  const execution = runStep(
-    h,
-    heavyStep(),
-    {
-      GATE_MODE: 'affected',
-      GATE_BASE: h.base,
-      RUNTIME_OUTPUT: recorderOutput(
-        h,
-        Array.from({ length: 250 }, (_, index) => `tool-fleet: ✓ cap line ${String(index + 1)}`),
-      ),
-      RUNTIME_SLEEP: '2',
-    },
-    { recorderInterval: 1 },
-  );
-  expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
-  const capped = recorderBodies(execution.ghCalls())
-    .map((body) => recorderSection(body, sinceTitle))
-    .filter((section) => !section.includes(' newLines=0 ') && section.includes('cap line 250\n'));
-  expect(capped).toHaveLength(1);
-  const [header, ...lines] = (capped[0] ?? '').trimEnd().split('\n');
-  expect(header).toMatch(/ newLines=2[5-9][0-9] shown=200$/);
-  expect(lines).toHaveLength(200);
-  expect(lines[0]).toBe('tool-fleet: ✓ cap line 51');
-  expect(lines.at(-1)).toBe('tool-fleet: ✓ cap line 250');
+// Proof (2026-11-22): without the 200-line cap the tick posted 258 lines, all 250 among them;
+// the earlier byte cap (`tail -c 40960` after counting) said `shown=200` while 118 lines were
+// posted, the first a fragment (review probe); dropping the byte condition from the whole-line
+// trim posted 200 wide lines past the body cap, so no tick showed the last one.
+test('a tick posts at most the last 200 new lines that fit 40960 bytes', () => {
+  for (const [wide, name] of [
+    [false, 'cap line'],
+    [true, 'wide line'],
+  ] as const) {
+    const h = history();
+    const execution = runStep(
+      h,
+      heavyStep(),
+      {
+        GATE_MODE: 'affected',
+        GATE_BASE: h.base,
+        RUNTIME_OUTPUT: recorderOutput(
+          h,
+          Array.from(
+            { length: 250 },
+            (_, index) =>
+              `tool-fleet: ✓ ${name} ${String(index + 1)}${wide ? ` ${'x'.repeat(330)}` : ''}`,
+          ),
+        ),
+        RUNTIME_SLEEP: '2',
+      },
+      { recorderInterval: 1 },
+    );
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+    const capped = recorderBodies(execution.ghCalls())
+      .map((body) => recorderSection(body, sinceTitle))
+      .filter(
+        (section) =>
+          !section.includes(' newLines=0 ') && section.includes(`${name} 250${wide ? ' ' : '\n'}`),
+      );
+    expect(capped, name).toHaveLength(1);
+    const [header, ...lines] = (capped[0] ?? '').trimEnd().split('\n');
+    const shown = Number(/ newLines=2[5-9][0-9] shown=([0-9]+)$/.exec(header)?.[1]);
+    expect(lines, name).toHaveLength(shown);
+    // Whole, consecutive lines ending at the last one.
+    for (const [index, line] of lines.entries())
+      expect(line).toBe(
+        `tool-fleet: ✓ ${name} ${String(251 - shown + index)}${wide ? ` ${'x'.repeat(330)}` : ''}`,
+      );
+    if (wide) {
+      expect(shown).toBeLessThan(200);
+      expect(Buffer.byteLength(lines.map((line) => `${line}\n`).join(''))).toBeLessThanOrEqual(
+        40960,
+      );
+      // One more line would not have fitted.
+      expect(Buffer.byteLength(lines.map((line) => `${line}\n`).join('')) + 360).toBeGreaterThan(
+        40960,
+      );
+    } else expect(shown).toBe(200);
+  }
 }, 60_000);
 
 // Proof (2026-11-22): without recorder_probe's `unavailable` branch the absent tools printed
-// nothing under their labels.
+// nothing under their labels; an absent journalctl reads unavailable in the journal section.
 test('an absent network tool reads unavailable and leaves the gate status unchanged', () => {
   for (const status of ['0', '7']) {
     const h = history();
@@ -1615,7 +1665,7 @@ test('an absent network tool reads unavailable and leaves the gate status unchan
       h,
       heavyStep(),
       { GATE_MODE: 'affected', GATE_BASE: h.base, RUNTIME_STATUS: status, RUNTIME_SLEEP: '1' },
-      { recorderInterval: 1, network: 'absent' },
+      { recorderInterval: 1, network: 'absent', absent: ['journalctl'] },
     );
     expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(
       Number(status),
@@ -1634,6 +1684,7 @@ test('an absent network tool reads unavailable and leaves the gate status unchan
       ])
         expect(network).toContain(`$ ${label}\nunavailable\n`);
       expect(network).toMatch(/\n\$ \S+net-dev counters\nunavailable\n$/);
+      expect(recorderSection(body, 'journal, last 3 minutes')).toBe('unavailable\n');
     }
   }
 }, 60_000);

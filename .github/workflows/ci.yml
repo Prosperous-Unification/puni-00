@@ -757,19 +757,25 @@ jobs:
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
           # cloud field failed the living-comment test.
-          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): an AWS leaf went dark about 22 minutes in, between
-          # two 120 s ticks, with a healthy last tick whose 15-line tail covered 30 s of tests. So the tick
-          # is 45 s; the log section holds every other line since the previous tick (whole lines from a
-          # stored byte offset, the last 200 kept), so its last line is the last test finished, and a tick
-          # with none repeats the last earlier line. The network section shows addresses, links, routes,
-          # socket totals, the resolver, firewall rule counts and per-interface byte counters beside the
-          # previous tick's, so a dead link shows; the recent-processes section names what started in the
-          # last 60 s (a test's bwrap, unshare, dockerd, k3d or python). Each probe prints `unavailable`
-          # on failure and no section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts
-          # recorder tests): a 120 s tick posted 3 ticks where 45 s posts at least 6; dropping the offset
-          # update reposted the log from byte 0; dropping the 200-line cap posted 258 lines; dropping the
-          # probes' fallback, the previous tick's counters, the 60 s age filter or the own-tree exclusion
-          # failed the network and process assertions.
+          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): three AWS leaves went dark about 20 minutes into
+          # the phase, each in a different test file, with healthy last ticks, so the trigger is the host's
+          # and time-based. The tick is 45 s; the log section holds every other line since the previous
+          # tick (whole lines from a stored byte offset, the last 200 that fit 40960 bytes), so its last
+          # line is the last test finished, and a tick with none repeats the last earlier line. The offset
+          # advances when the report is built, so a failed PATCH loses that window from later ticks; a NUL
+          # byte in the log, which bash strings cannot hold, makes the offset undercount and repeat lines.
+          # The final report's log section is incremental too. The network section shows addresses,
+          # links, routes, socket totals, the resolver, firewall rule counts and per-interface counters
+          # beside the previous tick's, so a dead link shows; the journal section keeps the last 3
+          # minutes of network, time, runner, provisioner, login and OOM lines, which may name the
+          # trigger before the link dies; the recent-processes section names what started in the last
+          # 60 s, arguments cut at 120 characters. Each probe prints `unavailable` on failure and no
+          # section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts recorder tests): a
+          # 120 s tick posted 3 ticks where 45 s posts at least 4; dropping the offset update reposted the
+          # log from byte 0; dropping the 200-line cap posted 258 lines; dropping the byte condition from
+          # the whole-line trim lost the last wide line past the body cap; dropping the probes' fallback, the previous tick's counters, the journal
+          # filter, the 60 s age filter or the own-tree exclusion failed the network, journal and process
+          # assertions.
           recorder_issue=963
           recorder_interval=45
           recorder_body_limit=61440
@@ -810,29 +816,37 @@ jobs:
               lines="$(printf '%s' "$whole" | recorder_log_filter)"
               count=0
               if [ -n "$lines" ]; then count="$(printf '%s\n' "$lines" | wc -l)"; fi
-              printf 'bytes=%s..%s newLines=%s shown=%s\n' "$from" "$((from + ${#whole}))" "$count" \
-                "$((count < 200 ? count : 200))"
               if [ "$count" -eq 0 ]; then
+                printf 'bytes=%s..%s newLines=0 shown=0\n' "$from" "$((from + ${#whole}))"
                 printf 'no new lines since the previous tick; the last earlier line:\n'
                 head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
               else
-                printf '%s\n' "$lines" | awk -v count="$count" 'NR > count - 200' | tail -c 40960
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted.
+                printf '%s\n' "$lines" | awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                  NR > count - 200 { kept[++n] = $0 }
+                  END {
+                    first = n + 1
+                    for (i = n; i >= 1 && size + length(kept[i]) + 1 <= 40960; i--) { size += length(kept[i]) + 1; first = i }
+                    printf "bytes=%s newLines=%s shown=%s\n", range, count, n - first + 1
+                    for (i = first; i <= n; i++) print kept[i]
+                  }'
               fi
             }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
-            # Started in the last 60 s, newest first, at most 30, leaving out the recorder's and the
-            # sampler's own process trees; awk reads all of ps, so the pipe never breaks early.
+            # Started in the last 60 s, newest first, at most 30, arguments cut at 120 characters, leaving
+            # out the recorder's and the sampler's own process trees; awk reads all of ps, so the pipe
+            # never breaks early. The args column starts where the header's last COMMAND does.
             recorder_recent() {
               ps -eo pid,ppid,etimes,comm,args --sort=etimes |
                 awk -v own="${recorder_self:-} $sampler_pid" 'BEGIN { split(own, ids, " "); for (i in ids) mine[ids[i]] = 1 }
-                  NR == 1 { print substr($0, 1, 160); next }
+                  NR == 1 { width = length($0) - length("COMMAND") + 120; print; next }
                   { id[NR] = $1; parent[$1] = $2; age[NR] = $3; line[NR] = $0 }
                   END {
                     for (row = 2; row <= NR; row++) {
                       ours = 0
                       for (hop = id[row]; hop != "" && hop != 0 && ++depth < 64; hop = parent[hop]) if (hop in mine) ours = 1
                       depth = 0
-                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, 160)
+                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, width)
                     }
                   }'
             }
@@ -881,6 +895,15 @@ jobs:
               recorder_probe "$recorder_net_dev counters" recorder_link_counters
             }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            # The host's network, time, runner, provisioner, login and OOM lines of the last 3 minutes,
+            # the last 40. The match skips the time and host fields, since a host may be named runner….
+            recorder_journal() {
+              local text
+              text="$(sudo -n journalctl --since -3min --no-pager -o short-iso)" || return 1
+              awk '{ entry = $0; sub(/^[^ ]+ [^ ]+ /, "", entry) }
+                tolower(entry) ~ /networkd|networkmanager|dhcp|dhclient|timesyncd|chrony|provjobd|runner|sshd|cloud-init|(^|[^a-z])ena([^a-z]|$)|link|carrier|oom|out of memory|systemd-logind/ { kept[++n] = $0 }
+                END { if (n == 0) print "no matching lines"; for (i = (n > 40 ? n - 39 : 1); i <= n; i++) print kept[i] }' <<< "$text"
+            }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
             # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
             # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
@@ -910,6 +933,7 @@ jobs:
             recorder_section 'processes started in the last 60 s' recorder_recent
             recorder_section 'task count' pgrep -c .
             recorder_section 'kernel, last 3 minutes' recorder_kernel
+            recorder_section 'journal, last 3 minutes' recorder_journal
             if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
             recorder_section 'nx-gate.log lines since the previous tick' recorder_log_since
           }
@@ -1490,19 +1514,25 @@ jobs:
           # report retried the create; leaving GH_TOKEN exported put it in the runtime's environment.
           # Proof (2026-11-22): dropping the disk section, its per-path `unavailable` line or the header's
           # cloud field failed the living-comment test.
-          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): an AWS leaf went dark about 22 minutes in, between
-          # two 120 s ticks, with a healthy last tick whose 15-line tail covered 30 s of tests. So the tick
-          # is 45 s; the log section holds every other line since the previous tick (whole lines from a
-          # stored byte offset, the last 200 kept), so its last line is the last test finished, and a tick
-          # with none repeats the last earlier line. The network section shows addresses, links, routes,
-          # socket totals, the resolver, firewall rule counts and per-interface byte counters beside the
-          # previous tick's, so a dead link shows; the recent-processes section names what started in the
-          # last 60 s (a test's bwrap, unshare, dockerd, k3d or python). Each probe prints `unavailable`
-          # on failure and no section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts
-          # recorder tests): a 120 s tick posted 3 ticks where 45 s posts at least 6; dropping the offset
-          # update reposted the log from byte 0; dropping the 200-line cap posted 258 lines; dropping the
-          # probes' fallback, the previous tick's counters, the 60 s age filter or the own-tree exclusion
-          # failed the network and process assertions.
+          # A-CI-LEAF-RECORDER-2 (R5-32, 2026-11-22): three AWS leaves went dark about 20 minutes into
+          # the phase, each in a different test file, with healthy last ticks, so the trigger is the host's
+          # and time-based. The tick is 45 s; the log section holds every other line since the previous
+          # tick (whole lines from a stored byte offset, the last 200 that fit 40960 bytes), so its last
+          # line is the last test finished, and a tick with none repeats the last earlier line. The offset
+          # advances when the report is built, so a failed PATCH loses that window from later ticks; a NUL
+          # byte in the log, which bash strings cannot hold, makes the offset undercount and repeat lines.
+          # The final report's log section is incremental too. The network section shows addresses,
+          # links, routes, socket totals, the resolver, firewall rule counts and per-interface counters
+          # beside the previous tick's, so a dead link shows; the journal section keeps the last 3
+          # minutes of network, time, runner, provisioner, login and OOM lines, which may name the
+          # trigger before the link dies; the recent-processes section names what started in the last
+          # 60 s, arguments cut at 120 characters. Each probe prints `unavailable` on failure and no
+          # section changes the gate status. Proof (2026-11-22, pr-merge-base.test.ts recorder tests): a
+          # 120 s tick posted 3 ticks where 45 s posts at least 4; dropping the offset update reposted the
+          # log from byte 0; dropping the 200-line cap posted 258 lines; dropping the byte condition from
+          # the whole-line trim lost the last wide line past the body cap; dropping the probes' fallback, the previous tick's counters, the journal
+          # filter, the 60 s age filter or the own-tree exclusion failed the network, journal and process
+          # assertions.
           recorder_issue=963
           recorder_interval=45
           recorder_body_limit=61440
@@ -1543,29 +1573,37 @@ jobs:
               lines="$(printf '%s' "$whole" | recorder_log_filter)"
               count=0
               if [ -n "$lines" ]; then count="$(printf '%s\n' "$lines" | wc -l)"; fi
-              printf 'bytes=%s..%s newLines=%s shown=%s\n' "$from" "$((from + ${#whole}))" "$count" \
-                "$((count < 200 ? count : 200))"
               if [ "$count" -eq 0 ]; then
+                printf 'bytes=%s..%s newLines=0 shown=0\n' "$from" "$((from + ${#whole}))"
                 printf 'no new lines since the previous tick; the last earlier line:\n'
                 head -c "$from" nx-gate.log | recorder_log_filter | awk 'END { print }'
               else
-                printf '%s\n' "$lines" | awk -v count="$count" 'NR > count - 200' | tail -c 40960
+                # The last 200 whole lines that fit 40960 bytes; `shown` counts what is posted.
+                printf '%s\n' "$lines" | awk -v count="$count" -v range="$from..$((from + ${#whole}))" '
+                  NR > count - 200 { kept[++n] = $0 }
+                  END {
+                    first = n + 1
+                    for (i = n; i >= 1 && size + length(kept[i]) + 1 <= 40960; i--) { size += length(kept[i]) + 1; first = i }
+                    printf "bytes=%s newLines=%s shown=%s\n", range, count, n - first + 1
+                    for (i = first; i <= n; i++) print kept[i]
+                  }'
               fi
             }
             recorder_processes() { ps -eo pid,ppid,etimes,rss,comm --sort=-rss | awk 'NR <= 12'; }
-            # Started in the last 60 s, newest first, at most 30, leaving out the recorder's and the
-            # sampler's own process trees; awk reads all of ps, so the pipe never breaks early.
+            # Started in the last 60 s, newest first, at most 30, arguments cut at 120 characters, leaving
+            # out the recorder's and the sampler's own process trees; awk reads all of ps, so the pipe
+            # never breaks early. The args column starts where the header's last COMMAND does.
             recorder_recent() {
               ps -eo pid,ppid,etimes,comm,args --sort=etimes |
                 awk -v own="${recorder_self:-} $sampler_pid" 'BEGIN { split(own, ids, " "); for (i in ids) mine[ids[i]] = 1 }
-                  NR == 1 { print substr($0, 1, 160); next }
+                  NR == 1 { width = length($0) - length("COMMAND") + 120; print; next }
                   { id[NR] = $1; parent[$1] = $2; age[NR] = $3; line[NR] = $0 }
                   END {
                     for (row = 2; row <= NR; row++) {
                       ours = 0
                       for (hop = id[row]; hop != "" && hop != 0 && ++depth < 64; hop = parent[hop]) if (hop in mine) ours = 1
                       depth = 0
-                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, 160)
+                      if (!ours && age[row] < 60 && shown++ < 30) print substr(line[row], 1, width)
                     }
                   }'
             }
@@ -1614,6 +1652,15 @@ jobs:
               recorder_probe "$recorder_net_dev counters" recorder_link_counters
             }
             recorder_kernel() { sudo -n journalctl -k --since -3min --no-pager -o short | tail -5; }
+            # The host's network, time, runner, provisioner, login and OOM lines of the last 3 minutes,
+            # the last 40. The match skips the time and host fields, since a host may be named runner….
+            recorder_journal() {
+              local text
+              text="$(sudo -n journalctl --since -3min --no-pager -o short-iso)" || return 1
+              awk '{ entry = $0; sub(/^[^ ]+ [^ ]+ /, "", entry) }
+                tolower(entry) ~ /networkd|networkmanager|dhcp|dhclient|timesyncd|chrony|provjobd|runner|sshd|cloud-init|(^|[^a-z])ena([^a-z]|$)|link|carrier|oom|out of memory|systemd-logind/ { kept[++n] = $0 }
+                END { if (n == 0) print "no matching lines"; for (i = (n > 40 ? n - 39 : 1); i <= n; i++) print kept[i] }' <<< "$text"
+            }
             recorder_phase_end() { awk '/^runtime phase end |^runtime headroom scope events /' nx-gate.log; }
             # df -h for /, /mnt, $TMPDIR and Docker's data root, one line each; an absent one reads
             # unavailable. df's own status decides, with no pipeline, so this holds without pipefail.
@@ -1643,6 +1690,7 @@ jobs:
             recorder_section 'processes started in the last 60 s' recorder_recent
             recorder_section 'task count' pgrep -c .
             recorder_section 'kernel, last 3 minutes' recorder_kernel
+            recorder_section 'journal, last 3 minutes' recorder_journal
             if [ "$1" = final ]; then recorder_section 'phase end and scope events' recorder_phase_end; fi
             recorder_section 'nx-gate.log lines since the previous tick' recorder_log_since
           }
