@@ -131,6 +131,18 @@ function batch(username: string, workPackageId: string, commands: unknown[]): Pr
   return h.call(username, 'POST', `/api/work-packages/${workPackageId}/commands`, { commands });
 }
 
+function clearAssignment(username: string, workItemId: string): Promise<Answer> {
+  return batch(username, own, [
+    { kind: 'setAssignee', workItemId, stepId: ownStep, personId: null },
+  ]);
+}
+
+function changeAllowance(username: string): Promise<Answer> {
+  return h.call(username, 'PATCH', `/api/work-packages/${own}/steps/${ownStep}`, {
+    allowanceBps: 1500,
+  });
+}
+
 async function expectApplied(answer: Answer): Promise<void> {
   expect(answer.status).toBe(200);
   await Promise.resolve();
@@ -218,6 +230,7 @@ describe('after activation', () => {
       'step_definition',
       'step_binding',
       'work_package_step',
+      'command_journal',
       'organization_audit',
       'event_log',
       'event_sequencer',
@@ -232,10 +245,7 @@ describe('after activation', () => {
     expect(
       tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`))
-        .status,
-    ).toBe(500);
+    expect((await changeAllowance('nell')).status).toBe(500);
     expect(
       tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
     ).toEqual(before);
@@ -273,9 +283,16 @@ describe('after activation', () => {
     expect(
       (await h.call('ada', 'PATCH', `/api/work-packages/${own}`, { restricted: true })).status,
     ).toBe(200);
+    h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
+    let demoted = false;
     h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
     h.sqlite.run('DROP TABLE work_package_rank');
     changeAfterResolution = () => {
+      demoted = true;
+      h.sqlite.run(
+        "DELETE FROM access_grant WHERE organization_id='org-a' AND subject_id=? AND scope_kind='work_package' AND scope_id=?",
+        [h.userId('nell'), own],
+      );
       h.sqlite.run(
         "UPDATE organization_membership SET role = 'admin' WHERE organization_id = 'org-a' AND user_id = ?",
         [h.userId('nell')],
@@ -285,18 +302,22 @@ describe('after activation', () => {
       'step_definition',
       'step_binding',
       'work_package_step',
+      'command_journal',
       'organization_audit',
       'event_log',
       'event_sequencer',
     ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
-    expect(
-      await h.call('nell', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`),
-    ).toMatchObject({ status: 403, body: { error: 'forbidden' } });
+    expect(await changeAllowance('nell')).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
+    expect(demoted).toBe(true);
     expect(
       [
         'step_definition',
         'step_binding',
         'work_package_step',
+        'command_journal',
         'organization_audit',
         'event_log',
         'event_sequencer',
@@ -367,6 +388,8 @@ describe('after activation', () => {
       'step_definition',
       'step_binding',
       'work_package_step',
+      'command_journal',
+      'work_item',
       'estimate',
       'assignment',
       'organization_audit',
@@ -446,12 +469,10 @@ describe('after activation', () => {
       bareFailure = cause;
     }
     expect(bareFailure).toBeInstanceOf(Error);
-    expect((bareFailure as Error).message).toContain('Failed query');
+    expect((bareFailure as Error).cause).toBeInstanceOf(Error);
+    expect(((bareFailure as Error).cause as Error).message).toContain('no such table: step');
     expect(readCapturedRows()).toEqual(before);
-    expect(
-      (await h.call('nell', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`))
-        .status,
-    ).toBe(500);
+    expect((await clearAssignment('nell', upstreamRow)).status).toBe(500);
     expect(readCapturedRows()).toEqual(before);
     h.sqlite.run('DROP TRIGGER fail_recovery_fanout');
     let enterPush!: () => void;
@@ -467,11 +488,7 @@ describe('after activation', () => {
       await heldPush;
       return Response.json({ delivered_to_sockets: 0 });
     };
-    const removal = h.call(
-      'nell',
-      'DELETE',
-      `/api/work-packages/${own}/steps/${ownStep}?cascade=true`,
-    );
+    const clearing = clearAssignment('nell', upstreamRow);
     await pushEntered;
     // Proof: moving recovery delivery into its UoW blocked this independent
     // SQLite writer until the held gateway push timed out with SQLITE_BUSY.
@@ -480,7 +497,7 @@ describe('after activation', () => {
     } finally {
       releasePush();
     }
-    expect((await removal).status).toBe(204);
+    expect((await clearing).status).toBe(200);
     expect(audits()).toEqual(initialAudits);
     const [bridgeRecipient, lastRecipient] = downstream;
     const changed = (workPackageId: string, causeWorkPackageId: string) => ({
@@ -501,7 +518,7 @@ describe('after activation', () => {
     ]);
   });
 
-  it('captures a scoped recovery step before removal on the mounted route', async () => {
+  it('captures the old shared assignment before a granted package writer clears it', async () => {
     h.member('org-a', 'nell', 'super_admin', ['org-super-admin']);
     h.bind('nell', 'org-a');
     h.grant('org-a', 'nell', 'package-manager', 'work_package', own);
@@ -538,20 +555,24 @@ describe('after activation', () => {
     const readAudits = () =>
       h.sqlite.query('SELECT * FROM organization_audit ORDER BY rowid').all();
     const beforeAudits = readAudits();
-    const removed = await h.call(
-      'nell',
-      'DELETE',
-      `/api/work-packages/${own}/steps/${ownStep}?cascade=true`,
-    );
-    expect(removed.status).toBe(204);
+    const cleared = await clearAssignment('nell', upstreamRow);
+    expect(cleared.status).toBe(200);
+    expect(
+      h.sqlite
+        .query('SELECT person_id FROM assignment WHERE work_item_id=? AND step_id=?')
+        .all(upstreamRow, ownStep),
+    ).toEqual([]);
+    expect(
+      h.sqlite
+        .query('SELECT realistic FROM estimate WHERE work_item_id=? AND step_id=?')
+        .get(upstreamRow, ownStep),
+    ).toEqual({ realistic: 1 });
     expect(readAudits()).toEqual(beforeAudits);
     const events = h.sqlite
       .query<{ message: string }, [string]>(
         'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
       )
       .all(`work-package:${downstream}`);
-    // Proof: moving the recovery observation after steps.remove made this
-    // mounted DELETE stay 204 but lose its old-step downstream event.
     expect(events.map(({ message }) => JSON.parse(message) as unknown)).toEqual([
       { type: 'elsewhere_changed', workPackageId: downstream, causeWorkPackageId: own },
     ]);
@@ -692,10 +713,7 @@ describe('after activation', () => {
         .status,
     ).toBe(200);
     expect(rows().slice(before.length)).toHaveLength(4);
-    expect(
-      (await h.call('ada', 'DELETE', `/api/work-packages/${own}/steps/${ownStep}?cascade=true`))
-        .status,
-    ).toBe(204);
+    expect((await clearAssignment('ada', upstreamRow)).status).toBe(200);
     expect(rows().slice(before.length)).toHaveLength(5);
   });
 
