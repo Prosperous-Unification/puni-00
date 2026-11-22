@@ -14,7 +14,7 @@ import { bumpWorkItems } from './revision';
 import { stepBlockage } from './schema';
 import { readSqliteBlockagesIn } from './sparse-step-reads';
 import { translateStepBlockageFailure } from './step-blockage-activation';
-import { writingStep } from './step-reference';
+import { readSqliteStepWriteIn } from './step-write';
 
 /** Validates the external storage timestamp without coercion or rounding. */
 function assertBlockedAt(blockedAt: number): void {
@@ -60,26 +60,34 @@ export class StepBlockageRepository implements StepBlockageStore {
   }
 
   async set(blockage: StoredStepBlockage, stamp: WriteStamp): Promise<StepWriteOutcome> {
+    const kept = { ...blockage };
+    const act = { ...stamp };
     // Proof: write validation call removed; fractional write negative failed; watched 2026-10-13.
-    assertBlockedAt(blockage.blockedAt);
-    return writingStep(this.db, blockage.stepId, () =>
-      this.gate.enter(async () => {
-        await Promise.resolve();
-        this.db.transaction((transaction) => {
-          transaction
-            .insert(stepBlockage)
-            .values({ ...blockage, ...auditOnCreate(stamp) })
-            .onConflictDoUpdate({
-              target: [stepBlockage.workItemId, stepBlockage.stepId],
-              set: { blockedAt: blockage.blockedAt, ...auditOnUpdate(stamp) },
-            })
-            .run();
-          bumpWorkItems(transaction, [blockage.workItemId], stamp);
-        });
-      }),
-    ).catch((cause: unknown) => {
+    assertBlockedAt(kept.blockedAt);
+    try {
+      return await this.gate.enter(() =>
+        Promise.resolve(
+          this.db.transaction((transaction): StepWriteOutcome => {
+            const decision = readSqliteStepWriteIn(transaction, kept.workItemId, kept.stepId);
+            // Proof: bypassing the decision made the Source refusal test throw the
+            // native work package mismatch instead of returning unknown_step.
+            if (decision.kind !== 'resolved') return decision.kind;
+            transaction
+              .insert(stepBlockage)
+              .values({ ...kept, ...auditOnCreate(act) })
+              .onConflictDoUpdate({
+                target: [stepBlockage.workItemId, stepBlockage.stepId],
+                set: { blockedAt: kept.blockedAt, ...auditOnUpdate(act) },
+              })
+              .run();
+            bumpWorkItems(transaction, [kept.workItemId], act);
+            return 'written';
+          }),
+        ),
+      );
+    } catch (cause: unknown) {
       throw translateStepBlockageFailure(cause);
-    });
+    }
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {

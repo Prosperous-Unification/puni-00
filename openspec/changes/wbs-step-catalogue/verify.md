@@ -2266,3 +2266,17 @@ Nx typecheck passed.
 - The focused uncached Nx target passed all six step-node-attempt migration
   tests at the named migration and its immediate predecessor, including
   historical timestamp and state constraints and the exact rollback guard.
+
+### SQLite blockage writer scope
+
+- The production Source rejected an absent-step write with the native work
+  package mismatch before the fix. The writer now resolves applicability in
+  the transaction that owns the insert and revision advance. Removing the
+  decision branch reproduced the mismatch in the same test. The restored
+  test proves unknown and out-of-scope distinctions, missing owner refusal,
+  unchanged blockage and revision state on refusal, and a subsequent valid
+  write and readback.
+- The focused uncached Nx SQLite target passed all 35 blockage and activation
+  cases, including native admission and transaction rollback. Devsync also
+  passed uncached Nx lint and the three native heavy-lock checkout scenarios
+  after the test imported the existing dependency statically.
