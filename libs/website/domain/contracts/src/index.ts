@@ -95,6 +95,11 @@ export interface ConversationView {
     (ConversationOperationView & { message: string; answer: ScopingAnswerRequest | null }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
   /**
+   * Null until the request is submitted; the chat then continues on the same draft and
+   * `turnsBefore` counts the saved turns that preceded the submission.
+   */
+  submission: { turnsBefore: number } | null;
+  /**
    * The browser check to solve before the first paid reply; null once the conversation has an
    * admitted operation, and for the demo, disabled and paused providers.
    */

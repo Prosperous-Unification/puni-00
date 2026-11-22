@@ -466,6 +466,7 @@ export function presentScopingReply(
   // Proof: excluding v9 failed puni-scoping-v9 omits; restored v9 keeps the sole catalogue question.
   // Proof: excluding v10 failed mounted v10 question duplication in fresh stream; restored v10 passes stream/store/replay.
   // Proof: excluding v11 failed mounted v11 question duplication in fresh stream; restored v11 passes stream/store/replay.
+  // Proof: excluding v12 failed the v12 omission case in scoping.test.ts.
   // Proof: excluding v8 failed mounted v8 fresh stream with duplicate question prose; restored v8 passes stream/store/replay and v1–v7 history.
   // Proof: the v7 mounted stream/store/replay failed with a duplicate question when v7 was absent; bypassing the identity fence failed historical v1–v5/opaque mounted replay.
   if (
@@ -474,7 +475,8 @@ export function presentScopingReply(
       promptVersion === 'puni-scoping-v8' ||
       promptVersion === 'puni-scoping-v9' ||
       promptVersion === 'puni-scoping-v10' ||
-      promptVersion === 'puni-scoping-v11') &&
+      promptVersion === 'puni-scoping-v11' ||
+      promptVersion === 'puni-scoping-v12') &&
     /[?？؟]/u.test(reply.message)
   )
     // Proof: bypassing omission failed the mounted duplicate-question sole-visible-question assertion.
