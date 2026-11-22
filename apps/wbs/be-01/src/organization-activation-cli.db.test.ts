@@ -6,6 +6,7 @@ import { stripVTControlCharacters } from 'node:util';
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { runMigrations } from '@wbs/store-sqlite/migrate';
 import { OWNED_ROOT_KINDS } from '@wbs/store-sqlite/organization-ownership';
+import { copyRecoveryPrefix } from '@wbs/store-sqlite/testing/recovery-state';
 import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
 
 import { TEST_MACHINE_GRANT_ENV } from './testing/machine-grant-fixture';
@@ -14,7 +15,7 @@ import { writeMcpStoreFixture } from './testing/mcp-store-fixture';
 setDefaultTimeout(30_000);
 
 const cli = new URL('./organization-activation-cli.ts', import.meta.url).pathname;
-const migrations = new URL('../drizzle', import.meta.url).pathname;
+const LEGACY_ACTIVATION_SCHEMA = '20261110100000_rename_project_to_work_package';
 
 /** be-01's machine grant settings, which activation requires beside it (exit 8 without). */
 const GRANT_SETTINGS: Record<string, string> = { ...TEST_MACHINE_GRANT_ENV };
@@ -62,7 +63,7 @@ const FIXTURE = [
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'organization-activation-cli-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, migrations);
+  runMigrations(path, copyRecoveryPrefix(directory, LEGACY_ACTIVATION_SCHEMA));
   sqlite(FIXTURE);
   mcpStore = join(directory, 'mcp-session.sqlite');
   writeMcpStoreFixture(mcpStore, 1);

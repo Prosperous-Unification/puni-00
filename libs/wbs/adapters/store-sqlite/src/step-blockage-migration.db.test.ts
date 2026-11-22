@@ -7,20 +7,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const WRITER_ACTIVATION = '20261014140000_add_step_blockage_activation';
 const MIGRATION = '20261013140000_add_step_node_blockages';
 const BASELINE = '20261012130000_add_step_estimate_unit';
 let directory: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), 'wbs-step-blockage-migration-'));
   path = join(directory, 'plan.db');
-  runMigrations(path, FOLDER);
-  // Exercise the earlier migration's own rollback guard independently of receipt retention.
-  rollbackTo(path, FOLDER, '20261014140000_add_step_blockage_activation');
+  // Use the original activation schema, before the separate rollback receipt was introduced.
+  migrations = copyRecoveryPrefix(directory, WRITER_ACTIVATION);
+  runMigrations(path, migrations);
   activateTestStepBlockages(path);
   const sqlite = openDatabase(path);
   try {
@@ -28,13 +30,13 @@ beforeEach(() => {
       "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u','owner','x',1)",
     );
     sqlite.run(
-      "INSERT INTO work_package (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
+      "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','Plan','u',0,1),('foreign','Foreign','u',0,1)",
     );
     sqlite.run(
-      "INSERT INTO step (id,work_package_id,name,position) VALUES ('dev','p','Dev',1),('foreign','foreign','Dev',1)",
+      "INSERT INTO step (id,project_id,name,position) VALUES ('dev','p','Dev',1),('foreign','foreign','Dev',1)",
     );
     sqlite.run(
-      "INSERT INTO work_item (id,work_package_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
+      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('a','p','A',1,0),('b','p','B',2,0)",
     );
   } finally {
     sqlite.close();
@@ -86,14 +88,14 @@ describe(MIGRATION, () => {
       expect(() => insert(sqlite)).toThrow(/UNIQUE/);
       expect(() => insert(sqlite, 'gone')).toThrow(/FOREIGN KEY/);
       expect(() => insert(sqlite, 'b', 'gone')).toThrow(/FOREIGN KEY/);
-      expect(() => insert(sqlite, 'b', 'foreign')).toThrow(/step blockage workPackage mismatch/);
+      expect(() => insert(sqlite, 'b', 'foreign')).toThrow(/step blockage project mismatch/);
       expect(() =>
         sqlite.run(
           "INSERT INTO step_blockage (work_item_id,step_id,blocked_at,created_by) VALUES ('b','dev',1,'gone')",
         ),
       ).toThrow(/FOREIGN KEY/);
       sqlite.run(
-        "INSERT INTO work_item (id,work_package_id,parent_id,name,position,revision) VALUES ('child','p','b','Child',1,0)",
+        "INSERT INTO work_item (id,project_id,parent_id,name,position,revision) VALUES ('child','p','b','Child',1,0)",
       );
       expect(() => insert(sqlite, 'b')).toThrow(/step blockage owner is not a leaf/);
       expect(() =>
@@ -101,7 +103,7 @@ describe(MIGRATION, () => {
       ).toThrow(/step blockage owner is not a leaf/);
       expect(() =>
         sqlite.run("UPDATE step_blockage SET step_id = 'foreign' WHERE work_item_id = 'a'"),
-      ).toThrow(/step blockage workPackage mismatch/);
+      ).toThrow(/step blockage project mismatch/);
     });
   });
 
@@ -123,7 +125,7 @@ describe(MIGRATION, () => {
 
   it('refuses rollback over a fact, keeping the schema and migration ledger', () => {
     withDatabase((sqlite) => insert(sqlite));
-    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
+    expect(() => rollbackTo(path, migrations, BASELINE)).toThrow(
       /stopped-writer recovery integration required/,
     );
     withDatabase((sqlite) => {
@@ -137,8 +139,8 @@ describe(MIGRATION, () => {
   });
 
   it('rolls an empty table back and reapplies without changing existing plan rows', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
-      '20261014140000_add_step_blockage_activation',
+    expect(rollbackTo(path, migrations, BASELINE)).toEqual([
+      WRITER_ACTIVATION,
       '20261014130000_add_shared_people_restore_receipts',
       '20261014120000_add_shared_people_restore_approvals',
       MIGRATION,
@@ -148,7 +150,7 @@ describe(MIGRATION, () => {
         sqlite.query("SELECT name FROM sqlite_master WHERE name = 'step_blockage'").all(),
       ).toEqual([]);
     });
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     activateTestStepBlockages(path);
     withDatabase((sqlite) => {
       insert(sqlite);

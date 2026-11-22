@@ -5,24 +5,29 @@ import { join } from 'node:path';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { type Drizzle, openDatabase, openDrizzle } from './db';
+import { type Connection, type Drizzle, openConnection, openDatabase } from './db';
 import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { backfillStepCodes } from './step-code-backfill';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const LEGACY_BACKFILL_SCHEMA = '20261110100000_rename_project_to_work_package';
 
 let dir: string;
 let db: Drizzle;
+let connection: Connection | undefined;
 let sqlite: Database;
+let raw: Database | undefined;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-code-backfill-'));
   const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  db = openDrizzle(path);
+  runMigrations(path, copyRecoveryPrefix(dir, LEGACY_BACKFILL_SCHEMA));
+  connection = openConnection(path);
+  db = connection.db;
   sqlite = openDatabase(path);
+  raw = sqlite;
   sqlite.run(
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
   );
@@ -35,7 +40,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  sqlite.close();
+  try {
+    raw?.close();
+    raw = undefined;
+  } finally {
+    connection?.close();
+    connection = undefined;
+  }
   rmSync(dir, { recursive: true, force: true });
 });
 

@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
+import { copyRecoveryPrefix } from './testing/recovery-state';
 
-const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+const PREFIX = '20261103110000_add_initial_access_offers';
 const STEP_CODE = '20260927150000_add_step_code';
 /** The step allowance column `add-work-package-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
@@ -25,11 +26,13 @@ const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
+let migrations: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-step-code-migration-'));
   path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
+  migrations = copyRecoveryPrefix(dir, PREFIX);
+  runMigrations(path, migrations);
 });
 
 afterEach(() => {
@@ -76,7 +79,7 @@ function seedWorkPackages(sqlite: Database): void {
   );
   for (const id of ['p', 'q']) {
     sqlite.run(
-      'INSERT INTO work_package (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+      'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
         ` VALUES ('${id}', 'Work package ${id}', 'u', 0, 'pert', NULL, 0, 1)`,
     );
   }
@@ -87,7 +90,7 @@ describe(STEP_CODE, () => {
     const code = readStepColumns().find((column) => column.name === 'code');
     expect(code).toEqual({ name: 'code', notnull: 0, dflt_value: null });
     expect(readStepIndexSql()).toContain(
-      'CREATE UNIQUE INDEX `step_work_package_code` ON `step` (`work_package_id`,`code`) WHERE `code` IS NOT NULL',
+      'CREATE UNIQUE INDEX `step_project_code` ON `step` (`project_id`,`code`) WHERE `code` IS NOT NULL',
     );
   });
 
@@ -97,8 +100,8 @@ describe(STEP_CODE, () => {
     // as the modeled uncoded state until the post-swap backfill.
     withDatabase((sqlite) => {
       seedWorkPackages(sqlite);
-      sqlite.run("INSERT INTO step (id, work_package_id, name) VALUES ('s1', 'p', 'Design')");
-      sqlite.run("INSERT INTO step (id, work_package_id, name) VALUES ('s2', 'p', 'Build')");
+      sqlite.run("INSERT INTO step (id, project_id, name) VALUES ('s1', 'p', 'Design')");
+      sqlite.run("INSERT INTO step (id, project_id, name) VALUES ('s2', 'p', 'Build')");
       const codes = sqlite
         .query<{ code: string | null }, []>('SELECT code FROM step ORDER BY id')
         .all();
@@ -114,26 +117,20 @@ describe(STEP_CODE, () => {
   it('refuses a code already held in the work package, and allows it in another work package', () => {
     withDatabase((sqlite) => {
       seedWorkPackages(sqlite);
-      sqlite.run(
-        "INSERT INTO step (id, work_package_id, name, code) VALUES ('s1', 'p', 'QA', 'qa')",
-      );
-      sqlite.run(
-        "INSERT INTO step (id, work_package_id, name, code) VALUES ('s2', 'q', 'QA', 'qa')",
-      );
+      sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'QA', 'qa')");
+      sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s2', 'q', 'QA', 'qa')");
       expect(() =>
         sqlite.run(
-          "INSERT INTO step (id, work_package_id, name, code) VALUES ('s3', 'p', 'Testing', 'qa')",
+          "INSERT INTO step (id, project_id, name, code) VALUES ('s3', 'p', 'Testing', 'qa')",
         ),
-      ).toThrow('UNIQUE constraint failed: step.work_package_id, step.code');
+      ).toThrow('UNIQUE constraint failed: step.project_id, step.code');
     });
   });
 
   it('rolls back the index and the column and re-applies onto the rolled-back file', () => {
     withDatabase((sqlite) => {
       seedWorkPackages(sqlite);
-      sqlite.run(
-        "INSERT INTO step (id, work_package_id, name, code) VALUES ('s1', 'p', 'Dev', 'dev')",
-      );
+      sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'Dev', 'dev')");
     });
     expect(readStepColumns()).toContainEqual({
       name: 'estimate_unit',
@@ -142,7 +139,7 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+    expect(rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toEqual([
       '20261103110000_add_initial_access_offers',
       '20261102130000_widen_organization_audit_access',
       '20261102120000_add_access_grants',
@@ -161,9 +158,9 @@ describe(STEP_CODE, () => {
       '20261023140000_add_measure',
       '20261023100000_add_claim_lease',
       '20261022213000_add_optimization_boundary_certificates',
-      '20261022212000_add_cross_work_package_dependency_activation',
+      '20261022212000_add_cross_project_dependency_activation',
       '20261022211000_add_external_dependencies',
-      '20261022210000_add_work_package_abbreviations',
+      '20261022210000_add_project_abbreviations',
       '20261022140100_widen_organization_audit_compute_providers',
       '20261022140000_add_resource_provider',
       '20261022130100_widen_organization_audit_organization_limits',
@@ -193,13 +190,13 @@ describe(STEP_CODE, () => {
       '20261011120000_add_browser_auth_lifecycle',
       '20261005110000_add_shared_people',
       '20261001010000_add_browser_credential_revocations',
-      '20260929180000_add_work_package_rank',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
-      '20260928010000_add_work_package_solution',
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
@@ -220,7 +217,7 @@ describe(STEP_CODE, () => {
           name !== 'estimate_unit',
       ),
     );
-    expect(readStepIndexSql().some((sql) => sql?.includes('step_work_package_code') === true)).toBe(
+    expect(readStepIndexSql().some((sql) => sql?.includes('step_project_code') === true)).toBe(
       false,
     );
     // The step itself stays: what a rollback loses is the code, never the step.
@@ -228,7 +225,7 @@ describe(STEP_CODE, () => {
       withDatabase((sqlite) => sqlite.query<{ id: string }, []>('SELECT id FROM step').all()),
     ).toEqual([{ id: 's1' }]);
 
-    runMigrations(path, FOLDER);
+    runMigrations(path, migrations);
     expect(readStepColumns().map((column) => column.name)).toEqual(before);
     expect(
       withDatabase((sqlite) =>
@@ -245,17 +242,15 @@ describe(STEP_CODE, () => {
 
   /**
    * The rollback states what it drops rather than tolerating an absent index:
-   * a schema missing `step_work_package_code` is not the one this release made.
+   * a schema missing `step_project_code` is not the one this release made.
    *
    * Proof: with `IF EXISTS` put back on the `DROP INDEX` in `down.sql`, this
    * case fails on `Received function did not throw` — the rollback answered the
    * applied list instead of refusing; watched 2026-09-27.
    */
   it('refuses to roll back a schema whose code index is already gone', () => {
-    withDatabase((sqlite) => sqlite.run('DROP INDEX step_work_package_code'));
+    withDatabase((sqlite) => sqlite.run('DROP INDEX step_project_code'));
 
-    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow(
-      'step_work_package_code',
-    );
+    expect(() => rollbackTo(path, migrations, ORGANIZATION_OWNERSHIP)).toThrow('step_project_code');
   });
 });

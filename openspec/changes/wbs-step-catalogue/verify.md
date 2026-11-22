@@ -2363,3 +2363,16 @@ Nx typecheck passed.
   and organization metadata in the rollback snapshots. The exact outbox
   subscription and postcommit hold still prove delivery and rollback through
   the production writer. Scoped lint and formatting passed.
+
+### Historical activation, step code and blockage migration fixtures
+
+- The native organization-activation CLI passed all 31 tests with 192
+  assertions. It uses the immutable package-rename prefix because the
+  legacy operator requires the outgoing physical owner and solution
+  columns. The initial sandboxed run denied child stderr writes with
+  EPERM, so the proof uses real native child pipes.
+- The focused uncached SQLite Nx target passed all 17 historical step
+  code, step code backfill, and blockage migration tests. The test inputs
+  retain the real original project names, multi-migration rollback list,
+  historical step table, and precise guards. The legacy backfill
+  exercises both native connections and its durable event log.
